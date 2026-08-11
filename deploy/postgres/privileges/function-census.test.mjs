@@ -26,6 +26,42 @@ const TEST_ONLY = [
   'app.resolve_operator_probe_incidents(text)',
   'app.set_saas_isolation_test_scenario(text)',
 ].sort();
+const GENUINE_PRE_SESSION_FUNCTIONS = `
+auth_channel_link_lock_unused_secret
+auth_channel_link_mark_secret_used
+auth_channel_link_mark_secret_used_if_unused
+auth_channel_link_read_secret
+auth_email_setup_mark_used
+auth_email_setup_read
+auth_login_token_confirm
+auth_login_token_create
+auth_login_token_mark_session_issued
+auth_login_token_read
+auth_oauth_find_user
+auth_oauth_upsert_binding
+auth_rate_limit_count
+auth_rate_limit_prune_key
+auth_rate_limit_prune_scope
+auth_rate_limit_record
+email_auth_find_email_otp_lock
+email_auth_register_email_otp_lockout
+email_auth_reset_email_otp_lockout
+get_public_reference_baseline
+get_web_push_vapid_public_key
+is_organization_slug_available
+is_smtp_outbound_configured
+phone_auth_find_latest_challenge_created_at
+phone_auth_find_otp_lock
+phone_auth_register_otp_lockout
+phone_auth_reset_otp_lockout
+phone_challenge_store_delete
+phone_challenge_store_delete_by_phone
+phone_challenge_store_increment_attempts
+phone_challenge_store_read
+phone_challenge_store_upsert
+phone_otp_public_booking_consume_challenge
+phone_otp_public_booking_issue_challenge
+`.trim().split('\n');
 
 const functionsFor = (database) => Object.entries(declaration.portContext.functions)
   .filter(([, fn]) => !fn.databases || fn.databases.includes(database));
@@ -101,6 +137,16 @@ test('all 42 seam owners and function callers have the closed role shape', () =>
   }
 });
 
+test('all 34 genuine pre-session roots have app_pre_session as their only caller', () => {
+  assert.equal(GENUINE_PRE_SESSION_FUNCTIONS.length, 34);
+  for (const functionName of GENUINE_PRE_SESSION_FUNCTIONS) {
+    const matches = Object.entries(BUSINESS_SEAM_FUNCTIONS)
+      .filter(([signature]) => signature.startsWith(`app.${functionName}(`));
+    assert.equal(matches.length, 1, functionName);
+    assert.deepEqual(matches[0][1].execute, ['app_pre_session'], matches[0][0]);
+  }
+});
+
 test('dedicated bot relation carries its runtime resolver and non-runtime trigger as two seams', () => {
   for (const database of DATABASES) {
     const access = declaration.databases[database].tables['public.clinic_dedicated_bot_bindings'].access;
@@ -141,6 +187,9 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     const first = generateFunctionCensusSql(declaration, database);
     assert.equal(generateFunctionCensusSql(declaration, database), first);
     assert.match(first, /function census catalog mismatch/);
+    assert.match(first, /n\.nspname IN \('public', 'app', 'integrator', 'app_ext', 'drizzle'\)/);
+    assert.match(first, /am\.member = 'app_seam_dedicated_bot_owner'::regrole/);
+    assert.match(first, /am\.roleid = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /REVOKE ALL ON FUNCTION app\.resolve_clinic_dedicated_bot_organization\(text,text\) FROM PUBLIC/);
     assert.doesNotMatch(first, /install_signed_context|release_principal_context|reset_principal_context/);
     for (const signature of TEST_ONLY) {

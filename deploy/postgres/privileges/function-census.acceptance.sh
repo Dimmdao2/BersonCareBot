@@ -51,6 +51,17 @@ expect_red() {
   printf 'fault %s/%s: %s\n' "$declared_db" "$label" "$(head -1 "$output")"
 }
 
+expect_generated_red() {
+  local connect_db=$1 label=$2 sql_file=$3
+  local output="$work_dir/$connect_db.$label.generated.out"
+  set +e
+  psql_db "$connect_db" -1 -f "$sql_file" >"$output" 2>&1
+  local rc=$?
+  set -e
+  [[ $rc -ne 0 ]] || fail "$connect_db/$label generated closure stayed green"
+  printf 'generated fault %s/%s: %s\n' "$connect_db" "$label" "$(grep -m1 'ERROR:' "$output")"
+}
+
 proof_database() {
   local db=$1 expected_definers=$2
   local sql_file="$work_dir/$db.functions.sql"
@@ -73,17 +84,32 @@ proof_database() {
     psql_db postgres -c "CREATE DATABASE \"$clone\" TEMPLATE \"$db\"" >/dev/null
     psql_db "$clone" -c "$mutation" >/dev/null
     expect_red "$db" "$clone" "$label"
+    case "$label" in
+      extra_public)
+        expect_generated_red "$clone" "$label" "$sql_file"
+        ;;
+      rogue_login_execute|owner_as_member|member_of_owner)
+        psql_db "$clone" -1 -f "$sql_file" >/dev/null
+        verify "$db" "$clone"
+        printf 'repair %s/%s: generated reconciliation restored the exact catalog\n' "$db" "$label"
+        ;;
+    esac
     psql_db postgres -c "DROP DATABASE \"$clone\"" >/dev/null
   done <<'FAULTS'
 missing|DROP FUNCTION app.accept_org_invite(text,uuid,text)
 extra|CREATE FUNCTION app.function_census_extra() RETURNS void LANGUAGE sql SECURITY DEFINER AS 'SELECT NULL::void'
+extra_public|CREATE FUNCTION public.function_census_extra() RETURNS void LANGUAGE sql SECURITY DEFINER AS 'SELECT NULL::void'
 owner|ALTER FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) OWNER TO app_object_owner
 public|GRANT EXECUTE ON FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) TO PUBLIC
 execute|GRANT EXECUTE ON FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) TO app_service
+rogue_login_execute|DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='function_census_rogue') THEN CREATE ROLE function_census_rogue LOGIN; END IF; END $$; GRANT EXECUTE ON FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) TO function_census_rogue
+pre_session_missing|REVOKE EXECUTE ON FUNCTION app.auth_rate_limit_count(text,text) FROM app_pre_session
+owner_as_member|GRANT app_service TO app_seam_dedicated_bot_owner
+member_of_owner|GRANT app_seam_dedicated_bot_owner TO app_service
 search_path|ALTER FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) SET search_path TO public
 security|ALTER FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) SECURITY INVOKER
 FAULTS
-  echo "function census: $db PASS ($actual_definers definers, 42 owners, seven red mutations)"
+  echo "function census: $db PASS ($actual_definers definers, 42 owners, twelve red mutations)"
 }
 
 cd "$repo_root"

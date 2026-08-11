@@ -1100,7 +1100,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
     "typedArgs": [
@@ -1136,7 +1136,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
     "typedArgs": [
@@ -1175,7 +1175,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
     "typedArgs": [
@@ -1213,7 +1213,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
     "typedArgs": [
@@ -2490,7 +2490,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
     "typedArgs": [
@@ -2760,7 +2760,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
     "typedArgs": [
@@ -2796,7 +2796,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_email_otp_owner",
     "typedArgs": [
@@ -3782,8 +3782,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient",
-      "app_staff"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_catalog_public_owner",
     "typedArgs": [
@@ -3940,8 +3939,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_operational_scheduler",
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
@@ -4133,7 +4131,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_public_slug_owner",
     "typedArgs": [
@@ -4263,7 +4261,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
@@ -7054,7 +7052,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
     "typedArgs": [
@@ -7109,7 +7107,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_otp_owner",
     "typedArgs": [

@@ -33,6 +33,7 @@ export const GENERATOR_VERSION = 1;
 
 /** Канонический порядок привилегий (стабильный дифф). */
 const PRIV_ORDER = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+const MANAGED_APPLICATION_SCHEMAS = ['public', 'app', 'integrator', 'app_ext', 'drizzle'];
 
 /** Ошибка «декларация неполна» — несёт перечень мест. */
 export class DeclarationGapError extends Error {
@@ -625,7 +626,13 @@ function emitRolconfig(out, roleName, rolconfig, site) {
   }
 }
 
-function emitMembershipRevokeToEmpty(out, roleName) {
+function isSeamOwnerName(roleName) {
+  return /^app_seam_.+_owner$/.test(roleName)
+    || roleName === 'saas_telemetry_owner'
+    || roleName === 'saas_system_health_owner';
+}
+
+function emitMembershipRevokeToEmpty(out, roleName, bothDirections = false) {
   out.push(
     'DO $bcb$',
     'DECLARE m record;',
@@ -638,6 +645,20 @@ function emitMembershipRevokeToEmpty(out, roleName) {
     'END',
     '$bcb$;',
   );
+  if (bothDirections) {
+    out.push(
+      'DO $bcb$',
+      'DECLARE m record;',
+      'BEGIN',
+      '  FOR m IN SELECT pg_catalog.pg_get_userbyid(am.roleid) AS granted_role',
+      '             FROM pg_catalog.pg_auth_members am',
+      `            WHERE am.member = ${lit(roleName)}::regrole ORDER BY 1 LOOP`,
+      `    EXECUTE pg_catalog.format('REVOKE %I FROM %I', m.granted_role, ${lit(roleName)});`,
+      '  END LOOP;',
+      'END',
+      '$bcb$;',
+    );
+  }
 }
 
 function revokeList(names) {
@@ -677,16 +698,24 @@ export function generateFunctionCensusSql(declaration, dbName) {
   const managed = managedRoleNames(declaration);
   const revokeTargets = (owner) => [...new Set([...managed, ...logins.keys()])].filter((role) => role !== owner).sort();
   const databaseFunctions = functionEntriesForDatabase(context, dbName).sort(([a], [b]) => a.localeCompare(b));
+  const seamOwners = [...new Set(databaseFunctions
+    .filter(([, fn]) => fn.security === 'DEFINER')
+    .map(([, fn]) => fn.owner)
+    .filter(isSeamOwnerName))].sort();
+  const managedSchemasSql = MANAGED_APPLICATION_SCHEMAS.map(lit).join(', ');
   const out = [
     '-- Exact per-database function census: revoke first, then restore only declared identities.',
     'DO $bcb$', 'DECLARE f record; r record;', 'BEGIN',
     "  FOR f IN SELECT n.nspname, p.proname, p.proowner, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
-    "            WHERE n.nspname IN ('app', 'app_ext', 'public', 'integrator', 'drizzle') ORDER BY 1, 2, 3 LOOP",
+    `            WHERE n.nspname IN (${managedSchemasSql})`,
+    "              AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid = 'pg_proc'::pg_catalog.regclass AND d.objid = p.oid AND d.deptype = 'e') ORDER BY 1, 2, 3 LOOP",
     "    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM PUBLIC', f.nspname, f.proname, f.args);",
     '    FOR r IN SELECT rolname FROM pg_catalog.pg_roles WHERE oid <> f.proowner ORDER BY rolname LOOP',
     "      EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM %I', f.nspname, f.proname, f.args, r.rolname);",
     '    END LOOP;', '  END LOOP;', 'END', '$bcb$;', '',
   ];
+  for (const owner of seamOwners) emitMembershipRevokeToEmpty(out, owner, true);
+  if (seamOwners.length > 0) out.push('');
   for (const [signature, fn] of databaseFunctions) {
     out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
     out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
@@ -706,9 +735,8 @@ export function generateFunctionCensusSql(declaration, dbName) {
   }
   const rows = databaseFunctions.map(([signature, fn]) =>
     `(${lit(signature)}, ${lit(fn.owner)}, ${lit(fn.returns)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${functionExecute(db, fn).map(lit).join(', ')}]::name[])`);
-  const principalsSql = [...new Set([...managed, ...logins.keys()])].sort().map(lit).join(', ');
   out.push(
-    '-- Bilateral catalog check for every declared signature and EXECUTE principal.',
+    '-- Bilateral catalog check for every declared signature, every direct EXECUTE grantee, and every managed-schema definer.',
     'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
     '  WITH expected(sig, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (VALUES',
     rows.map((row) => `    ${row}`).join(',\n'),
@@ -716,11 +744,19 @@ export function generateFunctionCensusSql(declaration, dbName) {
     '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR pg_catalog.format_type(p.prorettype, NULL) <> e.result_type OR p.prosecdef <> e.is_definer',
     '         OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism',
     "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config",
-    "         OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')",
-    "         OR EXISTS (SELECT 1 FROM unnest(e.execute_roles) r WHERE NOT pg_catalog.has_function_privilege(r, e.sig, 'EXECUTE'))",
-    ...(principalsSql ? [`         OR EXISTS (SELECT 1 FROM unnest(ARRAY[${principalsSql}]::name[]) r WHERE r <> e.owner_name::name AND NOT r = ANY(e.execute_roles) AND pg_catalog.has_function_privilege(r, e.sig, 'EXECUTE'))`] : []),
+    "         OR EXISTS (SELECT 1 FROM unnest(e.execute_roles) r WHERE r <> e.owner_name::name AND NOT EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a JOIN pg_catalog.pg_roles granted ON granted.oid = a.grantee WHERE a.privilege_type = 'EXECUTE' AND granted.rolname = r))",
+    "         OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a LEFT JOIN pg_catalog.pg_roles granted ON granted.oid = a.grantee WHERE a.privilege_type = 'EXECUTE' AND a.grantee <> p.proowner AND (a.grantee = 0 OR granted.rolname IS NULL OR NOT granted.rolname = ANY(e.execute_roles)))",
     '       LIMIT 1;',
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'function census catalog mismatch: %', bad; END IF;",
+    "  WITH expected(sig) AS (VALUES",
+    databaseFunctions.map(([signature]) => `    (${lit(signature)})`).join(',\n'),
+    "  ) SELECT pg_catalog.format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',')) INTO bad",
+    '      FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
+    `     WHERE p.prosecdef AND n.nspname IN (${managedSchemasSql})`,
+    "       AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid = 'pg_proc'::pg_catalog.regclass AND d.objid = p.oid AND d.deptype = 'e')",
+    "       AND NOT EXISTS (SELECT 1 FROM expected e WHERE p.oid = pg_catalog.to_regprocedure(e.sig))",
+    '     LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared SECURITY DEFINER function: %', bad; END IF;",
     'END', '$bcb$;', '',
   );
   return out.join('\n');
@@ -858,7 +894,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     if (role.kind === 'superuser') continue;
     if (Array.isArray(role.members) && role.members.length === 0) {
       out.push(`-- ${roleName}: members: [] — ноль членов в стационаре (SCHEME §C/§E).`);
-      emitMembershipRevokeToEmpty(out, roleName);
+      emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName));
     }
     for (const m of [...(role.grantedTo ?? [])].sort((a, b) => a.role.localeCompare(b.role))) {
       if (isLogin(m.role)) {
@@ -1082,7 +1118,8 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       '  SELECT pg_catalog.format(\'%I.%I(%s)\', n.nspname, p.proname,',
       "           pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',')) INTO f",
       '    FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
-      "   WHERE p.prosecdef AND n.nspname IN ('app', 'app_ext')",
+      `   WHERE p.prosecdef AND n.nspname IN (${MANAGED_APPLICATION_SCHEMAS.map(lit).join(', ')})`,
+      "     AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid = 'pg_proc'::pg_catalog.regclass AND d.objid = p.oid AND d.deptype = 'e')",
       ...(exactDefiners.length > 0 ? [`     AND pg_catalog.format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',')) NOT IN (${exactDefiners.join(', ')})`] : []),
       '   LIMIT 1;',
       "  IF f IS NOT NULL THEN RAISE EXCEPTION 'undeclared SECURITY DEFINER function: %', f; END IF;",

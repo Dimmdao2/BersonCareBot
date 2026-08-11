@@ -52,7 +52,8 @@ const functionQ = `
 WITH ${expectedFunctionSql}, ${principalSql}
 SELECT 'undeclared_definer:' || format('%I.%I(%s)',n.nspname,p.proname,replace(oidvectortypes(p.proargtypes),', ',','))
   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
- WHERE p.prosecdef AND n.nspname IN ('app','app_ext')
+ WHERE p.prosecdef AND n.nspname = ANY(ARRAY[${managedSchemas.map(lit).join(', ')}])
+   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
    AND NOT EXISTS (SELECT 1 FROM expected_function e WHERE p.oid=to_regprocedure(e.signature))
 UNION ALL
 SELECT 'missing_or_mismatched_function:' || e.signature FROM expected_function e LEFT JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
@@ -60,9 +61,18 @@ SELECT 'missing_or_mismatched_function:' || e.signature FROM expected_function e
     OR p.prosecdef <> e.is_definer OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism
     OR array_to_string(coalesce(p.proconfig, ARRAY[]::text[]), E'\\x1f') <> e.config
 UNION ALL
-SELECT 'function_execute_acl:' || e.signature || ':' || r.rolname FROM expected_function e CROSS JOIN principal r
- WHERE r.rolname <> 'postgres' AND r.rolname <> e.owner_name
-   AND EXISTS (SELECT 1 FROM aclexplode(coalesce((SELECT p.proacl FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature)), acldefault('f', (SELECT p.proowner FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature))))) a WHERE a.grantee=r.grantee_oid AND a.privilege_type='EXECUTE') <> (r.rolname = ANY(string_to_array(e.execute_roles, E'\\x1f')))
+SELECT 'unexpected_function_execute_acl:' || e.signature || ':' || coalesce(granted.rolname,'PUBLIC')
+  FROM expected_function e JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
+ CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f',p.proowner))) a
+  LEFT JOIN pg_roles granted ON granted.oid=a.grantee
+ WHERE a.privilege_type='EXECUTE' AND a.grantee <> p.proowner
+   AND (a.grantee=0 OR granted.rolname IS NULL OR NOT granted.rolname=ANY(string_to_array(e.execute_roles,E'\\x1f')))
+UNION ALL
+SELECT 'missing_function_execute_acl:' || e.signature || ':' || expected_role
+  FROM expected_function e JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
+ CROSS JOIN LATERAL unnest(string_to_array(e.execute_roles,E'\\x1f')) expected_role
+ WHERE expected_role <> e.owner_name
+   AND NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a JOIN pg_roles granted ON granted.oid=a.grantee WHERE a.privilege_type='EXECUTE' AND granted.rolname=expected_role)
 UNION ALL
 SELECT 'unsafe_seam_owner:' || r.rolname FROM pg_roles r
  WHERE (r.rolname LIKE 'app_seam_%_owner' OR r.rolname IN ('saas_telemetry_owner','saas_system_health_owner'))
@@ -71,6 +81,7 @@ UNION ALL
 SELECT 'seam_owner_membership:' || owner.rolname || ':' || member.rolname
   FROM pg_auth_members m JOIN pg_roles owner ON owner.oid=m.roleid JOIN pg_roles member ON member.oid=m.member
  WHERE owner.rolname LIKE 'app_seam_%_owner' OR owner.rolname IN ('saas_telemetry_owner','saas_system_health_owner')
+    OR member.rolname LIKE 'app_seam_%_owner' OR member.rolname IN ('saas_telemetry_owner','saas_system_health_owner')
 ORDER BY 1;`;
 const fullQ = `
 WITH expected_relation(identity) AS (${values(expectedRelations.map((value) => `(${lit(value)})`))}),
@@ -97,7 +108,8 @@ SELECT 'permissive_using_true:' || p.schemaname || '.' || p.tablename || ':' || 
   FROM pg_policies p WHERE p.permissive='PERMISSIVE' AND (coalesce(p.qual,'') ~ '^\\(?true\\)?$' OR coalesce(p.with_check,'') ~ '^\\(?true\\)?$')
 UNION ALL
 SELECT 'undeclared_function:' || n.nspname || '.' || p.proname || '(' || replace(pg_get_function_identity_arguments(p.oid), ', ', ',') || ')'
-  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('app','app_ext') AND p.prosecdef
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname = ANY(ARRAY[${managedSchemas.map(lit).join(', ')}]) AND p.prosecdef
+   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
    AND NOT EXISTS (SELECT 1 FROM expected_function e WHERE p.oid=to_regprocedure(e.signature))
 UNION ALL
 SELECT 'missing_or_mismatched_function:' || e.signature FROM expected_function e LEFT JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
@@ -105,9 +117,18 @@ SELECT 'missing_or_mismatched_function:' || e.signature FROM expected_function e
     OR p.prosecdef <> e.is_definer OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism
     OR array_to_string(coalesce(p.proconfig, ARRAY[]::text[]), E'\\x1f') <> e.config
 UNION ALL
-SELECT 'function_execute_acl:' || e.signature || ':' || r.rolname FROM expected_function e CROSS JOIN principal r
- WHERE r.rolname <> 'postgres' AND r.rolname <> e.owner_name
-   AND EXISTS (SELECT 1 FROM aclexplode(coalesce((SELECT p.proacl FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature)), acldefault('f', (SELECT p.proowner FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature))))) a WHERE a.grantee=r.grantee_oid AND a.privilege_type='EXECUTE') <> (r.rolname = ANY(string_to_array(e.execute_roles, E'\\x1f')))
+SELECT 'unexpected_function_execute_acl:' || e.signature || ':' || coalesce(granted.rolname,'PUBLIC')
+  FROM expected_function e JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
+ CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f',p.proowner))) a
+  LEFT JOIN pg_roles granted ON granted.oid=a.grantee
+ WHERE a.privilege_type='EXECUTE' AND a.grantee <> p.proowner
+   AND (a.grantee=0 OR granted.rolname IS NULL OR NOT granted.rolname=ANY(string_to_array(e.execute_roles,E'\\x1f')))
+UNION ALL
+SELECT 'missing_function_execute_acl:' || e.signature || ':' || expected_role
+  FROM expected_function e JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
+ CROSS JOIN LATERAL unnest(string_to_array(e.execute_roles,E'\\x1f')) expected_role
+ WHERE expected_role <> e.owner_name
+   AND NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a JOIN pg_roles granted ON granted.oid=a.grantee WHERE a.privilege_type='EXECUTE' AND granted.rolname=expected_role)
 UNION ALL
 SELECT 'table_acl:' || n.nspname || '.' || c.relname || ':' || r.rolname || ':' || privilege_name
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN principal r
@@ -121,6 +142,11 @@ SELECT 'schema_acl:' || n.nspname || ':' || r.rolname || ':' || privilege_name
    AND EXISTS (SELECT 1 FROM aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a WHERE a.grantee=r.grantee_oid AND a.privilege_type=privilege_name) <> EXISTS (SELECT 1 FROM expected_schema_acl e WHERE e.schema_name=n.nspname AND e.grantee=r.rolname AND e.privilege_type=privilege_name)
 UNION ALL
 SELECT 'default_acl:' || d.defaclrole::regrole::text FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN principal r ON r.rolname=(a.grantee::regrole)::text WHERE a.grantee <> d.defaclrole
+UNION ALL
+SELECT 'seam_owner_membership:' || owner.rolname || ':' || member.rolname
+  FROM pg_auth_members m JOIN pg_roles owner ON owner.oid=m.roleid JOIN pg_roles member ON member.oid=m.member
+ WHERE owner.rolname LIKE 'app_seam_%_owner' OR owner.rolname IN ('saas_telemetry_owner','saas_system_health_owner')
+    OR member.rolname LIKE 'app_seam_%_owner' OR member.rolname IN ('saas_telemetry_owner','saas_system_health_owner')
 UNION ALL
 SELECT 'unsafe_role:' || r.rolname FROM pg_roles r JOIN principal p ON p.rolname=r.rolname
  WHERE r.rolname <> 'postgres' AND (r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls OR r.rolinherit)
