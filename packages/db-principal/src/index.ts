@@ -2,6 +2,16 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHmac, randomUUID } from 'node:crypto';
 import { isWebappLockedInfraCronSource } from './webappLockedInfraCronSources.js';
 
+export {
+  hashPortTypedArgs,
+  PORT_CONTEXT_ZERO_ARGS_HASH,
+  withPortContextTransaction,
+  type PortContextClass,
+  type PortContextPrincipal,
+  type PortContextQueryable,
+  type PortTypedArg,
+} from './portContext.js';
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /**
  * Acceptance for a `platform_users.id` used as a DB principal (C-1 / D7, 2026-07-26).

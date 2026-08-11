@@ -1,4 +1,4 @@
-# PLAN v8 — слой прав БД: привести к мировой схеме
+# PLAN v9 — слой прав БД: привести к мировой схеме
 
 Дословные формулировки владельца — [`docs/OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), раздел «Права БД,
 роли и стены». **Здесь они превращены в пункты работ**: каждое решение стоит в том шаге, где исполняется,
@@ -69,8 +69,8 @@
 прав**.
 
 Порядок исполнения после решения 11.08: Ф2 и Ф3 завершают состав ролей/швов → Ф3б-A1…A10 реализуют
-transaction-bound port context и доказательство варианта A → revision 9 получает повторный технический аудит →
-Ф4 заново генерируется из revision 9 → Ф9 мусор миграциями → применение к dev → Ф8 системный журнал → Ф7 живой
+transaction-bound port context и доказательство варианта A → revision 10 получает повторный технический аудит →
+Ф4 заново генерируется из revision 10 → Ф9 мусор миграциями → применение к dev → Ф8 системный журнал → Ф7 живой
 прогон и разбор недостачи → Ф5/Ф6 закрепление (стена в точке рождения, сверка, свип). Декларация revision 8 не
 перепрыгивает Ф3б и не применяется как промежуточное состояние.
 
@@ -204,15 +204,19 @@ ORDER BY table_schema, table_name, privilege_type;"
 
 ### Исполнение варианта A — один технический этап до Ф4
 
-- [x] **Ф3б-A1 — зафиксировать исполняемый mTLS/context contract.** Определены first-match
+- [ ] **Ф3б-A1 — зафиксировать исполняемый mTLS/context contract.** Определены first-match
       `hostssl ... scram-sha-256 clientcert=verify-full` HBA и отдельный exact certificate-CN→login для трёх
       application logins (staff/patient material only webapp env; integrator material only integrator env), без
       `pg_ident`/user-name mapping;
       exact SQL signatures/types `install_port_context`, boolean `require_accepted_context`, platform gate,
       accessors, cleanup, private capability/accepted-state rows, typed-args framing, definer/RLS split,
       declaration-derived census and revocation/pool-drain controls — в `SCHEME.md`. **Historical replacement:**
-      custom OpenPGP transaction challenge expressly replaced. A1-MTLS-001…008 kill-set закрыт в `SCHEME.md`;
-      A1 changes no code, migration, DB, deploy or declaration
+      custom OpenPGP transaction challenge expressly replaced. **Revision 10 technical correction:** integrator
+      membership is only `app_integrator_request`, narrow `app_integrator_resolver`, delivery-worker, scheduler,
+      `tenant_service` and no-tenant `service`, all SET-only/non-transitive; request has exact
+      `integrator_user_id + organization_id`, resolver is a distinct narrow pre-routing capability, and
+      `app_operational_diagnostic`/webapp→delivery are absent. A1 remains open until the declaration, generator,
+      migration and live port wiring implement this contract.
 - [ ] **Ф3б-A2 — mTLS material and rotation.** For each port place client private key/certificate/CA only in
       its env; configure PostgreSQL public CA/CRL verifier material and exact HBA/certificate-CN rows. Test bounded
       certificate overlap, reload semantics, CRL revocation and mandatory pool drain/backend termination; DB never
