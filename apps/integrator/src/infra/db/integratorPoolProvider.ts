@@ -5,18 +5,20 @@ import {
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
 } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, withPortContextTransaction } from '@bersoncare/db-principal';
 import {
   assertIntegratorLockedPrincipalClassified,
-  getCurrentIntegratorTechnicalRuntimeRole,
   prepareIntegratorTechnicalPoolClient,
 } from './withClient.js';
+import {
+  integratorPortContextPrincipal,
+  type IntegratorPortContextRuntimeConfig,
+} from './portContextRuntime.js';
 
 type IntegratorPoolProviderConfig = {
   connectionString: string;
-  diagnosticConnectionString?: string;
-  deliveryWorkerConnectionString?: string;
-  schedulerConnectionString?: string;
   poolFactory?: (config: PoolConfig) => Pool;
+  portContext?: IntegratorPortContextRuntimeConfig;
 };
 
 function prepareIntegratorPoolClient(_client: PoolClient): void {
@@ -32,10 +34,6 @@ function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
   client.release(
     cleanupError instanceof Error ? cleanupError : new Error('DB principal cleanup failed'),
   );
-}
-
-function toTelemetryReleaseError(failure: unknown): Error {
-  return failure instanceof Error ? failure : new Error(String(failure));
 }
 
 function installPrincipalAwarePoolQuery(pool: Pool): void {
@@ -84,102 +82,46 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
 
 export function createIntegratorPoolProvider(config: IntegratorPoolProviderConfig): Pool {
   const poolFactory = config.poolFactory ?? ((poolConfig: PoolConfig) => new Pool(poolConfig));
+  if (config.portContext) return createPortContextIntegratorPool(config.portContext, poolFactory);
   const createPool = (connectionString: string, max: number): Pool => {
     const pool = poolFactory({ connectionString, max });
     pool.on('connect', prepareIntegratorPoolClient);
     installPrincipalAwarePoolQuery(pool);
     return pool;
   };
-  const requestPool = createPool(config.connectionString, 5);
-  const diagnosticConnectionString = config.diagnosticConnectionString?.trim();
-  const deliveryWorkerConnectionString = config.deliveryWorkerConnectionString?.trim();
-  const schedulerConnectionString = config.schedulerConnectionString?.trim();
-  const diagnosticPool = diagnosticConnectionString
-    ? createPool(diagnosticConnectionString, 2)
-    : undefined;
-  const deliveryWorkerPool = deliveryWorkerConnectionString
-    ? createPool(deliveryWorkerConnectionString, 4)
-    : undefined;
-  const schedulerPool = schedulerConnectionString
-    ? createPool(schedulerConnectionString, 2)
-    : undefined;
-  for (const operationalPool of [diagnosticPool, deliveryWorkerPool, schedulerPool]) {
-    operationalPool?.on('error', (error, client) => requestPool.emit('error', error, client));
-  }
-  let routedPool: Pool;
-  const selectPool = (): Pool => {
-    const options = buildDbPrincipalApplyOptionsFromEnv(process.env);
-    const role = options.mode === 'locked' ? getCurrentIntegratorTechnicalRuntimeRole() : undefined;
-    if (role === 'app_operational_diagnostic') {
-      if (!diagnosticPool)
-        throw new Error(
-          'DATABASE_URL_DIAGNOSTIC is required for diagnostic DB access in locked mode',
-        );
-      return diagnosticPool;
+  return createPool(config.connectionString, 5);
+}
+
+/** Target runtime has exactly one integrator physical mTLS pool. */
+function createPortContextIntegratorPool(
+  config: IntegratorPortContextRuntimeConfig,
+  poolFactory: (config: PoolConfig) => Pool,
+): Pool {
+  const pool = poolFactory({ ...config.pool, max: 5 });
+  const query = async (...args: Parameters<Pool['query']>): Promise<Awaited<ReturnType<Pool['query']>>> => {
+    if (typeof args.at(-1) === 'function') throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
+    const client = await pool.connect();
+    let completed = false;
+    try {
+      const principal = integratorPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities);
+      const result = await withPortContextTransaction(client, principal, async (sameClient) => {
+        const clientQuery = sameClient.query.bind(sameClient) as unknown as (
+          ...queryArgs: Parameters<Pool['query']>
+        ) => ReturnType<Pool['query']>;
+        return clientQuery(...args);
+      });
+      completed = true;
+      return result as Awaited<ReturnType<Pool['query']>>;
+    } finally {
+      if (completed) client.release();
     }
-    if (role === 'app_operational_delivery_worker') {
-      if (!deliveryWorkerPool)
-        throw new Error(
-          'DATABASE_URL_DELIVERY_WORKER is required for delivery worker DB access in locked mode',
-        );
-      return deliveryWorkerPool;
-    }
-    if (role === 'app_operational_scheduler') {
-      if (!schedulerPool)
-        throw new Error(
-          'DATABASE_URL_SCHEDULER is required for scheduler DB access in locked mode',
-        );
-      return schedulerPool;
-    }
-    return requestPool;
   };
-  const routedConnect = (): Promise<PoolClient> => selectPool().connect();
-  const routedQuery = (...args: Parameters<Pool['query']>): ReturnType<Pool['query']> =>
-    selectPool().query(...args);
-  const routedEnd = async (): Promise<void> => {
-    await Promise.all([
-      requestPool.end(),
-      diagnosticPool?.end(),
-      deliveryWorkerPool?.end(),
-      schedulerPool?.end(),
-    ]);
-  };
-  routedPool = new Proxy(requestPool, {
+  return new Proxy(pool, {
     get(target, prop, receiver): unknown {
-      if (prop === 'connect') return routedConnect;
-      if (prop === 'query') return routedQuery;
-      if (prop === 'end') return routedEnd;
+      if (prop === 'query') return query;
       return Reflect.get(target, prop, receiver);
     },
   }) as Pool;
-  return routedPool;
 }
 
 /** Dedicated true-global telemetry transport; intentionally bypasses request-principal installation. */
-export function createIntegratorSaasIsolationTelemetryPoolProvider(connectionString: string): Pool {
-  return new Pool({
-    connectionString,
-    max: 1,
-    application_name: 'bcb_integrator_saas_telemetry',
-    connectionTimeoutMillis: 250,
-    query_timeout: 200,
-    statement_timeout: 200,
-  });
-}
-
-/** Runs one telemetry operation on a dedicated checked-out client without request-principal installation. */
-export async function withIntegratorSaasIsolationTelemetryClient<T>(
-  pool: Pick<Pool, 'connect'>,
-  fn: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  let failure: unknown;
-  try {
-    return await fn(client);
-  } catch (error) {
-    failure = error;
-    throw error;
-  } finally {
-    client.release(failure === undefined ? undefined : toTelemetryReleaseError(failure));
-  }
-}

@@ -32,17 +32,19 @@ const parsed = z
         }
       }, 'APP_BASE_URL must use the http or https protocol')
       .transform((value) => value.replace(/\/$/, '')),
-    DATABASE_URL_DIAGNOSTIC: z.string().optional().default(''),
-    DATABASE_URL_DELIVERY_WORKER: z.string().optional().default(''),
-    DATABASE_URL_SCHEDULER: z.string().optional().default(''),
     DB_PRINCIPAL_CONTEXT_MODE: z
-      .enum(['legacy-guc', 'shadow', 'locked'])
+      .enum(['legacy-guc', 'shadow', 'locked', 'port-context'])
       .optional()
       .default('legacy-guc'),
     DB_PRINCIPAL_SIGNING_SECRET: z
       .string()
       .optional()
       .transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_LOGIN: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_TLS_CA_FILE: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_TLS_CERT_FILE: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_TLS_KEY_FILE: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: z.string().optional().transform((value) => (value ?? '').trim()),
 
     BOOKING_URL: z.string().min(1),
     CONTENT_SERVICE_BASE_URL: z.string().optional().default(''),

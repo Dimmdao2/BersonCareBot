@@ -8,6 +8,10 @@ import {
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
 import type { DbBootstrapPrincipalInput, DbInfraPrincipalInput } from '@bersoncare/db-principal';
+import {
+  runWithIntegratorPortCapability,
+  type IntegratorPortCapabilityName,
+} from '../db/portContextRuntime.js';
 
 export const getCurrentOrganizationPrincipalId = getCurrentDbPrincipalOrganizationId;
 export const getCurrentIntegratorPrincipalUserId = getCurrentDbPrincipalIntegratorUserId;
@@ -28,8 +32,12 @@ export function runWithBootstrapPrincipal<T>(input: DbBootstrapPrincipalInput, f
   return runWithDbBootstrapPrincipal(input, fn);
 }
 
-export function runWithInfraPrincipal<T>(input: DbInfraPrincipalInput, fn: () => T): T {
-  return runWithDbInfraPrincipal(input, fn);
+export function runWithInfraPrincipal<T>(
+  input: DbInfraPrincipalInput & { portCapability?: IntegratorPortCapabilityName },
+  fn: () => T,
+): T {
+  const { portCapability = 'service', ...principal } = input;
+  return runWithDbInfraPrincipal(principal, () => runWithIntegratorPortCapability(portCapability, fn));
 }
 
 export function runWithOptionalOrganizationPrincipal<T>(

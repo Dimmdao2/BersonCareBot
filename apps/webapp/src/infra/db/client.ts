@@ -1,26 +1,18 @@
 import type { Pool } from 'pg';
-import {
-  buildDbPrincipalApplyOptionsFromEnv,
-  runWithDbBootstrapPrincipal,
-} from '@bersoncare/db-principal';
+import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
-import {
-  createConfigReaderPoolProvider,
-  type ConfigReaderPoolProvider,
-} from '@/infra/db/configReaderPoolProvider';
 import { withPoolClient } from '@/infra/db/withClient';
 import {
   createWebappPoolProvider,
   getWebappPoolRoutingMetrics,
   type WebappPoolRoutingMetrics,
 } from '@/infra/db/webappPoolProvider';
+import { createWebappPortContextRuntimeConfig } from '@/infra/db/portContextRuntime';
 
 export const DATABASE_URL_STAFF_ENV = 'DATABASE_URL_STAFF';
 export const DATABASE_URL_NONSTAFF_ENV = 'DATABASE_URL_NONSTAFF';
-export const DATABASE_URL_CONFIG_READER_ENV = 'DATABASE_URL_CONFIG_READER';
 
 let pool: Pool | null = null;
-let configReaderPool: ConfigReaderPoolProvider | null = null;
 
 type WebappRuntimeDatabaseEnv = {
   DATABASE_URL?: string;
@@ -70,9 +62,22 @@ function readWebappRuntimeDatabaseEnv(): WebappRuntimeDatabaseEnv {
 }
 
 export function getPool(): Pool {
-  pool ??= createWebappPoolProvider(
-    resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()),
-  );
+  pool ??= env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+    ? createWebappPoolProvider({
+        portContext: createWebappPortContextRuntimeConfig({
+          DATABASE_URL_STAFF: env.DATABASE_URL_STAFF,
+          DATABASE_URL_PATIENT: env.DATABASE_URL_PATIENT,
+          WEBAPP_DB_STAFF_LOGIN: env.WEBAPP_DB_STAFF_LOGIN,
+          WEBAPP_DB_PATIENT_LOGIN: env.WEBAPP_DB_PATIENT_LOGIN,
+          WEBAPP_DB_TLS_CA_FILE: env.WEBAPP_DB_TLS_CA_FILE,
+          WEBAPP_DB_STAFF_CERT_FILE: env.WEBAPP_DB_STAFF_CERT_FILE,
+          WEBAPP_DB_STAFF_KEY_FILE: env.WEBAPP_DB_STAFF_KEY_FILE,
+          WEBAPP_DB_PATIENT_CERT_FILE: env.WEBAPP_DB_PATIENT_CERT_FILE,
+          WEBAPP_DB_PATIENT_KEY_FILE: env.WEBAPP_DB_PATIENT_KEY_FILE,
+          WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
+        }),
+      })
+    : createWebappPoolProvider(resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()));
 
   return pool;
 }
@@ -80,19 +85,6 @@ export function getPool(): Pool {
 /** Read the already-collected counters without creating a pool or doing I/O. */
 export function getCurrentWebappPoolRoutingMetrics(): WebappPoolRoutingMetrics | undefined {
   return pool ? getWebappPoolRoutingMetrics(pool) : undefined;
-}
-
-export function getConfigReaderPool(): ConfigReaderPoolProvider {
-  if (configReaderPool) return configReaderPool;
-  const connectionString = trimOptionalEnv(process.env[DATABASE_URL_CONFIG_READER_ENV]);
-  if (!connectionString) {
-    throw new Error(`${DATABASE_URL_CONFIG_READER_ENV} is not set`);
-  }
-  configReaderPool = createConfigReaderPoolProvider({
-    connectionString,
-    principalApplyOptions: buildDbPrincipalApplyOptionsFromEnv(process.env),
-  });
-  return configReaderPool;
 }
 
 export async function checkDbHealth(): Promise<boolean> {

@@ -9,6 +9,34 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
+import { withPortContextTransaction } from '@bersoncare/db-principal';
+import {
+  createIntegratorPortContextRuntimeConfig,
+  integratorPortContextPrincipal,
+} from './portContextRuntime.js';
+
+function isPortContextMode(): boolean {
+  return process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context';
+}
+
+function currentPortContextPrincipal() {
+  const config = createIntegratorPortContextRuntimeConfig(process.env);
+  return integratorPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities);
+}
+
+async function withPortContextPoolTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  let completed = false;
+  try {
+    const result = await withPortContextTransaction(client, currentPortContextPrincipal(), async (sameClient) =>
+      fn(sameClient as PoolClient),
+    );
+    completed = true;
+    return result;
+  } finally {
+    if (completed) client.release();
+  }
+}
 
 const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();
 const allowedLockedBootstrapSources = new Set([
@@ -202,6 +230,7 @@ export async function withIntegratorPoolClient<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  if (isPortContextMode()) return withPortContextPoolTransaction(pool, fn);
   const client = await checkoutIntegratorPoolClient(pool);
   try {
     return await fn(client);
@@ -214,6 +243,7 @@ export async function withIntegratorPoolTransaction<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  if (isPortContextMode()) return withPortContextPoolTransaction(pool, fn);
   const principalApplyOptions = getDbPrincipalApplyOptions();
   assertIntegratorLockedPrincipalClassified(principalApplyOptions);
   const client = await pool.connect();

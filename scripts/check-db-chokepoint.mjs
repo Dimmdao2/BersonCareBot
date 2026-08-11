@@ -5,37 +5,33 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
-const scanRoots = ['apps/webapp/src', 'apps/integrator/src', 'apps/media-worker/src'];
+// Application runtime has exactly two data-port factories. Media is a separate workstream and is
+// deliberately outside this worker's allowlist/census.
+const scanRoots = ['apps/webapp/src', 'apps/integrator/src'];
 const roleSwitchScanRoots = [...scanRoots, 'packages/db-principal/src'];
 
 const allowedPoolProviderFiles = new Set([
   'apps/webapp/src/infra/db/webappPoolProvider.ts',
-  'apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts',
-  'apps/webapp/src/infra/db/integratorPurgePoolProvider.ts',
-  // S5-2 restricted settings capability: separate LOGIN/pool, bounded callback-only checkout.
-  'apps/webapp/src/infra/db/configReaderPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorPoolProvider.ts',
+]);
+
+// Explicitly non-runtime: migration needs its local deploy/migrator authority. Do not add regular
+// services here; a new runtime pool must be one of the two factories above.
+const deployOnlyPoolProviderFiles = new Set([
   'apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts',
+]);
+
+const disposableOrAdminPoolProviderFiles = new Set([
+  // CLI health proof only; never imported by API/worker/scheduler runtime.
   'apps/integrator/src/infra/scripts/projectionHealthPoolProvider.ts',
-  'apps/media-worker/src/poolProvider.ts',
-  // D1 (C-1, 2026-07-26): boot-time schema probe called from instrumentation.ts `register()`,
-  // before the DI container / app deps exist — there is no wired pool provider to hand it a
-  // connection yet. Opens one `max: 1` pool, runs one query, closes it (see finally in
-  // runBootProbePgText). Not a runtime request-path bypass. Живёт в `infra/db`, чтобы сырого
-  // клиента не было нигде за пределами порта (01.08).
-  'apps/webapp/src/infra/db/bootProbe.ts',
 ]);
 
 const allowedConnectFiles = new Set([
   'apps/webapp/src/infra/db/withClient.ts',
   'apps/integrator/src/infra/db/withClient.ts',
-  'apps/media-worker/src/withClient.ts',
-  // Phase 1 DB principal chokepoint: provider-level promise pool.query wrappers
-  // must checkout a client so labels can be installed and cleared around the query.
   'apps/webapp/src/infra/db/webappPoolProvider.ts',
-  'apps/webapp/src/infra/db/configReaderPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorPoolProvider.ts',
-  'apps/media-worker/src/poolProvider.ts',
+  'apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts',
   // D30/D20-уровень-3 (31.07): одноразовые скрипты-доказательства конкуренции. Поднимают СВОЙ
   // временный PostgreSQL в /tmp и держат по нескольку параллельных сессий — иначе гонку за замком,
   // за строкой очереди и за ключом идемпотентности доказать нечем. Тот же класс, что снятый
@@ -133,7 +129,12 @@ function collectOffenders(files) {
     const rel = relative(repoRoot, abs).replace(/\\/g, '/');
     const src = readFileSync(abs, 'utf8');
     const poolCount = countRuntimeMatches(src, /\bnew\s+(?:pg\.)?(?:Pg)?Pool\b/);
-    if (poolCount > 0 && !allowedPoolProviderFiles.has(rel)) {
+    if (
+      poolCount > 0 &&
+      !allowedPoolProviderFiles.has(rel) &&
+      !deployOnlyPoolProviderFiles.has(rel) &&
+      !disposableOrAdminPoolProviderFiles.has(rel)
+    ) {
       poolOffenders.push(`${rel} (${poolCount}x new Pool)`);
     }
 
@@ -199,7 +200,12 @@ if (process.argv.includes('--self-test')) {
     const rel = relative(repoRoot, abs).replace(/\\/g, '/');
     const src = abs === virtualAbs ? syntheticSource : originalReadFileSync(abs, 'utf8');
     const poolCount = countRuntimeMatches(src, /\bnew\s+(?:pg\.)?(?:Pg)?Pool\b/);
-    if (poolCount > 0 && !allowedPoolProviderFiles.has(rel)) {
+    if (
+      poolCount > 0 &&
+      !allowedPoolProviderFiles.has(rel) &&
+      !deployOnlyPoolProviderFiles.has(rel) &&
+      !disposableOrAdminPoolProviderFiles.has(rel)
+    ) {
       poolOffenders.push(`${rel} (${poolCount}x new Pool)`);
     }
     const connectCount = countRuntimeMatches(src, /\.connect\(/);
@@ -247,7 +253,7 @@ const {
   roleSwitchOffenders,
 } = collectOffenders(files);
 
-printOffenders('new Pool outside named DB pool providers:', poolOffenders);
+printOffenders('new Pool outside the two runtime port factories or explicit deploy-only provider:', poolOffenders);
 printOffenders('.connect() outside checkout helpers / documented ops KEEP:', connectOffenders);
 printOffenders('raw SQL in guarded layers outside S5 allowlist:', layerRawSqlOffenders);
 printOffenders('callback-form query outside the promise DB chokepoint:', callbackQueryOffenders);

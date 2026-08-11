@@ -9,9 +9,14 @@ import {
   getCurrentDbPrincipal,
   isWebappLockedInfraCronSource,
 } from '@bersoncare/db-principal';
+import { withPortContextTransaction } from '@bersoncare/db-principal';
 import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
 import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailureReporting';
 import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import {
+  type WebappPortContextRuntimeConfig,
+  webappPortContextPrincipal,
+} from '@/infra/db/portContextRuntime';
 
 function currentWebappDbSourceOperation() {
   return getCurrentWebappDbOperationFamily() ?? 'webapp_db_request';
@@ -22,6 +27,7 @@ type WebappPoolProviderConfig = {
   staffConnectionString?: string;
   nonstaffConnectionString?: string;
   poolFactory?: (config: PoolConfig) => Pool;
+  portContext?: WebappPortContextRuntimeConfig;
 };
 
 type WebappRuntimePoolKind = 'staff' | 'nonstaff';
@@ -273,6 +279,9 @@ function createEmptyRoutingMetrics(): WebappPoolRoutingMetrics {
 
 export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool {
   const poolFactory = config.poolFactory ?? ((poolConfig: PoolConfig) => new Pool(poolConfig));
+  if (config.portContext) {
+    return createPortContextWebappPool(config.portContext, poolFactory);
+  }
   const singleConnectionString = config.connectionString?.trim();
   const staffConnectionString = config.staffConnectionString?.trim();
   const nonstaffConnectionString = config.nonstaffConnectionString?.trim();
@@ -301,6 +310,67 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
     nonstaffPool: createWebappPool(resolvedNonstaffConnectionString, 2, poolFactory),
     metrics: createEmptyRoutingMetrics(),
   });
+}
+
+/**
+ * Target runtime: the two webapp mTLS logins are physical pools, while every query is a freshly
+ * installed transaction context. This path deliberately has no DATABASE_URL/nonstaff fallback.
+ */
+function createPortContextWebappPool(
+  config: WebappPortContextRuntimeConfig,
+  poolFactory: (config: PoolConfig) => Pool,
+): Pool {
+  const staffPool = poolFactory({ ...config.staff, max: 3 });
+  const patientPool = poolFactory({ ...config.patient, max: 2 });
+  const metrics = createEmptyRoutingMetrics();
+  let routedPool: Pool;
+
+  const select = () => {
+    const selected = webappPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities);
+    if (selected.pool === 'staff') metrics.staffSelections += 1;
+    else metrics.nonstaffSelections += 1;
+    return { pool: selected.pool === 'staff' ? staffPool : patientPool, principal: selected.principal };
+  };
+
+  const query = async (...args: Parameters<Pool['query']>): Promise<Awaited<ReturnType<Pool['query']>>> => {
+    if (typeof args.at(-1) === 'function') {
+      throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
+    }
+    const selected = select();
+    const client = await selected.pool.connect();
+    let completed = false;
+    try {
+      const result = await withPortContextTransaction(client, selected.principal, async (sameClient) => {
+        const clientQuery = sameClient.query.bind(sameClient) as unknown as (
+          ...queryArgs: Parameters<Pool['query']>
+        ) => ReturnType<Pool['query']>;
+        return clientQuery(...args);
+      });
+      completed = true;
+      return result as Awaited<ReturnType<Pool['query']>>;
+    } finally {
+      // The shared wrapper destroys on every failure. A successful transaction is the only client
+      // that may be returned to the pool.
+      if (completed) client.release();
+    }
+  };
+
+  routedPool = new Proxy(staffPool, {
+    get(target, prop, receiver): unknown {
+      if (prop === 'query') return query;
+      if (prop === 'connect') {
+        // Direct checkout is only consumed by withClient.ts, which applies the same wrapper.
+        return () => select().pool.connect();
+      }
+      if (prop === 'end') return async () => Promise.all([staffPool.end(), patientPool.end()]);
+      if (prop === 'totalCount') return staffPool.totalCount + patientPool.totalCount;
+      if (prop === 'idleCount') return staffPool.idleCount + patientPool.idleCount;
+      if (prop === 'waitingCount') return staffPool.waitingCount + patientPool.waitingCount;
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as Pool;
+  poolRoutingMetrics.set(routedPool, metrics);
+  return routedPool;
 }
 
 export function getWebappPoolRoutingMetrics(pool: Pool): WebappPoolRoutingMetrics | undefined {

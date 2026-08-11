@@ -10,6 +10,7 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
+import { hashPortTypedArgs } from '@bersoncare/db-principal';
 import * as schema from '../../../db/schema';
 import { getPool } from './client';
 import {
@@ -17,6 +18,10 @@ import {
   reportDbQueryFailure,
   reportPrincipalSetupFailure,
 } from '@/infra/db/saasIsolationDbFailureReporting';
+import {
+  createWebappPortContextRuntimeConfig,
+  webappPortContextPrincipal,
+} from '@/infra/db/portContextRuntime';
 
 export type DrizzleDb = NodePgDatabase<typeof schema>;
 type DrizzleTransaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
@@ -40,6 +45,8 @@ function drizzlePrincipalSql(queryText: string, values: readonly unknown[] = [])
       return sql.raw('SET ROLE app_clinic_billing');
     case 'SELECT app.release_principal_context()':
       return sql`SELECT app.release_principal_context()`;
+    case 'SELECT app.clear_port_context()':
+      return sql`SELECT app.clear_port_context()`;
     case "SELECT set_config('app.org', $1, true)":
       return sql`SELECT set_config('app.org', ${values[0]}, true)`;
     case "SELECT set_config('app.patient_user_id', $1, true)":
@@ -69,6 +76,19 @@ function drizzlePrincipalSql(queryText: string, values: readonly unknown[] = [])
       )
     `;
   }
+
+  if (queryText.includes('app.install_port_context') && values.length === 11) {
+    return sql`
+      SELECT app.install_port_context(
+        ${values[0]}::uuid,
+        ROW(1, ${values[1]}::app.port_context_class, ${values[2]}::name, ${values[3]}::text,
+          ${values[4]}::regprocedure, ${values[5]}::bytea, ${values[6]}::uuid, ${values[7]}::uuid,
+          ${values[8]}::uuid, ${values[9]}::bigint, ${values[10]}::uuid)::app.port_context_claims
+      )
+    `;
+  }
+
+  if (/^SET LOCAL ROLE [a-z_][a-z0-9_]{0,62}$/.test(queryText)) return sql.raw(queryText);
 
   throw new Error(`Unsupported DB principal Drizzle statement: ${queryText}`);
 }
@@ -104,6 +124,47 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
   const wrappedTransaction: DrizzleDb['transaction'] = ((callback, config) => {
     // Drizzle may await pool checkout before entering this callback; preserve the caller identity.
     const principalSnapshot = getCurrentDbPrincipal();
+    if (process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context') {
+      return rawTransaction(async (tx) => {
+        const queryable = drizzlePrincipalQueryable(tx);
+        const runtime = createWebappPortContextRuntimeConfig(process.env);
+        const selected = webappPortContextPrincipal(principalSnapshot, runtime.capabilities).principal;
+        const typedArgsHash = hashPortTypedArgs(selected.typedArgs ?? []);
+        let callbackError: unknown;
+        try {
+          await queryable.query('RESET ROLE');
+          await queryable.query('SELECT app.clear_port_context()');
+          await queryable.query(
+            'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
+            [
+              selected.capabilityId,
+              selected.contextClass,
+              selected.targetRole,
+              selected.purpose,
+              selected.functionIdentity ?? null,
+              typedArgsHash,
+              selected.actorRef ?? null,
+              selected.subjectRef ?? null,
+              selected.organizationId ?? null,
+              selected.integratorUserId === undefined ? null : String(selected.integratorUserId),
+              selected.requestId ?? null,
+            ],
+          );
+          await queryable.query(`SET LOCAL ROLE ${selected.targetRole}`);
+          return await callback(tx);
+        } catch (error) {
+          callbackError = error;
+          throw error;
+        } finally {
+          try {
+            await queryable.query('RESET ROLE');
+            await queryable.query('SELECT app.clear_port_context()');
+          } catch (error) {
+            if (callbackError === undefined) throw error;
+          }
+        }
+      }, config);
+    }
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     return rawTransaction(async (tx) => {
       const queryable = drizzlePrincipalQueryable(tx);

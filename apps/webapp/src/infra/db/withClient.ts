@@ -9,12 +9,43 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
+import { withPortContextTransaction } from '@bersoncare/db-principal';
 import { getPool } from '@/infra/db/client';
 import {
   reportDbCleanupFailure,
   reportDbQueryFailure,
   reportPrincipalSetupFailure,
 } from '@/infra/db/saasIsolationDbFailureReporting';
+import {
+  createWebappPortContextRuntimeConfig,
+  webappPortContextPrincipal,
+} from '@/infra/db/portContextRuntime';
+
+function isPortContextMode(): boolean {
+  return process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context';
+}
+
+function currentWebappPortContextPrincipal() {
+  const config = createWebappPortContextRuntimeConfig(process.env);
+  return webappPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities).principal;
+}
+
+async function withPortContextPoolTransaction<T>(
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  let completed = false;
+  try {
+    const result = await withPortContextTransaction(client, currentWebappPortContextPrincipal(), async (sameClient) =>
+      fn(sameClient as PoolClient),
+    );
+    completed = true;
+    return result;
+  } finally {
+    if (completed) client.release();
+  }
+}
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
@@ -81,6 +112,7 @@ export async function withPoolClient<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  if (isPortContextMode()) return withPortContextPoolTransaction(pool, fn);
   // Keep selection, checkout and principal install bound to the same request identity.
   const principalSnapshot = getCurrentDbPrincipal();
   const principalApplyOptions = getDbPrincipalApplyOptions();
@@ -173,6 +205,7 @@ export async function withPoolTransaction<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  if (isPortContextMode()) return withPortContextPoolTransaction(pool, fn);
   const tx = await startPoolTransaction(pool);
   try {
     const out = await fn(tx.client);
