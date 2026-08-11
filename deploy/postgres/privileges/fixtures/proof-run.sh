@@ -260,9 +260,9 @@ SQL
   psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'CREATE POLICY decl_using_true ON public.be_appointments AS PERMISSIVE FOR SELECT TO app_staff USING (true);'
   expect_verifier_red "$db" permissive_using_true
   reapply_catalog "$db"; verify_catalog "$db"
-  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'CREATE FUNCTION app.decl_undeclared_invoker() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;'
-  expect_verifier_red "$db" undeclared_invoker
-  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'DROP FUNCTION app.decl_undeclared_invoker();'
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'CREATE FUNCTION app.decl_undeclared_definer() RETURNS integer LANGUAGE sql SECURITY DEFINER AS $$ SELECT 1 $$;'
+  expect_verifier_red "$db" undeclared_definer
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'DROP FUNCTION app.decl_undeclared_definer();'
   reapply_catalog "$db"; verify_catalog "$db"
   psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'GRANT SELECT ON public.phone_challenges TO app_staff;'
   expect_verifier_red "$db" arbitrary_table_acl

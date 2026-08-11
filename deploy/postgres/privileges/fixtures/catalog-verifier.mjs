@@ -9,10 +9,16 @@ function arg(name) {
   if (index < 0 || !process.argv[index + 1]) throw new Error(`--${name} is required`);
   return process.argv[index + 1];
 }
+function optionalArg(name) {
+  const index = process.argv.indexOf(`--${name}`);
+  return index < 0 ? undefined : process.argv[index + 1];
+}
 function lit(value) { return `'${String(value).replaceAll("'", "''")}'`; }
 function values(rows) { return rows.length === 0 ? 'SELECT NULL::text WHERE false' : `VALUES ${rows.join(', ')}`; }
 
 const dbName = arg('db');
+const connectDb = optionalArg('connect-db') ?? dbName;
+const functionsOnly = process.argv.includes('--functions-only');
 const db = declaration.databases[dbName];
 if (!db) throw new Error(`undeclared database '${dbName}'`);
 const context = declaration.portContext;
@@ -27,24 +33,52 @@ const managedSchemas = ['public', 'app', 'integrator', 'app_ext', 'drizzle'];
 const expectedRelations = [...Object.keys(db.tables), ...Object.keys(context.privateRelations)].sort();
 const expectedPolicies = Object.entries(db.tables).flatMap(([table, decl]) => (decl.policies ?? [])
   .filter((policy) => !('todo' in policy)).map((policy) => [table, policy.name]));
-const expectedFunctions = Object.entries(context.functions).map(([signature, fn]) => {
-  const executes = [...new Set([...fn.execute, ...(fn.loginExecute ? dbLoginNames : [])])].sort();
-  return [signature, fn.owner, fn.returns, fn.security === 'DEFINER', fn.volatility, fn.parallel,
-    fn.proconfig.join('\u001f'), executes.join('\u001f')];
-});
+const expectedFunctions = Object.entries(context.functions)
+  .filter(([, fn]) => !fn.databases || fn.databases.includes(dbName))
+  .map(([signature, fn]) => {
+    const executes = [...new Set([...fn.execute, ...(fn.loginExecute ? dbLoginNames : [])])].sort();
+    return [signature, fn.owner, fn.returns, fn.security === 'DEFINER', fn.volatility, fn.parallel,
+      fn.proconfig.join('\u001f'), executes.join('\u001f')];
+  });
 const expectedAcl = Object.entries(db.tables).flatMap(([table, decl]) => Object.entries(decl.grants).flatMap(([role, grant]) =>
   grant.privs.filter((privilege) => typeof privilege === 'string').map((privilege) => [table, role, privilege])));
 const expectedSchemaAcl = Object.entries(db.schemas).flatMap(([schema, decl]) => [
   ...decl.usage.map((role) => [schema, role, 'USAGE']),
   ...decl.create.map((role) => [schema, role, 'CREATE']),
 ]);
-const q = `
+const expectedFunctionSql = `expected_function(signature, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (${values(expectedFunctions.map((row) => `(${row.slice(0, 3).map(lit).join(', ')}, ${row[3]}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[row[4]])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[row[5]])}, ${lit(row[6])}, ${lit(row[7])})`))})`;
+const principalSql = `principal(rolname, grantee_oid) AS (${values(principals.map((value) => `(${lit(value)}, ${value === 'PUBLIC' ? 0 : `(SELECT oid FROM pg_roles WHERE rolname=${lit(value)})`})`))})`;
+const functionQ = `
+WITH ${expectedFunctionSql}, ${principalSql}
+SELECT 'undeclared_definer:' || format('%I.%I(%s)',n.nspname,p.proname,replace(oidvectortypes(p.proargtypes),', ',','))
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE p.prosecdef AND n.nspname IN ('app','app_ext')
+   AND NOT EXISTS (SELECT 1 FROM expected_function e WHERE p.oid=to_regprocedure(e.signature))
+UNION ALL
+SELECT 'missing_or_mismatched_function:' || e.signature FROM expected_function e LEFT JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
+ WHERE p.oid IS NULL OR pg_get_userbyid(p.proowner) <> e.owner_name OR format_type(p.prorettype,NULL) <> e.result_type
+    OR p.prosecdef <> e.is_definer OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism
+    OR array_to_string(coalesce(p.proconfig, ARRAY[]::text[]), E'\\x1f') <> e.config
+UNION ALL
+SELECT 'function_execute_acl:' || e.signature || ':' || r.rolname FROM expected_function e CROSS JOIN principal r
+ WHERE r.rolname <> 'postgres' AND r.rolname <> e.owner_name
+   AND EXISTS (SELECT 1 FROM aclexplode(coalesce((SELECT p.proacl FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature)), acldefault('f', (SELECT p.proowner FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature))))) a WHERE a.grantee=r.grantee_oid AND a.privilege_type='EXECUTE') <> (r.rolname = ANY(string_to_array(e.execute_roles, E'\\x1f')))
+UNION ALL
+SELECT 'unsafe_seam_owner:' || r.rolname FROM pg_roles r
+ WHERE (r.rolname LIKE 'app_seam_%_owner' OR r.rolname IN ('saas_telemetry_owner','saas_system_health_owner'))
+   AND (r.rolcanlogin OR r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls OR r.rolinherit)
+UNION ALL
+SELECT 'seam_owner_membership:' || owner.rolname || ':' || member.rolname
+  FROM pg_auth_members m JOIN pg_roles owner ON owner.oid=m.roleid JOIN pg_roles member ON member.oid=m.member
+ WHERE owner.rolname LIKE 'app_seam_%_owner' OR owner.rolname IN ('saas_telemetry_owner','saas_system_health_owner')
+ORDER BY 1;`;
+const fullQ = `
 WITH expected_relation(identity) AS (${values(expectedRelations.map((value) => `(${lit(value)})`))}),
 expected_policy(identity, policy_name) AS (${values(expectedPolicies.map(([table, policy]) => `(${lit(table)}, ${lit(policy)})`))}),
-expected_function(signature, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (${values(expectedFunctions.map((row) => `(${row.slice(0, 3).map(lit).join(', ')}, ${row[3]}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[row[4]])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[row[5]])}, ${lit(row[6])}, ${lit(row[7])})`))}),
+${expectedFunctionSql},
 expected_acl(identity, grantee, privilege_type) AS (${values(expectedAcl.map((row) => `(${row.map(lit).join(', ')})`))}),
 expected_schema_acl(schema_name, grantee, privilege_type) AS (${values(expectedSchemaAcl.map((row) => `(${row.map(lit).join(', ')})`))}),
-principal(rolname, grantee_oid) AS (${values(principals.map((value) => `(${lit(value)}, ${value === 'PUBLIC' ? 0 : `(SELECT oid FROM pg_roles WHERE rolname=${lit(value)})`})`))})
+${principalSql}
 SELECT 'undeclared_relation:' || n.nspname || '.' || c.relname
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
  WHERE n.nspname = ANY(ARRAY[${managedSchemas.map(lit).join(', ')}]) AND c.relkind IN ('r','p')
@@ -63,7 +97,7 @@ SELECT 'permissive_using_true:' || p.schemaname || '.' || p.tablename || ':' || 
   FROM pg_policies p WHERE p.permissive='PERMISSIVE' AND (coalesce(p.qual,'') ~ '^\\(?true\\)?$' OR coalesce(p.with_check,'') ~ '^\\(?true\\)?$')
 UNION ALL
 SELECT 'undeclared_function:' || n.nspname || '.' || p.proname || '(' || replace(pg_get_function_identity_arguments(p.oid), ', ', ',') || ')'
-  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('app','app_ext')
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('app','app_ext') AND p.prosecdef
    AND NOT EXISTS (SELECT 1 FROM expected_function e WHERE p.oid=to_regprocedure(e.signature))
 UNION ALL
 SELECT 'missing_or_mismatched_function:' || e.signature FROM expected_function e LEFT JOIN pg_proc p ON p.oid=to_regprocedure(e.signature)
@@ -91,7 +125,8 @@ UNION ALL
 SELECT 'unsafe_role:' || r.rolname FROM pg_roles r JOIN principal p ON p.rolname=r.rolname
  WHERE r.rolname <> 'postgres' AND (r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls OR r.rolinherit)
 ORDER BY 1;`;
-const run = spawnSync('psql', ['-X', '-At', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-d', dbName, '-c', q], { encoding: 'utf8' });
+const q = functionsOnly ? functionQ : fullQ;
+const run = spawnSync('psql', ['-X', '-At', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-d', connectDb, '-c', q], { encoding: 'utf8' });
 if (run.status !== 0) {
   process.stderr.write(run.stderr || run.stdout || 'catalog verifier failed to query PostgreSQL\n');
   process.exit(run.status ?? 1);
@@ -101,4 +136,4 @@ if (violations) {
   process.stderr.write(`${violations}\n`);
   process.exit(1);
 }
-console.log(`catalog verifier green: ${dbName}`);
+console.log(`catalog verifier green: ${dbName}${connectDb === dbName ? '' : ` via ${connectDb}`}`);

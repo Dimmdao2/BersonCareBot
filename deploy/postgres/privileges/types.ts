@@ -234,7 +234,7 @@ export interface TableDecl {
   grantMatrix?: 'G2-pending';
   /**
    * Executable access census.  An ACTIVE relation cannot be generated until it is
-   * either backed by a direct grant, an exact definer seam, or a demonstrated
+   * either backed by a direct grant, one or more exact definer seams, or a demonstrated
    * absence of a runtime surface.  `unresolved` is deliberately machine-readable
    * so `--gaps` fails instead of treating deny-by-default as an operable matrix.
    */
@@ -251,11 +251,52 @@ export interface TableDecl {
   drift?: string;
 }
 
+export interface NamedSeamAccess {
+  regprocedure: string;
+  owner: string;
+  /** Runtime/seam role which invokes the root. Triggers have no SQL caller. */
+  caller?: string;
+  invocation: 'runtime' | 'trigger';
+  columns: string[];
+  operations: Privilege[];
+  purpose: string;
+}
+
 export type RelationAccess =
   | { kind: 'direct'; codePaths: string[]; purpose: string }
-  | { kind: 'named-seam'; regprocedure: string; owner: string; caller: string; columns: string[]; operations: Privilege[]; purpose: string }
+  | { kind: 'named-seams'; seams: NamedSeamAccess[]; purpose: string }
   | { kind: 'no-runtime-surface'; evidence: string[]; purpose: string }
   | { kind: 'unresolved'; reason: string; codePaths: string[] };
+
+export interface FunctionRelationSurface {
+  relation: string;
+  columns: readonly string[];
+  operations: readonly Privilege[];
+  /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
+  evidence: 'pg16-function-body-lexical-upper-bound';
+}
+
+export interface DeclaredFunction {
+  owner: string;
+  security: 'DEFINER' | 'INVOKER';
+  /** Exact SQL result type, compared against pg_proc.prorettype. */
+  returns: string;
+  /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
+  volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
+  parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
+  proconfig: readonly string[];
+  execute: readonly string[];
+  /** Add exactly the three login grantees connected to the rendered database. */
+  loginExecute?: true;
+  purpose: string;
+  typedArgs: readonly string[];
+  /** Omitted means both declared databases; otherwise this is the exact per-DB presence set. */
+  databases?: readonly string[];
+  relationSurfaces?: readonly FunctionRelationSurface[];
+  /** Exact same-seam/context roots used when this wrapper has no direct relation access. */
+  delegatesTo?: readonly string[];
+  invocation?: 'runtime' | 'trigger';
+}
 
 /**
  * КОМПАКТНАЯ строка таблицы — то, что пишет и читает человек. Всё, что выводится из класса,
@@ -455,21 +496,7 @@ export interface PrivilegeDeclaration {
       purpose: string;
       functionIdentity: string;
     }>;
-    functions: Record<string, {
-      owner: string;
-      security: 'DEFINER' | 'INVOKER';
-      /** Exact SQL result type, compared against pg_proc.prorettype. */
-      returns: string;
-      /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
-      volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
-      parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
-      proconfig: readonly string[];
-      execute: readonly string[];
-      /** Add exactly the three login grantees connected to the rendered database. */
-      loginExecute?: true;
-      purpose: string;
-      typedArgs: readonly string[];
-    }>;
+    functions: Record<string, DeclaredFunction>;
   };
 }
 
