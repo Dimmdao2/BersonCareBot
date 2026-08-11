@@ -49,6 +49,20 @@ const TEST_PORT_CONTEXT = {
   api: renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'integrator'),
   webapp: renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'webapp'),
 };
+const TEST_PORT_CONTEXT_LOGINS = {
+  integrator: 'bcb_test_integrator',
+  webappStaff: 'bcb_test_webapp_staff',
+  webappPatient: 'bcb_test_webapp_patient',
+};
+const TEST_PORT_CONTEXT_TLS = {
+  ca: '/opt/env/bersoncarebot/db-tls/test/ca.crt',
+  integratorCert: '/opt/env/bersoncarebot/db-tls/test/bcb_test_integrator.crt',
+  integratorKey: '/opt/env/bersoncarebot/db-tls/test/bcb_test_integrator.key',
+  webappStaffCert: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_staff.crt',
+  webappStaffKey: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_staff.key',
+  webappPatientCert: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_patient.crt',
+  webappPatientKey: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_patient.key',
+};
 const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
   /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
 const CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY =
@@ -120,6 +134,34 @@ function validateBaseUrl(raw) {
     fail('api.test DATABASE_URL must target bersoncarebot_test');
 }
 
+function validatePortContextUrl(raw, expectedLogin, label) {
+  const url = new URL(raw);
+  const database = decodeURIComponent(url.pathname).replace(/^\//, '');
+  if (decodeURIComponent(url.username) !== expectedLogin) {
+    fail(`${label} username must be ${expectedLogin}`);
+  }
+  if (!url.password) fail(`${label} must contain a password for PostgreSQL SCRAM`);
+  if (url.hostname !== '127.0.0.1' || url.port !== '5432') {
+    fail(`${label} must target exact local PostgreSQL endpoint 127.0.0.1:5432`);
+  }
+  if (database !== 'bersoncarebot_test') fail(`${label} must target bersoncarebot_test`);
+  for (const parameter of ['ssl', 'sslmode', 'sslrootcert', 'sslcert', 'sslkey']) {
+    if (url.searchParams.has(parameter)) {
+      fail(`${label} must not override mTLS through URL parameter ${parameter}`);
+    }
+  }
+}
+
+function requireEnvPath(values, key, label) {
+  const value = values.get(key);
+  if (!value) fail(`${label} is missing ${key}`);
+  return value;
+}
+
+function mergedValues(base, additions) {
+  return new Map([...base, ...additions]);
+}
+
 function assertRegular(path, allowMissing = false) {
   try {
     if (!lstatSync(path).isFile()) fail(`${path} must be a regular file`);
@@ -160,12 +202,18 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   if (!baseUrl) fail('api.test is missing DATABASE_URL');
   validateBaseUrl(baseUrl);
 
-  for (const key of ['DB_PRINCIPAL_CONTEXT_MODE', 'DB_PRINCIPAL_SIGNING_SECRET']) {
+  for (const key of ['DB_PRINCIPAL_CONTEXT_MODE']) {
     if (!api.get(key) || api.get(key) !== webapp.get(key))
       fail(`${key} must be present and equal in api.test/webapp.test`);
   }
-  if (!['shadow', 'locked'].includes(api.get('DB_PRINCIPAL_CONTEXT_MODE'))) {
-    fail('TEST principal mode must be shadow or locked');
+  const principalMode = api.get('DB_PRINCIPAL_CONTEXT_MODE');
+  if (!['shadow', 'locked', 'port-context'].includes(principalMode)) {
+    fail('TEST principal mode must be shadow, locked or port-context');
+  }
+  if (['shadow', 'locked'].includes(principalMode)) {
+    const key = 'DB_PRINCIPAL_SIGNING_SECRET';
+    if (!api.get(key) || api.get(key) !== webapp.get(key))
+      fail(`${key} must be present and equal in api.test/webapp.test`);
   }
 
   const apiAdditions = new Map();
@@ -177,6 +225,90 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
     ['ALLOW_DEV_AUTH_BYPASS', 'false'],
     [TEST_PORT_CONTEXT.webapp.key, TEST_PORT_CONTEXT.webapp.value],
   ]);
+  if (principalMode === 'port-context') {
+    apiAdditions.set(
+      'INTEGRATOR_DB_URL',
+      api.get('INTEGRATOR_DB_URL') || makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.integrator),
+    );
+    apiAdditions.set('INTEGRATOR_DB_LOGIN', TEST_PORT_CONTEXT_LOGINS.integrator);
+    apiAdditions.set(
+      'INTEGRATOR_DB_TLS_CA_FILE',
+      api.get('INTEGRATOR_DB_TLS_CA_FILE') || TEST_PORT_CONTEXT_TLS.ca,
+    );
+    apiAdditions.set(
+      'INTEGRATOR_DB_TLS_CERT_FILE',
+      api.get('INTEGRATOR_DB_TLS_CERT_FILE') || TEST_PORT_CONTEXT_TLS.integratorCert,
+    );
+    apiAdditions.set(
+      'INTEGRATOR_DB_TLS_KEY_FILE',
+      api.get('INTEGRATOR_DB_TLS_KEY_FILE') || TEST_PORT_CONTEXT_TLS.integratorKey,
+    );
+
+    webappAdditions.set(
+      'DATABASE_URL_STAFF',
+      webapp.get('DATABASE_URL_STAFF') || makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappStaff),
+    );
+    webappAdditions.set(
+      'DATABASE_URL_PATIENT',
+      webapp.get('DATABASE_URL_PATIENT') || makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappPatient),
+    );
+    webappAdditions.set('WEBAPP_DB_STAFF_LOGIN', TEST_PORT_CONTEXT_LOGINS.webappStaff);
+    webappAdditions.set('WEBAPP_DB_PATIENT_LOGIN', TEST_PORT_CONTEXT_LOGINS.webappPatient);
+    webappAdditions.set(
+      'WEBAPP_DB_TLS_CA_FILE',
+      webapp.get('WEBAPP_DB_TLS_CA_FILE') || TEST_PORT_CONTEXT_TLS.ca,
+    );
+    webappAdditions.set(
+      'WEBAPP_DB_STAFF_CERT_FILE',
+      webapp.get('WEBAPP_DB_STAFF_CERT_FILE') || TEST_PORT_CONTEXT_TLS.webappStaffCert,
+    );
+    webappAdditions.set(
+      'WEBAPP_DB_STAFF_KEY_FILE',
+      webapp.get('WEBAPP_DB_STAFF_KEY_FILE') || TEST_PORT_CONTEXT_TLS.webappStaffKey,
+    );
+    webappAdditions.set(
+      'WEBAPP_DB_PATIENT_CERT_FILE',
+      webapp.get('WEBAPP_DB_PATIENT_CERT_FILE') || TEST_PORT_CONTEXT_TLS.webappPatientCert,
+    );
+    webappAdditions.set(
+      'WEBAPP_DB_PATIENT_KEY_FILE',
+      webapp.get('WEBAPP_DB_PATIENT_KEY_FILE') || TEST_PORT_CONTEXT_TLS.webappPatientKey,
+    );
+
+    const targetApi = mergedValues(api, apiAdditions);
+    const targetWebapp = mergedValues(webapp, webappAdditions);
+    validatePortContextUrl(
+      requireEnvPath(targetApi, 'INTEGRATOR_DB_URL', 'api.test port-context'),
+      TEST_PORT_CONTEXT_LOGINS.integrator,
+      'api.test INTEGRATOR_DB_URL',
+    );
+    validatePortContextUrl(
+      requireEnvPath(targetWebapp, 'DATABASE_URL_STAFF', 'webapp.test port-context'),
+      TEST_PORT_CONTEXT_LOGINS.webappStaff,
+      'webapp.test DATABASE_URL_STAFF',
+    );
+    validatePortContextUrl(
+      requireEnvPath(targetWebapp, 'DATABASE_URL_PATIENT', 'webapp.test port-context'),
+      TEST_PORT_CONTEXT_LOGINS.webappPatient,
+      'webapp.test DATABASE_URL_PATIENT',
+    );
+    for (const [values, label, keys] of [
+      [targetApi, 'api.test port-context', [
+        'INTEGRATOR_DB_TLS_CA_FILE',
+        'INTEGRATOR_DB_TLS_CERT_FILE',
+        'INTEGRATOR_DB_TLS_KEY_FILE',
+      ]],
+      [targetWebapp, 'webapp.test port-context', [
+        'WEBAPP_DB_TLS_CA_FILE',
+        'WEBAPP_DB_STAFF_CERT_FILE',
+        'WEBAPP_DB_STAFF_KEY_FILE',
+        'WEBAPP_DB_PATIENT_CERT_FILE',
+        'WEBAPP_DB_PATIENT_KEY_FILE',
+      ]],
+    ]) {
+      for (const key of keys) assertRegular(requireEnvPath(values, key, label));
+    }
+  }
 
   const mediaAdditions = new Map([
     ['MEDIA_WORKER_CONTROL_URL', webapp.get('APP_BASE_URL') ?? ''],
@@ -378,6 +510,65 @@ function selfTest() {
     }
     if (secondApi.get('DATABASE_URL_DIAGNOSTIC') !== firstApi.get('DATABASE_URL_DIAGNOSTIC'))
       fail('bootstrap is not idempotent');
+
+    writeFileSync(
+      api,
+      "DATABASE_URL='postgresql://base:base-secret@127.0.0.1:5432/bersoncarebot_test'\n" +
+        "DB_PRINCIPAL_CONTEXT_MODE='port-context'\n" +
+        `INTEGRATOR_DB_TLS_CA_FILE='${join(root, 'ca.crt')}'\n` +
+        `INTEGRATOR_DB_TLS_CERT_FILE='${join(root, 'integrator.crt')}'\n` +
+        `INTEGRATOR_DB_TLS_KEY_FILE='${join(root, 'integrator.key')}'\n` +
+        s3,
+    );
+    writeFileSync(
+      webapp,
+      "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\nAPP_BASE_URL='http://127.0.0.1:6200'\nINTERNAL_JOB_SECRET='control-secret'\n" +
+        "DB_PRINCIPAL_CONTEXT_MODE='port-context'\n",
+    );
+    for (const name of [
+      'ca.crt',
+      'integrator.crt',
+      'integrator.key',
+      'webapp-staff.crt',
+      'webapp-staff.key',
+      'webapp-patient.crt',
+      'webapp-patient.key',
+    ]) {
+      writeFileSync(join(root, name), 'self-test pem placeholder\n');
+    }
+    writeFileSync(
+      webapp,
+      readFileSync(webapp, 'utf8') +
+        `WEBAPP_DB_TLS_CA_FILE='${join(root, 'ca.crt')}'\n` +
+        `WEBAPP_DB_STAFF_CERT_FILE='${join(root, 'webapp-staff.crt')}'\n` +
+        `WEBAPP_DB_STAFF_KEY_FILE='${join(root, 'webapp-staff.key')}'\n` +
+        `WEBAPP_DB_PATIENT_CERT_FILE='${join(root, 'webapp-patient.crt')}'\n` +
+        `WEBAPP_DB_PATIENT_KEY_FILE='${join(root, 'webapp-patient.key')}'\n`,
+    );
+    bootstrap({
+      apiPath: api,
+      webappPath: webapp,
+      mediaPath: media,
+      ownerUid: process.getuid(),
+      deployGid: process.getgid(),
+    });
+    const portContextApi = parseEnv(readFileSync(api, 'utf8'), 'api.test');
+    const portContextWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
+    if (new URL(portContextApi.get('INTEGRATOR_DB_URL')).username !== TEST_PORT_CONTEXT_LOGINS.integrator) {
+      fail('self-test did not render integrator port-context URL');
+    }
+    if (new URL(portContextWebapp.get('DATABASE_URL_STAFF')).username !== TEST_PORT_CONTEXT_LOGINS.webappStaff) {
+      fail('self-test did not render webapp staff port-context URL');
+    }
+    if (new URL(portContextWebapp.get('DATABASE_URL_PATIENT')).username !== TEST_PORT_CONTEXT_LOGINS.webappPatient) {
+      fail('self-test did not render webapp patient port-context URL');
+    }
+    if (
+      portContextApi.get('DB_PRINCIPAL_SIGNING_SECRET') ||
+      portContextWebapp.get('DB_PRINCIPAL_SIGNING_SECRET')
+    ) {
+      fail('self-test retained signed-context secret in port-context mode');
+    }
     console.log('bootstrap-c4-test-env self-test: OK');
   } finally {
     rmSync(root, { recursive: true, force: true });

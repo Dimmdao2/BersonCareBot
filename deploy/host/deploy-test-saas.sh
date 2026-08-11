@@ -2,15 +2,16 @@
 # deploy-test-saas.sh — shared strict TEST closure engine plus the guarded implementation used only by
 # deploy-test-full-reset.sh for one clean cycle from zero: fresh prod-copy test DB → deploy branch code →
 # apply the SaaS migration chain the CORRECT way (#667/#708) → restart test units → verify healthy.
-# Runtime mode is locked-only; strict helper policies + FORCE are mandatory after every migration chain. Proven sequence;
+# Runtime mode is strict: locked during legacy signed-context operation, port-context during the mTLS
+# cutover. Strict helper policies + FORCE are mandatory after every migration chain. Proven sequence;
 # see docs/_TODO/SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md.
 #
 # Why the plain deploy-test.sh is not enough:
 #   - a migration asserts the doctor/admin membership seed → needs p0-data-fix-doctor-admin-split.sql FIRST;
 #   - some migrations backfill under already-installed FORCE RLS → need a TEMP BYPASSRLS migrator.
 #   - this wrapper owns the DDL/backfill migration window via temporary owner authority.
-#     TEST services run DB_PRINCIPAL_CONTEXT_MODE=locked after migrations:
-#     integrator API startup must not attempt DDL migrations in locked runtime mode.
+#     TEST services run DB_PRINCIPAL_CONTEXT_MODE=locked or port-context after migrations:
+#     integrator API startup must not attempt DDL migrations in strict runtime mode.
 #
 # Run as user `dev` (uses sudo for postgres/deploy/systemctl). This is NOT the normal code deploy:
 # it deliberately recreates TEST from a clean dump and therefore requires an explicit destructive confirmation
@@ -253,6 +254,58 @@ for (const raw of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
 ' "$env_file" "$key"
 }
 
+read_deploy_env_url_password(){
+  local env_file="$1"
+  local key="$2"
+  local expected_user="$3"
+  local expected_database="$4"
+  sudo -u deploy node -e '
+const fs = require("node:fs");
+const [file, key, expectedUser, expectedDatabase] = process.argv.slice(1);
+function fail(message) {
+  process.stderr.write(`FATAL: ${message}\n`);
+  process.exit(1);
+}
+let found = "";
+for (const raw of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+  const line = raw.trim();
+  if (!line || line.startsWith("#")) continue;
+  const normalized = line.startsWith("export ") ? line.slice("export ".length).trim() : line;
+  const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(normalized);
+  if (!match || match[1] !== key) continue;
+  let value = match[2].trim();
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.charCodeAt(0) === 39 && value.charCodeAt(value.length - 1) === 39)
+  ) {
+    value = value.slice(1, -1);
+  } else {
+    value = value.replace(/\s+#.*$/, "").trim();
+  }
+  found = value;
+  break;
+}
+if (!found) fail(`${file} is missing ${key}`);
+let url;
+try {
+  url = new URL(found);
+} catch {
+  fail(`${file} ${key} must be a PostgreSQL URL`);
+}
+if (decodeURIComponent(url.username) !== expectedUser) {
+  fail(`${file} ${key} username must be ${expectedUser}`);
+}
+if (decodeURIComponent(url.pathname).replace(/^\//, "") !== expectedDatabase) {
+  fail(`${file} ${key} must target ${expectedDatabase}`);
+}
+if (!url.password) fail(`${file} ${key} must contain a password`);
+for (const parameter of ["ssl", "sslmode", "sslrootcert", "sslcert", "sslkey"]) {
+  if (url.searchParams.has(parameter)) fail(`${file} ${key} must not override mTLS through ${parameter}`);
+}
+process.stdout.write(decodeURIComponent(url.password));
+' "$env_file" "$key" "$expected_user" "$expected_database"
+}
+
 assert_test_runtime_mode_ready(){
   local label env_file mode
   for spec in "api:$API_ENV" "webapp:$WEBAPP_ENV"; do
@@ -260,11 +313,11 @@ assert_test_runtime_mode_ready(){
     env_file="${spec#*:}"
     mode="$(read_deploy_env_value "$env_file" DB_PRINCIPAL_CONTEXT_MODE)"
     mode="${mode:-legacy-guc}"
-    [ "$mode" = "locked" ] || {
-      echo "FATAL: $env_file must use DB_PRINCIPAL_CONTEXT_MODE=locked for strict TEST, got $mode" >&2
+    [[ "$mode" == "locked" || "$mode" == "port-context" ]] || {
+      echo "FATAL: $env_file must use DB_PRINCIPAL_CONTEXT_MODE=locked or port-context for strict TEST, got $mode" >&2
       exit 1
     }
-    printf "   %-10s DB_PRINCIPAL_CONTEXT_MODE=locked (strict TEST runtime)\n" "$label:"
+    printf "   %-10s DB_PRINCIPAL_CONTEXT_MODE=%s (strict TEST runtime)\n" "$label:" "$mode"
   done
 }
 
@@ -571,6 +624,30 @@ bootstrap_and_provision_c4_operational_runtime(){
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env
   echo "   C4 operational bootstrap/provision: OK (three DB contours + media HTTP control)"
+}
+
+install_port_context_login_roles(){
+  local runtime_mode
+  runtime_mode="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-legacy-guc}\"")"
+  if [ "$runtime_mode" != "port-context" ]; then
+    echo "   port-context login roles: dormant until DB_PRINCIPAL_CONTEXT_MODE=port-context"
+    return
+  fi
+  node --experimental-strip-types "$DEPLOY_REPO/deploy/postgres/privileges/generate-cli.mjs" \
+      --env test --db "$DB" \
+    | sudo -u postgres psql -d "$DB" -X -1 -v ON_ERROR_STOP=1 \
+        -v BCB_TEST_INTEGRATOR_PASSWORD=bootstrap-not-runtime-integrator \
+        -v BCB_TEST_WEBAPP_PATIENT_PASSWORD=bootstrap-not-runtime-patient \
+        -v BCB_TEST_WEBAPP_STAFF_PASSWORD=bootstrap-not-runtime-staff \
+        -f - >/dev/null
+
+  read_deploy_env_url_password "$API_ENV" INTEGRATOR_DB_URL bcb_test_integrator "$DB" \
+    | sudo -u postgres node "$DEPLOY_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" "$DB" bcb_test_integrator >/dev/null
+  read_deploy_env_url_password "$WEBAPP_ENV" DATABASE_URL_STAFF bcb_test_webapp_staff "$DB" \
+    | sudo -u postgres node "$DEPLOY_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" "$DB" bcb_test_webapp_staff >/dev/null
+  read_deploy_env_url_password "$WEBAPP_ENV" DATABASE_URL_PATIENT bcb_test_webapp_patient "$DB" \
+    | sudo -u postgres node "$DEPLOY_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" "$DB" bcb_test_webapp_patient >/dev/null
+  echo "   port-context login roles: OK (3 declaration-owned logins; passwords from protected env URLs)"
 }
 
 install_port_context_capability_catalog(){
@@ -2814,6 +2891,8 @@ run_strict_post_migration_closure(){
   apply_test_strict_rls_finalizer
   log "strict closure: C4 three-DB + media-control TEST env preflight and root provisioning"
   bootstrap_and_provision_c4_operational_runtime
+  log "strict closure: declaration-owned port-context login roles"
+  install_port_context_login_roles
   log "strict closure: declaration-owned port-context capability catalog"
   install_port_context_capability_catalog
 
@@ -2952,7 +3031,8 @@ run_strict_closure_catalog_self_test(){
       install_integrator_login_public_identity_grants_overlay \
       run_saas_isolation_test_scenario_proof grant_api_runtime_migration_ledger_read \
       assert_api_runtime_can_read_migration_ledger grant_webapp_bootstrap_base_login_d3_4 \
-      sudo apply_test_strict_rls_finalizer bootstrap_and_provision_c4_operational_runtime; do
+      sudo apply_test_strict_rls_finalizer bootstrap_and_provision_c4_operational_runtime \
+      install_port_context_login_roles; do
       eval "$function_name(){ :; }"
     done
     install_port_context_capability_catalog(){ return 73; }
