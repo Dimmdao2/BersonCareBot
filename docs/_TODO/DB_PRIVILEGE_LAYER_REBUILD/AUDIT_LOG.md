@@ -1534,3 +1534,26 @@ payment UPDATE за реальные `status/updated_at`; лишние DELETE/UP
 - Остальной gate на `456f7e3e4` зелёный: `git diff --check`; bash syntax; bootstrap self-test; relation/catalog
   `17/17`; generated `--check`; phone completion `2/2`; прямых patient/pre-session grants и target `BYPASSRLS`
   нет. Host mTLS, zero-state и TEST cutover честно остаются открыты.
+
+## Audit ZERO-STATE-2026-08-12 — `932669ce0` → fixer `7308baa85`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд + PostgreSQL 16.14 test**: owner-порядок, revoke-only артефакты, bilateral verifier, независимые fault injections |
+| Вердикт | **FAIL → ИСПРАВЛЕНО ГРОМКО → PASS** |
+
+- **ZERO-STATE-001 ИСПРАВЛЕНО:** первый аудит доказал ложный PASS verifier: standalone composite type мог
+  сохранить чужой `USAGE`, а application collation — чужого владельца. Fixer `7308baa85` включает composite и
+  multirange types в revoke/ownership/verifier и нейтрализует + проверяет collation ownership.
+- Сохранённый `bash deploy/postgres/privileges/zero-state.acceptance.sh` на PostgreSQL `16.14` — PASS: `9`
+  независимых fault-классов, повторное применение, atomic rollback, third-DB blocker и громкий login refusal в
+  server log. Отдельная инъекция дала `perdb=postgres|f|f|postgres|1|f`, `cluster=0|1`: ACL сняты, оба владельца
+  стали `postgres`, строка сохранена, exact legacy roles удалены, посторонняя роль сохранена.
+- **LIVE-CENSUS-001 ИСПРАВЛЕНО В КАНДИДАТЕ:** read-only сравнение фактических DEV/TEST ролей с generated exact
+  list нашло два пропуска — `app_migrator` и `app_phone_bind_completion`; оба добавлены в zero-state и независимо
+  доказано их `NOLOGIN`/удаление. `bcb_webapp_prod` оставлен вне контура согласно evidence/13.
+- `rg '^\s*(GRANT|CREATE ROLE|CREATE USER|CREATE POLICY)\b' deploy/postgres/generated/zero-state.*.sql | wc -l`
+  → `0`; generated `--check`, `node --check`, `bash -n`, targeted ESLint и `git diff --check` — PASS.
+
+PASS принимает воспроизводимый revoke-only контракт и disposable proof точки ноль. Он не разрешает выдавать новые
+grants до отдельного live DEV zero-state proof и не принимает mTLS/transaction context/RLS/runtime cutover.
