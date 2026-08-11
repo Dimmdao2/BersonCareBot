@@ -101,7 +101,7 @@ export function EmailSmtpSection({
   }
 
   return (
-    <Card className="border-border">
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Исходящая почта (SMTP)</CardTitle>
         <p className="text-xs text-muted-foreground">

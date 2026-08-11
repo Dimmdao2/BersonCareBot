@@ -344,7 +344,7 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                     <th className="px-3 py-2 font-medium">Цель</th>
                     <th className="px-3 py-2 font-medium">Актор</th>
                     <th className="px-3 py-2 font-medium">Статус</th>
-                    <th className="px-3 py-2 font-medium w-10" />
+                    <th className="w-36 whitespace-nowrap px-3 py-2 font-medium" />
                   </tr>
                 </thead>
                 <tbody>
@@ -363,8 +363,8 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                             <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-muted-foreground">
                               {formatDisplayZoneInstantRu(row.created_at, displayTimeZone)}
                             </td>
-                            <td className="px-3 py-2 align-top">
-                              <div className="flex flex-wrap items-center gap-1">
+                            <td className="w-36 whitespace-nowrap px-3 py-2 align-top">
+                              <div className="flex flex-nowrap items-center gap-1">
                                 <Badge variant="outline" className="font-mono text-[10px]">
                                   {row.action}
                                 </Badge>

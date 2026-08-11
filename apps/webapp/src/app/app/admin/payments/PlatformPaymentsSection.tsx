@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { SaasBillingProviderSettings } from './SaasBillingProviderSettings';
 
 const INVOICE_STATUS_LABELS: Record<SaasBillingInvoiceStatus, string> = {
@@ -71,22 +72,12 @@ function isInvoiceOverdue(row: SaasBillingPlatformInvoiceRow): boolean {
   );
 }
 
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+function formatDateTime(value: string, displayTimeZone: string): string {
+  return formatDisplayZoneInstantRu(value, displayTimeZone);
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
+function formatDate(value: string, displayTimeZone: string): string {
+  return formatDisplayZoneInstantRu(value, displayTimeZone).split(',')[0]!;
 }
 
 const REFUND_ERROR_LABELS: Record<string, string> = {
@@ -964,7 +955,7 @@ function CancelInvoiceDialog({
   );
 }
 
-export function PlatformPaymentsSection() {
+export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: string }) {
   const [applied, setApplied] = useState<FilterState>(emptyFilters);
   const [draft, setDraft] = useState<FilterState>(emptyFilters);
   const [loading, setLoading] = useState(true);
@@ -1157,18 +1148,18 @@ export function PlatformPaymentsSection() {
                     (payments ?? []).map((row) => (
                       <tr key={row.id} className="border-t border-border/50 hover:bg-muted/30">
                         <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-muted-foreground">
-                          {formatDateTime(row.createdAt)}
+                          {formatDateTime(row.createdAt, displayTimeZone)}
                         </td>
                         <td className="px-3 py-2 align-top font-medium">{row.organizationTitle}</td>
                         <td className="px-3 py-2 align-top text-xs text-muted-foreground">
                           {row.description ?? row.tariffName}
                           <br />
-                          {formatDate(row.servicePeriodStartsAt)} —{' '}
-                          {formatDate(row.servicePeriodEndsAt)}
+                          {formatDate(row.servicePeriodStartsAt, displayTimeZone)} —{' '}
+                          {formatDate(row.servicePeriodEndsAt, displayTimeZone)}
                           {row.expiresAt && (
                             <>
                               <br />
-                              Срок действия: {formatDateTime(row.expiresAt)}
+                              Срок действия: {formatDateTime(row.expiresAt, displayTimeZone)}
                             </>
                           )}
                         </td>

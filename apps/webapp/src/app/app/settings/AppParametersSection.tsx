@@ -63,7 +63,7 @@ export function AppParametersSection({
   }
 
   return (
-    <Card className="border-border">
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Параметры приложения</CardTitle>
         <p className="text-xs text-muted-foreground">
