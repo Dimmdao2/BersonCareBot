@@ -428,3 +428,75 @@ pools и проверки, что старый backend не появился с�
 
 - Базовый exact-CN + clientcert + SCRAM, CRL reload primitive и три настоящие policy/FORCE-RLS mutations полезны.
 - Независимый `acceptance.sh --single` и полный runner печатают `OK`, но этот итог не является PASS до TRUST-005.
+
+## Audit pass RUNTIME-2026-08-11 — webapp/integrator production cutover
+
+| Поле | Значение |
+|---|---|
+| Candidate | `e76b04156`, `wt/port-context-runtime` |
+| Метод | **Тест + взгляд**: targeted Vitest/typecheck, chokepoint self-test и проход по живым startup/transaction/scheduler путям |
+| Вердикт | **FAIL — девять MUST FIX; к сведению/DEV/TEST не готов** |
+
+### RUNTIME-001 — integrator запускает legacy runtime migrations через отдельный raw pool
+
+**ОТКРЫТО — MUST FIX.** `port-context` ошибочно попадает в `run-ddl-migrations`, а migration provider создаёт pool
+без нового mTLS-конфига. При exact HBA сервис не стартует; при оставленной legacy allow-строке это третий обходной
+DB-вход. Runtime login должен только verify schema state; DDL остаётся named operation.
+
+### RUNTIME-002 — webapp handle transactions остались на legacy context mode
+
+**ОТКРЫТО — MUST FIX.** Живые messenger/purge/media paths вызывают старый `startPoolTransaction`, который принимает
+только `legacy-guc|shadow|locked`; в `port-context` воспроизводится `DB_PRINCIPAL_CONTEXT_MODE must be legacy-guc,
+shadow, or locked`. Все runtime handle paths должны проходить shared exact-client wrapper.
+
+### RUNTIME-003 — principal→capability mapping не покрывает живые роли и вложенные principals
+
+**ОТКРЫТО — MUST FIX.** Webapp mapper отвергает infra/organization/app_worker/service paths. Integrator сохраняет
+внешнюю scheduler/delivery capability при вложенном organization principal и затем отвергает его как non-infra.
+Нужен явный mapping живых entrypoints без универсального service bypass.
+
+### RUNTIME-004 — exact function/purpose/typed-args roots фактически не подключены
+
+**ОТКРЫТО — MUST FIX.** Descriptor не несёт typed args; одна capability выбирается на principal/worker и повторно
+используется для разных named roots. Package matrix дополнительно запрещает `functionIdentity` большинству
+runtime classes. Каждый root должен строить exact descriptor в месте вызова, а relation context оставаться отдельным.
+
+### RUNTIME-005 — integrator теряет checkout при setup failure
+
+**ОТКРЫТО — MUST FIX.** `connect()` выполняется до principal/capability mapping, а release существует только после
+успешной установки context. Достижимый startup path error-tracking делает DB queries без principal, глотает ошибку и
+оставляет checkout (`releases=0`). Любой setup failure обязан уничтожать client.
+
+### RUNTIME-006 — scheduler advisory lock использует legacy checkout
+
+**ОТКРЫТО — MUST FIX.** Scheduler lock проходит через legacy parser и в `port-context` не получает корректную
+сессию. Нужен отдельный bounded session-lock contract либо отказ от session lock; generic raw checkout запрещён.
+
+### RUNTIME-007 — Drizzle path не соблюдает destroy-on-any-failure
+
+**ОТКРЫТО — MUST FIX.** Webapp вручную дублирует lifecycle: cleanup error при уже упавшем запросе проглатывается,
+после rollback client возвращается обычным `release()`. Query/setup/cleanup failure должны destroy checkout.
+
+### RUNTIME-008 — webapp продолжает требовать generic `DATABASE_URL`
+
+**ОТКРЫТО — MUST FIX.** Startup instrumentation и health check валидируют legacy URL до выбора staff/patient target
+pool. Конфигурация только с двумя целевыми mTLS pools поэтому не стартует или ложно сообщает DB down.
+
+### RUNTIME-009 — certificate rotation не доведена до runtime pool drain
+
+**ОТКРЫТО — MUST FIX.** В runtime нет overlap, reload PoolConfig/env, закрытия старых webapp/integrator pools,
+перечисления и завершения всех surviving backends отозванного credential и проверки отсутствия их повторного
+появления. Primitive sentinel из TRUST-006 этого не доказывает.
+
+### Известный остаток вне candidate scope
+
+- Media worker всё ещё создаёт два прямых DB pools и остаётся третьим trust domain. До финального cutover их нужно
+  убрать за internal webapp seam, а не выдавать media worker приватный ключ webapp.
+
+### Что подтверждено и сохраняется
+
+- Strict mTLS PoolConfig проверяет URL-login, CA, client cert/key и server identity.
+- Целевая фабрика создаёт два webapp physical pools и один integrator pool; прежние webapp
+  config-reader/telemetry/purge/boot pools удалены.
+- Shared `withPortContextTransaction` удерживает callback на exact client и уничтожает checkout на ошибке.
+- Targeted Vitest: webapp `4 passed`, integrator `2 passed`; оба typecheck, chokepoint и self-test — PASS.
