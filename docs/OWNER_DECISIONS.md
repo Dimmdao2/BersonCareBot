@@ -325,6 +325,26 @@ human principal. Обычный bootstrap по одному DB-паролю, с�
 ротация ключа, формат transcript, transaction wrapper и негативные проверки — технические решения агента по
 этому owner-канону и общепринятой практике least privilege, challenge-response, replay protection и fail closed.
 
+### Проверка порта — PostgreSQL mTLS, custom OpenPGP заменён (владелец, 11.08, позднее решение)
+
+> «PostgreSQL mTLS → роли и grants → transaction context → нативный RLS → узкие
+> SECURITY DEFINER-функции — хорошо, берём».
+
+Port identity доказывает штатная certificate authentication PostgreSQL при создании физического соединения.
+Приватный ключ клиентского сертификата живёт только в env процесса соответствующего порта; PostgreSQL доверяет
+только публичному CA/certificate verifier. Пароль без допустимого сертификата не открывает прикладное соединение.
+
+В каждой транзакции порт по-прежнему устанавливает private context, связанный с login/backend/transaction,
+target role, context class, exact function/purpose/typed-args и human/service identity; только после этого выполняет
+`SET LOCAL ROLE`. Нативный RLS, deny by default, громкий context gate, узкие seam owners, отсутствие `BYPASSRLS`
+и совместимость A → I сохраняются.
+
+⛔ **ЗАМЕНЯЕТ** технический custom OpenPGP transaction challenge из неприлившихся candidates
+`69d6a69ac`/`42086f0b0`: в target нет `issue_port_challenge`, ciphertext/nonce/proof, replay ledger,
+`port_key_verifiers` или собственной crypto-ротации. Их аудит остаётся историей найденных ошибок, но эти commits
+не вливаются. Exact mTLS/context signatures и проверки пересобираются до Ф4; Supabase/PostgREST/JWT gateway и
+managed IAM в текущий контур не добавляются.
+
 ### Мест для продумывания — два, остальное чинит отладка (владелец, 09.08)
 
 > «около сотни мест в коде — нет, 2 места. 2 порта. Это всё. Остальное будет чиниться на отладке потому что
