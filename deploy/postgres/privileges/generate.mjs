@@ -122,6 +122,11 @@ function managedRoleNames(declaration) {
     .sort();
 }
 
+function functionExecute(db, fn) {
+  const logins = fn.loginExecute ? db.database.connect ?? [] : [];
+  return [...new Set([...fn.execute, ...logins])].sort();
+}
+
 /* ─────────────────────────── детектор пробелов ─────────────────────────── */
 
 function isTodo(value) {
@@ -156,6 +161,9 @@ export function collectGaps(declaration, dbName) {
       }
       if (!fn.purpose || !Array.isArray(fn.typedArgs)) {
         add(`portContext.functions.${signature}`, 'function lacks purpose or typed-args recipe');
+      }
+      if (typeof fn.returns !== 'string' || fn.returns.length === 0) {
+        add(`portContext.functions.${signature}`, 'function lacks exact result type');
       }
       if (!['DEFINER', 'INVOKER'].includes(fn.security)
         || !['IMMUTABLE', 'STABLE', 'VOLATILE'].includes(fn.volatility)
@@ -601,7 +609,8 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
       const targets = revokeTargets(fn.owner);
       if (targets.length > 0) out.push(`REVOKE ALL ON FUNCTION ${signature} FROM ${revokeList(targets)};`);
-      if (fn.execute.length > 0) out.push(`GRANT EXECUTE ON FUNCTION ${signature} TO ${[...fn.execute].sort().map(q).join(', ')};`);
+      const execute = functionExecute(db, fn);
+      if (execute.length > 0) out.push(`GRANT EXECUTE ON FUNCTION ${signature} TO ${execute.map(q).join(', ')};`);
       out.push(`ALTER FUNCTION ${signature} ${fn.security === 'DEFINER' ? 'SECURITY DEFINER' : 'SECURITY INVOKER'};`);
       out.push(`ALTER FUNCTION ${signature} ${fn.volatility};`);
       out.push(`ALTER FUNCTION ${signature} PARALLEL ${fn.parallel};`);
@@ -613,16 +622,16 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       }
     }
     const functionRows = Object.entries(portContext.functions).sort(([a], [b]) => a.localeCompare(b)).map(([signature, fn]) =>
-      `(${lit(signature)}, ${lit(fn.owner)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${fn.execute.map(lit).join(', ')}]::name[])`,
+      `(${lit(signature)}, ${lit(fn.owner)}, ${lit(fn.returns)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${functionExecute(db, fn).map(lit).join(', ')}]::name[])`,
     );
     const functionAclPrincipals = [...new Set([...managed, ...logins.keys()])].sort().map(lit).join(', ');
     out.push(
       '-- Catalog-side exact check: owner, SECURITY, volatility, parallel and proconfig for every signature.',
       'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
-      '  WITH expected(sig, owner_name, is_definer, volatility, parallelism, config, execute_roles) AS (VALUES',
+      '  WITH expected(sig, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (VALUES',
       functionRows.map((row) => `    ${row}`).join(',\n'),
       '  ) SELECT e.sig INTO bad FROM expected e LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure(e.sig)',
-      '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR p.prosecdef <> e.is_definer',
+      '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR pg_catalog.format_type(p.prorettype, NULL) <> e.result_type OR p.prosecdef <> e.is_definer',
       '         OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism',
       "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config",
       "         OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')",

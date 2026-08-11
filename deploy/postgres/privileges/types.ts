@@ -432,11 +432,15 @@ export interface PrivilegeDeclaration {
     functions: Record<string, {
       owner: string;
       security: 'DEFINER' | 'INVOKER';
+      /** Exact SQL result type, compared against pg_proc.prorettype. */
+      returns: string;
       /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
       volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
       parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
       proconfig: readonly string[];
       execute: readonly string[];
+      /** Add exactly the three login grantees connected to the rendered database. */
+      loginExecute?: true;
       purpose: string;
       typedArgs: readonly string[];
     }>;

@@ -7,7 +7,9 @@ import {
   renderPhase4StrictPredicate,
 } from '../../../../docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs';
 
-const db = declaration.databases.bcb_webapp_dev;
+const dbName = process.argv[2] ?? 'bcb_webapp_dev';
+const db = declaration.databases[dbName];
+if (!db) throw new Error(`undeclared database '${dbName}'`);
 const context = declaration.portContext;
 const q = (name) => `"${name.replaceAll('"', '""')}"`;
 const split = (identity) => identity.split('.').map(q).join('.');
@@ -39,14 +41,13 @@ function columnType(identity, column) {
 }
 const lines = ['\\set ON_ERROR_STOP on'];
 for (const login of Object.keys(declaration.envMapping).flatMap((env) => Object.keys(declaration.envMapping[env])).sort()) {
-  lines.push(`CREATE ROLE ${q(login)} NOLOGIN;`);
+  lines.push(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${login}') THEN CREATE ROLE ${q(login)} NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$;`);
 }
 for (const schema of [...schemas].sort()) lines.push(`CREATE SCHEMA IF NOT EXISTS ${q(schema)};`);
 lines.push(
   'CREATE DOMAIN app.port_context_class AS text;',
   'CREATE TYPE app.port_context_claims AS (payload text);',
   'CREATE TYPE app.port_typed_arg AS (payload text);',
-  'CREATE FUNCTION app.is_staff() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$;',
 );
 for (const identity of Object.keys(context.privateRelations).sort()) {
   lines.push(`CREATE TABLE ${split(identity)} (id integer);`);
@@ -62,13 +63,16 @@ for (const identity of Object.keys(db.tables).sort()) {
   }
   lines.push(`CREATE TABLE ${split(identity)} (${[...columns].sort().map((column) => `${q(column)} ${columnType(identity, column)}`).join(', ')});`);
 }
-for (const signature of Object.keys(context.functions).sort()) {
-  const returns = signature === 'app.current_org_id()' || signature === 'app.current_actor_user_id()'
-    || signature === 'app.current_patient_user_id()' || signature === 'app_ext.resolve_variant_a_identity(uuid)' ? 'uuid'
-    : signature === 'app.current_integrator_user_id()' ? 'bigint'
-    : signature.startsWith('app.require_accepted_context(') ? 'boolean' : 'void';
-  const body = returns === 'uuid' ? 'SELECT NULL::uuid' : returns === 'bigint' ? 'SELECT NULL::bigint'
-    : returns === 'boolean' ? 'SELECT true' : 'SELECT NULL::void';
+for (const [signature, functionDecl] of Object.entries(context.functions).sort(([a], [b]) => a.localeCompare(b))) {
+  const returns = functionDecl.returns;
+  const body = signature === 'app.current_org_id()'
+    ? "SELECT nullif(current_setting('app.org_id', true), '')::uuid"
+    : signature === 'app.current_patient_user_id()'
+      ? "SELECT nullif(current_setting('app.patient_id', true), '')::uuid"
+      : signature === 'app.is_staff()'
+        ? "SELECT current_user = 'app_staff'"
+        : returns === 'uuid' ? 'SELECT NULL::uuid' : returns === 'bigint' ? 'SELECT NULL::bigint'
+          : returns === 'bytea' ? "SELECT ''::bytea" : returns === 'boolean' ? 'SELECT true' : 'SELECT NULL::void';
   lines.push(`CREATE FUNCTION ${signature} RETURNS ${returns} LANGUAGE sql AS $$ ${body} $$;`);
 }
 process.stdout.write(`${lines.join('\n')}\n`);

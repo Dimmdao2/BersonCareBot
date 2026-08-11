@@ -217,81 +217,84 @@ psql_db -Atc "SELECT to_regclass('public.migration_window_killed') IS NULL AS ki
 psql_db -Atc "SELECT to_regprocedure('public.migration_window_killed_seam()') IS NULL AS killed_seam_rolled_back;"
 psql_db -Atc "SELECT NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = 'bcb_proof_window_migrator'::regrole AND roleid IN ('app_proof_owner'::regrole, 'app_proof_seam_owner'::regrole)) AS memberships_rolled_back;"
 
-banner "12. ACTUAL REVISION-10 ARTIFACT — disposable production-shaped catalog"
-PROD_DB=bcb_webapp_dev
-psql -h "$SOCKDIR" -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE $PROD_DB OWNER postgres"
-node "$FIXTURES_DIR/production-catalog.mjs" | psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -v ON_ERROR_STOP=1
-node "$CLI" --db "$PROD_DB" --out-dir "$WORKDIR/rev10" >/dev/null
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -1 -v ON_ERROR_STOP=1 -f "$WORKDIR/rev10/privileges.$PROD_DB.sql" >/dev/null
-node "$CLI" --env dev --db "$PROD_DB" >"$WORKDIR/rev10/env.sql"
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -1 -v ON_ERROR_STOP=1 \
-  -v BCB_DEV_WEBAPP_STAFF_PASSWORD=dummy -v BCB_DEV_WEBAPP_PATIENT_PASSWORD=dummy -v BCB_DEV_INTEGRATOR_PASSWORD=dummy \
-  -f "$WORKDIR/rev10/env.sql" >/dev/null
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -v ON_ERROR_STOP=1 <<'SQL' >/dev/null
-SET ROLE app_seam_context_owner;
-SELECT app.current_org_id();
+banner "12. ACTUAL REVISION-10 ARTIFACT — bilateral verifier and faults for DEV + TEST"
+verify_catalog() { PGHOST="$SOCKDIR" node "$FIXTURES_DIR/catalog-verifier.mjs" --db "$1"; }
+reapply_catalog() { psql -h "$SOCKDIR" -U postgres -d "$1" -1 -v ON_ERROR_STOP=1 -f "$WORKDIR/rev10-$1/privileges.$1.sql" >/dev/null; }
+expect_verifier_red() {
+  local db="$1" label="$2" out="$WORKDIR/$db-$2.verifier.out"
+  set +e
+  PGHOST="$SOCKDIR" node "$FIXTURES_DIR/catalog-verifier.mjs" --db "$db" >"$out" 2>&1
+  local rc=$?
+  set -e
+  test "$rc" -ne 0
+  printf 'fault %s/%s: ' "$db" "$label"
+  head -1 "$out"
+}
+proof_production_db() {
+  local db="$1" env="$2"
+  psql -h "$SOCKDIR" -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE $db OWNER postgres"
+  node "$FIXTURES_DIR/production-catalog.mjs" "$db" | psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1
+  node "$CLI" --db "$db" --out-dir "$WORKDIR/rev10-$db" >/dev/null
+  reapply_catalog "$db"
+  verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO public.be_appointments (id, organization_id, platform_user_id) VALUES
+  ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001'),
+  ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001');
+SET app.org_id = '20000000-0000-0000-0000-000000000001';
+SET app.patient_id = '30000000-0000-0000-0000-000000000001';
+SET ROLE app_staff;
+SELECT count(*) AS staff_own_org_rows FROM public.be_appointments;
 RESET ROLE;
-SET ROLE app_seam_identity_lookup_owner;
-SELECT app_ext.resolve_variant_a_identity('00000000-0000-0000-0000-000000000000'::uuid);
+SET ROLE app_patient;
+SELECT count(*) AS patient_own_org_rows FROM public.be_appointments;
 RESET ROLE;
 SQL
-echo "app_ext owner execution: context and identity seam accessors executed under their exact owners; login access remains ungranted"
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -v ON_ERROR_STOP=1 <<'SQL'
-CREATE ROLE rev10_stale_execute_probe NOLOGIN;
-GRANT EXECUTE ON FUNCTION app.current_org_id() TO rev10_stale_execute_probe;
-SELECT has_function_privilege('rev10_stale_execute_probe', 'app.current_org_id()', 'EXECUTE') AS stale_execute_installed;
-SQL
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -1 -v ON_ERROR_STOP=1 -f "$WORKDIR/rev10/privileges.$PROD_DB.sql" >/dev/null
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname IN ('app', 'app_ext') AND has_function_privilege('rev10_stale_execute_probe', p.oid, 'EXECUTE')" | grep -qx 0
-echo "stale EXECUTE after reapply=0 (arbitrary-role injection was installed then removed by the production generator)"
-EXPECTED_ACTIVE="$(node --experimental-strip-types -e "import('./deploy/postgres/privileges/declaration.ts').then(({declaration})=>console.log(Object.values(declaration.databases.bcb_webapp_dev.tables).filter(t=>t.disposition==='ACTIVE').length))")"
-EXPECTED_POLICIES="$(node --experimental-strip-types -e "import('./deploy/postgres/privileges/declaration.ts').then(({declaration})=>console.log(Object.values(declaration.databases.bcb_webapp_dev.tables).flatMap(t=>t.policies??[]).length))")"
-ACTUAL_RELATIONS="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','app','integrator','app_ext','drizzle') AND c.relkind IN ('r','p')")"
-ACTUAL_POLICIES="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_policy")"
-DEFINERS="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_proc WHERE prosecdef")"
-SCHEMA_GRANTS="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_namespace n CROSS JOIN LATERAL aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a WHERE n.nspname='app_ext' AND a.privilege_type='USAGE'")"
-OWNERS="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(DISTINCT relowner) FROM pg_class")"
-ROLES="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_roles")"
-MEMBERSHIPS="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_auth_members")"
-DEFAULT_PRIVILEGES="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_default_acl")"
-echo "revision-10 counts: active_relations=$EXPECTED_ACTIVE catalog_relations=$ACTUAL_RELATIONS policies=$EXPECTED_POLICIES/$ACTUAL_POLICIES definers=$DEFINERS schema_grants=$SCHEMA_GRANTS owners=$OWNERS roles=$ROLES memberships=$MEMBERSHIPS default_privileges=$DEFAULT_PRIVILEGES"
-test "$ACTUAL_POLICIES" = "$EXPECTED_POLICIES"
-set +e
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -v ON_ERROR_STOP=1 <<'SQL' >"$WORKDIR/rev10-policy-mutation.out" 2>&1
-BEGIN;
-DROP POLICY rev10_context_gate_1 ON app.context_nonce_ledger;
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'rev10_context_gate_1' AND permissive = 'RESTRICTIVE') THEN
-    RAISE EXCEPTION 'expected restrictive context gate is absent';
-  END IF;
+  psql -h "$SOCKDIR" -U postgres -d "$db" -Atc "SET app.org_id='20000000-0000-0000-0000-000000000001'; SET app.patient_id='30000000-0000-0000-0000-000000000001'; SET ROLE app_staff; SELECT count(*) FROM public.be_appointments;" | tail -1 | grep -qx 1
+  psql -h "$SOCKDIR" -U postgres -d "$db" -Atc "SET app.org_id='20000000-0000-0000-0000-000000000001'; SET app.patient_id='30000000-0000-0000-0000-000000000001'; SET ROLE app_patient; SELECT count(*) FROM public.be_appointments;" | tail -1 | grep -qx 1
+  echo "runtime RLS/$db: staff=1 patient=1; same-subject cross-org row denied"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'CREATE TABLE public.decl_undeclared_relation (id uuid);'
+  expect_verifier_red "$db" undeclared_relation
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'DROP TABLE public.decl_undeclared_relation;'
+  reapply_catalog "$db"; verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'CREATE POLICY decl_using_true ON public.be_appointments AS PERMISSIVE FOR SELECT TO app_staff USING (true);'
+  expect_verifier_red "$db" permissive_using_true
+  reapply_catalog "$db"; verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'CREATE FUNCTION app.decl_undeclared_invoker() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;'
+  expect_verifier_red "$db" undeclared_invoker
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'DROP FUNCTION app.decl_undeclared_invoker();'
+  reapply_catalog "$db"; verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'GRANT SELECT ON public.phone_challenges TO app_staff;'
+  expect_verifier_red "$db" arbitrary_table_acl
+  reapply_catalog "$db"; verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'ALTER DEFAULT PRIVILEGES FOR ROLE app_object_owner IN SCHEMA public GRANT SELECT ON TABLES TO app_staff;'
+  expect_verifier_red "$db" default_acl_drift
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'ALTER DEFAULT PRIVILEGES FOR ROLE app_object_owner IN SCHEMA public REVOKE SELECT ON TABLES FROM app_staff;'
+  reapply_catalog "$db"; verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'GRANT EXECUTE ON FUNCTION app.require_platform_principal() TO app_staff;'
+  expect_verifier_red "$db" stale_execute
+  reapply_catalog "$db"; verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'ALTER ROLE app_staff BYPASSRLS;'
+  expect_verifier_red "$db" unsafe_role_attrs
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 -c 'ALTER ROLE app_staff NOBYPASSRLS;'
+  reapply_catalog "$db"; verify_catalog "$db"
+  psql -h "$SOCKDIR" -U postgres -d "$db" -v ON_ERROR_STOP=1 <<'SQL'
+DO $$ DECLARE p text; BEGIN
+  SELECT policyname INTO p FROM pg_policies WHERE schemaname='public' AND tablename='be_appointments' AND policyname LIKE 'rev10_context_gate_%';
+  EXECUTE format('DROP POLICY %I ON public.be_appointments', p);
 END $$;
-ROLLBACK;
 SQL
-POLICY_MUTATION_RC=$?
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -v ON_ERROR_STOP=1 <<'SQL' >"$WORKDIR/rev10-owner-mutation.out" 2>&1
-BEGIN;
-ALTER FUNCTION app.current_org_id() OWNER TO postgres;
-DO $$ BEGIN
-  IF pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'app.current_org_id()'::regprocedure)) <> 'app_seam_context_owner' THEN
-    RAISE EXCEPTION 'expected exact definer owner mismatch';
-  END IF;
-END $$;
-ROLLBACK;
-SQL
-OWNER_MUTATION_RC=$?
-set -e
-test "$POLICY_MUTATION_RC" -ne 0 && grep -q 'expected restrictive context gate is absent' "$WORKDIR/rev10-policy-mutation.out"
-test "$OWNER_MUTATION_RC" -ne 0 && grep -q 'expected exact definer owner mismatch' "$WORKDIR/rev10-owner-mutation.out"
-echo "revision-10 independent mutations: restrictive-policy and exact-definer-owner controls raised and rolled back"
-pg_dump -h "$SOCKDIR" -U postgres -Fc -d "$PROD_DB" -f "$WORKDIR/rev10-old-owner.dump"
-psql -h "$SOCKDIR" -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE $PROD_DB"
-psql -h "$SOCKDIR" -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE $PROD_DB OWNER postgres"
-psql -h "$SOCKDIR" -U postgres -d postgres -v ON_ERROR_STOP=1 -c "GRANT CREATE ON DATABASE $PROD_DB TO app_object_owner"
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -v ON_ERROR_STOP=1 -c "GRANT USAGE, CREATE ON SCHEMA public TO app_object_owner"
-PGHOST="$SOCKDIR" bash "$REPO_ROOT/deploy/postgres/privileges/restore-no-owner.sh" \
-  "$PROD_DB" "$WORKDIR/rev10-old-owner.dump" "$WORKDIR/rev10/privileges.$PROD_DB.sql"
-psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = 'public.phone_challenges'::regclass" \
-  | grep -qx app_object_owner
-echo "restore --no-owner proof: application table owner=app_object_owner; legacy dump owners ignored"
+  expect_verifier_red "$db" missing_declared_policy
+  reapply_catalog "$db"; verify_catalog "$db"
+  echo "catalog faults/$db: 8/8 red before repair, 8/8 green after repair/reapply"
+}
+PROOF_DATABASES="${PROOF_DATABASES:-bcb_webapp_dev bersoncarebot_test}"
+for proof_db in $PROOF_DATABASES; do
+  case "$proof_db" in
+    bcb_webapp_dev) proof_production_db bcb_webapp_dev dev ;;
+    bersoncarebot_test) proof_production_db bersoncarebot_test test ;;
+    *) echo "unknown PROOF_DATABASES entry: $proof_db" >&2; exit 2 ;;
+  esac
+done
 
 banner "ГОТОВО — кластер удаляется"
