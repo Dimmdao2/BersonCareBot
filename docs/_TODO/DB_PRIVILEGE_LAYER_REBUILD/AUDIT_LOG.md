@@ -159,3 +159,81 @@ OpenPGP challenge/replay/rotation слой. Это **не новая audit-на�
 для port identity; роли/grants, transaction context, native RLS и narrow definer seams сохраняются. Новый A1 строится
 в `wt/port-context-mtls` от integration SHA `337fd3275`; старый audit-pass остаётся только историей реальных ошибок,
 которые нельзя повторить в mTLS-контракте.
+
+## Audit pass A1-mTLS-2026-08-11 — PostgreSQL mTLS/context contract
+
+| Поле | Значение |
+|---|---|
+| Candidate | `24ae1a6bd576ce27cae3f26b446b5dde02265dda`, `wt/port-context-mtls` |
+| Base | `337fd3275bdcf75c0b7dd354acaff0a9a7cd30c6` |
+| Run | `f3b-a1-mtls-auditor-codex-20260811`, `gpt-5.6-sol`, `xhigh` |
+| Метод | **Взгляд**: owner decisions + полный diff/revision 8 regression check + official PostgreSQL 16 docs + disposable PostgreSQL 16.14 primitive probes |
+| Вердикт | **FAIL — восемь MUST FIX; candidate не принимается и не приземляется** |
+| Run record | `/home/dev/brain/runs/agent-port/f3b-a1-mtls-auditor-codex-20260811.json` |
+
+### A1-MTLS-001 — HBA с SCRAM и `map=` не загружается
+
+**Статус: ОТКРЫТО — MUST FIX.** PostgreSQL 16.14 отверг строки candidate при startup:
+`authentication option "map" is only valid for authentication methods ident, peer, gssapi, sspi, and cert`.
+Поэтому один CN нельзя сопоставить двум webapp login через `scram-sha-256 map=...`. Сохраняем SCRAM и портовую
+границу минимально: отдельный client certificate/CN для каждого application login, без `map`; staff и patient
+сертификаты остаются секретами одного webapp-порта, integrator certificate — integrator-порта.
+
+### A1-MTLS-002 — неверно заявлен SAN-only server-name check
+
+**Статус: ОТКРЫТО — MUST FIX.** В PostgreSQL 16/libpq `sslmode=verify-full` использует CN как fallback, когда
+подходящего SAN нет; текст candidate утверждает обратное. Контракт и negative vectors должны принять реальную
+семантику штатного примитива, не придумывая отдельный SAN-only компонент.
+
+### A1-MTLS-003 — canonical empty typed-args array несовместим с dimension rule
+
+**Статус: ОТКРЫТО — MUST FIX.** В PostgreSQL 16 пустой массив имеет `cardinality=0`, но `array_ndims`,
+`array_lower` и `array_dims` возвращают NULL; `[1:0]={}` не существует. Zero-arg relation/root поэтому получил бы
+`22023`. Empty должен быть отдельным canonical dimensionless case; lower bound 1 проверяется только при непустом
+одномерном массиве.
+
+### A1-MTLS-004 — не задано преобразование SQL types в canonical bytes
+
+**Статус: ОТКРЫТО — MUST FIX.** Framing готового `bytea` задан, но exact encoding `uuid`, `oid`, `integer`,
+`bigint`, `xid8`, `boolean`, `text`, `name`, `bytea`, `timestamptz` отсутствует. Node port и SQL root могут получить
+разные hash на одном аргументе. Для каждого type нужны exact tag/version и canonical byte encoding через проверенные
+PostgreSQL 16 primitives/явный формат.
+
+### A1-MTLS-005 — login может вызвать definer root без `SET LOCAL ROLE`
+
+**Статус: ОТКРЫТО — MUST FIX.** Candidate выдаёт login прямой `EXECUTE` на pre-session roots. После install login
+может пропустить `SET LOCAL ROLE app_pre_session` и вызвать definer; внутри `current_user` уже owner, что disposable
+probe подтвердил результатом `direct_login_root_result=visible-without-set-role`. Login должен иметь только
+install/clear; named roots получают `EXECUTE` только через exact target role, включая `app_pre_session`.
+
+### A1-MTLS-006 — Variant-A identity resolver смешан с context seam
+
+**Статус: ОТКРЫТО — MUST FIX.** `variant_a_identity_refs` и physical→opaque resolver должны принадлежать
+существующему узкому `app_seam_identity_lookup_owner`; context seam хранит/проверяет только opaque refs. Иначе
+context owner получает лишнюю identity-map власть, а число private relations и owner map расходятся.
+
+### A1-MTLS-007 — потерян exact object ownership/contour revision 8
+
+**Статус: ОТКРЫТО — MUST FIX.** Candidate заменил полный §6 словом `remain`: исчезли exact owners/default-deny
+для database, tablespaces, extensions, event triggers, FDW/server/user mappings, publications/subscriptions,
+matviews, foreign tables, large objects, replication slots, triggers/constraints/default privileges, а также exact
+sequence/catalog census predicates. Вернуть действующий §6 revision 8, меняя только context-specific surface.
+
+### A1-MTLS-008 — потерян migration/backup/restore и crash-acceptance contract
+
+**Статус: ОТКРЫТО — MUST FIX.** Candidate удалил точную последовательность migration window, reset/backfill/revoke
+post-state, positive+crash controls, `--no-owner` restore, нормализацию legacy owners и полный per-principal
+acceptance. Вернуть действующие §7–§8 revision 8, заменив только custom challenge vectors на mTLS/revocation/context.
+
+### Подтверждено аудитом mTLS candidate
+
+- PostgreSQL 16.14 поддерживает остальные выбранные типы/DDL: `oid`, `xid8`, `regprocedure`, composite/enum,
+  `UNIQUE NULLS NOT DISTINCT`, boolean RLS gate и role membership options.
+- Зафиксированный zero-arg SHA-256 верен: `0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a`.
+- `INHERIT FALSE, SET TRUE, ADMIN FALSE`, `SET LOCAL ROLE`, CRL reload/on-demand и обязательный drain surviving
+  backends исполнимы.
+- Port proof отделён от human identity; private client key не вводится в SQL/dump/log; 42 узких seam owners
+  сохранены; custom OpenPGP остаётся только historical replacement; A2–A10 не выданы за реализацию.
+
+Disposable PostgreSQL аудит остановлен и удалён; репозиторий и DEV/TEST он не менял. Полный текст команд и
+сценариев находится в run record и `/tmp/f3b-a1-mtls-auditor-codex-20260811.log`.
