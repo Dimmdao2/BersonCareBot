@@ -218,8 +218,8 @@ ORDER BY table_schema, table_name, privilege_type;"
       certificate overlap, reload semantics, CRL revocation and mandatory pool drain/backend termination; DB never
       stores a port private key
 - [ ] **Ф3б-A3 — единый transaction wrapper портов.** Единственная точка DB checkout executes
-      `BEGIN → RESET ROLE → clear context → install declared context → SET LOCAL ROLE → queries → clear →
-      RESET ROLE → COMMIT/ROLLBACK`; every transaction installs a fresh context and any cleanup failure destroys
+      `BEGIN → RESET ROLE → clear context → install declared context → SET LOCAL ROLE → queries → RESET ROLE →
+      clear → COMMIT/ROLLBACK`; every transaction installs a fresh context and any cleanup failure destroys
       the client. Direct query outside wrapper is mechanically forbidden
 - [ ] **Ф3б-A4 — отдельный pre-session principal.** Заменить общий unsigned `bootstrap` на `pre_session` только в
       webapp; request id, exact purpose/function и typed-args hash строит порт, а не HTTP-клиент. До human principal
@@ -238,7 +238,7 @@ ORDER BY table_schema, table_name, privilege_type;"
       expired или mismatched context; cleanup выполняется на success/error/rollback, а ошибка cleanup уничтожает
       connection. Отказ попадает в системный Postgres log без отдельной audit-таблицы
 - [ ] **Ф3б-A9 — исполняемое доказательство.** Live negatives: password without accepted certificate; wrong/missing/
-      expired/revoked certificate, CN map/login/port, non-TLS/socket and server impersonation; wrong capability/
+      expired/revoked certificate, CN/login/port, non-TLS/socket and server impersonation; wrong capability/
       DB/role/backend/transaction/class/purpose/args, pool reuse, direct definer call and `SET ROLE` without
       context. Positive webapp pre-session/staff/patient/platform/service and integrator paths pass only via their ports
 - [ ] **Ф3б-A10 — сохранить путь к I.** Контекст и seam APIs используют версионированные actor/subject fields и
@@ -249,7 +249,7 @@ ORDER BY table_schema, table_name, privilege_type;"
 
 **Владелец уже решил:** A сейчас; I — будущее направление обезличивания; неизвестный человек не имеет своего
 DB-доступа; private client key only in port env; доступ минимальный; отказ громкий. **Агент решает без нового
-owner-вопроса:** exact HBA/map/material layout, context signatures, rotation/revocation, wrapper API, seam mapping
+owner-вопроса:** exact HBA/certificate/material layout, context signatures, rotation/revocation, wrapper API, seam mapping
 and test vectors by accepted `SCHEME.md` and standard practice. Новый owner gate возникает только если реализация меняет product auth-flow,
 стоимость/инфраструктуру или отказывается от совместимости с I.
 
