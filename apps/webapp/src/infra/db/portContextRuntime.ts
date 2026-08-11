@@ -2,9 +2,6 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { PoolConfig } from 'pg';
-import {
-  isWebappLockedInfraCronSource,
-} from '@bersoncare/db-principal';
 import type {
   DbPrincipal,
   PortContextClass,
@@ -18,6 +15,7 @@ export type PortCapabilityDescriptor = {
   contextClass: PortContextClass;
   purpose: string;
   functionIdentity?: string;
+  runtimeSources?: readonly string[];
 };
 
 export type WebappPortContextRuntimeConfig = {
@@ -40,18 +38,6 @@ export function runWithWebappPortOperation<T>(operation: WebappPortOperation, fn
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROLE_RE = /^[a-z_][a-z0-9_]{0,62}$/;
 const PURPOSE_RE = /^[a-z][a-z0-9._:-]{0,127}$/;
-const MEDIA_WORKER_SOURCES = new Set([
-  'api/internal/media-worker/control:POST',
-  'api/internal/media-hls-proxy-errors/retention:POST',
-  'api/internal/media-playback-stats/retention:POST',
-  'api/internal/media-pending-delete/purge:POST',
-  'api/internal/media-multipart/cleanup:POST',
-  'api/internal/media-preview/process:POST',
-  'api/internal/media-transcode/enqueue:POST',
-  'api/internal/media-transcode/reconcile:POST',
-]);
-const SERVICE_INFRA_SOURCES = new Set(['webapp-health-check', 'api/health:GET']);
-
 function required(value: string | undefined, name: string): string {
   const trimmed = value?.trim() ?? '';
   if (!trimmed) throw new Error(`${name} is required in port-context mode`);
@@ -147,6 +133,11 @@ function parseCapabilities(raw: string | undefined): Record<string, PortCapabili
     ) {
       throw new Error(`port capability ${name} has an invalid descriptor`);
     }
+    if (descriptor.runtimeSources !== undefined && (!Array.isArray(descriptor.runtimeSources)
+      || descriptor.runtimeSources.some((source) => typeof source !== 'string' || !source.trim())
+      || new Set(descriptor.runtimeSources).size !== descriptor.runtimeSources.length)) {
+      throw new Error(`port capability ${name} has invalid runtime sources`);
+    }
     if (
       (descriptor.purpose === 'relation' && descriptor.functionIdentity) ||
       (descriptor.purpose !== 'relation' && !descriptor.functionIdentity)
@@ -158,6 +149,19 @@ function parseCapabilities(raw: string | undefined): Record<string, PortCapabili
     capabilities[name] = descriptor as PortCapabilityDescriptor;
   }
   return capabilities;
+}
+
+export function webappPortCapabilityForInfraSource(
+  source: string | undefined,
+  capabilities: Record<string, PortCapabilityDescriptor>,
+): string {
+  const normalized = source?.trim() ?? '';
+  const matches = Object.entries(capabilities).filter(
+    ([, descriptor]) => descriptor.purpose === 'relation'
+      && descriptor.runtimeSources?.includes(normalized),
+  );
+  if (matches.length === 1) return matches[0]![0];
+  throw new Error(`Unknown webapp infra source in port-context mode: ${normalized || '<missing>'}`);
 }
 
 export function createWebappPortContextRuntimeConfig(
@@ -233,17 +237,7 @@ export function webappPortContextPrincipal(
     principal.kind === 'organization'
       ? 'tenant_service'
       : principal.kind === 'infra'
-        ? MEDIA_WORKER_SOURCES.has(principal.source ?? '')
-          ? 'media_worker'
-          : isWebappLockedInfraCronSource(principal.source)
-            ? 'worker'
-            : SERVICE_INFRA_SOURCES.has(principal.source?.trim() ?? '')
-              ? 'service'
-              : (() => {
-                  throw new Error(
-                    `Unknown webapp infra source in port-context mode: ${principal.source?.trim() || '<missing>'}`,
-                  );
-                })()
+        ? webappPortCapabilityForInfraSource(principal.source, capabilities)
         : principal.kind;
   const descriptor = capabilityFor(capabilities, descriptorName, principal);
   const operation = operationStorage.getStore();

@@ -73,11 +73,17 @@ db_json=$(psql_admin -Atc "
 WEB_JSON="$web_json" INTEGRATOR_JSON="$integrator_json" DB_JSON="$db_json" node --input-type=module <<'JS'
 import assert from 'node:assert/strict';
 const db = JSON.parse(process.env.DB_JSON);
-for (const [port, envName, count] of [['webapp', 'WEB_JSON', 4], ['integrator', 'INTEGRATOR_JSON', 6]]) {
-  const runtime = Object.values(JSON.parse(process.env[envName]));
+for (const [port, envName, rootCount, relationCount] of [
+  ['webapp', 'WEB_JSON', 4, 8],
+  ['integrator', 'INTEGRATOR_JSON', 6, 6],
+]) {
+  const allRuntime = Object.values(JSON.parse(process.env[envName]));
+  const runtime = allRuntime.filter((descriptor) => descriptor.functionIdentity);
+  const relations = allRuntime.filter((descriptor) => descriptor.purpose === 'relation');
   const rows = db.filter((row) => row.port === port).map(({ port: _port, ...row }) => row);
   const sorted = (values) => values.sort((a, b) => a.capabilityId.localeCompare(b.capabilityId));
-  assert.equal(runtime.length, count);
+  assert.equal(runtime.length, rootCount);
+  assert.equal(relations.length, relationCount);
   assert.deepEqual(sorted(runtime), sorted(rows));
 }
 JS
@@ -121,4 +127,4 @@ for (const [name, [identity, args]] of Object.entries(vectors)) {
 JS
 )
 
-echo 'port-context catalog: PASS (PostgreSQL 16, 10 exact capabilities, 4+6 env descriptors, 10 typed-args hashes)'
+echo 'port-context catalog: PASS (PostgreSQL 16, 10 function rows, 14 relation env descriptors, 10 typed-args hashes)'

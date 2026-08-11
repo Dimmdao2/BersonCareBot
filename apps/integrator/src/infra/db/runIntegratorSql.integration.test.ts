@@ -1,64 +1,39 @@
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool, type PoolClient } from 'pg';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { DbPort } from '../../kernel/contracts/index.js';
-import {
-  startDisposablePostgres,
-  type DisposablePostgres,
-} from '../scripts/d30DisposablePostgres.js';
+import { describe, expect, it, vi } from 'vitest';
+import { createRealPostgresIntegrationTestHarness } from './realPostgresIntegrationTestHarness.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
 
-describe('runIntegratorSql transaction errors on disposable PostgreSQL 16', () => {
-  let disposable: DisposablePostgres;
-  let adminPool: Pool;
-  let runtimePool: Pool;
-  let client: PoolClient;
+const enabled =
+  process.env.RUN_INTEGRATOR_SQL_PERMISSION_TEST === '1' &&
+  process.env.USE_REAL_DATABASE === '1' &&
+  Boolean((process.env.DATABASE_URL ?? '').trim()) &&
+  Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
 
-  beforeAll(async () => {
-    disposable = startDisposablePostgres('run_integrator_sql_permission');
-    adminPool = new Pool({ connectionString: disposable.connectionString });
-    await adminPool.query(
-      'CREATE ROLE bcb_permission_oracle LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS',
-    );
-    const runtimeConnectionString = disposable.connectionString.replace(
-      'postgresql://postgres@/',
-      'postgresql://bcb_permission_oracle@/',
-    );
-    runtimePool = new Pool({ connectionString: runtimeConnectionString });
-    client = await runtimePool.connect();
-  });
+describe.skipIf(!enabled)('runIntegratorSql transaction errors (opt-in, allowed TEST DbPort)', () => {
+  const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
 
-  afterAll(async () => {
-    client?.release();
-    await runtimePool?.end();
-    await adminPool?.end();
-    disposable?.stop();
-  });
+  it('propagates PostgreSQL 42501 from the active Drizzle transaction without DbPort fallback', async () => {
+    await harness.assertTestDatabases();
+    let fallback: ReturnType<typeof vi.spyOn> | undefined;
 
-  it('keeps the first 42501 and never retries through DbPort.query', async () => {
-    const fallback = vi.fn();
-    const db = {
-      integratorDrizzle: drizzle(client),
-      query: fallback,
-      tx: vi.fn(),
-    } as unknown as DbPort;
-
-    await client.query('BEGIN');
     let caught: unknown;
     try {
-      await runIntegratorSql(db, sql`SELECT rolpassword FROM pg_catalog.pg_authid LIMIT 1`);
+      await harness.withRuntime((db) =>
+        db.tx(async (txDb) => {
+          fallback = vi.spyOn(txDb, 'query');
+          await runIntegratorSql(
+            txDb,
+            sql`SELECT rolpassword FROM pg_catalog.pg_authid LIMIT 1`,
+          );
+        }),
+      );
     } catch (error) {
       caught = error;
-    } finally {
-      await client.query('ROLLBACK');
     }
 
     expect(caught).toBeInstanceOf(Error);
-    const postgresCode = (
-      caught as Error & { code?: string; cause?: { code?: string } }
-    ).code ?? (caught as Error & { cause?: { code?: string } }).cause?.code;
-    expect(postgresCode).toBe('42501');
+    expect((caught as Error & { code?: string }).code).toBe('42501');
+    expect(fallback).toBeDefined();
     expect(fallback).not.toHaveBeenCalled();
   });
 });

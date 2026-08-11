@@ -51,12 +51,14 @@ const capabilities: Record<string, IntegratorPortCapabilityDescriptor> = {
     targetRole: 'app_operational_delivery_worker',
     contextClass: 'service',
     purpose: 'relation',
+    runtimeSources: ['worker:projection-outbox-tick'],
   },
   scheduler: {
     capabilityId: '10000000-0000-4000-8000-000000000002',
     targetRole: 'app_operational_scheduler',
     contextClass: 'service',
     purpose: 'relation',
+    runtimeSources: ['scheduler:handle-tick-event'],
   },
   resolve_outgoing_delivery_scope: {
     capabilityId: '10000000-0000-4000-8000-000000000003',

@@ -229,18 +229,31 @@ describe('webapp port-context runtime', () => {
   });
 
   it('maps only exact health, general-worker and media-worker sources', () => {
-    const descriptor = (capabilityId: string, targetRole: string): PortCapabilityDescriptor => ({
+    const descriptor = (
+      capabilityId: string,
+      targetRole: string,
+      runtimeSources: readonly string[],
+    ): PortCapabilityDescriptor => ({
       capabilityId,
       targetRole,
       contextClass: 'service',
       purpose: 'relation',
+      runtimeSources,
     });
     const capabilities = {
-      service: descriptor('00000000-0000-0000-0000-000000000111', 'app_service'),
-      worker: descriptor('00000000-0000-0000-0000-000000000112', 'app_worker'),
+      service: descriptor('00000000-0000-0000-0000-000000000111', 'app_service', [
+        'webapp-health-check',
+      ]),
+      worker: descriptor('00000000-0000-0000-0000-000000000112', 'app_worker', [
+        'api/internal/product-analytics/retention:POST',
+      ]),
       media_worker: descriptor(
         '00000000-0000-0000-0000-000000000113',
         'app_operational_media_worker',
+        [
+          'api/internal/media-transcode/enqueue:POST',
+          'api/internal/media-worker/control:POST',
+        ],
       ),
     };
     expect(

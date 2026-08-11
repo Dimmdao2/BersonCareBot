@@ -1901,6 +1901,49 @@ const rev10Function = <T extends {
   proconfig: readonly string[];
 }>(entry: T): T => entry;
 
+const INTEGRATOR_DELIVERY_SOURCES = [
+  'delivery-handler',
+  'max-webhook:record-outcome',
+  'telegram-webhook:record-outcome',
+  'worker:job-queue-drain',
+  'worker:outgoing-delivery-tick',
+  'worker:projection-outbox-tick',
+] as const;
+const INTEGRATOR_SCHEDULER_SOURCES = [
+  'scheduler:acquire-lock',
+  'scheduler:claim-due-jobs',
+  'scheduler:handle-tick-event',
+] as const;
+const INTEGRATOR_SERVICE_SOURCES = [
+  'integrator-health-check',
+  'integrator-projection-health',
+] as const;
+const INTEGRATOR_MIGRATION_LEDGER_SOURCES = ['integrator-startup-migration-ledger'] as const;
+const WEBAPP_MEDIA_SOURCES = [
+  'api/internal/media-worker/control:POST',
+  'api/internal/media-hls-proxy-errors/retention:POST',
+  'api/internal/media-playback-stats/retention:POST',
+  'api/internal/media-pending-delete/purge:POST',
+  'api/internal/media-multipart/cleanup:POST',
+  'api/internal/media-preview/process:POST',
+  'api/internal/media-transcode/enqueue:POST',
+  'api/internal/media-transcode/reconcile:POST',
+] as const;
+const WEBAPP_WORKER_SOURCES = [
+  'api/integrator/operator-health/digest-wake:POST',
+  'api/integrator/system-health/guard-wake:POST',
+  'api/internal/operator-health-digest/tick:POST',
+  'api/internal/operator-health-critical/tick:POST',
+  'api/internal/system-health-guard/tick:POST',
+  'api/internal/product-analytics/retention:POST',
+  'api/internal/specialist-task-reminders/tick:POST',
+  'api/internal/heartbeat/pipeline_delivery:POST',
+  'api/internal/heartbeat/pipeline_delivery:GET',
+  'api/internal/heartbeat/digest:POST',
+  'api/internal/heartbeat/digest:GET',
+] as const;
+const WEBAPP_SERVICE_SOURCES = ['webapp-health-check', 'api/health:GET'] as const;
+
 const REV10_CONTEXT = {
   classes: ['pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'],
   privateRelations: {
@@ -1918,6 +1961,43 @@ const REV10_CONTEXT = {
     ] },
   },
   capabilities: {
+    integrator_request_relation: { port: 'integrator', runtimeName: 'request',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request',
+      contextClass: 'integrator', purpose: 'relation' },
+    integrator_delivery_relation: { port: 'integrator', runtimeName: 'delivery',
+      sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
+      contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_DELIVERY_SOURCES },
+    integrator_scheduler_relation: { port: 'integrator', runtimeName: 'scheduler',
+      sessionRole: 'app_integrator_request', targetRole: 'app_operational_scheduler',
+      contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_SCHEDULER_SOURCES },
+    integrator_tenant_service_relation: { port: 'integrator', runtimeName: 'tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service',
+      contextClass: 'tenant_service', purpose: 'relation' },
+    integrator_service_relation: { port: 'integrator', runtimeName: 'service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service',
+      contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_SERVICE_SOURCES },
+    integrator_migration_ledger_relation: { port: 'integrator', runtimeName: 'migration_ledger',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
+      purpose: 'relation', runtimeSources: INTEGRATOR_MIGRATION_LEDGER_SOURCES },
+    webapp_staff_relation: { port: 'webapp', runtimeName: 'staff', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff', purpose: 'relation' },
+    webapp_patient_relation: { port: 'webapp', runtimeName: 'patient', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'relation' },
+    webapp_clinic_billing_relation: { port: 'webapp', runtimeName: 'clinicBilling', sessionRole: 'app_staff',
+      targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'relation' },
+    webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_staff',
+      targetRole: 'app_platform_settings', contextClass: 'platform', purpose: 'relation' },
+    webapp_tenant_service_relation: { port: 'webapp', runtimeName: 'tenant_service', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service', purpose: 'relation' },
+    webapp_worker_relation: { port: 'webapp', runtimeName: 'worker', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_WORKER_SOURCES },
+    webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
+      targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_MEDIA_SOURCES },
+    webapp_service_relation: { port: 'webapp', runtimeName: 'service', sessionRole: 'app_staff',
+      targetRole: 'app_service', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_SERVICE_SOURCES },
     password_login_acquire: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.acquire',
       functionIdentity: 'app.password_login_acquire(text,text,uuid,text)' },

@@ -2882,7 +2882,43 @@ assert_strict_closure_deploy_checkout_ready(){
   assert_test_runtime_mode_ready
 }
 
+run_strict_closure_catalog_self_test(){
+  local catalog_probe_status
+  set +e
+  (
+    set -e
+    P2_B_CONTEXT_INSTALLED=0
+    for function_name in \
+      assert_test_writers_stopped assert_cleanup_elevation log bash \
+      install_p0_5b_runtime_wall install_p2_b_protected_principal_context \
+      rehydrate_post_restore_runtime_overlays provision_saas_isolation_operator_login \
+      install_saas_isolation_telemetry_overlay \
+      install_saas_isolation_telemetry_test_fixtures_overlay \
+      install_saas_system_health_diagnostics_overlay \
+      install_integrator_server_runtime_config_overlay \
+      install_integrator_login_public_identity_grants_overlay \
+      run_saas_isolation_test_scenario_proof grant_api_runtime_migration_ledger_read \
+      assert_api_runtime_can_read_migration_ledger grant_webapp_bootstrap_base_login_d3_4 \
+      sudo apply_test_strict_rls_finalizer bootstrap_and_provision_c4_operational_runtime; do
+      eval "$function_name(){ :; }"
+    done
+    install_port_context_capability_catalog(){ return 73; }
+    # This is the first call after the catalog install. It makes a removed catalog call
+    # fail safely and deterministically instead of reaching any live TEST operation.
+    run_test_patient_identity_capability_gate(){ return 74; }
+    run_strict_post_migration_closure
+  )
+  catalog_probe_status=$?
+  set -e
+  [ "$catalog_probe_status" = "73" ] || {
+    echo "FATAL: shared strict closure did not invoke install_port_context_capability_catalog at the required point (status=$catalog_probe_status)" >&2
+    exit 1
+  }
+  echo "shared strict TEST closure catalog self-test: OK (no env/DB/service/cron mutation)"
+}
+
 run_c4_operational_chain_self_test(){
+  run_strict_closure_catalog_self_test
   bash -n "$SRC_REPO/deploy/host/deploy-test-saas.sh" \
     "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" \
     "$SRC_REPO/$C4_OPERATIONAL_READINESS"
@@ -2890,7 +2926,7 @@ run_c4_operational_chain_self_test(){
   bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
   node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
   node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
-  echo "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)"
+  echo "C4 canonical fresh wrapper segment + shared catalog closure self-test: OK (no env/DB/service/cron mutation)"
 }
 
 full_reset_usage(){
@@ -2974,6 +3010,10 @@ shell_quote(){
 }
 
 case "${1:-}" in
+  --strict-closure-catalog-self-test)
+    run_strict_closure_catalog_self_test
+    exit 0
+    ;;
   --c4-operational-chain-self-test)
     run_c4_operational_chain_self_test
     exit 0
