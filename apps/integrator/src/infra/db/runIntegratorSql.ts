@@ -19,7 +19,9 @@ function toDbQueryResult<T>(raw: unknown): DbQueryResult<T> {
 /**
  * Run a Drizzle `sql` fragment on the integrator session (pool or TX client).
  * When `db.integratorDrizzle` is set (active TX), uses that session; otherwise compiles
- * the fragment and runs via `db.query` (unit-test mocks and plain DbPort).
+ * the fragment and runs via `db.query` (plain DbPort). Once an active TX session has
+ * started execution, its result or error is final: retrying through `db.query` could
+ * execute a mutation twice or bypass the transaction after a PostgreSQL rejection.
  */
 export async function runIntegratorSql<T = unknown>(
   db: DbPort,
@@ -28,18 +30,8 @@ export async function runIntegratorSql<T = unknown>(
   const { sql: text, params } = pgDialect.sqlToQuery(fragment);
   const withSession = db as DbPort & { integratorDrizzle?: IntegratorDrizzleDb };
   if (withSession.integratorDrizzle) {
-    try {
-      const raw = await withSession.integratorDrizzle.execute(fragment);
-      if (raw !== null && raw !== undefined && typeof raw === 'object' && 'rows' in raw) {
-        const r = raw as { rows?: T[]; rowCount?: number };
-        // Real pg/drizzle returns `rowCount` even for empty SELECT; test stubs often omit it.
-        if (Array.isArray(r.rows) && (r.rows.length > 0 || typeof r.rowCount === 'number')) {
-          return toDbQueryResult<T>(raw);
-        }
-      }
-    } catch {
-      // Partial test doubles may only implement `db.query`; fall through.
-    }
+    const raw = await withSession.integratorDrizzle.execute(fragment);
+    return toDbQueryResult<T>(raw);
   }
   return db.query<T>(text, params);
 }

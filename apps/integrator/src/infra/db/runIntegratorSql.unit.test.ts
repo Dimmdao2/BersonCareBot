@@ -6,9 +6,52 @@ import {
   integratorPortContextPrincipal,
   type IntegratorPortCapabilityDescriptor,
 } from './portContextRuntime.js';
-import { runIntegratorNamedRoot } from './runIntegratorSql.js';
+import { runIntegratorNamedRoot, runIntegratorSql } from './runIntegratorSql.js';
 
 const QUEUE_ID = '11111111-1111-4111-8111-111111111111';
+
+describe('runIntegratorSql', () => {
+  it('propagates the active transaction PostgreSQL error unchanged without fallback', async () => {
+    const permissionDenied = Object.assign(new Error('permission denied for relation protected'), {
+      code: '42501',
+    });
+    const execute = vi.fn().mockRejectedValue(permissionDenied);
+    const fallback = vi.fn();
+    const db = {
+      query: fallback,
+      tx: vi.fn(),
+      integratorDrizzle: { execute },
+    } as unknown as DbPort;
+
+    let caught: unknown;
+    try {
+      await runIntegratorSql(db, sql`SELECT secret FROM protected`);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBe(permissionDenied);
+    expect((caught as { code?: string }).code).toBe('42501');
+    expect(execute).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it('accepts an empty active transaction result without executing a fallback query', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const fallback = vi.fn();
+    const db = {
+      query: fallback,
+      tx: vi.fn(),
+      integratorDrizzle: { execute },
+    } as unknown as DbPort;
+
+    await expect(runIntegratorSql(db, sql`SELECT id FROM empty_relation`)).resolves.toEqual({
+      rows: [],
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
+  });
+});
 
 describe('runIntegratorNamedRoot', () => {
   it('installs the exact named-root transcript before DbPort.query starts', async () => {
