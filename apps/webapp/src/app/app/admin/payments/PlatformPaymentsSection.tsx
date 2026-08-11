@@ -669,6 +669,7 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [organizations, setOrganizations] = useState<OrganizationOption[] | null>(null);
   const [tariffs, setTariffs] = useState<TariffOption[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [organizationId, setOrganizationId] = useState('');
   const [amountRub, setAmountRub] = useState('');
   const [currency, setCurrency] = useState('RUB');
@@ -678,22 +679,28 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [error, setError] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const json = await apiJson<
-          | { ok: true; organizations: OrganizationOption[]; tariffs: TariffOption[] }
-          | { ok: false; error?: string }
-        >('/api/admin/organizations', { credentials: 'include' });
-        if (json.ok) {
-          setOrganizations(json.organizations);
-          setTariffs(json.tariffs);
-        }
-      } catch (e) {
-        setLoadError(e instanceof Error ? e.message : 'network');
+  const loadOptions = useCallback(async () => {
+    setLoadingOptions(true);
+    setLoadError(null);
+    try {
+      const json = await apiJson<
+        | { ok: true; organizations: OrganizationOption[]; tariffs: TariffOption[] }
+        | { ok: false; error?: string }
+      >('/api/admin/organizations', { credentials: 'include' });
+      if (json.ok) {
+        setOrganizations(json.organizations);
+        setTariffs(json.tariffs);
       }
-    })();
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'network');
+    } finally {
+      setLoadingOptions(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadOptions();
+  }, [loadOptions]);
 
   const selectedTariff = useMemo(() => {
     const org = organizations?.find((o) => o.id === organizationId);
@@ -791,10 +798,19 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
         ) : (
           <div className="space-y-3">
             {loadError && (
-              <p className="text-sm text-destructive" role="alert">
-                Список клиник не загрузился ({loadError}).
-              </p>
+              <DataLoadFailureNotice
+                title="Не удалось загрузить список клиник."
+                digest="MANUAL-INVOICE-ORGANIZATIONS"
+                devMessage={loadError}
+                onRetry={() => void loadOptions()}
+                retrying={loadingOptions}
+              />
             )}
+            {loadingOptions ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                Загружаем список клиник…
+              </p>
+            ) : null}
             <div className="space-y-1.5">
               <Label htmlFor="manual-invoice-org">Кому (клиника)</Label>
               <Select value={organizationId} onValueChange={(v) => setOrganizationId(v ?? '')}>
