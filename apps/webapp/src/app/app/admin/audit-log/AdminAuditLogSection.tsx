@@ -11,7 +11,7 @@ import {
 } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import {
   Select,
@@ -26,6 +26,7 @@ import { CopyForAiButton } from '@/app/app/settings/CopyForAiButton';
 import { apiJson } from '@/shared/lib/apiJson';
 import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 
 type AuditItem = {
   id: string;
@@ -159,7 +160,8 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [data, setData] = useState<ApiOk | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -184,14 +186,15 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
+    setResolveError(null);
     try {
       const json = await apiJson<ApiOk>(`/api/admin/audit-log?${queryString}`, {
         credentials: 'include',
       });
       setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'network');
+      setLoadError(e instanceof Error ? e.message : 'network');
       setData(null);
     } finally {
       setLoading(false);
@@ -241,13 +244,17 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="audit-action">Тип действия</Label>
+          <DoctorField label="Тип действия" htmlFor="audit-action">
             <Select
               value={draft.action}
               onValueChange={(v) => setDraft((d) => ({ ...d, action: v ?? '' }))}
             >
-              <SelectTrigger id="audit-action" className="w-full">
+              <SelectTrigger
+                id="audit-action"
+                displayLabel={
+                  ACTION_FILTER_OPTIONS.find((option) => option.value === draft.action)?.label
+                }
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -258,9 +265,8 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="audit-target">Цель (target_id)</Label>
+          </DoctorField>
+          <DoctorField label="Цель (target_id)" htmlFor="audit-target">
             <Input
               id="audit-target"
               value={draft.target}
@@ -268,14 +274,13 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
               placeholder="UUID или произвольный id"
               className="font-mono text-sm"
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="audit-status">Статус</Label>
+          </DoctorField>
+          <DoctorField label="Статус" htmlFor="audit-status">
             <Select
               value={draft.status}
               onValueChange={(v) => setDraft((d) => ({ ...d, status: v as FilterState['status'] }))}
             >
-              <SelectTrigger id="audit-status" className="w-full">
+              <SelectTrigger id="audit-status" displayLabel={draft.status || 'Все'}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -285,25 +290,23 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                 <SelectItem value="error">error</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="audit-from">Дата с</Label>
+          </DoctorField>
+          <DoctorField label="Дата с" htmlFor="audit-from">
             <DoctorDatePicker
               id="audit-from"
               value={draft.from}
               onChange={(from) => setDraft((d) => ({ ...d, from }))}
               placeholder="Выберите начало периода"
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="audit-to">Дата по</Label>
+          </DoctorField>
+          <DoctorField label="Дата по" htmlFor="audit-to">
             <DoctorDatePicker
               id="audit-to"
               value={draft.to}
               onChange={(to) => setDraft((d) => ({ ...d, to }))}
               placeholder="Выберите конец периода"
             />
-          </div>
+          </DoctorField>
           <div className="flex items-end">
             <Button
               type="button"
@@ -319,11 +322,21 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
           </div>
         </div>
 
-        {error && (
+        {loadError ? (
+          <DataLoadFailureNotice
+            title="Не удалось загрузить журнал операций."
+            digest="AUDIT-LOG"
+            devMessage={loadError}
+            onRetry={() => void load()}
+            retrying={loading}
+          />
+        ) : null}
+
+        {resolveError ? (
           <p className="text-sm text-destructive" role="alert">
-            Не удалось загрузить журнал ({error}).
+            Не удалось закрыть конфликт. Повторите попытку.
           </p>
-        )}
+        ) : null}
 
         {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
 
@@ -408,7 +421,7 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                                     disabled={resolvingId === row.id}
                                     onClick={async () => {
                                       setResolvingId(row.id);
-                                      setError(null);
+                                      setResolveError(null);
                                       try {
                                         await apiJson<{ ok: boolean }>(
                                           '/api/admin/audit-log/resolve',
@@ -421,7 +434,9 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                                         );
                                         await load();
                                       } catch (e) {
-                                        setError(e instanceof Error ? e.message : 'close_failed');
+                                        setResolveError(
+                                          e instanceof Error ? e.message : 'close_failed',
+                                        );
                                       } finally {
                                         setResolvingId(null);
                                       }

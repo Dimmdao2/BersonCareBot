@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/pri
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { patchAdminSettingWithResult } from './patchAdminSetting';
 import {
   normalizeDigestTimeHour,
@@ -147,9 +148,9 @@ export function OperatorHealthAlertsSection({
         <CardTitle className="text-base">Уведомления админу</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Резервный e-mail</span>
+        <DoctorField label="Резервный e-mail" htmlFor="operator-alert-fallback-email" width="lg">
           <Input
+            id="operator-alert-fallback-email"
             type="email"
             maxLength={320}
             required
@@ -157,7 +158,7 @@ export function OperatorHealthAlertsSection({
             onChange={(event) => setFallbackEmail(event.target.value)}
             aria-label="Резервный e-mail операторских алертов"
           />
-        </label>
+        </DoctorField>
         {!fallbackEmail.trim() ? (
           <p className="text-sm text-destructive" role="alert">
             Резервный e-mail не настроен: уведомление с пустой аудиторией останется без резервной

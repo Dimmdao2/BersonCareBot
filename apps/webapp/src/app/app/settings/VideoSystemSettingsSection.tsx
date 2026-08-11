@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
   VIDEO_PRESIGN_TTL_MIN_SEC,
@@ -113,10 +114,11 @@ export function VideoSystemSettingsSection({
             }
             disabled={busyKey === 'video_playback_api_enabled'}
           />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="video-default-delivery" className="text-xs font-medium">
-              Стратегия выдачи по умолчанию
-            </label>
+          <DoctorField
+            label="Стратегия выдачи по умолчанию"
+            htmlFor="video-default-delivery"
+            hint="Если HLS ещё не готов, сервер отдаёт MP4 (fallback)."
+          >
             <Select
               value={defaultDelivery}
               onValueChange={(v) => {
@@ -125,7 +127,10 @@ export function VideoSystemSettingsSection({
               }}
               disabled={busyKey === 'video_default_delivery'}
             >
-              <SelectTrigger id="video-default-delivery" className="max-w-md">
+              <SelectTrigger
+                id="video-default-delivery"
+                displayLabel={videoDeliveryStrategySelectItems[defaultDelivery]}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -134,10 +139,7 @@ export function VideoSystemSettingsSection({
                 <SelectItem value="auto">{videoDeliveryStrategySelectItems.auto}</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Если HLS ещё не готов, сервер отдаёт MP4 (fallback).
-            </p>
-          </div>
+          </DoctorField>
         </CardContent>
       </Card>
 
@@ -221,9 +223,14 @@ export function VideoSystemSettingsSection({
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">TTL presigned URL (секунды)</span>
+          <DoctorField
+            label="TTL presigned URL (секунды)"
+            htmlFor="video-presign-ttl"
+            width="sm"
+            hint={`Диапазон ${VIDEO_PRESIGN_TTL_MIN_SEC}…${VIDEO_PRESIGN_TTL_MAX_SEC} с.`}
+          >
             <Input
+              id="video-presign-ttl"
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
@@ -231,12 +238,8 @@ export function VideoSystemSettingsSection({
               onChange={(e) => setTtl(e.target.value)}
               disabled={ttlPending}
               autoComplete="off"
-              className="max-w-xs"
             />
-            <span className="text-xs text-muted-foreground">
-              Диапазон {VIDEO_PRESIGN_TTL_MIN_SEC}…{VIDEO_PRESIGN_TTL_MAX_SEC} с.
-            </span>
-          </label>
+          </DoctorField>
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={handleTtlSave} disabled={ttlPending}>
               {ttlPending ? 'Сохранение…' : 'Сохранить TTL'}

@@ -120,9 +120,9 @@ export function EmailSmtpSection({
           />
         </DoctorField>
         <div className="grid max-w-md grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Порт</span>
+          <DoctorField label="Порт" htmlFor="smtp-port" width="sm">
             <Input
+              id="smtp-port"
               type="number"
               min={1}
               max={65535}
@@ -130,7 +130,7 @@ export function EmailSmtpSection({
               onChange={(e) => setPort(e.target.value)}
               disabled={isPending}
             />
-          </label>
+          </DoctorField>
           <LabeledSwitch
             label="TLS (secure)"
             checked={secure}
@@ -179,9 +179,14 @@ export function EmailSmtpSection({
         </div>
 
         <div className="flex max-w-xl flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-end sm:gap-3">
-          <label className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-xs font-medium">Тест — кому</span>
+          <DoctorField
+            label="Тест — кому"
+            htmlFor="smtp-test-recipient"
+            width="lg"
+            className="min-w-0 flex-1"
+          >
             <Input
+              id="smtp-test-recipient"
               type="email"
               value={testTo}
               onChange={(e) => {
@@ -193,7 +198,7 @@ export function EmailSmtpSection({
               autoComplete="off"
               placeholder="email получателя"
             />
-          </label>
+          </DoctorField>
           <Button
             type="button"
             variant="secondary"

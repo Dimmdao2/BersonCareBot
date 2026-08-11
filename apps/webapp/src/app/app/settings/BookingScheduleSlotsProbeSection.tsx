@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import {
   Select,
   SelectContent,
@@ -113,11 +113,11 @@ export function BookingScheduleSlotsProbeSection() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Дата</Label>
-            <Input
-              type="date"
+            <Label htmlFor="booking-slots-probe-date">Дата</Label>
+            <DoctorDatePicker
+              id="booking-slots-probe-date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
               className="max-w-md"
             />
           </div>

@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   Select,
   SelectContent,
@@ -188,66 +189,64 @@ export function AdminSettingsSection({
             При dev_mode рассылки уходят только на перечисленные Telegram / Max ID, номера SMS и
             адреса e-mail.
           </p>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Телефоны (пробел, запятая)</span>
+          <DoctorField label="Телефоны (пробел, запятая)" htmlFor="test-account-phones" width="lg">
             <Input
+              id="test-account-phones"
               type="text"
               value={testPhonesVal}
               onChange={(e) => setTestPhonesVal(e.target.value)}
               disabled={isPending}
-              className="max-w-2xl font-mono text-sm"
+              className="font-mono text-sm"
             />
-            {(testPhonesPreview.rejected.length > 0 || testPhonesPreview.truncatedAfterCap) && (
-              <div className="max-w-2xl rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
-                {testPhonesPreview.rejected.length > 0 && (
-                  <p>
-                    <span className="font-medium">
-                      Не попадут в сохранённый список (невалидный E.164 или лимит):{' '}
-                    </span>
-                    {testPhonesPreview.rejected.slice(0, 12).join(', ')}
-                    {testPhonesPreview.rejected.length > 12
-                      ? ` (+ещё ${testPhonesPreview.rejected.length - 12})`
-                      : ''}
-                  </p>
-                )}
-                {testPhonesPreview.truncatedAfterCap && (
-                  <p className="mt-1 font-medium">
-                    Дальше 200 номеров в списке сервер не сохраняет.
-                  </p>
-                )}
-              </div>
-            )}
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Telegram ID</span>
+          </DoctorField>
+          {(testPhonesPreview.rejected.length > 0 || testPhonesPreview.truncatedAfterCap) && (
+            <div className="max-w-[var(--doctor-field-lg,40rem)] rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+              {testPhonesPreview.rejected.length > 0 && (
+                <p>
+                  <span className="font-medium">
+                    Не попадут в сохранённый список (невалидный E.164 или лимит):{' '}
+                  </span>
+                  {testPhonesPreview.rejected.slice(0, 12).join(', ')}
+                  {testPhonesPreview.rejected.length > 12
+                    ? ` (+ещё ${testPhonesPreview.rejected.length - 12})`
+                    : ''}
+                </p>
+              )}
+              {testPhonesPreview.truncatedAfterCap && (
+                <p className="mt-1 font-medium">Дальше 200 номеров в списке сервер не сохраняет.</p>
+              )}
+            </div>
+          )}
+          <DoctorField label="Telegram ID" htmlFor="test-account-telegram-ids" width="lg">
             <Input
+              id="test-account-telegram-ids"
               type="text"
               value={testTgVal}
               onChange={(e) => setTestTgVal(e.target.value)}
               disabled={isPending}
-              className="max-w-2xl font-mono text-sm"
+              className="font-mono text-sm"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Max ID</span>
+          </DoctorField>
+          <DoctorField label="Max ID" htmlFor="test-account-max-ids" width="lg">
             <Input
+              id="test-account-max-ids"
               type="text"
               value={testMaxVal}
               onChange={(e) => setTestMaxVal(e.target.value)}
               disabled={isPending}
-              className="max-w-2xl font-mono text-sm"
+              className="font-mono text-sm"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">E-mail (пробел, запятая)</span>
+          </DoctorField>
+          <DoctorField label="E-mail (пробел, запятая)" htmlFor="test-account-emails" width="lg">
             <Input
+              id="test-account-emails"
               type="text"
               value={testEmailsVal}
               onChange={(e) => setTestEmailsVal(e.target.value)}
               disabled={isPending}
-              className="max-w-2xl font-mono text-sm"
+              className="font-mono text-sm"
             />
-          </label>
+          </DoctorField>
         </section>
 
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
@@ -264,34 +263,37 @@ export function AdminSettingsSection({
             disabled={isPending}
             switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
           />
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Текст на экране</span>
+          <DoctorField
+            label="Текст на экране"
+            htmlFor="patient-maintenance-message"
+            width="lg"
+            hint="До 500 символов; пусто — текст по умолчанию из кода."
+          >
             <Textarea
+              id="patient-maintenance-message"
               value={maintenanceMessage}
               onChange={(e) => setMaintenanceMessage(e.target.value)}
               disabled={isPending}
               rows={4}
-              className="max-w-2xl resize-y"
+              className="resize-y"
             />
-            <span className="text-xs text-muted-foreground">
-              До 500 символов; пусто — текст по умолчанию из кода.
-            </span>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Ссылка «Записаться на приём» (внешняя)</span>
+          </DoctorField>
+          <DoctorField
+            label="Ссылка «Записаться на приём» (внешняя)"
+            htmlFor="patient-maintenance-booking-url"
+            width="lg"
+            hint="Пусто — кнопка записи для пациента не показывается."
+          >
             <Input
+              id="patient-maintenance-booking-url"
               type="url"
               placeholder="https://booking.example.ru"
               value={bookingUrl}
               onChange={(e) => setBookingUrl(e.target.value)}
               disabled={isPending}
               autoComplete="off"
-              className="max-w-2xl"
             />
-            <span className="text-xs text-muted-foreground">
-              Пусто — кнопка записи для пациента не показывается.
-            </span>
-          </label>
+          </DoctorField>
         </section>
 
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
@@ -355,10 +357,12 @@ export function AdminSettingsSection({
           switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
         />
 
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium" htmlFor="integrator-linked-phone-source">
-            Integrator: источник linkedPhone
-          </label>
+        <DoctorField
+          label="Integrator: источник linkedPhone"
+          htmlFor="integrator-linked-phone-source"
+          width="lg"
+          hint="Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже если номер остался только в integrator.contacts."
+        >
           <Select
             value={linkedPhoneSource}
             onValueChange={(v) => setLinkedPhoneSource(v as IntegratorLinkedPhoneSource)}
@@ -366,7 +370,6 @@ export function AdminSettingsSection({
           >
             <SelectTrigger
               id="integrator-linked-phone-source"
-              className="max-w-xl"
               displayLabel={linkedPhoneSource}
             ></SelectTrigger>
             <SelectContent>
@@ -382,30 +385,24 @@ export function AdminSettingsSection({
               </SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
-            Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже
-            если номер остался только в integrator.contacts.
-          </p>
-        </div>
+        </DoctorField>
 
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium" htmlFor="fallback-delay-input">
-            Задержка SMS fallback для важных сообщений (минут)
-          </label>
+        <DoctorField
+          label="Задержка SMS fallback для важных сообщений (минут)"
+          htmlFor="fallback-delay-input"
+          width="sm"
+          hint="Если важное сообщение не прочитано за это время — уходит SMS."
+        >
           <Input
             id="fallback-delay-input"
             type="number"
             min={1}
             max={1440}
-            className="w-32"
             value={fallbackDelay}
             onChange={(e) => setFallbackDelay(Math.max(1, Number(e.target.value)))}
             disabled={isPending}
           />
-          <p className="text-xs text-muted-foreground">
-            Если важное сообщение не прочитано за это время — уходит SMS
-          </p>
-        </div>
+        </DoctorField>
 
         <div className="flex items-center gap-3">
           <Button variant="destructive" onClick={handleSave} disabled={isPending}>

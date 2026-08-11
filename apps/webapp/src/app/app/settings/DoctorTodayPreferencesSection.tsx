@@ -12,6 +12,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   Select,
   SelectContent,
@@ -62,14 +63,16 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
         <DoctorSectionTitle>Сегодня</DoctorSectionTitle>
       </DoctorSectionHeader>
       <div className="flex flex-col gap-4">
-        <label className="flex max-w-sm flex-col gap-1.5 text-sm font-medium">
-          Список клиентов
+        <DoctorField label="Список клиентов" htmlFor="doctor-today-people-list">
           <Select
             value={preferences.peopleListMode}
             onValueChange={setPeopleListMode}
             disabled={isPending}
           >
-            <SelectTrigger>
+            <SelectTrigger
+              id="doctor-today-people-list"
+              displayLabel={PEOPLE_LIST_LABELS[preferences.peopleListMode]}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -77,7 +80,7 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
               <SelectItem value="recent_visits">Недавние с визитами</SelectItem>
             </SelectContent>
           </Select>
-        </label>
+        </DoctorField>
         {error ? <span className="text-sm text-destructive">{error}</span> : null}
       </div>
     </DoctorSection>

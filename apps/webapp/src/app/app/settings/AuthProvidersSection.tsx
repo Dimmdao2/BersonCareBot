@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/pri
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
 import { patchAdminSetting } from './patchAdminSetting';
 
@@ -184,9 +185,13 @@ export function AuthProvidersSection({
         <CardContent className="flex flex-col gap-5">
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">Telegram Login Widget</p>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Имя бота (без @)</span>
+            <DoctorField
+              label="Имя бота (без @)"
+              htmlFor="auth-telegram-bot"
+              hint="Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое значение отключает диплинк."
+            >
               <Input
+                id="auth-telegram-bot"
                 type="text"
                 placeholder="bersoncare_bot"
                 value={telegramBot}
@@ -194,18 +199,36 @@ export function AuthProvidersSection({
                 disabled={isPending}
                 autoComplete="off"
               />
-              <span className="text-xs text-muted-foreground">
-                Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое значение
-                отключает диплинк.
-              </span>
-            </label>
+            </DoctorField>
           </section>
 
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">MAX — привязка в браузере (channel-link)</p>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Ник бота или ссылка max.ru</span>
+            <DoctorField
+              label="Ник бота или ссылка max.ru"
+              htmlFor="auth-max-bot"
+              width="lg"
+              hint={
+                <>
+                  Для автоматического открытия бота с токеном привязки: ник из публичной ссылки (как
+                  в <code className="rounded bg-muted px-0.5">max.ru/ник</code>). Можно вставить
+                  полный URL. Пустое — только команда{' '}
+                  <code className="rounded bg-muted px-0.5">/start link_…</code> без перехода.
+                  Документация:{' '}
+                  <a
+                    className="text-primary underline"
+                    href="https://dev.max.ru/docs/chatbots/bots-coding/prepare#%D0%A0%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D0%BC%20%D1%81%20%D0%B4%D0%B8%D0%BF%D0%BB%D0%B8%D0%BD%D0%BA%D0%B0%D0%BC%D0%B8"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    MAX — диплинки
+                  </a>
+                  .
+                </>
+              }
+            >
               <Input
+                id="auth-max-bot"
                 type="text"
                 placeholder="id123456789_1_bot или https://max.ru/id123456789_1_bot"
                 value={maxBotNick}
@@ -214,26 +237,30 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-              <span className="text-xs text-muted-foreground">
-                Для автоматического открытия бота с токеном привязки: ник из публичной ссылки (как в{' '}
-                <code className="rounded bg-muted px-0.5">max.ru/ник</code>
-                ). Можно вставить полный URL. Пустое — только команда{' '}
-                <code className="rounded bg-muted px-0.5">/start link_…</code> без перехода.
-                Документация:{' '}
-                <a
-                  className="text-primary underline"
-                  href="https://dev.max.ru/docs/chatbots/bots-coding/prepare#%D0%A0%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D0%BC%20%D1%81%20%D0%B4%D0%B8%D0%BF%D0%BB%D0%B8%D0%BD%D0%BA%D0%B0%D0%BC%D0%B8"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  MAX — диплинки
-                </a>
-                .
-              </span>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">MAX Bot API key (Mini App initData)</span>
+            </DoctorField>
+            <DoctorField
+              label="MAX Bot API key (Mini App initData)"
+              htmlFor="auth-max-api-key"
+              width="lg"
+              hint={
+                <>
+                  Нужен для входа в веб-приложение из MAX Mini App без{' '}
+                  <code className="rounded bg-muted px-0.5">?t=</code> в URL. Подпись стартовых
+                  параметров —{' '}
+                  <a
+                    className="text-primary underline"
+                    href="https://dev.max.ru/docs/webapps/validation"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    dev.max.ru — валидация WebApp
+                  </a>
+                  .
+                </>
+              }
+            >
               <Input
+                id="auth-max-api-key"
                 type="password"
                 placeholder="Тот же ключ, что MAX_API_KEY в env интегратора"
                 value={maxApiKey}
@@ -242,21 +269,7 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-              <span className="text-xs text-muted-foreground">
-                Нужен для входа в веб-приложение из MAX Mini App без{' '}
-                <code className="rounded bg-muted px-0.5">?t=</code> в URL. Подпись стартовых
-                параметров —{' '}
-                <a
-                  className="text-primary underline"
-                  href="https://dev.max.ru/docs/webapps/validation"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  dev.max.ru — валидация WebApp
-                </a>
-                .
-              </span>
-            </label>
+            </DoctorField>
           </section>
 
           <section className="flex flex-col gap-2">
@@ -265,9 +278,9 @@ export function AuthProvidersSection({
               Для серверного OAuth 2.1 нужны ID приложения, защищённый ключ и точный redirect URI.
               Сервисный ключ доступа VK API для входа через VK ID не требуется и здесь не хранится.
             </p>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">ID приложения (client_id / APP_ID)</span>
+            <DoctorField label="ID приложения (client_id / APP_ID)" htmlFor="auth-vk-client-id">
               <Input
+                id="auth-vk-client-id"
                 type="text"
                 value={vkIdApplication}
                 onChange={(e) => setVkIdApplication(e.target.value)}
@@ -275,10 +288,15 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Защищённый ключ (client_secret)</span>
+            </DoctorField>
+            <DoctorField
+              label="Защищённый ключ (client_secret)"
+              htmlFor="auth-vk-client-secret"
+              width="lg"
+              hint="Значение не возвращается в браузер. Пустое поле не перезаписывает уже сохранённый ключ."
+            >
               <Input
+                id="auth-vk-client-secret"
                 type="password"
                 placeholder={
                   vkIdHasStoredClientSecret
@@ -291,14 +309,10 @@ export function AuthProvidersSection({
                 autoComplete="new-password"
                 className="font-mono text-xs"
               />
-              <span className="text-xs text-muted-foreground">
-                Значение не возвращается в браузер. Пустое поле не перезаписывает уже сохранённый
-                ключ.
-              </span>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Redirect URI (callback)</span>
+            </DoctorField>
+            <DoctorField label="Redirect URI (callback)" htmlFor="auth-vk-redirect" width="lg">
               <Input
+                id="auth-vk-redirect"
                 type="url"
                 placeholder="https://example.com/api/auth/oauth/callback/vk-id"
                 value={vkIdRedirect}
@@ -307,10 +321,15 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Старый URL входа (не OAuth credential)</span>
+            </DoctorField>
+            <DoctorField
+              label="Старый URL входа (не OAuth credential)"
+              htmlFor="auth-vk-legacy-url"
+              width="lg"
+              hint="Сохраняется для совместимости с будущей кнопкой-ссылкой; OAuth callback должен использовать поле выше."
+            >
               <Input
+                id="auth-vk-legacy-url"
                 type="url"
                 placeholder="https://id.vk.com/… или ссылка на мини-приложение"
                 value={vkLoginUrl}
@@ -319,11 +338,7 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-              <span className="text-xs text-muted-foreground">
-                Сохраняется для совместимости с будущей кнопкой-ссылкой; OAuth callback должен
-                использовать поле выше.
-              </span>
-            </label>
+            </DoctorField>
           </section>
 
           <section className="flex flex-col gap-2">
@@ -333,29 +348,42 @@ export function AuthProvidersSection({
               <code className="rounded bg-muted px-1">{`{ "provider": "yandex" }`}</code> и кнопка
               на экране входа.
             </p>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Client ID</span>
+            <DoctorField label="Client ID" htmlFor="auth-yandex-client-id">
               <Input
+                id="auth-yandex-client-id"
                 type="text"
                 value={yandexId}
                 onChange={(e) => setYandexId(e.target.value)}
                 disabled={isPending}
                 autoComplete="off"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Client secret</span>
+            </DoctorField>
+            <DoctorField label="Client secret" htmlFor="auth-yandex-client-secret" width="lg">
               <Input
+                id="auth-yandex-client-secret"
                 type="password"
                 value={yandexSecret}
                 onChange={(e) => setYandexSecret(e.target.value)}
                 disabled={isPending}
                 autoComplete="off"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Redirect URI (callback)</span>
+            </DoctorField>
+            <DoctorField
+              label="Redirect URI (callback)"
+              htmlFor="auth-yandex-redirect"
+              width="lg"
+              hint={
+                <>
+                  В кабинете Яндекса укажите{' '}
+                  <code className="rounded bg-muted px-1">…/api/auth/oauth/callback/yandex</code>.
+                  Старый путь{' '}
+                  <code className="rounded bg-muted px-1">…/api/auth/oauth/callback</code> без
+                  суффикса по-прежнему обрабатывается, но не рекомендуется для новых настроек.
+                </>
+              }
+            >
               <Input
+                id="auth-yandex-redirect"
                 type="url"
                 placeholder="https://example.com/api/auth/oauth/callback/yandex"
                 value={yandexRedirect}
@@ -363,13 +391,7 @@ export function AuthProvidersSection({
                 disabled={isPending}
                 autoComplete="off"
               />
-              <span className="text-xs text-muted-foreground">
-                В кабинете Яндекса укажите{' '}
-                <code className="rounded bg-muted px-1">…/api/auth/oauth/callback/yandex</code>.
-                Старый путь <code className="rounded bg-muted px-1">…/api/auth/oauth/callback</code>{' '}
-                без суффикса по-прежнему обрабатывается, но не рекомендуется для новых настроек.
-              </span>
-            </label>
+            </DoctorField>
           </section>
 
           <section className="flex flex-col gap-2">
@@ -378,9 +400,9 @@ export function AuthProvidersSection({
               В Google Cloud Console добавьте два Authorized redirect URI: этот (вход) и Calendar
               callback ниже.
             </p>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Client ID</span>
+            <DoctorField label="Client ID" htmlFor="auth-google-client-id" width="lg">
               <Input
+                id="auth-google-client-id"
                 type="text"
                 value={gId}
                 onChange={(e) => setGId(e.target.value)}
@@ -388,10 +410,15 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Redirect URI для Calendar</span>
+            </DoctorField>
+            <DoctorField
+              label="Redirect URI для Calendar"
+              htmlFor="auth-google-calendar-redirect"
+              width="lg"
+              hint="Это OAuth callback нашего приложения, общий для всех клиник. Учётную запись и календарь выбирает каждая клиника в своих настройках."
+            >
               <Input
+                id="auth-google-calendar-redirect"
                 type="url"
                 placeholder="https://example.com/api/admin/google-calendar/callback"
                 value={gCalendarRedirect}
@@ -400,14 +427,10 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-              <span className="text-xs text-muted-foreground">
-                Это OAuth callback нашего приложения, общий для всех клиник. Учётную запись и
-                календарь выбирает каждая клиника в своих настройках.
-              </span>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Client secret</span>
+            </DoctorField>
+            <DoctorField label="Client secret" htmlFor="auth-google-client-secret" width="lg">
               <Input
+                id="auth-google-client-secret"
                 type="password"
                 value={gSecret}
                 onChange={(e) => setGSecret(e.target.value)}
@@ -415,10 +438,14 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Redirect URI для веб-входа</span>
+            </DoctorField>
+            <DoctorField
+              label="Redirect URI для веб-входа"
+              htmlFor="auth-google-login-redirect"
+              width="lg"
+            >
               <Input
+                id="auth-google-login-redirect"
                 type="url"
                 placeholder="https://example.com/api/auth/oauth/callback/google"
                 value={gLoginRedirect}
@@ -427,7 +454,7 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
+            </DoctorField>
           </section>
 
           <section className="flex flex-col gap-2">
@@ -438,9 +465,9 @@ export function AuthProvidersSection({
               <code className="rounded bg-muted px-1">https://…/api/auth/oauth/callback/apple</code>
               , только POST). В проде — HTTPS.
             </p>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Services ID (Client ID)</span>
+            <DoctorField label="Services ID (Client ID)" htmlFor="auth-apple-client-id">
               <Input
+                id="auth-apple-client-id"
                 type="text"
                 value={aClientId}
                 onChange={(e) => setAClientId(e.target.value)}
@@ -448,10 +475,10 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Team ID</span>
+            </DoctorField>
+            <DoctorField label="Team ID" htmlFor="auth-apple-team-id" width="sm">
               <Input
+                id="auth-apple-team-id"
                 type="text"
                 value={aTeam}
                 onChange={(e) => setATeam(e.target.value)}
@@ -459,10 +486,10 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Key ID</span>
+            </DoctorField>
+            <DoctorField label="Key ID" htmlFor="auth-apple-key-id" width="sm">
               <Input
+                id="auth-apple-key-id"
                 type="text"
                 value={aKeyId}
                 onChange={(e) => setAKeyId(e.target.value)}
@@ -470,10 +497,10 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Private key (.p8 PEM)</span>
+            </DoctorField>
+            <DoctorField label="Private key (.p8 PEM)" htmlFor="auth-apple-private-key" width="lg">
               <Textarea
+                id="auth-apple-private-key"
                 className="min-h-28 font-mono text-xs"
                 value={aPem}
                 onChange={(e) => setAPem(e.target.value)}
@@ -481,10 +508,10 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 placeholder="-----BEGIN PRIVATE KEY-----"
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">Redirect URI</span>
+            </DoctorField>
+            <DoctorField label="Redirect URI" htmlFor="auth-apple-redirect" width="lg">
               <Input
+                id="auth-apple-redirect"
                 type="url"
                 placeholder="https://example.com/api/auth/oauth/callback/apple"
                 value={aRedirect}
@@ -493,7 +520,7 @@ export function AuthProvidersSection({
                 autoComplete="off"
                 className="font-mono text-xs"
               />
-            </label>
+            </DoctorField>
           </section>
 
           <div className="flex items-center gap-3">
