@@ -378,3 +378,266 @@ artifact с самим собой. Нужны apply к disposable clone, catalog
 - Каркас declaration/generator, атомарный apply, deterministic `--check` и реальный rollback membership полезны.
 - `bash deploy/postgres/privileges/fixtures/proof-run.sh` и `git diff --check 0da3b5e7f^..0da3b5e7f` прошли, но не
   доказывают закрытие DECL-001–007.
+
+## Audit pass TRUST-2026-08-11 — revision-10 SQL/rotation acceptance
+
+| Поле | Значение |
+|---|---|
+| Candidate | `67f884340`, `wt/port-context-trust` |
+| Метод | **Тест + взгляд**: independent PG16 named-root/catalog probes и поштучный запуск 13 заявленных mutations |
+| Вердикт | **FAIL — шесть MUST FIX; к сведению/DEV/TEST не готов** |
+
+### TRUST-001 — installer запрещает named roots большинству context classes
+
+**ОТКРЫТО — MUST FIX.** Matrix требует `function_identity IS NULL` для staff/patient/platform/tenant-service/service.
+Реальный PG16 install с объявленной staff capability и non-NULL root дал `42501 port context class identity
+mismatch`. Relation access и named-root identity должны различаться по declared capability, а не запрещаться классом.
+
+### TRUST-002 — integrator resolver принимает готовую произвольную identity/org пару
+
+**ОТКРЫТО — MUST FIX.** `resolve_integrator_request(bigint,uuid)` не разрешает external identity и не проверяет
+user→organization; он возвращает caller-supplied `77 + org` эхом. Такой результат нельзя считать human identity
+proof и затем устанавливать как `app_integrator_request`.
+
+### TRUST-003 — A→I map не участвует в runtime handoff
+
+**ОТКРЫТО — MUST FIX.** Accessors возвращают physical actor/subject прямо из context. Acceptance получает отличный
+opaque ID, но следующая транзакция его не использует. Нужен реальный opaque context ref → private Variant-A
+physical resolver перед бизнес-доступом, чтобы будущая I меняла внутренний resolver, а не public contract.
+
+### TRUST-004 — role/owner/EXECUTE graph неполон
+
+**ОТКРЫТО — MUST FIX.** Несколько объявленных runtime roles и большинство seam owners не имеют требуемых exact
+`USAGE app`/gate EXECUTE. Catalog probe также показал `hash_port_typed_args` и четыре application types владельцем
+superuser creator, а не `app_object_owner`.
+
+### TRUST-005 — 13 mutation tests дают ложный PASS
+
+**ОТКРЫТО — MUST FIX.** Поштучный `PORTCTX_INJECT_FAULT=<fault> ... --single` показал: два HBA faults неизвестны;
+forbidden claims/tags и шесть wrong-* падают на injection с `42P13 cannot change name of input parameter`; только
+три policy/RLS faults достигают механизма. Runner принимает любой nonzero. Каждая мутация обязана сначала успешно
+внести поломку, затем упасть на точном behavioral assertion и подтвердить ожидаемый error/result.
+
+### TRUST-006 — rotation доказана только primitive sentinel, не runtime drain
+
+**ОТКРЫТО — MUST FIX.** CRL reload и отказ нового соединения доказаны, но drain — прямой terminate одного известного
+PID. Нет PoolConfig/env overlap, catalog enumeration всех backend отозванного credential, закрытия webapp/integrator
+pools и проверки, что старый backend не появился снова.
+
+### Что сохраняется
+
+- Базовый exact-CN + clientcert + SCRAM, CRL reload primitive и три настоящие policy/FORCE-RLS mutations полезны.
+- Независимый `acceptance.sh --single` и полный runner печатают `OK`, но этот итог не является PASS до TRUST-005.
+
+## Audit pass RUNTIME-2026-08-11 — webapp/integrator production cutover
+
+| Поле | Значение |
+|---|---|
+| Candidate | `e76b04156`, `wt/port-context-runtime` |
+| Метод | **Тест + взгляд**: targeted Vitest/typecheck, chokepoint self-test и проход по живым startup/transaction/scheduler путям |
+| Вердикт | **FAIL — девять MUST FIX; к сведению/DEV/TEST не готов** |
+
+### RUNTIME-001 — integrator запускает legacy runtime migrations через отдельный raw pool
+
+**ОТКРЫТО — MUST FIX.** `port-context` ошибочно попадает в `run-ddl-migrations`, а migration provider создаёт pool
+без нового mTLS-конфига. При exact HBA сервис не стартует; при оставленной legacy allow-строке это третий обходной
+DB-вход. Runtime login должен только verify schema state; DDL остаётся named operation.
+
+### RUNTIME-002 — webapp handle transactions остались на legacy context mode
+
+**ОТКРЫТО — MUST FIX.** Живые messenger/purge/media paths вызывают старый `startPoolTransaction`, который принимает
+только `legacy-guc|shadow|locked`; в `port-context` воспроизводится `DB_PRINCIPAL_CONTEXT_MODE must be legacy-guc,
+shadow, or locked`. Все runtime handle paths должны проходить shared exact-client wrapper.
+
+### RUNTIME-003 — principal→capability mapping не покрывает живые роли и вложенные principals
+
+**ОТКРЫТО — MUST FIX.** Webapp mapper отвергает infra/organization/app_worker/service paths. Integrator сохраняет
+внешнюю scheduler/delivery capability при вложенном organization principal и затем отвергает его как non-infra.
+Нужен явный mapping живых entrypoints без универсального service bypass.
+
+### RUNTIME-004 — exact function/purpose/typed-args roots фактически не подключены
+
+**ОТКРЫТО — MUST FIX.** Descriptor не несёт typed args; одна capability выбирается на principal/worker и повторно
+используется для разных named roots. Package matrix дополнительно запрещает `functionIdentity` большинству
+runtime classes. Каждый root должен строить exact descriptor в месте вызова, а relation context оставаться отдельным.
+
+### RUNTIME-005 — integrator теряет checkout при setup failure
+
+**ОТКРЫТО — MUST FIX.** `connect()` выполняется до principal/capability mapping, а release существует только после
+успешной установки context. Достижимый startup path error-tracking делает DB queries без principal, глотает ошибку и
+оставляет checkout (`releases=0`). Любой setup failure обязан уничтожать client.
+
+### RUNTIME-006 — scheduler advisory lock использует legacy checkout
+
+**ОТКРЫТО — MUST FIX.** Scheduler lock проходит через legacy parser и в `port-context` не получает корректную
+сессию. Нужен отдельный bounded session-lock contract либо отказ от session lock; generic raw checkout запрещён.
+
+### RUNTIME-007 — Drizzle path не соблюдает destroy-on-any-failure
+
+**ОТКРЫТО — MUST FIX.** Webapp вручную дублирует lifecycle: cleanup error при уже упавшем запросе проглатывается,
+после rollback client возвращается обычным `release()`. Query/setup/cleanup failure должны destroy checkout.
+
+### RUNTIME-008 — webapp продолжает требовать generic `DATABASE_URL`
+
+**ОТКРЫТО — MUST FIX.** Startup instrumentation и health check валидируют legacy URL до выбора staff/patient target
+pool. Конфигурация только с двумя целевыми mTLS pools поэтому не стартует или ложно сообщает DB down.
+
+### RUNTIME-009 — certificate rotation не доведена до runtime pool drain
+
+**ОТКРЫТО — MUST FIX.** В runtime нет overlap, reload PoolConfig/env, закрытия старых webapp/integrator pools,
+перечисления и завершения всех surviving backends отозванного credential и проверки отсутствия их повторного
+появления. Primitive sentinel из TRUST-006 этого не доказывает.
+
+### Известный остаток вне candidate scope
+
+- Media worker всё ещё создаёт два прямых DB pools и остаётся третьим trust domain. До финального cutover их нужно
+  убрать за internal webapp seam, а не выдавать media worker приватный ключ webapp.
+
+### Что подтверждено и сохраняется
+
+- Strict mTLS PoolConfig проверяет URL-login, CA, client cert/key и server identity.
+- Целевая фабрика создаёт два webapp physical pools и один integrator pool; прежние webapp
+  config-reader/telemetry/purge/boot pools удалены.
+- Shared `withPortContextTransaction` удерживает callback на exact client и уничтожает checkout на ошибке.
+- Targeted Vitest: webapp `4 passed`, integrator `2 passed`; оба typecheck, chokepoint и self-test — PASS.
+
+## Fix verification TRUST-FIX1-2026-08-11 — `805d801be`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `805d801be`, `wt/port-context-trust` |
+| Метод | **Тест + взгляд**: повтор TRUST-001–006 на disposable PostgreSQL 16, independent catalog census и 13 mutations |
+| Вердикт | **FAIL — TRUST-001/002 и server-half 006 закрыты; TRUST-003/004/005 остаются** |
+
+### Исправлено громко
+
+- **TRUST-001 ИСПРАВЛЕНО `805d801be`.** Staff/service и остальные declared named roots устанавливаются и
+  исполняются с exact function; wrong function/purpose получают `42501`.
+- **TRUST-002 ИСПРАВЛЕНО `805d801be`.** Integrator resolver использует external identity mapping и отвергает
+  неизвестную/inactive cross-org связь; caller-supplied identity/org echo удалён.
+- **TRUST-006 SERVER HALF ИСПРАВЛЕНО `805d801be`.** Два surviving backends перечисляются и завершаются: count
+  `2 → 2 → 0`; PostgreSQL log содержит один revoked-certificate refusal и два administrator termination. Runtime
+  PoolConfig/env overlap/restart остаётся отдельным RUNTIME-009.
+
+### TRUST-003 — opaque handoff работает, но physical context refs всё ещё принимаются
+
+**ОТКРЫТО — MUST FIX.** Следующая staff/patient/platform transaction действительно принимает opaque refs и private
+resolver возвращает physical identity (`variant_map_rows=2`, `mapped_opaque_refs_used_in_context=2`). Но installer
+не валидирует принадлежность actor/subject refs opaque map, а xid-probe сам COMMIT-ит physical actor. Catalog после
+baseline: `physical_ids_in_context_refs=1`. Это нарушает invariant «context row не содержит physical ID».
+
+### TRUST-004 — exact seam ownership/EXECUTE topology не построена
+
+**ОТКРЫТО — MUST FIX.** Catalog census: `seam_owners=42`, `seam_missing_app_usage=0`, но
+`seam_missing_gate_execute=39`, `seam_missing_hash_execute=39`; пять business roots принадлежат fallback
+`app_seam_context_owner`. Revision 10 запрещает owner fallback: каждому signature нужен exact owner и execution graph.
+
+### TRUST-005 — mutation runner всё ещё даёт составные/искусственные красные
+
+**ОТКРЫТО — MUST FIX.** Шесть `wrong_function|purpose|hash|xid|backend|role` заменяют весь gate одним `RETURN true`
+и выполняют один составной mismatch, а не шесть независимых поломок. Три RLS/policy mutations только замечают
+catalog drift и вызывают искусственный `fault_detected`; заявленные cross-tenant/no-context/owner-bypass behavioral
+результаты не выполняются. Каждая mutation должна успешно сломать ровно свой механизм и покраснеть на точном
+достижимом результате.
+
+## Fix verification DECL-FIX1-2026-08-11 — `20413fbc6`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `20413fbc6`, `wt/port-context-decl` |
+| Метод | **Взгляд + disposable PostgreSQL 16.14**: independent declaration/catalog census, real ACL/RLS/restore/migration mutations |
+| Вердикт | **FAIL — DECL-002/004 закрыты; DECL-001/003/005/006/007 остаются** |
+
+### Исправлено громко
+
+- **DECL-002 ИСПРАВЛЕНО `20413fbc6`.** `app_ext` принадлежит `app_object_owner`; USAGE есть только у
+  context/identity owners, отсутствует у PUBLIC и login roles.
+- **DECL-004 ИСПРАВЛЕНО `20413fbc6`.** Обе DB принадлежат `postgres`; после env-renderers application roles с
+  SUPERUSER/CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS/INHERIT: `0`.
+
+### DECL-001 — 225 generic policies не являются exact RLS contract
+
+**ОТКРЫТО — MUST FIX.** Измерено на каждой DB: `239 tables / 225 active / 226 policies / 1 grant`; все 225
+restrictive policies проверяют только `app.current_org_id() IS NOT NULL`, единственная permissive policy на
+`platform_users` — `USING true`. При отсутствующем schema USAGE runtime полностью сломан; после выдачи необходимого
+USAGE patient-context probe обновил две чужие строки: `UPDATE 2`, `all_rows_changed=2`. Policy обязана связывать
+effective/target role, context class, purpose, typed-args hash/function root и бизнес-видимость каждой поверхности.
+
+### DECL-003 — function metadata/ownership/EXECUTE census расходится
+
+**ОТКРЫТО — MUST FIX.** Generator назначает функциям общий `STABLE PARALLEL RESTRICTED` и широкий search_path вместо
+exact metadata; поздний ownership pass переназначает `hash_port_typed_args` владельцу `postgres`. Незаявленный
+`GRANT EXECUTE app.current_org_id() TO undeclared_exec_probe` пережил reapply (`stale_execute_survived=t`). Нужен
+двусторонний signature-level owner/security/volatility/parallel/proconfig/EXECUTE census и revoke remainder.
+
+### DECL-005 — restore переназначает application objects суперпользователю
+
+**ОТКРЫТО — MUST FIX.** После real dump→recreate→`--no-owner --role=app_object_owner` generator снова назначает
+sequence/type/view/invoker/helper владельцем `postgres`. Database owner остаётся postgres, application objects должны
+оставаться `app_object_owner` либо exact seam owner.
+
+### DECL-006 — committed crash fixture всё ещё умирает до DDL
+
+**ОТКРЫТО — MUST FIX.** Fixture сначала `pg_sleep(30)`, proof убивает через секунду, поэтому DDL rollback вакуумен.
+Независимый representative probe с table+function и двумя owner switches перед sleep подтвердил wrapper:
+`rc=143`, оба objects и оба memberships откатились. Исправить надо committed fixture/proof, не wrapper.
+
+### DECL-007 — production proof не ловит реальные mutations и artifacts отсутствуют
+
+**ОТКРЫТО — MUST FIX.** Production-shaped artifact apply и relation/policy identity census проходят (`242/242`,
+`226/226`), но function census расходится; mutation DO-blocks не используют настоящий verifier, stale EXECUTE
+переживает reapply. `generate-cli.mjs --check` возвращает `1`: отсутствуют четыре canonical generated
+`{privileges,org-allowlist}.{dev,test}.sql`. Production artifacts должны быть закоммичены и проверяться реальным
+apply/catalog verifier.
+
+## Audit pass TEST-QUEUE-2026-08-11 — post-drop worker cutover
+
+| Поле | Значение |
+|---|---|
+| Candidate | `18c2de38d`, acceptance `2835d4e8e`, `wt/test-worker-queue-cutover` |
+| Метод | **Тест + взгляд**: disposable PostgreSQL без legacy relation, concurrency/future/finalize probes и active-reference census |
+| Вердикт | **FAIL — три MUST FIX; TEST worker не запускать** |
+
+### QUEUE-001 — future enqueue публикуется как due до завершения постановки
+
+**ОТКРЫТО — MUST FIX.** Compatibility producer сначала INSERT с `next_retry_at=now()`, затем отдельный UPDATE
+future `runAt`. Canonical consumer успевает claim между ними; UPDATE уже не меняет `processing`. Acceptance
+`2835d4e8e` воспроизводит: `1 failed | 3 passed`, premature claim возвращает future row в processing. `runAt`
+должен входить в один atomic INSERT/upsert contract.
+
+### QUEUE-002 — post-migration TEST deploy выполняет grant на удалённую relation
+
+**ОТКРЫТО — MUST FIX.** `deploy-test-saas.sh` запускает `p0-5b-grants.sql`, где `message_retry_jobs` остаётся GRANT
+target. С `ON_ERROR_STOP` свежий post-drop deploy оборвётся до restart. Активные grants/checkers/declarations должны
+ссылаться только на canonical queue; historical migrations/retired drain diagnostics остаются историей.
+
+### QUEUE-003 — active ops info/cleanup paths обращаются к удалённой relation
+
+**ОТКРЫТО — MUST FIX.** `apps/webapp/scripts/user-phone-admin.ts info` падает на post-drop DB; active census candidate
+дал `8` executable files / `15` matches, включая Drizzle metadata, `platformUserFullPurge`, grant/declaration/P0-12.
+Удалить/перевести active paths; отсутствие producer для `webappPushNotify` подтверждено, его retired consumer не
+требует восстановления второго loop.
+
+### Подтверждено и сохраняется
+
+- Concurrent claim даёт одного владельца; stale lease/finalize/retry/dead и retry-kind contract проходят.
+- В worker runtime остались два loops: projection outbox и единственный outgoing delivery; legacy job loop удалён.
+- Readiness/C4/dev-c7 active paths: exact census legacy relation `0`.
+- Fault mutation canonical relation и `next_retry_at <= now()` действительно красит behavior tests.
+
+## Fix verification TEST-QUEUE-FIX1-2026-08-11 — `066200cfa`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `066200cfa`, acceptance `2835d4e8e`, `wt/test-worker-queue-cutover` |
+| Метод | Тот же red race oracle + post-drop disposable deploy/ops checks + exact active-reference census |
+| Вердикт | **PASS — QUEUE-001–003 ИСПРАВЛЕНЫ; К LAND И TEST DEPLOY** |
+
+- **QUEUE-001 ИСПРАВЛЕНО.** Absolute `nextRetryAt` входит в исходный INSERT; acceptance `4/4` green. Независимая
+  мутация, игнорирующая его, красит два assertions и откатана.
+- **QUEUE-002 ИСПРАВЛЕНО.** Stale grant/checker/declaration target удалён; `p0-5b-grants.sql` с `ON_ERROR_STOP`
+  проходит на post-drop disposable PostgreSQL.
+- **QUEUE-003 ИСПРАВЛЕНО.** Drizzle metadata, purge и `user-phone-admin info` больше не запрашивают legacy relation;
+  post-drop info path проходит. Exact active census вне historical migrations/retired diagnostic: `0` files.
+- Integrator suite: `374 passed`, `3 expected-fail`, `14 skipped`; typecheck/lint PASS. Webapp relevant tests `2/2`,
+  typecheck/lint PASS; `git diff --check` PASS.

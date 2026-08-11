@@ -889,11 +889,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'набранный, но не отправленный текст', pol: 'D25: пациентская ветка построена на EXISTS по '
     + 'integrator.identities, у которой стены нет и которая СНОСИТСЯ — перевесить на public.user_channel_bindings',
     defect: ['D25-foundation-identities'] },
-  { t: 'integrator.message_retry_jobs', cls: 'S', why: 'очередь повторной отправки сообщений — недоставленные '
-    + 'SMS/сообщения не досылаются', defect: ['D14-integrator-no-wall'],
-    drop: { verdict: 'DROP', source: 'evidence/15 §3 — волна 1; заменена public.outgoing_delivery_queue',
-      blockedBy: '10 строк pending — не раньше 2026-08-29 17:00 MSK (живая работа, удаление = потерянное сообщение '
-      + 'человеку)' } },
   { t: 'integrator.projection_outbox', cls: 'S', org: false, why: 'очередь проекций событий в webapp — события '
     + 'интегратора перестают доезжать в webapp',
     revoke: { app_staff: 'D14: payload несёт события по конкретным пациентам и записям.' },

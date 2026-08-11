@@ -361,16 +361,10 @@ async function info(phone: string): Promise<void> {
 
   if (integratorDb) {
     const intIds = await resolveIntegratorUserIds(digs, user.integrator_user_id);
-    const rj = await integratorDb.query<{ cnt: number }>(
-      `SELECT count(*)::int AS cnt FROM message_retry_jobs
-       WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
-    console.log('\nIntegrator (очищается при reset-user):');
+    console.log('\nIntegrator:');
     console.log(
       `  users.id (удаление строки users + CASCADE): ${intIds.length ? intIds.join(', ') : '—'}`,
     );
-    console.log(`  message_retry_jobs: ${rj.rows[0]?.cnt ?? 0}`);
   } else {
     console.log(
       '\nIntegrator: URL не задан (INTEGRATOR_DATABASE_URL / api.prod) — блок integrator пропущен.',
