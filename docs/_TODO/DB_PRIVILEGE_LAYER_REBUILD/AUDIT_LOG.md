@@ -641,3 +641,19 @@ target. С `ON_ERROR_STOP` свежий post-drop deploy оборвётся до
   post-drop info path проходит. Exact active census вне historical migrations/retired diagnostic: `0` files.
 - Integrator suite: `374 passed`, `3 expected-fail`, `14 skipped`; typecheck/lint PASS. Webapp relevant tests `2/2`,
   typecheck/lint PASS; `git diff --check` PASS.
+
+## Audit pass TEST-QUEUE-CI-NAME-2026-08-11 — `bf5fb38f1`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `bf5fb38f1`, `wt/test-worker-queue-ci-fix` |
+| Метод | **Взгляд + точный gate + штатный Integrator Vitest** |
+| Вердикт | **PASS — К LAND; production-код и тело теста не изменены** |
+
+- **CI blocker ИСПРАВЛЕН.** Коммит является ровно `R100`-переименованием
+  `jobQueue.cutover.integration.test.ts` → `jobQueue.cutover.postgres.integration.test.ts`: `0` вставок,
+  `0` удалений, blob до/после `1d42586a6c7662e7aa0256437cdbb30e7936bd37`.
+- Новое имя входит в каноническую категорию disposable PostgreSQL harness у
+  `scripts/check-no-new-raw-sql.mjs`; сам gate/allowlist не менялся. Gate: `production debt: 0`.
+- Точный PostgreSQL test: `1 file / 4 tests passed`. Штатный Integrator suite: `62` файлов прошли,
+  `3` пропущены; `374 passed`, `3 expected fail`, `14 skipped`. Vitest glob продолжает включать файл.
