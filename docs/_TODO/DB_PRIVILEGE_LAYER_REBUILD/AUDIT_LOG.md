@@ -1402,6 +1402,10 @@ PASS принимает удаление третьей media DB-door и deploy 
   `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` → lock acquired/released, `rc=0`, `604s`.
   Внутри: integrator `374`, db-principal `21` + PostgreSQL 16 fault acceptance, webapp `1166`, media `16`,
   production build `426` страниц и полный repository audit — PASS.
+- **LAND-QUEUE-001 ИСПРАВЛЕНО ГРОМКО:** land gate выявил три ранних product-коммита без собственных строк
+  очереди: `434de6457 → 0d3653b1f → e537f0f52`. Они являются ancestry последовательно проверенных media
+  candidates (`72c1f2c17/e2cdadb5d`, затем финальный `76e1f5e85`) и не получают отдельный новый PASS: в queue
+  зарегистрировано, что их исходные неполные состояния заменены и приняты только в составе финального fixer.
 - Main на снимке аудитора чист и совпадал с origin; product candidates не были выданы за landed. Runtime
   `c2e5d5cad`, seams `f27bf390b` и media stack through `da5679122` оставались candidate+proved.
 - **ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** host mTLS отсутствует; login ACL ещё не обнулены; seam-кандидат оставляет
