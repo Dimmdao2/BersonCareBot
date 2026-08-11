@@ -28,14 +28,14 @@ function asStringArray(value: unknown): string[] {
     : [];
 }
 
-function parseDbJobId(jobId: string): number | null {
-  const [, idRaw] = jobId.split(':');
-  const parsed = Number(idRaw);
-  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+function parseDbJobId(jobId: string): string | null {
+  const prefix = 'message-retry:';
+  const id = jobId.startsWith(prefix) ? jobId.slice(prefix.length) : '';
+  return id.length > 0 ? id : null;
 }
 
 function toDeliveryJob(row: {
-  id: number;
+  id: string;
   phoneNormalized: string | null;
   messageText: string | null;
   kind: string | null;
@@ -220,7 +220,7 @@ export function createPostgresJobQueue(input: {
     async failJob(jobId: string, result: DeliveryAttemptResult): Promise<void> {
       const dbJobId = parseDbJobId(jobId);
       if (dbJobId === null) return;
-      const failInput: { id: number; lastError?: string } = {
+      const failInput: { id: string; lastError?: string } = {
         id: dbJobId,
         ...(result.errorCode ? { lastError: result.errorCode } : {}),
       };
@@ -233,7 +233,7 @@ export function createPostgresJobQueue(input: {
       await rescheduleMessageRetryJob(input.db, {
         id: dbJobId,
         attemptsDone: attemptsMade,
-        retryDelaySeconds: input.retryDelaySeconds,
+        nextRunAt: _nextRunAt,
       });
     },
 
