@@ -539,3 +539,53 @@ baseline: `physical_ids_in_context_refs=1`. Это нарушает invariant «
 catalog drift и вызывают искусственный `fault_detected`; заявленные cross-tenant/no-context/owner-bypass behavioral
 результаты не выполняются. Каждая mutation должна успешно сломать ровно свой механизм и покраснеть на точном
 достижимом результате.
+
+## Fix verification DECL-FIX1-2026-08-11 — `20413fbc6`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `20413fbc6`, `wt/port-context-decl` |
+| Метод | **Взгляд + disposable PostgreSQL 16.14**: independent declaration/catalog census, real ACL/RLS/restore/migration mutations |
+| Вердикт | **FAIL — DECL-002/004 закрыты; DECL-001/003/005/006/007 остаются** |
+
+### Исправлено громко
+
+- **DECL-002 ИСПРАВЛЕНО `20413fbc6`.** `app_ext` принадлежит `app_object_owner`; USAGE есть только у
+  context/identity owners, отсутствует у PUBLIC и login roles.
+- **DECL-004 ИСПРАВЛЕНО `20413fbc6`.** Обе DB принадлежат `postgres`; после env-renderers application roles с
+  SUPERUSER/CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS/INHERIT: `0`.
+
+### DECL-001 — 225 generic policies не являются exact RLS contract
+
+**ОТКРЫТО — MUST FIX.** Измерено на каждой DB: `239 tables / 225 active / 226 policies / 1 grant`; все 225
+restrictive policies проверяют только `app.current_org_id() IS NOT NULL`, единственная permissive policy на
+`platform_users` — `USING true`. При отсутствующем schema USAGE runtime полностью сломан; после выдачи необходимого
+USAGE patient-context probe обновил две чужие строки: `UPDATE 2`, `all_rows_changed=2`. Policy обязана связывать
+effective/target role, context class, purpose, typed-args hash/function root и бизнес-видимость каждой поверхности.
+
+### DECL-003 — function metadata/ownership/EXECUTE census расходится
+
+**ОТКРЫТО — MUST FIX.** Generator назначает функциям общий `STABLE PARALLEL RESTRICTED` и широкий search_path вместо
+exact metadata; поздний ownership pass переназначает `hash_port_typed_args` владельцу `postgres`. Незаявленный
+`GRANT EXECUTE app.current_org_id() TO undeclared_exec_probe` пережил reapply (`stale_execute_survived=t`). Нужен
+двусторонний signature-level owner/security/volatility/parallel/proconfig/EXECUTE census и revoke remainder.
+
+### DECL-005 — restore переназначает application objects суперпользователю
+
+**ОТКРЫТО — MUST FIX.** После real dump→recreate→`--no-owner --role=app_object_owner` generator снова назначает
+sequence/type/view/invoker/helper владельцем `postgres`. Database owner остаётся postgres, application objects должны
+оставаться `app_object_owner` либо exact seam owner.
+
+### DECL-006 — committed crash fixture всё ещё умирает до DDL
+
+**ОТКРЫТО — MUST FIX.** Fixture сначала `pg_sleep(30)`, proof убивает через секунду, поэтому DDL rollback вакуумен.
+Независимый representative probe с table+function и двумя owner switches перед sleep подтвердил wrapper:
+`rc=143`, оба objects и оба memberships откатились. Исправить надо committed fixture/proof, не wrapper.
+
+### DECL-007 — production proof не ловит реальные mutations и artifacts отсутствуют
+
+**ОТКРЫТО — MUST FIX.** Production-shaped artifact apply и relation/policy identity census проходят (`242/242`,
+`226/226`), но function census расходится; mutation DO-blocks не используют настоящий verifier, stale EXECUTE
+переживает reapply. `generate-cli.mjs --check` возвращает `1`: отсутствуют четыре canonical generated
+`{privileges,org-allowlist}.{dev,test}.sql`. Production artifacts должны быть закоммичены и проверяться реальным
+apply/catalog verifier.
