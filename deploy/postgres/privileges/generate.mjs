@@ -14,7 +14,6 @@
  *   • статьи отсортированы (дифф читаем).
  *
  * ЧЕГО ГЕНЕРАТОР НЕ ЭМИТИТ (чужая власть — SCHEME §B, «два движка не спорят за одну статью»):
- *   • `proconfig`/`SET search_path` definer-функций — применяет ТЕЛО функции в миграции;
  *   • DDL схемы (CREATE SCHEMA/TABLE/FUNCTION …) — миграции;
  *   • объекты стены (`app_control`, event trigger, снятие материализованного PUBLIC EXECUTE
  *     со ВСЕХ функций §D.5) — шаг `wall-install` (§B шаг 3);
@@ -34,6 +33,7 @@ export const GENERATOR_VERSION = 1;
 
 /** Канонический порядок привилегий (стабильный дифф). */
 const PRIV_ORDER = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+const MANAGED_APPLICATION_SCHEMAS = ['public', 'app', 'integrator', 'app_ext', 'drizzle'];
 
 /** Ошибка «декларация неполна» — несёт перечень мест. */
 export class DeclarationGapError extends Error {
@@ -127,6 +127,11 @@ function managedRoleNames(declaration) {
 function functionExecute(db, fn) {
   const logins = fn.loginExecute ? db.database.connect ?? [] : [];
   return [...new Set([...fn.execute, ...logins])].sort();
+}
+
+function functionEntriesForDatabase(context, dbName) {
+  return Object.entries(context?.functions ?? {})
+    .filter(([, fn]) => !fn.databases || fn.databases.includes(dbName));
 }
 
 const PORT_CONTEXT_PURPOSE_RE = /^[a-z][a-z0-9._:-]{0,127}$/;
@@ -334,6 +339,29 @@ export function collectGaps(declaration, dbName) {
         || !Array.isArray(fn.proconfig)) {
         add(`portContext.functions.${signature}`, 'exact security/volatility/parallel/proconfig is required');
       }
+      if (fn.databases) {
+        if (fn.databases.length === 0 || new Set(fn.databases).size !== fn.databases.length) {
+          add(`portContext.functions.${signature}.databases`, 'per-DB presence must be a non-empty unique list');
+        }
+        for (const database of fn.databases) {
+          if (!declaration.databases[database]) add(`portContext.functions.${signature}.databases`, `неизвестная база '${database}'`);
+        }
+      }
+      if (fn.invocation === 'trigger' && fn.execute.length !== 0) {
+        add(`portContext.functions.${signature}.execute`, 'trigger root must not have a runtime EXECUTE grantee');
+      }
+      for (const [index, surface] of (fn.relationSurfaces ?? []).entries()) {
+        const ssite = `portContext.functions.${signature}.relationSurfaces[${index}]`;
+        if (!declaration.databases.bersoncarebot_test?.tables?.[surface.relation]
+          && !context.privateRelations?.[surface.relation]) add(ssite, `unknown relation '${surface.relation}'`);
+        if (surface.columns.length === 0 || surface.operations.length === 0) add(ssite, 'surface needs named columns and operations');
+      }
+      if (Array.isArray(fn.relationSurfaces) && fn.relationSurfaces.length === 0 && !(fn.delegatesTo?.length > 0)) {
+        add(`portContext.functions.${signature}`, 'wrapper without a direct relation surface must name exact delegated roots');
+      }
+      for (const delegated of fn.delegatesTo ?? []) {
+        if (!context.functions[delegated]) add(`portContext.functions.${signature}.delegatesTo`, `unknown delegated root '${delegated}'`);
+      }
     }
   }
 
@@ -452,11 +480,34 @@ export function collectGaps(declaration, dbName) {
       } else if (access.kind === 'direct') {
         if (!access.purpose || access.codePaths.length === 0) add(site, 'direct access lacks purpose or code-path evidence');
         if (Object.keys(table.grants ?? {}).length === 0) add(site, 'direct access has no declared exact grant');
-      } else if (access.kind === 'named-seam') {
-        const seam = context?.functions?.[access.regprocedure];
-        if (!seam) add(site, `named seam '${access.regprocedure}' is not in the exact function census`);
-        if (!known(access.owner) || !known(access.caller) || access.columns.length === 0 || access.operations.length === 0 || !access.purpose) {
-          add(site, 'named seam lacks exact owner/caller/columns/operations/purpose');
+      } else if (access.kind === 'named-seams') {
+        if (!Array.isArray(access.seams) || access.seams.length === 0 || !access.purpose) {
+          add(site, 'named-seams access needs a purpose and at least one exact seam');
+        }
+        const seen = new Set();
+        for (const [index, named] of (access.seams ?? []).entries()) {
+          const nsite = `${site}.access.seams[${index}]`;
+          if (seen.has(named.regprocedure)) add(nsite, `duplicate seam '${named.regprocedure}'`);
+          seen.add(named.regprocedure);
+          const seam = context?.functions?.[named.regprocedure];
+          if (!seam) add(nsite, `named seam '${named.regprocedure}' is not in the exact function census`);
+          if (seam?.databases && !seam.databases.includes(dbName)) add(nsite, `named seam is absent from ${dbName}`);
+          if (!known(named.owner) || seam?.owner !== named.owner || named.columns.length === 0
+            || named.operations.length === 0 || !named.purpose) add(nsite, 'named seam lacks exact owner/columns/operations/purpose');
+          if (named.invocation === 'runtime') {
+            if (!named.caller || !known(named.caller) || !seam?.execute.includes(named.caller)) {
+              add(nsite, 'runtime seam caller is absent, unknown, or lacks declared EXECUTE');
+            }
+          } else if (named.invocation === 'trigger') {
+            if (named.caller || seam?.execute.length !== 0 || seam?.invocation !== 'trigger') {
+              add(nsite, 'trigger seam must be caller-free and non-runtime');
+            }
+          } else add(nsite, `unknown invocation '${named.invocation}'`);
+          const surface = seam?.relationSurfaces?.find((candidate) => candidate.relation === tableKey);
+          if (!surface || named.columns.some((column) => !surface.columns.includes(column))
+            || named.operations.some((operation) => !surface.operations.includes(operation))) {
+            add(nsite, `relation surface does not match function census for '${tableKey}'`);
+          }
         }
       } else if (access.kind === 'no-runtime-surface' && (!access.purpose || access.evidence.length === 0)) {
         add(site, 'no-runtime-surface lacks purpose or absence evidence');
@@ -616,7 +667,13 @@ function emitRolconfig(out, roleName, rolconfig, site) {
   }
 }
 
-function emitMembershipRevokeToEmpty(out, roleName) {
+function isSeamOwnerName(roleName) {
+  return /^app_seam_.+_owner$/.test(roleName)
+    || roleName === 'saas_telemetry_owner'
+    || roleName === 'saas_system_health_owner';
+}
+
+function emitMembershipRevokeToEmpty(out, roleName, bothDirections = false) {
   out.push(
     'DO $bcb$',
     'DECLARE m record;',
@@ -629,6 +686,20 @@ function emitMembershipRevokeToEmpty(out, roleName) {
     'END',
     '$bcb$;',
   );
+  if (bothDirections) {
+    out.push(
+      'DO $bcb$',
+      'DECLARE m record;',
+      'BEGIN',
+      '  FOR m IN SELECT pg_catalog.pg_get_userbyid(am.roleid) AS granted_role',
+      '             FROM pg_catalog.pg_auth_members am',
+      `            WHERE am.member = ${lit(roleName)}::regrole ORDER BY 1 LOOP`,
+      `    EXECUTE pg_catalog.format('REVOKE %I FROM %I', m.granted_role, ${lit(roleName)});`,
+      '  END LOOP;',
+      'END',
+      '$bcb$;',
+    );
+  }
 }
 
 function revokeList(names) {
@@ -654,6 +725,83 @@ function emitTableGrants(out, targetSql, grants, granteeFilter) {
 }
 
 /* ─────────────────────────── генерация SQL ─────────────────────────── */
+
+/**
+ * Exact per-database function closure. It is exported separately so a disposable PostgreSQL 16
+ * catalog can prove the census even while unrelated relation-access gaps keep the full artifact
+ * fail-closed.
+ */
+export function generateFunctionCensusSql(declaration, dbName) {
+  const db = declaration.databases?.[dbName];
+  const context = declaration.portContext;
+  if (!db || !context) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database or port context is absent' }]);
+  const { logins } = principals(declaration);
+  const managed = managedRoleNames(declaration);
+  const revokeTargets = (owner) => [...new Set([...managed, ...logins.keys()])].filter((role) => role !== owner).sort();
+  const databaseFunctions = functionEntriesForDatabase(context, dbName).sort(([a], [b]) => a.localeCompare(b));
+  const seamOwners = [...new Set(databaseFunctions
+    .filter(([, fn]) => fn.security === 'DEFINER')
+    .map(([, fn]) => fn.owner)
+    .filter(isSeamOwnerName))].sort();
+  const managedSchemasSql = MANAGED_APPLICATION_SCHEMAS.map(lit).join(', ');
+  const out = [
+    '-- Exact per-database function census: revoke first, then restore only declared identities.',
+    'DO $bcb$', 'DECLARE f record; r record;', 'BEGIN',
+    "  FOR f IN SELECT n.nspname, p.proname, p.proowner, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
+    `            WHERE n.nspname IN (${managedSchemasSql})`,
+    "              AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid = 'pg_proc'::pg_catalog.regclass AND d.objid = p.oid AND d.deptype = 'e') ORDER BY 1, 2, 3 LOOP",
+    "    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM PUBLIC', f.nspname, f.proname, f.args);",
+    '    FOR r IN SELECT rolname FROM pg_catalog.pg_roles WHERE oid <> f.proowner ORDER BY rolname LOOP',
+    "      EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM %I', f.nspname, f.proname, f.args, r.rolname);",
+    '    END LOOP;', '  END LOOP;', 'END', '$bcb$;', '',
+  ];
+  for (const owner of seamOwners) emitMembershipRevokeToEmpty(out, owner, true);
+  if (seamOwners.length > 0) out.push('');
+  for (const [signature, fn] of databaseFunctions) {
+    out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
+    out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
+    const targets = revokeTargets(fn.owner);
+    if (targets.length > 0) out.push(`REVOKE ALL ON FUNCTION ${signature} FROM ${targets.map(q).join(', ')};`);
+    const execute = functionExecute(db, fn);
+    if (execute.length > 0) out.push(`GRANT EXECUTE ON FUNCTION ${signature} TO ${execute.map(q).join(', ')};`);
+    out.push(`ALTER FUNCTION ${signature} ${fn.security === 'DEFINER' ? 'SECURITY DEFINER' : 'SECURITY INVOKER'};`);
+    out.push(`ALTER FUNCTION ${signature} ${fn.volatility};`);
+    out.push(`ALTER FUNCTION ${signature} PARALLEL ${fn.parallel};`);
+    out.push(`ALTER FUNCTION ${signature} RESET ALL;`);
+    for (const config of fn.proconfig) {
+      const eq = config.indexOf('=');
+      if (eq <= 0) throw new DeclarationGapError([{ site: `portContext.functions.${signature}.proconfig`, reason: `invalid setting '${config}'` }]);
+      out.push(`ALTER FUNCTION ${signature} SET ${q(config.slice(0, eq))} TO ${config.slice(eq + 1)};`);
+    }
+  }
+  const rows = databaseFunctions.map(([signature, fn]) =>
+    `(${lit(signature)}, ${lit(fn.owner)}, ${lit(fn.returns)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${functionExecute(db, fn).map(lit).join(', ')}]::name[])`);
+  out.push(
+    '-- Bilateral catalog check for every declared signature, every direct EXECUTE grantee, and every managed-schema definer.',
+    'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
+    '  WITH expected(sig, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (VALUES',
+    rows.map((row) => `    ${row}`).join(',\n'),
+    '  ) SELECT e.sig INTO bad FROM expected e LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure(e.sig)',
+    '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR pg_catalog.format_type(p.prorettype, NULL) <> e.result_type OR p.prosecdef <> e.is_definer',
+    '         OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism',
+    "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config",
+    "         OR EXISTS (SELECT 1 FROM unnest(e.execute_roles) r WHERE r <> e.owner_name::name AND NOT EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a JOIN pg_catalog.pg_roles granted ON granted.oid = a.grantee WHERE a.privilege_type = 'EXECUTE' AND granted.rolname = r))",
+    "         OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a LEFT JOIN pg_catalog.pg_roles granted ON granted.oid = a.grantee WHERE a.privilege_type = 'EXECUTE' AND a.grantee <> p.proowner AND (a.grantee = 0 OR granted.rolname IS NULL OR NOT granted.rolname = ANY(e.execute_roles)))",
+    '       LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'function census catalog mismatch: %', bad; END IF;",
+    "  WITH expected(sig) AS (VALUES",
+    databaseFunctions.map(([signature]) => `    (${lit(signature)})`).join(',\n'),
+    "  ) SELECT pg_catalog.format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',')) INTO bad",
+    '      FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
+    `     WHERE p.prosecdef AND n.nspname IN (${managedSchemasSql})`,
+    "       AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid = 'pg_proc'::pg_catalog.regclass AND d.objid = p.oid AND d.deptype = 'e')",
+    "       AND NOT EXISTS (SELECT 1 FROM expected e WHERE p.oid = pg_catalog.to_regprocedure(e.sig))",
+    '     LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared SECURITY DEFINER function: %', bad; END IF;",
+    'END', '$bcb$;', '',
+  );
+  return out.join('\n');
+}
 
 /**
  * Декларация + имя базы → текст SQL-артефакта (SCHEME §B, «выход №1»).
@@ -688,7 +836,6 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     '-- канон:      docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/SCHEME.md §A/§B/§D',
     '--',
     '-- ЗДЕСЬ НЕТ (чужая власть, SCHEME §B):',
-    '--   • proconfig / SET search_path definer-функций — применяет тело функции в миграции;',
     '--   • DDL схемы (CREATE SCHEMA/TABLE/FUNCTION/VIEW) — миграции;',
     '--   • объекты стены (app_control, event trigger, §D.5 снятие PUBLIC EXECUTE со всех',
     '--     функций) — шаг wall-install (§B шаг 3);',
@@ -765,18 +912,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   const portContext = declaration.portContext;
   if (portContext) {
     out.push('-- ─────────── 1b. REVISION-10 PRIVATE PORT CONTEXT ───────────', '');
-    out.push(
-      '-- Every managed routine is swept before exact per-regprocedure grants are restored.',
-      'DO $bcb$', 'DECLARE f record; r record;', 'BEGIN',
-      "  FOR f IN SELECT n.nspname, p.proname, p.proowner, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
-      "            WHERE n.nspname IN ('app', 'app_ext', 'public', 'integrator', 'drizzle') ORDER BY 1, 2, 3 LOOP",
-      "    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM PUBLIC', f.nspname, f.proname, f.args);",
-      '    FOR r IN SELECT rolname FROM pg_catalog.pg_roles WHERE oid <> f.proowner ORDER BY rolname LOOP',
-      "      EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM %I', f.nspname, f.proname, f.args, r.rolname);",
-      '    END LOOP;',
-      '  END LOOP;',
-      'END', '$bcb$;', '',
-    );
+    out.push(generateFunctionCensusSql(declaration, dbName));
     for (const [identity, relation] of Object.entries(portContext.privateRelations).sort(([a], [b]) => a.localeCompare(b))) {
       const { qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
       out.push(`ALTER TABLE ${qualified} OWNER TO ${q(relation.owner)};`);
@@ -784,43 +920,6 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       const targets = revokeTargets(relation.owner);
       if (targets.length > 0) out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM ${revokeList(targets)};`);
     }
-    for (const [signature, fn] of Object.entries(portContext.functions).sort(([a], [b]) => a.localeCompare(b))) {
-      out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
-      out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
-      const targets = revokeTargets(fn.owner);
-      if (targets.length > 0) out.push(`REVOKE ALL ON FUNCTION ${signature} FROM ${revokeList(targets)};`);
-      const execute = functionExecute(db, fn);
-      if (execute.length > 0) out.push(`GRANT EXECUTE ON FUNCTION ${signature} TO ${execute.map(q).join(', ')};`);
-      out.push(`ALTER FUNCTION ${signature} ${fn.security === 'DEFINER' ? 'SECURITY DEFINER' : 'SECURITY INVOKER'};`);
-      out.push(`ALTER FUNCTION ${signature} ${fn.volatility};`);
-      out.push(`ALTER FUNCTION ${signature} PARALLEL ${fn.parallel};`);
-      out.push(`ALTER FUNCTION ${signature} RESET ALL;`);
-      for (const config of fn.proconfig) {
-        const eq = config.indexOf('=');
-        if (eq <= 0) throw new DeclarationGapError([{ site: `portContext.functions.${signature}.proconfig`, reason: `invalid setting '${config}'` }]);
-        out.push(`ALTER FUNCTION ${signature} SET ${q(config.slice(0, eq))} TO ${config.slice(eq + 1)};`);
-      }
-    }
-    const functionRows = Object.entries(portContext.functions).sort(([a], [b]) => a.localeCompare(b)).map(([signature, fn]) =>
-      `(${lit(signature)}, ${lit(fn.owner)}, ${lit(fn.returns)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${functionExecute(db, fn).map(lit).join(', ')}]::name[])`,
-    );
-    const functionAclPrincipals = [...new Set([...managed, ...logins.keys()])].sort().map(lit).join(', ');
-    out.push(
-      '-- Catalog-side exact check: owner, SECURITY, volatility, parallel and proconfig for every signature.',
-      'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
-      '  WITH expected(sig, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (VALUES',
-      functionRows.map((row) => `    ${row}`).join(',\n'),
-      '  ) SELECT e.sig INTO bad FROM expected e LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure(e.sig)',
-      '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR pg_catalog.format_type(p.prorettype, NULL) <> e.result_type OR p.prosecdef <> e.is_definer',
-      '         OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism',
-      "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config",
-      "         OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')",
-      "         OR EXISTS (SELECT 1 FROM unnest(e.execute_roles) r WHERE NOT pg_catalog.has_function_privilege(r, e.sig, 'EXECUTE'))",
-      ...(functionAclPrincipals ? [`         OR EXISTS (SELECT 1 FROM unnest(ARRAY[${functionAclPrincipals}]::name[]) r WHERE r <> e.owner_name::name AND NOT r = ANY(e.execute_roles) AND pg_catalog.has_function_privilege(r, e.sig, 'EXECUTE'))`] : []),
-      '       LIMIT 1;',
-      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'port-context function catalog mismatch: %', bad; END IF;",
-      'END', '$bcb$;', '',
-    );
     out.push(generatePortContextCapabilitySeedSql(declaration, dbName));
     out.push('');
   }
@@ -836,7 +935,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     if (role.kind === 'superuser') continue;
     if (Array.isArray(role.members) && role.members.length === 0) {
       out.push(`-- ${roleName}: members: [] — ноль членов в стационаре (SCHEME §C/§E).`);
-      emitMembershipRevokeToEmpty(out, roleName);
+      emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName));
     }
     for (const m of [...(role.grantedTo ?? [])].sort((a, b) => a.role.localeCompare(b.role))) {
       if (isLogin(m.role)) {
@@ -1051,17 +1150,18 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     }
   }
   if (portContext) {
-    const exactDefiners = Object.entries(portContext.functions)
+    const exactDefiners = functionEntriesForDatabase(portContext, dbName)
       .filter(([, fn]) => fn.security === 'DEFINER')
       .map(([signature]) => lit(signature)).sort();
     out.push(
       '-- SECURITY DEFINER has no fallback owner: every live signature must be declared exactly.',
       'DO $bcb$', 'DECLARE f text;', 'BEGIN',
       '  SELECT pg_catalog.format(\'%I.%I(%s)\', n.nspname, p.proname,',
-      "           pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')) INTO f",
+      "           pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',')) INTO f",
       '    FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
-      "   WHERE p.prosecdef AND n.nspname IN ('app', 'app_ext')",
-      ...(exactDefiners.length > 0 ? [`     AND pg_catalog.format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')) NOT IN (${exactDefiners.join(', ')})`] : []),
+      `   WHERE p.prosecdef AND n.nspname IN (${MANAGED_APPLICATION_SCHEMAS.map(lit).join(', ')})`,
+      "     AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid = 'pg_proc'::pg_catalog.regclass AND d.objid = p.oid AND d.deptype = 'e')",
+      ...(exactDefiners.length > 0 ? [`     AND pg_catalog.format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',')) NOT IN (${exactDefiners.join(', ')})`] : []),
       '   LIMIT 1;',
       "  IF f IS NOT NULL THEN RAISE EXCEPTION 'undeclared SECURITY DEFINER function: %', f; END IF;",
       'END', '$bcb$;', '',

@@ -59,6 +59,7 @@
  */
 
 import { WALL_TEMPLATES, expandTables } from './types.ts';
+import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
 // The canonical locked descriptor module is executable ESM; its public shape is narrowed below
 // so this declaration remains strict without a second source-of-truth .d.ts file.
 // @ts-expect-error no declaration file exists for the canonical executable descriptor module.
@@ -2038,6 +2039,7 @@ const REV10_CONTEXT = {
       functionIdentity: 'app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)' },
   },
   functions: {
+    ...BUSINESS_SEAM_FUNCTIONS,
     'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
       execute: [], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
@@ -2121,6 +2123,25 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         'apps/webapp/src/modules/appointments/**',
         'apps/webapp/src/app/api/**/appointments/**',
       ] }
+      : key === 'public.clinic_dedicated_bot_bindings'
+        ? { kind: 'named-seams' as const, purpose: 'dedicated-bot runtime resolver plus its non-runtime sync trigger', seams: [
+          { regprocedure: 'app.resolve_clinic_dedicated_bot_organization(text,text)',
+            owner: 'app_seam_dedicated_bot_owner', caller: 'app_integrator_resolver', invocation: 'runtime' as const,
+            columns: ['channel', 'organization_id', 'credential_fingerprint', 'is_active'], operations: ['SELECT' as const],
+            purpose: 'resolve one active dedicated-bot binding by channel and credential fingerprint' },
+          { regprocedure: 'app.sync_clinic_dedicated_bot_binding()', owner: 'app_seam_dedicated_bot_owner',
+            invocation: 'trigger' as const, columns: ['channel', 'organization_id', 'credential_fingerprint', 'is_active', 'updated_at'],
+            operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
+            purpose: 'maintain the binding projection as a database trigger; no runtime EXECUTE grantee' },
+        ] }
+      : key === 'public.booking_calendar_map'
+        ? { kind: 'unresolved' as const,
+          reason: 'missing named API: direct integrator calendar-map R/W has no accepted SECURITY DEFINER root',
+          codePaths: ['apps/integrator/src/infra/db/repos/bookingCalendarMap.ts'] }
+      : key === 'public.phone_messenger_bind_secrets'
+        ? { kind: 'unresolved' as const,
+          reason: 'missing named API: bearer-secret R/W has no accepted SECURITY DEFINER root',
+          codePaths: ['apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts'] }
       : { kind: 'unresolved' as const,
         reason: 'revision-10 access census has no exact repository/seam proof; deny-by-default is not operability',
         codePaths: [] };

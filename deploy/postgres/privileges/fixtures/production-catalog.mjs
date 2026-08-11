@@ -40,6 +40,10 @@ function columnType(identity, column) {
   return 'uuid';
 }
 const lines = ['\\set ON_ERROR_STOP on'];
+for (const [role] of Object.entries(declaration.cluster.roles).sort(([a], [b]) => a.localeCompare(b))) {
+  if (role === 'postgres') continue;
+  lines.push(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN CREATE ROLE ${q(role)} NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$;`);
+}
 for (const login of Object.keys(declaration.envMapping).flatMap((env) => Object.keys(declaration.envMapping[env])).sort()) {
   lines.push(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${login}') THEN CREATE ROLE ${q(login)} NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$;`);
 }
@@ -63,8 +67,14 @@ for (const identity of Object.keys(db.tables).sort()) {
   }
   lines.push(`CREATE TABLE ${split(identity)} (${[...columns].sort().map((column) => `${q(column)} ${columnType(identity, column)}`).join(', ')});`);
 }
-for (const [signature, functionDecl] of Object.entries(context.functions).sort(([a], [b]) => a.localeCompare(b))) {
+for (const [signature, functionDecl] of Object.entries(context.functions)
+  .filter(([, entry]) => !entry.databases || entry.databases.includes(dbName))
+  .sort(([a], [b]) => a.localeCompare(b))) {
   const returns = functionDecl.returns;
+  if (returns === 'trigger') {
+    lines.push(`CREATE FUNCTION ${signature} RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$;`);
+    continue;
+  }
   const body = signature === 'app.current_org_id()'
     ? "SELECT nullif(current_setting('app.org_id', true), '')::uuid"
     : signature === 'app.current_patient_user_id()'
@@ -72,7 +82,11 @@ for (const [signature, functionDecl] of Object.entries(context.functions).sort((
       : signature === 'app.is_staff()'
         ? "SELECT current_user = 'app_staff'"
         : returns === 'uuid' ? 'SELECT NULL::uuid' : returns === 'bigint' ? 'SELECT NULL::bigint'
-          : returns === 'bytea' ? "SELECT ''::bytea" : returns === 'boolean' ? 'SELECT true' : 'SELECT NULL::void';
+          : returns === 'integer' ? 'SELECT NULL::integer' : returns === 'text' ? 'SELECT NULL::text'
+            : returns === 'timestamp with time zone' ? 'SELECT NULL::timestamptz'
+              : returns === 'jsonb' ? 'SELECT NULL::jsonb' : returns === 'record' ? 'SELECT ROW(NULL)'
+                : returns === 'saas_tariffs' ? 'SELECT NULL::public.saas_tariffs'
+                  : returns === 'bytea' ? "SELECT ''::bytea" : returns === 'boolean' ? 'SELECT true' : 'SELECT NULL::void';
   lines.push(`CREATE FUNCTION ${signature} RETURNS ${returns} LANGUAGE sql AS $$ ${body} $$;`);
 }
 process.stdout.write(`${lines.join('\n')}\n`);
