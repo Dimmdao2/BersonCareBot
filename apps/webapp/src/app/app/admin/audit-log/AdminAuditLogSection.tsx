@@ -363,8 +363,8 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                             <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-muted-foreground">
                               {formatDisplayZoneInstantRu(row.created_at, displayTimeZone)}
                             </td>
-                            <td className="w-36 whitespace-nowrap px-3 py-2 align-top">
-                              <div className="flex flex-nowrap items-center gap-1">
+                            <td className="px-3 py-2 align-top">
+                              <div className="flex flex-wrap items-center gap-1">
                                 <Badge variant="outline" className="font-mono text-[10px]">
                                   {row.action}
                                 </Badge>
@@ -432,8 +432,8 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
                                 ) : null}
                               </div>
                             </td>
-                            <td className="px-3 py-2 align-top">
-                              <div className="flex flex-wrap items-center gap-1">
+                            <td className="w-36 whitespace-nowrap px-3 py-2 align-top">
+                              <div className="flex flex-nowrap items-center gap-1">
                                 <CopyForAiButton
                                   payload={row as unknown as Record<string, unknown>}
                                   label="Скопировать"
