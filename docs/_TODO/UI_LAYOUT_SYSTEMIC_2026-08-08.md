@@ -386,3 +386,30 @@ Runtime-проверка в локальном DEV выполнена для des
 
 Не входят в этот проход: R5 (тексты ошибок), R7 (локализация дат), B2 (табы аккаунта), B6 (ширины полей),
 R1 (пациентский адаптив). Дубль заголовка страницы первой карточкой остаётся OWNER QUESTION согласно B7.
+
+### Продолжение 2026-08-11 — безопасные UI-этапы
+
+- R5, global-admin load states: общий `DataLoadFailureNotice` получил штатный retry и гарантированно скрывает
+  техническую деталь вне development. На канонические error/loading/empty-ветки переведены ошибки регистрации,
+  коммерческие настройки, список и сводка платежей, список клиник для ручного счёта, здоровье системы, архив
+  сбоев и журнал политики тарифа. Основной `AdminAuditLogSection` не включён: один `error` там смешивает сбой
+  загрузки и сбой закрытия конфликта, сначала требуется разнести состояния по назначению.
+- R4: «Выставить счёт» использует `CardAction`; мобильные действия фильтра платежей складываются вертикально и
+  больше не обрезают кнопку выгрузки.
+- B2: `AccountTabs` переведён с вертикального flat-list на `doctorSectionTabClass` и поднят в слот `tabs`
+  `DoctorPageHeader`.
+- R7, global-admin: журнал операций, здоровье системы и история политики тарифа форматируют моменты через
+  `formatDisplayZoneInstantRu` с `app_display_timezone`; date-фильтры журнала и платежей используют
+  `DoctorDatePicker`. Команда
+  `rg -n 'toLocale(Date|Time)?String\(\s*\)' apps/webapp/src --glob '*.{ts,tsx}' --glob '!*.test.*'`
+  не возвращает строк. Команда `rg -n 'type="date"' apps/webapp/src --glob '*.tsx' --glob '!*.test.*'`
+  возвращает четыре оставшихся места — только врачебные/пациентские экраны, их без runtime-проверки не трогали.
+- B6 выполнен в подтверждённой безопасной границе: токены `--doctor-field-sm/md/lg`, общий `DoctorField` и
+  ограничение ширины для `Support contact` и полей SMTP. Полная механическая миграция отложена: команда
+  `rg -n '<Input|<SelectTrigger|<Textarea' apps/webapp/src/app/app/admin apps/webapp/src/app/app/settings --glob '*.tsx' | wc -l`
+  возвращает `295`, массово менять этот объём без поэкранной приёмки нельзя.
+
+Runtime 390px подтвердил account tabs и русские date picker на платежах без document-level horizontal overflow.
+Снимки обновлены в игнорируемом `.claude/screenshots/UI-GLOBAL-ADMIN-2026-08-11/`. Повторная попытка открыть
+`/app/admin/app-settings` упёрлась в уже зафиксированный redirect/access loop локального dev-admin; поэтому
+`DoctorField` подтверждён unit-тестом, lint, typecheck и production build, но не runtime-снимком.
