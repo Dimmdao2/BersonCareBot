@@ -321,9 +321,9 @@ human principal. Обычный bootstrap по одному DB-паролю, с�
 доказательства порта. При переходе меняются resolver и идентификатор subject, а port-attestation, транзакционная
 граница, purpose/args binding, роли и deny-by-default сохраняются.
 
-Дополнительного продуктового решения для реализации A не требуется. Exact SQL signatures, алгоритм challenge,
-ротация ключа, формат transcript, transaction wrapper и негативные проверки — технические решения агента по
-этому owner-канону и общепринятой практике least privilege, challenge-response, replay protection и fail closed.
+Дополнительного продуктового решения для реализации A не требуется. Exact mTLS/context signatures, certificate
+rotation/revocation, transaction wrapper и негативные проверки — технические решения агента по этому owner-канону
+и общепринятой практике least privilege и fail closed.
 
 ### Проверка порта — PostgreSQL mTLS, custom OpenPGP заменён (владелец, 11.08, позднее решение)
 

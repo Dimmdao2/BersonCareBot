@@ -152,3 +152,10 @@ rg -n "issue_port_challenge|install_port_context|require_accepted_context|BCBPOR
 OpenPGP challenge/replay/rotation слой. Это **не новая audit-находка**: обе архитектуры могут исполнить owner-цель,
 а выбор определяет стоимость и threat model. До решения по этой развилке custom candidate не приземляется и A2 не
 начинается.
+
+### Итог архитектурной развилки — owner 11.08
+
+**ЗАМЕНЕНО: custom candidate `69d6a69ac`/`42086f0b0` отклонён и не вливается.** Владелец выбрал PostgreSQL mTLS
+для port identity; роли/grants, transaction context, native RLS и narrow definer seams сохраняются. Новый A1 строится
+в `wt/port-context-mtls` от integration SHA `337fd3275`; старый audit-pass остаётся только историей реальных ошибок,
+которые нельзя повторить в mTLS-контракте.
