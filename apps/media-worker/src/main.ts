@@ -1,17 +1,15 @@
 import { createLogger } from './logger.js';
 import { loadMediaWorkerEnv } from './env.js';
-import { createMediaWorkerPoolProvider } from './poolProvider.js';
 import { createS3Client } from './s3.js';
 import { runMediaWorkerTick } from './workerTick.js';
-import { createMediaWorkerIsolationReporter } from './saasIsolationTelemetry.js';
-import { runMediaWorkerClientPgText } from './runMediaWorkerSql.js';
-import { startMediaWorkerTransaction } from './withClient.js';
+import { createHttpMediaWorkerControl } from './control.js';
 import {
   captureMediaWorkerLoopError,
   captureMediaWorkerStartupFatal,
   closeMediaWorkerErrorTracking,
-  runMediaWorkerStartupGate,
+  initMediaWorkerErrorTracking,
 } from './errorTracking.js';
+import { createMediaWorkerIsolationReporter } from './saasIsolationTelemetry.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -20,32 +18,14 @@ function sleep(ms: number): Promise<void> {
 async function main() {
   const env = loadMediaWorkerEnv();
   const log = createLogger(env);
-  const pool = createMediaWorkerPoolProvider({ connectionString: env.DATABASE_URL });
-  await runMediaWorkerStartupGate(pool, async () => {
-    const tx = await startMediaWorkerTransaction(pool);
-    try {
-      await runMediaWorkerClientPgText(
-        tx.client,
-        'SELECT 1 FROM public.media_transcode_jobs WHERE false',
-      );
-      await runMediaWorkerClientPgText(tx.client, 'SELECT 1 FROM public.media_files WHERE false');
-      await runMediaWorkerClientPgText(
-        tx.client,
-        "SELECT app.read_media_worker_runtime_setting('video_hls_pipeline_enabled')",
-      );
-      await tx.rollback();
-    } catch (error) {
-      try {
-        await tx.rollback();
-      } catch {
-        // Preserve the readiness failure; client cleanup below still destroys on cleanup failure.
-      }
-      throw error;
-    } finally {
-      await tx.release();
-    }
+  const control = createHttpMediaWorkerControl({
+    baseUrl: env.MEDIA_WORKER_CONTROL_URL,
+    secret: env.INTERNAL_JOB_SECRET,
+    timeoutMs: env.MEDIA_WORKER_CONTROL_TIMEOUT_MS,
   });
-  const isolationTelemetry = createMediaWorkerIsolationReporter(env.DATABASE_URL);
+  await control.ready();
+  await initMediaWorkerErrorTracking(control);
+  const isolationReporter = createMediaWorkerIsolationReporter(control);
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,
     region: env.S3_REGION,
@@ -56,7 +36,7 @@ async function main() {
   });
 
   const ctx = {
-    pool,
+    control,
     s3Client,
     bucket: env.S3_PRIVATE_BUCKET,
     ffmpegBin: env.ffmpegPathResolved,
@@ -90,14 +70,12 @@ async function main() {
       }
     } catch (e) {
       captureMediaWorkerLoopError(e);
-      isolationTelemetry.report(e);
+      isolationReporter.report(e);
       log.error({ err: e }, 'main loop error');
       await sleep(env.POLL_MS);
     }
   }
 
-  await pool.end();
-  await isolationTelemetry.close();
   await closeMediaWorkerErrorTracking();
   log.info('media-worker stopped');
 }
@@ -105,7 +83,5 @@ async function main() {
 main().catch((e) => {
   captureMediaWorkerStartupFatal(e);
   console.error('media-worker fatal');
-  void closeMediaWorkerErrorTracking().finally(() => {
-    process.exitCode = 1;
-  });
+  process.exitCode = 1;
 });

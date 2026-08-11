@@ -61,7 +61,7 @@
 import { WALL_TEMPLATES, expandTables } from './types.ts';
 // The canonical locked descriptor module is executable ESM; its public shape is narrowed below
 // so this declaration remains strict without a second source-of-truth .d.ts file.
-// @ts-ignore no declaration file exists for the canonical executable descriptor module.
+// @ts-expect-error no declaration file exists for the canonical executable descriptor module.
 import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../../../docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs';
 import type {
   AcceptanceInvariant, CodeChange, DatabaseDecl, DefinerException, DefinerExceptionsSection, LoginRecord,
@@ -198,9 +198,6 @@ export const CODE_MUST_CHANGE: CodeChange[] = [
   { id: 'C6', becauseOf: 'D4-two-ports',
     what: 'интегратор открывает ПЯТЫЙ пул без принципала — под телеметрию изоляции',
     where: ['apps/integrator/src/infra/db/integratorPoolProvider.ts:159-166'] },
-  { id: 'C7', becauseOf: 'D4-two-ports',
-    what: 'media-worker — отдельное процессное семейство со своим DATABASE_URL (третий порт)',
-    where: ['docs/_TODO/SAAS_FOUNDATION/SAAS_C2_SECRETS_DEPLOYMENT_PLUMBING.md:12-26'] },
   { id: 'C8', becauseOf: 'D4-two-ports',
     what: 'SAAS_ISOLATION_OPERATOR_DATABASE_URL / DATABASE_URL_CONFIG_READER — логины вне двух портов, обязаны '
       + 'ходить через webapp',
@@ -602,14 +599,6 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
       login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
       passwordEnv: 'PGPASSWORD_BCB_TEST_OP_DIAGNOSTIC', rolconfig: null, connect: ['bersoncarebot_test'],
     },
-    bcb_test_operational_media_login: {
-      port: 'webapp',
-      mustFold: 'C7 — media-worker сегодня отдельное процессное семейство со своим DATABASE_URL',
-      canonicalRole: 'app_operational_media_worker',
-      membership: { role: 'app_operational_media_worker', admin: false, inherit: false, set: true },
-      login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
-      passwordEnv: 'PGPASSWORD_BCB_TEST_OP_MEDIA', rolconfig: null, connect: ['bersoncarebot_test'],
-    },
     bcb_test_operational_scheduler_login: {
       port: 'integrator',
       mustFold: 'C5 — DATABASE_URL_SCHEDULER',
@@ -690,6 +679,10 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
     },
   },
 };
+
+// Retained legacy census input; revision 10 below is the executable exported role/login graph.
+void roles;
+void envMapping;
 
 /* ============================================================================================
  * SECTION 3 — definer: умолчания + proconfig-исключения (evidence/13 §3.1/§3.2), общие для обеих баз
@@ -1555,7 +1548,7 @@ const db_bersoncarebot_test: DatabaseDecl = {
       'bersoncarebot_test', 'bcb_test_integrator_login', 'bcb_test_nonstaff_login',
       'bcb_test_staff_login', 'bcb_test_worker_login', 'bcb_test_maintenance_login',
       'bcb_test_operational_delivery_login', 'bcb_test_operational_diagnostic_login',
-      'bcb_test_operational_media_login', 'bcb_test_operational_scheduler_login',
+      'bcb_test_operational_scheduler_login',
       'bcb_test_operational_web_push_reminder_login', 'bcb_saas_operator_test', 'bcb_saas_diag_test',
       'app_operational_web_push_reminder', // evidence/13 §1.1: datacl даёт CONNECT этой РОЛИ напрямую
     ],
@@ -1576,7 +1569,7 @@ const db_bersoncarebot_test: DatabaseDecl = {
         'app_operational_web_push_reminder', 'app_identity_bootstrap', 'app_operational_diagnostic',
         'app_operational_delivery_worker', 'app_operational_scheduler', 'app_operational_media_worker',
         'bcb_test_operational_diagnostic_login', 'bcb_test_operational_delivery_login',
-        'bcb_test_operational_scheduler_login', 'bcb_test_operational_media_login',
+        'bcb_test_operational_scheduler_login',
         'app_integrator_resolver', // НОВАЯ (D5): USAGE нужен ради одного definer-аксессора
         'app_operational_maintenance', // НОВАЯ (D8): USAGE ради app.prune_context_nonce_ledger
       ],

@@ -229,8 +229,8 @@ Orchestration-память, старые чаты и нижние историч
 - ExecStart: `/usr/bin/node dist/main.js` (после `pnpm --dir apps/media-worker build` на хосте)
 - Public port: нет  
   Шаблоны юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service` и
-  `deploy/systemd/bersoncarebot-media-worker-test.service`; media-worker использует отдельный NOINHERIT/NOBYPASSRLS
-  operational login, не webapp credential. TEST env: `/opt/env/bersoncarebot/media-worker.test`.
+  `deploy/systemd/bersoncarebot-media-worker-test.service`; media-worker не имеет PostgreSQL login и вызывает только
+  authenticated webapp control seam. TEST env: `/opt/env/bersoncarebot/media-worker.test`.
   Установка/замена unit — только root через `deploy/host/bootstrap-systemd-prod.sh`; ordinary
   `deploy/host/deploy-prod.sh` проверяет reviewed root-owned unit и выполняет restart. Подробнее:
   [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).

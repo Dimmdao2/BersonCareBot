@@ -8,6 +8,7 @@ import {
   type DbPrincipal,
   getCurrentDbPrincipal,
   isWebappLockedInfraCronSource,
+  isWebappLockedMediaWorkerControlSource,
 } from '@bersoncare/db-principal';
 import { withPortContextTransaction } from '@bersoncare/db-principal';
 import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
@@ -167,7 +168,10 @@ function choosePoolKindForPrincipal(
     principal?.kind === 'staff' ||
     principal?.kind === 'clinicBilling' ||
     principal?.kind === 'platform' ||
-    (principal?.kind === 'infra' && isWebappLockedInfraCronSource(principal.source))
+    (principal?.kind === 'infra' && (
+      isWebappLockedInfraCronSource(principal.source) ||
+      (principal.organizationId === undefined && isWebappLockedMediaWorkerControlSource(principal.source))
+    ))
       ? 'staff'
       : 'nonstaff';
 
