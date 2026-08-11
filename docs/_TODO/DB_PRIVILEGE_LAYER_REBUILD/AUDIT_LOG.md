@@ -1180,3 +1180,44 @@ exit `1`. Behavioral PostgreSQL oracle сохраняется, но должен
   красными; disposable PostgreSQL дал `42501` внутри relation-context и success в exact named-context.
 - DB-principal `25/25`, PG16 fault suite, chokepoint/self-test, integrator lint/typecheck, webapp typecheck и
   diff-check прошли; fault mutations откатились, дерево аудитора чистое.
+
+## Audit MEDIA-DB-DOOR-FINAL-R2-2026-08-11 — `f0e0adb3c`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent deploy-order inspection, env fault injection, PostgreSQL 16 retirement probes |
+| Вердикт | **FAIL — MEDIA-006/007 исправлены; DEPLOY-001 и MEDIA-008–010 MUST FIX; не к land/TEST** |
+
+### DEPLOY-001 — HTTP readiness вызывается до нового webapp
+
+**ОТКРЫТО — MUST FIX.** В PROD operational readiness вызывается до restart webapp, поэтому первый rollout получает
+старый процесс без control route и `404`. В TEST все units сначала остановлены, provision уже вызывает HTTP
+readiness, а webapp стартует позднее; первый cutover детерминированно падает. Deploy sequence обязан сначала
+поднять новый webapp, затем проверять authenticated media control, не открывая старый DB-door.
+
+### MEDIA-008 — четвёртый media credential не закрыт fail-closed
+
+**ОТКРЫТО — MUST FIX.** Реальный `saas-c2-secret-preflight.mjs` с `DATABASE_URL_MEDIA_WORKER` в API env вернул
+exit `0`. Mutation с четвёртым элементом `OPERATIONAL_KEYS` не покрасила
+`bootstrap-c4-test-env.mjs --self-test` (exit `0`). Старый URL/credential может пережить cutover; preflight,
+bootstrap oracle и автоматический retirement должны закрывать это как одно обязательное поведение.
+
+### MEDIA-009 — denylist пропускает обычные неизвестные DB aliases
+
+**ОТКРЫТО — MUST FIX.** Runtime guard принял `POSTGRESQL_URL`, `POSTGRES_URL`, `POSTGRES_PASSWORD`,
+`MEDIA_WORKER_CONNECTION_STRING`, `MEDIA_CONNECTION_STRING`, `DB_URL`; полный preflight с `POSTGRESQL_URL` в
+media env также вернул exit `0`. Запрет обязан ловить DB URL/credential families поведенчески, без списка только
+из уже известных старых имён.
+
+### MEDIA-010 — активный C4 runbook всё ещё описывает пять DB login/URL
+
+**ОТКРЫТО — MUST FIX.** `SAAS_C4_SCHEDULER_MEDIA_CRON_FANOUT.md` требует “five distinct LOGIN roles” и readiness
+через “five distinct URLs”, тогда как исполняемая цель — три DB login плюс authenticated HTTP control.
+
+### Исправлено громко
+
+- **MEDIA-006 ИСПРАВЛЕНО:** media-worker control-only runtime: `5 files / 16 tests`, typecheck/build PASS.
+- **MEDIA-007 ИСПРАВЛЕНО:** ancestry `442489525`, `a5684df48`, `e2cdadb5d` присутствует; route `8/8`, PostgreSQL
+  seam `7/7`, wrong-role и extra-command mutations красные.
+- Retirement primitive сохранил полный ACL rollback; chokepoint, штатные self-tests, webapp type/lint и
+  `git diff --check 442489525..f0e0adb3c` прошли. Эти PASS не принимают deploy/cutover целиком.
