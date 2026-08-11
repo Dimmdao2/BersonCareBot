@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { apiJson } from '@/shared/lib/apiJson';
 import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
@@ -991,9 +992,19 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {error ? (
-            <p className="text-destructive">Не удалось загрузить данные ({error}).</p>
+            <DataLoadFailureNotice
+              title="Не удалось загрузить состояние системы."
+              digest="SYSTEM-HEALTH"
+              devMessage={error}
+              onRetry={() => void load()}
+              retrying={loading}
+            />
           ) : null}
-          {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
+          {loading ? (
+            <p role="status" className="text-muted-foreground">
+              Загружаем состояние системы…
+            </p>
+          ) : null}
           {!loading && !error && (
             <>
               <p className="text-muted-foreground">Снимок на: {formatDateTime(data?.fetchedAt)}</p>

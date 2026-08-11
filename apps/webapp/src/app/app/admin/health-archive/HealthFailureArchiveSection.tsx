@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiJson } from '@/shared/lib/apiJson';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Card,
@@ -166,11 +168,23 @@ export function HealthFailureArchiveSection({
           </Link>
         </div>
 
-        {error ? <p className="text-destructive">Не удалось загрузить архив ({error}).</p> : null}
-        {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
+        {error ? (
+          <DataLoadFailureNotice
+            title="Не удалось загрузить архив сбоев."
+            digest="HEALTH-FAILURE-ARCHIVE"
+            devMessage={error}
+            onRetry={() => void loadPage(null, false)}
+            retrying={loading}
+          />
+        ) : null}
+        {loading ? (
+          <p role="status" className="text-muted-foreground">
+            Загружаем архив…
+          </p>
+        ) : null}
 
         {!loading && !error && items.length === 0 ? (
-          <p className="text-muted-foreground">Записей нет.</p>
+          <DoctorEmptyState size="xs">Записей пока нет.</DoctorEmptyState>
         ) : null}
 
         {items.length > 0 ? (
