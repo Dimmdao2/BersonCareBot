@@ -20,6 +20,7 @@ import {
 } from '@/shared/ui/doctor/primitives/card';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -420,20 +421,20 @@ function ReconciliationSection({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="reconcile-from">Период с</Label>
-            <Input
+            <DoctorDatePicker
               id="reconcile-from"
-              type="date"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={setFrom}
+              placeholder="Выберите начало периода"
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="reconcile-to">Период по</Label>
-            <Input
+            <DoctorDatePicker
               id="reconcile-to"
-              type="date"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={setTo}
+              placeholder="Выберите конец периода"
             />
           </div>
           <div className="flex items-end">
@@ -1058,20 +1059,20 @@ export function PlatformPaymentsSection() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payments-from">Дата с</Label>
-              <Input
+              <DoctorDatePicker
                 id="payments-from"
-                type="date"
                 value={draft.from}
-                onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+                onChange={(from) => setDraft((d) => ({ ...d, from }))}
+                placeholder="Выберите начало периода"
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payments-to">Дата по</Label>
-              <Input
+              <DoctorDatePicker
                 id="payments-to"
-                type="date"
                 value={draft.to}
-                onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+                onChange={(to) => setDraft((d) => ({ ...d, to }))}
+                placeholder="Выберите конец периода"
               />
             </div>
             <div className="space-y-1.5">

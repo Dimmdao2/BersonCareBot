@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
@@ -416,13 +417,6 @@ function statusLabel(status: string): string {
   return techProbeStatusHuman(status);
 }
 
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return 'нет данных';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'нет данных';
-  return d.toLocaleString();
-}
-
 export function computeWorkerStatus(payload: SystemHealthPayload | null): {
   api: 'active' | 'down' | 'unknown';
   worker: 'active' | 'idle' | 'no_activity' | 'no_signal';
@@ -520,6 +514,7 @@ function healthCardAiSnapshot(
 function NotificationDeliveryChannelBlock({
   channel,
   agg,
+  formatDateTime,
 }: {
   channel: string;
   agg?: {
@@ -533,6 +528,7 @@ function NotificationDeliveryChannelBlock({
     lastErrorReason: string | null;
     lastErrorMessage: string | null;
   };
+  formatDateTime: (value: string | null | undefined) => string;
 }) {
   return (
     <div className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
@@ -834,7 +830,7 @@ function saasIsolationAccordionStatus(
   return 'no_data';
 }
 
-export function SystemHealthSection() {
+export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SystemHealthPayload | null>(null);
@@ -850,6 +846,13 @@ export function SystemHealthSection() {
   >('all');
   const [saasServiceFilter, setSaasServiceFilter] = useState<'all' | SaasIsolationSourceService>(
     'all',
+  );
+  const formatDateTime = useCallback(
+    (value: string | null | undefined): string => {
+      if (!value || Number.isNaN(new Date(value).getTime())) return 'нет данных';
+      return formatDisplayZoneInstantRu(value, displayTimeZone);
+    },
+    [displayTimeZone],
   );
 
   const load = useCallback(async () => {
@@ -2097,7 +2100,14 @@ export function SystemHealthSection() {
               </p>
               {NOTIFICATION_DELIVERY_CHANNEL_ORDER.map((ch) => {
                 const agg = data?.notificationDelivery?.byChannel?.[ch];
-                return <NotificationDeliveryChannelBlock key={ch} channel={ch} agg={agg} />;
+                return (
+                  <NotificationDeliveryChannelBlock
+                    key={ch}
+                    channel={ch}
+                    agg={agg}
+                    formatDateTime={formatDateTime}
+                  />
+                );
               })}
               <DetailRow label="Детализация" value="только обезличенные агрегаты" />
             </HealthAccordionItem>

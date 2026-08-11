@@ -5,6 +5,7 @@ import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from '@/shared
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import type { AccessLifecyclePolicy } from '@/modules/org-entitlements/types';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 
 type PolicyChange = {
   mechanic: string | null;
@@ -38,7 +39,7 @@ function policyLine(policy: AccessLifecyclePolicy | null): string {
   return `терпение ${policy.graceDays} дн. · только чтение ${policy.readOnlyDays} дн. · затем: ${terminal}`;
 }
 
-export function TariffPolicyHistoryPanel() {
+export function TariffPolicyHistoryPanel({ displayTimeZone }: { displayTimeZone: string }) {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +95,8 @@ export function TariffPolicyHistoryPanel() {
                   <div>
                     <span className="font-medium">{item.tariffName ?? item.tariffId ?? '—'}</span>{' '}
                     <span className="text-muted-foreground">
-                      · {item.actorLabel} · {new Date(item.createdAt).toLocaleString()}
+                      · {item.actorLabel} ·{' '}
+                      {formatDisplayZoneInstantRu(item.createdAt, displayTimeZone)}
                     </span>
                   </div>
                   <Button
