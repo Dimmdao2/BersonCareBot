@@ -7,13 +7,20 @@ import { logger } from '@/app-layer/logging/logger';
 import {
   assertMediaWorkerControlReady, claimMediaWorkerControlJob, completeMediaWorkerHlsJob,
   completeMediaWorkerProgramJob, failMediaWorkerJob, loadMediaWorkerControlMedia,
-  markMediaWorkerProcessing, readMediaWorkerWatermarkEnabled, retryMediaWorkerJob,
+  markMediaWorkerProcessing, readMediaWorkerErrorTrackingConfig, readMediaWorkerWatermarkEnabled,
+  reportMediaWorkerIsolationFailure, retryMediaWorkerJob,
 } from '@/app-layer/media/mediaWorkerControl';
 
-const jobSchema = z.object({ id: z.string().uuid(), mediaId: z.string().uuid(), organizationId: z.string().uuid().optional(), attempts: z.number().int().nonnegative() });
+const jobSchema = z.object({ id: z.string().uuid(), mediaId: z.string().uuid() }).strict();
+const isolationEventSchema = z.enum([
+  'missing_principal', 'invalid_signature_or_install', 'role_pool_mismatch', 'rls_denial',
+  'cleanup_failure', 'unclassified_background_operation',
+]);
 const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ready') }),
   z.object({ type: z.literal('watermark') }),
+  z.object({ type: z.literal('error_tracking_config') }),
+  z.object({ type: z.literal('isolation_failure'), eventClass: isolationEventSchema }),
   z.object({ type: z.literal('claim'), lockedBy: z.string().min(1).max(200), staleLockMinutes: z.number().int().positive().max(24 * 60) }),
   z.object({ type: z.literal('load'), job: jobSchema, lockedBy: z.string().min(1).max(200) }),
   z.object({ type: z.literal('processing'), job: jobSchema, lockedBy: z.string().min(1).max(200) }),
@@ -43,6 +50,8 @@ export async function POST(request: Request) {
     switch (command.type) {
       case 'ready': await assertMediaWorkerControlReady(); return NextResponse.json({ ok: true, result: null });
       case 'watermark': return NextResponse.json({ ok: true, result: await readMediaWorkerWatermarkEnabled() });
+      case 'error_tracking_config': return NextResponse.json({ ok: true, result: await readMediaWorkerErrorTrackingConfig() });
+      case 'isolation_failure': await reportMediaWorkerIsolationFailure(command.eventClass); break;
       case 'claim': return NextResponse.json({ ok: true, result: await claimMediaWorkerControlJob(command.lockedBy, command.staleLockMinutes) });
       case 'load': return NextResponse.json({ ok: true, result: await loadMediaWorkerControlMedia(command.job, command.lockedBy) });
       case 'processing': await markMediaWorkerProcessing(command.job, command.lockedBy); break;

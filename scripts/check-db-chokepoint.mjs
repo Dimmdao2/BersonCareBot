@@ -2,6 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
@@ -104,6 +105,83 @@ function countRuntimeMatches(src, pattern) {
   return src.split('\n').filter((line) => !isCommentOrDocLine(line) && pattern.test(line)).length;
 }
 
+function isForbiddenMediaWorkerDbModule(value) {
+  return value === 'pg' || value === '@bersoncare/db-principal' || value === 'drizzle-orm' || value.startsWith('drizzle-orm/');
+}
+
+function moduleNameFromExpression(expression) {
+  if (!ts.isStringLiteral(expression)) return null;
+  return isForbiddenMediaWorkerDbModule(expression.text) ? expression.text : null;
+}
+
+function boundNames(name, output) {
+  if (ts.isIdentifier(name)) {
+    output.add(name.text);
+    return;
+  }
+  for (const element of name.elements) boundNames(element.name, output);
+}
+
+/** Compiler-API gate: media-worker must have no importable DB door, regardless of aliases. */
+function inspectMediaWorkerDbDoors(rel, src) {
+  const sourceFile = ts.createSourceFile(rel, src, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const offenders = [];
+  const bindings = new Set();
+  const seen = new Set();
+  const add = (detail) => {
+    if (!seen.has(detail)) {
+      seen.add(detail);
+      offenders.push(`${rel} (${detail})`);
+    }
+  };
+  const isDoorExpression = (node) => {
+    if (ts.isIdentifier(node)) return bindings.has(node.text);
+    return ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && bindings.has(node.expression.text);
+  };
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node)) {
+      const moduleName = moduleNameFromExpression(node.moduleSpecifier);
+      if (moduleName) {
+        add(`forbidden import ${moduleName}`);
+        if (node.importClause) {
+          if (node.importClause.name) bindings.add(node.importClause.name.text);
+          const named = node.importClause.namedBindings;
+          if (named && ts.isNamespaceImport(named)) bindings.add(named.name.text);
+          if (named && ts.isNamedImports(named)) {
+            for (const element of named.elements) bindings.add(element.name.text);
+          }
+        }
+      }
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      const initializer = node.initializer;
+      const requireModule = ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression) && initializer.expression.text === 'require'
+        ? moduleNameFromExpression(initializer.arguments[0])
+        : null;
+      const dynamicModule = ts.isAwaitExpression(initializer) && ts.isCallExpression(initializer.expression) && initializer.expression.expression.kind === ts.SyntaxKind.ImportKeyword
+        ? moduleNameFromExpression(initializer.expression.arguments[0])
+        : null;
+      const propertyRequireModule = ts.isPropertyAccessExpression(initializer) && ts.isCallExpression(initializer.expression) && ts.isIdentifier(initializer.expression.expression) && initializer.expression.expression.text === 'require'
+        ? moduleNameFromExpression(initializer.expression.arguments[0])
+        : null;
+      const moduleName = requireModule || dynamicModule || propertyRequireModule;
+      if (moduleName) {
+        add(`forbidden ${dynamicModule ? 'dynamic import' : 'require'} ${moduleName}`);
+        boundNames(node.name, bindings);
+      }
+    }
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const moduleName = moduleNameFromExpression(node.arguments[0]);
+      if (moduleName) add(`forbidden dynamic import ${moduleName}`);
+    }
+    if (ts.isNewExpression(node) && isDoorExpression(node.expression)) add('forbidden DB constructor');
+    if (ts.isCallExpression(node) && isDoorExpression(node.expression)) add('forbidden DB call');
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return offenders;
+}
+
 function isGuardedLayerFile(rel) {
   if (rel.startsWith('apps/webapp/src/modules/')) return true;
   if (rel.startsWith('apps/webapp/src/app-layer/')) return true;
@@ -124,10 +202,12 @@ function collectOffenders(files) {
   const layerRawSqlOffenders = [];
   const callbackQueryOffenders = [];
   const roleSwitchOffenders = [];
+  const mediaWorkerDbDoorOffenders = [];
 
   for (const abs of files) {
     const rel = relative(repoRoot, abs).replace(/\\/g, '/');
     const src = readFileSync(abs, 'utf8');
+    if (rel.startsWith('apps/media-worker/src/')) mediaWorkerDbDoorOffenders.push(...inspectMediaWorkerDbDoors(rel, src));
     const poolCount = countRuntimeMatches(src, /\bnew\s+(?:pg\.)?(?:Pg)?Pool\b/);
     if (poolCount > 0 && !allowedPoolProviderFiles.has(rel)) {
       poolOffenders.push(`${rel} (${poolCount}x new Pool)`);
@@ -164,6 +244,7 @@ function collectOffenders(files) {
     layerRawSqlOffenders,
     callbackQueryOffenders,
     roleSwitchOffenders,
+    mediaWorkerDbDoorOffenders,
   };
 }
 
@@ -218,13 +299,31 @@ if (process.argv.includes('--self-test')) {
   }
   const mediaWorkerPoolInjected = countRuntimeMatches(syntheticSource, /\bnew\s+(?:pg\.)?(?:Pg)?Pool\b/) > 0 &&
     !allowedPoolProviderFiles.has(virtualMediaWorkerRel);
+  const mediaDoorCases = [
+    'import { Pool as DatabasePool } from "pg"; new DatabasePool();',
+    'import pg from "pg"; new pg.Pool();',
+    'import * as pg from "pg"; new pg.Pool();',
+    'const { Pool: DatabasePool } = require("pg"); new DatabasePool();',
+    'const pg = await import("pg"); new pg.Pool();',
+    'import { drizzle as openDb } from "drizzle-orm/node-postgres"; openDb({});',
+    'import { createSaasIsolationBackgroundReporter as report } from "@bersoncare/db-principal"; report({});',
+  ];
+  const mediaDoorCasesRejected = mediaDoorCases.every((source, index) =>
+    inspectMediaWorkerDbDoors(`apps/media-worker/src/self-test-${index}.ts`, source).length > 0,
+  );
+  const canonicalHttpClientAccepted = inspectMediaWorkerDbDoors(
+    'apps/media-worker/src/control.ts',
+    'export async function command() { return fetch(new URL("/api/internal/media-worker/control", "http://127.0.0.1")); }',
+  ).length === 0;
   if (
     poolOffenders.length === 1 &&
     connectOffenders.length === 1 &&
     layerRawSqlOffenders.length === 1 &&
     callbackQueryOffenders.length === 1 &&
     roleSwitchOffenders.length === 1 &&
-    mediaWorkerPoolInjected
+    mediaWorkerPoolInjected &&
+    mediaDoorCasesRejected &&
+    canonicalHttpClientAccepted
   ) {
     console.log('check-db-chokepoint self-test: OK');
     process.exit(0);
@@ -245,6 +344,7 @@ const {
   layerRawSqlOffenders,
   callbackQueryOffenders,
   roleSwitchOffenders,
+  mediaWorkerDbDoorOffenders,
 } = collectOffenders(files);
 
 printOffenders('new Pool outside named DB pool providers:', poolOffenders);
@@ -252,13 +352,15 @@ printOffenders('.connect() outside checkout helpers / documented ops KEEP:', con
 printOffenders('raw SQL in guarded layers outside S5 allowlist:', layerRawSqlOffenders);
 printOffenders('callback-form query outside the promise DB chokepoint:', callbackQueryOffenders);
 printOffenders('runtime role switching outside packages/db-principal:', roleSwitchOffenders);
+printOffenders('media-worker DB dependency/import door:', mediaWorkerDbDoorOffenders);
 
 if (
   poolOffenders.length > 0 ||
   connectOffenders.length > 0 ||
   layerRawSqlOffenders.length > 0 ||
   callbackQueryOffenders.length > 0 ||
-  roleSwitchOffenders.length > 0
+  roleSwitchOffenders.length > 0 ||
+  mediaWorkerDbDoorOffenders.length > 0
 ) {
   process.exit(1);
 }

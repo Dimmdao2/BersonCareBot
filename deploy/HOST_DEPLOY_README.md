@@ -173,9 +173,10 @@ deploy, **от root/DB-admin**, после наличия актуальной �
 
 One-time PROD порядок (без фиксации значений секретов в репозитории):
 
-1. root/DB-admin создаёт четыре отдельных PostgreSQL LOGIN/пароля и записывает полные connection URL в защищённые
+1. root/DB-admin создаёт три отдельных PostgreSQL LOGIN/пароля и записывает полные connection URL в защищённые
    файлы: `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`, `DATABASE_URL_SCHEDULER` — в `api.prod`;
-   media operational `DATABASE_URL` — в `media-worker.prod`.
+   media-worker не получает PostgreSQL URL: в `media-worker.prod` рендерятся `MEDIA_WORKER_CONTROL_URL` и
+   общий с webapp `INTERNAL_JOB_SECRET`.
 2. root запускает единственный штатный entrypoint ниже. Он сверяет раздельность URL, создаёт/нормализует роли,
    передаёт пароли в PostgreSQL без вывода, применяет C4 overlay и сам запускает readiness четырёх login.
 3. Повторный запуск этой команды является явной операцией re-provision/rotation и повторно устанавливает пароли из

@@ -1,6 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHmac, randomUUID } from 'node:crypto';
-import { isWebappLockedInfraCronSource } from './webappLockedInfraCronSources.js';
+import {
+  isWebappLockedInfraCronSource,
+  isWebappLockedMediaWorkerControlSource,
+} from './webappLockedInfraCronSources.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /**
@@ -762,7 +765,11 @@ export function assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
   }
   if (
     principal.kind === 'infra' &&
-    !isWebappLockedInfraCronSource(principal.source)
+    (!isWebappLockedInfraCronSource(principal.source) &&
+      !(
+        principal.organizationId === undefined &&
+        isWebappLockedMediaWorkerControlSource(principal.source)
+      ))
   ) {
     throw new Error(
       'DB infra principal is not allowed to use the webapp request DB pool in locked mode',
@@ -1032,6 +1039,17 @@ async function applySignedDbPrincipal(
   if (principal.kind === 'infra' && isWebappLockedInfraCronSource(principal.source)) {
     await client.query('RESET ROLE');
     await client.query(`SET ROLE ${DB_PRINCIPAL_STAFF_ROLE}`);
+    await clearDbPrincipalConfig(client, 'connection');
+    return true;
+  }
+
+  if (
+    principal.kind === 'infra' &&
+    principal.organizationId === undefined &&
+    isWebappLockedMediaWorkerControlSource(principal.source)
+  ) {
+    await client.query('RESET ROLE');
+    await client.query('SET ROLE app_operational_media_worker');
     await clearDbPrincipalConfig(client, 'connection');
     return true;
   }
@@ -1403,4 +1421,6 @@ export function createSaasIsolationBackgroundReporter(input: {
 export {
   WEBAPP_LOCKED_INFRA_CRON_SOURCES,
   isWebappLockedInfraCronSource,
+  WEBAPP_LOCKED_MEDIA_WORKER_CONTROL_SOURCE,
+  isWebappLockedMediaWorkerControlSource,
 } from './webappLockedInfraCronSources.js';

@@ -54,16 +54,6 @@ export type TranscodeContext = {
   lockId: string;
 };
 
-type MediaRow = {
-  id: string;
-  mime_type: string;
-  s3_key: string | null;
-  hls_master_playlist_s3_key: string | null;
-  video_processing_status: string | null;
-  video_duration_seconds: number | null;
-  usage_purpose: string | null;
-};
-
 async function permanentFail(
   ctx: TranscodeContext,
   job: ClaimedJob,

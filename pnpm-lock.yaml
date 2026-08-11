@@ -169,6 +169,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1107.0
         version: 3.1107.0
+      '@bersoncare/error-tracking':
+        specifier: workspace:*
+        version: link:../../packages/error-tracking
       '@ffmpeg-installer/ffmpeg':
         specifier: ^1.1.0
         version: 1.1.0

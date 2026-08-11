@@ -3,6 +3,13 @@ import { loadMediaWorkerEnv } from './env.js';
 import { createS3Client } from './s3.js';
 import { runMediaWorkerTick } from './workerTick.js';
 import { createHttpMediaWorkerControl } from './control.js';
+import {
+  captureMediaWorkerLoopError,
+  captureMediaWorkerStartupFatal,
+  closeMediaWorkerErrorTracking,
+  initMediaWorkerErrorTracking,
+} from './errorTracking.js';
+import { createMediaWorkerIsolationReporter } from './saasIsolationTelemetry.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -17,6 +24,8 @@ async function main() {
     timeoutMs: env.MEDIA_WORKER_CONTROL_TIMEOUT_MS,
   });
   await control.ready();
+  await initMediaWorkerErrorTracking(control);
+  const isolationReporter = createMediaWorkerIsolationReporter(control);
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,
     region: env.S3_REGION,
@@ -60,15 +69,19 @@ async function main() {
         continue;
       }
     } catch (e) {
+      captureMediaWorkerLoopError(e);
+      isolationReporter.report(e);
       log.error({ err: e }, 'main loop error');
       await sleep(env.POLL_MS);
     }
   }
 
+  await closeMediaWorkerErrorTracking();
   log.info('media-worker stopped');
 }
 
 main().catch((e) => {
+  captureMediaWorkerStartupFatal(e);
   console.error('media-worker fatal');
   process.exitCode = 1;
 });

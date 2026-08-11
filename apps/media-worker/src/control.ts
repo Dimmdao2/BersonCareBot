@@ -13,6 +13,8 @@ export type ControlledMedia = {
 
 export type MediaWorkerControlPort = {
   ready(): Promise<void>;
+  errorTrackingConfig(): Promise<{ enabled: boolean; dsn: string | null }>;
+  isolationFailure(eventClass: MediaWorkerIsolationEventClass): Promise<void>;
   claim(lockedBy: string, staleLockMinutes: number): Promise<{ kind: 'disabled' | 'idle' } | { kind: 'claimed'; job: ClaimedJob }>;
   load(job: ClaimedJob, lockedBy: string): Promise<ControlledMedia | null>;
   watermarkEnabled(): Promise<boolean>;
@@ -22,6 +24,10 @@ export type MediaWorkerControlPort = {
   doneHls(job: ClaimedJob, lockedBy: string, values: { masterKey?: string; artifactPrefix?: string; posterKey?: string; qualitiesJson?: string; durationSeconds?: number | null }): Promise<void>;
   doneProgram(job: ClaimedJob, lockedBy: string, values: { outputKey: string; posterKey: string; qualitiesJson: string; durationSeconds: number | null }): Promise<void>;
 };
+
+export type MediaWorkerIsolationEventClass =
+  | 'missing_principal' | 'invalid_signature_or_install' | 'role_pool_mismatch'
+  | 'rls_denial' | 'cleanup_failure' | 'unclassified_background_operation';
 
 const responseSchema = z.object({ ok: z.literal(true), result: z.unknown() });
 
@@ -56,15 +62,18 @@ export function createHttpMediaWorkerControl(params: {
       clearTimeout(timer);
     }
   }
+  const jobRef = (job: ClaimedJob) => ({ id: job.id, mediaId: job.mediaId });
   return {
     async ready() { await command({ type: 'ready' }); },
+    errorTrackingConfig() { return command({ type: 'error_tracking_config' }); },
+    async isolationFailure(eventClass) { await command({ type: 'isolation_failure', eventClass }); },
     claim(lockedBy, staleLockMinutes) { return command({ type: 'claim', lockedBy, staleLockMinutes }); },
-    load(job, lockedBy) { return command({ type: 'load', job, lockedBy }); },
+    load(job, lockedBy) { return command({ type: 'load', job: jobRef(job), lockedBy }); },
     async watermarkEnabled() { return command({ type: 'watermark' }); },
-    async processing(job, lockedBy) { await command({ type: 'processing', job, lockedBy }); },
-    async retry(job, lockedBy, nextAttemptAt, error) { await command({ type: 'retry', job, lockedBy, nextAttemptAt, error }); },
-    async failed(job, lockedBy, error) { await command({ type: 'failed', job, lockedBy, error }); },
-    async doneHls(job, lockedBy, values) { await command({ type: 'done_hls', job, lockedBy, values }); },
-    async doneProgram(job, lockedBy, values) { await command({ type: 'done_program', job, lockedBy, values }); },
+    async processing(job, lockedBy) { await command({ type: 'processing', job: jobRef(job), lockedBy }); },
+    async retry(job, lockedBy, nextAttemptAt, error) { await command({ type: 'retry', job: jobRef(job), lockedBy, nextAttemptAt, error }); },
+    async failed(job, lockedBy, error) { await command({ type: 'failed', job: jobRef(job), lockedBy, error }); },
+    async doneHls(job, lockedBy, values) { await command({ type: 'done_hls', job: jobRef(job), lockedBy, values }); },
+    async doneProgram(job, lockedBy, values) { await command({ type: 'done_program', job: jobRef(job), lockedBy, values }); },
   };
 }

@@ -1,6 +1,5 @@
 import { runWithObservabilityContext } from './observability.js';
 import type { MediaWorkerControlPort } from './control.js';
-import type { Logger } from './logger.js';
 import { processTranscodeJob, type TranscodeContext } from './processTranscodeJob.js';
 
 export type MediaWorkerTickContext = TranscodeContext & {

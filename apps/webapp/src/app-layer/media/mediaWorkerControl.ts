@@ -1,4 +1,7 @@
 import { getConfigBool } from '@/modules/system-settings/configAdapter';
+import { readErrorTrackingRuntimeConfig } from '@/app-layer/observability/errorTracking';
+import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
+import type { SaasIsolationEventClass } from '@/modules/operator-health/saasIsolationDiagnostics';
 import {
   assertMediaWorkerControlReady, completeMediaWorkerHlsJob, completeMediaWorkerProgramJob, failMediaWorkerJob,
   loadMediaWorkerControlMedia, markMediaWorkerProcessing, reclaimAndClaimMediaWorkerJob, retryMediaWorkerJob,
@@ -10,4 +13,14 @@ export async function claimMediaWorkerControlJob(lockedBy: string, staleLockMinu
 }
 export async function readMediaWorkerWatermarkEnabled(): Promise<boolean> {
   return getConfigBool('video_watermark_enabled');
+}
+export function readMediaWorkerErrorTrackingConfig() {
+  return readErrorTrackingRuntimeConfig();
+}
+export function reportMediaWorkerIsolationFailure(eventClass: SaasIsolationEventClass): Promise<void> {
+  return reportSaasIsolationEventBestEffort({
+    eventClass,
+    sourceService: 'media_worker',
+    sourceOperation: 'media_transcode_tick',
+  });
 }
