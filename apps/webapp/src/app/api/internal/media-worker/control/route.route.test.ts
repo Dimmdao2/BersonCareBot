@@ -6,7 +6,8 @@ const control = vi.hoisted(() => ({
   assertMediaWorkerControlReady: vi.fn(), claimMediaWorkerControlJob: vi.fn(),
   completeMediaWorkerHlsJob: vi.fn(), completeMediaWorkerProgramJob: vi.fn(),
   failMediaWorkerJob: vi.fn(), loadMediaWorkerControlMedia: vi.fn(), markMediaWorkerProcessing: vi.fn(),
-  readMediaWorkerWatermarkEnabled: vi.fn(), retryMediaWorkerJob: vi.fn(),
+  readMediaWorkerErrorTrackingConfig: vi.fn(async () => ({ enabled: false, dsn: null })),
+  readMediaWorkerWatermarkEnabled: vi.fn(), reportMediaWorkerIsolationFailure: vi.fn(), retryMediaWorkerJob: vi.fn(),
 }));
 vi.mock('@/config/env', () => ({ env: envState }));
 vi.mock('@/app-layer/media/mediaWorkerControl', () => control);
@@ -100,5 +101,41 @@ describe('POST /api/internal/media-worker/control', () => {
     expect(response.status).toBe(200);
     expect(statements).toContain('SET ROLE app_operational_media_worker');
     expect(statements).not.toContain('SET ROLE app_staff');
+  });
+
+  it('rejects an unallowlisted media source or caller-supplied organization before a locked checkout', () => {
+    const options = { mode: 'locked', signer: { secret: 'route-acceptance-secret' } } as const;
+    expect(() => dbPrincipal.assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
+      { kind: 'infra', source: 'api/internal/media-worker/other:POST' }, options,
+    )).toThrow(/not allowed/);
+    expect(() => dbPrincipal.assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
+      { kind: 'infra', source: 'api/internal/media-worker/control:POST', organizationId: '00000000-0000-4000-8000-000000000000' }, options,
+    )).toThrow(/not allowed/);
+  });
+
+  it('does not accept caller-supplied organization or an arbitrary telemetry write command', async () => {
+    const forgedJob = await POST(new Request('http://test/api/internal/media-worker/control', {
+      method: 'POST', headers: { authorization: 'Bearer control-secret' },
+      body: JSON.stringify({ type: 'load', lockedBy: 'worker-a', job: {
+        id: '00000000-0000-4000-8000-000000000001', mediaId: '00000000-0000-4000-8000-000000000002',
+        organizationId: '00000000-0000-4000-8000-000000000003',
+      } }),
+    }));
+    expect(forgedJob.status).toBe(400);
+    const arbitrary = await POST(new Request('http://test/api/internal/media-worker/control', {
+      method: 'POST', headers: { authorization: 'Bearer control-secret' },
+      body: JSON.stringify({ type: 'write_sql', query: 'SELECT secret' }),
+    }));
+    expect(arbitrary.status).toBe(400);
+    expect(control.reportMediaWorkerIsolationFailure).not.toHaveBeenCalled();
+  });
+
+  it('writes only the fixed media telemetry signal on the webapp side', async () => {
+    const response = await POST(new Request('http://test/api/internal/media-worker/control', {
+      method: 'POST', headers: { authorization: 'Bearer control-secret' },
+      body: JSON.stringify({ type: 'isolation_failure', eventClass: 'rls_denial' }),
+    }));
+    expect(response.status).toBe(200);
+    expect(control.reportMediaWorkerIsolationFailure).toHaveBeenCalledWith('rls_denial');
   });
 });

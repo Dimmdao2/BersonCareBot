@@ -504,10 +504,12 @@ assert_api_runtime_can_release_principal_context(){
 }
 
 assert_media_worker_runtime_can_release_principal_context(){
-  local ok
-  ok="$(sudo -u deploy bash -lc "set -a && . '$MEDIA_WORKER_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
-  [ "$ok" = "true" ] || { echo "FATAL: media-worker TEST runtime cannot see/execute app.release_principal_context()" >&2; exit 1; }
-  echo "   app.release_principal_context: OK (visible + executable through media-worker DATABASE_URL)"
+  sudo -u deploy bash -lc "set -a && . '$MEDIA_WORKER_ENV' && set +a && \\
+    [ -n \"\${MEDIA_WORKER_CONTROL_URL:-}\" ] && [ -n \"\${INTERNAL_JOB_SECRET:-}\" ] && \\
+    curl --fail --silent --show-error --max-time 10 -H \"Authorization: Bearer \$INTERNAL_JOB_SECRET\" \\
+      -H 'content-type: application/json' --data '{\"type\":\"ready\"}' \\
+      \"\$MEDIA_WORKER_CONTROL_URL/api/internal/media-worker/control\" | grep -q '\"ok\":true'"
+  echo "   media-worker HTTP control ready: OK (no PostgreSQL credential)"
 }
 
 assert_webapp_credential_helper_runtime_acl(){
@@ -548,7 +550,7 @@ discover_webapp_migrator_role(){
 }
 
 discover_media_worker_runtime_role(){
-  discover_database_role_from_env "media-worker.test" "$MEDIA_WORKER_ENV"
+  printf '%s\n' app_operational_media_worker
 }
 
 bootstrap_and_provision_c4_operational_runtime(){

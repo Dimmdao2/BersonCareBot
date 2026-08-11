@@ -25,10 +25,7 @@ const OPERATIONAL_KEYS = [
   ['DATABASE_URL_DELIVERY_WORKER', 'bcb_test_operational_delivery_login'],
   ['DATABASE_URL_SCHEDULER', 'bcb_test_operational_scheduler_login'],
 ];
-const MEDIA_ROLE = 'bcb_test_operational_media_login';
 const MEDIA_COPY_KEYS = [
-  'DB_PRINCIPAL_CONTEXT_MODE',
-  'DB_PRINCIPAL_SIGNING_SECRET',
   'LOG_LEVEL',
   'FFMPEG_PATH',
   'S3_ENDPOINT',
@@ -39,8 +36,8 @@ const MEDIA_COPY_KEYS = [
   'S3_FORCE_PATH_STYLE',
 ];
 const MEDIA_REQUIRED_KEYS = [
-  'DB_PRINCIPAL_CONTEXT_MODE',
-  'DB_PRINCIPAL_SIGNING_SECRET',
+  'MEDIA_WORKER_CONTROL_URL',
+  'INTERNAL_JOB_SECRET',
   'S3_ENDPOINT',
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY',
@@ -157,13 +154,20 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   }
   const webappAdditions = new Map([['ALLOW_DEV_AUTH_BYPASS', 'false']]);
 
+  const mediaAdditions = new Map([
+    ['MEDIA_WORKER_CONTROL_URL', webapp.get('APP_BASE_URL') ?? ''],
+    ['INTERNAL_JOB_SECRET', webapp.get('INTERNAL_JOB_SECRET') ?? ''],
+  ]);
   let mediaText;
   if (mediaExists) {
-    mediaText = readFileSync(mediaPath, 'utf8');
+    mediaText = upsertEnv(readFileSync(mediaPath, 'utf8'), mediaAdditions)
+      .split('\n')
+      .filter((line) => !/^(?:DATABASE_URL(?:=|_)|DB_PRINCIPAL_)/.test(line))
+      .join('\n');
   } else {
     const media = new Map([
       ['NODE_ENV', 'production'],
-      ['DATABASE_URL', makeUrl(baseUrl, MEDIA_ROLE)],
+      ...mediaAdditions,
     ]);
     for (const key of MEDIA_COPY_KEYS) {
       if (api.get(key)) media.set(key, api.get(key));
@@ -175,17 +179,11 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   }
 
   const parsedMedia = parseEnv(mediaText, 'media-worker.test');
-  if (!parsedMedia.get('DATABASE_URL')) fail('media-worker.test is missing DATABASE_URL');
-  validateBaseUrl(parsedMedia.get('DATABASE_URL'));
   for (const key of MEDIA_REQUIRED_KEYS) {
     if (!parsedMedia.get(key)) fail(`media-worker.test is missing ${key}`);
   }
-  if (
-    parsedMedia.get('DB_PRINCIPAL_CONTEXT_MODE') !== api.get('DB_PRINCIPAL_CONTEXT_MODE') ||
-    parsedMedia.get('DB_PRINCIPAL_SIGNING_SECRET') !== api.get('DB_PRINCIPAL_SIGNING_SECRET')
-  ) {
-    fail('media-worker.test principal contract must match api.test');
-  }
+  try { new URL(parsedMedia.get('MEDIA_WORKER_CONTROL_URL')); } catch { fail('media-worker.test has invalid MEDIA_WORKER_CONTROL_URL'); }
+  if (parsedMedia.get('INTERNAL_JOB_SECRET') !== webapp.get('INTERNAL_JOB_SECRET')) fail('media-worker.test must use the webapp internal control secret');
 
   if (write) {
     writeProtected(mediaPath, mediaText, ownerUid, deployGid);
@@ -222,7 +220,7 @@ function selfTest() {
         common +
         s3,
     );
-    writeFileSync(webapp, "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\n" + common);
+    writeFileSync(webapp, "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\nAPP_BASE_URL='http://127.0.0.1:6200'\nINTERNAL_JOB_SECRET='control-secret'\n" + common);
     const apiBeforeCheck = readFileSync(api, 'utf8');
     const webappBeforeCheck = readFileSync(webapp, 'utf8');
     chmodSync(api, 0o000);
@@ -275,8 +273,8 @@ function selfTest() {
     for (const [key, role] of OPERATIONAL_KEYS) {
       if (new URL(firstApi.get(key)).username !== role) fail(`self-test wrong role for ${key}`);
     }
-    if (new URL(firstMedia.get('DATABASE_URL')).username !== MEDIA_ROLE)
-      fail('self-test wrong media role');
+    if (firstMedia.get('MEDIA_WORKER_CONTROL_URL') !== 'http://127.0.0.1:6200' || firstMedia.get('DATABASE_URL') || firstMedia.get('DB_PRINCIPAL_SIGNING_SECRET'))
+      fail('self-test media env retained a database door or wrong control URL');
     const firstWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
     if (firstWebapp.get('ALLOW_DEV_AUTH_BYPASS') !== 'false') {
       fail('self-test did not disable dev auth bypass in webapp.test');

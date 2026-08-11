@@ -197,7 +197,8 @@ REVOKE USAGE ON SCHEMA integrator, public FROM app_owner;
 DROP ROLE IF EXISTS app_operational_diagnostic;
 DROP ROLE IF EXISTS app_operational_delivery_worker;
 DROP ROLE IF EXISTS app_operational_scheduler;
-DROP ROLE IF EXISTS app_operational_media_worker;
+-- The media capability is now selected by the webapp staff login for the authenticated
+-- HTTP control seam; declaration cutover owns its eventual removal.
 COMMIT;
 \echo 'C4 operational runtime overlay DOWN complete.'
 \quit
@@ -207,15 +208,13 @@ SELECT 1 / (
   (SELECT count(DISTINCT role_name) FROM (VALUES
     (:'c4_diagnostic_login_role'),
     (:'c4_delivery_worker_login_role'),
-    (:'c4_scheduler_login_role'),
-    (:'c4_media_worker_login_role')
-  ) roles(role_name)) = 4
+    (:'c4_scheduler_login_role')
+  ) roles(role_name)) = 3
   AND NOT EXISTS (
     SELECT 1 FROM (VALUES
       (:'c4_diagnostic_login_role'),
       (:'c4_delivery_worker_login_role'),
-      (:'c4_scheduler_login_role'),
-      (:'c4_media_worker_login_role')
+      (:'c4_scheduler_login_role')
     ) roles(role_name)
     LEFT JOIN pg_roles role_state ON role_state.rolname = roles.role_name
     WHERE role_state.oid IS NULL OR NOT role_state.rolcanlogin OR role_state.rolsuper
@@ -385,8 +384,7 @@ WHERE defaults.defaclobjtype IN ('r', 'S', 'f', 'T')
 WITH expected(capability_name, login_name) AS (VALUES
   ('app_operational_diagnostic', :'c4_diagnostic_login_role'),
   ('app_operational_delivery_worker', :'c4_delivery_worker_login_role'),
-  ('app_operational_scheduler', :'c4_scheduler_login_role'),
-  ('app_operational_media_worker', :'c4_media_worker_login_role')
+  ('app_operational_scheduler', :'c4_scheduler_login_role')
 )
 SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
 FROM expected
@@ -421,7 +419,6 @@ WHERE member.rolname IN (
 GRANT app_operational_diagnostic TO :"c4_diagnostic_login_role" WITH INHERIT FALSE, SET TRUE;
 GRANT app_operational_delivery_worker TO :"c4_delivery_worker_login_role" WITH INHERIT FALSE, SET TRUE;
 GRANT app_operational_scheduler TO :"c4_scheduler_login_role" WITH INHERIT FALSE, SET TRUE;
-GRANT app_operational_media_worker TO :"c4_media_worker_login_role" WITH INHERIT FALSE, SET TRUE;
 
 REVOKE ALL ON TABLE integrator.projection_outbox, integrator.idempotency_keys,
   integrator.user_reminder_occurrences, public.reminder_rules,
@@ -733,6 +730,14 @@ REVOKE ALL ON FUNCTION app.read_media_worker_runtime_setting(text) FROM
   app_staff, app_patient, app_worker,
   app_operational_diagnostic, app_operational_delivery_worker, app_operational_scheduler;
 GRANT EXECUTE ON FUNCTION app.read_media_worker_runtime_setting(text) TO app_operational_media_worker;
+
+-- The HTTP control seam reads only the two server-audience error-tracking projections;
+-- it never exposes their values to the caller except the typed config snapshot.
+REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC,
+  app_patient, app_worker, app_operational_diagnostic,
+  app_operational_delivery_worker, app_operational_scheduler;
+GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
+  TO app_operational_media_worker;
 
 -- ---------------------------------------------------------------------------
 -- Operator outbound probe contour (scheduler) and the non-email delivery audit
@@ -1109,8 +1114,7 @@ CREATE POLICY "saas_org_dormant_p0_8_4" ON public.media_transcode_jobs FOR ALL
 WITH expected(login_name, capability_name) AS (VALUES
   (:'c4_diagnostic_login_role', 'app_operational_diagnostic'),
   (:'c4_delivery_worker_login_role', 'app_operational_delivery_worker'),
-  (:'c4_scheduler_login_role', 'app_operational_scheduler'),
-  (:'c4_media_worker_login_role', 'app_operational_media_worker')
+  (:'c4_scheduler_login_role', 'app_operational_scheduler')
 )
 SELECT 1 / (
   NOT EXISTS (
@@ -1414,11 +1418,9 @@ WITH managed(role_name) AS (VALUES
   ('schema','app','USAGE',:'c4_diagnostic_login_role',false),
   ('schema','app','USAGE',:'c4_delivery_worker_login_role',false),
   ('schema','app','USAGE',:'c4_scheduler_login_role',false),
-  ('schema','app','USAGE',:'c4_media_worker_login_role',false),
   ('function','app.release_principal_context()','EXECUTE',:'c4_diagnostic_login_role',false),
   ('function','app.release_principal_context()','EXECUTE',:'c4_delivery_worker_login_role',false),
   ('function','app.release_principal_context()','EXECUTE',:'c4_scheduler_login_role',false),
-  ('function','app.release_principal_context()','EXECUTE',:'c4_media_worker_login_role',false),
   ('schema','app','USAGE','app_operational_diagnostic',false),
   ('schema','integrator','USAGE','app_operational_diagnostic',false),
   ('table','integrator.projection_outbox','SELECT','app_operational_diagnostic',false),

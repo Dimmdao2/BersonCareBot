@@ -1,11 +1,11 @@
 # media-worker (HLS transcode)
 
-Node.js воркер, который читает очередь **`media_transcode_jobs`**, тянет исходный объект из private S3/MinIO, запускает **FFmpeg** (HLS + опциональный watermark) и выкладывает артефакты обратно в бакет. Точка входа: `src/main.ts` → `dist/main.js` (см. systemd `bersoncarebot-media-worker-prod.service` в репозитории).
+Node.js воркер, который через authenticated webapp control route читает очередь **`media_transcode_jobs`**, тянет исходный объект из private S3/MinIO, запускает **FFmpeg** (HLS + опциональный watermark) и выкладывает артефакты обратно в бакет. Точка входа: `src/main.ts` → `dist/main.js` (см. systemd `bersoncarebot-media-worker-prod.service` в репозитории).
 
 ## Условия работы
 
-- В БД **`video_hls_pipeline_enabled = true`** (и остальная инфраструктура S3) — иначе воркер простаивает (poll).
-- Тот же `DATABASE_URL`, что и у webapp в unified-postgres среде; **`public.system_settings`** читается через `runMediaWorkerPgText` (Class B executor).
+- В webapp DB **`video_hls_pipeline_enabled = true`** (и остальная инфраструктура S3) — иначе воркер простаивает (poll).
+- `MEDIA_WORKER_CONTROL_URL` и общий с webapp `INTERNAL_JOB_SECRET` обязательны; worker не получает `DATABASE_URL`, DB pool, DB login или DB principal credential. Webapp control route сам устанавливает точный `app_operational_media_worker` role.
 - На хосте нужен **ffmpeg** в `PATH` или путь из env воркера (см. `src/env.ts` / `MEDIA_WORKER_*` в деплой-доках).
 
 ## Очередь и claim

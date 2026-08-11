@@ -169,9 +169,6 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1107.0
         version: 3.1107.0
-      '@bersoncare/db-principal':
-        specifier: workspace:*
-        version: link:../../packages/db-principal
       '@bersoncare/error-tracking':
         specifier: workspace:*
         version: link:../../packages/error-tracking
@@ -181,12 +178,6 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.21.0)(pg@8.23.0)
-      pg:
-        specifier: ^8.23.0
-        version: 8.23.0
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -197,9 +188,6 @@ importers:
       '@types/node':
         specifier: ^25.5.2
         version: 25.5.2
-      '@types/pg':
-        specifier: ^8.21.0
-        version: 8.21.0
       tsx:
         specifier: ^4.23.12
         version: 4.23.12

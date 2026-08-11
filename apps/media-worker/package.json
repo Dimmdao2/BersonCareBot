@@ -15,6 +15,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@bersoncare/error-tracking": "workspace:*",
     "@aws-sdk/client-s3": "3.1107.0",
     "@bersoncare/db-principal": "workspace:*",
     "@bersoncare/error-tracking": "workspace:*",

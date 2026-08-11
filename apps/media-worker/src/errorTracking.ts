@@ -1,38 +1,23 @@
-import type { Pool } from 'pg';
 import {
   captureErrorTrackingException,
   closeErrorTracking,
   initErrorTracking,
 } from '@bersoncare/error-tracking';
+import type { MediaWorkerControlPort } from './control.js';
 
-import { runWithMediaWorkerInfraPrincipal } from './runMediaWorkerSql.js';
-import { readServerRuntimeString } from './serverRuntimeConfig.js';
-
-export async function initMediaWorkerErrorTracking(pool: Pool): Promise<void> {
+/** Error tracking settings reach the worker only through the authenticated control seam. */
+export async function initMediaWorkerErrorTracking(control: MediaWorkerControlPort): Promise<void> {
   try {
-    const [enabled, dsn] = await Promise.all([
-      readServerRuntimeString(pool, 'error_tracking_enabled'),
-      readServerRuntimeString(pool, 'error_tracking_dsn'),
-    ]);
+    const config = await control.errorTrackingConfig();
     await initErrorTracking({
-      enabled: enabled === 'true',
-      dsn,
+      enabled: config.enabled,
+      dsn: config.dsn,
       service: 'media-worker',
       processRole: 'media-worker',
     });
   } catch {
-    // Optional telemetry config/SDK failures must never affect readiness.
+    // The optional dark-launch transport must never make transcoding unavailable.
   }
-}
-
-export async function runMediaWorkerStartupGate(
-  pool: Pool,
-  assertReady: () => Promise<void>,
-): Promise<void> {
-  await runWithMediaWorkerInfraPrincipal('media-worker:tick', async () => {
-    await initMediaWorkerErrorTracking(pool);
-    await assertReady();
-  });
 }
 
 export function captureMediaWorkerLoopError(error: unknown): void {

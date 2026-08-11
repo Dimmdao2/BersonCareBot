@@ -84,15 +84,24 @@ scheduler_url="$DATABASE_URL_SCHEDULER"
 unset DATABASE_URL
 set -a
 # shellcheck disable=SC1090
-. "$MEDIA_WORKER_ENV_FILE"
-set +a
-: "${DATABASE_URL:?missing media-worker DATABASE_URL}"
-media_url="$DATABASE_URL"
-
 assert_local_database_url "$diagnostic_url" "$expected_database"
 assert_local_database_url "$delivery_url" "$expected_database"
 assert_local_database_url "$scheduler_url" "$expected_database"
-assert_local_database_url "$media_url" "$expected_database"
+
+set -a
+# shellcheck disable=SC1090
+. "$MEDIA_WORKER_ENV_FILE"
+set +a
+: "${MEDIA_WORKER_CONTROL_URL:?missing MEDIA_WORKER_CONTROL_URL}"
+: "${INTERNAL_JOB_SECRET:?missing INTERNAL_JOB_SECRET}"
+media_control_ready(){
+  curl --fail --silent --show-error --max-time 10 \
+    -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+    -H 'content-type: application/json' \
+    --data '{"type":"ready"}' \
+    "$MEDIA_WORKER_CONTROL_URL/api/internal/media-worker/control" |
+    grep -q '"ok":true'
+}
 
 probe(){ psql "$1" -X -v ON_ERROR_STOP=1 -qAtc "$2"; }
 expect_denied(){
@@ -105,7 +114,7 @@ expect_denied(){
 diagnostic_login="$(probe "$diagnostic_url" "SELECT app.release_principal_context(); SET ROLE app_operational_diagnostic; SELECT count(*) FROM integrator.projection_outbox WHERE false; RESET ROLE; SELECT session_user;" | tail -n 1)"
 delivery_login="$(probe "$delivery_url" "SELECT app.release_principal_context(); BEGIN; SET ROLE app_operational_delivery_worker; UPDATE integrator.projection_outbox SET id=id WHERE false; UPDATE public.outgoing_delivery_queue SET id=id WHERE false; SELECT resolution FROM app.resolve_outgoing_delivery_scope('00000000-0000-4000-8000-000000000000'::uuid); SELECT app.operator_incident_alert_already_sent('00000000-0000-4000-8000-000000000000'::uuid); SELECT app.mark_operator_incident_alert_sent('00000000-0000-4000-8000-000000000000'::uuid); SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int; SELECT app.revalidate_specialist_task_reminder_materialization('00000000-0000-4000-8000-000000000000'::uuid); SELECT app.apply_specialist_task_reminder_success_outcome('00000000-0000-4000-8000-000000000000'::uuid); SELECT 1 / has_function_privilege(current_user, 'app.revalidate_patient_reminder_delivery_materialization(uuid)', 'EXECUTE')::int; SELECT app.read_operational_verbose_log_flag(); SELECT 1 / has_function_privilege(current_user, 'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamptz)', 'EXECUTE')::int; ROLLBACK; RESET ROLE; SELECT session_user;" | tail -n 1)"
 scheduler_login="$(probe "$scheduler_url" "SELECT app.release_principal_context(); BEGIN; SET ROLE app_operational_scheduler; SELECT count(*) FROM app.list_scheduler_reminder_organization_ids(); UPDATE integrator.idempotency_keys SET key=key WHERE false; DELETE FROM integrator.idempotency_keys WHERE false; INSERT INTO integrator.idempotency_keys(key, expires_at, request_hash, status, response_body) SELECT 'c4-readiness', now(), '', 200, '{}'::jsonb WHERE false; SELECT app.read_operator_health_probe_config(); SELECT app.read_operational_verbose_log_flag(); SELECT app.read_operator_outbound_probe_meta(); SELECT count(*) FROM app.list_google_calendar_probe_organization_ids(); SELECT app.resolve_operator_probe_incidents('outbound:max:'); SELECT app.record_operator_outbound_probe_run('success', now(), NULL, '{}'::jsonb); SELECT id FROM app.open_or_touch_operator_probe_incident('max','max_probe_failed','c4-readiness'); ROLLBACK; RESET ROLE; SELECT session_user;" | tail -n 1)"
-media_login="$(probe "$media_url" "SELECT app.release_principal_context(); BEGIN; SET ROLE app_operational_media_worker; UPDATE public.media_transcode_jobs SET id=id WHERE false; UPDATE public.media_files SET id=id WHERE false; SELECT app.read_media_worker_runtime_setting('video_hls_pipeline_enabled'); ROLLBACK; RESET ROLE; SELECT session_user;" | tail -n 1)"
+media_control_ready || fail "media-worker authenticated HTTP control readiness failed"
 # Real fail-if-succeeds probes: each capability must be unable to enter a sibling contour.
 expect_denied "$diagnostic_url" "diagnostic cross-contour reminder read" \
   "SET ROLE app_operational_diagnostic; SELECT count(*) FROM public.reminder_rules;"
@@ -133,10 +142,6 @@ expect_denied "$scheduler_url" "scheduler out-of-contour probe incident resolve"
   "SET ROLE app_operational_scheduler; SELECT app.resolve_operator_probe_incidents('outbound:email:');"
 expect_denied "$delivery_url" "delivery cross-contour probe capability" \
   "SET ROLE app_operational_delivery_worker; SELECT app.read_operator_outbound_probe_meta();"
-expect_denied "$media_url" "media cross-contour scheduler read" \
-  "SET ROLE app_operational_media_worker; SELECT count(*) FROM integrator.idempotency_keys;"
-expect_denied "$media_url" "media cross-contour web-push read" \
-  "SET ROLE app_operational_media_worker; SELECT count(*) FROM public.reminder_rules;"
-login_count="$(printf '%s\n' "$diagnostic_login" "$delivery_login" "$scheduler_login" "$media_login" | sed '/^$/d' | sort -u | wc -l)"
-[ "$login_count" -eq 4 ] || fail "four contours must authenticate as four distinct PostgreSQL roles"
-echo "C4 operational readiness: OK"
+login_count="$(printf '%s\n' "$diagnostic_login" "$delivery_login" "$scheduler_login" | sed '/^$/d' | sort -u | wc -l)"
+[ "$login_count" -eq 3 ] || fail "three DB operational contours must authenticate as distinct PostgreSQL roles"
+echo "C4 operational readiness: OK (three DB contours + authenticated media HTTP control)"

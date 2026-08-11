@@ -230,7 +230,7 @@ sudo -n /bin/systemctl restart "${MEDIA_WORKER_SERVICE}"
 if ! sudo -n /bin/systemctl is-active --quiet "${MEDIA_WORKER_SERVICE}"; then
   echo "deploy-prod: ${MEDIA_WORKER_SERVICE} is not active. Last journal lines:" >&2
   sudo -n journalctl -u "${MEDIA_WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
-  fail "${MEDIA_WORKER_SERVICE} failed to start (ensure media-worker.prod has DATABASE_URL, S3_*, FFMPEG_PATH; apps/media-worker built)."
+  fail "${MEDIA_WORKER_SERVICE} failed to start (ensure media-worker.prod has MEDIA_WORKER_CONTROL_URL, INTERNAL_JOB_SECRET, S3_*, FFMPEG_PATH; apps/media-worker built)."
 fi
 
 sleep 3

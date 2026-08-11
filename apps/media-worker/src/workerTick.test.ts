@@ -17,7 +17,7 @@ function context(control: MediaWorkerControlPort): MediaWorkerTickContext {
 
 function control(claim: MediaWorkerControlPort['claim']): MediaWorkerControlPort {
   return {
-    ready: vi.fn(), claim, load: vi.fn(), watermarkEnabled: vi.fn(), processing: vi.fn(), retry: vi.fn(),
+    ready: vi.fn(), errorTrackingConfig: vi.fn(), isolationFailure: vi.fn(), claim, load: vi.fn(), watermarkEnabled: vi.fn(), processing: vi.fn(), retry: vi.fn(),
     failed: vi.fn(), doneHls: vi.fn(), doneProgram: vi.fn(),
   };
 }
