@@ -106,6 +106,21 @@ describe('job queue cutover on a post-drop PostgreSQL schema', () => {
     return row;
   }
 
+  async function waitForVisibleRow(eventId: string): Promise<QueueState> {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const result = await db.query<QueueState>(
+        `SELECT id::text, status, next_retry_at::text, attempt_count, last_error
+           FROM public.outgoing_delivery_queue
+          WHERE event_id = $1`,
+        [eventId],
+      );
+      const row = result.rows[0];
+      if (row) return row;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`queue row ${eventId} did not become visible`);
+  }
+
   beforeAll(async () => {
     disposable = startDisposablePostgres('job_queue_cutover');
     process.env.DATABASE_URL = disposable.connectionString;
@@ -155,6 +170,49 @@ describe('job queue cutover on a post-drop PostgreSQL schema', () => {
     );
     expect(legacyRelation.rows[0]?.relation).toBeNull();
     await expect(assertDeliveryWorkerPoolReady()).resolves.toBeUndefined();
+  });
+
+  it('never exposes a future delivery as due between its canonical insert and completed enqueue', async () => {
+    const eventId = 'cutover-atomic-future';
+    const runAt = '2030-01-03T00:00:00.000Z';
+    await db.query(`
+      CREATE OR REPLACE FUNCTION app.read_outgoing_delivery_reclaim_config() RETURNS jsonb
+        LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM pg_sleep(1);
+        RETURN NULL;
+      END;
+      $$;
+    `);
+
+    const enqueue = jobQueue.enqueueMessageRetryJob(db, {
+      phoneNormalized: '+79990000005',
+      messageText: 'atomic future fixture',
+      firstTryDelaySeconds: 0,
+      firstTryAt: runAt,
+      maxAttempts: 3,
+      kind: 'message.deliver',
+      payloadJson: retryPayload(eventId),
+    });
+
+    try {
+      const visibleBeforeEnqueueReturns = await waitForVisibleRow(eventId);
+      expect(visibleBeforeEnqueueReturns.status).toBe('pending');
+
+      const prematureClaim = await outgoingDeliveryQueue.claimDueOutgoingDeliveries(db, 10);
+      expect(prematureClaim.filter((row) => row.eventId === eventId)).toEqual([]);
+
+      await enqueue;
+      const scheduled = await readRow(eventId);
+      expect(scheduled.status).toBe('pending');
+      expect(new Date(scheduled.next_retry_at).getTime()).toBe(new Date(runAt).getTime());
+    } finally {
+      await enqueue.catch(() => undefined);
+      await db.query(`
+        CREATE OR REPLACE FUNCTION app.read_outgoing_delivery_reclaim_config() RETURNS jsonb
+          LANGUAGE sql AS $$ SELECT NULL::jsonb $$;
+      `);
+    }
   });
 
   it('lets exactly one of the retired compatibility API and canonical consumer claim a due row', async () => {
