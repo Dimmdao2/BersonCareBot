@@ -323,3 +323,108 @@ tests, но все девять kill-set классов должны получ�
   `search_path`, FORCE RLS и raising `42501` с PostgreSQL log исполнимы.
 - Candidate — полезный core, не выбрасывается; он наращивается тем же kill-set. Новый blind audit этого surface не
   нужен: fixer делает acceptance commit зелёным и закрывает семь findings, лидер проверяет итог.
+
+## Audit pass DECL-2026-08-11 — revision-10 declaration/generator
+
+| Поле | Значение |
+|---|---|
+| Candidate | `0da3b5e7f`, `wt/port-context-decl` |
+| Метод | **Взгляд + disposable PostgreSQL 16**: двусторонняя проверка declaration→generator→catalog, ownership/ACL/policy/restore/migration crash census |
+| Вердикт | **FAIL — семь MUST FIX; к DEV/TEST не применять** |
+
+### DECL-001 — `--gaps=0` проверяет неполную модель
+
+**ОТКРЫТО — MUST FIX.** Команда `node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --gaps`
+сообщает ноль для обеих баз, хотя фактический подсчёт декларации дал для каждой `239 tables / 225 active / 1 grant /
+0 policies`. Adapter удаляет TODO-policy/grantMatrix, а gate не требует restrictive context + permissive business
+policy. Такой artifact включит FORCE RLS и остановит почти весь runtime вместо реализации стены.
+
+### DECL-002 — generated schema ACL ломает context owners
+
+**ОТКРЫТО — MUST FIX.** `app_ext.usage=[]`; blanket revoke не возвращает `USAGE` context/identity owners. Независимый
+PG16 probe той же формы дал `ERROR: permission denied for schema app_ext`. Runtime/login доступа к private schema
+быть не должно, но `app_seam_context_owner` и `app_seam_identity_lookup_owner` обязаны исполнять свои exact объекты.
+
+### DECL-003 — 42 seam owners схлопываются в context owner
+
+**ОТКРЫТО — MUST FIX.** Пустой exact function census + default `app_seam_context_owner` переназначает ему всякую
+неназванную `SECURITY DEFINER` функцию. `portContext.functions` пока не приводит security/volatility/parallel/
+proconfig, а старые role EXECUTE могут пережить apply. Нужен двусторонний per-signature exact census без fallback.
+
+### DECL-004 — owner/role attributes расходятся со SCHEME revision 10
+
+**ОТКРЫТО — MUST FIX.** Artifact делает database owner=`app_object_owner`, хотя §6.1 требует `postgres`; login renderer
+не сбрасывает `CREATEDB`/`REPLICATION`. Все application roles обязаны получить полный отрицательный attribute set.
+
+### DECL-005 — restore не воспроизводит ownership contract
+
+**ОТКРЫТО — MUST FIX.** `pg_restore --no-owner` без `--role=app_object_owner` создаёт application objects от
+`postgres`; generator затем не исправляет owners sequences/types/views/invoker functions. Restore отсутствует в
+disposable proof.
+
+### DECL-006 — migration crash proof частично вакуумен
+
+**ОТКРЫТО — MUST FIX.** Wrapper принимает один owner вместо owner switches одной миграции; fixture не representative
+project migration; kill происходит во время sleep до DDL, поэтому отсутствие таблицы не доказывает rollback DDL.
+Rollback временного membership при обрыве действительно подтверждён и сохраняется.
+
+### DECL-007 — production revision-10 artifact не проходит behavioral proof
+
+**ОТКРЫТО — MUST FIX.** Старый fixture не содержит `portContext`; production section только генерирует и сравнивает
+artifact с самим собой. Нужны apply к disposable clone, catalog match и независимые context/policy/owner mutations.
+
+### Что сохраняется
+
+- Каркас declaration/generator, атомарный apply, deterministic `--check` и реальный rollback membership полезны.
+- `bash deploy/postgres/privileges/fixtures/proof-run.sh` и `git diff --check 0da3b5e7f^..0da3b5e7f` прошли, но не
+  доказывают закрытие DECL-001–007.
+
+## Audit pass TRUST-2026-08-11 — revision-10 SQL/rotation acceptance
+
+| Поле | Значение |
+|---|---|
+| Candidate | `67f884340`, `wt/port-context-trust` |
+| Метод | **Тест + взгляд**: independent PG16 named-root/catalog probes и поштучный запуск 13 заявленных mutations |
+| Вердикт | **FAIL — шесть MUST FIX; к сведению/DEV/TEST не готов** |
+
+### TRUST-001 — installer запрещает named roots большинству context classes
+
+**ОТКРЫТО — MUST FIX.** Matrix требует `function_identity IS NULL` для staff/patient/platform/tenant-service/service.
+Реальный PG16 install с объявленной staff capability и non-NULL root дал `42501 port context class identity
+mismatch`. Relation access и named-root identity должны различаться по declared capability, а не запрещаться классом.
+
+### TRUST-002 — integrator resolver принимает готовую произвольную identity/org пару
+
+**ОТКРЫТО — MUST FIX.** `resolve_integrator_request(bigint,uuid)` не разрешает external identity и не проверяет
+user→organization; он возвращает caller-supplied `77 + org` эхом. Такой результат нельзя считать human identity
+proof и затем устанавливать как `app_integrator_request`.
+
+### TRUST-003 — A→I map не участвует в runtime handoff
+
+**ОТКРЫТО — MUST FIX.** Accessors возвращают physical actor/subject прямо из context. Acceptance получает отличный
+opaque ID, но следующая транзакция его не использует. Нужен реальный opaque context ref → private Variant-A
+physical resolver перед бизнес-доступом, чтобы будущая I меняла внутренний resolver, а не public contract.
+
+### TRUST-004 — role/owner/EXECUTE graph неполон
+
+**ОТКРЫТО — MUST FIX.** Несколько объявленных runtime roles и большинство seam owners не имеют требуемых exact
+`USAGE app`/gate EXECUTE. Catalog probe также показал `hash_port_typed_args` и четыре application types владельцем
+superuser creator, а не `app_object_owner`.
+
+### TRUST-005 — 13 mutation tests дают ложный PASS
+
+**ОТКРЫТО — MUST FIX.** Поштучный `PORTCTX_INJECT_FAULT=<fault> ... --single` показал: два HBA faults неизвестны;
+forbidden claims/tags и шесть wrong-* падают на injection с `42P13 cannot change name of input parameter`; только
+три policy/RLS faults достигают механизма. Runner принимает любой nonzero. Каждая мутация обязана сначала успешно
+внести поломку, затем упасть на точном behavioral assertion и подтвердить ожидаемый error/result.
+
+### TRUST-006 — rotation доказана только primitive sentinel, не runtime drain
+
+**ОТКРЫТО — MUST FIX.** CRL reload и отказ нового соединения доказаны, но drain — прямой terminate одного известного
+PID. Нет PoolConfig/env overlap, catalog enumeration всех backend отозванного credential, закрытия webapp/integrator
+pools и проверки, что старый backend не появился снова.
+
+### Что сохраняется
+
+- Базовый exact-CN + clientcert + SCRAM, CRL reload primitive и три настоящие policy/FORCE-RLS mutations полезны.
+- Независимый `acceptance.sh --single` и полный runner печатают `OK`, но этот итог не является PASS до TRUST-005.
