@@ -1084,7 +1084,7 @@ export function PlatformPaymentsSection() {
                 placeholder="Название клиники"
               />
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
               <Button
                 type="button"
                 variant="secondary"
