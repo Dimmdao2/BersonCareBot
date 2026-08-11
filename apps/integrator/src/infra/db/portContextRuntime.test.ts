@@ -51,6 +51,18 @@ describe('integrator port-context runtime', () => {
       capabilityId: delivery.capabilityId,
       targetRole: delivery.targetRole,
     });
+    const resolver: IntegratorPortCapabilityDescriptor = {
+      ...request,
+      capabilityId: '00000000-0000-0000-0000-000000000120',
+      targetRole: 'app_integrator_resolver',
+      contextClass: 'integrator',
+    };
+    expect(
+      integratorPortContextPrincipal(
+        { kind: 'bootstrap', source: 'telegram-webhook:pre-routing' },
+        { request, resolver },
+      ),
+    ).toMatchObject({ targetRole: 'app_integrator_resolver', contextClass: 'integrator' });
   });
 
   it('creates one physical pool even when request, delivery and scheduler capabilities are declared', () => {

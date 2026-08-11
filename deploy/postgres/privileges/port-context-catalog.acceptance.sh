@@ -9,6 +9,9 @@ work_dir=$(mktemp -d "${TMPDIR:-/tmp}/bcb-portctx-catalog.XXXXXX")
 data_dir="$work_dir/data"
 log_file="$work_dir/postgres.log"
 db_name=bersoncarebot_test
+staff_login=bcb_test_webapp_staff
+patient_login=bcb_test_webapp_patient
+integrator_login=bcb_test_integrator
 port=0
 for _ in $(seq 1 40); do
   candidate=$((56000 + RANDOM % 1000))
@@ -33,11 +36,11 @@ psql_admin() {
 printf '%s\n' "port = $port" "unix_socket_directories = '$data_dir'" >> "$data_dir/postgresql.conf"
 "$pg_bin/pg_ctl" -D "$data_dir" -l "$log_file" start >/dev/null
 "$pg_bin/createdb" -h "$data_dir" -p "$port" -U dev "$db_name"
-psql_admin -c 'CREATE ROLE bcb_test_webapp_staff LOGIN; CREATE ROLE bcb_test_webapp_patient LOGIN; CREATE ROLE bcb_test_integrator LOGIN;' >/dev/null
+psql_admin -c "CREATE ROLE $staff_login LOGIN; CREATE ROLE $patient_login LOGIN; CREATE ROLE $integrator_login LOGIN;" >/dev/null
 psql_admin \
-  -v app_staff_login=bcb_test_webapp_staff \
-  -v app_patient_login=bcb_test_webapp_patient \
-  -v integrator_login=bcb_test_integrator \
+  -v app_staff_login="$staff_login" \
+  -v app_patient_login="$patient_login" \
+  -v integrator_login="$integrator_login" \
   -f "$repo_root/deploy/postgres/port-context/contract.sql" >/dev/null
 
 psql_admin <<'SQL' >/dev/null
@@ -75,7 +78,7 @@ import assert from 'node:assert/strict';
 const db = JSON.parse(process.env.DB_JSON);
 for (const [port, envName, rootCount, relationCount] of [
   ['webapp', 'WEB_JSON', 4, 8],
-  ['integrator', 'INTEGRATOR_JSON', 6, 6],
+  ['integrator', 'INTEGRATOR_JSON', 6, 7],
 ]) {
   const allRuntime = Object.values(JSON.parse(process.env[envName]));
   const runtime = allRuntime.filter((descriptor) => descriptor.functionIdentity);
@@ -87,6 +90,24 @@ for (const [port, envName, rootCount, relationCount] of [
   assert.deepEqual(sorted(runtime), sorted(rows));
 }
 JS
+
+assert_eq "$(psql_admin -Atc "
+WITH expected(session_login, target_role) AS (
+  VALUES
+    ('$staff_login','app_pre_session'), ('$staff_login','app_staff'),
+    ('$staff_login','app_clinic_billing'), ('$staff_login','app_platform_settings'),
+    ('$staff_login','app_worker'), ('$staff_login','app_operational_media_worker'),
+    ('$staff_login','saas_telemetry_operator'), ('$patient_login','app_patient'),
+    ('$integrator_login','app_integrator_request'), ('$integrator_login','app_integrator_resolver'),
+    ('$integrator_login','app_operational_delivery_worker'), ('$integrator_login','app_operational_scheduler'),
+    ('$integrator_login','app_tenant_service'), ('$integrator_login','app_service'),
+    ('$integrator_login','app_service')
+)
+SELECT count(*) FROM expected
+WHERE pg_has_role(session_login, target_role, 'SET')")" 15
+assert_eq "$(psql_admin -Atc "SELECT
+  pg_has_role('$staff_login','app_tenant_service','SET')
+  OR pg_has_role('$staff_login','app_service','SET')")" f
 
 pnpm --dir "$repo_root/packages/db-principal" run build >/dev/null
 uuid=11111111-1111-4111-8111-111111111111
@@ -127,4 +148,4 @@ for (const [name, [identity, args]] of Object.entries(vectors)) {
 JS
 )
 
-echo 'port-context catalog: PASS (PostgreSQL 16, 10 function rows, 14 relation env descriptors, 10 typed-args hashes)'
+echo 'port-context catalog: PASS (PostgreSQL 16, 10 function rows, 15 SET-able relation descriptors, 10 typed-args hashes)'

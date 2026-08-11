@@ -1919,6 +1919,11 @@ const INTEGRATOR_SERVICE_SOURCES = [
   'integrator-projection-health',
 ] as const;
 const INTEGRATOR_MIGRATION_LEDGER_SOURCES = ['integrator-startup-migration-ledger'] as const;
+const WEBAPP_PRE_SESSION_SOURCES = [
+  'webapp-public-runtime-config',
+  'webapp-server-runtime-config',
+  'webapp-public-smtp-config',
+] as const;
 const WEBAPP_MEDIA_SOURCES = [
   'api/internal/media-worker/control:POST',
   'api/internal/media-hls-proxy-errors/retention:POST',
@@ -1941,8 +1946,10 @@ const WEBAPP_WORKER_SOURCES = [
   'api/internal/heartbeat/pipeline_delivery:GET',
   'api/internal/heartbeat/digest:POST',
   'api/internal/heartbeat/digest:GET',
+  'webapp-health-check',
+  'api/health:GET',
 ] as const;
-const WEBAPP_SERVICE_SOURCES = ['webapp-health-check', 'api/health:GET'] as const;
+const WEBAPP_TELEMETRY_SOURCES = ['webapp-saas-isolation-telemetry'] as const;
 
 const REV10_CONTEXT = {
   classes: ['pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'],
@@ -1964,6 +1971,9 @@ const REV10_CONTEXT = {
     integrator_request_relation: { port: 'integrator', runtimeName: 'request',
       sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request',
       contextClass: 'integrator', purpose: 'relation' },
+    integrator_resolver_relation: { port: 'integrator', runtimeName: 'resolver',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_resolver',
+      contextClass: 'integrator', purpose: 'relation' },
     integrator_delivery_relation: { port: 'integrator', runtimeName: 'delivery',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_DELIVERY_SOURCES },
@@ -1979,6 +1989,9 @@ const REV10_CONTEXT = {
     integrator_migration_ledger_relation: { port: 'integrator', runtimeName: 'migration_ledger',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'relation', runtimeSources: INTEGRATOR_MIGRATION_LEDGER_SOURCES },
+    webapp_pre_session_relation: { port: 'webapp', runtimeName: 'pre_session', sessionRole: 'app_staff',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'relation',
+      runtimeSources: WEBAPP_PRE_SESSION_SOURCES },
     webapp_staff_relation: { port: 'webapp', runtimeName: 'staff', sessionRole: 'app_staff',
       targetRole: 'app_staff', contextClass: 'staff', purpose: 'relation' },
     webapp_patient_relation: { port: 'webapp', runtimeName: 'patient', sessionRole: 'app_patient',
@@ -1987,17 +2000,15 @@ const REV10_CONTEXT = {
       targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'relation' },
     webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_staff',
       targetRole: 'app_platform_settings', contextClass: 'platform', purpose: 'relation' },
-    webapp_tenant_service_relation: { port: 'webapp', runtimeName: 'tenant_service', sessionRole: 'app_staff',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service', purpose: 'relation' },
     webapp_worker_relation: { port: 'webapp', runtimeName: 'worker', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_WORKER_SOURCES },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
-    webapp_service_relation: { port: 'webapp', runtimeName: 'service', sessionRole: 'app_staff',
-      targetRole: 'app_service', contextClass: 'service', purpose: 'relation',
-      runtimeSources: WEBAPP_SERVICE_SOURCES },
+    webapp_telemetry_relation: { port: 'webapp', runtimeName: 'telemetry', sessionRole: 'app_staff',
+      targetRole: 'saas_telemetry_operator', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_TELEMETRY_SOURCES },
     password_login_acquire: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.acquire',
       functionIdentity: 'app.password_login_acquire(text,text,uuid,text)' },

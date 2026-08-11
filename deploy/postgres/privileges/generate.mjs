@@ -213,6 +213,15 @@ export function resolvePortContextCapabilities(declaration, dbName) {
       }]);
     }
     const { loginName } = matches[0];
+    const targetMemberships = matches[0].record.memberships.filter(
+      (membership) => membership.role === capability.targetRole && membership.set,
+    );
+    if (targetMemberships.length !== 1) {
+      throw new DeclarationGapError([{
+        site,
+        reason: `${loginName} must have exactly one SET-able membership in ${capability.targetRole}, got ${targetMemberships.length}`,
+      }]);
+    }
     const exactKey = [loginName, capability.targetRole, capability.contextClass,
       capability.purpose, capability.functionIdentity ?? runtimeName].join('\0');
     if (exact.has(exactKey)) {

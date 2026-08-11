@@ -228,7 +228,7 @@ describe('webapp port-context runtime', () => {
     expect(releases).toBe(0);
   });
 
-  it('maps only exact health, general-worker and media-worker sources', () => {
+  it('maps health to worker and keeps telemetry/media on their exact reachable roles', () => {
     const descriptor = (
       capabilityId: string,
       targetRole: string,
@@ -241,10 +241,8 @@ describe('webapp port-context runtime', () => {
       runtimeSources,
     });
     const capabilities = {
-      service: descriptor('00000000-0000-0000-0000-000000000111', 'app_service', [
-        'webapp-health-check',
-      ]),
       worker: descriptor('00000000-0000-0000-0000-000000000112', 'app_worker', [
+        'webapp-health-check',
         'api/internal/product-analytics/retention:POST',
       ]),
       media_worker: descriptor(
@@ -255,11 +253,16 @@ describe('webapp port-context runtime', () => {
           'api/internal/media-worker/control:POST',
         ],
       ),
+      telemetry: descriptor(
+        '00000000-0000-0000-0000-000000000115',
+        'saas_telemetry_operator',
+        ['webapp-saas-isolation-telemetry'],
+      ),
     };
     expect(
       webappPortContextPrincipal({ kind: 'infra', source: 'webapp-health-check' }, capabilities)
         .principal.targetRole,
-    ).toBe('app_service');
+    ).toBe('app_worker');
     expect(
       webappPortContextPrincipal(
         { kind: 'infra', source: 'api/internal/product-analytics/retention:POST' },
@@ -272,6 +275,12 @@ describe('webapp port-context runtime', () => {
         capabilities,
       ).principal.targetRole,
     ).toBe('app_operational_media_worker');
+    expect(
+      webappPortContextPrincipal(
+        { kind: 'infra', source: 'webapp-saas-isolation-telemetry' },
+        capabilities,
+      ).principal.targetRole,
+    ).toBe('saas_telemetry_operator');
     expect(
       webappPortContextPrincipal(
         { kind: 'infra', source: 'api/internal/media-worker/control:POST' },
@@ -287,6 +296,21 @@ describe('webapp port-context runtime', () => {
     expect(() =>
       webappPortContextPrincipal({ kind: 'infra', source: undefined }, capabilities),
     ).toThrow('<missing>');
+  });
+
+  it('maps generic bootstrap reads to app_pre_session', () => {
+    const preSession: PortCapabilityDescriptor = {
+      capabilityId: '00000000-0000-0000-0000-000000000116',
+      targetRole: 'app_pre_session',
+      contextClass: 'pre_session',
+      purpose: 'relation',
+    };
+    expect(
+      webappPortContextPrincipal(
+        { kind: 'bootstrap', source: 'webapp-public-runtime-config' },
+        { pre_session: preSession },
+      ),
+    ).toMatchObject({ pool: 'staff', principal: { targetRole: 'app_pre_session' } });
   });
 
   it('authenticates both replacement pools before swapping and keeps the old generation on failure', async () => {

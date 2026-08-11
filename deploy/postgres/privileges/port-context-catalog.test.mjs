@@ -10,20 +10,20 @@ import {
 
 const EXPECTED = {
   webapp: 12,
-  integrator: 12,
+  integrator: 13,
 };
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 24);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 24);
+  assert.equal(rows.length, 25);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 25);
   assert.equal(new Set(rows.map((row) => [
     row.sessionLogin,
     row.targetRole,
     row.contextClass,
     row.purpose,
     row.functionIdentity ?? row.runtimeName,
-  ].join('\0'))).size, 24);
+  ].join('\0'))).size, 25);
 
   for (const [port, count] of Object.entries(EXPECTED)) {
     const rendered = renderPortContextRuntimeEnv(
@@ -52,12 +52,16 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   const webapp = JSON.parse(renderPortContextRuntimeEnv(
     declaration, 'test', 'bersoncarebot_test', 'webapp',
   ).value);
-  for (const name of ['delivery', 'scheduler', 'service']) {
+  for (const name of ['delivery', 'scheduler', 'service', 'resolver']) {
     assert.equal(integrator[name].purpose, 'relation');
-    assert.ok(integrator[name].runtimeSources.length > 0);
+    if (name !== 'resolver') assert.ok(integrator[name].runtimeSources.length > 0);
   }
-  assert.equal(webapp.service.purpose, 'relation');
-  assert.ok(webapp.service.runtimeSources.length > 0);
+  for (const name of ['pre_session', 'worker', 'telemetry']) {
+    assert.equal(webapp[name].purpose, 'relation');
+    assert.ok(webapp[name].runtimeSources.length > 0);
+  }
+  assert.equal(webapp.tenant_service, undefined);
+  assert.equal(webapp.service, undefined);
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
@@ -82,5 +86,17 @@ test('capability IDs are stable per database and do not cross environments', () 
   assert.equal(
     testRows.some((row) => devRows.some((candidate) => candidate.capabilityId === row.capabilityId)),
     false,
+  );
+});
+
+test('every descriptor target is SET-able by its exact session login', () => {
+  assert.doesNotThrow(() => resolvePortContextCapabilities(declaration, 'bersoncarebot_test'));
+
+  const unreachable = structuredClone(declaration);
+  const staffLogin = unreachable.envMapping.test.bcb_test_webapp_staff;
+  staffLogin.memberships = staffLogin.memberships.filter((membership) => membership.role !== 'app_worker');
+  assert.throws(
+    () => resolvePortContextCapabilities(unreachable, 'bersoncarebot_test'),
+    /bcb_test_webapp_staff must have exactly one SET-able membership in app_worker/,
   );
 });

@@ -256,6 +256,11 @@ export function integratorPortContextPrincipal(
   };
   switch (descriptor.contextClass) {
     case 'integrator':
+      if (descriptor.targetRole === 'app_integrator_resolver') {
+        if (principal.kind !== 'bootstrap')
+          throw new Error('Integrator resolver capability requires a bootstrap principal');
+        return base;
+      }
       if (principal.kind !== 'integrator')
         throw new Error('Integrator request capability requires an integrator principal');
       return {
@@ -272,8 +277,8 @@ export function integratorPortContextPrincipal(
         throw new Error('Service capability requires an explicit infra principal');
       return base;
     case 'pre_session':
-      if (principal.kind !== 'bootstrap' || !descriptor.functionIdentity)
-        throw new Error('Resolver capability requires an explicit named-root descriptor');
+      if (principal.kind !== 'bootstrap')
+        throw new Error('Pre-session capability requires a bootstrap principal');
       return { ...base, requestId: randomUUID() };
     default:
       throw new Error(

@@ -202,15 +202,15 @@ function capabilityFor(
           ? descriptor.contextClass === 'staff'
           : principal.kind === 'patient'
             ? descriptor.contextClass === 'patient'
-            : principal.kind === 'platform'
-              ? descriptor.contextClass === 'platform'
-              : principal.kind === 'organization'
-                ? descriptor.contextClass === 'tenant_service'
-                : principal.kind === 'infra'
-                  ? descriptor.contextClass === 'service'
-                  : principal.kind === 'bootstrap'
-                    ? descriptor.contextClass === 'pre_session'
-                    : false),
+          : principal.kind === 'platform'
+            ? descriptor.contextClass === 'platform'
+            : principal.kind === 'organization'
+              ? descriptor.contextClass === 'tenant_service'
+              : principal.kind === 'infra'
+                ? descriptor.contextClass === 'service'
+                : principal.kind === 'bootstrap'
+                  ? descriptor.contextClass === 'pre_session'
+                  : false),
     );
     if (matches.length !== 1) {
       throw new Error(
@@ -238,7 +238,9 @@ export function webappPortContextPrincipal(
       ? 'tenant_service'
       : principal.kind === 'infra'
         ? webappPortCapabilityForInfraSource(principal.source, capabilities)
-        : principal.kind;
+        : principal.kind === 'bootstrap'
+          ? 'pre_session'
+          : principal.kind;
   const descriptor = capabilityFor(capabilities, descriptorName, principal);
   const operation = operationStorage.getStore();
   const base = {
@@ -289,8 +291,8 @@ export function webappPortContextPrincipal(
         throw new Error('Service port context requires an explicit infra principal');
       return { pool: 'staff', principal: base };
     case 'pre_session':
-      if (principal.kind !== 'bootstrap' || !descriptor.functionIdentity)
-        throw new Error('Pre-session port context requires an explicit named-root capability');
+      if (principal.kind !== 'bootstrap')
+        throw new Error('Pre-session port context requires a bootstrap principal');
       return { pool: 'staff', principal: { ...base, requestId: randomUUID() } };
     default:
       throw new Error(
