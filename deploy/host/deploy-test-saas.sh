@@ -81,6 +81,7 @@ C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
 C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
+PORT_CONTEXT_CAPABILITY_SEED=deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
@@ -559,6 +560,32 @@ bootstrap_and_provision_c4_operational_runtime(){
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env
   echo "   C4 operational bootstrap/provision: OK (four isolated TEST contours)"
+}
+
+install_port_context_capability_catalog(){
+  local contract_present runtime_mode count
+  contract_present="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc \
+    "SELECT to_regclass('app_ext.port_context_capabilities') IS NOT NULL;")"
+  runtime_mode="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-legacy-guc}\"")"
+  if [ "$contract_present" != "t" ]; then
+    [ "$runtime_mode" != "port-context" ] || {
+      echo "FATAL: port-context mode requires app_ext.port_context_capabilities before restart" >&2
+      exit 1
+    }
+    echo "   port-context capability catalog: dormant until contract migration"
+    return
+  fi
+  sudo -u postgres psql -d "$DB" -X -1 -v ON_ERROR_STOP=1 \
+    -f "$DEPLOY_REPO/$PORT_CONTEXT_CAPABILITY_SEED" >/dev/null
+  count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc \
+    "SELECT count(*) FROM app_ext.port_context_capabilities
+      WHERE active_until IS NULL
+        AND session_login IN ('bcb_test_webapp_staff','bcb_test_integrator');")"
+  [ "$count" = "10" ] || {
+    echo "FATAL: expected 10 active declaration-owned TEST port-context capabilities, got $count" >&2
+    exit 1
+  }
+  echo "   port-context capability catalog: OK (10 exact declaration-owned rows)"
 }
 
 reapply_c4_operational_runtime_overlays(){
@@ -2738,6 +2765,8 @@ run_strict_post_migration_closure(){
   apply_test_strict_rls_finalizer
   log "strict closure: C4 five-contour TEST env preflight + root provisioning"
   bootstrap_and_provision_c4_operational_runtime
+  log "strict closure: declaration-owned port-context capability catalog"
+  install_port_context_capability_catalog
 
   # SaaS TEST walkthrough demo-fixture seed removed 2026-07-24 (owner: the Clinic A/B demo data was
   # only needed to validate tenant walls during their setup; the walls are in place, and the
@@ -2831,7 +2860,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
-    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" \
+    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" "$PORT_CONTEXT_CAPABILITY_SEED" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
@@ -3011,6 +3040,7 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -r "$SRC_REPO/$C4_OPERATIONAL_READINESS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_READINESS"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"; exit 1; }
+[ -r "$SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 sudo node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check

@@ -442,6 +442,19 @@ export interface PrivilegeDeclaration {
   portContext?: {
     classes: readonly string[];
     privateRelations: Record<string, { owner: string; columns: readonly string[] }>;
+    /**
+     * Production named roots. The generator derives both DB rows and per-port runtime JSON from
+     * this one map; neither SQL nor host configuration may carry a second handwritten catalog.
+     */
+    capabilities: Record<string, {
+      port: Port;
+      /** Canonical role of the one application login used for this capability in each environment. */
+      sessionRole: string;
+      targetRole: string;
+      contextClass: string;
+      purpose: string;
+      functionIdentity: string;
+    }>;
     functions: Record<string, {
       owner: string;
       security: 'DEFINER' | 'INVOKER';
