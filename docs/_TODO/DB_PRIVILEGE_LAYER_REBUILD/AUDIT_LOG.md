@@ -1415,3 +1415,29 @@ PASS принимает удаление третьей media DB-door и deploy 
 - Не продолжать старую `wt/port-context-grants`: её callsite census не уменьшает gaps. Критический путь:
   land media → runtime → seams; затем full semantic grant matrix + atomic artifacts; host mTLS DEV; TEST
   deploy/probes/logging; финальный locked CI/taskdb/push.
+
+## Integration verification RUNTIME-MEDIA-MERGE-2026-08-11 — `9414b5ef7`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Сохранённые runtime/media kill-sets + mandatory host-locked full CI** |
+| Вердикт | **PASS — runtime capability/context candidate совместим с landed media; к land** |
+
+- Merge `b97d61eeb` разрешил четыре реальных пересечения и сохранил обе границы: runtime relation/function
+  capabilities работают через два DB port factory; media-worker не имеет собственного DB pool/login и вызывает
+  authenticated webapp control. PostgreSQL 16 probes: `10` function capabilities, `15` SET-able relation
+  descriptors, `25` db-principal tests и `14` fault injections — PASS.
+- **RUNTIME-INTEGRATION-001 ИСПРАВЛЕНО:** C4 chain self-test раньше читал скрипты из hardcoded main checkout.
+  `9414b5ef7` оставляет live `SRC_REPO` без изменений, но self-test разрешает и path-guards все artifacts
+  относительно реально исполняемого checkout; exact gate подтвердил
+  `checkout=/home/dev/dev-projects/bcb-wt-portctx-runtime`.
+- Первый locked CI дошёл до dependency audit и обнаружил не source regression, а stale worktree install:
+  Vitest `4.1.6` при committed lock `4.1.10`; старые installed CVE packages дали red. После
+  `pnpm install --frozen-lockfile` actual Vitest `4.1.10`, старые packages отсутствуют, `pnpm audit` чист.
+- Финальный `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` → lock acquired/released, `rc=0`, `528s`:
+  integrator `390`, db-principal `25`, webapp `1182`, media `16`, PostgreSQL 16 acceptance, production build
+  `426` страниц и repository/dependency audit — PASS.
+- Land-queue ancestry registration покрывает промежуточные fix/merge commits только как части уже
+  зафиксированной цепочки FAIL→fix→`c2e5d5cad`→integration PASS; отдельный новый product PASS им не присваивается.
+
+Этот PASS не принимает full relation grants, atomic reset/regrant/restore, host mTLS или DEV/TEST cutover.
