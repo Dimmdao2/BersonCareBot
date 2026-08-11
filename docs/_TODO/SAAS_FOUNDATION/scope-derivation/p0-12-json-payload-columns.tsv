@@ -32,7 +32,6 @@ public.be_schedule_templates	config	SCOPED	booking_schedule_template_config	no	S
 public.be_working_days	breaks	SCOPED	booking_working_day_breaks	no	SCOPED	direct organization_id NOT NULL; break config stays scoped; no samples	working day breaks JSON
 public.be_working_hours	breaks	SCOPED	booking_working_hour_breaks	no	SCOPED	direct organization_id NOT NULL; break config stays scoped; no samples	working hour breaks JSON
 integrator.user_reminder_delivery_logs	payload_json,error_code	SCOPED	reminder_delivery_log	yes	SCOPED	organization_id copied from occurrence parent; keep scoped; no samples	integrator reminder delivery log payload
-integrator.content_access_grants	meta_json	SCOPED	access_grant_metadata	yes	SCOPED	organization_id backfilled through integrator user bridge; keep scoped; no samples	grant metadata tied to user/content
 public.idempotency_keys	response_body	INFRA	idempotency_response	no	scrubbed_global	request_hash is non-payload; response_body must remain operational/idempotency only; no user-bearing samples	INFRA idempotency table
 integrator.idempotency_keys	response_body	INFRA	idempotency_response	no	scrubbed_global	request_hash is non-payload; response_body must remain operational/idempotency only; no user-bearing samples	INFRA idempotency table
 public.integrator_push_outbox	payload,last_error	INFRA	outbox_payload	yes	INFRA_TRANSIENT	retention/scrub decision: operational retry payload remains INFRA; workers must not log raw payload/PII; dead rows require bounded retention/manual health archive path	webapp to integrator retry outbox

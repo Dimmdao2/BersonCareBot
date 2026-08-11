@@ -87,19 +87,8 @@ CREATE TEMP TABLE p0_5_app_grant_tables (
 
 INSERT INTO p0_5_app_grant_tables (schema_name, table_name, tier)
 VALUES
-  ('integrator', 'contacts', 'SCOPED'),
-  ('integrator', 'content_access_grants', 'SCOPED'),
-  ('integrator', 'conversation_messages', 'SCOPED'),
-  ('integrator', 'conversations', 'SCOPED'),
-  ('integrator', 'identities', 'BOOTSTRAP'),
-  ('integrator', 'message_drafts', 'SCOPED'),
-  ('integrator', 'question_messages', 'SCOPED'),
-  ('integrator', 'telegram_state', 'BOOTSTRAP'),
-  ('integrator', 'telegram_users', 'BOOTSTRAP'),
-  ('integrator', 'user_questions', 'SCOPED'),
   ('integrator', 'user_reminder_delivery_logs', 'SCOPED'),
   ('integrator', 'user_reminder_occurrences', 'SCOPED'),
-  ('integrator', 'users', 'BOOTSTRAP'),
   ('public', 'admin_audit_log', 'SCOPED'),
   ('public', 'be_appointment_cancellations', 'SCOPED'),
   ('public', 'be_appointment_events', 'SCOPED'),

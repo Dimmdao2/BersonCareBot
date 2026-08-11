@@ -8,7 +8,8 @@
 //     grants. This is the FULL P0.5b runtime surface: SCOPED (patient-wall RLS applies,
 //     app_staff bypasses via app.is_staff()) + BOOTSTRAP (identity/settings) + INFRA (queues/
 //     outboxes the webapp/integrator/worker/scheduler/media processes read and write every request)
-//     + LEGACY (frozen Rubitime-era tables still read by legacy sync paths) + TELEMETRY (analytics
+//     + LEGACY (frozen Rubitime-era tables still read by legacy sync paths, except explicit
+//     no-runtime-DML records) + TELEMETRY (analytics
 //     rollups). Cross-model audit finding #3 in R2_MVP_MASTER_CHECKLIST.md: the OLD single-role
 //     p0-5-role-split.sql grants only SCOPED+BOOTSTRAP, so the runtime would get "permission denied"
 //     on every INFRA/LEGACY/TELEMETRY table the moment a role-scoped connection replaced the
@@ -135,6 +136,12 @@ const s01RetiredLegacyBookingProjectionTables = new Set([
   'public.branches',
 ]);
 
+// The registry keeps message_drafts as LEGACY until its eventual DROP, but there is no live runtime
+// path left. FORCE RLS with no permissive policy keeps it deny-all; removing runtime ACL as well avoids
+// making that boundary depend on RLS alone. It is a historical schema record, not part of app_staff's
+// broad LEGACY surface. The generated UP and DOWN paths also revoke stale whole-table and column grants.
+export const appStaffNoRuntimeDmlTables = new Set(['integrator.message_drafts']);
+
 const appStaffGrantTiers = new Set(['SCOPED', 'BOOTSTRAP', 'INFRA', 'LEGACY', 'TELEMETRY']);
 
 function splitQualifiedName(qualifiedName) {
@@ -155,7 +162,8 @@ export function getAppStaffGrantTables() {
         !migrationOnlyTables.has(row.table) &&
         !overlayManagedAppStaffTables.has(row.table) &&
         !r7DroppedRawRubitimeTables.has(row.table) &&
-        !s01RetiredLegacyBookingProjectionTables.has(row.table),
+        !s01RetiredLegacyBookingProjectionTables.has(row.table) &&
+        !appStaffNoRuntimeDmlTables.has(row.table),
     )
     .map((row) => ({ ...splitQualifiedName(row.table), qualifiedName: row.table, tier: row.tier }))
     .sort((left, right) => left.qualifiedName.localeCompare(right.qualifiedName));
@@ -272,6 +280,28 @@ SELECT format(
 )
 FROM pg_attribute
 WHERE attrelid = ${sqlString(revoke.qualifiedName)}::regclass
+  AND attnum > 0
+  AND NOT attisdropped
+\\gexec`;
+    })
+    .join('\n\n');
+}
+
+export function renderAppStaffNoRuntimeDmlStatements() {
+  return Array.from(appStaffNoRuntimeDmlTables)
+    .sort()
+    .map((qualifiedName) => {
+      const { schemaName, tableName } = splitQualifiedName(qualifiedName);
+      return `-- LEGACY registry-only relation: no app_staff runtime SELECT/DML surface.
+REVOKE ALL PRIVILEGES ON TABLE ${sqlIdent(schemaName)}.${sqlIdent(tableName)} FROM app_staff;
+SELECT format(
+  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_staff',
+  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
+  '${schemaName}',
+  '${tableName}'
+)
+FROM pg_attribute
+WHERE attrelid = ${sqlString(qualifiedName)}::regclass
   AND attnum > 0
   AND NOT attisdropped
 \\gexec`;
@@ -918,6 +948,7 @@ export function renderP05bGrantsSql({ descriptors = buildRlsDescriptors() } = {}
   const patientSensitiveRevokeSql = renderAppPatientSensitiveRevokes(
     appPatientSensitiveBootstrapRevokes,
   );
+  const appStaffNoRuntimeDmlSql = renderAppStaffNoRuntimeDmlStatements();
   const s5RuntimeSettingsGrantSql = renderS5RuntimeSettingsGrantStatements();
 
   return `-- P0.5b-v2 / B5 (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #655): dormant table-level GRANTs
@@ -1036,6 +1067,8 @@ ${staffSchemas.map((schema) => `SELECT format('REVOKE USAGE ON SCHEMA %I FROM ap
 
 ${patientSchemas.map((schema) => `SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_patient', '${schema}') WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient') \\gexec`).join('\n')}
 
+${appStaffNoRuntimeDmlSql}
+
 \\echo 'P0.5b grants DOWN complete.'
 \\else
 \\echo 'P0.5b grants UP: app_staff full runtime surface, app_patient curated patient-facing surface.'
@@ -1047,6 +1080,8 @@ SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I.%I TO app_staff'
 FROM p0_5b_staff_grant_tables
 ORDER BY schema_name, table_name
 \\gexec
+
+${appStaffNoRuntimeDmlSql}
 
 SELECT format('GRANT %s ON TABLE %I.%I TO app_patient', privileges, schema_name, table_name)
 FROM p0_5b_patient_grant_tables

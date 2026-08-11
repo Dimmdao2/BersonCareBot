@@ -1,7 +1,3 @@
-BOOTSTRAP|integrator.identities
-BOOTSTRAP|integrator.telegram_state
-BOOTSTRAP|integrator.telegram_users
-BOOTSTRAP|integrator.users
 BOOTSTRAP|public.app_runtime_settings
 BOOTSTRAP|public.app_runtime_settings_audit
 BOOTSTRAP|public.be_organization_members
@@ -63,17 +59,10 @@ INFRA|public.saas_trial_policy
 INFRA|public.saas_registration_tariff_policy
 INFRA|public.saas_paid_period_policy
 INFRA|public.webapp_schema_migrations
-LEGACY|integrator.user_reminder_rules
 LEGACY|public.appointment_records
 LEGACY|public.booking_cities
 LEGACY|public.patient_bookings
-SCOPED|integrator.contacts
-SCOPED|integrator.content_access_grants
-SCOPED|integrator.conversation_messages
-SCOPED|integrator.conversations
-SCOPED|integrator.message_drafts
-SCOPED|integrator.question_messages
-SCOPED|integrator.user_questions
+LEGACY|integrator.message_drafts
 SCOPED|integrator.user_reminder_delivery_logs
 SCOPED|integrator.user_reminder_occurrences
 SCOPED|public.admin_audit_log

@@ -80,7 +80,6 @@ SELECT (
   AND EXISTS (SELECT 1 FROM public.be_patient_package_items WHERE id = md5('p0.13 fk-patient-package-item-a2')::uuid)
   AND EXISTS (SELECT 1 FROM public.notification_delivery_attempts WHERE event_id = 'denorm-notification-attempt-b1')
   AND EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'p0_13_fixture_global' AND scope = 'admin' AND organization_id IS NULL)
-  AND EXISTS (SELECT 1 FROM integrator.content_access_grants WHERE id = 'integrator-content-grant-b1')
   AND EXISTS (SELECT 1 FROM integrator.user_reminder_delivery_logs WHERE id = 'integrator-reminder-log-a1')
 )::int AS target_rows_ok \\gset
 \\if :target_rows_ok

@@ -100,8 +100,6 @@ function assertScratchSqlCreatesRepresentativeRows(sql) {
     'public.be_patient_package_items',
     'public.notification_delivery_attempts',
     'public.system_settings',
-    'integrator.users',
-    'integrator.content_access_grants',
     'public.reminder_rules',
     'integrator.user_reminder_occurrences',
     'integrator.user_reminder_delivery_logs',
@@ -179,7 +177,6 @@ function runChecks(overrides = {}) {
       'public.be_patient_package_items',
       'public.notification_delivery_attempts',
       'public.system_settings',
-      'integrator.content_access_grants',
       'integrator.user_reminder_delivery_logs',
     ],
   );
@@ -207,7 +204,7 @@ function runChecks(overrides = {}) {
 
 if (process.argv.includes('--self-test')) {
   const rows = getP013SyntheticFixtureRows().map((row) =>
-    row.family === 'integrator_scoped' ? { ...row, family: 'direct_org' } : row,
+    row.family === 'integrator_denorm' ? { ...row, family: 'direct_org' } : row,
   );
 
   try {
