@@ -927,6 +927,19 @@ DEV+TEST login одновременно, candidate правильно ренде
 Следовательно два порта доказаны на одноразовом PG16, но DEV/TEST host ещё не переведён и не защищён этим HBA.
 Нужны штатный host apply/preflight/rollback, per-port env certificate paths и live positive/negative probes.
 
+**Живой DEV/TEST census 11.08 подтверждает finding, не только отсутствие кода.** Команда
+`hostname -I; sudo -u postgres psql -X -v ON_ERROR_STOP=1 -Atc "SELECT current_database(), current_user,
+current_setting('server_version'); SHOW hba_file; SHOW ssl; SHOW ssl_ca_file; SHOW ssl_crl_file; SHOW ssl_cert_file;
+SHOW ssl_key_file;"` доказала target `151.241.228.122`, PostgreSQL `16.14`, `ssl=on`, пустые CA/CRL и штатные
+snakeoil server certificate/key. `sudo awk 'NF && $1 !~ /^#/' /etc/postgresql/16/main/pg_hba.conf` показал общие
+`host all all 127.0.0.1/32 scram-sha-256` и `host all all ::1/128 scram-sha-256`, без обязательного client cert.
+Read-only `pg_authid` census (`rolpassword LIKE 'SCRAM-SHA-256$%'`, без вывода hash) подтвердил, что пароли
+прикладных логинов уже SCRAM; обновление PostgreSQL для этого не требуется. Одновременно `pg_roles` всё ещё
+показывает LOGIN у старых `app_staff`/`app_patient` и семейства TEST operational login (delivery, diagnostic,
+media, scheduler, web-push reminder): host reset/retirement ещё не применён. Logging base уже ведёт ошибки в stderr
+(`log_min_error_statement=error`, systemd journal), но громкий context-denial должен быть доказан после cutover
+живым `42501` и записью PostgreSQL journal.
+
 ## Fix verification MEDIA-DB-DOOR-R2-2026-08-11 — `a5684df48`
 
 | Поле | Значение |
