@@ -62,6 +62,11 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres GRANT SELECT ON TABLES TO PUBLIC;
 CREATE SCHEMA legacy_extra AUTHORIZATION harmless_admin;
 CREATE TABLE legacy_extra.unknown_owner_probe(id integer);
 ALTER TABLE legacy_extra.unknown_owner_probe OWNER TO harmless_admin;
+CREATE TYPE legacy_extra.unknown_payload AS (value text);
+ALTER TYPE legacy_extra.unknown_payload OWNER TO harmless_admin;
+GRANT USAGE ON TYPE legacy_extra.unknown_payload TO PUBLIC;
+CREATE COLLATION legacy_extra.unknown_collation (provider = libc, locale = 'C');
+ALTER COLLATION legacy_extra.unknown_collation OWNER TO harmless_admin;
 GRANT SELECT ON public.probe TO harmless_admin;
 GRANT SELECT ON legacy_extra.unknown_owner_probe TO PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE harmless_admin GRANT SELECT ON TABLES TO PUBLIC;
@@ -95,6 +100,16 @@ for zero_db in bersoncarebot_test bcb_webapp_dev; do
             has_schema_privilege('harmless_admin', 'legacy_extra', 'USAGE') || ':' ||
             has_table_privilege('harmless_admin', 'legacy_extra.unknown_owner_probe', 'SELECT');" \
     | grep -qx 'false:false:false'
+  psql_admin -d "$zero_db" -Atc \
+    "SELECT pg_get_userbyid(type.typowner) || ':' ||
+            (NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(type.typacl, acldefault('T', type.typowner))) acl WHERE acl.grantee=0)) || ':' ||
+            pg_get_userbyid(object_collation.collowner)
+       FROM pg_type type
+       JOIN pg_namespace namespace ON namespace.oid=type.typnamespace
+       JOIN pg_collation object_collation ON object_collation.collnamespace=namespace.oid
+      WHERE namespace.nspname='legacy_extra'
+        AND type.typname='unknown_payload'
+        AND object_collation.collname='unknown_collation';" | grep -qx 'postgres:true:postgres'
 done
 
 # Existing credentials are disabled before role deletion, and PostgreSQL logs the loud refusal.
@@ -107,7 +122,7 @@ test "$nologin_rc" -ne 0
 grep -Eq 'not permitted to log in|не разрешено входить' "$ZERO_WORK/nologin.out"
 grep -Eq 'not permitted to log in|не разрешено входить' "$ZERO_LOG"
 
-# Inject six independent fault classes; a second run must repair every one and keep the row.
+# Inject nine independent fault classes; a second run must repair every one and keep the row.
 psql_admin -d bcb_webapp_dev <<'SQL'
 ALTER TABLE public.probe OWNER TO app_owner;
 ALTER TABLE public.probe DISABLE ROW LEVEL SECURITY;
@@ -116,6 +131,9 @@ GRANT SELECT ON public.probe TO PUBLIC;
 GRANT UPDATE (secret) ON public.probe TO app_staff;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres GRANT SELECT ON TABLES TO PUBLIC;
 GRANT app_owner TO harmless_admin;
+ALTER TYPE legacy_extra.unknown_payload OWNER TO harmless_admin;
+GRANT USAGE ON TYPE legacy_extra.unknown_payload TO PUBLIC;
+ALTER COLLATION legacy_extra.unknown_collation OWNER TO harmless_admin;
 SQL
 psql_admin -d bcb_webapp_dev -1 -f "$GENERATED/zero-state.bcb_webapp_dev.sql" >/dev/null
 psql_admin -d bcb_webapp_dev -Atc \
@@ -124,6 +142,16 @@ psql_admin -d bcb_webapp_dev -Atc \
 psql_admin -d postgres -Atc \
   "SELECT count(*) FROM pg_auth_members WHERE roleid='app_owner'::regrole OR member='app_owner'::regrole;" \
   | grep -qx 0
+psql_admin -d bcb_webapp_dev -Atc \
+  "SELECT pg_get_userbyid(type.typowner) || ':' ||
+          (NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(type.typacl, acldefault('T', type.typowner))) acl WHERE acl.grantee=0)) || ':' ||
+          pg_get_userbyid(object_collation.collowner)
+     FROM pg_type type
+     JOIN pg_namespace namespace ON namespace.oid=type.typnamespace
+     JOIN pg_collation object_collation ON object_collation.collnamespace=namespace.oid
+    WHERE namespace.nspname='legacy_extra'
+      AND type.typname='unknown_payload'
+      AND object_collation.collname='unknown_collation';" | grep -qx 'postgres:true:postgres'
 
 # A statement appended after the zero verifier must roll the whole psql -1 application back.
 cp "$GENERATED/zero-state.bcb_webapp_dev.sql" "$ZERO_WORK/atomic.sql"
