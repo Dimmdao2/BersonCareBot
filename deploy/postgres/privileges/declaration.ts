@@ -1996,9 +1996,17 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       using: 'false', withCheck: 'false',
       note: `fail-closed pending an exact specialized business-policy export for ${key}`,
     }];
+    const access = !active ? undefined : key === 'public.be_appointments'
+      ? { kind: 'direct' as const, purpose: 'staff appointment list and patient-owned reschedule', codePaths: [
+        'apps/webapp/src/modules/appointments/**',
+        'apps/webapp/src/app/api/**/appointments/**',
+      ] }
+      : { kind: 'unresolved' as const,
+        reason: 'revision-10 access census has no exact repository/seam proof; deny-by-default is not operability',
+        codePaths: [] };
     return [key, {
       ...table, owner: 'app_object_owner', rls: table.disposition === 'PENDING_REMOVAL' ? 'n/a' : 'force',
-      grants, policies: [...contextGate, ...explicitPolicies, ...business], grantMatrix: undefined,
+      grants, policies: [...contextGate, ...explicitPolicies, ...business], access,
     }];
   }));
   return {

@@ -93,8 +93,18 @@ function reportGaps(declaration, dbNames) {
   let total = 0;
   for (const dbName of dbNames) {
     const gaps = collectGaps(declaration, dbName);
+    const tables = Object.values(declaration.databases[dbName]?.tables ?? {});
+    const access = tables.reduce((counts, table) => {
+      const key = table.access?.kind ?? 'missing';
+      counts[key] = (counts[key] ?? 0) + 1;
+      return counts;
+    }, {});
+    const active = tables.filter((table) => table.disposition === 'ACTIVE').length;
+    const pending = tables.filter((table) => table.disposition === 'PENDING_REMOVAL').length;
+    const directEntries = tables.reduce((count, table) => count + (table.access?.kind === 'direct'
+      ? Object.keys(table.grants ?? {}).length : 0), 0);
     total += gaps.length;
-    console.log(`\n=== ${dbName}: пробелов ${gaps.length} ===`);
+    console.log(`\n=== ${dbName}: classified=${tables.length} active=${active} pending=${pending} access=${JSON.stringify(access)} directGrantEntries=${directEntries} unresolved=${access.unresolved ?? 0} gaps=${gaps.length} ===`);
     for (const gap of gaps) console.log(`  • ${gap.site}: ${gap.reason}`);
   }
   return total;

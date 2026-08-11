@@ -281,6 +281,23 @@ export function collectGaps(declaration, dbName) {
       }
     }
     if (table.disposition === 'ACTIVE') {
+      const access = table.access;
+      if (!access) {
+        add(site, 'active relation has no executable access status (direct, named-seam, or no-runtime-surface)');
+      } else if (access.kind === 'unresolved') {
+        add(site, `unresolved access census: ${access.reason}${access.codePaths.length ? ` (${access.codePaths.join(', ')})` : ''}`);
+      } else if (access.kind === 'direct') {
+        if (!access.purpose || access.codePaths.length === 0) add(site, 'direct access lacks purpose or code-path evidence');
+        if (Object.keys(table.grants ?? {}).length === 0) add(site, 'direct access has no declared exact grant');
+      } else if (access.kind === 'named-seam') {
+        const seam = context?.functions?.[access.regprocedure];
+        if (!seam) add(site, `named seam '${access.regprocedure}' is not in the exact function census`);
+        if (!known(access.owner) || !known(access.caller) || access.columns.length === 0 || access.operations.length === 0 || !access.purpose) {
+          add(site, 'named seam lacks exact owner/caller/columns/operations/purpose');
+        }
+      } else if (access.kind === 'no-runtime-surface' && (!access.purpose || access.evidence.length === 0)) {
+        add(site, 'no-runtime-surface lacks purpose or absence evidence');
+      }
       const policies = table.policies ?? [];
       const restrictiveContext = policies.some((policy) => !isTodo(policy)
         && policy.as === 'RESTRICTIVE'

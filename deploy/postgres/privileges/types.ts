@@ -232,6 +232,13 @@ export interface TableDecl {
   grants: Record<string, GrantDecl>;
   /** полный relacl переписью не перечислен (GAP G2) — класс+стена объявлены, ACL не выдуман. */
   grantMatrix?: 'G2-pending';
+  /**
+   * Executable access census.  An ACTIVE relation cannot be generated until it is
+   * either backed by a direct grant, an exact definer seam, or a demonstrated
+   * absence of a runtime surface.  `unresolved` is deliberately machine-readable
+   * so `--gaps` fails instead of treating deny-by-default as an operable matrix.
+   */
+  access?: RelationAccess;
   /** живые гранты, которые модель СНИМАЕТ, с причиной. */
   revoke?: Record<string, string>;
   /** требуемая семантика политик СВЕРХ шаблона стены (тела политик — GAP G8). */
@@ -243,6 +250,12 @@ export interface TableDecl {
   removal?: RemovalDecl;
   drift?: string;
 }
+
+export type RelationAccess =
+  | { kind: 'direct'; codePaths: string[]; purpose: string }
+  | { kind: 'named-seam'; regprocedure: string; owner: string; caller: string; columns: string[]; operations: Privilege[]; purpose: string }
+  | { kind: 'no-runtime-surface'; evidence: string[]; purpose: string }
+  | { kind: 'unresolved'; reason: string; codePaths: string[] };
 
 /**
  * КОМПАКТНАЯ строка таблицы — то, что пишет и читает человек. Всё, что выводится из класса,

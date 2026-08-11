@@ -17,26 +17,34 @@ const db = declaration.databases[dbName];
 if (!db) throw new Error(`undeclared database '${dbName}'`);
 const context = declaration.portContext;
 if (!context) throw new Error('revision-10 port context is absent');
-const loginNames = Object.values(declaration.envMapping).flatMap((records) => Object.keys(records)
+const dbLoginNames = Object.values(declaration.envMapping).flatMap((records) => Object.keys(records)
   .filter((login) => records[login].connect.includes(dbName)));
-const principals = [...new Set([...Object.keys(declaration.cluster.roles), ...loginNames])].sort();
+// Check every declared login, not merely the three which belong to this DB: a
+// cross-environment ACL is a catalog drift, not an invisible principal.
+const loginNames = Object.values(declaration.envMapping).flatMap((records) => Object.keys(records));
+const principals = [...new Set([...Object.keys(declaration.cluster.roles), ...loginNames, 'PUBLIC'])].sort();
 const managedSchemas = ['public', 'app', 'integrator', 'app_ext', 'drizzle'];
 const expectedRelations = [...Object.keys(db.tables), ...Object.keys(context.privateRelations)].sort();
 const expectedPolicies = Object.entries(db.tables).flatMap(([table, decl]) => (decl.policies ?? [])
   .filter((policy) => !('todo' in policy)).map((policy) => [table, policy.name]));
 const expectedFunctions = Object.entries(context.functions).map(([signature, fn]) => {
-  const executes = [...new Set([...fn.execute, ...(fn.loginExecute ? loginNames : [])])].sort();
+  const executes = [...new Set([...fn.execute, ...(fn.loginExecute ? dbLoginNames : [])])].sort();
   return [signature, fn.owner, fn.returns, fn.security === 'DEFINER', fn.volatility, fn.parallel,
     fn.proconfig.join('\u001f'), executes.join('\u001f')];
 });
 const expectedAcl = Object.entries(db.tables).flatMap(([table, decl]) => Object.entries(decl.grants).flatMap(([role, grant]) =>
   grant.privs.filter((privilege) => typeof privilege === 'string').map((privilege) => [table, role, privilege])));
+const expectedSchemaAcl = Object.entries(db.schemas).flatMap(([schema, decl]) => [
+  ...decl.usage.map((role) => [schema, role, 'USAGE']),
+  ...decl.create.map((role) => [schema, role, 'CREATE']),
+]);
 const q = `
 WITH expected_relation(identity) AS (${values(expectedRelations.map((value) => `(${lit(value)})`))}),
 expected_policy(identity, policy_name) AS (${values(expectedPolicies.map(([table, policy]) => `(${lit(table)}, ${lit(policy)})`))}),
 expected_function(signature, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (${values(expectedFunctions.map((row) => `(${row.slice(0, 3).map(lit).join(', ')}, ${row[3]}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[row[4]])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[row[5]])}, ${lit(row[6])}, ${lit(row[7])})`))}),
 expected_acl(identity, grantee, privilege_type) AS (${values(expectedAcl.map((row) => `(${row.map(lit).join(', ')})`))}),
-principal(rolname) AS (${values(principals.map((value) => `(${lit(value)})`))})
+expected_schema_acl(schema_name, grantee, privilege_type) AS (${values(expectedSchemaAcl.map((row) => `(${row.map(lit).join(', ')})`))}),
+principal(rolname, grantee_oid) AS (${values(principals.map((value) => `(${lit(value)}, ${value === 'PUBLIC' ? 0 : `(SELECT oid FROM pg_roles WHERE rolname=${lit(value)})`})`))})
 SELECT 'undeclared_relation:' || n.nspname || '.' || c.relname
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
  WHERE n.nspname = ANY(ARRAY[${managedSchemas.map(lit).join(', ')}]) AND c.relkind IN ('r','p')
@@ -65,14 +73,18 @@ SELECT 'missing_or_mismatched_function:' || e.signature FROM expected_function e
 UNION ALL
 SELECT 'function_execute_acl:' || e.signature || ':' || r.rolname FROM expected_function e CROSS JOIN principal r
  WHERE r.rolname <> 'postgres' AND r.rolname <> e.owner_name
-   AND (e.signature NOT IN ('app.clear_port_context()', 'app.install_port_context(uuid,app.port_context_claims)') OR r.rolname = ANY(string_to_array(e.execute_roles, E'\\x1f')))
-   AND EXISTS (SELECT 1 FROM aclexplode(coalesce((SELECT p.proacl FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature)), acldefault('f', (SELECT p.proowner FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature))))) a WHERE a.grantee=(SELECT oid FROM pg_roles WHERE rolname=r.rolname) AND a.privilege_type='EXECUTE') <> (r.rolname = ANY(string_to_array(e.execute_roles, E'\\x1f')))
+   AND EXISTS (SELECT 1 FROM aclexplode(coalesce((SELECT p.proacl FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature)), acldefault('f', (SELECT p.proowner FROM pg_proc p WHERE p.oid=to_regprocedure(e.signature))))) a WHERE a.grantee=r.grantee_oid AND a.privilege_type='EXECUTE') <> (r.rolname = ANY(string_to_array(e.execute_roles, E'\\x1f')))
 UNION ALL
 SELECT 'table_acl:' || n.nspname || '.' || c.relname || ':' || r.rolname || ':' || privilege_name
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN principal r
  CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) privilege_name
  WHERE r.rolname <> 'postgres' AND r.rolname <> pg_get_userbyid(c.relowner) AND n.nspname = ANY(ARRAY[${managedSchemas.map(lit).join(', ')}]) AND c.relkind IN ('r','p')
-   AND EXISTS (SELECT 1 FROM aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE a.grantee=(SELECT oid FROM pg_roles WHERE rolname=r.rolname) AND a.privilege_type=privilege_name) <> EXISTS (SELECT 1 FROM expected_acl e WHERE e.identity=n.nspname || '.' || c.relname AND e.grantee=r.rolname AND e.privilege_type=privilege_name)
+   AND EXISTS (SELECT 1 FROM aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE a.grantee=r.grantee_oid AND a.privilege_type=privilege_name) <> EXISTS (SELECT 1 FROM expected_acl e WHERE e.identity=n.nspname || '.' || c.relname AND e.grantee=r.rolname AND e.privilege_type=privilege_name)
+UNION ALL
+SELECT 'schema_acl:' || n.nspname || ':' || r.rolname || ':' || privilege_name
+  FROM pg_namespace n CROSS JOIN principal r CROSS JOIN unnest(ARRAY['USAGE','CREATE']) privilege_name
+ WHERE n.nspname = ANY(ARRAY[${managedSchemas.map(lit).join(', ')}]) AND r.rolname <> pg_get_userbyid(n.nspowner)
+   AND EXISTS (SELECT 1 FROM aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a WHERE a.grantee=r.grantee_oid AND a.privilege_type=privilege_name) <> EXISTS (SELECT 1 FROM expected_schema_acl e WHERE e.schema_name=n.nspname AND e.grantee=r.rolname AND e.privilege_type=privilege_name)
 UNION ALL
 SELECT 'default_acl:' || d.defaclrole::regrole::text FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN principal r ON r.rolname=(a.grantee::regrole)::text WHERE a.grantee <> d.defaclrole
 UNION ALL
