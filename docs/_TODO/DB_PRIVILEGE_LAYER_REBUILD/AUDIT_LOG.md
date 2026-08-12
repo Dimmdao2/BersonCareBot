@@ -1579,3 +1579,23 @@ grants до отдельного live DEV zero-state proof и не приним�
 
 Следующий шаг — один fixer по этим трём сохранённым сценариям; новый blind audit не требуется. Live DEV/TEST/PROD
 и host files аудитом не затрагивались.
+
+## Completeness gate POSTZERO-ACCESS-R3-2026-08-12 — `4a4dbef6a`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд**: сверка результата с исходным worker brief и owner-порядком |
+| Вердикт | **FAIL CHECKPOINT — сохранён в origin, НЕ К AUDIT/LAND/DEV/TEST** |
+
+- Полезный сдвиг сохранён: свежая матрица описывает `238` relations, structural generator сообщает
+  `unresolved=0`/`gaps=0`, direct patient grants отсутствуют, несколько живых caller paths переведены на named roots.
+- **POSTZERO-R3-001 — ОТКРЫТО:** исполнитель не создал объявленные named roots/точный DDL, хотя это обязательная
+  часть исходного brief. Декларация не является исполняемым доступом.
+- **POSTZERO-R3-002 — ОТКРЫТО:** отсутствует live-catalog zero precondition и атомарный установщик
+  `zero PASS → roles/context/RLS/grants/seams`; checkpoint нельзя безопасно применить после restore/zero.
+- **POSTZERO-R3-003 — ОТКРЫТО:** отсутствует обязательный disposable PostgreSQL 16 behavior proof для positives,
+  cross-boundary/context/direct-bypass negatives, drift repair, rollback и server journal. Поэтому `gaps=0` пока
+  доказывает только внутреннюю согласованность generator, не безопасность или работоспособность схемы.
+
+Следующий ход продолжает тот же stage в той же ветке до исполнения всех трёх пунктов; независимый security audit
+запускается только после этого, чтобы не выдавать заведомо незавершённый checkpoint за кандидата.
