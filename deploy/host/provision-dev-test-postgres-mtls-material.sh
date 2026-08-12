@@ -116,7 +116,7 @@ verify_material() {
   [[ "$environment" != dev && "$environment" != all ]] || assert_mode_owner "$dev_dir" dev:dev:711
   [[ "$environment" != test && "$environment" != all ]] || assert_mode_owner "$test_dir" root:root:711
   for login in "${selected_logins[@]}"; do
-    local directory cert key subject expected_owner expected_group
+    local directory cert key subject expected_owner expected_group expected_mode
     directory=$(client_dir "$login")
     cert=$directory/$login.crt
     key=$directory/$login.key
@@ -127,7 +127,9 @@ verify_material() {
     [[ "$(public_key_hash_from_cert "$cert")" == "$(public_key_hash_from_key "$key")" ]] || die "client certificate/key mismatch: $login"
     expected_owner=${client_owner[$login]}
     expected_group=${client_group[$login]}
-    assert_mode_owner "$key" "$expected_owner:$expected_group:640"
+    expected_mode=600
+    [[ "$expected_owner" == root ]] && expected_mode=640
+    assert_mode_owner "$key" "$expected_owner:$expected_group:$expected_mode"
     assert_mode_owner "$cert" root:"$expected_group":644
   done
   for target_dir in "${selected_dirs[@]}"; do
@@ -188,6 +190,9 @@ if (( existing_authority == 1 )); then
     if [[ -e "$cert" || -e "$key" ]]; then
       [[ -f "$cert" && ! -L "$cert" && -f "$key" && ! -L "$key" ]] ||
         die "partial client certificate/key pair for $login"
+      if [[ "${client_owner[$login]}" != root ]]; then
+        chmod 0600 "$key"
+      fi
       continue
     fi
     openssl req -new -nodes -newkey rsa:3072 -sha256 \
@@ -195,7 +200,9 @@ if (( existing_authority == 1 )); then
     openssl ca -batch -config "$authority_dir/openssl.cnf" -extensions client_cert \
       -in "$add_dir/$login.csr" -out "$add_dir/$login.crt" >/dev/null 2>&1
     install -o root -g "${client_group[$login]}" -m 0644 "$add_dir/$login.crt" "$cert"
-    install -o "${client_owner[$login]}" -g "${client_group[$login]}" -m 0640 "$add_dir/$login.key" "$key"
+    key_mode=0600
+    [[ "${client_owner[$login]}" == root ]] && key_mode=0640
+    install -o "${client_owner[$login]}" -g "${client_group[$login]}" -m "$key_mode" "$add_dir/$login.key" "$key"
   done
   trap - EXIT
   cleanup_add
@@ -293,7 +300,9 @@ done
 for login in "${selected_logins[@]}"; do
   directory=$(client_dir "$login")
   install -o root -g "${client_group[$login]}" -m 0644 "$work_dir/output/$login.crt" "$directory/$login.crt"
-  install -o "${client_owner[$login]}" -g "${client_group[$login]}" -m 0640 "$work_dir/output/$login.key" "$directory/$login.key"
+  key_mode=0600
+  [[ "${client_owner[$login]}" == root ]] && key_mode=0640
+  install -o "${client_owner[$login]}" -g "${client_group[$login]}" -m "$key_mode" "$work_dir/output/$login.key" "$directory/$login.key"
 done
 
 verify_material
