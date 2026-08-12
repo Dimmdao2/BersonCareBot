@@ -3898,47 +3898,6 @@ export const telegramUsers = pgTable(
   ],
 );
 
-export const telegramState = pgTable(
-  'telegram_state',
-  {
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    identityId: bigint('identity_id', { mode: 'number' }).primaryKey().notNull(),
-    username: text(),
-    firstName: text('first_name'),
-    lastName: text('last_name'),
-    state: text(),
-    notifySpb: boolean('notify_spb').default(false).notNull(),
-    notifyMsk: boolean('notify_msk').default(false).notNull(),
-    notifyOnline: boolean('notify_online').default(false).notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    lastUpdateId: bigint('last_update_id', { mode: 'number' }),
-    lastStartAt: timestamp('last_start_at', { withTimezone: true, mode: 'string' }),
-    isActive: boolean('is_active').default(true).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    notifyBookings: boolean('notify_bookings').default(false).notNull(),
-  },
-  (table) => [
-    index('telegram_state_last_start_at_idx').using(
-      'btree',
-      table.lastStartAt.asc().nullsLast().op('timestamptz_ops'),
-    ),
-    index('telegram_state_last_update_id_idx').using(
-      'btree',
-      table.lastUpdateId.asc().nullsLast().op('int8_ops'),
-    ),
-    foreignKey({
-      columns: [table.identityId],
-      foreignColumns: [identities.id],
-      name: 'telegram_state_identity_id_fkey',
-    }).onDelete('cascade'),
-  ],
-);
-
 export const integrationDataQualityIncidents = pgTable(
   'integration_data_quality_incidents',
   {

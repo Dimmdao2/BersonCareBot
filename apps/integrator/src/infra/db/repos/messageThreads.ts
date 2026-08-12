@@ -66,15 +66,15 @@ export async function getActiveDraftByIdentity(
       md.created_at::text,
       md.updated_at::text,
       i.external_id::text AS channel_id,
-      ts.username,
-      ts.first_name,
-      ts.last_name,
+      ucb.display_handle AS username,
+      NULL::text AS first_name,
+      NULL::text AS last_name,
       cp.phone AS phone_normalized
     FROM identities i
     JOIN message_drafts md
       ON md.identity_id = i.id
-    LEFT JOIN telegram_state ts
-      ON ts.identity_id = i.id AND i.resource = 'telegram'
+    LEFT JOIN public.user_channel_bindings ucb
+      ON ucb.channel_code = i.resource AND ucb.external_id = i.external_id
     LEFT JOIN LATERAL (
       SELECT c.value_normalized AS phone
       FROM contacts c
@@ -382,15 +382,15 @@ export async function getOpenConversationByIdentity(
         ORDER BY cm.created_at DESC, cm.id DESC
         LIMIT 1
       ) AS user_chat_id,
-      ts.username,
-      ts.first_name,
-      ts.last_name,
+      ucb.display_handle AS username,
+      NULL::text AS first_name,
+      NULL::text AS last_name,
       cp.phone AS phone_normalized
     FROM identities i
     JOIN conversations c
       ON c.user_identity_id = i.id
-    LEFT JOIN telegram_state ts
-      ON ts.identity_id = i.id AND i.resource = 'telegram'
+    LEFT JOIN public.user_channel_bindings ucb
+      ON ucb.channel_code = i.resource AND ucb.external_id = i.external_id
     LEFT JOIN LATERAL (
       SELECT c2.value_normalized AS phone
       FROM contacts c2
@@ -447,15 +447,15 @@ export async function getConversationById(
         ORDER BY cm.created_at DESC, cm.id DESC
         LIMIT 1
       ) AS user_chat_id,
-      ts.username,
-      ts.first_name,
-      ts.last_name,
+      ucb.display_handle AS username,
+      NULL::text AS first_name,
+      NULL::text AS last_name,
       cp.phone AS phone_normalized
     FROM conversations c
     JOIN identities i
       ON i.id = c.user_identity_id
-    LEFT JOIN telegram_state ts
-      ON ts.identity_id = i.id AND i.resource = 'telegram'
+    LEFT JOIN public.user_channel_bindings ucb
+      ON ucb.channel_code = i.resource AND ucb.external_id = i.external_id
     LEFT JOIN LATERAL (
       SELECT c2.value_normalized AS phone
       FROM contacts c2
@@ -494,15 +494,16 @@ export async function listOpenConversationsOlderThan(
       c.closed_at::text,
       c.close_reason,
       i.external_id::text AS user_channel_id,
-      ts.username,
-      ts.first_name,
-      ts.last_name,
+      ucb.display_handle AS username,
+      NULL::text AS first_name,
+      NULL::text AS last_name,
       cp.phone AS phone_normalized,
       lm.text AS last_message_text,
       lm.sender_role AS last_sender_role
     FROM conversations c
     JOIN identities i ON i.id = c.user_identity_id
-    LEFT JOIN telegram_state ts ON ts.identity_id = i.id AND i.resource = 'telegram'
+    LEFT JOIN public.user_channel_bindings ucb
+      ON ucb.channel_code = i.resource AND ucb.external_id = i.external_id
     LEFT JOIN LATERAL (
       SELECT c2.value_normalized AS phone
       FROM contacts c2
@@ -624,4 +625,3 @@ export async function setQuestionAnswered(
   `,
   );
 }
-

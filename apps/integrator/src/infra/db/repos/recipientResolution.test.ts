@@ -52,20 +52,19 @@ vi.mock('../drizzle.js', () => ({
 import { resolveCanonicalPlatformUserIdByChannel } from './platformUserByChannel.js';
 import { getPhoneNormalizedForDeliveryLookup } from './platformUserDeliveryPhone.js';
 
-vi.mock('./channelUsers.js', () => ({
-  findByIdentityByPhone: vi.fn(async () => ({ chatId: 1, channelId: '1', username: null })),
-}));
+vi.mock('./channelUsers.js', () => ({}));
 vi.mock('./platformUserByChannel.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./platformUserByChannel.js')>();
   return {
     ...actual,
+    findChannelBindingByPhone: vi.fn(async () => ({ userId: '1', channelId: '1' })),
     getChannelBindingLinkData: vi.fn(async () => ({ userId: '1', channelId: '1' })),
   };
 });
 
 // Импорт ПОСЛЕ vi.mock — userLookup.ts должен увидеть подменённую границу.
-const { findByIdentityByPhone } = await import('./channelUsers.js');
-const { getChannelBindingLinkData } = await import('./platformUserByChannel.js');
+const { findChannelBindingByPhone, getChannelBindingLinkData } =
+  await import('./platformUserByChannel.js');
 const { lookupUser, findUserByChannelId, findUserByPhone } = await import('./userLookup.js');
 
 /** Фейковая БД: отдаёт заранее заданные строки и запоминает, о чём её спросили. */
@@ -161,25 +160,25 @@ describe('маршрут резолва: по какому ключу ищем �
     // АРБИТР: в userLookup.ts заменить финальный `return null` на
     // `return findByIdentityByPhone(db, value, resource)` — произвольный ключ станет поиском по
     // телефону, границу дёрнут, и оба expect покраснеют.
-    vi.mocked(findByIdentityByPhone).mockClear();
+    vi.mocked(findChannelBindingByPhone).mockClear();
     vi.mocked(getChannelBindingLinkData).mockClear();
     const db = fakeDb([]);
 
     return lookupUser(db, 'telegram', 'chatId', '7924656602').then((result) => {
       expect(result).toBeNull();
-      expect(findByIdentityByPhone).not.toHaveBeenCalled();
+      expect(findChannelBindingByPhone).not.toHaveBeenCalled();
       expect(getChannelBindingLinkData).not.toHaveBeenCalled();
     });
   });
 
   it('дано: ключ «телефон» и ключ «канал» → когда lookupUser → тогда телефон и ресурс НЕ меняются местами', () => {
     // У двух соседних функций channelUsers порядок аргументов зеркальный:
-    //   findByIdentityByPhone(db, phone, resource) / getChannelBindingLinkData(db, named input).
+    //   findChannelBindingByPhone(db, named input) / getChannelBindingLinkData(db, named input).
     // Перепутать их — правка на одно слово, а результат: телефон ищется как имя канала, а имя
     // канала — как телефон. Найдётся не тот человек или не найдётся никто.
     // АРБИТР: в userLookup.ts поменять аргументы местами в любой из двух строк —
     // соответствующий expect покраснеет.
-    vi.mocked(findByIdentityByPhone).mockClear();
+    vi.mocked(findChannelBindingByPhone).mockClear();
     vi.mocked(getChannelBindingLinkData).mockClear();
     const db = fakeDb([]);
 
@@ -188,7 +187,10 @@ describe('маршрут резолва: по какому ключу ищем �
       lookupUser(db, 'max', 'channelId', '207278131'),
       lookupUser(db, 'max', 'externalId', '207278131'),
     ]).then(() => {
-      expect(findByIdentityByPhone).toHaveBeenCalledWith(db, '+79189000782', 'max');
+      expect(findChannelBindingByPhone).toHaveBeenCalledWith(db, {
+        channelCode: 'max',
+        phoneNormalized: '+79189000782',
+      });
       expect(getChannelBindingLinkData).toHaveBeenNthCalledWith(1, db, {
         channelCode: 'max',
         externalId: '207278131',
@@ -204,7 +206,7 @@ describe('маршрут резолва: по какому ключу ищем �
     // findUserByPhone/findUserByChannelId зашивают ресурс. Если зашить не тот, сообщение уйдёт
     // человеку с тем же id в ДРУГОМ мессенджере.
     // АРБИТР: в findUserByChannelId() заменить 'telegram' на 'max' — второй expect покраснеет.
-    vi.mocked(findByIdentityByPhone).mockClear();
+    vi.mocked(findChannelBindingByPhone).mockClear();
     vi.mocked(getChannelBindingLinkData).mockClear();
     const db = fakeDb([]);
 
@@ -212,7 +214,10 @@ describe('маршрут резолва: по какому ключу ищем �
       findUserByPhone(db, '+79189000782'),
       findUserByChannelId(db, '7924656602'),
     ]).then(() => {
-      expect(findByIdentityByPhone).toHaveBeenCalledWith(db, '+79189000782', 'telegram');
+      expect(findChannelBindingByPhone).toHaveBeenCalledWith(db, {
+        channelCode: 'telegram',
+        phoneNormalized: '+79189000782',
+      });
       expect(getChannelBindingLinkData).toHaveBeenCalledWith(db, {
         channelCode: 'telegram',
         externalId: '7924656602',

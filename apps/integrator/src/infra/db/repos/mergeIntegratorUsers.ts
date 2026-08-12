@@ -327,26 +327,6 @@ export async function mergeIntegratorUsers(
     );
 
     for (const p of pairsRes.rows) {
-      const wState = await runIntegratorSql(
-        tx,
-        sql`SELECT 1 FROM telegram_state WHERE identity_id = ${p.winner_identity_id}::bigint LIMIT 1`,
-      );
-      const lState = await runIntegratorSql(
-        tx,
-        sql`SELECT 1 FROM telegram_state WHERE identity_id = ${p.loser_identity_id}::bigint LIMIT 1`,
-      );
-      if (wState.rows.length > 0 && lState.rows.length > 0) {
-        await runIntegratorSql(
-          tx,
-          sql`DELETE FROM telegram_state WHERE identity_id = ${p.loser_identity_id}::bigint`,
-        );
-      } else if (lState.rows.length > 0) {
-        await runIntegratorSql(
-          tx,
-          sql`UPDATE telegram_state SET identity_id = ${p.winner_identity_id}::bigint WHERE identity_id = ${p.loser_identity_id}::bigint`,
-        );
-      }
-
       await runIntegratorSql(
         tx,
         sql`

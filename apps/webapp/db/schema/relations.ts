@@ -72,7 +72,6 @@ import {
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,
-  telegramState,
   emailSendCooldowns,
   userNotificationTopics,
   systemSettings,
@@ -583,7 +582,6 @@ export const identitiesRelations = relations(identities, ({ one, many }) => ({
   messageDrafts: many(messageDrafts),
   conversations: many(conversations),
   userQuestions: many(userQuestions),
-  telegramStates: many(telegramState),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -671,13 +669,6 @@ export const contentAccessGrantsRelations = relations(contentAccessGrants, ({ on
   user: one(users, {
     fields: [contentAccessGrants.userId],
     references: [users.id],
-  }),
-}));
-
-export const telegramStateRelations = relations(telegramState, ({ one }) => ({
-  identity: one(identities, {
-    fields: [telegramState.identityId],
-    references: [identities.id],
   }),
 }));
 

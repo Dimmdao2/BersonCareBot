@@ -7,10 +7,6 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
-import {
-  getChannelIdsByUserId,
-  getIdentityIdByResourceAndExternalId,
-} from './repos/channelUsers.js';
 import { getChannelBindingLinkData } from './repos/platformUserByChannel.js';
 import {
   getReminderRuleById,
@@ -108,12 +104,6 @@ export function createDbReadPort(
             ...(source ? { source } : {}),
           })) as T;
         }
-        case 'identity.idByResourceAndExternalId': {
-          const resource = asNonEmptyString(query.params.resource);
-          const externalId = asNonEmptyString(query.params.externalId);
-          if (!resource || !externalId) return null as T;
-          return (await getIdentityIdByResourceAndExternalId(db, resource, externalId)) as T;
-        }
         case 'booking.byExternalId': {
           const recordId = asNonEmptyString(query.params.externalRecordId ?? query.params.recordId);
           if (!recordId) return null as T;
@@ -181,11 +171,6 @@ export function createDbReadPort(
             channel,
           });
           return (mid ?? null) as T;
-        }
-        case 'identities.allByUserId': {
-          const userIdParam = asNonEmptyString(query.params.userId);
-          if (!userIdParam) return [] as T;
-          return (await getChannelIdsByUserId(db, userIdParam)) as T;
         }
         default:
           return null as T;

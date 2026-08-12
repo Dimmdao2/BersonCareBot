@@ -1,7 +1,12 @@
-import type { ChannelUserFrom as ContractChannelUserFrom } from '../contracts/ports.js';
-
-/** Core transport and action types used by legacy adapters. */
-export type ChannelUserFrom = ContractChannelUserFrom;
+/** Messenger transport profile; not a persisted integrator user entity. */
+export type ChannelUserFrom = {
+  id: number;
+  is_bot?: boolean;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  language_code?: string;
+};
 
 export type ChannelChat = { id: number };
 

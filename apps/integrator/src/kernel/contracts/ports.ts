@@ -118,14 +118,11 @@ export type PhoneLinkFailureReason =
 /** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
 export type DbWriteDbResult = {
   userPhoneLinkApplied?: boolean;
-  /** Ошибка БД / нет identity: не показывать копию «номер у другого аккаунта». */
+  /** Неопределённый исход БД: не показывать копию «номер у другого аккаунта». */
   phoneLinkIndeterminate?: boolean;
   /** Уточнение при `userPhoneLinkApplied: false` (binding-first TX-путь). */
   phoneLinkReason?: PhoneLinkFailureReason;
 };
-
-/** Исход `setUserPhone` в репозитории (integrator). */
-export type SetUserPhoneOutcome = 'applied' | 'noop_conflict' | 'failed';
 
 /** Порт записи данных, используемый orchestrator/domain. */
 export type DbWritePort = {
@@ -224,18 +221,6 @@ export type ContentPort = {
   getTemplateByKey?(key: string): Promise<ContentTemplate | null>;
 };
 
-/** Базовый payload пользователя внешнего канала, используемый в пользовательских портах. */
-export type ChannelUserFrom = {
-  id: number;
-  is_bot?: boolean;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  language_code?: string;
-};
-
-export type ChannelUserRow = { id: string; channel_id: string };
-
 export type ActorResolutionRequest = {
   source: string;
   isUserOriginated: boolean;
@@ -249,17 +234,6 @@ export type ActorResolutionRequest = {
 
 export type ActorResolutionPort = {
   ensureActor(input: ActorResolutionRequest): Promise<void>;
-};
-
-/** Контракт хранилища пользователей внешнего канала. */
-export type ChannelUserPort = {
-  upsertUser(from: ChannelUserFrom | null | undefined): Promise<ChannelUserRow | null>;
-  setUserState(channelUserId: string, state: string | null): Promise<void>;
-  /** `noop_conflict` — номер у другого пользователя; `failed` — БД или нет identity. */
-  setUserPhone(channelUserId: string, phoneNormalized: string): Promise<SetUserPhoneOutcome>;
-  getUserState(channelUserId: string): Promise<string | null>;
-  tryAdvanceLastUpdateId(channelUserId: number, updateId: number): Promise<boolean>;
-  tryConsumeStart(channelUserId: number): Promise<boolean>;
 };
 
 export type ContentCatalogPort = {

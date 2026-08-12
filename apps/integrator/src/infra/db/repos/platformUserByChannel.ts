@@ -1,6 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   orgEnrollments,
   platformUsers,
@@ -99,6 +100,43 @@ export async function getChannelBindingLinkData(
     chatId: Number.isFinite(chatId) ? chatId : 0,
     username: bindingRows[0]?.displayHandle ?? null,
     phoneNormalized: userRows[0]?.phoneNormalized?.trim() || null,
+  };
+}
+
+/** Resolve a channel recipient from the canonical confirmed phone, never from integrator contacts. */
+export async function findChannelBindingByPhone(
+  db: DbPort,
+  input: { channelCode: string; phoneNormalized: string },
+): Promise<ChannelBindingLinkData | null> {
+  const channelCode = input.channelCode === 'channel' ? 'telegram' : input.channelCode;
+  const res = await runIntegratorSql<{
+    user_id: string;
+    external_id: string;
+    display_handle: string | null;
+    phone_normalized: string | null;
+  }>(
+    db,
+    sql`SELECT pu.id::text AS user_id,
+               ucb.external_id,
+               ucb.display_handle,
+               pu.phone_normalized
+        FROM public.platform_users pu
+        INNER JOIN public.user_channel_bindings ucb ON ucb.user_id = pu.id
+        WHERE pu.phone_normalized = ${input.phoneNormalized}
+          AND pu.merged_into_id IS NULL
+          AND ucb.channel_code = ${channelCode}
+        ORDER BY ucb.external_id
+        LIMIT 2`,
+  );
+  if (res.rows.length !== 1 || !res.rows[0]) return null;
+  const row = res.rows[0];
+  const chatId = Number(row.external_id);
+  return {
+    userId: row.user_id,
+    channelId: row.external_id,
+    chatId: Number.isFinite(chatId) ? chatId : 0,
+    username: row.display_handle,
+    phoneNormalized: row.phone_normalized?.trim() || null,
   };
 }
 
