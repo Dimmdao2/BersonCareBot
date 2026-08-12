@@ -168,7 +168,12 @@ Trigger/constraint ownership следует owner relation; replication slots н
 
 ### 6.2 Декларация и generator
 
-Декларация перечисляет только выданное. Для каждого object она содержит exact identity, owner, ACL, policy, attributes и dependencies. Generator одной транзакцией отзывает всё управляемое у `PUBLIC`, login-, runtime-, service- и owner-ролей, затем назначает карту §6.1, выдаёт объявленное и выполняет двустороннюю сверку.
+Декларация перечисляет только выданное. Для каждого object она содержит exact identity, owner, ACL, policy,
+attributes и dependencies. До её применения миграционная цепочка приводит восстановленную базу в точку ноль:
+удаляет старые application login/roles/grants/default privileges и закрывает `PUBLIC`. Нулевое состояние отдельно
+доказывается на disposable/DEV; только после этого generator одной транзакцией защитно отзывает управляемые ACL,
+назначает карту §6.1, выдаёт объявленное и выполняет двустороннюю сверку. Защитный revoke generator не заменяет
+предшествующую миграцию и не считается доказательством точки ноль.
 Инвариант: прикладной login не имеет object ACL; membership точно совпадает с §3, без транзитивных рёбер; `pg_stat_activity`, `pg_stat_get_activity(integer)` и выбранные каталогом §1 `pg_stat_get_backend_*` не имеют `PUBLIC`/login/runtime ACL.
 Для каждого `relkind='S'` `aclexplode` не находит `PUBLIC` grants, а `has_sequence_privilege` даёт false на `USAGE`/`SELECT`/`UPDATE` для login/runtime/service-ролей; нужный `nextval`/`last_value` доступен только exact seam owner именованной sequence. Цена: 7 последовательностей, 0 identity-колонок, `app_staff` сейчас держит `rU` на пяти; прямые runtime-INSERT из `projectionOutbox.ts:27` и `integratorPushOutbox.ts:87` переезжают в поимённые швы.
 

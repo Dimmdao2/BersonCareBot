@@ -12,8 +12,10 @@
 и приёмочный инвариант. Там, где сегодняшний код делает то, что модель запрещает, объявлена **модель**,
 а код перечислен в `CODE_MUST_CHANGE` — грант никогда не выдаётся «потому что код туда ходит».
 
-**Статус: ничего не применено.** Файл не подключён ни к одному деплою, ни одна DDL/DML/GRANT не
-исполнялась, генератор (Ф2.3) его ещё не потребляет. Не импортировать в деплой-пути до Ф2.3.
+**Статус:** декларацию потребляет генератор, но target grants и runtime-cutover ещё не применены к DEV/TEST.
+Отдельные `generated/zero-state.*.sql` и `generated/zero-state.cluster.sql` реализуют только предшествующую
+точку ноль: отзывают старые права, закрывают `PUBLIC`, переводят таблицы в FORCE RLS без политик и удаляют exact
+application roles. Они не выдают новых прав и не подключены к deploy до независимой приёмки этого этапа.
 
 Грамматика (типы, шаблоны стен, разворачивание компактных строк) вынесена в **`types.ts`** — в
 `declaration.ts` остались только решения и данные.
@@ -74,6 +76,7 @@ throw-ами на уровне приложения. Здесь отказыва
 
 | Класс поля | Применяет | Примечание |
 |---|---|---|
+| старые application roles/logins, ACL, ownership, default ACL и `PUBLIC` до новой схемы | **zero-state generator** → `generated/zero-state.<db>.sql`, затем `zero-state.cluster.sql` | отдельная revoke-only миграция; выполняется и доказывается раньше target grants |
 | роли, атрибуты, членства (кластер), в т.ч. новые `app_integrator_resolver`, `app_operational_maintenance`, `app_migration_phase` | `roles-install` (§B шаг 1) из декларации **+ env-маппинга** | кластерный уровень, переживает restore |
 | записи логинов (имя, членство, `passwordEnv`, CONNECT, `rolconfig`, **`port`**) | **env-render** в момент применения (декларация + `env/<env>.json`) | **не коммитится** — никогда не литерал пароля |
 | ACL схем/таблиц/колонок/последовательностей/функций/представлений, политики, флаги RLS, владельцы, `datdba`, `ALTER DATABASE … SET`, hardening дефолтных привилегий | **генератор** → закоммиченный `generated/privileges.<db>.sql` | env-независимая истина |
@@ -82,6 +85,14 @@ throw-ами на уровне приложения. Здесь отказыва
 | `dbSettings.perRoleInDatabase` (`ALTER ROLE … IN DATABASE … SET`) | **env-render** в момент применения | напр. dev-строка `search_path=public, integrator` |
 | стена org-таблиц (allowlist, `ENABLE/FORCE RLS` при рождении) | **event trigger** (§E) читает `orgTableAllowlist` | выводится из `tables[*].org === true` |
 | `wall`, `cls`, `pol` (policyRequirement), `revoke`, `drop` (removal), `code` (codeMustChange) | **человек и ревью, не машина** | это ТРЕБОВАНИЕ к политике/грантам; генератор эмитит уже написанные политики, а `policyRequirement` — критерий, против которого их принимают |
+
+Проверка точки ноль на одноразовом PostgreSQL 16:
+
+```bash
+node deploy/postgres/privileges/generate-cli.mjs --all --zero-state --check
+node deploy/postgres/privileges/generate-cli.mjs --zero-state-cluster --check
+pnpm test:db-zero-state
+```
 
 **Байтовая точность важна:** строки `searchPath` и `dbSettings` хранятся дословно как в каталоге
 (например `search_path=public, integrator` — с пробелом после запятой). §F сравнивает побайтово;
