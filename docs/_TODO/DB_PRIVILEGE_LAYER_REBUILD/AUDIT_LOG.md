@@ -1557,3 +1557,25 @@ payment UPDATE за реальные `status/updated_at`; лишние DELETE/UP
 
 PASS принимает воспроизводимый revoke-only контракт и disposable proof точки ноль. Он не разрешает выдавать новые
 grants до отдельного live DEV zero-state proof и не принимает mTLS/transaction context/RLS/runtime cutover.
+
+## Audit HOST-MTLS-R2-2026-08-12 — `69dcadeb6`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд + independent PostgreSQL 16.14 fault injection**: HBA exactness, loaded config, TLS material, readiness/rollback |
+| Вердикт | **FAIL — 3 MUST FIX, НЕ К LAND/LIVE APPLY** |
+
+- **HOST-MTLS-001 — ОТКРЫТО:** `--readiness` смотрит текущий файл через `pg_hba_file_rules`, а не фактически
+  загруженный HBA, и не выполняет connection probes. Незагруженный exact файл + активный broad password-only
+  `trust` дал ложный `readiness PASS`, после чего staff login вошёл без сертификата.
+- **HOST-MTLS-002 — ОТКРЫТО:** apply не проверяет соответствие server certificate/private key и успешную загрузку
+  нового SSL context. Несовпадающая пара дала PostgreSQL `SSL configuration was not reloaded`, но скрипт напечатал
+  `apply PASS`, не откатил файл и оставил будущий restart сломанным.
+- **HOST-MTLS-003 — ОТКРЫТО:** renderer принимает специальные HBA tokens `all`/`sameuser`/`samerole`/`replication`,
+  а validator скрывает второй marked block. Независимые probes получили `hostssl all all ...` и
+  `duplicate_managed_block_accepted=true`.
+- Остальной сохранённый oracle зелёный: три mTLS positive, password/wrong-CN/non-TLS/socket/server-impersonation
+  negatives, CRL rejection/drain, прежние context/RLS fault classes, `managed_hostssl_rules=6`, role/grant DDL `0`.
+
+Следующий шаг — один fixer по этим трём сохранённым сценариям; новый blind audit не требуется. Live DEV/TEST/PROD
+и host files аудитом не затрагивались.
