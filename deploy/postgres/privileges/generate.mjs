@@ -375,21 +375,7 @@ function environmentLoginRecords(declaration, env, dbName) {
   return selected.sort(([a], [b]) => a.localeCompare(b));
 }
 
-/** Read-only bidirectional closure for objects whose complete identity is carried by revision 11.
- * The org allowlist relation is declaration-derived infrastructure (`orgTableAllowlist`), while
- * transaction-private relations and every application routine are exact declaration entries. */
-export function generateCatalogClosureVerifierSql(declaration, dbName) {
-  const db = declaration.databases?.[dbName];
-  if (!db) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
-  const relations = Object.entries(db.tables)
-    .filter(([, table]) => table.disposition === 'ACTIVE')
-    .map(([identity]) => identity);
-  relations.push(...Object.keys(declaration.portContext?.privateRelations ?? {}));
-  if (db.orgTableAllowlist) relations.push('app_control.org_table_allowlist');
-  const exactRelations = [...new Set(relations)].sort();
-  const functions = functionEntriesForDatabase(declaration.portContext, dbName)
-    .map(([signature]) => signature)
-    .sort();
+function exactPreSessionRootsForDatabase(declaration, dbName) {
   const exactPreSessionCapabilities = new Map();
   for (const capability of Object.values(declaration.portContext?.capabilities ?? {})) {
     if (capability.targetRole !== 'app_pre_session' || !capability.functionIdentity) continue;
@@ -413,6 +399,60 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
       reason: 'app_pre_session business definer lacks an exact named capability',
     })));
   }
+  return exactPreSessionRoots;
+}
+
+function preSessionGateVerifierLines(preSessionRows) {
+  return [
+    `  WITH expected(signature,purpose) AS (VALUES ${preSessionRows})`,
+    '  SELECT expected.signature INTO bad FROM expected',
+    '   JOIN pg_catalog.pg_proc routine ON routine.oid=pg_catalog.to_regprocedure(expected.signature)',
+    "   WHERE NOT routine.prosecdef",
+    "      OR position('app.require_accepted_context' IN routine.prosrc)=0",
+    "      OR position('BEGIN' IN upper(routine.prosrc))=0",
+    "      OR substring(routine.prosrc FROM position('BEGIN' IN upper(routine.prosrc))) !~* '^BEGIN[[:space:]]+PERFORM[[:space:]]+app[.]require_accepted_context[[:space:]]*[(]'",
+    "      OR substring(routine.prosrc FROM 1 FOR greatest(position('PERFORM app.require_accepted_context' IN routine.prosrc) - 1, 0)) ~* '(:=|[[:space:]]DEFAULT[[:space:]])'",
+    "      OR position('app.hash_port_typed_args' IN routine.prosrc)=0",
+    '      OR position(expected.signature IN routine.prosrc)=0',
+    '      OR position(expected.purpose IN routine.prosrc)=0',
+    '   ORDER BY 1 LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'pre-session exact gate missing or mismatched: %',bad; END IF;",
+  ];
+}
+
+/** Focused behavioral verifier used by live catalog audits and red fixtures. */
+export function generatePreSessionGateVerifierSql(declaration, dbName) {
+  if (!declaration.databases?.[dbName]) {
+    throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
+  }
+  const exactPreSessionRoots = exactPreSessionRootsForDatabase(declaration, dbName);
+  const preSessionRows = exactPreSessionRoots
+    .map(([signature, purpose]) => `(${lit(signature)},${lit(purpose)})`).join(',\n');
+  return [
+    'DO $bcb$ DECLARE bad text; BEGIN',
+    ...preSessionGateVerifierLines(preSessionRows),
+    `  RAISE NOTICE 'BCB_PRE_SESSION_GATES_VERIFIED database=${dbName} roots=${exactPreSessionRoots.length}';`,
+    'END $bcb$;',
+    '',
+  ].join('\n');
+}
+
+/** Read-only bidirectional closure for objects whose complete identity is carried by revision 11.
+ * The org allowlist relation is declaration-derived infrastructure (`orgTableAllowlist`), while
+ * transaction-private relations and every application routine are exact declaration entries. */
+export function generateCatalogClosureVerifierSql(declaration, dbName) {
+  const db = declaration.databases?.[dbName];
+  if (!db) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
+  const relations = Object.entries(db.tables)
+    .filter(([, table]) => table.disposition === 'ACTIVE')
+    .map(([identity]) => identity);
+  relations.push(...Object.keys(declaration.portContext?.privateRelations ?? {}));
+  if (db.orgTableAllowlist) relations.push('app_control.org_table_allowlist');
+  const exactRelations = [...new Set(relations)].sort();
+  const functions = functionEntriesForDatabase(declaration.portContext, dbName)
+    .map(([signature]) => signature)
+    .sort();
+  const exactPreSessionRoots = exactPreSessionRootsForDatabase(declaration, dbName);
   const relationRows = exactRelations.map((identity) => {
     const [schema, name] = identity.split('.');
     return `(${lit(schema)}::name,${lit(name)}::name)`;
@@ -447,18 +487,7 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
     '     AND NOT EXISTS (SELECT 1 FROM expected WHERE routine.oid=pg_catalog.to_regprocedure(expected.signature))',
     '   ORDER BY 1 LIMIT 1;',
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared managed routine: %',bad; END IF;",
-    `  WITH expected(signature,purpose) AS (VALUES ${preSessionRows})`,
-    '  SELECT expected.signature INTO bad FROM expected',
-    '   JOIN pg_catalog.pg_proc routine ON routine.oid=pg_catalog.to_regprocedure(expected.signature)',
-    "   WHERE NOT routine.prosecdef",
-    "      OR position('app.require_accepted_context' IN routine.prosrc)=0",
-    "      OR routine.prosrc !~* '^[[:space:]]*([#][[:print:]]*[[:space:]]+)?(DECLARE[[:space:][:print:]]*)?BEGIN[[:space:]]+PERFORM[[:space:]]+app[.]require_accepted_context[[:space:]]*[(]'",
-    "      OR substring(routine.prosrc FROM 1 FOR greatest(position('PERFORM app.require_accepted_context' IN routine.prosrc) - 1, 0)) ~* '(:=|[[:space:]]DEFAULT[[:space:]])'",
-    "      OR position('app.hash_port_typed_args' IN routine.prosrc)=0",
-    '      OR position(expected.signature IN routine.prosrc)=0',
-    '      OR position(expected.purpose IN routine.prosrc)=0',
-    '   ORDER BY 1 LIMIT 1;',
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'pre-session exact gate missing or mismatched: %',bad; END IF;",
+    ...preSessionGateVerifierLines(preSessionRows),
     `  RAISE NOTICE 'BCB_CATALOG_CLOSURE_VERIFIED database=${dbName} relations=${exactRelations.length} routines=${functions.length} exact_pre_session_roots=${exactPreSessionRoots.length}';`,
     'END $bcb$;',
     '',

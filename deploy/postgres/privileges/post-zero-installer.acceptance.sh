@@ -90,6 +90,39 @@ do
     || { cat "$work_dir/passkey-no-context.out" >&2; fail 'passkey context refusal was not SQLSTATE 42501'; }
 done
 
+# The durable catalog gate must inspect the first top-level BEGIN.  A prior
+# executable statement followed by a nested gated block is valid PL/pgSQL but
+# must never be accepted as a gate-first pre-session root.
+admin <<'SQL' >/dev/null
+CREATE OR REPLACE FUNCTION app.email_auth_find_email_otp_lock(p_user_id uuid)
+RETURNS TABLE (locked_until bigint)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_probe integer;
+BEGIN
+  PERFORM pg_catalog.pg_sleep(0);
+  BEGIN
+    PERFORM app.require_accepted_context(
+      'app_seam_email_otp_owner', 'app_pre_session', 'pre_session', 'auth.email-otp.lock.read',
+      app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg]),
+      'app.email_auth_find_email_otp_lock(uuid)'::regprocedure
+    );
+  END;
+  RETURN;
+END
+$function$;
+SQL
+if node --experimental-strip-types "$repo_root/deploy/postgres/privileges/generate-cli.mjs" \
+  --db "$db_name" --pre-session-gate-verify | admin -1 >"$work_dir/nested-prior-statement.out" 2>&1; then
+  fail 'catalog verifier accepted a statement before a nested exact gate'
+fi
+grep -q 'pre-session exact gate missing or mismatched: app.email_auth_find_email_otp_lock(uuid)' \
+  "$work_dir/nested-prior-statement.out" \
+  || { cat "$work_dir/nested-prior-statement.out" >&2; fail 'nested prior-statement fixture failed for the wrong reason'; }
+zero
+install >/dev/null
+
 # Fault classes are catalog facts, not source-text assertions. Zero→install is the supported stopped-service repair.
 admin <<'SQL' >/dev/null
 GRANT SELECT ON public.platform_users TO PUBLIC;

@@ -32,6 +32,7 @@ import {
   generateEnvLoginShellSql,
   generateEnvironmentVerifierSql,
   generateCatalogClosureVerifierSql,
+  generatePreSessionGateVerifierSql,
   generateRelationWallRegistrySeedSql,
   generatePortContextCapabilitySeedSql,
   generatePortContextCapabilityVerifierSql,
@@ -57,7 +58,7 @@ function parseArgs(argv) {
     'all', 'check', 'gaps', 'census', 'stdout', 'no-allowlist', 'port-context-only',
     'port-context-verify', 'zero-state', 'zero-state-cluster', 'zero-state-verify',
     'env-login-shells', 'env-verify', 'shared-role-baseline', 'target-login-cleanup',
-    'catalog-closure-verify', 'relation-wall-registry',
+    'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry',
   ]);
   const knownValues = new Set(['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env']);
   for (let i = 0; i < argv.length; i += 1) {
@@ -193,6 +194,12 @@ async function main() {
   if (args.flags.has('catalog-closure-verify')) {
     if (dbNames.length !== 1) throw new Error('--catalog-closure-verify требует --db');
     process.stdout.write(generateCatalogClosureVerifierSql(declaration, dbNames[0]));
+    return;
+  }
+
+  if (args.flags.has('pre-session-gate-verify')) {
+    if (dbNames.length !== 1) throw new Error('--pre-session-gate-verify требует --db');
+    process.stdout.write(generatePreSessionGateVerifierSql(declaration, dbNames[0]));
     return;
   }
 
