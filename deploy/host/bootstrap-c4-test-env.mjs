@@ -21,6 +21,10 @@ const TEST_PATHS = {
   webapp: '/opt/env/bersoncarebot/webapp.test',
   media: '/opt/env/bersoncarebot/media-worker.test',
 };
+const DEV_PATHS = {
+  api: '/home/dev/dev-projects/BersonCareBot/.env',
+  webapp: '/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev',
+};
 
 const OPERATIONAL_KEYS = [
   ['DATABASE_URL_DIAGNOSTIC', 'bcb_test_operational_diagnostic_login'],
@@ -55,18 +59,50 @@ const TEST_PORT_CONTEXT_LOGINS = {
   webappPatient: 'bcb_test_webapp_patient',
 };
 const TEST_PORT_CONTEXT_TLS = {
-  ca: '/opt/env/bersoncarebot/db-tls/test/ca.crt',
-  integratorCert: '/opt/env/bersoncarebot/db-tls/test/bcb_test_integrator.crt',
-  integratorKey: '/opt/env/bersoncarebot/db-tls/test/bcb_test_integrator.key',
-  webappStaffCert: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_staff.crt',
-  webappStaffKey: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_staff.key',
-  webappPatientCert: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_patient.crt',
-  webappPatientKey: '/opt/env/bersoncarebot/db-tls/test/bcb_test_webapp_patient.key',
+  ca: '/etc/bersoncarebot/postgres-mtls/test/ca.crt',
+  integratorCert: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_integrator.crt',
+  integratorKey: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_integrator.key',
+  webappStaffCert: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_staff.crt',
+  webappStaffKey: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_staff.key',
+  webappPatientCert: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_patient.crt',
+  webappPatientKey: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_patient.key',
+};
+const DEV_PORT_CONTEXT = {
+  api: renderPortContextRuntimeEnv(declaration, 'dev', 'bcb_webapp_dev', 'integrator'),
+  webapp: renderPortContextRuntimeEnv(declaration, 'dev', 'bcb_webapp_dev', 'webapp'),
+};
+const DEV_PORT_CONTEXT_LOGINS = {
+  integrator: 'bcb_dev_integrator',
+  webappStaff: 'bcb_dev_webapp_staff',
+  webappPatient: 'bcb_dev_webapp_patient',
+};
+const DEV_PORT_CONTEXT_TLS = {
+  ca: '/etc/bersoncarebot/postgres-mtls/dev/ca.crt',
+  integratorCert: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_integrator.crt',
+  integratorKey: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_integrator.key',
+  webappStaffCert: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_staff.crt',
+  webappStaffKey: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_staff.key',
+  webappPatientCert: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_patient.crt',
+  webappPatientKey: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_patient.key',
 };
 const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
   /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
 const CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY =
   /^(?:DATABASE_URL_MEDIA_WORKER|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
+const PORT_CONTEXT_API_REMOVALS = new Set([
+  'DATABASE_URL',
+  'DATABASE_URL_DIAGNOSTIC',
+  'DATABASE_URL_DELIVERY_WORKER',
+  'DATABASE_URL_SCHEDULER',
+  'DB_PRINCIPAL_SIGNING_SECRET',
+]);
+const PORT_CONTEXT_WEBAPP_REMOVALS = new Set([
+  'DATABASE_URL',
+  'DATABASE_URL_NONSTAFF',
+  'DATABASE_URL_WEB_PUSH_REMINDER',
+  'SAAS_ISOLATION_OPERATOR_DATABASE_URL',
+  'DB_PRINCIPAL_SIGNING_SECRET',
+]);
 
 function fail(message) {
   throw new Error(message);
@@ -115,6 +151,18 @@ function upsertEnv(text, additions) {
   return `${lines.join('\n')}\n`;
 }
 
+function removeEnvKeys(text, removals) {
+  return `${text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .filter((line) => {
+      const key = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(line)?.[1];
+      return !key || !removals.has(key);
+    })
+    .join('\n')
+    .replace(/\n+$/u, '')}\n`;
+}
+
 function makeUrl(base, role) {
   const url = new URL(base);
   url.username = role;
@@ -134,7 +182,7 @@ function validateBaseUrl(raw) {
     fail('api.test DATABASE_URL must target bersoncarebot_test');
 }
 
-function validatePortContextUrl(raw, expectedLogin, label) {
+function validatePortContextUrl(raw, expectedLogin, label, expectedDatabase = 'bersoncarebot_test') {
   const url = new URL(raw);
   const database = decodeURIComponent(url.pathname).replace(/^\//, '');
   if (decodeURIComponent(url.username) !== expectedLogin) {
@@ -144,7 +192,7 @@ function validatePortContextUrl(raw, expectedLogin, label) {
   if (url.hostname !== '127.0.0.1' || url.port !== '5432') {
     fail(`${label} must target exact local PostgreSQL endpoint 127.0.0.1:5432`);
   }
-  if (database !== 'bersoncarebot_test') fail(`${label} must target bersoncarebot_test`);
+  if (database !== expectedDatabase) fail(`${label} must target ${expectedDatabase}`);
   for (const parameter of ['ssl', 'sslmode', 'sslrootcert', 'sslcert', 'sslkey']) {
     if (url.searchParams.has(parameter)) {
       fail(`${label} must not override mTLS through URL parameter ${parameter}`);
@@ -172,15 +220,111 @@ function assertRegular(path, allowMissing = false) {
   return true;
 }
 
-function writeProtected(path, content, ownerUid, deployGid) {
+function writeProtected(path, content, ownerUid, deployGid, mode = 0o640) {
   const temporary = `${path}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`;
   writeFileSync(temporary, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
   chownSync(temporary, ownerUid, deployGid);
-  chmodSync(temporary, 0o640);
+  chmodSync(temporary, mode);
   renameSync(temporary, path);
 }
 
-function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, write = true }) {
+function bootstrapDev({ apiPath, webappPath, ownerUid, ownerGid, write = true, tls = DEV_PORT_CONTEXT_TLS }) {
+  assertRegular(apiPath);
+  assertRegular(webappPath);
+  const apiText = readFileSync(apiPath, 'utf8');
+  const webappText = readFileSync(webappPath, 'utf8');
+  const api = parseEnv(apiText, 'integrator DEV env');
+  const webapp = parseEnv(webappText, 'webapp DEV env');
+  const legacyApiBase = api.get('DATABASE_URL');
+  const legacyWebappBase = webapp.get('DATABASE_URL');
+  const apiBase = legacyApiBase || requireEnvPath(api, 'INTEGRATOR_DB_URL', 'integrator DEV env');
+  const webappBase = legacyWebappBase || requireEnvPath(webapp, 'DATABASE_URL_STAFF', 'webapp DEV env');
+  for (const [raw, label] of [
+    [apiBase, 'integrator DEV DATABASE_URL'],
+    [webappBase, 'webapp DEV DATABASE_URL'],
+  ]) {
+    const url = new URL(raw);
+    const database = decodeURIComponent(url.pathname).replace(/^\//, '');
+    if (
+      !url.username ||
+      !url.password ||
+      url.hostname !== '127.0.0.1' ||
+      url.port !== '5432' ||
+      database !== 'bcb_webapp_dev'
+    ) {
+      fail(`${label} must contain credentials for exact 127.0.0.1:5432/bcb_webapp_dev`);
+    }
+  }
+  const apiAdditions = new Map([
+    ['DB_PRINCIPAL_CONTEXT_MODE', 'port-context'],
+    ['INTEGRATOR_DB_URL', legacyApiBase ? makeUrl(apiBase, DEV_PORT_CONTEXT_LOGINS.integrator) : api.get('INTEGRATOR_DB_URL')],
+    ['INTEGRATOR_DB_LOGIN', DEV_PORT_CONTEXT_LOGINS.integrator],
+    ['INTEGRATOR_DB_TLS_CA_FILE', tls.ca],
+    ['INTEGRATOR_DB_TLS_CERT_FILE', tls.integratorCert],
+    ['INTEGRATOR_DB_TLS_KEY_FILE', tls.integratorKey],
+    [DEV_PORT_CONTEXT.api.key, DEV_PORT_CONTEXT.api.value],
+  ]);
+  const webappAdditions = new Map([
+    ['DB_PRINCIPAL_CONTEXT_MODE', 'port-context'],
+    ['DATABASE_URL_STAFF', legacyWebappBase ? makeUrl(webappBase, DEV_PORT_CONTEXT_LOGINS.webappStaff) : webapp.get('DATABASE_URL_STAFF')],
+    ['DATABASE_URL_PATIENT', legacyWebappBase ? makeUrl(webappBase, DEV_PORT_CONTEXT_LOGINS.webappPatient) : requireEnvPath(webapp, 'DATABASE_URL_PATIENT', 'webapp DEV env')],
+    ['WEBAPP_DB_STAFF_LOGIN', DEV_PORT_CONTEXT_LOGINS.webappStaff],
+    ['WEBAPP_DB_PATIENT_LOGIN', DEV_PORT_CONTEXT_LOGINS.webappPatient],
+    ['WEBAPP_DB_TLS_CA_FILE', tls.ca],
+    ['WEBAPP_DB_STAFF_CERT_FILE', tls.webappStaffCert],
+    ['WEBAPP_DB_STAFF_KEY_FILE', tls.webappStaffKey],
+    ['WEBAPP_DB_PATIENT_CERT_FILE', tls.webappPatientCert],
+    ['WEBAPP_DB_PATIENT_KEY_FILE', tls.webappPatientKey],
+    [DEV_PORT_CONTEXT.webapp.key, DEV_PORT_CONTEXT.webapp.value],
+  ]);
+  const targetApi = mergedValues(api, apiAdditions);
+  const targetWebapp = mergedValues(webapp, webappAdditions);
+  validatePortContextUrl(
+    targetApi.get('INTEGRATOR_DB_URL'),
+    DEV_PORT_CONTEXT_LOGINS.integrator,
+    'DEV INTEGRATOR_DB_URL',
+    'bcb_webapp_dev',
+  );
+  validatePortContextUrl(
+    targetWebapp.get('DATABASE_URL_STAFF'),
+    DEV_PORT_CONTEXT_LOGINS.webappStaff,
+    'DEV DATABASE_URL_STAFF',
+    'bcb_webapp_dev',
+  );
+  validatePortContextUrl(
+    targetWebapp.get('DATABASE_URL_PATIENT'),
+    DEV_PORT_CONTEXT_LOGINS.webappPatient,
+    'DEV DATABASE_URL_PATIENT',
+    'bcb_webapp_dev',
+  );
+  for (const path of Object.values(tls)) assertRegular(path);
+  if (write) {
+    writeProtected(
+      apiPath,
+      removeEnvKeys(upsertEnv(apiText, apiAdditions), PORT_CONTEXT_API_REMOVALS),
+      ownerUid,
+      ownerGid,
+      0o600,
+    );
+    writeProtected(
+      webappPath,
+      removeEnvKeys(upsertEnv(webappText, webappAdditions), PORT_CONTEXT_WEBAPP_REMOVALS),
+      ownerUid,
+      ownerGid,
+      0o600,
+    );
+  }
+}
+
+function bootstrap({
+  apiPath,
+  webappPath,
+  mediaPath,
+  ownerUid = 0,
+  deployGid,
+  write = true,
+  targetPortContext = false,
+}) {
   assertRegular(apiPath);
   assertRegular(webappPath);
   const mediaExists = assertRegular(mediaPath, true);
@@ -198,15 +342,16 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
       }
     }
   }
-  const baseUrl = api.get('DATABASE_URL');
-  if (!baseUrl) fail('api.test is missing DATABASE_URL');
+  const legacyBaseUrl = api.get('DATABASE_URL');
+  const baseUrl = legacyBaseUrl || (targetPortContext ? api.get('INTEGRATOR_DB_URL') : undefined);
+  if (!baseUrl) fail('api.test is missing DATABASE_URL/INTEGRATOR_DB_URL');
   validateBaseUrl(baseUrl);
 
   for (const key of ['DB_PRINCIPAL_CONTEXT_MODE']) {
-    if (!api.get(key) || api.get(key) !== webapp.get(key))
+    if (!targetPortContext && (!api.get(key) || api.get(key) !== webapp.get(key)))
       fail(`${key} must be present and equal in api.test/webapp.test`);
   }
-  const principalMode = api.get('DB_PRINCIPAL_CONTEXT_MODE');
+  const principalMode = targetPortContext ? 'port-context' : api.get('DB_PRINCIPAL_CONTEXT_MODE');
   if (!['shadow', 'locked', 'port-context'].includes(principalMode)) {
     fail('TEST principal mode must be shadow, locked or port-context');
   }
@@ -217,62 +362,66 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   }
 
   const apiAdditions = new Map();
-  for (const [key, role] of OPERATIONAL_KEYS) {
-    apiAdditions.set(key, api.get(key) || makeUrl(baseUrl, role));
+  if (!targetPortContext) {
+    for (const [key, role] of OPERATIONAL_KEYS) {
+      apiAdditions.set(key, api.get(key) || makeUrl(baseUrl, role));
+    }
   }
+  apiAdditions.set('DB_PRINCIPAL_CONTEXT_MODE', principalMode);
   apiAdditions.set(TEST_PORT_CONTEXT.api.key, TEST_PORT_CONTEXT.api.value);
   const webappAdditions = new Map([
     ['ALLOW_DEV_AUTH_BYPASS', 'false'],
+    ['DB_PRINCIPAL_CONTEXT_MODE', principalMode],
     [TEST_PORT_CONTEXT.webapp.key, TEST_PORT_CONTEXT.webapp.value],
   ]);
   if (principalMode === 'port-context') {
     apiAdditions.set(
       'INTEGRATOR_DB_URL',
-      api.get('INTEGRATOR_DB_URL') || makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.integrator),
+      legacyBaseUrl ? makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.integrator) : api.get('INTEGRATOR_DB_URL'),
     );
     apiAdditions.set('INTEGRATOR_DB_LOGIN', TEST_PORT_CONTEXT_LOGINS.integrator);
     apiAdditions.set(
       'INTEGRATOR_DB_TLS_CA_FILE',
-      api.get('INTEGRATOR_DB_TLS_CA_FILE') || TEST_PORT_CONTEXT_TLS.ca,
+      TEST_PORT_CONTEXT_TLS.ca,
     );
     apiAdditions.set(
       'INTEGRATOR_DB_TLS_CERT_FILE',
-      api.get('INTEGRATOR_DB_TLS_CERT_FILE') || TEST_PORT_CONTEXT_TLS.integratorCert,
+      TEST_PORT_CONTEXT_TLS.integratorCert,
     );
     apiAdditions.set(
       'INTEGRATOR_DB_TLS_KEY_FILE',
-      api.get('INTEGRATOR_DB_TLS_KEY_FILE') || TEST_PORT_CONTEXT_TLS.integratorKey,
+      TEST_PORT_CONTEXT_TLS.integratorKey,
     );
 
     webappAdditions.set(
       'DATABASE_URL_STAFF',
-      webapp.get('DATABASE_URL_STAFF') || makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappStaff),
+      legacyBaseUrl ? makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappStaff) : webapp.get('DATABASE_URL_STAFF'),
     );
     webappAdditions.set(
       'DATABASE_URL_PATIENT',
-      webapp.get('DATABASE_URL_PATIENT') || makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappPatient),
+      legacyBaseUrl ? makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappPatient) : requireEnvPath(webapp, 'DATABASE_URL_PATIENT', 'webapp.test port-context'),
     );
     webappAdditions.set('WEBAPP_DB_STAFF_LOGIN', TEST_PORT_CONTEXT_LOGINS.webappStaff);
     webappAdditions.set('WEBAPP_DB_PATIENT_LOGIN', TEST_PORT_CONTEXT_LOGINS.webappPatient);
     webappAdditions.set(
       'WEBAPP_DB_TLS_CA_FILE',
-      webapp.get('WEBAPP_DB_TLS_CA_FILE') || TEST_PORT_CONTEXT_TLS.ca,
+      TEST_PORT_CONTEXT_TLS.ca,
     );
     webappAdditions.set(
       'WEBAPP_DB_STAFF_CERT_FILE',
-      webapp.get('WEBAPP_DB_STAFF_CERT_FILE') || TEST_PORT_CONTEXT_TLS.webappStaffCert,
+      TEST_PORT_CONTEXT_TLS.webappStaffCert,
     );
     webappAdditions.set(
       'WEBAPP_DB_STAFF_KEY_FILE',
-      webapp.get('WEBAPP_DB_STAFF_KEY_FILE') || TEST_PORT_CONTEXT_TLS.webappStaffKey,
+      TEST_PORT_CONTEXT_TLS.webappStaffKey,
     );
     webappAdditions.set(
       'WEBAPP_DB_PATIENT_CERT_FILE',
-      webapp.get('WEBAPP_DB_PATIENT_CERT_FILE') || TEST_PORT_CONTEXT_TLS.webappPatientCert,
+      TEST_PORT_CONTEXT_TLS.webappPatientCert,
     );
     webappAdditions.set(
       'WEBAPP_DB_PATIENT_KEY_FILE',
-      webapp.get('WEBAPP_DB_PATIENT_KEY_FILE') || TEST_PORT_CONTEXT_TLS.webappPatientKey,
+      TEST_PORT_CONTEXT_TLS.webappPatientKey,
     );
 
     const targetApi = mergedValues(api, apiAdditions);
@@ -357,9 +506,23 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   }
 
   if (write) {
+    const targetApiText = upsertEnv(apiText, apiAdditions);
+    const targetWebappText = upsertEnv(webappText, webappAdditions);
     writeProtected(mediaPath, mediaText, ownerUid, deployGid);
-    writeProtected(apiPath, upsertEnv(apiText, apiAdditions), ownerUid, deployGid);
-    writeProtected(webappPath, upsertEnv(webappText, webappAdditions), ownerUid, deployGid);
+    writeProtected(
+      apiPath,
+      targetPortContext ? removeEnvKeys(targetApiText, PORT_CONTEXT_API_REMOVALS) : targetApiText,
+      ownerUid,
+      deployGid,
+    );
+    writeProtected(
+      webappPath,
+      targetPortContext
+        ? removeEnvKeys(targetWebappText, PORT_CONTEXT_WEBAPP_REMOVALS)
+        : targetWebappText,
+      ownerUid,
+      deployGid,
+    );
   }
 }
 
@@ -551,9 +714,19 @@ function selfTest() {
       mediaPath: media,
       ownerUid: process.getuid(),
       deployGid: process.getgid(),
+      targetPortContext: true,
     });
     const portContextApi = parseEnv(readFileSync(api, 'utf8'), 'api.test');
     const portContextWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
+    bootstrap({
+      apiPath: api,
+      webappPath: webapp,
+      mediaPath: media,
+      ownerUid: process.getuid(),
+      deployGid: process.getgid(),
+      targetPortContext: true,
+      write: false,
+    });
     if (new URL(portContextApi.get('INTEGRATOR_DB_URL')).username !== TEST_PORT_CONTEXT_LOGINS.integrator) {
       fail('self-test did not render integrator port-context URL');
     }
@@ -565,9 +738,66 @@ function selfTest() {
     }
     if (
       portContextApi.get('DB_PRINCIPAL_SIGNING_SECRET') ||
-      portContextWebapp.get('DB_PRINCIPAL_SIGNING_SECRET')
+      portContextWebapp.get('DB_PRINCIPAL_SIGNING_SECRET') ||
+      portContextApi.get('DATABASE_URL') ||
+      portContextApi.get('DATABASE_URL_DIAGNOSTIC') ||
+      portContextApi.get('DATABASE_URL_DELIVERY_WORKER') ||
+      portContextApi.get('DATABASE_URL_SCHEDULER') ||
+      portContextWebapp.get('DATABASE_URL') ||
+      portContextWebapp.get('DATABASE_URL_NONSTAFF') ||
+      portContextWebapp.get('SAAS_ISOLATION_OPERATOR_DATABASE_URL')
     ) {
-      fail('self-test retained signed-context secret in port-context mode');
+      fail('self-test retained a legacy database door or signed-context secret in port-context mode');
+    }
+
+    const devApi = join(root, '.env');
+    const devWebapp = join(root, '.env.dev');
+    writeFileSync(devApi, "DATABASE_URL='postgresql://legacy-api:secret@127.0.0.1:5432/bcb_webapp_dev'\n");
+    writeFileSync(
+      devWebapp,
+      "DATABASE_URL='postgresql://legacy-web:secret@127.0.0.1:5432/bcb_webapp_dev'\n" +
+        "DATABASE_URL_NONSTAFF='postgresql://legacy-nonstaff:secret@127.0.0.1:5432/bcb_webapp_dev'\n" +
+        "SAAS_ISOLATION_OPERATOR_DATABASE_URL='postgresql://legacy-operator:secret@127.0.0.1:5432/bcb_webapp_dev'\n" +
+        "DB_PRINCIPAL_SIGNING_SECRET='legacy-signing-secret'\n",
+    );
+    const devTls = {
+      ca: join(root, 'ca.crt'),
+      integratorCert: join(root, 'integrator.crt'),
+      integratorKey: join(root, 'integrator.key'),
+      webappStaffCert: join(root, 'webapp-staff.crt'),
+      webappStaffKey: join(root, 'webapp-staff.key'),
+      webappPatientCert: join(root, 'webapp-patient.crt'),
+      webappPatientKey: join(root, 'webapp-patient.key'),
+    };
+    bootstrapDev({
+      apiPath: devApi,
+      webappPath: devWebapp,
+      ownerUid: process.getuid(),
+      ownerGid: process.getgid(),
+      tls: devTls,
+    });
+    const targetDevApi = parseEnv(readFileSync(devApi, 'utf8'), 'integrator DEV env');
+    const targetDevWebapp = parseEnv(readFileSync(devWebapp, 'utf8'), 'webapp DEV env');
+    bootstrapDev({
+      apiPath: devApi,
+      webappPath: devWebapp,
+      ownerUid: process.getuid(),
+      ownerGid: process.getgid(),
+      tls: devTls,
+      write: false,
+    });
+    if (
+      targetDevApi.get('DB_PRINCIPAL_CONTEXT_MODE') !== 'port-context' ||
+      new URL(targetDevApi.get('INTEGRATOR_DB_URL')).username !== DEV_PORT_CONTEXT_LOGINS.integrator ||
+      new URL(targetDevWebapp.get('DATABASE_URL_STAFF')).username !== DEV_PORT_CONTEXT_LOGINS.webappStaff ||
+      new URL(targetDevWebapp.get('DATABASE_URL_PATIENT')).username !== DEV_PORT_CONTEXT_LOGINS.webappPatient ||
+      targetDevApi.get('DATABASE_URL') ||
+      targetDevWebapp.get('DATABASE_URL') ||
+      targetDevWebapp.get('DATABASE_URL_NONSTAFF') ||
+      targetDevWebapp.get('SAAS_ISOLATION_OPERATOR_DATABASE_URL') ||
+      targetDevWebapp.get('DB_PRINCIPAL_SIGNING_SECRET')
+    ) {
+      fail('self-test DEV bootstrap did not close legacy database doors');
     }
     console.log('bootstrap-c4-test-env self-test: OK');
   } finally {
@@ -579,21 +809,47 @@ if (process.argv.includes('--self-test')) {
   selfTest();
 } else {
   if (process.getuid() !== 0) fail('run as root');
-  if (process.argv.length !== 3 || !['--check', '--execute'].includes(process.argv[2])) {
-    fail('usage: bootstrap-c4-test-env.mjs --check|--execute');
+  if (
+    process.argv.length !== 3 ||
+    ![
+      '--check',
+      '--execute',
+      '--port-context-check',
+      '--port-context-execute',
+      '--dev-port-context-check',
+      '--dev-port-context-execute',
+    ].includes(process.argv[2])
+  ) {
+    fail('usage: bootstrap-c4-test-env.mjs --check|--execute|--port-context-check|--port-context-execute|--dev-port-context-check|--dev-port-context-execute');
   }
-  const deployGid = Number(execFileSync('id', ['-g', 'deploy'], { encoding: 'utf8' }).trim());
-  const write = process.argv[2] === '--execute';
-  bootstrap({
-    apiPath: TEST_PATHS.api,
-    webappPath: TEST_PATHS.webapp,
-    mediaPath: TEST_PATHS.media,
-    deployGid,
-    write,
-  });
+  const requestedMode = process.argv[2];
+  const write = process.argv[2].endsWith('execute');
+  const targetPortContext = requestedMode.startsWith('--port-context-');
+  const devPortContext = requestedMode.startsWith('--dev-port-context-');
+  if (devPortContext) {
+    const devUid = Number(execFileSync('id', ['-u', 'dev'], { encoding: 'utf8' }).trim());
+    const devGid = Number(execFileSync('id', ['-g', 'dev'], { encoding: 'utf8' }).trim());
+    bootstrapDev({
+      apiPath: DEV_PATHS.api,
+      webappPath: DEV_PATHS.webapp,
+      ownerUid: devUid,
+      ownerGid: devGid,
+      write,
+    });
+  } else {
+    const deployGid = Number(execFileSync('id', ['-g', 'deploy'], { encoding: 'utf8' }).trim());
+    bootstrap({
+      apiPath: TEST_PATHS.api,
+      webappPath: TEST_PATHS.webapp,
+      mediaPath: TEST_PATHS.media,
+      deployGid,
+      write,
+      targetPortContext,
+    });
+  }
   console.log(
     write
-      ? 'C4 TEST env bootstrap: OK (api.test, webapp.test, media-worker.test; root:deploy 0640; secrets redacted)'
-      : 'C4 TEST env bootstrap preflight: OK (no files written; secrets redacted)',
+      ? `${devPortContext ? 'port-context DEV' : targetPortContext ? 'port-context TEST' : 'C4 TEST'} env bootstrap: OK (secrets redacted)`
+      : `${devPortContext ? 'port-context DEV' : targetPortContext ? 'port-context TEST' : 'C4 TEST'} env bootstrap preflight: OK (no files written; secrets redacted)`,
   );
 }

@@ -3402,10 +3402,22 @@ echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT futur
 log "B1 doctor/admin identity assertion"
 run_b1_doctor_admin_identity_assertion
 
-# Both supported TEST deploy paths converge here.  This shared closure owns roles/helpers/grants,
-# strict base + safe specialized overlays, exact FORCE assertions, the separate fixture privilege
-# window, restart, fail-closed health checks, and the mandatory locked product smoke.
-FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
-assert_strict_closure_deploy_checkout_ready
-run_strict_post_migration_closure
-log "DONE — full data-ready TEST migration (reviewed FIO + locked runtime verified)"
+# The destructive full-reset is the one authorized one-time access cutover.  All legacy migrations
+# above have completed while their migration identity still exists.  From here the old C2/C4
+# closure is forbidden: it recreates diagnostic/delivery/scheduler/operator logins that the new
+# cluster-wide zero deliberately removes.  Install the shared HBA first, then bilateral zero +
+# exact six-logins target state, then prove live authentication through the two ports.
+log "shared DEV+TEST mTLS → bilateral zero → minimal target roles/grants"
+sudo bash "$DEPLOY_REPO/deploy/host/cutover-dev-test-port-context.sh" --execute
+
+log "restart TEST on exact port-context runtime"
+install_and_assert_media_worker_test_unit
+for unit_name in api worker scheduler webapp; do
+  sudo systemctl restart "bersoncarebot-$unit_name-test"
+done
+sudo systemctl restart bersoncarebot-media-worker-test
+sleep 4
+assert_test_units_active
+assert_test_health_ok
+SERVICES_RELEASED=1
+log "DONE — full data-ready TEST migration (reviewed FIO + port-context runtime verified)"
