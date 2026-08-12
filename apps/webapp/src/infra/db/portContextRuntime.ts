@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { PoolConfig } from 'pg';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import type { PoolClient, PoolConfig } from 'pg';
 import type {
   DbPrincipal,
   PortContextClass,
@@ -402,9 +404,8 @@ async function resolveOpaqueIdentityRef(
     [portTypedArg('uuid', physicalId)],
     async (sameClient) =>
       opaqueRefFromResult(
-        await sameClient.query(
-          'SELECT app.pre_session_resolve_identity($1::uuid) AS opaque_ref',
-          [physicalId],
+        await drizzle(sameClient as unknown as PoolClient).execute(
+          sql`SELECT app.pre_session_resolve_identity(${physicalId}::uuid) AS opaque_ref`,
         ),
       ),
   );

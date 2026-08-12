@@ -20,6 +20,11 @@ const migrationPath = path.join(
 const migrationSql = fs.readFileSync(migrationPath, 'utf8');
 const postgres = resolveTrustedPostgresBinaries(['initdb', 'pg_ctl', 'psql']);
 const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bcb_legacy_identity_cut_'));
+const canonicalScratch = fs.realpathSync(scratchRoot);
+const expectedScratchPrefix = path.join(fs.realpathSync(os.tmpdir()), 'bcb_legacy_identity_cut_');
+if (!canonicalScratch.startsWith(expectedScratchPrefix)) {
+  throw new Error('unsafe scratch cleanup target');
+}
 const dataDir = path.join(scratchRoot, 'data');
 const socketDir = path.join(scratchRoot, 'socket');
 const postgresLog = path.join(scratchRoot, 'postgres.log');
@@ -258,9 +263,5 @@ $verify_unknown$;`);
   if (started) {
     run(postgres.pg_ctl, ['-D', dataDir, '-m', 'immediate', 'stop'], undefined, true);
   }
-  const canonicalScratch = fs.realpathSync(scratchRoot);
-  const expectedPrefix = path.join(fs.realpathSync(os.tmpdir()), 'bcb_legacy_identity_cut_');
-  if (!canonicalScratch.startsWith(expectedPrefix))
-    throw new Error('unsafe scratch cleanup target');
   fs.rmSync(scratchRoot, { recursive: true, force: true });
 }

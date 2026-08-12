@@ -21,7 +21,7 @@ import {
 } from '@/infra/db/saasIsolationDbFailureReporting';
 import {
   createWebappPortContextRuntimeConfig,
-  webappPortContextPrincipal,
+  resolveWebappPortContextPrincipal,
 } from '@/infra/db/portContextRuntime';
 
 export type DrizzleDb = NodePgDatabase<typeof schema>;
@@ -130,14 +130,15 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
       // owns this physical checkout from BEGIN through cleanup and destroys it on every fault.
       return (async () => {
         const runtime = createWebappPortContextRuntimeConfig(process.env);
-        const selected = webappPortContextPrincipal(
-          principalSnapshot,
-          runtime.capabilities,
-        ).principal;
         const client = await getPool().connect();
         let completed = false;
         try {
-          const result = await withPortContextTransaction(client, selected, async (sameClient) =>
+          const selected = await resolveWebappPortContextPrincipal(
+            client,
+            principalSnapshot,
+            runtime.capabilities,
+          );
+          const result = await withPortContextTransaction(client, selected.principal, async (sameClient) =>
             callback(
               drizzle(sameClient as unknown as PoolClient, {
                 schema,

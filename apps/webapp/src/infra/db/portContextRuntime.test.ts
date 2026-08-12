@@ -34,18 +34,30 @@ const staffCapabilities = {
   staff_identity_resolve: staffIdentityCapability,
 };
 
+type FakeQueryInput = string | { text: string; values?: readonly unknown[] };
+
+function normalizeFakeQuery(
+  input: FakeQueryInput,
+  values?: readonly unknown[],
+): { text: string; values: readonly unknown[] } {
+  return typeof input === 'string'
+    ? { text: input, values: values ?? [] }
+    : { text: input.text, values: input.values ?? [] };
+}
+
 function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool {
   const client = {
-    async query(sql: string) {
-      log.push(sql);
+    async query(input: FakeQueryInput, values?: readonly unknown[]) {
+      const { text } = normalizeFakeQuery(input, values);
+      log.push(text);
       if (
         cleanupFails &&
-        sql === 'SELECT app.clear_port_context()' &&
-        log.filter((entry) => entry === sql).length === 2
+        text === 'SELECT app.clear_port_context()' &&
+        log.filter((entry) => entry === text).length === 2
       ) {
         throw new Error('clear failed');
       }
-      if (sql.startsWith('SELECT app.pre_session_resolve_identity')) {
+      if (text.startsWith('SELECT app.pre_session_resolve_identity')) {
         return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
       }
       return { rows: [{ client }], rowCount: 1 };
@@ -196,9 +208,10 @@ describe('webapp port-context runtime', () => {
       },
       poolFactory: () => {
         const client = {
-          query: async (query: string, values?: readonly unknown[]) => {
-            if (query.includes('app.install_port_context')) installs.push([...(values ?? [])]);
-            if (query.startsWith('SELECT app.pre_session_resolve_identity')) {
+          query: async (input: FakeQueryInput, values?: readonly unknown[]) => {
+            const query = normalizeFakeQuery(input, values);
+            if (query.text.includes('app.install_port_context')) installs.push([...query.values]);
+            if (query.text.startsWith('SELECT app.pre_session_resolve_identity')) {
               return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
             }
             return { rows: [], rowCount: 0 };
@@ -352,11 +365,12 @@ describe('webapp port-context runtime', () => {
         on: () => pool,
         removeListener: () => pool,
         connect: async () => ({
-          query: async (query: string) => {
-            state.queries.push(query);
-            if (state.url.includes('rejected') && query === 'SELECT 1')
+          query: async (input: FakeQueryInput, values?: readonly unknown[]) => {
+            const { text } = normalizeFakeQuery(input, values);
+            state.queries.push(text);
+            if (state.url.includes('rejected') && text === 'SELECT 1')
               throw new Error('certificate rejected');
-            if (query.startsWith('SELECT app.pre_session_resolve_identity')) {
+            if (text.startsWith('SELECT app.pre_session_resolve_identity')) {
               return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
             }
             return { rows: [{ generation: state.url }], rowCount: 1 };
