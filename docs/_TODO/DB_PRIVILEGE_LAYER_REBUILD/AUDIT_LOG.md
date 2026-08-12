@@ -1827,3 +1827,11 @@ cluster rehearsal, не новый документационный мини-с�
   откатывает его вместе со всей Drizzle-chain, ordinary/restored/PROD stock path не изменён, последующий
   owner-ordered zero удаляет legacy grant. Независимая классификация — **ВЗГЛЯД**, вердикт **PASS**: prerequisite
   необходим и достаточен, write/schema/function-доступ не добавлен.
+- **LIVE-EMPTY-SCHEMA-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** после исправленного `0241` Drizzle replay
+  атомарно отказал `42501` в exact `0261_platform_registration_events_read`. Системный PostgreSQL-журнал
+  зафиксировал `permission denied for schema public`: migration выполняет `SET ROLE app_owner`, затем создаёт
+  SQL SECURITY DEFINER-функцию с qualified `public.*`, а historical `app_owner USAGE` раньше приходил из host
+  provisioning и отсутствует в greenfield TEST. Explicit `empty-bootstrap` теперь перед exact `0261` выдаёт
+  только `USAGE ON SCHEMA public TO app_owner` внутри общей транзакции — без table/data/write privileges;
+  ordinary/restored/PROD stock path не изменён, дальнейший fail откатывает prerequisite, последующий owner-zero
+  снимает его после успешного bootstrap. Независимая классификация — **ВЗГЛЯД**, вердикт **PASS**.

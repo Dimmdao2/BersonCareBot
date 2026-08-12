@@ -34,6 +34,8 @@ const EMPTY_BOOTSTRAP_DATA_MIGRATIONS = new Set([
 ]);
 const EMPTY_BOOTSTRAP_PLATFORM_AUDIT_GRANT_MIGRATION =
   '0241_platform_operations_audit_health_archive_global_view';
+const EMPTY_BOOTSTRAP_APP_OWNER_PUBLIC_USAGE_MIGRATION =
+  '0261_platform_registration_events_read';
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
@@ -350,6 +352,12 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
           await client.query(
             'GRANT SELECT ON public.admin_audit_log, public.operator_health_failure_archive TO app_staff',
           );
+        }
+        if (journal.tag === EMPTY_BOOTSTRAP_APP_OWNER_PUBLIC_USAGE_MIGRATION) {
+          // Historical app_owner schema usage came from host provisioning before this migration.
+          // Its SQL function body references public.* while SET ROLE app_owner is active, so restore
+          // only schema name resolution inside the disposable bootstrap transaction.
+          await client.query('GRANT USAGE ON SCHEMA public TO app_owner');
         }
         if (EMPTY_BOOTSTRAP_DATA_MIGRATIONS.has(journal.tag)) {
           console.log(`[migrate] empty-bootstrap skipped data-only migration=${journal.tag}`);
