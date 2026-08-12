@@ -40,6 +40,7 @@ export type DirectPublicChannelCode = 'telegram' | 'max';
 export type DirectPublicIdentityInput = {
   channelCode: DirectPublicChannelCode;
   externalId: string;
+  displayHandle?: string | null;
   phoneNormalized?: string | null;
   displayName?: string | null;
   firstName?: string | null;
@@ -116,6 +117,14 @@ function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const t = value.trim();
   return t.length > 0 ? t : null;
+}
+
+const CHANNEL_DISPLAY_HANDLE_MAX_LENGTH = 32;
+
+export function normalizeChannelDisplayHandle(value: string | null | undefined): string | null {
+  const trimmed = trimmedOrNull(value)?.replace(/^@+/, '').trim() ?? '';
+  if (!trimmed) return null;
+  return trimmed.slice(0, CHANNEL_DISPLAY_HANDLE_MAX_LENGTH);
 }
 
 /**
@@ -218,6 +227,7 @@ export async function writeIdentityAndPreferencesDirect(
 ): Promise<WriteIdentityAndPreferencesResult> {
   const mergeCandidateIds = deps.mergeCandidateIds ?? defaultMergeCandidateIds;
   const phoneNormalized = trimmedOrNull(input.phoneNormalized);
+  const displayHandle = normalizeChannelDisplayHandle(input.displayHandle);
   const displayName = trimmedOrNull(input.displayName);
   const firstName = trimmedOrNull(input.firstName);
   const lastName = trimmedOrNull(input.lastName);
@@ -285,6 +295,7 @@ export async function writeIdentityAndPreferencesDirect(
       platformUserId,
       input.channelCode,
       input.externalId,
+      displayHandle,
     );
     if (channelBindingInserted) {
       await seedChannelPreferencesDefaultsForProjection(

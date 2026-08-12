@@ -8,10 +8,11 @@ import { isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.
 import { getGoogleCalendarConfig } from './runtimeConfig.js';
 import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import {
-  deleteBookingCalendarMap,
-  getGoogleEventIdByAppointmentKey,
-  upsertBookingCalendarMap,
+  deleteBookingCalendarEventId,
+  getGoogleEventIdByAppointmentId,
+  upsertBookingCalendarEventId,
 } from '../../infra/db/repos/bookingCalendarMap.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { buildGoogleCalendarDescriptionForSync } from './calendarDescription.js';
 import { resolvePackageCalendarContext } from './resolvePackageCalendarContext.js';
 import { buildGoogleCalendarSummary, type GoogleCalendarTitleMarker } from './summaryMarkers.js';
@@ -37,10 +38,6 @@ export type CanonicalCalendarSyncEvent = {
   phoneNormalized?: string | null;
   titleMarker?: GoogleCalendarTitleMarker;
 };
-
-export function canonicalCalendarMapKey(appointmentId: string): string {
-  return `be:${appointmentId}`;
-}
 
 export async function mapCanonicalAppointmentToGoogleEvent(
   input: CanonicalCalendarSyncEvent,
@@ -82,24 +79,38 @@ export async function syncCanonicalAppointmentToCalendar(
   input: CanonicalCalendarSyncEvent,
   deps: SyncDeps = {},
 ): Promise<string | null> {
+  if (!input.organizationId.trim()) {
+    throw new Error('organizationId is required for canonical calendar sync');
+  }
+  return runWithOrganizationPrincipal(input.organizationId, () =>
+    syncCanonicalAppointmentToCalendarForOrganization(input, deps),
+  );
+}
+
+async function syncCanonicalAppointmentToCalendarForOrganization(
+  input: CanonicalCalendarSyncEvent,
+  deps: SyncDeps,
+): Promise<string | null> {
   const config = deps.config ?? (await getGoogleCalendarConfig(input.organizationId));
   if (!isGoogleCalendarConfigured(config)) return null;
 
   const db = deps.db ?? createDbPort();
   const client = deps.client ?? createGoogleCalendarClient(globalThis.fetch, async () => config);
-  const appointmentKey = canonicalCalendarMapKey(input.appointmentId);
-  const existingGoogleEventId = await getGoogleEventIdByAppointmentKey(db, appointmentKey);
+  const existingGoogleEventId = await getGoogleEventIdByAppointmentId(db, input.appointmentId);
 
   if (input.action === 'canceled') {
     if (!existingGoogleEventId) return null;
     await client.deleteEvent(existingGoogleEventId);
-    await deleteBookingCalendarMap(db, appointmentKey);
+    await deleteBookingCalendarEventId(db, input.appointmentId);
     return null;
   }
 
   const event = await mapCanonicalAppointmentToGoogleEvent(input, db);
   if (!event) return existingGoogleEventId;
   const upsertedId = await client.upsertEvent(existingGoogleEventId, event);
-  await upsertBookingCalendarMap(db, { appointmentKey, gcalEventId: upsertedId });
+  await upsertBookingCalendarEventId(db, {
+    appointmentId: input.appointmentId,
+    gcalEventId: upsertedId,
+  });
   return upsertedId;
 }

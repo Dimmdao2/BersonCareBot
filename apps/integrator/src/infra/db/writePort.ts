@@ -67,6 +67,7 @@ import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPoli
 import {
   writeIdentityAndPreferencesDirect,
   DirectPublicWriteError,
+  normalizeChannelDisplayHandle,
   type ChannelAnchorResult,
   type DirectPublicChannelCode,
   type DirectPublicIdentityInput,
@@ -332,6 +333,7 @@ export function createDbWritePort(
                 {
                   channelCode,
                   externalId,
+                  displayHandle: normalizeChannelDisplayHandle(username),
                   firstName: null,
                   lastName: null,
                   displayName: null,

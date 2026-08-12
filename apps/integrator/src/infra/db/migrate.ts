@@ -421,6 +421,24 @@ export async function verifyStartupMigrationState(
   );
 }
 
+function verifyAppliedMigrationVersions(
+  appliedValues: readonly string[],
+  migrations: MigrationFile[],
+): void {
+  const applied = new Set<string>();
+  for (const value of appliedValues) {
+    if (!value) continue;
+    for (const normalized of normalizeAppliedVersion(value, migrations)) applied.add(normalized);
+  }
+  const missing = migrations.filter((migration) => !applied.has(migration.version));
+  if (missing.length === 0) return;
+  const listed = missing.slice(0, 20).map((migration) => migration.version);
+  const suffix = missing.length > listed.length ? `; plus ${missing.length - listed.length} more` : '';
+  throw new Error(
+    `Integrator startup migration gate failed: ${missing.length} discovered migration(s) are not applied in ${INTEGRATOR_MIGRATIONS_TABLE}: ${listed.join(', ')}${suffix}. Run deploy migrations before starting shadow/locked runtime.`,
+  );
+}
+
 /** Применяет все неприменённые миграции. Вызывается из deploy/script paths и legacy startup. */
 export async function runMigrations(): Promise<void> {
   if (!env.DATABASE_URL) {
@@ -519,28 +537,24 @@ export async function runStartupMigrationGateWithDeps(
   if (deps.dbPrincipalContextMode?.trim() === 'port-context' && deps.createDb === undefined) {
     // The runtime login has no DDL capability and must never instantiate the legacy migration
     // pool. Ledger verification goes through the same mTLS/context chokepoint as every query.
-    const [
-      { db: runtimePool },
-      { withIntegratorPoolClient },
-      { runWithDbInfraPrincipal },
-      { runWithIntegratorPortCapability },
-    ] = await Promise.all([
+    const [{ db: runtimePool }, { withIntegratorPoolClient }, { runWithDbInfraPrincipal },
+      { runWithIntegratorPortOperation }] = await Promise.all([
       import('./client.js'),
       import('./withClient.js'),
       import('@bersoncare/db-principal'),
       import('./portContextRuntime.js'),
     ]);
-    const runtimeLedger: MigrationDbClient = {
-      query: async <T extends object>(text: string, values?: unknown[]) =>
-        runWithIntegratorPortCapability('migration_ledger', () =>
-          runWithDbInfraPrincipal({ source: 'integrator-startup-migration-ledger' }, () =>
-            withIntegratorPoolClient(runtimePool, async (client) => client.query<T>(text, values)),
-          ),
-        ),
-      end: async () => undefined,
-    };
     const migrations = await (deps.discoverMigrationsFn ?? discoverMigrations)();
-    await verifyStartupMigrationState(runtimeLedger, migrations);
+    const identity = 'app.read_integrator_migration_ledger()';
+    const result = await runWithDbInfraPrincipal(
+      { source: 'integrator-startup-migration-ledger' },
+      () => runWithIntegratorPortOperation(
+        { functionIdentity: identity, typedArgs: [] },
+        () => withIntegratorPoolClient(runtimePool, async (client) =>
+          client.query<{ version: string }>('SELECT version FROM app.read_integrator_migration_ledger()')),
+      ),
+    );
+    verifyAppliedMigrationVersions(result.rows.map((row) => row.version), migrations);
     logger.info(
       {
         dbPrincipalContextMode: deps.dbPrincipalContextMode,

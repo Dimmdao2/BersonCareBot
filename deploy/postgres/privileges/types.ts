@@ -254,8 +254,8 @@ export interface TableDecl {
 export interface NamedSeamAccess {
   regprocedure: string;
   owner: string;
-  /** Runtime/seam role which invokes the root. Triggers have no SQL caller. */
-  caller?: string;
+  /** Exact runtime/capability roles which may invoke the root. Triggers have no SQL callers. */
+  callers: string[];
   invocation: 'runtime' | 'trigger';
   columns: string[];
   operations: Privilege[];
@@ -263,7 +263,15 @@ export interface NamedSeamAccess {
 }
 
 export type RelationAccess =
-  | { kind: 'direct'; codePaths: string[]; purpose: string }
+  | {
+    kind: 'direct';
+    codePaths: string[];
+    purpose: string;
+    /** Exact runtime role × operation × table/column shape. */
+    grants: Array<{ role: string; operations: Privilege[]; columns: 'table' | string[] }>;
+    /** Exact definer surfaces which coexist with the direct path. */
+    seams: NamedSeamAccess[];
+  }
   | { kind: 'named-seams'; seams: NamedSeamAccess[]; purpose: string }
   | { kind: 'no-runtime-surface'; evidence: string[]; purpose: string }
   | { kind: 'unresolved'; reason: string; codePaths: string[] };
@@ -478,13 +486,6 @@ export interface PrivilegeDeclaration {
     roles: Record<string, RoleDecl>;
   };
   envMapping: Record<string, Record<string, LoginRecord>>;
-  /**
-   * Exact legacy application principals removed by the separate zero-state migration.
-   * Target roles and env logins are added by the generator automatically; patterns are forbidden.
-   */
-  zeroState?: {
-    legacyRoles: string[];
-  };
   databases: Record<string, DatabaseDecl>;
   /** Revision-10 transaction-context surface, separate from ordinary relation ACLs. */
   portContext?: {

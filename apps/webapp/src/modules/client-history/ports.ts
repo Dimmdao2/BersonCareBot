@@ -44,7 +44,7 @@ export type ClientHistoryPort = {
     platformUserId: string,
   ): Promise<PatientBookingProfile | null>;
   upsertBookingProfile(input: UpsertPatientBookingProfileInput): Promise<PatientBookingProfile>;
-  isBookingBlocked(organizationId: string, platformUserId: string): Promise<boolean>;
+  isCurrentPatientSelfBookingAllowed(): Promise<boolean>;
   listAppointmentComments(
     organizationId: string,
     appointmentId: string,

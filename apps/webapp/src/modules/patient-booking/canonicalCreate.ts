@@ -238,7 +238,7 @@ export async function createBookingOnCanonicalEngine(
     throw new Error('consecutive_slot_cap_exceeded');
   }
   if (deps.clientHistory) {
-    await deps.clientHistory.assertSelfServiceBookingAllowed(orgId, createInput.userId);
+    await deps.clientHistory.assertSelfServiceBookingAllowed();
   }
   const profilePrefill: Record<string, string> = {
     contact_name: createInput.contactName,

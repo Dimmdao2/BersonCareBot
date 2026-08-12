@@ -39,9 +39,9 @@ export function createClientHistoryService(port: ClientHistoryPort) {
       });
     },
 
-    assertSelfServiceBookingAllowed(organizationId: string, platformUserId: string) {
-      return port.isBookingBlocked(organizationId, platformUserId).then((blocked) => {
-        if (blocked) throw new Error('booking_blocked');
+    assertSelfServiceBookingAllowed() {
+      return port.isCurrentPatientSelfBookingAllowed().then((allowed) => {
+        if (!allowed) throw new Error('booking_blocked');
       });
     },
 

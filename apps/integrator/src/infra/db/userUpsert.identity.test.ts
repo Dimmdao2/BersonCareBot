@@ -32,7 +32,12 @@ type PlatformUserRow = {
   first_name: string | null;
   last_name: string | null;
 };
-type BindingRow = { channel_code: string; external_id: string; user_id: string };
+type BindingRow = {
+  channel_code: string;
+  external_id: string;
+  user_id: string;
+  display_handle?: string;
+};
 type ChannelPrefRow = { user_id: string; channel_code: string };
 type ContactRow = { user_id: string; type: string; value_normalized: string };
 type PhoneHistoryRow = {
@@ -160,8 +165,21 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
     if (q.startsWith('insert into user_channel_bindings')) {
       const exists = tables.bindings.some((b) => b.channel_code === p[1] && b.external_id === p[2]);
       if (exists) return rows([]);
-      tables.bindings.push({ user_id: p[0]!, channel_code: p[1]!, external_id: p[2]! });
+      tables.bindings.push({
+        user_id: p[0]!,
+        channel_code: p[1]!,
+        external_id: p[2]!,
+        ...(p[3] ? { display_handle: p[3] } : {}),
+      });
       return rows([{ user_id: p[0] }]);
+    }
+    if (q.startsWith('update user_channel_bindings set display_handle')) {
+      const hit = tables.bindings.find(
+        (b) => b.user_id === p[1] && b.channel_code === p[2] && b.external_id === p[3],
+      );
+      if (!hit || !p[0] || hit.display_handle === p[0]) return rows([]);
+      hit.display_handle = p[0];
+      return { rows: [] as T[], rowCount: 1 };
     }
     if (q.startsWith('insert into user_channel_preferences')) {
       const channelCode = q.includes('is_enabled_for_messages') ? (p[2] ?? p[1])! : p[1]!;
@@ -369,6 +387,7 @@ async function upsertUser(
   params: {
     resource: 'telegram' | 'max';
     externalId: string;
+    username?: string;
     firstName?: string;
     lastName?: string;
   },
@@ -379,6 +398,7 @@ async function upsertUser(
     params: {
       resource: params.resource,
       externalId: params.externalId,
+      username: params.username,
       firstName: params.firstName,
       lastName: params.lastName,
     },
@@ -418,6 +438,28 @@ describe('user.upsert: новый человек на первом вебхук�
     expect(tables.platformUsers).toHaveLength(1);
     expect(tables.platformUsers[0]!.id).toBe(firstId);
     expect(tables.bindings).toHaveLength(1);
+  });
+
+  it('дано: Telegram прислал handle → он нормализуется, обновляется на следующем webhook и не стирается пустым значением', async () => {
+    const tables = emptyTables();
+    const db = makeDb(tables);
+
+    await upsertUser(db, {
+      resource: 'telegram',
+      externalId: '778',
+      username: `  @@${'a'.repeat(40)}  `,
+    });
+    expect(tables.bindings[0]?.display_handle).toBe('a'.repeat(32));
+
+    await upsertUser(db, {
+      resource: 'telegram',
+      externalId: '778',
+      username: '  @new_handle  ',
+    });
+    expect(tables.bindings[0]?.display_handle).toBe('new_handle');
+
+    await upsertUser(db, { resource: 'telegram', externalId: '778', username: '  @  ' });
+    expect(tables.bindings[0]?.display_handle).toBe('new_handle');
   });
 
   it('дано: имя уже поправлено вручную в приложении → когда тот же max-канал снова пишет со старым именем из профиля мессенджера → тогда ФИО в базе НЕ затирается', async () => {

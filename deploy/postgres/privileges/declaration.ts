@@ -60,14 +60,15 @@
 
 import { WALL_TEMPLATES, expandTables } from './types.ts';
 import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
+import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
 // The canonical locked descriptor module is executable ESM; its public shape is narrowed below
 // so this declaration remains strict without a second source-of-truth .d.ts file.
 // @ts-expect-error no declaration file exists for the canonical executable descriptor module.
 import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../../../docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs';
 import type {
-  AcceptanceInvariant, CodeChange, DatabaseDecl, DefinerException, DefinerExceptionsSection, LoginRecord,
+  AcceptanceInvariant, CodeChange, DatabaseDecl, DeclaredFunction, DefinerException, DefinerExceptionsSection, GrantDecl, LoginRecord,
   OwnerDecision, OwnerGate, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
-  PolicyDecl, ReferenceModel, RoleDecl, TableDecl, TableRow,
+  NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
 } from './types.ts';
 
 /* ============================================================================================
@@ -898,11 +899,11 @@ const TABLE_ROWS: TableRow[] = [
       + 'public.support_question_messages 20/20; не читается ниоткуда' } },
   { t: 'integrator.schema_migrations', cls: 'T', rls: 'off', why: 'журнал миграций интегратора — миграции '
     + 'применяются повторно или не применяются', rlsWhy: RLS_OFF_MIGRATOR_LEDGER },
-  { t: 'integrator.telegram_state', cls: 'P', org: false, wall: 'platform-role', why: 'состояние Telegram-диалога — '
-    + 'бот теряет шаг диалога и настройки уведомлений', wallWhy: 'после урезания 7 колонок ПДн не остаётся — '
-    + 'остаётся стена своей роли (evidence/15 §12)', pol: 'evidence/15 §12: ОСТАВИТЬ, урезав 7 колонок '
-    + '(username/first_name/last_name + четыре notify_*/is_active) — после урезания таблица перестаёт нести ПДн и '
-    + 'вопрос о стене снимается сам', defect: ['D14-integrator-no-wall'] },
+  { t: 'integrator.telegram_state', cls: 'P', why: 'УСТАРЕЛО/ЗАМЕНЕНО 09.08.2026: '
+    + 'вариант «оставить и урезать» заменён owner-решением удалить legacy state целиком',
+    defect: ['D14-integrator-no-wall'],
+    drop: { verdict: 'DROP', source: 'evidence/41 + migration 20260808_0012: owner decision 09.08.2026; '
+      + 'DEV relation physically dropped without CASCADE after preserving the only meaningful negative signal' } },
   { t: 'integrator.telegram_users', cls: 'P', why: 'легаси-хранилище Telegram-аккаунтов — ничего не ломается — '
     + 'таблица мёртвая', defect: ['D14-integrator-no-wall'],
     drop: { verdict: 'DROP', source: 'evidence/15 §1 — волна 0, 2 строки, единственная таблица, где обе оценки '
@@ -1980,9 +1981,24 @@ const REV10_CONTEXT = {
     integrator_service_relation: { port: 'integrator', runtimeName: 'service',
       sessionRole: 'app_integrator_request', targetRole: 'app_service',
       contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_SERVICE_SOURCES },
-    integrator_migration_ledger_relation: { port: 'integrator', runtimeName: 'migration_ledger',
+    integrator_migration_ledger_read: { port: 'integrator', runtimeName: 'migration_ledger',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
-      purpose: 'relation', runtimeSources: INTEGRATOR_MIGRATION_LEDGER_SOURCES },
+      purpose: 'migration.ledger.read', functionIdentity: 'app.read_integrator_migration_ledger()',
+      runtimeSources: INTEGRATOR_MIGRATION_LEDGER_SOURCES },
+    integrator_idempotency_acquire: { port: 'integrator', runtimeName: 'idempotency_acquire',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
+      purpose: 'integrator.idempotency.acquire', functionIdentity: 'app.try_acquire_integrator_idempotency(text,integer)' },
+    integrator_idempotency_release: { port: 'integrator', runtimeName: 'idempotency_release',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
+      purpose: 'integrator.idempotency.release', functionIdentity: 'app.release_integrator_idempotency(text)' },
+    integrator_data_quality_upsert: { port: 'integrator', runtimeName: 'data_quality_upsert',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
+      purpose: 'integrator.data-quality.upsert',
+      functionIdentity: 'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)' },
+    read_patient_telegram_display_handle: { port: 'webapp', runtimeName: 'read_patient_telegram_display_handle',
+      sessionRole: 'app_staff', targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'messaging.patient-telegram-handle.read',
+      functionIdentity: 'app.read_patient_telegram_display_handle(uuid)' },
     webapp_pre_session_relation: { port: 'webapp', runtimeName: 'pre_session', sessionRole: 'app_staff',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'relation',
       runtimeSources: WEBAPP_PRE_SESSION_SOURCES },
@@ -2037,9 +2053,130 @@ const REV10_CONTEXT = {
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'delivery.appointment-reminder-advance',
       functionIdentity: 'app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)' },
+    get_google_calendar_event_id: { port: 'integrator', runtimeName: 'get_google_calendar_event_id',
+      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'calendar.map.get', functionIdentity: 'app.get_google_calendar_event_id(uuid)' },
+    upsert_google_calendar_event_id: { port: 'integrator', runtimeName: 'upsert_google_calendar_event_id',
+      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'calendar.map.upsert', functionIdentity: 'app.upsert_google_calendar_event_id(uuid,text)' },
+    delete_google_calendar_event_id: { port: 'integrator', runtimeName: 'delete_google_calendar_event_id',
+      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'calendar.map.delete', functionIdentity: 'app.delete_google_calendar_event_id(uuid)' },
+    read_booking_calendar_patient_profile: { port: 'integrator', runtimeName: 'read_booking_calendar_patient_profile',
+      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'calendar.patient-profile.read', functionIdentity: 'app.read_booking_calendar_patient_profile(uuid)' },
+    read_booking_calendar_latest_staff_comment: { port: 'integrator', runtimeName: 'read_booking_calendar_latest_staff_comment',
+      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'calendar.staff-comment.read', functionIdentity: 'app.read_booking_calendar_latest_staff_comment(uuid)' },
+    is_current_patient_self_booking_allowed: { port: 'webapp', runtimeName: 'is_current_patient_self_booking_allowed',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'booking.self.allowed', functionIdentity: 'app.is_current_patient_self_booking_allowed()' },
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.read_integrator_migration_ledger()': rev10Function({
+      owner: 'app_seam_catalog_admin_owner', security: 'DEFINER', returns: 'record', execute: ['app_service'],
+      purpose: 'read the exact integrator startup migration ledger without relation ACL', typedArgs: [],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
+      relationSurfaces: [{ relation: 'integrator.schema_migrations', columns: ['version', 'applied_at'],
+        operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.try_acquire_integrator_idempotency(text,integer)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_service'],
+      purpose: 'atomically acquire exactly one attested integrator idempotency key', typedArgs: ['text', 'integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
+      relationSurfaces: [{ relation: 'integrator.idempotency_keys',
+        columns: ['key', 'request_hash', 'status', 'response_body', 'expires_at'],
+        operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.release_integrator_idempotency(text)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', execute: ['app_service'],
+      purpose: 'release exactly one attested integrator idempotency key', typedArgs: ['text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
+      relationSurfaces: [{ relation: 'integrator.idempotency_keys', columns: ['key'],
+        operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'integer', execute: ['app_service'],
+      purpose: 'upsert only the exact attested data-quality incident tuple',
+      typedArgs: ['text', 'text', 'text', 'text', 'text', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
+      relationSurfaces: [{ relation: 'integrator.integration_data_quality_incidents',
+        columns: ['integration', 'entity', 'external_id', 'field', 'raw_value', 'timezone_used', 'error_reason',
+          'status', 'first_seen_at', 'last_seen_at', 'occurrences'],
+        operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.read_patient_telegram_display_handle(uuid)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'text', execute: ['app_staff'],
+      purpose: 'return one Telegram display handle only for an active patient of the current organization',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_organization_members',
+          columns: ['platform_user_id', 'organization_id', 'status'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings',
+          columns: ['user_id', 'channel_code', 'display_handle'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.get_google_calendar_event_id(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', execute: ['app_tenant_service'],
+      purpose: 'read one Google event id after proving appointment organization', typedArgs: ['uuid'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.booking_calendar_map', columns: ['appointment_key', 'gcal_event_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.upsert_google_calendar_event_id(uuid,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_tenant_service'],
+      purpose: 'atomically upsert calendar mapping and patient-booking mirror after organization proof', typedArgs: ['uuid', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.booking_calendar_map', columns: ['appointment_key', 'gcal_event_id', 'updated_at'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_bookings', columns: ['canonical_appointment_id', 'gcal_event_id', 'updated_at'], operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.delete_google_calendar_event_id(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_tenant_service'],
+      purpose: 'atomically delete calendar mapping and clear patient-booking mirror after organization proof', typedArgs: ['uuid'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.booking_calendar_map', columns: ['appointment_key'], operations: ['DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_bookings', columns: ['canonical_appointment_id', 'gcal_event_id', 'updated_at'], operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_booking_calendar_patient_profile(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_tenant_service'],
+      purpose: 'calendar enrichment returns only the problem flag and note for the appointment patient', typedArgs: ['uuid'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id', 'platform_user_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_booking_profiles', columns: ['organization_id', 'platform_user_id', 'is_problematic', 'problematic_note'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_booking_calendar_latest_staff_comment(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', execute: ['app_tenant_service'],
+      purpose: 'calendar enrichment returns only the latest staff comment body for one appointment', typedArgs: ['uuid'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_staff_comments', columns: ['organization_id', 'appointment_id', 'body', 'created_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.is_current_patient_self_booking_allowed()': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_patient'],
+      purpose: 'return only whether the current patient may self-book, never sensitive profile fields', typedArgs: [],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.be_patient_booking_profiles',
+        columns: ['organization_id', 'platform_user_id', 'booking_blocked'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
     'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
       execute: [], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
@@ -2060,6 +2197,12 @@ const REV10_CONTEXT = {
     'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_pre_session', 'app_seam_identity_lookup_owner'], purpose: 'variant-a-resolve', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app_ext.resolve_variant_a_physical(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_seam_context_owner'],
+      purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
   },
 } as const;
 
@@ -2069,20 +2212,432 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
   (getPhase4LockedPolicyTargets() as LockedPolicyTarget[]).map((target: LockedPolicyTarget) => [target.descriptor.table, target]),
 );
 
-const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user = 'app_integrator_request' THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user = 'app_service' THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
+type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
+
+const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
+  'integrator.projection_outbox': {
+    kind: 'direct', purpose: 'enqueue projections in request transactions and drain them in the dedicated worker',
+    codePaths: ['apps/integrator/src/infra/db/repos/projectionOutbox.ts', 'apps/integrator/src/infra/runtime/worker/projectionWorker.ts'],
+    grants: [
+      { role: 'app_integrator_request', operations: ['INSERT'],
+        columns: ['event_type', 'idempotency_key', 'occurred_at', 'payload'] },
+      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
+        columns: ['status', 'updated_at', 'attempts_done', 'next_try_at', 'last_error'] },
+    ],
+  },
+  'public.app_runtime_settings_audit': {
+    kind: 'direct', purpose: 'platform operators inspect the immutable runtime-setting change ledger',
+    codePaths: ['apps/webapp/src/infra/repos/pgRuntimeSettings.ts'],
+    grants: [{ role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' }],
+  },
+  'public.integration_webhook_error_events': {
+    kind: 'direct', purpose: 'the health worker records and prunes inbound webhook failures',
+    codePaths: ['apps/webapp/src/app-layer/health/runIntegratorPushOutboxHealthGuardTick.ts', 'packages/operator-db-schema/src/integrationWebhook.ts'],
+    grants: [{ role: 'app_worker', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' }],
+  },
+  'public.saas_billing_periods': {
+    kind: 'direct', purpose: 'staff reads the billing-period catalog; platform operations alone maintain it',
+    codePaths: ['apps/webapp/src/infra/repos/pgSaasBilling.ts', 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.system_settings_audit': {
+    kind: 'direct', purpose: 'staff and platform settings changes append and inspect the redacted settings ledger',
+    codePaths: ['apps/webapp/src/infra/repos/pgSystemSettings.ts'],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT', 'INSERT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' },
+    ],
+  },
+};
+
+const REV10_NO_RUNTIME_ACCESS: Record<string, Extract<RelationAccess, { kind: 'no-runtime-surface' }>> = {
+  'public.phone_messenger_bind_secrets': { kind: 'no-runtime-surface', purpose: 'post-zero direct bearer-secret access is intentionally disabled until its replacement is a single exact pre-session named root; no completion role is permitted', evidence: [
+    'OWNER_DECISIONS.md §«Pre-session до опознания человека»: pre-session has named roots only and no tenant/medical relation ACL',
+    'The former direct completion path is not a valid post-zero runtime surface because it depended on the rejected app_phone_bind_completion role.',
+  ] },
+  'app.context_nonce_ledger': { kind: 'no-runtime-surface', purpose: 'obsolete custom signed-context nonce ledger replaced by app_ext accepted transaction contexts', evidence: [
+    'node /home/dev/brain/tools/code-search.mjs "context nonce ledger runtime" --repo bcb: migrations and the retired custom protocol only',
+    'deploy/postgres/port-context/contract.sql uses app_ext.accepted_port_contexts instead',
+  ] },
+  'app.principal_context': { kind: 'no-runtime-surface', purpose: 'obsolete session-row context replaced by transaction-bound app_ext.accepted_port_contexts', evidence: [
+    'node /home/dev/brain/tools/code-search.mjs "principal_context runtime" --repo bcb: legacy migrations/tests only',
+    'deploy/postgres/port-context/contract.sql installs accepted_port_contexts rows',
+  ] },
+  'drizzle.__drizzle_migrations': { kind: 'no-runtime-surface', purpose: 'Drizzle-owned migration ledger is used only by the migration process', evidence: [
+    'apps/webapp runtime source reverse search has no reader/writer',
+    'migration wrapper owns ledger access before runtime cutover',
+  ] },
+  'public.webapp_schema_migrations': { kind: 'no-runtime-surface', purpose: 'legacy webapp migration ledger is not a runtime product surface', evidence: [
+    'node /home/dev/brain/tools/code-search.mjs "webapp_schema_migrations runtime" --repo bcb: migration history only',
+    'runtime readiness uses the declared migration wrapper, not application ACL',
+  ] },
+};
+
+function revision10RelationSeams(tableKey: string, dbName: string): NamedSeamAccess[] {
+  const seams: NamedSeamAccess[] = [];
+  for (const [regprocedure, fn] of Object.entries(REV10_CONTEXT.functions) as Array<[string, DeclaredFunction]>) {
+    if (fn.databases && !fn.databases.includes(dbName)) continue;
+    const surface = fn.relationSurfaces?.find((candidate) => candidate.relation === tableKey);
+    if (!surface) continue;
+    const invocation = fn.invocation ?? 'runtime';
+    seams.push({
+      regprocedure, owner: fn.owner, callers: invocation === 'runtime' ? [...fn.execute] : [], invocation,
+      columns: [...surface.columns], operations: [...surface.operations],
+      purpose: `${fn.purpose}: ${tableKey}`,
+    });
+  }
+  return seams.sort((a, b) => a.regprocedure.localeCompare(b.regprocedure));
+}
+
+function revision10RelationAccess(tableKey: string, dbName: string): RelationAccess {
+  const seams = revision10RelationSeams(tableKey, dbName);
+  const clinical = REV10_CLINICAL_ACCESS[tableKey];
+  if (clinical?.kind === 'direct') return { ...clinical, seams };
+  if (clinical?.kind === 'no-runtime-surface') return clinical;
+  const systemDirect = REV10_SYSTEM_DIRECT_ACCESS[tableKey];
+  if (systemDirect) return { ...systemDirect, seams };
+  const noRuntime = REV10_NO_RUNTIME_ACCESS[tableKey];
+  if (noRuntime) return noRuntime;
+  if (seams.length > 0) return { kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}` };
+  return { kind: 'unresolved', reason: 'no exact direct, seam, or exhaustive no-runtime proof', codePaths: [] };
+}
+
+function revision10TableGrants(access: RelationAccess): Record<string, GrantDecl> {
+  if (access.kind === 'unresolved' || access.kind === 'no-runtime-surface') return {};
+  const byRole = new Map<string, { privs: GrantDecl['privs']; reasons: Set<string> }>();
+  const add = (role: string, operations: readonly Privilege[], columns: 'table' | readonly string[], why: string) => {
+    const row = byRole.get(role) ?? { privs: [], reasons: new Set<string>() };
+    row.reasons.add(why);
+    for (const operation of operations) {
+      const entry = columns === 'table' || operation === 'DELETE'
+        ? operation
+        : { kind: 'columns' as const, priv: operation, columns: [...columns].sort() };
+      const serialized = JSON.stringify(entry);
+      if (!row.privs.some((candidate) => JSON.stringify(candidate) === serialized)) row.privs.push(entry);
+    }
+    byRole.set(role, row);
+  };
+  if (access.kind === 'direct') {
+    for (const grant of access.grants) add(grant.role, grant.operations, grant.columns, access.purpose);
+  }
+  for (const seam of access.kind === 'direct' ? access.seams : access.seams) {
+    add(seam.owner, seam.operations, seam.columns, seam.purpose);
+  }
+  return Object.fromEntries([...byRole.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([role, row]) => [role, {
+    privs: row.privs, why: [...row.reasons].sort().join('; '),
+  }]));
+}
+
+const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
 const REV10_EMPTY_TYPED_ARGS_HASH = "decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex')";
 
-function revision10ContextGate(table: string, index: number): PolicyDecl {
-  const predicate = `app.require_accepted_context(current_user::name, current_user::name, ${REV10_CONTEXT_ROLE_CLASS}, 'relation', ${REV10_EMPTY_TYPED_ARGS_HASH}, NULL::regprocedure)`;
-  return {
-    name: `rev10_context_gate_${index + 1}`,
-    as: 'RESTRICTIVE',
-    cmd: 'ALL',
-    to: [...REV10_RUNTIME],
-    using: predicate,
-    withCheck: predicate,
-    note: `accepted-context validator for ${table}`,
-  };
+function revision10ContextGates(table: string, index: number, access: RelationAccess): PolicyDecl[] {
+  const directRoles = access.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
+  const ordinaryPredicate = `app.require_accepted_context(current_user::name, current_user::name, ${REV10_CONTEXT_ROLE_CLASS}, 'relation', ${REV10_EMPTY_TYPED_ARGS_HASH}, NULL::regprocedure)`;
+  const ordinaryDirectRoles = directRoles;
+  const seams = access.kind === 'direct' || access.kind === 'named-seams' ? access.seams : [];
+  const seamOwners = [...new Set(seams.map((seam) => seam.owner))].sort();
+  const policies: PolicyDecl[] = [];
+  if (ordinaryDirectRoles.length > 0 || access.kind === 'no-runtime-surface' || access.kind === 'unresolved') policies.push({
+    name: `rev10_context_gate_${index + 1}`, as: 'RESTRICTIVE', cmd: 'ALL',
+    to: ordinaryDirectRoles.length > 0 ? ordinaryDirectRoles : [...REV10_RUNTIME],
+    using: ordinaryPredicate, withCheck: ordinaryPredicate,
+    note: `accepted direct relation context for ${table}`,
+  });
+  // Named roots themselves enforce the exact role/purpose/argument tuple before
+  // FORCE RLS. This policy only limits the physical table surface to their exact,
+  // non-login owners; it deliberately does not reconstruct a weaker transcript.
+  if (seamOwners.length > 0) policies.push({
+    name: `rev10_named_root_owner_gate_${index + 1}`, as: 'RESTRICTIVE', cmd: 'ALL',
+    to: seamOwners,
+    using: seamOwners.map((owner) => `current_user = '${owner}'::name`).join(' OR '),
+    withCheck: seamOwners.map((owner) => `current_user = '${owner}'::name`).join(' OR '),
+    note: `exact named roots independently verify the installed accepted context for ${table}`,
+  });
+  return policies;
+}
+
+const REV10_PLATFORM_USER_COLUMN: Record<string, string> = {
+  'public.platform_users': 'id',
+  'public.user_channel_bindings': 'user_id',
+  'public.user_channel_preferences': 'platform_user_id',
+  'public.user_contacts': 'platform_user_id',
+  'public.user_identity': 'platform_user_id',
+  'public.user_notification_topic_channels': 'user_id',
+  'public.user_notification_topics': 'user_id',
+  'public.user_web_push_subscriptions': 'user_id',
+};
+
+/**
+ * Exact tenant-service row walls.  These are deliberately independent from
+ * the staff/patient policies: the integrator tenant port proves one current
+ * organization, then every relation operation must prove D (direct org), M
+ * (active staff OR patient enrollment), or P (an exact current-org parent).
+ */
+const REV10_TENANT_DIRECT_ORG = new Set([
+  'public.be_appointment_staff_comments', 'public.be_appointments', 'public.be_organization_members',
+  'public.be_organizations', 'public.be_package_usages', 'public.be_patient_booking_profiles',
+  'public.be_patient_packages', 'public.be_patient_timeline_events', 'public.be_payment_history_events',
+  'public.be_payment_intents', 'public.be_payments', 'public.broadcast_audit',
+  'public.broadcast_audit_recipients', 'public.content_access_grants_webapp', 'public.doctor_notes',
+  'public.doctor_patient_support', 'public.lfk_complexes', 'public.lfk_sessions', 'public.material_ratings',
+  'public.media_files', 'public.media_upload_sessions', 'public.message_log',
+  'public.notification_delivery_attempts', 'public.online_intake_requests', 'public.org_enrollments',
+  'public.patient_bookings', 'public.patient_content_rating_feedback',
+  'public.patient_daily_warmup_presentations', 'public.patient_daily_warmup_video_views',
+  'public.patient_diary_day_snapshots', 'public.patient_lfk_assignments',
+  'public.patient_practice_completions', 'public.product_analytics_events_recent',
+  'public.platform_user_contacts', 'public.product_analytics_user_hourly', 'public.product_push_notifications',
+  'public.program_action_log',
+  'public.reminder_rules', 'public.specialist_tasks', 'public.support_conversation_messages',
+  'public.support_conversations', 'public.support_delivery_events', 'public.support_question_messages',
+  'public.support_questions', 'public.symptom_entries', 'public.symptom_trackings', 'public.test_attempts',
+  'public.treatment_program_events', 'public.treatment_program_instance_stage_items',
+  'public.treatment_program_instance_stages', 'public.treatment_program_instances',
+  'public.user_phone_history',
+]);
+
+type TenantMembershipReference = { column: string; type: 'uuid' | 'text' };
+
+const REV10_TENANT_MEMBERSHIP_BASE: Record<string, readonly TenantMembershipReference[]> = {
+  'public.platform_users': [{ column: 'id', type: 'uuid' }],
+  'public.user_channel_bindings': [{ column: 'user_id', type: 'uuid' }],
+  'public.user_channel_preferences': [
+    { column: 'user_id', type: 'text' }, { column: 'platform_user_id', type: 'uuid' },
+  ],
+  'public.user_contacts': [{ column: 'platform_user_id', type: 'uuid' }],
+  'public.user_identity': [{ column: 'platform_user_id', type: 'uuid' }],
+  'public.user_notification_topic_channels': [{ column: 'user_id', type: 'uuid' }],
+  'public.user_notification_topics': [{ column: 'user_id', type: 'uuid' }],
+  'public.user_web_push_subscriptions': [{ column: 'user_id', type: 'uuid' }],
+};
+
+const REV10_TENANT_MEMBERSHIP_WRITE: Record<string, Partial<Record<'INSERT' | 'UPDATE', readonly TenantMembershipReference[]>>> = {
+  'public.be_appointment_staff_comments': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.be_appointments': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.be_patient_booking_profiles': {
+    INSERT: [{ column: 'platform_user_id', type: 'uuid' }, { column: 'updated_by', type: 'uuid' }],
+    UPDATE: [{ column: 'updated_by', type: 'uuid' }],
+  },
+  'public.be_patient_packages': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.be_patient_timeline_events': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.be_payment_history_events': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.be_payment_intents': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.be_payments': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.broadcast_audit_recipients': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.content_access_grants_webapp': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.doctor_notes': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.lfk_complexes': { UPDATE: [
+    { column: 'user_id', type: 'text' }, { column: 'platform_user_id', type: 'uuid' },
+  ] },
+  'public.lfk_sessions': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.material_ratings': { INSERT: [{ column: 'user_id', type: 'uuid' }] },
+  'public.media_files': { UPDATE: [{ column: 'uploaded_by', type: 'uuid' }] },
+  'public.media_upload_sessions': { UPDATE: [{ column: 'owner_user_id', type: 'uuid' }] },
+  'public.message_log': { UPDATE: [
+    { column: 'user_id', type: 'text' }, { column: 'platform_user_id', type: 'uuid' },
+  ] },
+  'public.notification_delivery_attempts': { INSERT: [{ column: 'user_id', type: 'uuid' }] },
+  'public.online_intake_requests': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.patient_bookings': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.patient_content_rating_feedback': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.patient_daily_warmup_presentations': { INSERT: [{ column: 'user_id', type: 'uuid' }] },
+  'public.patient_daily_warmup_video_views': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.patient_diary_day_snapshots': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.patient_lfk_assignments': { UPDATE: [{ column: 'patient_user_id', type: 'uuid' }] },
+  'public.patient_practice_completions': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.product_analytics_events_recent': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.product_analytics_user_hourly': { INSERT: [{ column: 'user_id', type: 'uuid' }] },
+  'public.product_push_notifications': { UPDATE: [{ column: 'user_id', type: 'uuid' }] },
+  'public.program_action_log': { UPDATE: [{ column: 'patient_user_id', type: 'uuid' }] },
+  'public.reminder_rules': {
+    INSERT: [{ column: 'platform_user_id', type: 'uuid' }], UPDATE: [{ column: 'platform_user_id', type: 'uuid' }],
+  },
+  'public.specialist_tasks': { INSERT: [{ column: 'owner_user_id', type: 'uuid' }] },
+  'public.support_conversations': {
+    INSERT: [{ column: 'platform_user_id', type: 'uuid' }], UPDATE: [{ column: 'platform_user_id', type: 'uuid' }],
+  },
+  'public.symptom_entries': { UPDATE: [
+    { column: 'user_id', type: 'text' }, { column: 'platform_user_id', type: 'uuid' },
+  ] },
+  'public.symptom_trackings': { UPDATE: [
+    { column: 'user_id', type: 'text' }, { column: 'platform_user_id', type: 'uuid' },
+  ] },
+  'public.test_attempts': { UPDATE: [{ column: 'patient_user_id', type: 'uuid' }] },
+  'public.treatment_program_events': { INSERT: [{ column: 'actor_id', type: 'uuid' }] },
+  'public.treatment_program_instances': { UPDATE: [{ column: 'patient_user_id', type: 'uuid' }] },
+  'public.user_phone_history': {
+    INSERT: [{ column: 'platform_user_id', type: 'uuid' }], UPDATE: [{ column: 'platform_user_id', type: 'uuid' }],
+  },
+};
+
+function revision10TenantOuterColumn(tableKey: string, column: string): string {
+  const relationName = tableKey.split('.')[1];
+  if (!relationName) throw new Error(`invalid qualified tenant relation ${tableKey}`);
+  return `${relationName}.${column}`;
+}
+
+function revision10TenantMemberPredicate(tableKey: string, ref: TenantMembershipReference): string {
+  const outerColumn = revision10TenantOuterColumn(tableKey, ref.column);
+  const staffMatch = ref.type === 'uuid'
+    ? `tenant_staff.platform_user_id = ${outerColumn}`
+    : `tenant_staff.platform_user_id::text = ${outerColumn}`;
+  const patientMatch = ref.type === 'uuid'
+    ? `tenant_patient.platform_user_id = ${outerColumn}`
+    : `tenant_patient.platform_user_id::text = ${outerColumn}`;
+  return `(EXISTS (SELECT 1 FROM public.be_organization_members tenant_staff`
+    + ` WHERE ${staffMatch} AND tenant_staff.organization_id = app.current_org_id()`
+    + ` AND tenant_staff.status = 'active')`
+    + ` OR EXISTS (SELECT 1 FROM public.org_enrollments tenant_patient`
+    + ` WHERE ${patientMatch} AND tenant_patient.organization_id = app.current_org_id()`
+    + ` AND tenant_patient.status = 'active'))`;
+}
+
+function revision10TenantMembershipPredicate(
+  tableKey: string, refs: readonly TenantMembershipReference[], requireReference: boolean,
+): string {
+  const nonNull = refs.map((ref) => `${revision10TenantOuterColumn(tableKey, ref.column)} IS NOT NULL`).join(' OR ');
+  const bounded = refs.map((ref) => {
+    const outerColumn = revision10TenantOuterColumn(tableKey, ref.column);
+    return `(${outerColumn} IS NULL OR ${revision10TenantMemberPredicate(tableKey, ref)})`;
+  }).join(' AND ');
+  return requireReference ? `((${nonNull}) AND ${bounded})` : `(${bounded})`;
+}
+
+function revision10TenantBasePredicate(tableKey: string): string {
+  if (REV10_TENANT_DIRECT_ORG.has(tableKey)) {
+    return tableKey === 'public.be_organizations'
+      ? '(id = app.current_org_id())'
+      : '(organization_id = app.current_org_id())';
+  }
+  const membership = REV10_TENANT_MEMBERSHIP_BASE[tableKey];
+  if (membership) return revision10TenantMembershipPredicate(tableKey, membership, true);
+  if (tableKey === 'public.be_patient_package_items') {
+    return `(EXISTS (SELECT 1 FROM public.be_patient_packages tenant_package`
+      + ` WHERE tenant_package.id = be_patient_package_items.patient_package_id`
+      + ` AND tenant_package.organization_id = app.current_org_id())`
+      + ` AND EXISTS (SELECT 1 FROM public.be_clinic_services tenant_service`
+      + ` WHERE tenant_service.id = be_patient_package_items.service_id`
+      + ` AND tenant_service.organization_id = app.current_org_id()))`;
+  }
+  throw new Error(`missing tenant D/M/P base predicate for ${tableKey}`);
+}
+
+function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSERT' | 'UPDATE'): string | undefined {
+  const nullableParent = (column: string, expression: string) =>
+    `(${revision10TenantOuterColumn(tableKey, column)} IS NULL OR ${expression})`;
+  if (tableKey === 'public.support_conversation_messages') {
+    return `EXISTS (SELECT 1 FROM public.support_conversations tenant_conversation`
+      + ` WHERE tenant_conversation.id = support_conversation_messages.conversation_id`
+      + ` AND tenant_conversation.organization_id = app.current_org_id())`;
+  }
+  if (tableKey === 'public.support_delivery_events' && operation === 'INSERT') {
+    return nullableParent('conversation_message_id', `EXISTS (SELECT 1 FROM public.support_conversation_messages tenant_message`
+      + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_message.conversation_id`
+      + ` WHERE tenant_message.id = support_delivery_events.conversation_message_id`
+      + ` AND tenant_conversation.organization_id = app.current_org_id())`);
+  }
+  if (tableKey === 'public.support_question_messages' && operation === 'INSERT') {
+    return `EXISTS (SELECT 1 FROM public.support_questions tenant_question`
+      + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_question.conversation_id`
+      + ` WHERE tenant_question.id = support_question_messages.question_id`
+      + ` AND tenant_conversation.organization_id = app.current_org_id())`;
+  }
+  if (tableKey === 'public.support_questions') {
+    return nullableParent('conversation_id', `EXISTS (SELECT 1 FROM public.support_conversations tenant_conversation`
+      + ` WHERE tenant_conversation.id = support_questions.conversation_id`
+      + ` AND tenant_conversation.organization_id = app.current_org_id())`);
+  }
+  if (tableKey === 'public.treatment_program_events' && operation === 'INSERT') {
+    return `EXISTS (SELECT 1 FROM public.treatment_program_instances tenant_instance`
+      + ` WHERE tenant_instance.id = treatment_program_events.instance_id`
+      + ` AND tenant_instance.organization_id = app.current_org_id())`;
+  }
+  if (tableKey === 'public.program_action_log' && operation === 'UPDATE') {
+    return `EXISTS (SELECT 1 FROM public.treatment_program_instances tenant_instance`
+      + ` JOIN public.treatment_program_instance_stages tenant_stage ON tenant_stage.instance_id = tenant_instance.id`
+      + ` JOIN public.treatment_program_instance_stage_items tenant_item ON tenant_item.stage_id = tenant_stage.id`
+      + ` WHERE tenant_instance.id = program_action_log.instance_id`
+      + ` AND tenant_item.id = program_action_log.instance_stage_item_id`
+      + ` AND tenant_instance.organization_id = app.current_org_id())`;
+  }
+  if (tableKey === 'public.symptom_entries' && operation === 'UPDATE') {
+    return `EXISTS (SELECT 1 FROM public.symptom_trackings tenant_tracking`
+      + ` WHERE tenant_tracking.id = symptom_entries.tracking_id`
+      + ` AND tenant_tracking.organization_id = app.current_org_id())`;
+  }
+  return undefined;
+}
+
+function revision10TenantPolicies(
+  tableKey: string, index: number, access: Extract<RelationAccess, { kind: 'direct' }>,
+): PolicyDecl[] {
+  const operations = [...new Set(access.grants
+    .filter((grant) => grant.role === 'app_tenant_service')
+    .flatMap((grant) => grant.operations)
+    .filter((operation): operation is 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' =>
+      ['SELECT', 'INSERT', 'UPDATE', 'DELETE'].includes(operation)))].sort();
+  return operations.map((operation) => {
+    const base = revision10TenantBasePredicate(tableKey);
+    const membershipRefs = operation === 'INSERT' || operation === 'UPDATE'
+      ? REV10_TENANT_MEMBERSHIP_WRITE[tableKey]?.[operation]
+      : undefined;
+    const membershipCheck = membershipRefs
+      ? revision10TenantMembershipPredicate(tableKey, membershipRefs, false)
+      : undefined;
+    const parentCheck = operation === 'INSERT' || operation === 'UPDATE'
+      ? revision10TenantParentWritePredicate(tableKey, operation)
+      : undefined;
+    const withCheck = [base, membershipCheck, parentCheck].filter(Boolean).join(' AND ');
+    return {
+      name: `rev10_tenant_${operation.toLowerCase()}_${index + 1}`,
+      as: 'PERMISSIVE', cmd: operation, to: ['app_tenant_service'],
+      ...(operation === 'INSERT' ? {} : { using: base }),
+      ...(operation === 'SELECT' || operation === 'DELETE' ? {} : { withCheck }),
+      note: `exact tenant ${operation} D/M/P wall for ${tableKey}`,
+    };
+  });
+}
+
+const REV10_EXPLICIT_ORG_COLUMN = new Set([
+  'integrator.message_drafts',
+  'public.be_organization_members', 'public.manual_patient_commands', 'public.org_brand_revisions',
+  'public.organization_slug_claims', 'public.organization_slug_rename_events', 'public.patient_bookings',
+  'public.product_analytics_hourly', 'public.saas_billing_accounts', 'public.saas_billing_invoices',
+  'public.saas_billing_provider_events', 'public.saas_billing_refunds', 'public.saas_billing_subscriptions',
+]);
+
+function revision10DirectBusinessPredicate(tableKey: string, access: Extract<RelationAccess, { kind: 'direct' }>): string {
+  const roles = [...new Set(access.grants.map((grant) => grant.role))].sort();
+  const ordinaryRoles = roles.filter((role) => !['app_tenant_service'].includes(role));
+  const rolePredicate = ordinaryRoles.length > 0
+    ? ordinaryRoles.map((role) => `current_user = '${role}'::name`).join(' OR ')
+    : 'false';
+  if (tableKey === 'public.clinical_test_regions') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
+    + ' AND EXISTS (SELECT 1 FROM public.tests parent_test WHERE parent_test.id = clinical_test_id AND parent_test.organization_id = app.current_org_id())'
+    + ' AND EXISTS (SELECT 1 FROM public.reference_items parent_region WHERE parent_region.id = body_region_id AND parent_region.organization_id = app.current_org_id()))';
+  if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
+    + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = app.current_org_id()))';
+  if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = app.current_org_id())";
+  if (tableKey === 'public.be_organizations') return "(current_user = 'app_staff'::name AND id = app.current_org_id())";
+  const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
+  if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
+    + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active'))`;
+  if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = app.current_org_id())`;
+  return `(${rolePredicate})`;
+}
+
+function revision10SeamOwnerPolicy(tableKey: string, index: number, access: RelationAccess): PolicyDecl[] {
+  const seams = access.kind === 'direct' || access.kind === 'named-seams' ? access.seams : [];
+  const owners = [...new Set(seams.map((seam) => seam.owner))].sort();
+  if (owners.length === 0) return [];
+  const predicate = owners.map((owner) => `current_user = '${owner}'::name`).join(' OR ');
+  return [{ name: `rev10_seam_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: owners,
+    using: `(${predicate})`, withCheck: `(${predicate})`, note: `only declared narrow owners may reach ${tableKey}` }];
 }
 
 function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): DatabaseDecl {
@@ -2090,76 +2645,63 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
   const loginNames = Object.keys(REV10_ENV_MAPPING[name === 'bersoncarebot_test' ? 'test' : 'dev']);
   const known = new Set([...Object.keys(REV10_ROLES), ...loginNames, 'pg_database_owner']);
   const tables = Object.fromEntries(Object.entries(legacy.tables).map(([key, table], index) => {
-    const grants = Object.fromEntries(Object.entries(table.grants).filter(([role]) => known.has(role) && role !== 'app_object_owner'));
-    if (key === 'public.be_appointments') {
-      grants.app_staff = { privs: ['SELECT'], why: 'staff appointment list via the declared org-bound RLS branch' };
-      grants.app_patient = { privs: ['SELECT', 'UPDATE'], why: 'patient reads and reschedules only own appointment in own organization' };
-    }
+    const active = table.disposition === 'ACTIVE';
+    const access = active ? revision10RelationAccess(key, name) : undefined;
+    const grants = access ? revision10TableGrants(access) : {};
     const explicitPolicies = (table.policies ?? []).filter((policy): policy is PolicyDecl => !('todo' in policy)
       && policy.to.every((role) => known.has(role) || role === 'PUBLIC'));
-    const active = table.disposition === 'ACTIVE';
-    const contextGate = active ? [revision10ContextGate(key, index)] : [];
+    const contextGates = access ? revision10ContextGates(key, index, access) : [];
     const locked = REV10_LOCKED_POLICIES.get(key);
     const classSafe = (predicate: string) => predicate
       .replaceAll('app.is_staff()', "current_user = 'app_staff'::name")
       .replaceAll('app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()', 'app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND "platform_user_id" = app.current_patient_user_id()')
       .replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()', '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
-    const business: PolicyDecl[] = !active ? [] : locked ? [{
-      name: `rev10_${locked.policyName}`,
-      as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
-      using: classSafe(renderPhase4StrictPredicate(locked.descriptor)),
-      withCheck: classSafe(renderPhase4StrictPredicate(locked.descriptor)),
-      note: `locked descriptor policy for ${key}`,
-    }] : explicitPolicies.length > 0 ? explicitPolicies : [{
-      // No classified visibility was recovered for this surface.  It is intentionally closed,
-      // never widened with a synthetic org predicate or USING (true).
-      name: `rev10_fail_closed_${index + 1}`,
-      as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
-      using: 'false', withCheck: 'false',
-      note: `fail-closed pending an exact specialized business-policy export for ${key}`,
-    }];
-    const access = !active ? undefined : key === 'public.be_appointments'
-      ? { kind: 'direct' as const, purpose: 'staff appointment list and patient-owned reschedule', codePaths: [
-        'apps/webapp/src/modules/appointments/**',
-        'apps/webapp/src/app/api/**/appointments/**',
-      ] }
-      : key === 'public.clinic_dedicated_bot_bindings'
-        ? { kind: 'named-seams' as const, purpose: 'dedicated-bot runtime resolver plus its non-runtime sync trigger', seams: [
-          { regprocedure: 'app.resolve_clinic_dedicated_bot_organization(text,text)',
-            owner: 'app_seam_dedicated_bot_owner', caller: 'app_integrator_resolver', invocation: 'runtime' as const,
-            columns: ['channel', 'organization_id', 'credential_fingerprint', 'is_active'], operations: ['SELECT' as const],
-            purpose: 'resolve one active dedicated-bot binding by channel and credential fingerprint' },
-          { regprocedure: 'app.sync_clinic_dedicated_bot_binding()', owner: 'app_seam_dedicated_bot_owner',
-            invocation: 'trigger' as const, columns: ['channel', 'organization_id', 'credential_fingerprint', 'is_active', 'updated_at'],
-            operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
-            purpose: 'maintain the binding projection as a database trigger; no runtime EXECUTE grantee' },
-        ] }
-      : key === 'public.booking_calendar_map'
-        ? { kind: 'unresolved' as const,
-          reason: 'missing named API: direct integrator calendar-map R/W has no accepted SECURITY DEFINER root',
-          codePaths: ['apps/integrator/src/infra/db/repos/bookingCalendarMap.ts'] }
-      : key === 'public.phone_messenger_bind_secrets'
-        ? { kind: 'unresolved' as const,
-          reason: 'missing named API: bearer-secret R/W has no accepted SECURITY DEFINER root',
-          codePaths: ['apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts'] }
-      : { kind: 'unresolved' as const,
-        reason: 'revision-10 access census has no exact repository/seam proof; deny-by-default is not operability',
-        codePaths: [] };
+    const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
+      'public.be_patient_booking_profiles']).has(key);
+    const directRoles = access?.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
+    const ordinaryDirectRoles = directRoles.filter((role) =>
+      !['app_tenant_service'].includes(role));
+    const directBusiness: PolicyDecl[] = access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
+      name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
+      using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
+      note: `exact direct role business wall for ${key}`,
+    }] : [];
+    const runtimeBusinessBase: PolicyDecl[] = !active ? []
+      : access?.kind === 'direct' && specialized ? directBusiness
+      : access?.kind === 'direct' && locked && ordinaryDirectRoles.length > 0 ? [{
+        name: `rev10_${locked.policyName}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
+        using: classSafe(renderPhase4StrictPredicate(locked.descriptor)),
+        withCheck: classSafe(renderPhase4StrictPredicate(locked.descriptor)), note: `locked descriptor policy for ${key}`,
+      }]
+      : access?.kind === 'direct' && explicitPolicies.length > 0 && ordinaryDirectRoles.length > 0
+        ? explicitPolicies.map((policy) => ({ ...policy, to: ordinaryDirectRoles }))
+      : access?.kind === 'direct' ? directBusiness
+      : [{ name: `rev10_fail_closed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
+          using: 'false', withCheck: 'false', note: `no direct runtime relation surface for ${key}` }];
+    const tenantBusiness = access?.kind === 'direct' && directRoles.includes('app_tenant_service')
+      ? revision10TenantPolicies(key, index, access)
+      : [];
+    const runtimeBusiness = [...runtimeBusinessBase, ...tenantBusiness];
+    const seamBusiness = access ? revision10SeamOwnerPolicy(key, index, access) : [];
     return [key, {
       ...table, owner: 'app_object_owner', rls: table.disposition === 'PENDING_REMOVAL' ? 'n/a' : 'force',
-      grants, policies: [...contextGate, ...explicitPolicies, ...business], access,
+      grantMatrix: undefined, grants, policies: [...contextGates, ...runtimeBusiness, ...seamBusiness], access,
     }];
   }));
+  const schemaUsage = (schema: string) => [...new Set(Object.entries(tables)
+    .filter(([identity]) => identity.startsWith(`${schema}.`))
+    .flatMap(([, table]) => Object.keys(table.grants ?? {})))].sort();
   return {
     ...legacy,
     database: { owner: 'postgres', connect: loginNames, publicConnectTempDefect: false },
     schemas: {
       app: { owner: 'app_object_owner', present: true,
-        usage: [...REV10_RUNTIME, 'app_seam_context_owner', ...loginNames], create: ['app_object_owner'] },
+        usage: [...new Set([...REV10_RUNTIME, ...REV10_SEAM_OWNERS, 'app_seam_context_owner', ...loginNames])].sort(),
+        create: ['app_object_owner'] },
       app_ext: { owner: 'app_object_owner', present: true,
         usage: ['app_seam_context_owner', 'app_seam_identity_lookup_owner'], create: ['app_object_owner'] },
-      public: { owner: 'app_object_owner', present: true, usage: ['app_staff', 'app_patient'], create: ['app_object_owner'] },
-      integrator: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+      public: { owner: 'app_object_owner', present: true, usage: schemaUsage('public'), create: ['app_object_owner'] },
+      integrator: { owner: 'app_object_owner', present: true, usage: schemaUsage('integrator'), create: ['app_object_owner'] },
       drizzle: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
     },
     tables,
@@ -2195,43 +2737,6 @@ export const declaration: PrivilegeDeclaration = {
     roles: REV10_ROLES,
   },
   envMapping: REV10_ENV_MAPPING,
-  zeroState: {
-    // Exact retired identities from evidence/26 §4.  The generator adds every revision-10 role and
-    // env login itself, so this list contains only legacy names and never infers a role by pattern.
-    legacyRoles: [
-      'app_bootstrap_base_c1_20260713021531',
-      'app_config_reader',
-      'app_identity_bootstrap',
-      'app_member',
-      'app_migrator',
-      'app_migration_phase',
-      'app_operational_diagnostic',
-      'app_operational_web_push_reminder',
-      'app_owner',
-      'app_phone_bind_completion',
-      'app_runtime_login_c1_20260713021531',
-      'app_runtime_settings',
-      'app_web_push_reminder_discovery_definer',
-      'bcb_dev',
-      'bcb_dev_runtime_nonstaff_login',
-      'bcb_dev_runtime_staff_login',
-      'bcb_saas_diag_test',
-      'bcb_saas_operator_dev',
-      'bcb_saas_operator_test',
-      'bcb_test_integrator_login',
-      'bcb_test_maintenance_login',
-      'bcb_test_nonstaff_login',
-      'bcb_test_operational_delivery_login',
-      'bcb_test_operational_diagnostic_login',
-      'bcb_test_operational_media_login',
-      'bcb_test_operational_scheduler_login',
-      'bcb_test_operational_web_push_reminder_login',
-      'bcb_test_staff_login',
-      'bcb_test_worker_login',
-      'bcb_webapp_dev_user',
-      'bersoncarebot_test',
-    ],
-  },
   databases: {
     bersoncarebot_test: revision10Database('bersoncarebot_test'),
     bcb_webapp_dev: revision10Database('bcb_webapp_dev'),

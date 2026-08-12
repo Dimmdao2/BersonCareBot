@@ -1,11 +1,12 @@
 import { sql } from 'drizzle-orm';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type {
   IntegrationDataQualityIncidentInput,
   UpsertIntegrationDataQualityIncidentResult,
 } from '../../../shared/integrationDataQuality/types.js';
 import { logger } from '../../observability/logger.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
 /**
  * Upsert by (integration, entity, external_id, field, error_reason).
@@ -16,42 +17,18 @@ export async function upsertIntegrationDataQualityIncident(
   input: IntegrationDataQualityIncidentInput,
 ): Promise<UpsertIntegrationDataQualityIncidentResult> {
   try {
-    const res = await runIntegratorSql<{ occurrences: number }>(
-      db,
-      sql`INSERT INTO integration_data_quality_incidents (
-            integration,
-            entity,
-            external_id,
-            field,
-            raw_value,
-            timezone_used,
-            error_reason,
-            status,
-            first_seen_at,
-            last_seen_at,
-            occurrences
-          )
-          VALUES (
-            ${input.integration},
-            ${input.entity},
-            ${input.externalId},
-            ${input.field},
-            ${input.rawValue},
-            ${input.timezoneUsed},
-            ${input.errorReason},
-            'open',
-            NOW(),
-            NOW(),
-            1
-          )
-          ON CONFLICT (integration, entity, external_id, field, error_reason)
-          DO UPDATE SET
-            last_seen_at = NOW(),
-            occurrences = integration_data_quality_incidents.occurrences + 1,
-            raw_value = COALESCE(EXCLUDED.raw_value, integration_data_quality_incidents.raw_value),
-            timezone_used = COALESCE(EXCLUDED.timezone_used, integration_data_quality_incidents.timezone_used)
-          RETURNING occurrences`,
-    );
+    const args = [input.integration, input.entity, input.externalId, input.field, input.rawValue,
+      input.timezoneUsed, input.errorReason] as const;
+    const res = await runWithDbInfraPrincipal({ source: 'integrator-data-quality' }, () =>
+      runIntegratorNamedRoot<{ occurrences: number }>(
+        db,
+        'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)',
+        args,
+        sql`SELECT app.upsert_integration_data_quality_incident(
+          ${input.integration}, ${input.entity}, ${input.externalId}, ${input.field}, ${input.rawValue},
+          ${input.timezoneUsed}, ${input.errorReason}
+        ) AS occurrences`,
+      ));
     const occurrences = res.rows[0]?.occurrences ?? 1;
     return { occurrences };
   } catch (err) {

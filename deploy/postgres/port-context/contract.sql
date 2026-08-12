@@ -113,9 +113,12 @@ CREATE TABLE IF NOT EXISTS app_ext.port_context_capabilities (
   function_identity regprocedure NULL,
   active_from timestamptz NOT NULL DEFAULT clock_timestamp(),
   active_until timestamptz NULL,
-  CHECK (active_until IS NULL OR active_from < active_until),
-  UNIQUE NULLS NOT DISTINCT (port, session_login, target_role, context_class, purpose, function_identity)
+  CHECK (active_until IS NULL OR active_from < active_until)
 );
+-- Capability IDs, not the descriptive tuple, are authority: multiple audited
+-- relation descriptors may intentionally share the same NULL root tuple.
+ALTER TABLE app_ext.port_context_capabilities
+  DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;
 CREATE TABLE IF NOT EXISTS app_ext.accepted_port_contexts (
   database_oid oid NOT NULL,
   backend_pid integer NOT NULL,

@@ -36,6 +36,7 @@ export type IdentityProjectionInput = {
   email?: string | null;
   channelCode?: string | null;
   externalId?: string | null;
+  displayHandle?: string | null;
 };
 
 export type IdentityProjectionResult = {
@@ -47,6 +48,14 @@ function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const t = value.trim();
   return t.length > 0 ? t : null;
+}
+
+const CHANNEL_DISPLAY_HANDLE_MAX_LENGTH = 32;
+
+function normalizeChannelDisplayHandle(value: string | null | undefined): string | null {
+  const trimmed = trimmedOrNull(value)?.replace(/^@+/, '').trim() ?? '';
+  if (!trimmed) return null;
+  return trimmed.slice(0, CHANNEL_DISPLAY_HANDLE_MAX_LENGTH);
 }
 
 type IdentityMergeRow = {
@@ -319,15 +328,29 @@ export async function upsertChannelBindingForProjection(
   platformUserId: string,
   channelCode: string,
   externalId: string,
+  displayHandle?: string | null,
 ): Promise<boolean> {
+  const normalizedDisplayHandle = normalizeChannelDisplayHandle(displayHandle);
   const res = await runMergeSql<{ user_id: string }>(
     db,
-    sql`INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-     VALUES (${platformUserId}::uuid, ${channelCode}, ${externalId})
+    sql`INSERT INTO user_channel_bindings (user_id, channel_code, external_id, display_handle)
+     VALUES (${platformUserId}::uuid, ${channelCode}, ${externalId}, ${normalizedDisplayHandle})
      ON CONFLICT (channel_code, external_id) DO NOTHING
      RETURNING user_id::text AS user_id`,
   );
-  return res.rows.length > 0;
+  const inserted = res.rows.length > 0;
+  if (!inserted && normalizedDisplayHandle) {
+    await runMergeSql(
+      db,
+      sql`UPDATE user_channel_bindings
+       SET display_handle = ${normalizedDisplayHandle}
+       WHERE user_id = ${platformUserId}::uuid
+         AND channel_code = ${channelCode}
+         AND external_id = ${externalId}
+         AND display_handle IS DISTINCT FROM ${normalizedDisplayHandle}`,
+    );
+  }
+  return inserted;
 }
 
 /** On a genuinely NEW `user_channel_bindings` row, seed `user_channel_preferences` opted-in. */
@@ -370,6 +393,7 @@ export async function upsertIdentityProjection(
   const email = trimmedOrNull(input.email);
   const channelCode = trimmedOrNull(input.channelCode);
   const externalId = trimmedOrNull(input.externalId);
+  const displayHandle = normalizeChannelDisplayHandle(input.displayHandle);
 
   const candidates = await collectIdentityProjectionCandidates(db, {
     integratorUserId: input.integratorUserId,
@@ -411,6 +435,7 @@ export async function upsertIdentityProjection(
       platformUserId,
       channelCode,
       externalId,
+      displayHandle,
     );
     if (channelBindingInserted) {
       await seedChannelPreferencesDefaultsForProjection(db, platformUserId, channelCode, new Date());

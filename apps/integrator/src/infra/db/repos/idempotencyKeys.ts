@@ -1,18 +1,11 @@
 import { sql } from 'drizzle-orm';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { IdempotencyPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
 /** Whitelist: gateway idempotency SQL may only touch this integrator table (static templates). */
 export const GATEWAY_IDEMPOTENCY_ALLOWED_TABLES = ['integrator.idempotency_keys'] as const;
-
-/**
- * Sentinel row for incoming webhook dedup (event gateway). Not an HTTP body hash;
- * keeps NOT NULL columns satisfied when the table matches webapp idempotency shape.
- */
-const GATEWAY_IDEM_REQUEST_HASH = '__integrator_incoming_event__';
-const GATEWAY_IDEM_STATUS = 200;
-const GATEWAY_IDEM_RESPONSE_BODY = '{}';
 
 /** In-memory idempotency port (для тестов). */
 export function createInMemoryIdempotencyPort(): IdempotencyPort {
@@ -35,28 +28,23 @@ export function createInMemoryIdempotencyPort(): IdempotencyPort {
 export function createPostgresIdempotencyPort(db: DbPort): IdempotencyPort {
   return {
     async tryAcquire(key: string, ttlSec: number): Promise<boolean> {
-      const res = await runIntegratorSql<{ key: string }>(
-        db,
-        sql`INSERT INTO integrator.idempotency_keys AS target (key, request_hash, status, response_body, expires_at)
-            VALUES (
-              ${key},
-              ${GATEWAY_IDEM_REQUEST_HASH},
-              ${GATEWAY_IDEM_STATUS},
-              ${GATEWAY_IDEM_RESPONSE_BODY}::jsonb,
-              now() + ${ttlSec} * interval '1 second'
-            )
-            ON CONFLICT (key) DO UPDATE SET
-              expires_at = EXCLUDED.expires_at,
-              request_hash = EXCLUDED.request_hash,
-              status = EXCLUDED.status,
-              response_body = EXCLUDED.response_body
-            WHERE target.expires_at < now()
-            RETURNING key`,
-      );
-      return (res.rowCount ?? 0) > 0;
+      const res = await runWithDbInfraPrincipal({ source: 'integrator-idempotency' }, () =>
+        runIntegratorNamedRoot<{ acquired: boolean }>(
+          db,
+          'app.try_acquire_integrator_idempotency(text,integer)',
+          [key, ttlSec],
+          sql`SELECT app.try_acquire_integrator_idempotency(${key}, ${ttlSec}::integer) AS acquired`,
+        ));
+      return res.rows[0]?.acquired === true;
     },
     async release(key: string): Promise<void> {
-      await runIntegratorSql(db, sql`DELETE FROM integrator.idempotency_keys WHERE key = ${key}`);
+      await runWithDbInfraPrincipal({ source: 'integrator-idempotency' }, () =>
+        runIntegratorNamedRoot(
+          db,
+          'app.release_integrator_idempotency(text)',
+          [key],
+          sql`SELECT app.release_integrator_idempotency(${key})`,
+        ));
     },
   };
 }

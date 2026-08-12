@@ -1,62 +1,43 @@
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
-import { bookingCalendarMap } from '../schema/integratorPublicProduct.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
-export async function getGoogleEventIdByAppointmentKey(
+export async function getGoogleEventIdByAppointmentId(
   db: DbPort,
-  appointmentKey: string,
+  appointmentId: string,
 ): Promise<string | null> {
-  const d = getIntegratorDrizzleSession(db);
-  const rows = await d
-    .select({ gcalEventId: bookingCalendarMap.gcalEventId })
-    .from(bookingCalendarMap)
-    .where(eq(bookingCalendarMap.appointmentKey, appointmentKey))
-    .limit(1);
-  return rows[0]?.gcalEventId ?? null;
+  const result = await runIntegratorNamedRoot<{ gcal_event_id: string | null }>(
+    db,
+    'app.get_google_calendar_event_id(uuid)',
+    [appointmentId],
+    sql`SELECT app.get_google_calendar_event_id(${appointmentId}::uuid) AS gcal_event_id`,
+  );
+  return result.rows[0]?.gcal_event_id ?? null;
 }
 
-export async function upsertBookingCalendarMap(
+export async function upsertBookingCalendarEventId(
   db: DbPort,
-  input: { appointmentKey: string; gcalEventId: string },
+  input: { appointmentId: string; gcalEventId: string },
 ): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d
-    .insert(bookingCalendarMap)
-    .values({
-      appointmentKey: input.appointmentKey,
-      gcalEventId: input.gcalEventId,
-    })
-    .onConflictDoUpdate({
-      target: bookingCalendarMap.appointmentKey,
-      set: {
-        gcalEventId: input.gcalEventId,
-        updatedAt: sql`now()`,
-      },
-    });
-
-  await runIntegratorSql(
+  await runIntegratorNamedRoot(
     db,
-    sql`UPDATE public.patient_bookings
-        SET gcal_event_id = ${input.gcalEventId},
-            updated_at = now()
-      WHERE canonical_appointment_id IS NOT NULL
-        AND ${input.appointmentKey} LIKE 'be:%'
-        AND canonical_appointment_id::text = substring(${input.appointmentKey} from 4)`,
+    'app.upsert_google_calendar_event_id(uuid,text)',
+    [input.appointmentId, input.gcalEventId],
+    sql`SELECT app.upsert_google_calendar_event_id(
+      ${input.appointmentId}::uuid,
+      ${input.gcalEventId}::text
+    )`,
   );
 }
 
-export async function deleteBookingCalendarMap(db: DbPort, appointmentKey: string): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d.delete(bookingCalendarMap).where(eq(bookingCalendarMap.appointmentKey, appointmentKey));
-  await runIntegratorSql(
+export async function deleteBookingCalendarEventId(
+  db: DbPort,
+  appointmentId: string,
+): Promise<void> {
+  await runIntegratorNamedRoot(
     db,
-    sql`UPDATE public.patient_bookings
-        SET gcal_event_id = NULL,
-            updated_at = now()
-      WHERE canonical_appointment_id IS NOT NULL
-        AND ${appointmentKey} LIKE 'be:%'
-        AND canonical_appointment_id::text = substring(${appointmentKey} from 4)`,
+    'app.delete_google_calendar_event_id(uuid)',
+    [appointmentId],
+    sql`SELECT app.delete_google_calendar_event_id(${appointmentId}::uuid)`,
   );
 }

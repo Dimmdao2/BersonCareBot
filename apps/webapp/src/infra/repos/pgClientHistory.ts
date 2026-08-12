@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import {
   beAppointmentStaffComments,
@@ -1115,9 +1116,14 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       return mapProfile(rows[0]!);
     },
 
-    async isBookingBlocked(organizationId, platformUserId) {
-      const profile = await this.getBookingProfile(organizationId, platformUserId);
-      return profile?.bookingBlocked ?? false;
+    async isCurrentPatientSelfBookingAllowed() {
+      const result = await runWebappNamedRoot<{ allowed: boolean }>(
+        getWebappSqlDb(),
+        'app.is_current_patient_self_booking_allowed()',
+        [],
+        sql`SELECT app.is_current_patient_self_booking_allowed() AS allowed`,
+      );
+      return result.rows[0]?.allowed === true;
     },
 
     async listAppointmentComments(organizationId, appointmentId) {

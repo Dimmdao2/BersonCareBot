@@ -4,26 +4,28 @@ import test from 'node:test';
 import { declaration } from './declaration.ts';
 import {
   generatePortContextCapabilitySeedSql,
+  renderEnvSql,
   renderPortContextRuntimeEnv,
   resolvePortContextCapabilities,
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 12,
-  integrator: 13,
+  webapp: 14,
+  integrator: 21,
 };
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 25);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 25);
-  assert.equal(new Set(rows.map((row) => [
+  assert.equal(rows.length, 35);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 35);
+  assert.ok(new Set(rows.map((row) => [
+    row.port,
     row.sessionLogin,
     row.targetRole,
     row.contextClass,
     row.purpose,
-    row.functionIdentity ?? row.runtimeName,
-  ].join('\0'))).size, 25);
+    row.functionIdentity ?? '',
+  ].join('\0'))).size <= rows.length, 'capability IDs remain the authority even when descriptive tuples coincide');
 
   for (const [port, count] of Object.entries(EXPECTED)) {
     const rendered = renderPortContextRuntimeEnv(
@@ -65,15 +67,26 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 10);
-  for (const row of roots) {
+  assert.equal(roots.length, 21);
+  for (const row of rows) {
     assert.match(seed, new RegExp(row.capabilityId));
-    assert.match(seed, new RegExp(row.functionIdentity.replace(/[()]/g, '\\$&')));
+    if (row.functionIdentity) {
+      assert.match(seed, new RegExp(row.functionIdentity.replace(/[()]/g, '\\$&')));
+    }
   }
-  for (const row of rows.filter((candidate) => !candidate.functionIdentity)) {
-    assert.doesNotMatch(seed, new RegExp(row.capabilityId));
-  }
+  assert.equal((seed.match(/NULL::regprocedure/g) ?? []).length, rows.length - roots.length);
   assert.match(seed, /DELETE FROM app_ext\.port_context_capabilities existing/);
+  assert.doesNotMatch(seed, /existing\.function_identity IS NOT NULL/);
+});
+
+test('relation capability mutations are visible to the declaration-owned seed', () => {
+  const mutated = structuredClone(declaration);
+  const descriptor = mutated.portContext.capabilities.integrator_delivery_relation;
+  descriptor.contextClass = 'integrator';
+  const seed = generatePortContextCapabilitySeedSql(mutated, 'bersoncarebot_test');
+  const original = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
+  assert.notEqual(seed, original);
+  assert.match(seed, /'app_operational_delivery_worker'::name, 'integrator'::app\.port_context_class/);
 });
 
 test('capability IDs are stable per database and do not cross environments', () => {
@@ -99,4 +112,12 @@ test('every descriptor target is SET-able by its exact session login', () => {
     () => resolvePortContextCapabilities(unreachable, 'bersoncarebot_test'),
     /bcb_test_webapp_staff must have exactly one SET-able membership in app_worker/,
   );
+});
+
+test('env login render restores app schema usage after the deny-by-default artifact', () => {
+  const sql = renderEnvSql(declaration, 'test', 'bersoncarebot_test');
+  for (const login of ['bcb_test_webapp_staff', 'bcb_test_webapp_patient', 'bcb_test_integrator']) {
+    assert.match(sql, new RegExp(`GRANT USAGE ON SCHEMA "app" TO "${login}";`));
+  }
+  assert.doesNotMatch(sql, /GRANT USAGE ON SCHEMA "app_ext" TO "bcb_test_/);
 });
