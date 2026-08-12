@@ -1563,22 +1563,24 @@ grants до отдельного live DEV zero-state proof и не приним�
 | Поле | Значение |
 |---|---|
 | Метод | **Взгляд + independent PostgreSQL 16.14 fault injection**: HBA exactness, loaded config, TLS material, readiness/rollback |
-| Вердикт | **FAIL — 3 MUST FIX, НЕ К LAND/LIVE APPLY** |
+| Вердикт | **FAIL → ИСПРАВЛЕНО ГРОМКО `3de484cb1` → PASS OFFLINE** |
 
-- **HOST-MTLS-001 — ОТКРЫТО:** `--readiness` смотрит текущий файл через `pg_hba_file_rules`, а не фактически
-  загруженный HBA, и не выполняет connection probes. Незагруженный exact файл + активный broad password-only
-  `trust` дал ложный `readiness PASS`, после чего staff login вошёл без сертификата.
-- **HOST-MTLS-002 — ОТКРЫТО:** apply не проверяет соответствие server certificate/private key и успешную загрузку
-  нового SSL context. Несовпадающая пара дала PostgreSQL `SSL configuration was not reloaded`, но скрипт напечатал
-  `apply PASS`, не откатил файл и оставил будущий restart сломанным.
-- **HOST-MTLS-003 — ОТКРЫТО:** renderer принимает специальные HBA tokens `all`/`sameuser`/`samerole`/`replication`,
-  а validator скрывает второй marked block. Независимые probes получили `hostssl all all ...` и
-  `duplicate_managed_block_accepted=true`.
+- **HOST-MTLS-001 — ИСПРАВЛЕНО ГРОМКО `3de484cb1`:** readiness теперь выполняет три реальные positive и пять
+  negative connection probes и требует свежую запись auth refusal в PostgreSQL journal. Сохранённая инъекция
+  активного `hostssl all all ... trust` делает readiness красным вместо ложного PASS.
+- **HOST-MTLS-002 — ИСПРАВЛЕНО ГРОМКО `3de484cb1`:** preflight проверяет CA/CRL, cert↔key и key mode до записи;
+  apply сверяет реально предъявленный PostgreSQL server certificate после reload. Несовпадающий ключ отвергается,
+  исходные HBA/config остаются побайтно прежними.
+- **HOST-MTLS-003 — ИСПРАВЛЕНО ГРОМКО `3de484cb1`:** renderer запрещает HBA special identifiers, wildcard/role
+  forms и duplicate/nested/malformed managed blocks; unit faults по каждому классу зелёные.
 - Остальной сохранённый oracle зелёный: три mTLS positive, password/wrong-CN/non-TLS/socket/server-impersonation
   negatives, CRL rejection/drain, прежние context/RLS fault classes, `managed_hostssl_rules=6`, role/grant DDL `0`.
 
-Следующий шаг — один fixer по этим трём сохранённым сценариям; новый blind audit не требуется. Live DEV/TEST/PROD
-и host files аудитом не затрагивались.
+Лидер повторил сохранённый oracle на итоговом SHA: `bash -n` обоих shell-файлов, `node --check` обоих renderer
+файлов, `git diff --check 69dcadeb6..3de484cb1` и `pnpm run test:postgres-mtls-host` — PASS; disposable PostgreSQL
+16 отработал mTLS apply/readiness, broad-HBA rejection и все прежние context/RLS fault classes. Live
+DEV/TEST/PROD и host files не затрагивались. PASS разрешает интеграцию offline primitive, но не является live
+host cutover — тот остаётся отдельным атомарным gate вместе с ролями/grants.
 
 ## Completeness gate POSTZERO-ACCESS-R3-2026-08-12 — `4a4dbef6a`
 
@@ -1599,3 +1601,37 @@ grants до отдельного live DEV zero-state proof и не приним�
 
 Следующий ход продолжает тот же stage в той же ветке до исполнения всех трёх пунктов; независимый security audit
 запускается только после этого, чтобы не выдавать заведомо незавершённый checkpoint за кандидата.
+
+## Independent matrix audit POSTZERO-R3-MATRIX-2026-08-12 — `4a4dbef6a` → partial `9f50ae649`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд** по точному SHA: owner-порядок, relation/caller census, role/policy paths; без продуктовых правок |
+| Вердикт | **FAIL — 5 реальных блокеров; 1 исправлен в partial, 4 + E2E остаются открыты** |
+
+- **POSTZERO-MATRIX-001 — ОТКРЫТО, P0:** `4a4dbef6a` удалил `generateZeroStateSql`,
+  `generateZeroStateClusterSql` и обработку `--zero-state*`; флаги молча стали проверять обычные grants. Это стирает
+  уже принятую исполняемую точку ноль и нарушает обязательный порядок. В `9f50ae649` не исправлено.
+- **POSTZERO-MATRIX-002 — ОТКРЫТО, P0 / REL-001:** `integrator.identities`, `integrator.telegram_state`,
+  `public.appointment_records` и другие relations объявлены `PENDING_REMOVAL` с полным revoke, хотя production
+  callers всё ещё читают их (`channelUsers`, admin stats, merge preview). После regrant ломаются routing/phone
+  lookup/preview, а stats местами тихо возвращает ложный ноль. В `9f50ae649` callers/matrix не исправлены.
+- **POSTZERO-MATRIX-003 — ИСПРАВЛЕНО ГРОМКО В PARTIAL `9f50ae649`:** одиннадцать вызываемых named roots ранее
+  существовали только в declaration/callers. Partial добавил конкретные SECURITY DEFINER bodies, каждый через
+  exact `require_accepted_context`; `require_current_seam_context` и phone completion role отсутствуют. Это ещё
+  не PASS слоя без полного installer acceptance.
+- **POSTZERO-MATRIX-004 — ОТКРЫТО, P1:** global-admin health archive вызывается под
+  `app_platform_settings`, но matrix выдаёт `operator_health_failure_archive` только org-scoped `app_staff`.
+  Достижимый результат после cutover — `42501`/500 в global-admin GET.
+- **POSTZERO-MATRIX-005 — ОТКРЫТО, P0 SECURITY:** classification прямо запрещает clinic staff доступ к
+  `system_settings_audit` из-за legacy `old_value_json/new_value_json` с секретами и global rows, но matrix снова
+  выдаёт `app_staff` SELECT+INSERT и policy с `organization_id IS NULL`. Достижимы чтение старого platform secret
+  и запись в глобальный audit ledger.
+- **POSTZERO-MATRIX-006 — ОТКРЫТО:** partial `9f50ae649` добавил local installer, но исполнитель сам подтвердил
+  отсутствие обязательного end-to-end disposable `zero → install → full target` proof с late rollback и drift
+  repair. Его hand-written zero precondition не заменяет bilateral zero verifier и пока не доказан fault injection.
+
+Положительно и должно сохраниться: точный SHA даёт `app_patient_table_grants=0`,
+`app_pre_session_table_grants=0`, positive `BYPASSRLS=0`, по `172` restrictive context policies в каждом generated
+artifact; матрица заметно сузила writes. Следующий fixer использует эти шесть сценариев как сохранённый kill-set и
+заканчивает один stage; новый blind audit до этого не запускается.
