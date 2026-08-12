@@ -32,6 +32,8 @@ const EMPTY_BOOTSTRAP_DATA_MIGRATIONS = new Set([
   '0143_seed_staff_organization_members',
   '0204_promote_legacy_solo_owner_membership',
 ]);
+const EMPTY_BOOTSTRAP_PLATFORM_AUDIT_GRANT_MIGRATION =
+  '0241_platform_operations_audit_health_archive_global_view';
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
@@ -341,6 +343,14 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
       for (const migration of migrations) {
         const journal = journalByWhen.get(migration.folderMillis);
         if (!journal) throw new Error(`migration_journal_entry_missing when=${migration.folderMillis}`);
+        if (journal.tag === EMPTY_BOOTSTRAP_PLATFORM_AUDIT_GRANT_MIGRATION) {
+          // Historical 0241 asserts app_staff grants that came from the pre-migration host
+          // provisioning overlay. Recreate only that prerequisite inside this disposable empty
+          // bootstrap transaction; the subsequent owner-ordered zero removes every legacy grant.
+          await client.query(
+            'GRANT SELECT ON public.admin_audit_log, public.operator_health_failure_archive TO app_staff',
+          );
+        }
         if (EMPTY_BOOTSTRAP_DATA_MIGRATIONS.has(journal.tag)) {
           console.log(`[migrate] empty-bootstrap skipped data-only migration=${journal.tag}`);
         } else {

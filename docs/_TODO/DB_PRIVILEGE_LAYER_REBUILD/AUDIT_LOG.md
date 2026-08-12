@@ -1818,3 +1818,12 @@ cluster rehearsal, не новый документационный мини-с�
   dump/PROD сохраняет stock Drizzle path; deploy включает режим только через явную одноразовую env-команду.
   Независимый взгляд отклонил безусловное включение режима, исправление принято; live empty TEST replay остаётся
   единственным oracle, отдельный source-test не создаётся.
+- **LIVE-EMPTY-GRANT-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** следующий атомарный Drizzle replay прошёл оба
+  пустых data-seed и отказал `P0001` в exact `0241_platform_operations_audit_health_archive_global_view`.
+  Миграция сама выдаёт новые права `app_platform_settings`, но её self-check дополнительно требует historical
+  `app_staff SELECT` на `public.admin_audit_log` и `public.operator_health_failure_archive`; раньше этот grant
+  приходил из host provisioning до миграции и потому отсутствует в greenfield TEST. Explicit `empty-bootstrap`
+  теперь непосредственно перед exact `0241` выдаёт только этот SELECT внутри общей транзакции: дальнейший fail
+  откатывает его вместе со всей Drizzle-chain, ordinary/restored/PROD stock path не изменён, последующий
+  owner-ordered zero удаляет legacy grant. Независимая классификация — **ВЗГЛЯД**, вердикт **PASS**: prerequisite
+  необходим и достаточен, write/schema/function-доступ не добавлен.
