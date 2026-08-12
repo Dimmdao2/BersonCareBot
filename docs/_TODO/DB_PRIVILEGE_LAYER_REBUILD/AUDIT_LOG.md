@@ -1601,3 +1601,37 @@ host cutover — тот остаётся отдельным атомарным g
 
 Следующий ход продолжает тот же stage в той же ветке до исполнения всех трёх пунктов; независимый security audit
 запускается только после этого, чтобы не выдавать заведомо незавершённый checkpoint за кандидата.
+
+## Independent matrix audit POSTZERO-R3-MATRIX-2026-08-12 — `4a4dbef6a` → partial `9f50ae649`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд** по точному SHA: owner-порядок, relation/caller census, role/policy paths; без продуктовых правок |
+| Вердикт | **FAIL — 5 реальных блокеров; 1 исправлен в partial, 4 + E2E остаются открыты** |
+
+- **POSTZERO-MATRIX-001 — ОТКРЫТО, P0:** `4a4dbef6a` удалил `generateZeroStateSql`,
+  `generateZeroStateClusterSql` и обработку `--zero-state*`; флаги молча стали проверять обычные grants. Это стирает
+  уже принятую исполняемую точку ноль и нарушает обязательный порядок. В `9f50ae649` не исправлено.
+- **POSTZERO-MATRIX-002 — ОТКРЫТО, P0 / REL-001:** `integrator.identities`, `integrator.telegram_state`,
+  `public.appointment_records` и другие relations объявлены `PENDING_REMOVAL` с полным revoke, хотя production
+  callers всё ещё читают их (`channelUsers`, admin stats, merge preview). После regrant ломаются routing/phone
+  lookup/preview, а stats местами тихо возвращает ложный ноль. В `9f50ae649` callers/matrix не исправлены.
+- **POSTZERO-MATRIX-003 — ИСПРАВЛЕНО ГРОМКО В PARTIAL `9f50ae649`:** одиннадцать вызываемых named roots ранее
+  существовали только в declaration/callers. Partial добавил конкретные SECURITY DEFINER bodies, каждый через
+  exact `require_accepted_context`; `require_current_seam_context` и phone completion role отсутствуют. Это ещё
+  не PASS слоя без полного installer acceptance.
+- **POSTZERO-MATRIX-004 — ОТКРЫТО, P1:** global-admin health archive вызывается под
+  `app_platform_settings`, но matrix выдаёт `operator_health_failure_archive` только org-scoped `app_staff`.
+  Достижимый результат после cutover — `42501`/500 в global-admin GET.
+- **POSTZERO-MATRIX-005 — ОТКРЫТО, P0 SECURITY:** classification прямо запрещает clinic staff доступ к
+  `system_settings_audit` из-за legacy `old_value_json/new_value_json` с секретами и global rows, но matrix снова
+  выдаёт `app_staff` SELECT+INSERT и policy с `organization_id IS NULL`. Достижимы чтение старого platform secret
+  и запись в глобальный audit ledger.
+- **POSTZERO-MATRIX-006 — ОТКРЫТО:** partial `9f50ae649` добавил local installer, но исполнитель сам подтвердил
+  отсутствие обязательного end-to-end disposable `zero → install → full target` proof с late rollback и drift
+  repair. Его hand-written zero precondition не заменяет bilateral zero verifier и пока не доказан fault injection.
+
+Положительно и должно сохраниться: точный SHA даёт `app_patient_table_grants=0`,
+`app_pre_session_table_grants=0`, positive `BYPASSRLS=0`, по `172` restrictive context policies в каждом generated
+artifact; матрица заметно сузила writes. Следующий fixer использует эти шесть сценариев как сохранённый kill-set и
+заканчивает один stage; новый blind audit до этого не запускается.
