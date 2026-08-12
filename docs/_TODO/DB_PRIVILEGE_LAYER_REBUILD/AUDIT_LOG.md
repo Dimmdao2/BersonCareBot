@@ -1852,3 +1852,11 @@ cluster rehearsal, не новый документационный мини-с�
   `current_user=bersoncarebot_test`, а explicit `SET ROLE postgres` даёт exact schema grant, возврат в
   `bersoncarebot_test` работает, `ROLLBACK` снимает grant. Runner теперь использует обнаруженный и escaped
   `administrativeRole` вместо `RESET ROLE`, затем возвращает escaped `migrationRole` и проверяет право fail-closed.
+- **LIVE-EMPTY-EXTENSION-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** replay прошёл `0261` и атомарно отказал
+  `3F000` в exact `0274_password_login_atomic_admission_altcha`; системный PostgreSQL-журнал назвал отсутствующую
+  схему `app_ext`. Исторический host bootstrap устанавливал `pgcrypto` в `app_ext` до Drizzle, а greenfield TEST
+  этой подложки не имел. Explicit `empty-bootstrap` теперь в начале общей транзакции создаёт `app_ext`, ставит
+  `pgcrypto WITH SCHEMA app_ext`, даёт `app_owner` только schema `USAGE` и fail-closed проверяет exact extension
+  namespace, `digest(text,text)` и `gen_random_bytes(integer)`. Откатываемый live PostgreSQL 16 probe с теми же
+  временными правами доказал create/use и полный rollback схемы, extension и grant; ordinary/restored/PROD path
+  не изменён, последующий owner-zero заменяет временные ownership/grants целевыми.

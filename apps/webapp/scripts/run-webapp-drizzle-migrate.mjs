@@ -350,6 +350,31 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
     const journalByWhen = new Map(journalEntries.map((entry) => [entry.when, entry]));
     await client.query('BEGIN');
     try {
+      // Historical host bootstrap installed pgcrypto in app_ext before Drizzle. Recreate that
+      // foundation inside this empty-bootstrap transaction so every migration sees the same
+      // extension namespace; owner-zero later replaces its temporary ownership and grants.
+      await client.query('CREATE SCHEMA IF NOT EXISTS app_ext');
+      await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA app_ext');
+      await client.query('GRANT USAGE ON SCHEMA app_ext TO app_owner');
+      const pgcrypto = await client.query(`
+        SELECT
+          extension_schema.nspname = 'app_ext' AS schema_ok,
+          has_schema_privilege('app_owner', 'app_ext', 'USAGE') AS owner_usage_ok,
+          to_regprocedure('app_ext.digest(text,text)') IS NOT NULL AS digest_ok,
+          to_regprocedure('app_ext.gen_random_bytes(integer)') IS NOT NULL AS random_ok
+        FROM pg_extension AS extension
+        JOIN pg_namespace AS extension_schema ON extension_schema.oid = extension.extnamespace
+        WHERE extension.extname = 'pgcrypto'
+      `);
+      if (
+        pgcrypto.rowCount !== 1 ||
+        pgcrypto.rows[0]?.schema_ok !== true ||
+        pgcrypto.rows[0]?.owner_usage_ok !== true ||
+        pgcrypto.rows[0]?.digest_ok !== true ||
+        pgcrypto.rows[0]?.random_ok !== true
+      ) {
+        throw new Error('empty_bootstrap_pgcrypto_foundation_invalid');
+      }
       for (const migration of migrations) {
         const journal = journalByWhen.get(migration.folderMillis);
         if (!journal) throw new Error(`migration_journal_entry_missing when=${migration.folderMillis}`);
