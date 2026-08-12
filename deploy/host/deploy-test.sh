@@ -242,6 +242,7 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS
   sudo -u postgres env \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
     PGOPTIONS="-c role=$DBROLE" \
+    WEBAPP_DRIZZLE_MIGRATIONS_MODE="${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}" \
     pnpm --dir apps/webapp run migrate
   sudo -u postgres env \
     NODE_ENV=production \

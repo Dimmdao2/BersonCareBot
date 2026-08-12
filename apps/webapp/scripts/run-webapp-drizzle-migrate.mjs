@@ -27,6 +27,11 @@ const D30_ONLINE_INDEX_ARTIFACT = path.join(
 );
 const D30_ONLINE_INDEX_VARIABLE = 'D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX';
 const TRANSACTION_FORBIDDEN_CONCURRENT_INDEX = /\b(?:CREATE(?:\s+UNIQUE)?|DROP)\s+INDEX\s+CONCURRENTLY\b/iu;
+const EMPTY_BOOTSTRAP_MODE = 'empty-bootstrap';
+const EMPTY_BOOTSTRAP_DATA_MIGRATIONS = new Set([
+  '0143_seed_staff_organization_members',
+  '0204_promote_legacy_solo_owner_membership',
+]);
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
@@ -304,6 +309,58 @@ export function renderStructuredMigrationFailureDiagnostic(error, migrations, jo
   return `[migrate] failure migration=${identity?.tag ?? 'unknown'} idx=${identity?.idx ?? 'unknown'} reason=${diagnostic.reason} sqlstate=${diagnostic.sqlstate ?? 'unknown'}`;
 }
 
+async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
+  const client = await pool.connect();
+  try {
+    await client.query('CREATE SCHEMA IF NOT EXISTS drizzle');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+        id serial PRIMARY KEY,
+        hash text NOT NULL,
+        created_at bigint
+      )
+    `);
+    const state = await client.query(`
+      SELECT
+        (SELECT count(*)::integer FROM drizzle.__drizzle_migrations) AS ledger_count,
+        (SELECT count(*)::integer FROM public.platform_users) AS platform_user_count,
+        (SELECT count(*)::integer FROM public.appointment_records) AS appointment_count
+    `);
+    const row = state.rows[0];
+    if (
+      row?.ledger_count !== 0 ||
+      row?.platform_user_count !== 0 ||
+      row?.appointment_count !== 0
+    ) {
+      throw new Error('empty_bootstrap_requires_empty_test_data_and_drizzle_ledger');
+    }
+
+    const journalByWhen = new Map(journalEntries.map((entry) => [entry.when, entry]));
+    await client.query('BEGIN');
+    try {
+      for (const migration of migrations) {
+        const journal = journalByWhen.get(migration.folderMillis);
+        if (!journal) throw new Error(`migration_journal_entry_missing when=${migration.folderMillis}`);
+        if (EMPTY_BOOTSTRAP_DATA_MIGRATIONS.has(journal.tag)) {
+          console.log(`[migrate] empty-bootstrap skipped data-only migration=${journal.tag}`);
+        } else {
+          for (const statement of migration.sql) await client.query(statement);
+        }
+        await client.query(
+          'INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)',
+          [migration.hash, migration.folderMillis],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    }
+  } finally {
+    client.release();
+  }
+}
+
 if (process.argv.includes('--self-test')) {
   const sample = [
     'PostgresError: must be member of role app_owner',
@@ -491,7 +548,11 @@ const reconciliations = readMigrationReconciliations(migrationsFolder, journalEn
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 try {
-  await migrate(drizzle(pool), { migrationsFolder });
+  if (process.env.WEBAPP_DRIZZLE_MIGRATIONS_MODE?.trim() === EMPTY_BOOTSTRAP_MODE) {
+    await migrateEmptyBootstrap(pool, migrations, journalEntries);
+  } else {
+    await migrate(drizzle(pool), { migrationsFolder });
+  }
   const ledgerResult = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
   const completeness = inspectMigrationLedgerCompleteness({
     migrations,

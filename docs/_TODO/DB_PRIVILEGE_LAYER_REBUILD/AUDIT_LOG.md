@@ -1809,3 +1809,12 @@ cluster rehearsal, не новый документационный мини-с�
   ledger: поскольку TEST пуст и его downtime разрешён, перед повтором база пересоздаётся из `template0`, `PUBLIC`
   закрывается, затем выполняется полный live replay с нуля. Итоговый oracle — наличие объектов в правильных схемах
   и прохождение прежнего места отказа; отдельный source/unit-тест не создаётся.
+- **LIVE-EMPTY-SEED-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** после завершения первой integrator-фазы Drizzle
+  атомарно отказал `P0001` в `0143_seed_staff_organization_members`: этот исторический data-seed требует ровно
+  одного существующего врача, его specialist и appointment, тогда как одноразовый TEST намеренно пуст.
+  Исторический SQL/hash не переписывается. В Drizzle runner добавлен явный `empty-bootstrap`: только при одновременно
+  пустых `drizzle` ledger, `platform_users` и `appointment_records` он выполняет остальную original SQL-chain одной
+  транзакцией, а exact data-only `0143` и `0204` отмечает original hash/time без исполнения. Обычный TEST/restored
+  dump/PROD сохраняет stock Drizzle path; deploy включает режим только через явную одноразовую env-команду.
+  Независимый взгляд отклонил безусловное включение режима, исправление принято; live empty TEST replay остаётся
+  единственным oracle, отдельный source-test не создаётся.
