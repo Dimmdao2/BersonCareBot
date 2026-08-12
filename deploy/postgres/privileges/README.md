@@ -31,6 +31,12 @@ application roles. Они не выдают новых прав и не подк
 такого импорта TypeScript нужен `allowImportingTsExtensions` — он объявлен в
 `deploy/postgres/privileges/tsconfig.json`.
 
+## Production callsite census
+
+`node deploy/postgres/privileges/generate-cli.mjs --census` сверяет ACTIVE relation с production callsites,
+исключая тесты, миграции, scripts и docs. Он отклоняет живой caller у `no-runtime-surface`, direct access без
+production caller и relation-grant вне объявленной role × operation matrix. Это дополнительный gate к `--gaps`.
+
 ## Решения владельца 2026-08-08 (нормативны; в файле — `OWNER_DECISIONS`)
 
 | # | Решение | Дата | Где в файле |
