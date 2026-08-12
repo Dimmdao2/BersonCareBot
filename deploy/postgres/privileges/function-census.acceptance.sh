@@ -63,7 +63,14 @@ expect_generated_red() {
 }
 
 proof_database() {
-  local db=$1 expected_definers=$2
+  local db=$1 expected_definers
+  expected_definers=$(DECLARED_DB="$db" node --experimental-strip-types --input-type=module <<'JS'
+import { declaration } from './deploy/postgres/privileges/declaration.ts';
+const db = process.env.DECLARED_DB;
+console.log(Object.values(declaration.portContext.functions)
+  .filter((fn) => fn.security === 'DEFINER' && (!fn.databases || fn.databases.includes(db))).length);
+JS
+)
   local sql_file="$work_dir/$db.functions.sql"
   "$pg_bin/createdb" -h "$socket_dir" -U postgres "$db"
   node --experimental-strip-types "$repo_root/deploy/postgres/privileges/fixtures/production-catalog.mjs" "$db" \
@@ -85,10 +92,7 @@ proof_database() {
     psql_db "$clone" -c "$mutation" >/dev/null
     expect_red "$db" "$clone" "$label"
     case "$label" in
-      extra_public)
-        expect_generated_red "$clone" "$label" "$sql_file"
-        ;;
-      rogue_login_execute|owner_as_member|member_of_owner)
+      extra_public|rogue_login_execute|owner_as_member|member_of_owner)
         psql_db "$clone" -1 -f "$sql_file" >/dev/null
         verify "$db" "$clone"
         printf 'repair %s/%s: generated reconciliation restored the exact catalog\n' "$db" "$label"
@@ -113,6 +117,6 @@ FAULTS
 }
 
 cd "$repo_root"
-proof_database bersoncarebot_test 247
-proof_database bcb_webapp_dev 234
-echo 'function census: PASS (disposable PostgreSQL 16; TEST 247, DEV 234, old 244 replaced only in rev10 context lane)'
+proof_database bersoncarebot_test
+proof_database bcb_webapp_dev
+echo 'function census: PASS (disposable PostgreSQL 16; declaration-derived exact definer census and twelve red mutations)'

@@ -486,6 +486,8 @@ export interface PrivilegeDeclaration {
     roles: Record<string, RoleDecl>;
   };
   envMapping: Record<string, Record<string, LoginRecord>>;
+  /** Exact retired application identities removed by owner-ordered zero before install. */
+  zeroState?: { legacyRoles: readonly string[] };
   databases: Record<string, DatabaseDecl>;
   /** Revision-10 transaction-context surface, separate from ordinary relation ACLs. */
   portContext?: {

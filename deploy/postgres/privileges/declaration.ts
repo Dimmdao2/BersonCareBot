@@ -2765,6 +2765,7 @@ export const declaration: PrivilegeDeclaration = {
     envs: ['test', 'dev'], // TEST + dev на одном общем PG16 :5432 (SCHEME §A); прод вне скоупа
     roles: REV10_ROLES,
   },
+  zeroState: { legacyRoles: ['app_owner', 'bersoncarebot_test', 'bcb_webapp_dev_user'] },
   envMapping: REV10_ENV_MAPPING,
   databases: {
     bersoncarebot_test: revision10Database('bersoncarebot_test'),

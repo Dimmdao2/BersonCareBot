@@ -1,4 +1,4 @@
--- Declaration-owned production port-context capabilities: exact replace for managed logins.
+-- Declaration-owned production port-context capabilities: exact replacement of the whole DB-local catalog.
 CREATE TEMP TABLE bcb_declared_port_context_capabilities ON COMMIT DROP AS
 SELECT * FROM (VALUES
   ('c131c089-33a1-5ced-bd44-8dc85b500d11'::uuid, 'integrator'::app.port_name, 'bcb_dev_integrator'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.appointment-reminder-advance', 'app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)'::regprocedure),
@@ -37,10 +37,9 @@ SELECT * FROM (VALUES
   ('9e7ebb15-1ba4-5e7d-b56f-99c4483da3d0'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'saas_telemetry_operator'::name, 'service'::app.port_context_class, 'relation', NULL::regprocedure),
   ('64d96f6e-cdd7-5e02-bf02-74d298852f71'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_worker'::name, 'service'::app.port_context_class, 'relation', NULL::regprocedure)
 ) AS v(capability_id, port, session_login, target_role, context_class, purpose, function_identity);
-DELETE FROM app_ext.port_context_capabilities existing
- WHERE existing.session_login = ANY (ARRAY['bcb_dev_integrator', 'bcb_dev_webapp_patient', 'bcb_dev_webapp_staff']::name[])
-   AND NOT EXISTS (SELECT 1 FROM bcb_declared_port_context_capabilities declared
-                   WHERE declared.capability_id = existing.capability_id);
+-- Cutover services are stopped. Transaction-bound accepted contexts must not survive a reseed.
+DELETE FROM app_ext.accepted_port_contexts;
+DELETE FROM app_ext.port_context_capabilities;
 INSERT INTO app_ext.port_context_capabilities
   (capability_id, port, session_login, target_role, context_class, purpose, function_identity)
 SELECT capability_id, port, session_login, target_role, context_class, purpose, function_identity
@@ -48,7 +47,7 @@ SELECT capability_id, port, session_login, target_role, context_class, purpose, 
 ON CONFLICT (capability_id) DO UPDATE SET
   port = EXCLUDED.port, session_login = EXCLUDED.session_login, target_role = EXCLUDED.target_role,
   context_class = EXCLUDED.context_class, purpose = EXCLUDED.purpose,
-  function_identity = EXCLUDED.function_identity, active_until = NULL;
+  function_identity = EXCLUDED.function_identity, active_from = clock_timestamp(), active_until = NULL;
 ALTER TABLE app_ext.port_context_capabilities
   DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;
 ALTER TABLE app_ext.port_context_capabilities

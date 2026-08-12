@@ -28,11 +28,14 @@ import {
   DeclarationGapError,
   collectGaps,
   generateOrgAllowlistSql,
+  generateEnvLoginShellSql,
+  generateEnvironmentVerifierSql,
   generatePortContextCapabilitySeedSql,
   generatePortContextCapabilityVerifierSql,
   generatePrivilegesSql,
   generateZeroStateClusterSql,
   generateZeroStateSql,
+  generateZeroStateVerifierSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
 } from './generate.mjs';
@@ -46,7 +49,8 @@ function parseArgs(argv) {
   const args = { flags: new Set(), values: new Map() };
   const knownFlags = new Set([
     'all', 'check', 'gaps', 'stdout', 'no-allowlist', 'port-context-only',
-    'port-context-verify', 'zero-state', 'zero-state-cluster',
+    'port-context-verify', 'zero-state', 'zero-state-cluster', 'zero-state-verify',
+    'env-login-shells', 'env-verify',
   ]);
   const knownValues = new Set(['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env']);
   for (let i = 0; i < argv.length; i += 1) {
@@ -171,6 +175,12 @@ async function main() {
     return;
   }
 
+  if (args.flags.has('zero-state-verify')) {
+    if (dbNames.length !== 1) throw new Error('--zero-state-verify требует --db');
+    process.stdout.write(generateZeroStateVerifierSql(declaration, dbNames[0]));
+    return;
+  }
+
   if (args.flags.has('gaps')) {
     const total = reportGaps(declaration, dbNames);
     process.exit(total === 0 ? 0 : 2);
@@ -179,6 +189,14 @@ async function main() {
   if (args.values.has('env')) {
     const env = args.values.get('env');
     if (!args.values.has('db')) throw new Error('--env требует --db');
+    if (args.flags.has('env-login-shells')) {
+      process.stdout.write(generateEnvLoginShellSql(declaration, env, args.values.get('db')));
+      return;
+    }
+    if (args.flags.has('env-verify')) {
+      process.stdout.write(generateEnvironmentVerifierSql(declaration, env, args.values.get('db')));
+      return;
+    }
     if (args.values.has('port-context-env')) {
       const rendered = renderPortContextRuntimeEnv(
         declaration,

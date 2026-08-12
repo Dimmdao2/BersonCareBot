@@ -4,6 +4,18 @@
 
 CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS app_ext;
+-- Declaration-owned wall metadata is a closed admin surface; the generated
+-- allowlist is applied later in this same transaction.
+CREATE SCHEMA IF NOT EXISTS app_control;
+CREATE TABLE IF NOT EXISTS app_control.org_table_allowlist (
+  schema_name name NOT NULL,
+  table_name name NOT NULL,
+  PRIMARY KEY (schema_name, table_name)
+);
+REVOKE ALL ON SCHEMA app_control FROM PUBLIC;
+REVOKE ALL ON TABLE app_control.org_table_allowlist FROM PUBLIC;
+ALTER TABLE app_control.org_table_allowlist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_control.org_table_allowlist FORCE ROW LEVEL SECURITY;
 
 DO $$ BEGIN CREATE TYPE app.port_name AS ENUM ('webapp', 'integrator'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TYPE app.port_context_class AS ENUM ('pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -450,11 +462,16 @@ GRANT EXECUTE ON FUNCTION app.named_service_root() TO app_service;
 
 -- Two tenant rows, one platform row and one service row are representative
 -- managed surfaces.  Each is FORCE RLS and has a separate restrictive gate.
-SET ROLE app_object_owner;
+RESET ROLE;
 CREATE TABLE IF NOT EXISTS app.demo_context_records (organization_id uuid NOT NULL, note text NOT NULL);
 CREATE TABLE IF NOT EXISTS app.platform_context_records (note text NOT NULL);
 CREATE TABLE IF NOT EXISTS app.service_context_records (note text NOT NULL);
 CREATE TABLE IF NOT EXISTS app.context_gate_probe (note text NOT NULL);
+ALTER TABLE app.demo_context_records OWNER TO app_object_owner;
+ALTER TABLE app.platform_context_records OWNER TO app_object_owner;
+ALTER TABLE app.service_context_records OWNER TO app_object_owner;
+ALTER TABLE app.context_gate_probe OWNER TO app_object_owner;
+SET ROLE app_object_owner;
 ALTER TABLE app.demo_context_records ENABLE ROW LEVEL SECURITY; ALTER TABLE app.demo_context_records FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.platform_context_records ENABLE ROW LEVEL SECURITY; ALTER TABLE app.platform_context_records FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.service_context_records ENABLE ROW LEVEL SECURITY; ALTER TABLE app.service_context_records FORCE ROW LEVEL SECURITY;
