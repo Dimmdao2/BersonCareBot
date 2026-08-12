@@ -1751,3 +1751,8 @@ cluster rehearsal, не новый документационный мини-с�
   `CONNECTION LIMIT 0 → terminate sessions → zero sessions`; PROD ordinary TEST route не трогает; старая closure,
   возвращавшая operational logins, поддерживаемым маршрутом не вызывается. `bash -n`, `shellcheck -S error`,
   `git diff --check` — PASS. Это только pre-live gate; реальный TEST и PostgreSQL journal ещё не приняты.
+- **LIVE-PREFLIGHT-001 — ИСПРАВЛЕНО ГРОМКО:** первый реальный запуск `deploy-test.sh` завершился до остановки
+  writers и любых DB/HBA/env writes: legacy C2 preflight читал `root:deploy 0640` env от `dev`, а после исправления
+  пользователя закономерно отклонил исходный media-worker `DATABASE_URL`, который утверждённый port-context
+  bootstrap должен удалить. Для одноразового перехода старый source-state gate заменён exact read-only target
+  renderer `bootstrap-c4-test-env.mjs --port-context-check`; на реальном TEST env он печатает PASS без записи.
