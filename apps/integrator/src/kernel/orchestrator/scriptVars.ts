@@ -17,12 +17,6 @@ export function buildScriptInterpolationVars(input: {
   const eventPayload = isRecord(input.event.payload) ? input.event.payload : {};
   const normalizedInput = isRecord(eventPayload.incoming) ? eventPayload.incoming : eventPayload;
   const facts = isRecord(input.context.facts) ? input.context.facts : {};
-  const ctx = input.context as Record<string, unknown>;
-  const conversationState = isTruthyString(normalizedInput.userState)
-    ? normalizedInput.userState
-    : isTruthyString(ctx.conversationState)
-      ? ctx.conversationState
-      : undefined;
   const actor = {
     ...(isRecord(input.context.actor) ? input.context.actor : {}),
     ...(typeof normalizedInput.channelUserId === 'number' ||
@@ -36,11 +30,9 @@ export function buildScriptInterpolationVars(input: {
     ...(typeof normalizedInput.channelUsername === 'string'
       ? { username: normalizedInput.channelUsername }
       : {}),
-    ...(conversationState ? { userState: conversationState } : {}),
   };
   const context = {
     ...input.context,
-    ...(conversationState ? { conversationState } : {}),
     ...(typeof normalizedInput.hasLinkedPhone === 'boolean'
       ? { linkedPhone: normalizedInput.hasLinkedPhone }
       : {}),

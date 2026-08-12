@@ -18,7 +18,6 @@ import type {
 } from '../contracts/index.js';
 import type { SupportRelayPolicy } from '../domain/executor/helpers.js';
 import { executeDomainAction, processAcceptedIncomingEvent } from '../domain/index.js';
-import { MESSENGER_START_SPECIAL_ACTIONS } from '../orchestrator/messengerStartConstants.js';
 
 export type IncomingEventPipelineDeps = {
   readPort: DbReadPort;
@@ -43,12 +42,6 @@ export type IncomingEventPipelineDeps = {
   /** Optional: resolve delivery targets for multi-channel booking fan-out. */
   deliveryTargetsPort?: DeliveryTargetsPort;
   remindersWebappWritesPort?: RemindersWebappWritesPort;
-  /**
-   * Как `tryConsumeStart` в `channelUsers`: не обрабатывать повторный «голый» /start чаще чем раз в
-   * `TELEGRAM_START_DEBOUNCE_SECONDS` (два разных `update_id`; gateway по fingerprint это не режет).
-   * Deep link (`start.link`, `start.phoneauth`, …) не дедуплицируется здесь.
-   */
-  telegramStartDedup?: (telegramUserId: number) => Promise<boolean>;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -102,41 +95,12 @@ async function ensureResolvedActor(
   });
 }
 
-/**
- * Для прод-оркестратора: раньше антидубликат /start был только в legacy `handleMessage` (`tryConsumeStart`),
- * сценарии из scripts.json его обходили → двойное нажатие «Start» давало два приветствия (разные `update_id`).
- */
-async function allowTelegramStartThroughDedup(
-  event: IncomingEvent,
-  dedup: ((telegramUserId: number) => Promise<boolean>) | undefined,
-): Promise<boolean> {
-  if (!dedup) return true;
-  if (event.meta.source !== 'telegram' || event.type !== 'message.received') return true;
-  const incoming = asRecord(event.payload.incoming);
-  if (!incoming) return true;
-  const text = typeof incoming.text === 'string' ? incoming.text.trim() : '';
-  if (!text.startsWith('/start')) return true;
-  const action = typeof incoming.action === 'string' ? incoming.action.trim() : '';
-  if (action && MESSENGER_START_SPECIAL_ACTIONS.has(action)) return true;
-  const rawId =
-    asNumberString(incoming.channelUserId) ??
-    asString(incoming.channelId) ??
-    asString(event.meta.userId);
-  const telegramUserId = rawId ? Number(rawId) : NaN;
-  if (!Number.isFinite(telegramUserId)) return true;
-  return dedup(telegramUserId);
-}
-
 export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
   run: (event: IncomingEvent) => Promise<void>;
 } {
   return {
     async run(event: IncomingEvent): Promise<void> {
       await ensureResolvedActor(event, deps.actorResolutionPort);
-      const allowStart = await allowTelegramStartThroughDedup(event, deps.telegramStartDedup);
-      if (!allowStart) {
-        return;
-      }
       await processAcceptedIncomingEvent(event, {
         readPort: deps.readPort,
         ...(deps.db ? { db: deps.db } : {}),

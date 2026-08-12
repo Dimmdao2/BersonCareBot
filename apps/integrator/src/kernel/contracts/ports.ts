@@ -40,7 +40,6 @@ export type DbReadQueryType =
 export type DbWriteMutationType =
   | 'identity.ensure'
   | 'user.upsert'
-  | 'user.state.set'
   | 'user.phone.link'
   | 'draft.upsert'
   | 'draft.cancel'

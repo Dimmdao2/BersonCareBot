@@ -105,8 +105,6 @@ describe('D21a: reminders.skip.applyPreset records skip in one step, no reason a
 
     expect(result.status).toBe('success');
     expect(deps.mutations).toEqual([]);
-    expect(deps.mutations.some((m) => m.type === 'user.state.set')).toBe(false);
-    expect(result.values?.conversationState).toBeUndefined();
     expect(deps.skipCalls).toEqual([{ occurrenceId, reason: null }]);
     // Confirmation is sent in the same result — pressing skip is exactly one action, not a prompt.
     expect(
@@ -115,8 +113,8 @@ describe('D21a: reminders.skip.applyPreset records skip in one step, no reason a
   });
 });
 
-describe('D21a: no dead skip-reason state can swallow the next message', () => {
-  it('relays a message sent while conversationState carries a stale waiting_skip_reason value', async () => {
+describe('D21a: the message after a one-step skip remains an ordinary message', () => {
+  it('relays the next message without any stored dialogue state', async () => {
     const ctx: DomainContext = {
       event: {
         type: 'message.received',
@@ -134,8 +132,6 @@ describe('D21a: no dead skip-reason state can swallow the next message', () => {
         actor: { isAdmin: false },
         identityLinks: [],
         facts: { adminChatId: 9001 },
-        // Legacy value a stale row could still carry; the state itself is never written anymore (D21a).
-        conversationState: `waiting_skip_reason:${occurrenceId}`,
       },
     };
     const readPort: DbReadPort = {

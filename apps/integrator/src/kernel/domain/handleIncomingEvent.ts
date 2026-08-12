@@ -103,7 +103,6 @@ function extractFacts(event: IncomingEvent): Record<string, unknown> {
 }
 
 type ReadUserContext = {
-  userState?: unknown;
   phoneNormalized?: unknown;
 };
 
@@ -125,7 +124,6 @@ async function loadUserContext(
 ): Promise<
   Pick<
     BaseContext,
-    | 'conversationState'
     | 'linkedPhone'
     | 'phoneNormalized'
     | 'hasActiveDraft'
@@ -135,9 +133,6 @@ async function loadUserContext(
     | 'hasOpenConversation'
     | 'activeConversationId'
     | 'activeConversationStatus'
-    | 'replyMode'
-    | 'replyConversationId'
-    | 'programNoteStageItemId'
   >
 > {
   if (!readPort) return {};
@@ -196,7 +191,6 @@ async function loadUserContext(
 
   const result: Pick<
     BaseContext,
-    | 'conversationState'
     | 'linkedPhone'
     | 'phoneNormalized'
     | 'hasActiveDraft'
@@ -206,9 +200,6 @@ async function loadUserContext(
     | 'hasOpenConversation'
     | 'activeConversationId'
     | 'activeConversationStatus'
-    | 'replyMode'
-    | 'replyConversationId'
-    | 'programNoteStageItemId'
   > = {};
 
   if (!user || typeof user !== 'object') {
@@ -245,33 +236,13 @@ async function loadUserContext(
     result.linkedPhone = false;
     return result;
   }
-  const conversationState =
-    typeof user.userState === 'string' && user.userState.trim().length > 0
-      ? user.userState
-      : undefined;
   const phoneNormalized =
     typeof user.phoneNormalized === 'string' && user.phoneNormalized.trim().length > 0
       ? user.phoneNormalized.trim()
       : undefined;
   const linkedPhone = !!phoneNormalized;
-  if (conversationState) result.conversationState = conversationState;
   result.linkedPhone = linkedPhone;
   if (phoneNormalized) result.phoneNormalized = phoneNormalized;
-
-  if (conversationState?.startsWith('admin_reply:')) {
-    let replyConversationId = conversationState.slice('admin_reply:'.length).trim();
-    let programNoteStageItemId: string | undefined;
-    const pnIdx = replyConversationId.indexOf('#pn:');
-    if (pnIdx >= 0) {
-      programNoteStageItemId = replyConversationId.slice(pnIdx + 4).trim() || undefined;
-      replyConversationId = replyConversationId.slice(0, pnIdx).trim();
-    }
-    if (replyConversationId) {
-      result.replyMode = true;
-      result.replyConversationId = replyConversationId;
-      if (programNoteStageItemId) result.programNoteStageItemId = programNoteStageItemId;
-    }
-  }
 
   if (draft && typeof draft === 'object') {
     const draftState =

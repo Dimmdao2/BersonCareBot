@@ -5,11 +5,6 @@
     "event": "message.received",
     "priority": 10,
     "match": {
-      "context": {
-        "conversationState": {
-          "$notStartsWith": ["await_phoneauth:", "await_contact:"]
-        }
-      },
       "input": {
         "phonePresent": true
       }
@@ -61,366 +56,6 @@
     ]
   },
   {
-    "id": "max.start.phoneauth",
-    "source": "max",
-    "event": "message.received",
-    "priority": 56,
-    "match": {
-      "input": {
-        "action": "start.phoneauth"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_phoneauth:{{input.authSecret}}"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:phoneAuthWelcome",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.contact.phoneauth",
-    "source": "max",
-    "event": "message.received",
-    "priority": 54,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        }
-      },
-      "input": {
-        "phonePresent": true
-      }
-    },
-    "steps": [
-      {
-        "action": "webapp.phoneMessengerBind.complete",
-        "mode": "sync",
-        "params": {
-          "channelCode": "max",
-          "externalId": "{{meta.userId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.contact.link.confirm",
-    "source": "max",
-    "event": "message.received",
-    "priority": 54,
-    "match": {
-      "context": {
-        "conversationState": "await_contact:subscription"
-      },
-      "input": {
-        "phonePresent": true
-      }
-    },
-    "steps": [
-      {
-        "action": "user.phone.link",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "phoneNormalized": "{{input.phone}}"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:afterPhoneLinked",
-          "menu": "main",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.contact.link.cancel",
-    "source": "max",
-    "event": "message.received",
-    "priority": 55,
-    "match": {
-      "context": {
-        "conversationState": "await_contact:subscription"
-      },
-      "input": {
-        "action": "phone.request.cancel"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:confirmPhoneForBooking",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.contact.link.remind",
-    "source": "max",
-    "event": "message.received",
-    "priority": 53,
-    "match": {
-      "context": {
-        "conversationState": "await_contact:subscription"
-      },
-      "input": {
-        "phonePresent": false
-      }
-    },
-    "steps": [
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:confirmPhoneForBooking",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.phoneauth.cancel.linked",
-    "source": "max",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": true
-      },
-      "input": {
-        "action": "phone.request.cancel"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:chooseMenu",
-          "menu": "main",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.phoneauth.cancel.unlinked",
-    "source": "max",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": false
-      },
-      "input": {
-        "action": "phone.request.cancel"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:phoneAuthCancelled",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.phoneauth.cancel.text.linked",
-    "source": "max",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": true
-      },
-      "input": {
-        "text": "Отмена"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:chooseMenu",
-          "menu": "main",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.phoneauth.cancel.text.unlinked",
-    "source": "max",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": false
-      },
-      "input": {
-        "text": "Отмена"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:phoneAuthCancelled",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
     "id": "max.start.onboarding",
     "source": "max",
     "event": "message.received",
@@ -430,26 +65,13 @@
         "text": {
           "$startsWith": "/start"
         },
-        "excludeActions": [
-          "start.link",
-          "start.noticeme",
-          "start.phoneauth",
-          "start.set"
-        ]
+        "excludeActions": ["start.link", "start.noticeme", "start.phoneauth", "start.set"]
       },
       "context": {
         "linkedPhone": false
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
       {
         "action": "message.send",
         "mode": "async",
@@ -483,26 +105,13 @@
         "text": {
           "$startsWith": "/start"
         },
-        "excludeActions": [
-          "start.link",
-          "start.noticeme",
-          "start.phoneauth",
-          "start.set"
-        ]
+        "excludeActions": ["start.link", "start.noticeme", "start.phoneauth", "start.set"]
       },
       "context": {
         "linkedPhone": true
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
       {
         "action": "message.inlineKeyboard.show",
         "mode": "async",
@@ -571,14 +180,6 @@
     },
     "steps": [
       {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
-      {
         "action": "message.send",
         "mode": "async",
         "params": {
@@ -615,14 +216,6 @@
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
       {
         "action": "message.send",
         "mode": "async",
@@ -711,7 +304,7 @@
       }
     ]
   },
-    {
+  {
     "id": "max.booking.menu",
     "source": "max",
     "event": "callback.received",
@@ -724,14 +317,6 @@
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
       {
         "action": "message.edit",
         "mode": "async",
@@ -837,14 +422,6 @@
     },
     "steps": [
       {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
         "action": "message.edit",
         "mode": "async",
         "params": {
@@ -935,7 +512,7 @@
       }
     ]
   },
-    {
+  {
     "id": "max.bookings.show",
     "source": "max",
     "event": "callback.received",
@@ -1048,7 +625,7 @@
       }
     ]
   },
-    {
+  {
     "id": "max.info.prepare",
     "source": "max",
     "event": "callback.received",
@@ -1160,7 +737,7 @@
       }
     ]
   },
-    {
+  {
     "id": "max.more.menu",
     "source": "max",
     "event": "message.received",
@@ -1217,177 +794,6 @@
             "maxAttempts": 1
           },
           "templateKey": "max:notImplemented"
-        }
-      }
-    ]
-  },
-    {
-    "id": "max.draft.replace",
-    "source": "max",
-    "event": "message.received",
-    "match": {
-      "actor": {
-        "isAdmin": false
-      },
-      "context": {
-        "hasActiveDraft": true,
-        "conversationState": {
-          "$notIn": []
-        }
-      },
-      "input": {
-        "textPresent": true,
-        "excludeActions": [
-          "booking.open",
-          "nav.webapp.menu",
-          "menu.more",
-          "cabinet.open",
-          "start.link",
-          "start.noticeme",
-          "start.phoneauth",
-          "start.set",
-          "phone.request.cancel"
-        ],
-        "excludeTexts": ["/start", "/book", "/menu", "Отмена", "Вернуться в меню"],
-        "excludeTextPrefixes": ["/start"]
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.replaceFromMessage",
-        "mode": "sync",
-        "params": {
-          "source": "max"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:confirmQuestion",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "text": "Да",
-                "callbackData": "q_confirm:yes"
-              },
-              {
-                "text": "Нет",
-                "callbackData": "q_confirm:no"
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.draft.send",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "context": {
-        "hasActiveDraft": true
-      },
-      "input": {
-        "action": "q_confirm:yes"
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.send",
-        "mode": "sync",
-        "params": {
-          "source": "max",
-          "adminTemplateKey": "max:adminForward"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "message": {},
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "templateKey": "max:questionAccepted"
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.q_confirm.no",
-    "source": "max",
-    "event": "callback.received",
-    "priority": 20,
-    "match": {
-      "context": {
-        "hasActiveDraft": true
-      },
-      "input": {
-        "action": "q_confirm:no"
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.cancel",
-        "mode": "sync",
-        "params": {
-          "source": "max"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "message": {},
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "templateKey": "max:questionCancelled"
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
         }
       }
     ]
@@ -1582,70 +988,6 @@
           "chatId": "{{actor.chatId}}",
           "messageId": "{{input.messageId}}",
           "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.default",
-    "source": "max",
-    "event": "message.received",
-    "match": {
-      "actor": {
-        "isAdmin": false
-      },
-      "context": {
-        "conversationState": {
-          "$notIn": []
-        }
-      },
-      "input": {
-        "textPresent": true,
-        "excludeActions": [
-          "booking.open",
-          "nav.webapp.menu",
-          "menu.more",
-          "cabinet.open",
-          "start.link",
-          "start.noticeme",
-          "start.phoneauth",
-          "start.set",
-          "phone.request.cancel"
-        ],
-        "excludeTexts": ["/start", "/book", "/menu", "Отмена", "Вернуться в меню"],
-        "excludeTextPrefixes": ["/start"]
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.upsertFromMessage",
-        "mode": "sync",
-        "params": {
-          "source": "max"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:confirmQuestion",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "text": "Да",
-                "callbackData": "q_confirm:yes"
-              },
-              {
-                "text": "Нет",
-                "callbackData": "q_confirm:no"
-              }
-            ]
-          ]
         }
       }
     ]

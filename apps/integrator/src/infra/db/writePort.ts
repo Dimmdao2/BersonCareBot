@@ -12,7 +12,6 @@ import { appSettings } from '../../config/appSettings.js';
 import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
-import { setUserState } from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
   applyMessengerPhonePublicBind,
@@ -207,7 +206,6 @@ export function createDbWritePort(
     createPostgresJobQueue({ db, retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds });
   const plainMutationsRequiringPrincipalTx: ReadonlySet<DbWriteMutationType> = new Set([
     'event.log',
-    'user.state.set',
     'draft.upsert',
     'draft.cancel',
     'identity.ensure',
@@ -307,14 +305,6 @@ export function createDbWritePort(
             }
             throw err;
           }
-          return;
-        }
-        case 'user.state.set': {
-          const resource = readResource(mutation.params);
-          if (resource !== 'telegram' && resource !== 'max') return;
-          const channelUserId = readChannelUserId(mutation.params);
-          if (!channelUserId) return;
-          await setUserState(db, channelUserId, asNullableString(mutation.params.state), resource);
           return;
         }
         case 'user.phone.link': {

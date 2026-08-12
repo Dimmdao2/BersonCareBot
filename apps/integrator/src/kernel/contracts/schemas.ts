@@ -41,7 +41,6 @@ const baseContextSchema = z.object({
         .optional(),
     })
     .optional(),
-  conversationState: z.string().min(1).optional(),
   linkedPhone: z.boolean().optional(),
   phoneNormalized: z.string().min(1).optional(),
   hasActiveDraft: z.boolean().optional(),
@@ -51,9 +50,6 @@ const baseContextSchema = z.object({
   hasOpenConversation: z.boolean().optional(),
   activeConversationId: z.string().min(1).optional(),
   activeConversationStatus: z.string().min(1).optional(),
-  replyMode: z.boolean().optional(),
-  replyConversationId: z.string().min(1).optional(),
-  programNoteStageItemId: z.string().uuid().optional(),
 });
 
 /** Валидация входящего события pipeline. */
@@ -216,7 +212,6 @@ export const dbWriteMutationSchema = z.object({
   type: z.enum([
     'identity.ensure',
     'user.upsert',
-    'user.state.set',
     'user.phone.link',
     'draft.upsert',
     'draft.cancel',

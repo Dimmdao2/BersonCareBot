@@ -306,12 +306,8 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   if (text.startsWith('/start')) return null;
   if (action && MESSENGER_START_SPECIAL_ACTIONS.has(action)) return null;
 
-  const conv = input.context.conversationState;
-  if (typeof conv === 'string' && conv.startsWith('await_contact:')) return null;
-
   if (isTruthyString(inc.phone) || isTruthyString(inc.contactPhone)) return null;
   if (input.context.hasActiveDraft === true) return null;
-  if (conv === 'waiting_for_question') return null;
   if (isTruthyString(inc.relayMessageType)) return null;
 
   if (!effectiveAction || !MESSAGE_MENU_ACTIONS_NEED_PHONE.has(effectiveAction)) return null;
@@ -319,14 +315,6 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   const scriptSteps: ScriptStep[] =
     source === 'max'
       ? [
-          {
-            action: 'user.state.set',
-            mode: 'sync',
-            params: {
-              channelUserId: '{{actor.channelUserId}}',
-              state: 'await_contact:subscription',
-            },
-          },
           {
             action: 'message.send',
             mode: 'async',
@@ -341,14 +329,6 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
           },
         ]
       : [
-          {
-            action: 'user.state.set',
-            mode: 'sync',
-            params: {
-              channelUserId: '{{actor.channelUserId}}',
-              state: 'await_contact:subscription',
-            },
-          },
           {
             action: 'message.replyKeyboard.show',
             mode: 'async',
@@ -387,14 +367,6 @@ function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): Orchestrato
     source === 'max'
       ? [
           {
-            action: 'user.state.set',
-            mode: 'sync',
-            params: {
-              channelUserId: '{{actor.channelUserId}}',
-              state: 'await_contact:subscription',
-            },
-          },
-          {
             action: 'message.send',
             mode: 'async',
             params: {
@@ -414,14 +386,6 @@ function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): Orchestrato
         ]
       : source === 'telegram'
         ? [
-            {
-              action: 'user.state.set',
-              mode: 'sync',
-              params: {
-                channelUserId: '{{actor.channelUserId}}',
-                state: 'await_contact:subscription',
-              },
-            },
             {
               action: 'message.replyKeyboard.show',
               mode: 'async',

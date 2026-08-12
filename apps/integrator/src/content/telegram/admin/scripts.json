@@ -5,17 +5,26 @@
     "event": "message.received",
     "priority": 10,
     "match": {
-      "input": { "text": "/start" },
-      "actor": { "isAdmin": true }
+      "input": {
+        "text": "/start"
+      },
+      "actor": {
+        "isAdmin": true
+      }
     },
     "steps": [
       {
         "action": "message.send",
         "mode": "async",
         "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
+          "recipient": {
+            "chatId": "{{actor.chatId}}"
+          },
           "templateKey": "telegram:admin.menu.hint",
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          }
         }
       }
     ]
@@ -26,20 +35,29 @@
     "event": "message.received",
     "priority": 100,
     "match": {
-      "input": { "action": "debug.show_my_id" },
-      "actor": { "isAdmin": true }
+      "input": {
+        "action": "debug.show_my_id"
+      },
+      "actor": {
+        "isAdmin": true
+      }
     },
     "steps": [
       {
         "action": "message.send",
         "mode": "async",
         "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
+          "recipient": {
+            "chatId": "{{actor.chatId}}"
+          },
           "templateKey": "telegram:showMyId",
           "vars": {
             "channelId": "{{actor.channelUserId}}"
           },
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          }
         }
       }
     ]
@@ -50,14 +68,20 @@
     "event": "message.received",
     "priority": 10,
     "match": {
-      "input": { "action": "admin.stats.bookings" },
-      "actor": { "isAdmin": true }
+      "input": {
+        "action": "admin.stats.bookings"
+      },
+      "actor": {
+        "isAdmin": true
+      }
     },
     "conditions": [
       {
         "kind": "context.query",
         "name": "adminStats",
-        "query": { "type": "admin.stats" }
+        "query": {
+          "type": "admin.stats"
+        }
       }
     ],
     "steps": [
@@ -65,12 +89,17 @@
         "action": "message.send",
         "mode": "async",
         "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
+          "recipient": {
+            "chatId": "{{actor.chatId}}"
+          },
           "templateKey": "telegram:admin.stats.bookings",
           "vars": {
             "activeBookings": "{{queries.adminStats.activeBookings}}"
           },
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          }
         }
       }
     ]
@@ -81,14 +110,20 @@
     "event": "message.received",
     "priority": 10,
     "match": {
-      "input": { "action": "admin.stats.users" },
-      "actor": { "isAdmin": true }
+      "input": {
+        "action": "admin.stats.users"
+      },
+      "actor": {
+        "isAdmin": true
+      }
     },
     "conditions": [
       {
         "kind": "context.query",
         "name": "adminStats",
-        "query": { "type": "admin.stats" }
+        "query": {
+          "type": "admin.stats"
+        }
       }
     ],
     "steps": [
@@ -96,143 +131,18 @@
         "action": "message.send",
         "mode": "async",
         "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
+          "recipient": {
+            "chatId": "{{actor.chatId}}"
+          },
           "templateKey": "telegram:admin.stats.users",
           "vars": {
             "telegramTotal": "{{queries.adminStats.userCountsByIntegration.telegram.total}}",
             "telegramWithPhone": "{{queries.adminStats.userCountsByIntegration.telegram.withPhone}}"
           },
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.admin.reply.start",
-    "source": "telegram",
-    "event": "callback.received",
-    "priority": 10,
-    "match": {
-      "input": { "action": "admin_reply" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "admin_reply:{{input.conversationId}}"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
-          "templateKey": "telegram:admin.reply.prompt",
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.admin.reply.continue",
-    "source": "telegram",
-    "event": "callback.received",
-    "priority": 10,
-    "match": {
-      "input": { "action": "admin_reply_continue" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "admin_reply:{{input.conversationId}}"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
-          "templateKey": "telegram:admin.reply.prompt",
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.admin.reply.message",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 10,
-    "match": {
-      "context": { "replyMode": true },
-      "input": {
-        "relayContentPresent": true,
-        "excludeActions": ["admin.stats.bookings", "admin.stats.users"],
-        "excludeTexts": ["/start"]
-      },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "conversation.admin.reply",
-        "mode": "sync",
-        "params": {
-          "conversationId": "{{context.replyConversationId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.admin.dialog.close",
-    "source": "telegram",
-    "event": "callback.received",
-    "priority": 10,
-    "match": {
-      "input": { "action": "admin_close_dialog" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "conversation.close",
-        "mode": "sync",
-        "params": {
-          "conversationId": "{{input.conversationId}}"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          }
         }
       }
     ]
@@ -243,8 +153,12 @@
     "event": "message.received",
     "priority": 20,
     "match": {
-      "input": { "action": "start.link" },
-      "actor": { "isAdmin": true }
+      "input": {
+        "action": "start.link"
+      },
+      "actor": {
+        "isAdmin": true
+      }
     },
     "steps": [
       {
@@ -259,47 +173,14 @@
     ]
   },
   {
-    "id": "telegram.admin.programNote.reply.start",
-    "source": "telegram",
-    "event": "callback.received",
-    "priority": 15,
-    "match": {
-      "input": { "action": "program_reply" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "webapp.programNote.replyBegin",
-        "mode": "sync",
-        "params": {
-          "stageItemId": "{{input.stageItemId}}"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
-          "templateKey": "telegram:admin.reply.prompt",
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
     "id": "telegram.admin.message.unmatched",
     "source": "telegram",
     "event": "message.received",
     "priority": 2,
     "match": {
-      "actor": { "isAdmin": true },
+      "actor": {
+        "isAdmin": true
+      },
       "input": {
         "relayContentPresent": true,
         "excludeActions": [
@@ -316,9 +197,14 @@
         "action": "message.send",
         "mode": "async",
         "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
+          "recipient": {
+            "chatId": "{{actor.chatId}}"
+          },
           "templateKey": "telegram:admin.reply.hintUnmatched",
-          "delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          }
         }
       }
     ]

@@ -140,15 +140,6 @@ function phoneMessengerBindCompleteFailureTemplateKey(
   return `${source}:phoneAuthFailed`;
 }
 
-function parsePhoneAuthSetupToken(ctx: DomainContext): string | null {
-  const state =
-    typeof ctx.base.conversationState === 'string' ? ctx.base.conversationState.trim() : '';
-  const prefix = 'await_phoneauth:';
-  if (!state.startsWith(prefix)) return null;
-  const token = state.slice(prefix.length).trim();
-  return /^auth_[A-Za-z0-9_-]+$/.test(token) ? token : null;
-}
-
 function resolveChannelLinkFailureChatId(
   ctx: DomainContext,
   externalId: string,
@@ -382,7 +373,7 @@ export async function executeAction(
 
     case 'webapp.phoneMessengerBind.complete': {
       const port = deps.webappEventsPort;
-      const setupToken = asString(action.params.setupToken) ?? parsePhoneAuthSetupToken(ctx);
+      const setupToken = asString(action.params.setupToken);
       const channelCode = asString(action.params.channelCode) ?? ctx.event.meta.source;
       const externalId = asString(action.params.externalId) ?? ctx.event.meta.userId;
       const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
@@ -475,14 +466,6 @@ export async function executeAction(
           channelUserId: externalId,
           phoneNormalized,
           ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
-        },
-      });
-      syncWrites.push({
-        type: 'user.state.set',
-        params: {
-          resource: messengerChannel,
-          channelUserId: externalId,
-          state: 'idle',
         },
       });
 
@@ -711,21 +694,6 @@ export async function executeAction(
           abortPlan: true,
         };
       }
-      const channelUserId = readMessengerChannelUserId(ctx, action);
-      const resource = ctx.event.meta.source;
-      const writes: DbWriteMutation[] = [];
-      if (deps.writePort && channelUserId && (resource === 'telegram' || resource === 'max')) {
-        const stateWrite: DbWriteMutation = {
-          type: 'user.state.set',
-          params: {
-            resource,
-            channelUserId,
-            state: result.programNoteReplyState,
-          },
-        };
-        await persistWrites(deps.writePort, [stateWrite]);
-        writes.push(stateWrite);
-      }
       return {
         actionId: action.id,
         status: 'success',
@@ -733,7 +701,6 @@ export async function executeAction(
           programNoteReply: { ok: true },
           programNoteReplyState: result.programNoteReplyState,
         },
-        ...(writes.length > 0 ? { writes } : {}),
       };
     }
 
@@ -822,10 +789,6 @@ export async function executeAction(
                 : {}),
             },
           });
-          syncWrites.push({
-            type: 'user.state.set',
-            params: { resource: 'telegram', channelUserId: externalId, state: 'idle' },
-          });
         } else if (messengerChannel === 'max') {
           syncWrites.push({
             type: 'user.phone.link',
@@ -842,8 +805,7 @@ export async function executeAction(
       }
       const appliedChannelLinkWrites: DbWriteMutation[] = [];
       let phoneLinkSyncFailure:
-        | { error: string; phoneLinkReason?: PhoneLinkFailureReason }
-        | undefined;
+        { error: string; phoneLinkReason?: PhoneLinkFailureReason } | undefined;
       if (syncWrites.length > 0 && fullDeps.writePort) {
         for (const write of syncWrites) {
           const meta = await fullDeps.writePort.writeDb(write);
@@ -1120,32 +1082,6 @@ export async function executeAction(
         },
       ];
       return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'user.state.set': {
-      const stateRaw = action.params.state;
-      const stateStr = typeof stateRaw === 'string' ? stateRaw.trim() : '';
-      if (!stateStr) {
-        return { actionId: action.id, status: 'skipped', error: 'USER_STATE_EMPTY' };
-      }
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'user.state.set',
-          params: {
-            resource: ctx.event.meta.source,
-            channelUserId:
-              action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx),
-            state: stateStr,
-          },
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      return {
-        actionId: action.id,
-        status: 'success',
-        writes,
-        values: { userState: stateStr },
-      };
     }
 
     case 'user.phone.link': {

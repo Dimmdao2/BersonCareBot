@@ -26,7 +26,6 @@ export type BaseContext = {
   identityLinks: IdentityLink[];
   facts?: Record<string, unknown>;
   preferences?: Preferences;
-  conversationState?: string;
   linkedPhone?: boolean;
   /** Нормализованный телефон пользователя (из БД), доступен при linkedPhone. */
   phoneNormalized?: string;
@@ -37,10 +36,6 @@ export type BaseContext = {
   hasOpenConversation?: boolean;
   activeConversationId?: string;
   activeConversationStatus?: string;
-  replyMode?: boolean;
-  replyConversationId?: string;
-  /** Ответ на наблюдение пациента по пункту программы (suffix `#pn:` в user state). */
-  programNoteStageItemId?: string;
 };
 
 export type OrchestratorInput = {
@@ -59,12 +54,7 @@ export type ContentScriptStep = {
 };
 
 export type ContentScriptMatchValue =
-  | string
-  | number
-  | boolean
-  | null
-  | ContentScriptMatchObject
-  | ContentScriptMatchValue[];
+  string | number | boolean | null | ContentScriptMatchObject | ContentScriptMatchValue[];
 
 export type ContentScriptMatchObject = {
   textPresent?: boolean | undefined;

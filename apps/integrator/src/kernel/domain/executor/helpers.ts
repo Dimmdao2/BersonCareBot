@@ -145,7 +145,6 @@ export function readRelayMessageType(ctx: DomainContext): string | null {
 export function readConversationId(action: Action, ctx: DomainContext): string | null {
   return (
     asString(action.params.conversationId) ??
-    asString(ctx.base.replyConversationId) ??
     asString(readIncoming(ctx).conversationId) ??
     asString(ctx.base.activeConversationId)
   );

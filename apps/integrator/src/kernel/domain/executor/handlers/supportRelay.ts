@@ -34,7 +34,6 @@ import {
   mirrorPatientUserMessageToWebapp,
   resolvePlatformUserIdForChannel,
 } from '../../support/webappSupportSync.js';
-import { buildProgramNoteReplyState } from '../../../../shared/support/programNoteReplyState.js';
 
 function channelDeliveryPayload(channel: string, senderScope?: 'clinic_required') {
   return { channels: [channel], maxAttempts: 1, ...(senderScope ? { senderScope } : {}) };
@@ -102,35 +101,6 @@ function getUnsupportedUserRelayText(source: string): string {
     return 'Пока для общения в MAX поддерживаются только текстовые сообщения. Скоро добавим пересылку других типов контента.';
   }
   return 'этот вид сообщений не поддерживается. Напишите ваш вопрос текстом.';
-}
-
-function adminContinueCallbackData(
-  conversationId: string,
-  programNoteStageItemId: string | null,
-): string {
-  if (programNoteStageItemId) {
-    return `program_reply:${programNoteStageItemId}`;
-  }
-  // `admin_reply:` keeps callback_data within Telegram 64-byte limit for `webapp:platform:{uuid}` ids.
-  return `admin_reply:${conversationId}`;
-}
-
-async function persistAdminMessengerUserState(
-  deps: ExecutorDeps,
-  ctx: DomainContext,
-  state: string,
-): Promise<DbWriteMutation[]> {
-  const channelUserId = readExternalActorId(ctx);
-  const resource = ctx.event.meta.source;
-  if (!channelUserId || !resource || !deps.writePort) return [];
-  const writes: DbWriteMutation[] = [
-    {
-      type: 'user.state.set',
-      params: { resource, channelUserId, state },
-    },
-  ];
-  await persistWrites(deps.writePort, writes);
-  return writes;
 }
 
 export async function handleConversationUserMessage(
@@ -385,10 +355,7 @@ async function attemptConversationAdminReply(
         error: 'CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY',
       };
     }
-    const programNoteStageItemId =
-      typeof ctx.base.programNoteStageItemId === 'string' && ctx.base.programNoteStageItemId.trim()
-        ? ctx.base.programNoteStageItemId.trim()
-        : null;
+    const programNoteStageItemId = null;
     const incoming = readIncoming(ctx);
     const senderDisplayName =
       [asString(incoming.channelFirstName), asString(incoming.channelLastName)]
@@ -419,11 +386,6 @@ async function attemptConversationAdminReply(
       });
       return { actionId: action.id, status: 'success', intents };
     }
-    const writes: DbWriteMutation[] = [];
-    const nextAdminState = programNoteStageItemId
-      ? buildProgramNoteReplyState(conversationId, programNoteStageItemId)
-      : 'idle';
-    writes.push(...(await persistAdminMessengerUserState(deps, ctx, nextAdminState)));
     if (adminChatId !== null) {
       const sentText = deps.templatePort
         ? (await renderText({
@@ -432,42 +394,12 @@ async function attemptConversationAdminReply(
             templatePort: deps.templatePort,
           })) || 'Сообщение отправлено.'
         : 'Сообщение отправлено.';
-      const continueButtonText = deps.templatePort
-        ? (await renderText({
-            templateKey: ADMIN.REPLY_CONTINUE_BUTTON,
-            ctx,
-            templatePort: deps.templatePort,
-          })) || 'Дополнить ответ'
-        : 'Дополнить ответ';
-      const closeButtonText = deps.templatePort
-        ? ((
-            await renderText({
-              templateKey: ADMIN.DIALOG_CLOSE_BUTTON,
-              ctx,
-              templatePort: deps.templatePort,
-            })
-          )?.trim() ?? '')
-        : '';
-      const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
-        [
-          {
-            text: continueButtonText,
-            callback_data: adminContinueCallbackData(conversationId, programNoteStageItemId),
-          },
-        ],
-      ];
-      if (closeButtonText) {
-        replyRows.push([
-          { text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` },
-        ]);
-      }
       intents.push({
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
         payload: {
           recipient: { chatId: adminChatId },
           message: { text: sentText },
-          replyMarkup: { inline_keyboard: replyRows },
           delivery: channelDeliveryPayload(adminChannel),
         },
       });
@@ -475,7 +407,6 @@ async function attemptConversationAdminReply(
     return {
       actionId: action.id,
       status: 'success',
-      writes,
       intents,
       values: {
         hasOpenConversation: true,

@@ -91,6 +91,7 @@ export const userChannelBindings = pgTable('user_channel_bindings', {
   userId: uuid('user_id').notNull(),
   channelCode: text('channel_code').notNull(),
   externalId: text('external_id').notNull(),
+  displayHandle: text('display_handle'),
 });
 
 /** Existing public enrollment table, mapped narrowly for shared direct-writer actor resolution. */

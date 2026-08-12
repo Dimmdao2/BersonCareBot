@@ -10,8 +10,8 @@ import { getAdminStats } from './repos/adminStats.js';
 import {
   getChannelIdsByUserId,
   getIdentityIdByResourceAndExternalId,
-  getLinkDataByIdentity,
 } from './repos/channelUsers.js';
+import { getChannelBindingLinkData } from './repos/platformUserByChannel.js';
 import {
   getReminderRuleById,
   getReminderOccurrencesForRuleRange,
@@ -70,7 +70,10 @@ export function createDbReadPort(
           const resource = asNonEmptyString(query.params.resource);
           const externalId = asNonEmptyString(query.params.externalId);
           if (!resource || !externalId) return null as T;
-          return (await getLinkDataByIdentity(db, resource, externalId)) as T;
+          return (await getChannelBindingLinkData(db, {
+            channelCode: resource,
+            externalId,
+          })) as T;
         }
         case 'draft.activeByIdentity': {
           const resource = asNonEmptyString(query.params.resource);

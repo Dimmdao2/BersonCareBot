@@ -32,7 +32,6 @@ import type {
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
-import { tryConsumeStart } from '../infra/db/repos/channelUsers.js';
 import {
   createDefaultDispatchPort,
   type DispatchPlatformIntegrationId,
@@ -47,7 +46,10 @@ import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
-import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import {
+  getSmscRuntimeConfig,
+  getTelegramRuntimeConfig,
+} from '../infra/adapters/integrationRuntimeConfig.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
@@ -282,11 +284,11 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     actorResolutionPort,
     deliveryDefaultsPort,
     contentPort,
-    isTelegramMenuOnButtonPress: async () => (await getTelegramRuntimeConfig()).sendMenuOnButtonPress,
+    isTelegramMenuOnButtonPress: async () =>
+      (await getTelegramRuntimeConfig()).sendMenuOnButtonPress,
     supportRelayPolicy: defaultSupportRelayPolicy,
     webappEventsPort,
     deliveryTargetsPort,
-    telegramStartDedup: (telegramUserId) => tryConsumeStart(dbPort, telegramUserId),
     ...(remindersWebappWritesPort !== undefined ? { remindersWebappWritesPort } : {}),
   });
 
@@ -308,7 +310,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     unifiedSender,
     contentPort,
     templatePort,
-    isTelegramMenuOnButtonPress: async () => (await getTelegramRuntimeConfig()).sendMenuOnButtonPress,
+    isTelegramMenuOnButtonPress: async () =>
+      (await getTelegramRuntimeConfig()).sendMenuOnButtonPress,
     contentCatalogPort,
     contextQueryPort,
     eventGateway,

@@ -22,243 +22,6 @@
     ]
   },
   {
-    "id": "telegram.start.phoneauth",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 56,
-    "match": {
-      "input": {
-        "action": "start.phoneauth"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_phoneauth:{{input.authSecret}}"
-        }
-      },
-      {
-        "action": "message.replyKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:phoneAuthWelcome",
-          "keyboard": [
-            [
-              {
-                "textTemplateKey": "telegram:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ],
-          "resizeKeyboard": true,
-          "oneTimeKeyboard": true
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.contact.phoneauth",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 54,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        }
-      },
-      "input": {
-        "phonePresent": true
-      }
-    },
-    "steps": [
-      {
-        "action": "webapp.phoneMessengerBind.complete",
-        "mode": "sync",
-        "params": {
-          "channelCode": "telegram",
-          "externalId": "{{meta.userId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.phoneauth.cancel.linked",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": true
-      },
-      "input": {
-        "action": "phone.request.cancel"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.replyKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:chooseMenu",
-          "keyboard": [
-            [
-              {
-                "textTemplateKey": "telegram:menu.book"
-              }
-            ]
-          ],
-          "resizeKeyboard": true
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.phoneauth.cancel.unlinked",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": false
-      },
-      "input": {
-        "action": "phone.request.cancel"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "telegram:phoneAuthCancelled",
-          "delivery": {
-            "channels": [
-              "telegram"
-            ],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.phoneauth.cancel.text.linked",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": true
-      },
-      "input": {
-        "text": "Отмена"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.replyKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:chooseMenu",
-          "keyboard": [
-            [
-              {
-                "textTemplateKey": "telegram:menu.book"
-              }
-            ]
-          ],
-          "resizeKeyboard": true
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.phoneauth.cancel.text.unlinked",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 57,
-    "match": {
-      "context": {
-        "conversationState": {
-          "$startsWith": "await_phoneauth:"
-        },
-        "linkedPhone": false
-      },
-      "input": {
-        "text": "Отмена"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "telegram:phoneAuthCancelled",
-          "delivery": {
-            "channels": [
-              "telegram"
-            ],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
     "id": "telegram.start.noticeme",
     "source": "telegram",
     "event": "message.received",
@@ -268,14 +31,6 @@
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
       {
         "action": "message.replyKeyboard.show",
         "mode": "async",
@@ -306,26 +61,13 @@
         "text": {
           "$startsWith": "/start"
         },
-        "excludeActions": [
-          "start.link",
-          "start.noticeme",
-          "start.phoneauth",
-          "start.set"
-        ]
+        "excludeActions": ["start.link", "start.noticeme", "start.phoneauth", "start.set"]
       },
       "context": {
         "linkedPhone": false
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
       {
         "action": "message.replyKeyboard.show",
         "mode": "async",
@@ -355,26 +97,13 @@
         "text": {
           "$startsWith": "/start"
         },
-        "excludeActions": [
-          "start.link",
-          "start.noticeme",
-          "start.phoneauth",
-          "start.set"
-        ]
+        "excludeActions": ["start.link", "start.noticeme", "start.phoneauth", "start.set"]
       },
       "context": {
         "linkedPhone": true
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
       {
         "action": "message.replyKeyboard.show",
         "mode": "async",
@@ -416,256 +145,9 @@
             "channelId": "{{actor.channelUserId}}"
           },
           "delivery": {
-            "channels": [
-              "telegram"
-            ],
+            "channels": ["telegram"],
             "maxAttempts": 1
           }
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.ask.question",
-    "source": "telegram",
-    "event": "message.received",
-    "match": {
-      "context": {
-        "conversationState": "waiting_for_question"
-      },
-      "input": {
-        "textPresent": true,
-        "excludeActions": [
-          "booking.open",
-          "menu.more",
-          "cabinet.open",
-          "start.noticeme",
-          "start.set",
-          "phone.request.cancel",
-          "start.phoneauth"
-        ],
-        "excludeTexts": [
-          "/start",
-          "⚙️ Меню",
-          "Меню",
-          "📅 Запись на приём",
-          "Запись на приём",
-          "👤 Кабинет",
-          "Кабинет",
-          "Отмена",
-          "Вернуться в меню"
-        ],
-        "excludeTextPrefixes": [
-          "/start"
-        ]
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.upsertFromMessage",
-        "mode": "sync",
-        "params": {
-          "source": "telegram"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:confirmQuestion",
-          "inlineKeyboard": [
-            [
-              {
-                "text": "Да",
-                "callbackData": "q_confirm:yes"
-              },
-              {
-                "text": "Нет",
-                "callbackData": "q_confirm:no"
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.draft.replace",
-    "source": "telegram",
-    "event": "message.received",
-    "match": {
-      "context": {
-        "hasActiveDraft": true,
-        "conversationState": {
-          "$notIn": [
-            "waiting_for_question"
-          ]
-        }
-      },
-      "input": {
-        "textPresent": true,
-        "excludeActions": [
-          "booking.open",
-          "menu.more",
-          "cabinet.open",
-          "start.noticeme",
-          "start.set",
-          "phone.request.cancel",
-          "start.phoneauth"
-        ],
-        "excludeTexts": [
-          "/start",
-          "⚙️ Меню",
-          "Меню",
-          "📅 Запись на приём",
-          "Запись на приём",
-          "👤 Кабинет",
-          "Кабинет",
-          "Отмена",
-          "Вернуться в меню"
-        ],
-        "excludeTextPrefixes": [
-          "/start"
-        ]
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.replaceFromMessage",
-        "mode": "sync",
-        "params": {
-          "source": "telegram"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:confirmQuestion",
-          "inlineKeyboard": [
-            [
-              {
-                "text": "Да",
-                "callbackData": "q_confirm:yes"
-              },
-              {
-                "text": "Нет",
-                "callbackData": "q_confirm:no"
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.draft.send",
-    "source": "telegram",
-    "event": "callback.received",
-    "match": {
-      "context": {
-        "hasActiveDraft": true
-      },
-      "input": {
-        "action": "q_confirm:yes"
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.send",
-        "mode": "sync",
-        "params": {
-          "source": "telegram",
-          "adminTemplateKey": "telegram:adminForward"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "message": {},
-          "delivery": {
-            "channels": [
-              "telegram"
-            ],
-            "maxAttempts": 1
-          },
-          "templateKey": "telegram:questionAccepted"
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.q_confirm.no",
-    "source": "telegram",
-    "event": "callback.received",
-    "priority": 20,
-    "match": {
-      "context": {
-        "hasActiveDraft": true
-      },
-      "input": {
-        "action": "q_confirm:no"
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.cancel",
-        "mode": "sync",
-        "params": {
-          "source": "telegram"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "message": {},
-          "delivery": {
-            "channels": [
-              "telegram"
-            ],
-            "maxAttempts": 1
-          },
-          "templateKey": "telegram:questionCancelled"
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
         }
       }
     ]
@@ -878,14 +360,6 @@
     },
     "steps": [
       {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
         "action": "message.send",
         "mode": "async",
         "params": {
@@ -906,9 +380,7 @@
           },
           "message": {},
           "delivery": {
-            "channels": [
-              "telegram"
-            ],
+            "channels": ["telegram"],
             "maxAttempts": 1
           },
           "templateKey": "telegram:bookingMessage",
@@ -947,9 +419,7 @@
           },
           "message": {},
           "delivery": {
-            "channels": [
-              "telegram"
-            ],
+            "channels": ["telegram"],
             "maxAttempts": 1
           },
           "templateKey": "telegram:bookingMessage",
@@ -990,14 +460,6 @@
       }
     },
     "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
       {
         "action": "message.edit",
         "mode": "async",
@@ -1086,9 +548,6 @@
     "source": "telegram",
     "event": "message.received",
     "match": {
-      "context": {
-        "conversationState": "await_contact:subscription"
-      },
       "input": {
         "phonePresent": true
       }
@@ -1100,14 +559,6 @@
         "params": {
           "channelUserId": "{{actor.channelUserId}}",
           "phoneNormalized": "{{input.phone}}"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
         }
       },
       {
@@ -1124,80 +575,6 @@
             ]
           ],
           "resizeKeyboard": true
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.contact.link.cancel",
-    "source": "telegram",
-    "event": "message.received",
-    "match": {
-      "context": {
-        "conversationState": "await_contact:subscription"
-      },
-      "input": {
-        "action": "phone.request.cancel"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
-      {
-        "action": "message.replyKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:confirmPhoneForBooking",
-          "keyboard": [
-            [
-              {
-                "textTemplateKey": "telegram:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ],
-          "resizeKeyboard": true,
-          "oneTimeKeyboard": true
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.contact.link.remind",
-    "source": "telegram",
-    "event": "message.received",
-    "match": {
-      "context": {
-        "conversationState": "await_contact:subscription"
-      },
-      "input": {
-        "phonePresent": false
-      }
-    },
-    "steps": [
-      {
-        "action": "message.replyKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:confirmPhoneForBooking",
-          "keyboard": [
-            [
-              {
-                "textTemplateKey": "telegram:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ],
-          "resizeKeyboard": true,
-          "oneTimeKeyboard": true
         }
       }
     ]
@@ -1228,9 +605,7 @@
           },
           "message": {},
           "delivery": {
-            "channels": [
-              "telegram"
-            ],
+            "channels": ["telegram"],
             "maxAttempts": 1
           },
           "templateKey": "telegram:menu.webapp.prompt",
@@ -1257,9 +632,7 @@
           },
           "message": {},
           "delivery": {
-            "channels": [
-              "telegram"
-            ],
+            "channels": ["telegram"],
             "maxAttempts": 1
           },
           "templateKey": "telegram:notImplemented"
@@ -1511,76 +884,6 @@
         "mode": "async",
         "params": {
           "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.menu.default",
-    "source": "telegram",
-    "event": "message.received",
-    "match": {
-      "actor": {
-        "isAdmin": false
-      },
-      "context": {
-        "conversationState": {
-          "$notIn": []
-        }
-      },
-      "input": {
-        "textPresent": true,
-        "excludeActions": [
-          "booking.open",
-          "menu.more",
-          "cabinet.open",
-          "start.noticeme",
-          "start.set",
-          "phone.request.cancel",
-          "start.phoneauth"
-        ],
-        "excludeTexts": [
-          "/start",
-          "⚙️ Меню",
-          "Меню",
-          "📅 Запись на приём",
-          "Запись на приём",
-          "👤 Кабинет",
-          "Кабинет",
-          "Отмена",
-          "Вернуться в меню"
-        ],
-        "excludeTextPrefixes": [
-          "/start"
-        ]
-      }
-    },
-    "steps": [
-      {
-        "action": "draft.upsertFromMessage",
-        "mode": "sync",
-        "params": {
-          "source": "telegram"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:confirmQuestion",
-          "inlineKeyboard": [
-            [
-              {
-                "text": "Да",
-                "callbackData": "q_confirm:yes"
-              },
-              {
-                "text": "Нет",
-                "callbackData": "q_confirm:no"
-              }
-            ]
-          ]
         }
       }
     ]

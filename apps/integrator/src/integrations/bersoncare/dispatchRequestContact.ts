@@ -1,5 +1,5 @@
 /**
- * Общая отправка «запросить контакт» в личку TG/MAX (состояние TG + message.send).
+ * Общая одноразовая отправка «запросить контакт» в личку TG/MAX.
  * Используется HTTP {@link registerBersoncareRequestContactRoute} и {@link executeAction} после channel link.
  */
 import { randomUUID } from 'node:crypto';
@@ -40,12 +40,10 @@ export type DispatchRequestContactParams = {
 };
 
 /**
- * Устанавливает await_contact для Telegram (через writePort), шлёт сообщение с кнопкой контакта.
+ * Для Telegram сначала гарантирует канонический channel binding, затем шлёт сообщение с кнопкой.
  * MAX: inline-кнопка `request_contact` в том же сообщении (см. `max/user/scripts.json`, API — `type: request_contact` в `deliveryAdapter`).
  *
- * Перед `user.state.set` обязателен `user.upsert`: `setUserState` пишет в `telegram_state` только при
- * существующей строке в `identities`. Иначе M2M-запрос из Mini App (без предшествующего /start)
- * молча не ставит состояние → при шаринге контакта оркестратор не матчит `telegram.contact.link.confirm`.
+ * Сохранённого диалогового состояния нет: следующий contact event определяется самим типом события.
  */
 export async function dispatchRequestContactToUser(
   params: DispatchRequestContactParams,
@@ -55,21 +53,7 @@ export async function dispatchRequestContactToUser(
   if (channel === 'telegram' && writePort) {
     const id = recipientId.trim();
     const writes: DbWriteMutation[] = [
-      {
-        type: 'user.upsert',
-        params: {
-          resource: 'telegram',
-          externalId: id,
-        },
-      },
-      {
-        type: 'user.state.set',
-        params: {
-          resource: 'telegram',
-          channelUserId: id,
-          state: 'await_contact:subscription',
-        },
-      },
+      { type: 'user.upsert', params: { resource: 'telegram', externalId: id } },
     ];
     await persistWrites(writePort, writes);
   }
