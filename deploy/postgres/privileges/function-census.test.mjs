@@ -92,10 +92,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 247);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 234);
-  assert.equal(testFunctions.length, 249);
-  assert.equal(devFunctions.length, 236);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 259);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 246);
+  assert.equal(testFunctions.length, 261);
+  assert.equal(devFunctions.length, 248);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 42);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -155,11 +155,11 @@ test('dedicated bot relation carries its runtime resolver and non-runtime trigge
     assert.deepEqual(access.seams[0], {
       regprocedure: 'app.resolve_clinic_dedicated_bot_organization(text,text)',
       owner: 'app_seam_dedicated_bot_owner',
-      caller: 'app_integrator_resolver',
+      callers: ['app_integrator_resolver'],
       invocation: 'runtime',
       columns: ['channel', 'organization_id', 'credential_fingerprint', 'is_active'],
       operations: ['SELECT'],
-      purpose: 'resolve one active dedicated-bot binding by channel and credential fingerprint',
+      purpose: 'evidence/25+30 narrow seam owned by app_seam_dedicated_bot_owner: public.clinic_dedicated_bot_bindings',
     });
     assert.equal(access.seams[1].regprocedure, 'app.sync_clinic_dedicated_bot_binding()');
     assert.equal(access.seams[1].invocation, 'trigger');
@@ -172,13 +172,10 @@ test('dedicated bot relation carries its runtime resolver and non-runtime trigge
   assert.ok(collectGaps(mutated, 'bersoncarebot_test').some((gap) => gap.reason.includes('duplicate seam')));
 });
 
-test('unimplemented relation APIs remain explicit fail-closed generation gaps', () => {
+test('complete relation APIs leave no generation gap', () => {
   for (const database of DATABASES) {
     const gaps = collectGaps(declaration, database);
-    assert.equal(gaps.length, 223);
-    for (const relation of ['public.booking_calendar_map', 'public.phone_messenger_bind_secrets']) {
-      assert.ok(gaps.some((gap) => gap.site.includes(relation) && gap.reason.includes('missing named API')), `${database}:${relation}`);
-    }
+    assert.equal(gaps.length, 0);
   }
 });
 

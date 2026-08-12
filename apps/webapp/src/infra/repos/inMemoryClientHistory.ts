@@ -28,7 +28,7 @@ export const inMemoryClientHistoryPort: ClientHistoryPort = {
     updatedAt: new Date().toISOString(),
     updatedBy: input.updatedBy,
   }),
-  isBookingBlocked: async () => false,
+  isCurrentPatientSelfBookingAllowed: async () => true,
   listAppointmentComments: async () => [],
   createAppointmentComment: async (input) => ({
     id: 'comment-1',

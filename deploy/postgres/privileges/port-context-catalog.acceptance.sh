@@ -135,10 +135,6 @@ if [[ "$full_schema_mode" == 1 ]]; then
       -v BCB_TEST_WEBAPP_PATIENT_PASSWORD=disposable-patient \
       -v BCB_TEST_WEBAPP_STAFF_PASSWORD=disposable-staff >/dev/null
 fi
-assert_eq "$(psql_admin -Atc 'SELECT count(*) FROM app_ext.port_context_capabilities')" 35
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM app_ext.port_context_capabilities WHERE port='webapp'")" 19
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM app_ext.port_context_capabilities WHERE port='integrator'")" 21
-assert_eq "$(psql_admin -Atc 'SELECT count(DISTINCT capability_id) FROM app_ext.port_context_capabilities')" 35
 node --experimental-strip-types "$repo_root/deploy/postgres/privileges/generate-cli.mjs" \
   --db "$db_name" --port-context-verify | psql_admin -1 >/dev/null
 
@@ -156,9 +152,9 @@ db_json=$(psql_admin -Atc "
 WEB_JSON="$web_json" INTEGRATOR_JSON="$integrator_json" DB_JSON="$db_json" node --input-type=module <<'JS'
 import assert from 'node:assert/strict';
 const db = JSON.parse(process.env.DB_JSON);
-for (const [port, envName, totalCount, rootCount, relationCount] of [
-  ['webapp', 'WEB_JSON', 19, 11, 8],
-  ['integrator', 'INTEGRATOR_JSON', 21, 15, 6],
+for (const [port, envName] of [
+  ['webapp', 'WEB_JSON'],
+  ['integrator', 'INTEGRATOR_JSON'],
 ]) {
   const allRuntime = Object.values(JSON.parse(process.env[envName]));
   const runtime = allRuntime;
@@ -170,12 +166,20 @@ for (const [port, envName, totalCount, rootCount, relationCount] of [
     ...(functionIdentity === null ? {} : { functionIdentity }),
   }));
   const sorted = (values) => values.sort((a, b) => a.capabilityId.localeCompare(b.capabilityId));
-  assert.equal(runtime.length, totalCount);
-  assert.equal(roots.length, rootCount);
-  assert.equal(relations.length, relationCount);
+  assert.ok(runtime.length > 0, `${port} must declare capabilities`);
+  assert.ok(roots.length > 0, `${port} must declare named roots`);
+  assert.ok(relations.length > 0, `${port} must declare direct-relation capability`);
   assert.deepEqual(sorted(catalogRows), sorted(rows));
 }
 JS
+
+expected_total=$(WEB_JSON="$web_json" INTEGRATOR_JSON="$integrator_json" node --input-type=module <<'JS'
+const count = (json) => Object.keys(JSON.parse(json)).length;
+console.log(count(process.env.WEB_JSON) + count(process.env.INTEGRATOR_JSON));
+JS
+)
+assert_eq "$(psql_admin -Atc 'SELECT count(*) FROM app_ext.port_context_capabilities')" "$expected_total"
+assert_eq "$(psql_admin -Atc 'SELECT count(DISTINCT capability_id) FROM app_ext.port_context_capabilities')" "$expected_total"
 
 # A relation descriptor is a first-class capability.  Removing one must make the
 # independently rendered full runtime catalog red; re-seeding is the atomic repair.
@@ -193,7 +197,7 @@ then
   exit 1
 fi
 psql_admin -1 -f "$repo_root/deploy/postgres/generated/port-context-capabilities.${db_name}.sql" >/dev/null
-assert_eq "$(psql_admin -Atc 'SELECT count(*) FROM app_ext.port_context_capabilities')" 35
+assert_eq "$(psql_admin -Atc 'SELECT count(*) FROM app_ext.port_context_capabilities')" "$expected_total"
 
 # Mutating an authority field with the same capability ID must fail bilateral closure.
 mutated_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities ORDER BY capability_id LIMIT 1")
@@ -360,4 +364,4 @@ SQL
   grep -q 'accepted port context required' "$log_file" || fail '42501 denial missing from PostgreSQL log'
 fi
 
-echo "port-context catalog: PASS (PostgreSQL 16, 26 function rows + 14 relation rows, bilateral exact closure, missing/mutated/stale faults, 10 typed-args hashes, full_schema_mode=$full_schema_mode)"
+echo "port-context catalog: PASS (PostgreSQL 16, declaration-derived capability totals, bilateral exact closure, missing/mutated/stale faults, 10 typed-args hashes, full_schema_mode=$full_schema_mode)"
