@@ -160,7 +160,13 @@ disposable/DEV отдельно доказывает, что ни один пр�
       versioned context class/claims — отдельный шов; доказательство порта не
       связывается навсегда с физическим `platform_users.id`
 
-### Фактическое состояние на 11.08.2026 — изучено, A ещё не реализован
+### УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026: фактическое состояние до offline-реализации A
+
+Актуальное состояние: revision-10 declaration/generator, transaction-bound context contract, приложение обоих
+портов, revoke-only zero-state, post-zero installer и host-mTLS primitive уже находятся в
+`feat/doctor-ui-rebuild` и проходят disposable PostgreSQL 16 acceptance. Не выполнены единый cutover двух БД
+общего DEV/TEST-кластера, живое применение на TEST и последующий offline PROD-cutover. Пункты ниже сохранены как
+исходный замер разрыва и больше не описывают текущий код.
 
 - [x] В приложении есть единый AsyncLocalStorage principal carrier, `bootstrap`, маршрутизация webapp в
       staff/nonstaff pool, интеграторский allowlist технических `source`, установка роли и уничтожение соединения
@@ -226,8 +232,8 @@ ORDER BY table_schema, table_name, privilege_type;"
       membership is only `app_integrator_request`, narrow `app_integrator_resolver`, delivery-worker, scheduler,
       `tenant_service` and no-tenant `service`, all SET-only/non-transitive; request has exact
       `integrator_user_id + organization_id`, resolver is a distinct narrow pre-routing capability, and
-      `app_operational_diagnostic`/webapp→delivery are absent. A1 remains open until the declaration, generator,
-      migration and live port wiring implement this contract.
+      `app_operational_diagnostic`/webapp→delivery are absent. Контракт, declaration, generator и offline
+      primitives реализованы; A1 остаётся открытым только до whole-chain runtime proof и live port wiring.
 - [ ] **Ф3б-A2 — mTLS material and rotation.** For each port place client private key/certificate/CA only in
       its env; configure PostgreSQL public CA/CRL verifier material and exact HBA/certificate-CN rows. Test bounded
       certificate overlap, reload semantics, CRL revocation and mandatory pool drain/backend termination; DB never
@@ -272,7 +278,12 @@ and test vectors by accepted `SCHEME.md` and standard practice. Новый owner
 
 **Решение владельца:** «мы же сбрасываем все гранты» — поля «у кого отобрать» в декларации быть не должно.
 
-**Текущее состояние на 11.08.2026 — реализация существует, этап не принят.** В опубликованной отдельной ветке
+**УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026.** Описание отдельной revision-8 ветки ниже — историческое: полезная работа
+перегенерирована как revision 10 и сведена в `feat/doctor-ui-rebuild`; применять `a5c6472a1` по-прежнему нельзя.
+Текущий открытый gate — не генерация декларации, а единая restore-shaped цепочка
+`legacy drop обеих БД → zero обеих БД → cluster zero → post-zero обеих БД → runtime proof`.
+
+**Историческое состояние на 11.08.2026 — реализация существует, этап не принят.** В опубликованной отдельной ветке
 `wt/declaration`, коммит `a5c6472a1`, декларация и generator перестроены из `SCHEME.md` revision 8;
 отчёт и RED→GREEN→RED-again disposable proof находятся в
 `evidence/42-declaration-from-scheme.md` той же ветки. Коммит не влит в интеграционную ветку, не применён
@@ -363,7 +374,8 @@ rg -c '•' /tmp/bcb-f4-gaps.out
 - [x] `public.appointment_records` и production-callers старой записи удалены; живые чтения, staff-delete,
       purge/merge и статистика переведены на `public.be_appointments`. Миграция `0386` без `CASCADE` переносит
       доказуемые связи `clinical_visit`, громко отклоняет потерю/конфликт/FK и воспроизводимо удаляет таблицу;
-      disposable PostgreSQL 16 proof проверяет positive, idempotency и полный rollback двух отказов
+      два HMAC integrator-read идут через exact named roots, а ошибка admin-count больше не превращается тихо в
+      ноль. Disposable PostgreSQL 16 proof проверяет positive, idempotency и полный rollback трёх отказов
 - [ ] Дроп-миграции 11 таблиц — прогнать на dev и TEST (написаны, цепочка доказана на одноразовом кластере)
 - [ ] Переписать упавший после выреза код: очередь доставки на `public.outgoing_delivery_queue` и прочее
 - [ ] Аналитика — «она чья, кто её видит и какую именно» (решение владельца 08.08)
