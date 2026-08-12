@@ -933,13 +933,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'сервис теряет управляемые из кабинета настройки', wallWhy: W_PLATFORM_OR_CLINIC },
   { t: 'public.app_runtime_settings_audit', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'кто и когда '
     + 'менял настройку — нельзя восстановить, кто сломал настройку', wallWhy: W_PLATFORM_OR_CLINIC },
-  { t: 'public.appointment_records', cls: 'P', why: 'легаси-проекция записей на приём из Rubitime — ломается '
-    + 'статистика и сверка со старым источником записей', defect: ['D15-appointment-records'],
-    drop: { verdict: 'DUP-DROP (сначала перевести код)', source: 'evidence/18 §7 — 394/410 отображены в '
-      + 'be_appointments, phone 394/394', blockedBy: 'шесть живых читателей (бот, админ интегратора, список врача) — '
-      + 'перевести на be_appointments.phone_normalized. До сноса таблица стоит БЕЗ обеих стен (D15) и это '
-      + 'единственный пункт списка, где ошибка видна пациенту' },
-    disp: 'ACTIVE', wall: 'clinic', wallWhy: 'POSTZERO-R3: legacy projection has live staff/integrator callers but no patient runtime surface.' },
   { t: 'public.auth_rate_limit_events', cls: 'S', org: false, wall: 'definer-only', why: 'счётчик попыток '
     + 'входа/отправки кода — снимается защита от перебора OTP и OAuth-стартов', wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
@@ -1659,8 +1652,6 @@ const db_bersoncarebot_test: DatabaseDecl = {
       'public.be_organization_members', 'public.outgoing_delivery_queue',
       'public.patient_bookings', 'public.product_analytics_hourly',
       'public.reference_catalog_snapshot_receipts', // GAP G7 закрыт: истинная org-таблица
-      // ⚠ public.appointment_records НЕ в списке НАМЕРЕННО: она PENDING_REMOVAL (evidence/18 §7),
-      //    а таблица под снос стен не получает — иначе стена ставится на копию, которая уезжает.
     ],
     fullCountLive: 172, // evidence/13 §2.3
     todo: 'Derived set: 116 of the 239 classified tables declare org: true (the classification stated the '
@@ -1782,7 +1773,6 @@ const db_bcb_webapp_dev: DatabaseDecl = {
       'public.patient_bookings', 'public.product_analytics_hourly',
       'public.reference_catalog_snapshot_receipts',
       'public.patient_specialist_links', // ⚠ dev-only: RLS on, FORCE off (D24-dev-force-off)
-      // ⚠ public.appointment_records — PENDING_REMOVAL, см. комментарий в разделе TEST.
     ],
     fullCountLive: 172,
     todo: 'TODO(census-gap G2): the dev org-table total was not counted separately (the census counted '
@@ -2228,14 +2218,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/integrator/src/infra/db/repos/channelUsers.ts', 'apps/integrator/src/infra/db/repos/messageThreads.ts', 'apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts'],
     grants: [{ role: 'app_integrator_request', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' }],
   },
-  'public.appointment_records': {
-    kind: 'direct', purpose: 'legacy appointment projection remains required by integrator stats and webapp projection, purge and merge paths before its explicitly ordered replacement',
-    codePaths: ['apps/integrator/src/infra/db/repos/adminStats.ts', 'apps/webapp/src/infra/repos/pgAppointmentProjection.ts', 'apps/webapp/src/infra/platformUserFullPurge.ts', 'packages/platform-merge/src/pgPlatformUserMerge.ts'],
-    grants: [
-      { role: 'app_integrator_request', operations: ['SELECT'], columns: ['status', 'deleted_at', 'record_at'] },
-      { role: 'app_staff', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
-    ],
-  },
   'public.operator_health_failure_archive': {
     kind: 'direct', purpose: 'clinic staff handles only its archive rows; platform health route handles only global archive rows',
     codePaths: ['apps/webapp/src/app/api/admin/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
@@ -2631,7 +2613,7 @@ function revision10TenantPolicies(
 
 const REV10_EXPLICIT_ORG_COLUMN = new Set([
   'integrator.message_drafts',
-  'public.appointment_records', 'public.operator_health_failure_archive',
+  'public.operator_health_failure_archive',
   'public.be_organization_members', 'public.manual_patient_commands', 'public.org_brand_revisions',
   'public.organization_slug_claims', 'public.organization_slug_rename_events', 'public.patient_bookings',
   'public.product_analytics_hourly', 'public.saas_billing_accounts', 'public.saas_billing_invoices',

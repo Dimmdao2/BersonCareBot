@@ -91,7 +91,6 @@ export async function POST(request: Request, context: RouteContext) {
     result.appointment.appointmentReminderPresetId,
   );
   await applyStaffRescheduleSideEffects({
-    projection: deps.appointmentProjection,
     lifecycle,
     organizationId: gate.ctx.organizationId,
     appointment: result.appointment,

@@ -14,7 +14,6 @@ import type { CanonicalBookingContext } from '@/modules/booking-scheduling/ports
 
 type BookingFormService = ReturnType<typeof createBookingFormService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
-import type { AppointmentProjectionPort } from './ports';
 import type { PaymentsService } from '@/modules/payments/service';
 import type { MembershipsService } from '@/modules/memberships/service';
 import type { ClientHistoryService } from '@/modules/client-history/service';
@@ -28,7 +27,6 @@ import type {
   CreatePendingPatientBookingInput,
 } from './ports';
 import type { CreatePatientBookingInput, PatientBookingRecord } from './types';
-import { projectCanonicalAppointmentForDoctor } from './projectCanonicalAppointment';
 import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
@@ -73,7 +71,6 @@ export type CanonicalBookingDeps = {
   bookingEngine: BookingEngineService | null;
   bookingScheduling: BookingSchedulingService | null;
   bookingForm: BookingFormService | null;
-  appointmentProjection: AppointmentProjectionPort | null;
   payments: PaymentsService | null;
   canAcceptBookingPrepayment: (organizationId: string) => Promise<boolean>;
   memberships: MembershipsService | null;
@@ -494,24 +491,6 @@ export async function createBookingOnCanonicalEngine(
   if (confirmedRows.some((row) => !row)) {
     await rollbackChain('booking_confirm_failed');
     throw new Error('booking_confirm_failed');
-  }
-
-  if (deps.appointmentProjection) {
-    try {
-      await Promise.all(
-        appointments.map((item, index) =>
-          projectCanonicalAppointmentForDoctor(deps.appointmentProjection!, item, {
-            phoneNormalized,
-            contactName: createInput.contactName,
-            serviceTitle: pendingRows[index]!.serviceTitleSnapshot,
-            branchTitle: pendingRows[index]!.branchTitleSnapshot,
-            legacyBranchId: null,
-          }),
-        ),
-      );
-    } catch {
-      // Doctor projection is best-effort on transition.
-    }
   }
 
   if (packageCoversVisit && patientPackageId && deps.bookingEngine) {

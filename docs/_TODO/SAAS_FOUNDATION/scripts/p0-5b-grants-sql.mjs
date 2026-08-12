@@ -129,6 +129,7 @@ const r7DroppedRawRubitimeTables = new Set([
 // V9b S01: canonical be_* booking tables replace these five legacy projections. Keep the tier
 // registry historical, but never emit grants for relations removed by webapp migration 0304.
 const s01RetiredLegacyBookingProjectionTables = new Set([
+  'public.appointment_records',
   'public.booking_branch_services',
   'public.booking_branches',
   'public.booking_services',

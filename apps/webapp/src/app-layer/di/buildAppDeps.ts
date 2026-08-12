@@ -225,8 +225,7 @@ import { createInMemoryReminderRulesPort } from '@/infra/repos/inMemoryReminderR
 import { createPgReminderJournalPort } from '@/infra/repos/pgReminderJournal';
 import { createRemindersService } from '@/modules/reminders/service';
 import { notifyIntegratorRuleUpdated } from '@/modules/reminders/notifyIntegrator';
-import { createPgAppointmentProjectionPort } from '@/infra/repos/pgAppointmentProjection';
-import { inMemoryAppointmentProjectionPort } from '@/infra/repos/inMemoryAppointmentProjection';
+import { createPgCanonicalAppointmentAccessPort } from '@/infra/repos/pgCanonicalAppointments';
 import { createPgDoctorNotesPort } from '@/infra/repos/pgDoctorNotes';
 import { createPgSpecialistTasksPort } from '@/infra/repos/pgSpecialistTasks';
 import { inMemorySpecialistTasksPort } from '@/infra/repos/inMemorySpecialistTasks';
@@ -580,9 +579,7 @@ const reminderRulesPort = !inMemoryRepos
   ? createPgReminderRulesPort()
   : createInMemoryReminderRulesPort();
 const reminderJournalPort = !inMemoryRepos ? createPgReminderJournalPort() : undefined;
-const appointmentProjectionPort = !inMemoryRepos
-  ? createPgAppointmentProjectionPort()
-  : inMemoryAppointmentProjectionPort;
+const appointmentAccessPort = !inMemoryRepos ? createPgCanonicalAppointmentAccessPort() : null;
 const patientBookingsPort = !inMemoryRepos ? pgPatientBookingsPort : inMemoryPatientBookingsPort;
 const patientMaintenanceHistoryService = createPatientMaintenanceHistoryService(
   !inMemoryRepos ? createPgPatientMaintenanceHistoryPort() : inMemoryPatientMaintenanceHistoryPort,
@@ -1227,7 +1224,6 @@ patientBookingService = createPatientBookingService({
   bookingEngine: bookingEngineService,
   bookingScheduling: bookingSchedulingService,
   bookingForm: bookingFormService,
-  appointmentProjection: appointmentProjectionPort,
   appointmentLifecycle: bookingAppointmentLifecycleService,
   payments: paymentsService,
   canAcceptBookingPrepayment: async (organizationId) => {
@@ -1383,18 +1379,18 @@ function mapRecordStatus(raw: string): AppointmentRecordStatus {
 }
 
 const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]> =
-  !inMemoryRepos && appointmentProjectionPort
+  !inMemoryRepos && appointmentAccessPort
     ? async (userId: string) => {
         try {
           const phone = await userByPhonePort.getPhoneByUserId(userId);
           if (!phone) return [];
           const tz = await getAppDisplayTimeZone();
-          const rows = await appointmentProjectionPort.listActiveByPhoneNormalized(phone);
+          const rows = await appointmentAccessPort.listActiveByPhoneNormalized(phone);
           return rows.map((row) => {
             const dateLabel = formatAppointmentDateNumericRu(row.recordAt, tz);
             const timeLabel = formatAppointmentTimeShortRu(row.recordAt, tz);
             return {
-              id: row.integratorRecordId,
+              id: row.externalRecordId,
               dateLabel,
               timeLabel,
               label: appointmentRowLabel(dateLabel, timeLabel),
@@ -1474,9 +1470,10 @@ async function listAppointmentHistoryForPhone(
 ): Promise<ClientAppointmentHistoryItem[]> {
   if (!phone) return [];
   const tz = await getAppDisplayTimeZone();
-  const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
+  if (!appointmentAccessPort) return [];
+  const rows = await appointmentAccessPort.listHistoryByPhoneNormalized(phone, 80);
   return rows.map((row) => ({
-    id: row.integratorRecordId,
+    id: row.externalRecordId,
     recordAt: row.recordAt,
     status: row.status,
     label: row.recordAt
@@ -1863,7 +1860,7 @@ function _buildAppDeps() {
     /** Журнал snooze/skip/done; `undefined` в Vitest без БД. */
     reminderJournal: reminderJournalPort,
     reminderProjection: reminderProjectionPort,
-    appointmentProjection: appointmentProjectionPort,
+    appointmentAccess: appointmentAccessPort,
     contentPages: contentPagesPortForDeps,
     contentSections: contentSectionsPortForDeps,
     userByPhone: userByPhonePort,

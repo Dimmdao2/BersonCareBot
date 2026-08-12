@@ -38,7 +38,7 @@ type VisitRow = {
   service: string | null;
   duration: string | null;
   anamnesisText: string | null;
-  appointmentRecordId: string | null;
+  canonicalAppointmentId: string | null;
   exam: string | null;
   manipulations: string | null;
   trialResults: string | null;
@@ -353,7 +353,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       service: input.service ?? null,
       duration: input.duration ?? null,
       anamnesisText: input.anamnesisText ?? null,
-      appointmentRecordId: input.appointmentRecordId ?? null,
+      canonicalAppointmentId: input.canonicalAppointmentId ?? null,
       exam: input.exam ?? null,
       manipulations: input.manipulations ?? null,
       trialResults: input.trialResults ?? null,
@@ -599,9 +599,9 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
       }));
   },
 
-  async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+  async listLinkedAppointmentIds(patientUserId: string): Promise<string[]> {
     return visits
-      .filter((v) => v.patientUserId === patientUserId && v.appointmentRecordId != null)
-      .map((v) => v.appointmentRecordId as string);
+      .filter((v) => v.patientUserId === patientUserId && v.canonicalAppointmentId != null)
+      .map((v) => v.canonicalAppointmentId as string);
   },
 };

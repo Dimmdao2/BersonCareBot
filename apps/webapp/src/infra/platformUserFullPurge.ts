@@ -28,6 +28,7 @@ export function phoneDigits(phone: string): string {
  */
 const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'patient_bookings', column: 'platform_user_id' },
+  { table: 'be_appointments', column: 'platform_user_id' },
   { table: 'reminder_rules', column: 'platform_user_id' },
   { table: 'doctor_notes', column: 'user_id' },
   { table: 'support_conversations', column: 'platform_user_id' },
@@ -76,13 +77,6 @@ async function deletePhoneKeyedWebappRows(
   await runPurgeClientPgText(
     client,
     `DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`,
-    [digs],
-  );
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM appointment_records
-     WHERE phone_normalized IS NOT NULL
-       AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
     [digs],
   );
   await runPurgeClientPgText(

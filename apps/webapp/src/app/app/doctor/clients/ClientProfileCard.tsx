@@ -86,7 +86,6 @@ function ClientProfileCardInner({
   userId,
   listBasePath = '/app/doctor/patients',
   profileListScope,
-  isAdmin = false,
   canPermanentDelete = false,
   canEditClientProfile = false,
   publishedTreatmentProgramTemplates = [],
@@ -112,7 +111,6 @@ function ClientProfileCardInner({
 
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  const sampleRecordId = appointmentHistory[0]?.id ?? null;
   const backLabel =
     listBasePath.includes('subscribers') || listBasePath.includes('scope=all')
       ? 'К списку подписчиков'
@@ -289,9 +287,7 @@ function ClientProfileCardInner({
 
       <DoctorClientCardAdminSection
         userId={userId}
-        isAdmin={isAdmin}
         canPermanentDelete={canPermanentDelete}
-        sampleRecordId={sampleRecordId}
       />
 
       <p id="doctor-client-back-link-container" className="pt-1">

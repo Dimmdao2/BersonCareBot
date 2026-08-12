@@ -23,10 +23,13 @@ async function getActiveBookingsCount(db: DbPort): Promise<number> {
     const res = await runIntegratorSql<{ cnt: number }>(
       db,
       sql`SELECT COUNT(*)::int AS cnt
-          FROM public.appointment_records
-          WHERE status IN ('created', 'updated')
+          FROM public.be_appointments
+          WHERE status IN (
+            'created', 'awaiting_payment', 'paid', 'confirmed', 'rescheduled',
+            'visit_confirmed', 'charged_to_package', 'manual_review_required'
+          )
             AND deleted_at IS NULL
-            AND (record_at IS NULL OR record_at >= now())`,
+            AND start_at >= now()`,
     );
     return res.rows[0]?.cnt ?? 0;
   } catch (err) {

@@ -23,7 +23,6 @@ const TABLES: Array<{ schema: string; table: string }> = [
   { schema: 'integrator', table: 'user_reminder_rules' },
   { schema: 'integrator', table: 'user_reminder_occurrences' },
   { schema: 'integrator', table: 'user_reminder_delivery_logs' },
-  { schema: 'public', table: 'appointment_records' },
   { schema: 'public', table: 'patient_bookings' },
   { schema: 'public', table: 'be_appointments' },
   { schema: 'integrator', table: 'rubitime_events' },

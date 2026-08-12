@@ -362,10 +362,6 @@ export async function mergePlatformUsersInTransaction(
   );
   await runMergeSql(
     client,
-    sql`UPDATE appointment_records SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
     sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
   );
   await runMergeSql(

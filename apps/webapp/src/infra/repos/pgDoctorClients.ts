@@ -246,39 +246,6 @@ function canonicalAppointmentOrgPredicate(alias: string, organizationId?: string
   return `${alias}.organization_id = ${sqlLiteralUuid(organizationId)}`;
 }
 
-/** Exported for join semantics tests; keep in sync with `appointment_records` ↔ `platform_users` attribution rules. */
-export function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
-  const puPhone = primaryPhoneSubqueryFor(puAlias);
-  const arAt = `COALESCE(${arAlias}.record_at, ${arAlias}.created_at)`;
-  return `(
-      ${arAlias}.platform_user_id = ${puAlias}.id
-      OR (
-        ${arAlias}.platform_user_id IS NULL
-        AND ${arAlias}.phone_normalized IS NOT NULL
-        AND ${puPhone} IS NOT NULL
-        AND ${puPhone} = ${arAlias}.phone_normalized
-        AND NOT EXISTS (
-          SELECT 1 FROM user_phone_history h_other_claim
-          WHERE h_other_claim.phone_normalized = ${arAlias}.phone_normalized
-            AND h_other_claim.platform_user_id <> ${puAlias}.id
-            AND h_other_claim.valid_from <= ${arAt}
-            AND (h_other_claim.valid_to IS NULL OR h_other_claim.valid_to > ${arAt})
-        )
-      )
-      OR (
-        ${arAlias}.platform_user_id IS NULL
-        AND ${arAlias}.phone_normalized IS NOT NULL
-        AND EXISTS (
-          SELECT 1 FROM user_phone_history h
-          WHERE h.platform_user_id = ${puAlias}.id
-            AND h.phone_normalized = ${arAlias}.phone_normalized
-            AND h.valid_from <= ${arAt}
-            AND (h.valid_to IS NULL OR h.valid_to > ${arAt})
-        )
-      )
-    )`;
-}
-
 export function createPgDoctorClientsPort(): DoctorClientsPort {
   return {
     async listClients(
@@ -386,7 +353,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                WHERE cv.patient_user_id = ANY($1::uuid[])
                  AND ($2::uuid IS NULL OR cv.organization_id = $2::uuid)
                  AND cv.canonical_appointment_id IS NULL
-                 AND cv.appointment_record_id IS NULL
                GROUP BY cv.patient_user_id
              )
              SELECT

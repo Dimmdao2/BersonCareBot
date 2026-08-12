@@ -37,12 +37,6 @@ const DROP_CANDIDATES: DropCandidate[] = [
     patterns: ['rubitime_records', 'rubitimeRecords'],
   },
   {
-    table: 'public.appointment_records',
-    safe: false,
-    reason: 'doctor read-source and projection paths still allow legacy',
-    patterns: ['appointment_records', 'appointmentRecords'],
-  },
-  {
     table: 'integrator.contacts',
     safe: false,
     reason: 'linked-phone fallback still defaults to public_then_contacts',

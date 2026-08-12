@@ -439,7 +439,7 @@ export function NewVisitPanel({
   /**
    * The booking this visit is being created from (optional).
    * When set: appointment info is shown via calendar icon (📅).
-   * When saving: appointmentRecordId compatibility field carries the canonical internalId.
+   * When saving: canonicalAppointmentId carries the canonical internal id.
    */
   sourceAppointment?: PatientAppointmentItem | null;
   /** Called once after this component captures pending props into state. */
@@ -892,9 +892,8 @@ export function NewVisitPanel({
       service: service.trim() || undefined,
       duration: duration.trim() || undefined,
       anamnesisText: anamnesisText.trim() || undefined,
-      // appointmentRecordId is a compatibility request field; internalId is the canonical appointment uuid.
       ...(sourceAppointment?.internalId
-        ? { appointmentRecordId: sourceAppointment.internalId }
+        ? { canonicalAppointmentId: sourceAppointment.internalId }
         : {}),
     };
 

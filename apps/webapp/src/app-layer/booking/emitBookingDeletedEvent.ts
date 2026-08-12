@@ -42,8 +42,8 @@ export async function emitBookingDeletedEvent(input: {
   if (!id) return;
 
   const bookingRow = await resolveBookingForIntegratorRecordId(id, input.deps);
-  const recordRow = input.deps.appointmentProjection
-    ? await input.deps.appointmentProjection.getRecordByIntegratorId(id)
+  const recordRow = input.deps.appointmentAccess
+    ? await input.deps.appointmentAccess.getByExternalRecordId(id)
     : null;
   const slotIso = recordRow?.recordAt ?? input.slotIsoFallback ?? new Date().toISOString();
   const idempotencyKey = input.idempotencySuffix

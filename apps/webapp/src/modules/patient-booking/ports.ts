@@ -29,22 +29,6 @@ export type BookingSlotsQuery =
       slotCount?: number;
     };
 
-/** Doctor cabinet compatibility projection. */
-export type AppointmentProjectionPort = {
-  upsertRecordFromProjection(params: {
-    organizationId: string;
-    platformUserId: string | null;
-    integratorRecordId: string;
-    phoneNormalized: string | null;
-    recordAt: string | null;
-    status: string;
-    payloadJson: Record<string, unknown>;
-    lastEvent: string;
-    updatedAt: string;
-    branchId?: string | null;
-  }): Promise<void>;
-};
-
 /** Flat row written by `createPending` (service maps from API + catalog). */
 export type CreatePendingPatientBookingInput = {
   organizationId: string;

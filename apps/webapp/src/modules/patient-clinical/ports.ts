@@ -230,7 +230,6 @@ export type CreateVisitInput = {
   duration?: string | null;
   anamnesisText?: string | null;
   canonicalAppointmentId?: string | null;
-  appointmentRecordId?: string | null;
   exam?: string | null;
   manipulations?: string | null;
   trialResults?: string | null;
@@ -344,8 +343,8 @@ export interface PatientClinicalPort {
   appendAnamnesisLifestyle(input: AppendAnamnesisLifestyleInput): Promise<AnamnesisLifestyleEntry>;
 
   /**
-   * Список appointment_record_id (uuid) уже привязанных к визитам пациента.
+   * Список канонических appointment id, уже привязанных к визитам пациента.
    * Используется в «Создать из записи», чтобы отфильтровать уже использованные записи.
    */
-  listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]>;
+  listLinkedAppointmentIds(patientUserId: string): Promise<string[]>;
 }

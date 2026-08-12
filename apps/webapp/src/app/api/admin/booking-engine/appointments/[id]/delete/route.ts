@@ -11,7 +11,7 @@ export async function POST(_request: Request, context: RouteContext) {
   if (!gate.ok) return gate.response;
   const { id: appointmentId } = await context.params;
   const deps = buildAppDeps();
-  if (!deps.appointmentProjection) {
+  if (!deps.appointmentAccess) {
     return NextResponse.json({ ok: false, error: 'lifecycle_unavailable' }, { status: 503 });
   }
   const result = await staffPurgeCancelledAppointment({

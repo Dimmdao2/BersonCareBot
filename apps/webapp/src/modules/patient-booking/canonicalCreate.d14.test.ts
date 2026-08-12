@@ -74,7 +74,6 @@ function buildDeps(
     bookingEngine: bookingEngine as unknown as CanonicalBookingDeps['bookingEngine'],
     bookingScheduling: bookingScheduling as unknown as CanonicalBookingDeps['bookingScheduling'],
     bookingForm: null,
-    appointmentProjection: null,
     payments: null,
     canAcceptBookingPrepayment: async () => false,
     memberships: null,

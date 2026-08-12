@@ -439,7 +439,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       return runDrizzleMutationTransaction(async (tx) => {
         const organizationId = currentWriteOrganizationId();
         let canonicalAppointmentId = input.canonicalAppointmentId ?? null;
-        const canonicalCandidate = canonicalAppointmentId ?? input.appointmentRecordId ?? null;
+        const canonicalCandidate = canonicalAppointmentId;
         if (canonicalCandidate) {
           const canonicalAppointment = await tx.execute<{ id: string }>(sql`
             SELECT bea.id
@@ -467,7 +467,6 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             service: input.service ?? null,
             duration: input.duration ?? null,
             anamnesisText: input.anamnesisText ?? null,
-            appointmentRecordId: null,
             canonicalAppointmentId,
             exam: input.exam ?? null,
             manipulations: input.manipulations ?? null,
@@ -930,13 +929,12 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       return { id: row.id, date: fmtDisplayDate(row.recordDate), text: row.text };
     },
 
-    async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
+    async listLinkedAppointmentIds(patientUserId: string): Promise<string[]> {
       const organizationId = requiredPrincipalOrganizationId();
       const db = getDrizzle();
       const rows = await db
         .select({
           canonicalAppointmentId: clinicalVisit.canonicalAppointmentId,
-          appointmentRecordId: clinicalVisit.appointmentRecordId,
         })
         .from(clinicalVisit)
         .where(
@@ -946,9 +944,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             // Only non-null links
           ),
         );
-      return rows
-        .map((r) => r.canonicalAppointmentId ?? r.appointmentRecordId)
-        .filter((id): id is string => id != null);
+      return rows.map((r) => r.canonicalAppointmentId).filter((id): id is string => id != null);
     },
   };
 }

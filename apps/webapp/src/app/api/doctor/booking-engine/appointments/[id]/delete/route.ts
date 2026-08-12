@@ -16,7 +16,7 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const deps = buildAppDeps();
-  if (!deps.appointmentProjection) {
+  if (!deps.appointmentAccess) {
     return NextResponse.json({ ok: false, error: 'lifecycle_unavailable' }, { status: 503 });
   }
   const result = await staffPurgeCancelledAppointment({

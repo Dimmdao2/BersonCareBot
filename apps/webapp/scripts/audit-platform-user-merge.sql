@@ -1,17 +1,18 @@
 -- Diagnostic audit for Platform User Merge & Dedup.
 -- Read-only: no UPDATE/DELETE.
 
--- 1) appointment_records with phone but without canonical user
+-- 1) canonical appointments with phone but without canonical user
 SELECT
-  'appointment_records_missing_canonical_user' AS check_name,
+  'be_appointments_missing_canonical_user' AS check_name,
   COUNT(*)::bigint AS row_count
-FROM appointment_records ar
-WHERE ar.phone_normalized IS NOT NULL
-  AND ar.deleted_at IS NULL
+FROM be_appointments appointment
+WHERE appointment.phone_normalized IS NOT NULL
+  AND appointment.deleted_at IS NULL
+  AND appointment.platform_user_id IS NULL
   AND NOT EXISTS (
     SELECT 1
     FROM platform_users pu
-    WHERE pu.phone_normalized = ar.phone_normalized
+    WHERE pu.phone_normalized = appointment.phone_normalized
       AND pu.merged_into_id IS NULL
   );
 

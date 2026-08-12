@@ -67,7 +67,6 @@ export async function runStaffManualCancelAfterCanonical(input: {
   );
   try {
     await applyStaffCancelSideEffects({
-      projection: input.deps.appointmentProjection,
       lifecycle: input.deps.bookingAppointmentLifecycle!,
       organizationId: input.organizationId,
       appointment: input.appointment,

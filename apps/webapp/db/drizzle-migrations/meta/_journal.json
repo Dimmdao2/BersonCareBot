@@ -2675,6 +2675,13 @@
       "when": 1793539230128,
       "tag": "0385_channel_binding_display_handle_local",
       "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1793539230129,
+      "tag": "0386_offline_drop_legacy_appointment_records_local",
+      "breakpoints": true
     }
   ]
 }

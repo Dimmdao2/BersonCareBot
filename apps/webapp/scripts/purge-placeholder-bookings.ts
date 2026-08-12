@@ -6,7 +6,7 @@
  *   - «БЛОК ОКНА» (тел. +70000000000) — ручная блокировка слота;
  *   - «Дмитрий Берсон» (тел. +79189000782) — свои тестовые брони.
  * Это не реальные пациенты — их брони мусорят историю и календарь. Удаляем ТОЛЬКО записи
- * (be_appointments + проекции + appointment-маппинги), сами platform_users НЕ трогаем.
+ * (be_appointments + patient_bookings + appointment-маппинги), сами platform_users НЕ трогаем.
  *
  * ⚠ ЭТОТ СКРИПТ НЕ УДАЛЯЕТ НИ ОДНОГО АККАУНТА (platform_users). Только записи.
  *
@@ -15,7 +15,6 @@
  *   2. be_appointments целевых (CASCADE снесёт audit-детей: events/history/reschedules/
  *      cancellations/staff_comments/form_submissions; payments/patient_bookings → SET NULL);
  *   3. patient_bookings проекции этих плейсхолдеров;
- *   4. appointment_records (legacy) проекции этих плейсхолдеров.
  *
  * Цель = записи, где platform_user_id принадлежит НЕ-admin плейсхолдеру с целевым телефоном,
  *   ИЛИ phone_normalized/contact_phone — целевой телефон. Admin-аккаунты исключены by design.
@@ -54,7 +53,6 @@ import { dirname, resolve as resolvePath } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { and, count, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import {
-  appointmentRecords,
   beAppointments,
   beExternalEntityMappings,
   patientBookings,
@@ -82,7 +80,6 @@ type CleanupStats = {
   be_appointments_to_delete: number;
   appointment_mappings_to_delete: number;
   patient_bookings_to_delete: number;
-  appointment_records_to_delete: number;
 };
 
 type DetailedAudit = {
@@ -265,14 +262,6 @@ async function main() {
             inArray(patientBookings.contactPhone, PHONES),
           )
         : inArray(patientBookings.contactPhone, PHONES);
-    const appointmentRecordTarget =
-      userIds.length > 0
-        ? or(
-            inArray(appointmentRecords.platformUserId, userIds),
-            inArray(appointmentRecords.phoneNormalized, PHONES),
-          )
-        : inArray(appointmentRecords.phoneNormalized, PHONES);
-
     // The owner predicates remain protected even if a target phone/user changes after preflight.
     const appointmentWhere = and(
       appointmentTarget,
@@ -300,20 +289,6 @@ async function main() {
         ),
       ),
     );
-    const appointmentRecordWhere = and(
-      appointmentRecordTarget,
-      or(
-        isNull(appointmentRecords.platformUserId),
-        notInArray(
-          appointmentRecords.platformUserId,
-          db
-            .select({ id: platformUsers.id })
-            .from(platformUsers)
-            .where(eq(platformUsers.role, 'admin')),
-        ),
-      ),
-    );
-
     const appointmentRows = await db
       .select({ id: beAppointments.id })
       .from(beAppointments)
@@ -321,7 +296,7 @@ async function main() {
     const appointmentIds = appointmentRows.map((row) => row.id);
     detailedAudit.appointmentIds = appointmentIds;
 
-    const [mappingCountRow, patientBookingCountRow, appointmentRecordCountRow] = await Promise.all([
+    const [mappingCountRow, patientBookingCountRow] = await Promise.all([
       appointmentIds.length === 0
         ? Promise.resolve({ value: 0 })
         : db
@@ -339,18 +314,12 @@ async function main() {
         .from(patientBookings)
         .where(patientBookingWhere)
         .then((rows) => rows[0] ?? { value: 0 }),
-      db
-        .select({ value: count() })
-        .from(appointmentRecords)
-        .where(appointmentRecordWhere)
-        .then((rows) => rows[0] ?? { value: 0 }),
     ]);
 
     const stats: CleanupStats = {
       be_appointments_to_delete: appointmentIds.length,
       appointment_mappings_to_delete: Number(mappingCountRow.value),
       patient_bookings_to_delete: Number(patientBookingCountRow.value),
-      appointment_records_to_delete: Number(appointmentRecordCountRow.value),
     };
 
     let auditPath: string | null = null;
@@ -406,7 +375,6 @@ async function main() {
         }
         await tx.delete(beAppointments).where(appointmentWhere);
         await tx.delete(patientBookings).where(patientBookingWhere);
-        await tx.delete(appointmentRecords).where(appointmentRecordWhere);
       });
       transactionCommitted = true;
 

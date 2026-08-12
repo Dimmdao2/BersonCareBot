@@ -45,7 +45,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   // To avoid stale "unlinked" data we cross-reference via the visits port:
   // fetch linked appointment IDs from clinical visits.
   const linkedIds = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.patientClinical.listLinkedAppointmentRecordIds(identity.userId),
+    deps.patientClinical.listLinkedAppointmentIds(identity.userId),
   );
   const linkedSet = new Set(linkedIds);
 

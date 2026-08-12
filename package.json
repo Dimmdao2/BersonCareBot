@@ -44,6 +44,7 @@
     "verify:saas-a0-greenfield-baseline": "node scripts/verify-a0-greenfield-baseline.mjs",
     "check:saas-a1-rls-conformance": "node scripts/verify-a1-rls-conformance.mjs",
     "verify:offline-legacy-identity-cut": "node scripts/verify-offline-legacy-identity-cut.mjs",
+    "verify:offline-legacy-appointment-cut": "node scripts/verify-offline-legacy-appointment-cut.mjs",
     "test:saas-a0-signal-cleanup": "node --test scripts/a0-greenfield-signal-cleanup.test.mjs",
     "refresh:saas-a0-greenfield-baseline": "node scripts/refresh-a0-greenfield-baseline.mjs --confirm-local-dev-schema-refresh",
     "check:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs",

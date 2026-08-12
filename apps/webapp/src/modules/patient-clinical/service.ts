@@ -219,8 +219,8 @@ export function createPatientClinicalService({ patientClinicalPort }: PatientCli
       return patientClinicalPort.appendAnamnesisLifestyle({ ...input, text, recordDate });
     },
 
-    async listLinkedAppointmentRecordIds(patientUserId: string): Promise<string[]> {
-      return patientClinicalPort.listLinkedAppointmentRecordIds(patientUserId);
+    async listLinkedAppointmentIds(patientUserId: string): Promise<string[]> {
+      return patientClinicalPort.listLinkedAppointmentIds(patientUserId);
     },
   };
 }

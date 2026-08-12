@@ -10,7 +10,7 @@ import {
   foreignKey,
   check,
 } from 'drizzle-orm/pg-core';
-import { platformUsers, appointmentRecords } from './schema';
+import { platformUsers } from './schema';
 import { beAppointments, beOrganizations } from './bookingEngine';
 
 /**
@@ -86,8 +86,6 @@ export const clinicalVisit = pgTable(
     duration: text('duration'),
     anamnesisText: text('anamnesis_text'),
     /** Необязательная связь с записью на приём (бронированием). */
-    appointmentRecordId: uuid('appointment_record_id'),
-    /** Canonical booking link replacing appointment_record_id for Rubitime retirement. */
     canonicalAppointmentId: uuid('canonical_appointment_id'),
     exam: text('exam'),
     manipulations: text('manipulations'),
@@ -113,11 +111,6 @@ export const clinicalVisit = pgTable(
       foreignColumns: [platformUsers.id],
       name: 'clinical_visit_patient_user_id_fkey',
     }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.appointmentRecordId],
-      foreignColumns: [appointmentRecords.id],
-      name: 'clinical_visit_appointment_record_id_fkey',
-    }).onDelete('set null'),
     foreignKey({
       columns: [table.canonicalAppointmentId],
       foreignColumns: [beAppointments.id],

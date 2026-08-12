@@ -1,15 +1,16 @@
 -- Preflight audit: Platform User Merge & Dedup (read-only).
 -- Run against webapp DB after loading env (see docs/ARCHITECTURE/SERVER CONVENTIONS.md).
 
--- 1) appointment_records with phone but no canonical platform_users row
-SELECT COUNT(*) AS appointment_records_missing_canonical_user
-FROM appointment_records ar
-WHERE ar.phone_normalized IS NOT NULL
-  AND ar.deleted_at IS NULL
+-- 1) canonical appointments with phone but no canonical platform_users row
+SELECT COUNT(*) AS be_appointments_missing_canonical_user
+FROM be_appointments appointment
+WHERE appointment.phone_normalized IS NOT NULL
+  AND appointment.deleted_at IS NULL
+  AND appointment.platform_user_id IS NULL
   AND NOT EXISTS (
     SELECT 1
     FROM platform_users pu
-    WHERE pu.phone_normalized = ar.phone_normalized
+    WHERE pu.phone_normalized = appointment.phone_normalized
       AND pu.merged_into_id IS NULL
   );
 

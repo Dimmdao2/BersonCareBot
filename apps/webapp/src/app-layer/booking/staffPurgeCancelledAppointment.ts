@@ -1,7 +1,6 @@
 import { emitBookingDeletedEvent } from '@/app-layer/booking/emitBookingDeletedEvent';
 import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { isStaffDeletableCancelledStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
-import { nativeIntegratorRecordId } from '@/modules/patient-booking/projectCanonicalAppointment';
 
 export type StaffPurgeCancelledAppointmentResult =
   | { ok: true }
@@ -14,7 +13,7 @@ export async function staffPurgeCancelledAppointment(input: {
   actorId: string;
   runLocalPurge?: <T>(fn: () => Promise<T>) => Promise<T>;
 }): Promise<StaffPurgeCancelledAppointmentResult> {
-  if (!input.deps.bookingEngine || !input.deps.appointmentProjection) {
+  if (!input.deps.bookingEngine || !input.deps.appointmentAccess) {
     return { ok: false, error: 'not_found' };
   }
 
@@ -27,7 +26,7 @@ export async function staffPurgeCancelledAppointment(input: {
   }
 
   const purge = () =>
-    input.deps.appointmentProjection!.softDeleteByCanonicalAppointmentId(
+    input.deps.appointmentAccess!.softDeleteById(
       input.appointmentId,
       appointment.organizationId,
     );
@@ -36,7 +35,7 @@ export async function staffPurgeCancelledAppointment(input: {
     return { ok: false, error: 'not_found' };
   }
 
-  const integratorRecordId = nativeIntegratorRecordId(input.appointmentId);
+  const integratorRecordId = `be:${input.appointmentId}`;
   try {
     await emitBookingDeletedEvent({
       deps: input.deps,

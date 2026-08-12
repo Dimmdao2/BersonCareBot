@@ -170,7 +170,6 @@ function bookingDeps(): CanonicalBookingDeps {
       },
     } as unknown as CanonicalBookingDeps['bookingScheduling'],
     bookingForm: null,
-    appointmentProjection: null,
     payments: null,
     canAcceptBookingPrepayment: async () => false,
     memberships: null,

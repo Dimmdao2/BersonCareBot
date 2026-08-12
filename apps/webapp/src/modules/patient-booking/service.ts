@@ -21,7 +21,6 @@ type BookingFormService = ReturnType<typeof createBookingFormService>;
 type BookingAppointmentLifecycleService = ReturnType<
   typeof createBookingAppointmentLifecycleService
 >;
-import type { AppointmentProjectionPort } from './ports';
 import { validateCreatePatientBookingInput } from './createInputValidation';
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from './canonicalCreate';
 import {
@@ -29,11 +28,6 @@ import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from './bookingLifecycleNotifications';
-import {
-  projectCanonicalAppointmentCancelled,
-  projectCanonicalAppointmentRescheduled,
-} from './projectCanonicalAppointment';
-import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import type { PatientBookingRecord } from './types';
 import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
 import type { BeAppointment } from '@/modules/booking-engine/types';
@@ -104,19 +98,6 @@ async function loadBookingPaymentStatus(
   };
 }
 
-function rowToProjectionInput(row: PatientBookingRecord) {
-  return {
-    phoneNormalized: normalizeRuPhoneE164(row.contactPhone) ?? (row.contactPhone.trim() || null),
-    contactName: row.contactName,
-    serviceTitle: row.serviceTitleSnapshot,
-    branchTitle: row.branchTitleSnapshot,
-  };
-}
-
-function buildProjectionInput(row: PatientBookingRecord) {
-  return { ...rowToProjectionInput(row), legacyBranchId: null };
-}
-
 function cacheKey(query: BookingSlotsQuery): string {
   if (query.type === 'online') {
     return JSON.stringify({
@@ -141,7 +122,6 @@ export function createPatientBookingService(input: {
   bookingEngine?: BookingEngineService | null;
   bookingScheduling?: BookingSchedulingService | null;
   bookingForm?: BookingFormService | null;
-  appointmentProjection?: AppointmentProjectionPort | null;
   appointmentLifecycle?: BookingAppointmentLifecycleService | null;
   payments?: PaymentsService | null;
   canAcceptBookingPrepayment?: (organizationId: string) => Promise<boolean>;
@@ -175,7 +155,6 @@ export function createPatientBookingService(input: {
           bookingEngine: input.bookingEngine,
           bookingScheduling: input.bookingScheduling,
           bookingForm: input.bookingForm ?? null,
-          appointmentProjection: input.appointmentProjection ?? null,
           payments: input.payments ?? null,
           // No entitlement resolver means no patient-money acceptance. Production always injects
           // the canonical org-entitlement door; this fallback keeps isolated non-payment fixtures
@@ -485,29 +464,6 @@ export function createPatientBookingService(input: {
         }
       }
 
-      if (input.appointmentProjection) {
-        try {
-          await projectCanonicalAppointmentRescheduled(
-            input.appointmentProjection,
-            result.appointment,
-            buildProjectionInput({
-              ...row,
-              slotStart: rescheduleInput.slotStart,
-              slotEnd: rescheduleInput.slotEnd,
-            }),
-          );
-        } catch (err) {
-          console.error(
-            '[patient-booking] doctor projection reschedule failed (reschedule already committed)',
-            {
-              bookingId: row.id,
-              canonicalAppointmentId: row.canonicalAppointmentId,
-              err,
-            },
-          );
-        }
-      }
-
       const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
       let integratorStatus: 'sent' | 'failed' = 'failed';
       const rescheduleNotify = resolveBookingNotifyTargets(
@@ -702,25 +658,6 @@ export function createPatientBookingService(input: {
           status: 'cancelled',
         });
         invalidateSlotsCache();
-
-        if (input.appointmentProjection) {
-          try {
-            await projectCanonicalAppointmentCancelled(
-              input.appointmentProjection,
-              lifecycleResult.appointment,
-              buildProjectionInput(row),
-            );
-          } catch (err) {
-            console.error(
-              '[patient-booking] doctor projection cancel failed (cancel already committed)',
-              {
-                bookingId: row.id,
-                canonicalAppointmentId: row.canonicalAppointmentId,
-                err,
-              },
-            );
-          }
-        }
 
         const idempotencyKey = `booking.cancelled:${row.id}`;
         let integratorStatus: 'sent' | 'failed' = 'failed';

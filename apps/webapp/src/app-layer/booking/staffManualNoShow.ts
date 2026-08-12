@@ -34,7 +34,6 @@ export async function runStaffManualNoShowAfterCanonical(input: {
 
   try {
     await applyStaffNoShowSideEffects({
-      projection: input.deps.appointmentProjection,
       lifecycle: input.deps.bookingAppointmentLifecycle!,
       organizationId: input.organizationId,
       appointment: input.appointment,

@@ -62,7 +62,6 @@ VALUES
   ('integrator', 'user_reminder_delivery_logs'),
   ('integrator', 'user_reminder_occurrences'),
   ('public', 'admin_audit_log'),
-  ('public', 'appointment_records'),
   ('public', 'auth_rate_limit_events'),
   ('public', 'be_appointment_cancellations'),
   ('public', 'be_appointment_events'),

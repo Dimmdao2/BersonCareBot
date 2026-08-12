@@ -6,45 +6,14 @@ import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from '@/modules/patient-booking/bookingLifecycleNotifications';
-import type { AppointmentProjectionPort, BookingSyncPort } from '@/modules/patient-booking/ports';
+import type { BookingSyncPort } from '@/modules/patient-booking/ports';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 import { emitStaffCanonicalBookingEvent } from '@/app-layer/booking/staffBookingIntegratorEvent';
-import {
-  projectCanonicalAppointmentCancelled,
-  projectCanonicalAppointmentNoShow,
-  projectCanonicalAppointmentRescheduled,
-} from '@/modules/patient-booking/projectCanonicalAppointment';
 
 type LifecycleService = ReturnType<typeof createBookingAppointmentLifecycleService>;
 
-async function projectionFromAppointment(
-  appt: BeAppointment,
-  bookingRow?: PatientBookingRecord | null,
-) {
-  const attr = appt.attributionJson ?? {};
-  const contactName =
-    typeof attr.contact_name === 'string'
-      ? attr.contact_name
-      : typeof attr.contactName === 'string'
-        ? attr.contactName
-        : 'Пациент';
-  const serviceTitle =
-    typeof attr.service_title === 'string'
-      ? attr.service_title
-      : typeof attr.serviceTitle === 'string'
-        ? attr.serviceTitle
-        : null;
-  return {
-    phoneNormalized: appt.phoneNormalized,
-    contactName,
-    serviceTitle,
-    branchTitle: bookingRow?.branchTitleSnapshot ?? null,
-  };
-}
-
 export async function applyStaffCancelSideEffects(opts: {
-  projection: AppointmentProjectionPort | null | undefined;
   lifecycle: LifecycleService;
   organizationId: string;
   appointment: BeAppointment;
@@ -55,13 +24,6 @@ export async function applyStaffCancelSideEffects(opts: {
   /** R21: врач снял галочку «Уведомлять пациента» — подавить уведомление пациенту. */
   suppressPatientNotification?: boolean;
 }): Promise<void> {
-  if (opts.projection) {
-    await projectCanonicalAppointmentCancelled(
-      opts.projection,
-      opts.appointment,
-      await projectionFromAppointment(opts.appointment, opts.bookingRow),
-    );
-  }
   const resolvedCancelNotify = resolveBookingNotifyTargets(
     'booking.cancelled',
     opts.cancelPolicy,
@@ -100,7 +62,6 @@ export async function applyStaffCancelSideEffects(opts: {
  * - resolve + record notificationsSent with same suppression mechanism as staff-cancel (R21 pattern)
  */
 export async function applyStaffNoShowSideEffects(opts: {
-  projection: AppointmentProjectionPort | null | undefined;
   lifecycle: LifecycleService;
   organizationId: string;
   appointment: BeAppointment;
@@ -110,13 +71,6 @@ export async function applyStaffNoShowSideEffects(opts: {
   /** Suppress patient notification — same flag/mechanism as staff-cancel R21 suppression. */
   suppressPatientNotification?: boolean;
 }): Promise<void> {
-  if (opts.projection) {
-    await projectCanonicalAppointmentNoShow(
-      opts.projection,
-      opts.appointment,
-      await projectionFromAppointment(opts.appointment, opts.bookingRow),
-    );
-  }
   // Use booking.cancelled policy for notification targets (no separate no-show policy exists yet).
   const noShowNotifyRaw = resolveBookingNotifyTargets(
     'booking.cancelled',
@@ -153,7 +107,6 @@ export async function applyStaffNoShowSideEffects(opts: {
 }
 
 export async function applyStaffRescheduleSideEffects(opts: {
-  projection: AppointmentProjectionPort | null | undefined;
   lifecycle: LifecycleService;
   organizationId: string;
   appointment: BeAppointment;
@@ -164,13 +117,6 @@ export async function applyStaffRescheduleSideEffects(opts: {
   /** D13a(добор): план напоминаний клиники, вычисленный вызывающим маршрутом. */
   reminderPlan?: AppointmentReminderPlan;
 }): Promise<void> {
-  if (opts.projection) {
-    await projectCanonicalAppointmentRescheduled(
-      opts.projection,
-      opts.appointment,
-      await projectionFromAppointment(opts.appointment, opts.bookingRow),
-    );
-  }
   const rescheduleNotify = resolveBookingNotifyTargets(
     'booking.rescheduled',
     opts.reschedulePolicy,

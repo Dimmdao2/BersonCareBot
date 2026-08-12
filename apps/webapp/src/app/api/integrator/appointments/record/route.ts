@@ -13,16 +13,16 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  if (!deps.appointmentProjection) {
+  if (!deps.appointmentAccess) {
     return NextResponse.json(
-      { ok: false, error: 'appointment projection not available' },
+      { ok: false, error: 'canonical appointment access not available' },
       { status: 503 },
     );
   }
-  const row = await deps.appointmentProjection.getRecordByIntegratorId(integratorRecordId);
+  const row = await deps.appointmentAccess.getByExternalRecordId(integratorRecordId);
   const record = row
     ? {
-        externalRecordId: row.integratorRecordId,
+        externalRecordId: row.externalRecordId,
         phoneNormalized: row.phoneNormalized,
         recordAt: row.recordAt,
         status: row.status,

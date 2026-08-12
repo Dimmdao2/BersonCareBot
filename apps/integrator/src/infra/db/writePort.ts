@@ -52,7 +52,6 @@ import {
   mergeCandidateIdsViaPlatformMerge,
   isIdentityMergeAmbiguityError,
 } from './directPublic/mergeCandidatesDirect.js';
-import { isDirectPublicActorResolutionFailClosedError } from './directPublic/resolveDirectPublicActor.js';
 import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
 import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';

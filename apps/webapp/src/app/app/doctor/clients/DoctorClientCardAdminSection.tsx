@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { AdminDangerActions } from './AdminDangerActions';
 import { AdminMergeAccountsPanel } from './AdminMergeAccountsPanel';
 import { AdminClientAuditHistorySection } from './AdminClientAuditHistorySection';
 import {
@@ -12,20 +11,16 @@ import {
 
 type Props = {
   userId: string;
-  isAdmin: boolean;
   canPermanentDelete: boolean;
-  sampleRecordId: string | null;
 };
 
 export function DoctorClientCardAdminSection({
   userId,
-  isAdmin,
   canPermanentDelete,
-  sampleRecordId,
 }: Props) {
   const [adminDetailsOpen, setAdminDetailsOpen] = useState(false);
 
-  if (!isAdmin && !canPermanentDelete) {
+  if (!canPermanentDelete) {
     return null;
   }
 
@@ -40,9 +35,6 @@ export function DoctorClientCardAdminSection({
         Админ
       </summary>
       <div className={`border-t border-border px-4 pb-4 pt-4 ${doctorClientPanelStackClass}`}>
-        {isAdmin ? (
-          <AdminDangerActions userId={userId} sampleIntegratorRecordId={sampleRecordId} />
-        ) : null}
         {canPermanentDelete ? (
           <AdminMergeAccountsPanel
             anchorUserId={userId}

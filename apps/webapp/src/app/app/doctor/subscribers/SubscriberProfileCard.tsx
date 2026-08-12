@@ -5,7 +5,6 @@ import Link from 'next/link';
 import type { ClientProfile } from '@/modules/doctor-clients/service';
 import { cn } from '@/lib/utils';
 import type { MessageLogEntry } from '@/modules/doctor-messaging/ports';
-import { AdminDangerActions } from '../clients/AdminDangerActions';
 import { DoctorClientPrimaryContacts } from '../clients/DoctorClientPrimaryContacts';
 import { DoctorNotesPanel } from '../clients/DoctorNotesPanel';
 import { ClientBookingHistoryPanel } from '../clients/ClientBookingHistoryPanel';
@@ -42,12 +41,10 @@ export function SubscriberProfileCard({
   messageHistory,
   userId,
   listBasePath,
-  isAdmin,
   displayTimeZone,
 }: Props) {
   const { identity, channelCards } = profile;
   const counts = aggregateChannelCounts(messageHistory);
-  const sampleRecordId = profile.appointmentHistory[0]?.id ?? null;
 
   return (
     <>
@@ -134,9 +131,6 @@ export function SubscriberProfileCard({
         initiallyBlocked={identity.isBlocked}
         blockedReason={identity.blockedReason}
       />
-      {isAdmin ? (
-        <AdminDangerActions userId={userId} sampleIntegratorRecordId={sampleRecordId} />
-      ) : null}
 
       <p>
         <Link href={listBasePath} className={cn(doctorClientBackLinkClass, 'shrink-0')}>

@@ -15,7 +15,7 @@
  *                         — ВРЕМЕННО ОТКЛЮЧЕНА: удаляла integrator account и связанную историю по телефону.
  *
  *   scrub-webapp-by-phone <phone>
- *                         — только webapp: appointment_records + phone_otp/challenges по номеру и журнал doctor-сообщений
+ *                         — только webapp: phone_otp/challenges по номеру и журнал doctor-сообщений
  *                           message_log для всех platform_users с этим телефоном (таблица без FK, строки не удаляются сами).
  *
  *   message-log-delete <platform-user-uuid>
@@ -350,14 +350,9 @@ async function info(phone: string): Promise<void> {
     `SELECT count(*)::int AS cnt FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`,
     [digs],
   );
-  const appts = await db.query<{ cnt: number }>(
-    `SELECT count(*)::int AS cnt FROM appointment_records WHERE phone_normalized IS NOT NULL AND ${phonePred}`,
-    [digs],
-  );
   console.log('\nПо номеру телефона (удаляются при reset-user):');
   console.log(`  phone_otp_locks: ${otp.rows[0]?.cnt ?? 0}`);
   console.log(`  phone_challenges: ${ch.rows[0]?.cnt ?? 0}`);
-  console.log(`  appointment_records: ${appts.rows[0]?.cnt ?? 0}`);
 
   if (integratorDb) {
     const intIds = await resolveIntegratorUserIds(digs, user.integrator_user_id);
@@ -373,7 +368,7 @@ async function info(phone: string): Promise<void> {
   console.log();
 }
 
-/** OTP-блокировки, челленджи и проекции записей по номеру — только webapp. */
+/** OTP-блокировки, челленджи и doctor message log по номеру — только webapp. */
 async function deletePhoneKeyedWebappRows(
   client: PoolClient,
   phoneNormalized: string,
@@ -394,14 +389,6 @@ async function deletePhoneKeyedWebappRows(
     [digs],
   );
   log('Удалено из phone_challenges', r.rowCount ?? 0);
-
-  r = await client.query(
-    `DELETE FROM appointment_records
-     WHERE phone_normalized IS NOT NULL
-       AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-    [digs],
-  );
-  log('Удалено из appointment_records (по номеру)', r.rowCount ?? 0);
 
   r = await client.query(
     `DELETE FROM message_log
@@ -482,7 +469,7 @@ async function deleteWebappProjectionByIntegratorUserId(
 
 async function scrubWebappByPhone(phone: string): Promise<void> {
   const norm = normalize(phone);
-  console.log(`\nWebapp: очистка appointment_records / OTP / message_log по номеру ${norm}\n`);
+  console.log(`\nWebapp: очистка OTP / message_log по номеру ${norm}\n`);
   const client = await db.connect();
   try {
     await client.query('BEGIN');

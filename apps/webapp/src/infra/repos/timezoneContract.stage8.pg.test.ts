@@ -1,5 +1,5 @@
 /**
- * Stage 8: SQL bind contract for webapp tables (same canonical instant as integrator S8.T02).
+ * Stage 8: SQL bind contract for the surviving canonical patient booking path.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,7 +13,6 @@ vi.mock('@/infra/db/runWebappSql', async (importOriginal) => {
   };
 });
 
-import { createPgAppointmentProjectionPort } from './pgAppointmentProjection';
 import { pgPatientBookingsPort } from './pgPatientBookings';
 
 /** Moscow wall 11:00 → UTC (STAGE_8 / MASTER_PLAN). */
@@ -22,29 +21,6 @@ const STAGE8_EXPECTED_MOSCOW_UTC_ISO = '2026-04-07T08:00:00.000Z';
 describe('Stage 8 timezone contract (webapp PG repos)', () => {
   beforeEach(() => {
     queryMock.mockReset();
-  });
-
-  it('S8.T02: appointment_records — upsertRecordFromProjection binds record_at ($3) to canonical ISO', async () => {
-    queryMock.mockResolvedValue({
-      rows: [{ organization_id: '00000000-0000-4000-8000-000000000001' }],
-    });
-    const port = createPgAppointmentProjectionPort();
-    await port.upsertRecordFromProjection({
-      organizationId: '00000000-0000-4000-8000-000000000001',
-      platformUserId: null,
-      integratorRecordId: 'stage8-contract-moscow',
-      phoneNormalized: '+79990001122',
-      recordAt: STAGE8_EXPECTED_MOSCOW_UTC_ISO,
-      status: 'updated',
-      payloadJson: {},
-      lastEvent: 'event-update-record',
-      updatedAt: '2026-04-07T08:00:00.000Z',
-    });
-    expect(queryMock).toHaveBeenCalledTimes(1);
-    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
-    expect(sql).toContain('appointment_records');
-    expect(sql).toContain('record_at');
-    expect(params[2]).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
   });
 
   it('S8.T02: patient_bookings — createPending binds slot_start ($6) to canonical ISO', async () => {

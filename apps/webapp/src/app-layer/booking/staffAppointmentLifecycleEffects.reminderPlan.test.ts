@@ -61,7 +61,6 @@ describe('applyStaffRescheduleSideEffects: reminderPlan', () => {
 
   it('передаёт присланный reminderPlan в событие booking.rescheduled', async () => {
     await applyStaffRescheduleSideEffects({
-      projection: null,
       lifecycle: lifecycle as never,
       organizationId: 'org-1',
       appointment: fakeAppointment(),
@@ -75,7 +74,6 @@ describe('applyStaffRescheduleSideEffects: reminderPlan', () => {
 
   it('регрессия: если reminderPlan пропадёт из вызова emitStaffCanonicalBookingEvent, тест краснеет', async () => {
     await applyStaffRescheduleSideEffects({
-      projection: null,
       lifecycle: lifecycle as never,
       organizationId: 'org-1',
       appointment: fakeAppointment(),
