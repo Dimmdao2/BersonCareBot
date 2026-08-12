@@ -5,10 +5,13 @@
 ## 🧰 Решения по инструментам и пакетам (канон)
 
 - **[docs/ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md](ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md)** — что внедряем/откладываем/не берём из списка сторонних инструментов и библиотек (разбор 2026-07-19). Перед тем как тащить новый self-hosted сервис или npm-пакет — свериться там.
-- **Внедрять сейчас — Security CI** (Gitleaks · Semgrep · Trivy · OWASP ZAP): план подключения — **[docs/\_TODO/SECURITY_CI_STACK_PLAN.md](_TODO/SECURITY_CI_STACK_PLAN.md)**.
+- **Инфраструктура и Security CI** (host/LUKS/S3/backups/secrets/Gitleaks/Semgrep/Trivy/ZAP): единый канон —
+  **[docs/\_TODO/INFRASTRUCTURE_SECURITY_PLAN.md](_TODO/INFRASTRUCTURE_SECURITY_PLAN.md)**.
 - **Редактор текстов — Tiptap Simple Editor (не raw-markdown UI и не AI-editor).** Замена markdown-редакторов **везде, где они стоят** (рассылки/CMS-статьи/рекомендации + discovery-sweep) — вариант 1 (markdown остаётся форматом хранения, миграции нет): подчинённый checklist **[docs/\_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md](_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md)**, taskdb **#931**. Исполнение — по решению основного оркестратора; N1B/#930 не блокирует.
 - **Брендированный конверт транзакционных писем (не Tiptap).** Уведомления/напоминания о записи/OTP-коды: текст — как сейчас (простой шаблон); HTML-каркас принадлежит серверу, а организация настраивает только разрешённые поля бренда и предпросмотр без ввода HTML/CSS. Часть **N1B (#930)**; канон — TOOLING_AND_PACKAGES_DECISIONS.md §«Конверт транзакционных писем».
-- **Сверх product/SaaS roadmap — RU privacy и production readiness:** детальный порядок, зависимости, owner/legal gates и host packages — **[docs/\_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md)**. План не меняет уже исполняемые D3/D4/S4/S5/billing стадии.
+- **Сверх product/SaaS roadmap — RU privacy и production readiness:** privacy/legal порядок и owner gates —
+  **[docs/\_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md)**;
+  инфраструктурная реализация вынесена в единый план выше. Эти планы не меняют текущий DB privilege workstream.
 - Ключевое из разбора: анкеты — **нативные** (не Formbricks); faster-whisper — под **голосовые в чатах**; видео — Jitsi MVP → LiveKit; **Recharts/dnd-kit уже стоят** (переиспользовать); **react-table не внедрять**, справочники доктора не трогать; поиск по знаниям — **pgvector, не Qdrant**; **Penpot уже развёрнут** (`penpot.bersonservicex.ru`, taskdb #6).
 
 ## Cursor-планы и доки (сводка)

@@ -687,15 +687,13 @@ Roadmap выбирает dependency-ready workstream, но **не являетс
 | Global admin/support | [`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md) | U9; schema/code после contract и owner gates самого плана. |
 | Unsupported client | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | После hardening Phase 0; launch slice до C7. |
 | Delivery alerting | [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | После A3 и notification foundation; TEST fault injection — отдельный owner gate. |
-| Security CI | [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md) | Параллельный release gate. |
+| Infrastructure security / Security CI | [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) | Единый параллельный plan; production mutations только по owner gate. |
 | Privacy scope/register | [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md), [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md) | Owner/legal inputs precede dependent privacy stages. |
-| Host/secrets | [`SEC-02_HOST_AND_SECRETS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-02_HOST_AND_SECRETS.md) | Host/TEST/PROD mutations only through their owner gates. |
-| Backup/recovery | [`DR-01_BACKUP_AND_RECOVERY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/DR-01_BACKUP_AND_RECOVERY.md) | Real keys/offsite/PITR/restore require named gates. |
-| Encryption/cutover | [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md), [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md) | Stable dependency/legal gates, then owner production window. |
+| Host/secrets/backup/encryption/cutover | [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) | Stable dependency/legal gates, then owner production window. |
 | Notifications | [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | Native push after MOB gates; staff deep-link remains inside N3/N4. |
 | Log hygiene | [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | L2 after G-03 and NTF census. |
 | Consent/rights | [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md), [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md) | PR-02 after D4/S5-7/legal text; PR-03 after PR-02, payment slice after billing freeze. |
-| Clinical/governance/release | [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md), [`SEC-04_GOVERNANCE_AND_INCIDENTS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md), [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md) | D4 → SEC-03 → SEC-04; PR-04 is final owner/external release gate. |
+| Clinical/release | [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md), [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md) | Clinical audit remains product/privacy scope; infrastructure governance is in the infrastructure plan. |
 
 Порядок включения:
 

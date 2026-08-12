@@ -669,7 +669,10 @@ workstream-карточку `#1001`. Он не превращает options вы
       Telegram/webhook credentials отозваны/ротированы; после ответа решить history rewrite или датированное
       исключение, не выбирать самостоятельно.
 
-Канон leaf-части: `../SECURITY_CI_STACK_PLAN.md`; решение состава:
+> **ЗАМЕНЕНО 2026-08-13:** этот K2-checklist не исполняется отдельно. Канон:
+> [`../INFRASTRUCTURE_SECURITY_PLAN.md` §I5](../INFRASTRUCTURE_SECURITY_PLAN.md#i5--ci-и-поиск-уязвимостей).
+
+Решение состава:
 `../../ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md`. CI surface —
 `.github/workflows/ci.yml` с существующими `setup-pnpm` и cancel-on-failure composite actions. Мотив карточки:
 медданные и прошлый инцидент prod credentials в dev `.env`. Приоритет: очень высокий для

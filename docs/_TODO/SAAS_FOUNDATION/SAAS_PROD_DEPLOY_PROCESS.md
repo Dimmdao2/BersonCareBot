@@ -12,12 +12,14 @@
 > scripting is hard/brittle → the exact one-off commands are written here as a MANUAL instruction (what/when/how).
 > This is the entry point; deep detail lives in the linked docs (don't duplicate — follow the links).
 >
-> **Authoritative sub-docs (linked, still valid):**
+> **Текущие authority и исторические ссылки:**
 >
-> - Host/cutover phases I0–I6 (build new encrypted prod, rehearse, GO): `../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md`
+> - Host/cutover, encryption, backup and infrastructure security: `../INFRASTRUCTURE_SECURITY_PLAN.md`
+> - DB logins/roles/grants/RLS/DB-port contract: `../DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` (не дублируется здесь)
 > - DB migration mechanics (fresh dump → hard migration): `HARD_MIGRATION_PROTOCOL.md` + wrapper `deploy/host/deploy-test-full-reset.sh` (internal engine `deploy/host/deploy-test-saas.sh`)
 > - DB deploy sequence + PROD mapping notes: `SAAS_DEPLOY_SEQUENCE.md`
-> - **Role grants (this doc's §3 is authoritative):** `../ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md`
+> - `../ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md` и §3/§3.5 ниже — исторический snapshot, **не
+>   исполнять**; их заменил `../DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`
 > - Measured PROD/TEST divergence and new-host scope: `../PROD_VS_TEST_DIVERGENCE_2026-07-26.md`
 > - Legal/privacy GO-gates: `../RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md` (PR-00..PR-04, SEC-02/03/04, DR-01/02, CRYPTO-01)
 > - Deploy topology / host facts: `deploy/HOST_DEPLOY_README.md`
@@ -258,7 +260,11 @@ requires a new owner-reviewed provider-neutral migration. `public.appointment_re
 calendar mappings and canonical booking data are separate provider-neutral concerns and are not dropped merely
 because Rubitime is retired.
 
-## 3. Runtime role grants (SCRIPTED overlays + MANUAL invocation) — the piece prod is currently MISSING
+## 3. SUPERSEDED — Runtime role grants (исторический snapshot, не исполнять)
+
+> Этот раздел сохранён для provenance старого deploy-процесса. Команды, порядок overlays и topology ниже заменены
+> текущим `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`; переносить их в DEV/PROD или использовать как параллельный checklist
+> запрещено.
 
 > **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
 > `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
@@ -298,7 +304,10 @@ table ownership can NEVER cover function-level privileges or a separate-identity
 **NEVER run:** the incident's ad-hoc `GRANT ALL ON ALL TABLES/SEQUENCES/FUNCTIONS IN SCHEMA integrator/app` — that
 was pollution, not canonical (see `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md` §1). Only the overlays above.
 
-## 3.5 Install walls: strict RLS + FORCE (item #9 in §7) — MANUAL invocation, owner-GATED
+## 3.5 SUPERSEDED — strict RLS + FORCE (исторический snapshot, не исполнять)
+
+> Актуальные RLS/grants/cutover gates находятся только в `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`. Текст ниже сохранён
+> как датированное объяснение прежнего процесса и не является инструкцией.
 
 **Context:** the policy `\ir` includes (`phase4-locked-helper-rls-policies.sql`, the reviewed overlays, and
 `phase4-force-rls-cutover.sql`) are already generic/reusable — none of them hardcode a TEST database name. The only

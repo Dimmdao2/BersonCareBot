@@ -69,7 +69,7 @@
 
 - Outcome: PR jobs для Gitleaks/Semgrep/Trivy, датированные точечные allowlists, первый PII-free triage.
 - Allowed: `.github/workflows/ci.yml`, `.github/actions/**` только если переиспользование требует; новые scanner configs,
-  их fixtures/tests; [`../../SECURITY_CI_STACK_PLAN.md`](../../SECURITY_CI_STACK_PLAN.md) и tooling decision log.
+  их fixtures/tests; [`../../INFRASTRUCTURE_SECURITY_PLAN.md` §I5](../../INFRASTRUCTURE_SECURITY_PLAN.md#i5--ci-и-поиск-уязвимостей) и tooling decision log.
 - Protected: deploy workflows, app code, TEST/PROD targets. ZAP active/live — отдельный serialized gate.
 - Checks: workflow syntax/action pin review, локальные scanner runs, synthetic fake-secret negative, один независимый
   security audit; full CI только на integration milestone.

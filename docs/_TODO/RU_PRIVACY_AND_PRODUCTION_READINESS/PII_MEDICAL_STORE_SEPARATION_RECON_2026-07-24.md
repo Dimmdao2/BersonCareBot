@@ -1,8 +1,8 @@
 # Recon — storing ФИО / contacts / medical data separately (2026-07-24)
 
 > **RECON ONLY** (owner asked to scope complexity, not build). Feeds the decision in
-> `stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md` (which currently plans field-level encryption in-place, a
-> lighter control than store separation). Full worker detail: session scratchpad
+> [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md); field-level encryption remains deferred
+> behind the data/key decision and is not implied by S3 encryption. Full worker detail: session scratchpad
 > `db-pii-medical-separation-recon.md`. Cross-link: CRYPTO-01 §C4.
 
 ## Current state (PROVEN)

@@ -28,10 +28,10 @@
 4. [`OWNER_ACTIONS.md`](OWNER_ACTIONS.md) — конкретные действия владельца, сроки, готовый тикет Selectel и evidence.
 5. [`CURRENT_PROD_BASELINE_2026-07-19.md`](CURRENT_PROD_BASELINE_2026-07-19.md) — подтверждённый обезличенный
    снимок реального production-хоста и S3.
-6. [`TOOLING_AND_HOST_PACKAGES.md`](TOOLING_AND_HOST_PACKAGES.md) — что уже зафиксировано/установлено и что
-   требуется внедрить.
+6. [`../INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) — единый исполняемый план host,
+   LUKS, S3, backup/DR, secrets, TLS, logs, incident response, Security CI и vulnerability scanning.
 7. [`FINAL_ACCEPTANCE.md`](FINAL_ACCEPTANCE.md) — единый release gate.
-8. [`stages/`](stages/README.md) — подробные чек-листы исполнения, включая crypto и encrypted PROD cutover.
+8. [`stages/`](stages/README.md) — product/privacy stage-чек-листы; прежние инфраструктурные stages архивированы.
 9. [`EVIDENCE/README.md`](EVIDENCE/README.md) — правила и индекс доказательств.
 10. [`LOG.md`](LOG.md) — только новые факты исполнения; история не переписывается.
 
@@ -61,10 +61,10 @@ billing и перечисленные активные задачи остают
 
 ## Граница активированного исполнения
 
-- Реестр статусов и self-contained launch manifests: [`stages/PR-00_SCOPE_LOCK.md`](stages/PR-00_SCOPE_LOCK.md).
-- Сейчас разрешены DEV/repository-only slices, явно помеченные там `executable_now`: `SEC-01`, фактический `PR-01`,
-  безопасные repository slices `SEC-02`/`DR-01`, `CRYPTO-01/C0`, `NTF-01/N0`, `LOG-01/L0-L1` и временное закрытие
-  administrative hard-delete с negative guard `PR-03A0`.
+- Реестр privacy-статусов и self-contained launch manifests: [`stages/PR-00_SCOPE_LOCK.md`](stages/PR-00_SCOPE_LOCK.md).
+- Инфраструктурные repository/disposable/prod gates теперь атомарно перечислены только в
+  [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md); старые `SEC-01/02`, `DR-01`,
+  `CRYPTO-01`, `INFRA-01`, `SEC-04` stage-файлы не исполняются.
 - Application-level безопасность, consent, audit, retention, crypto и CI не откладываются из-за будущего переноса
   production-хоста; они идут сразу после своих D4/S5/legal gates.
 - Шифрование диска, firewall/SSH/systemd/packages/secrets на реальном production-хосте, реальные backup/restore,
