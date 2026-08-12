@@ -36,6 +36,9 @@ const EMPTY_BOOTSTRAP_TEST_LEDGER_RECONCILIATIONS = new Set([
   '0330_test_ledger_schema_parity_forward_local',
   '0331_test_ledger_0330_race_forward_local',
 ]);
+const EMPTY_BOOTSTRAP_POST_MIGRATION_OWNER_REPAIRS = new Set([
+  '0356_platform_users_definer_owner_app_owner_local',
+]);
 const EMPTY_BOOTSTRAP_PLATFORM_AUDIT_GRANT_MIGRATION =
   '0241_platform_operations_audit_health_archive_global_view';
 const EMPTY_BOOTSTRAP_APP_OWNER_PUBLIC_USAGE_MIGRATION =
@@ -415,6 +418,15 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
         } else if (EMPTY_BOOTSTRAP_TEST_LEDGER_RECONCILIATIONS.has(journal.tag)) {
           console.log(
             `[migrate] empty-bootstrap skipped TEST-ledger reconciliation=${journal.tag}`,
+          );
+        } else if (EMPTY_BOOTSTRAP_POST_MIGRATION_OWNER_REPAIRS.has(journal.tag)) {
+          // 0356 only repairs owners of functions in an already rehydrated installation. Some of
+          // those functions are intentionally materialized by the canonical post-migration
+          // runtime overlays, so they cannot exist yet in a genuinely empty Drizzle bootstrap.
+          // The TEST deploy applies that chain after all migrations and the immediate zero/target
+          // install then replaces every temporary owner and ACL from the exact function census.
+          console.log(
+            `[migrate] empty-bootstrap deferred post-migration owner repair=${journal.tag}`,
           );
         } else {
           try {

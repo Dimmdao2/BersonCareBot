@@ -1869,3 +1869,12 @@ cluster rehearsal, не новый документационный мини-с�
   Explicit empty-bootstrap поэтому отмечает только exact `0330/0331` original hashes/times без исполнения их
   TEST-state assertions. Остальная chain и ordinary/restored/PROD stock path не изменены; финальная parity
   доказывается всей chain, второй integrator-фазой и последующим owner-zero/installer acceptance.
+- **LIVE-EMPTY-OVERLAY-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** replay прошёл `0330/0331` и атомарно отказал
+  `42883` в exact `0356_platform_users_definer_owner_app_owner_local`: исторический owner-repair ссылается на
+  функции, которые создаёт не Drizzle, а каноническая post-migration runtime-overlay chain. Explicit
+  `empty-bootstrap` теперь откладывает только body `0356`, сохраняя его original hash/time; после всей Drizzle,
+  второй integrator-фазы и D30, при всё ещё остановленных writers, применяет существующую always-overlay chain с
+  `protected_context_installed=0`, затем немедленно выполняет owner-ordered zero и exact target declaration.
+  `0356` не создаёт schema/data/function bodies, ordinary/restored/PROD stock path не изменены, а частичный overlay
+  failure не допускает TEST к запуску и не начинает zero. Независимая классификация — **ВЗГЛЯД**, вердикт
+  **PASS**: порядок migrations → overlays → zero → exact seam owners/grants необходим и достаточен.

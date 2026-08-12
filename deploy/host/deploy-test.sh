@@ -61,6 +61,7 @@ DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
 APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
+RUNTIME_OVERLAY_LIB=deploy/host/runtime-overlay-rehydrate-lib.sh
 PORT_CONTEXT_ENV_BOOTSTRAP=deploy/host/bootstrap-c4-test-env.mjs
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$DB"
@@ -173,6 +174,32 @@ echo "   HEAD: $(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD)"
   echo "FATAL: missing $PORT_CONTEXT_ENV_BOOTSTRAP" >&2
   exit 1
 }
+[ -r "$DEPLOY_REPO/$RUNTIME_OVERLAY_LIB" ] || {
+  echo "FATAL: missing $RUNTIME_OVERLAY_LIB" >&2
+  exit 1
+}
+# shellcheck source=deploy/host/runtime-overlay-rehydrate-lib.sh
+source "$DEPLOY_REPO/$RUNTIME_OVERLAY_LIB"
+
+runtime_overlay_admin_psql(){
+  sudo -u postgres psql "$@"
+}
+
+rehydrate_empty_bootstrap_runtime_overlays(){
+  if [ "${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}" != "empty-bootstrap" ]; then
+    return 0
+  fi
+
+  # These canonical overlays materialize functions that are not part of the Drizzle chain. Writers
+  # remain stopped and the owner-ordered zero follows immediately, so use the retiring migration
+  # login only as the required transient E1 grantee; zero removes every overlay ACL before release.
+  runtime_overlay_apply_post_migration_chain \
+    "$DEPLOY_REPO" \
+    "$DB" \
+    "$DBROLE" \
+    0
+  echo "   empty-bootstrap post-migration runtime overlays: OK"
+}
 # This one-time transition starts from a legacy locked env whose media worker may still carry the
 # DB credential that the target intentionally removes. Validate the complete target rendering
 # read-only; the old C2 preflight would reject the source state before its approved removal.
@@ -256,6 +283,7 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS
     psql -X -v ON_ERROR_STOP=1 -d "$DB" \
       -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
 )
+rehydrate_empty_bootstrap_runtime_overlays
 cleanup_elevation
 # The legacy role still exists here and its temporary powers were just verified absent. The shared
 # cluster cutover deliberately drops it, so the EXIT trap must keep only its writer-stop duty from
