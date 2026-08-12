@@ -1889,3 +1889,12 @@ cluster rehearsal, не новый документационный мини-с�
   запрещает `NULL` и закрепляет `NOT NULL` только на этих двух живых таблицах. Ordinary/restored/PROD без exact
   режима остаются stock. Независимая классификация — **ВЗГЛЯД**, вердикт **PASS**: это сохраняет весь живой
   invariant и не воскрешает удалённую schema ради пустого исторического backfill.
+- **LIVE-EMPTY-RESUME-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** после успешного заполнения Drizzle ledger и
+  последующего отказа второй integrator-фазы повторный deploy снова получил общий bootstrap-флаг. Stock Drizzle
+  runner закономерно должен только пропустить уже applied hashes, но его одноразовый empty-bootstrap guard пытался
+  заново доказать пустой ledger и при этом обращался к уже удалённой `public.appointment_records`; PostgreSQL
+  записал `42P01`. Deploy теперь принимает отдельный exact `INTEGRATOR_MIGRATIONS_MODE=empty-bootstrap`: webapp
+  Drizzle остаётся stock, только вторая integrator-фаза завершает утверждённые skips, а runtime overlays всё равно
+  исполняются после обеих migration phases и D30, до cleanup/zero. Unset ordinary TEST и PROD не изменены;
+  неизвестный integrator mode отвергается fail-closed. Независимая классификация — **ВЗГЛЯД**, вердикт **PASS**:
+  resume сохраняет owner-порядок writers stopped → complete schema/overlays → cleanup → zero → target install.

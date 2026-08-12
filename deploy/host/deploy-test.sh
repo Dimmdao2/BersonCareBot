@@ -186,7 +186,8 @@ runtime_overlay_admin_psql(){
 }
 
 rehydrate_empty_bootstrap_runtime_overlays(){
-  if [ "${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}" != "empty-bootstrap" ]; then
+  if [ "${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}" != "empty-bootstrap" ] && \
+     [ "${INTEGRATOR_MIGRATIONS_MODE:-}" != "empty-bootstrap" ]; then
     return 0
   fi
 
@@ -275,7 +276,7 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS
     NODE_ENV=production \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
-    INTEGRATOR_MIGRATIONS_MODE="${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}" \
+    INTEGRATOR_MIGRATIONS_MODE="${INTEGRATOR_MIGRATIONS_MODE:-${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}}" \
     APP_BASE_URL=http://127.0.0.1 \
     BOOKING_URL=http://127.0.0.1 \
     PGOPTIONS="-c role=$DBROLE -c search_path=integrator,public" \
