@@ -344,7 +344,14 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
         if (EMPTY_BOOTSTRAP_DATA_MIGRATIONS.has(journal.tag)) {
           console.log(`[migrate] empty-bootstrap skipped data-only migration=${journal.tag}`);
         } else {
-          for (const statement of migration.sql) await client.query(statement);
+          try {
+            for (const statement of migration.sql) await client.query(statement);
+          } catch (error) {
+            console.error(
+              `[migrate] empty-bootstrap failed migration=${journal.tag} idx=${journal.idx}`,
+            );
+            throw error;
+          }
         }
         await client.query(
           'INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)',
