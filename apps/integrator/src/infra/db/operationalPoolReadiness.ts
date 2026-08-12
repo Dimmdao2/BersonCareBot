@@ -8,6 +8,7 @@ import {
   type IntegratorPortCapabilityName,
 } from './portContextRuntime.js';
 import { runIntegratorNamedRoot } from './runIntegratorSql.js';
+import { getProjectionHealth } from './repos/projectionHealth.js';
 
 async function probeReadOnly(
   source: string,
@@ -40,9 +41,7 @@ async function probeNamedRoot(
 }
 
 export function assertIntegratorDiagnosticPoolReady(): Promise<void> {
-  return probeReadOnly('integrator-projection-health', 'service', [
-    'SELECT 1 FROM integrator.projection_outbox WHERE false',
-  ]);
+  return getProjectionHealth(createDbPort(db)).then(() => undefined);
 }
 
 export async function assertDeliveryWorkerPoolReady(): Promise<void> {

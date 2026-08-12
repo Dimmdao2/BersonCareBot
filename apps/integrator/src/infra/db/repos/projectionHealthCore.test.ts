@@ -5,6 +5,8 @@ import {
   isProjectionHealthDegraded,
   readProjectionHealthSnapshot,
 } from './projectionHealthCore.js';
+import { getProjectionHealth } from './projectionHealth.js';
+import type { DbPort } from '../../../kernel/contracts/index.js';
 
 const pgDialect = new PgDialect();
 
@@ -65,5 +67,39 @@ describe('projection health snapshot', () => {
     const compiled = pgDialect.sqlToQuery(overThresholdFragment as SQL);
     expect(compiled.sql).toContain('attempts_done >= $1');
     expect(compiled.params).toEqual([4]);
+  });
+
+  it('uses the exact aggregate named root in port-context mode', async () => {
+    const previousMode = process.env.DB_PRINCIPAL_CONTEXT_MODE;
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'port-context';
+    const queryCalls: Array<{ text: string; params?: unknown[] }> = [];
+    const fixtureRows = [{
+      pending_count: '2', dead_count: '1', cancelled_count: '3',
+      oldest_pending_at: '2026-08-12 01:00:00+00', processing_count: '4',
+      retry_distribution: { 0: 2, 3: 4 }, last_success_at: '2026-08-12 05:00:00+00',
+      retries_over_threshold: '4',
+    }];
+    const query: DbPort['query'] = async <T = unknown>(text: string, params?: unknown[]) => {
+      queryCalls.push({ text, ...(params ? { params } : {}) });
+      return { rows: fixtureRows as unknown as T[] };
+    };
+    const db: DbPort = {
+      query,
+      tx: async <T>(fn: (tx: DbPort) => Promise<T>) => fn(db),
+    };
+    try {
+      await expect(getProjectionHealth(db, { retryThreshold: 3 })).resolves.toEqual({
+        pendingCount: 2, deadCount: 1, cancelledCount: 3,
+        oldestPendingAt: '2026-08-12 01:00:00+00', processingCount: 4,
+        retryDistribution: { 0: 2, 3: 4 }, lastSuccessAt: '2026-08-12 05:00:00+00',
+        retriesOverThreshold: 4,
+      });
+      expect(queryCalls).toHaveLength(1);
+      expect(queryCalls[0]?.text).toContain('app.read_integrator_projection_health($1::integer)');
+      expect(queryCalls[0]?.params).toEqual([3]);
+    } finally {
+      if (previousMode === undefined) delete process.env.DB_PRINCIPAL_CONTEXT_MODE;
+      else process.env.DB_PRINCIPAL_CONTEXT_MODE = previousMode;
+    }
   });
 });

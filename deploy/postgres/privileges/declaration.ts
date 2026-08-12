@@ -1891,7 +1891,6 @@ const INTEGRATOR_SCHEDULER_SOURCES = [
 ] as const;
 const INTEGRATOR_SERVICE_SOURCES = [
   'integrator-health-check',
-  'integrator-projection-health',
 ] as const;
 const INTEGRATOR_MIGRATION_LEDGER_SOURCES = ['integrator-startup-migration-ledger'] as const;
 const WEBAPP_MEDIA_SOURCES = [
@@ -1969,6 +1968,10 @@ const REV10_CONTEXT = {
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'migration.ledger.read', functionIdentity: 'app.read_integrator_migration_ledger()',
       runtimeSources: INTEGRATOR_MIGRATION_LEDGER_SOURCES },
+    integrator_projection_health_read: { port: 'integrator', runtimeName: 'projection_health',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
+      purpose: 'integrator.projection-health.read',
+      functionIdentity: 'app.read_integrator_projection_health(integer)' },
     integrator_idempotency_acquire: { port: 'integrator', runtimeName: 'idempotency_acquire',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'integrator.idempotency.acquire', functionIdentity: 'app.try_acquire_integrator_idempotency(text,integer)' },
@@ -2509,6 +2512,15 @@ const REV10_CONTEXT = {
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.schema_migrations', columns: ['version', 'applied_at'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.read_integrator_projection_health(integer)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'record', execute: ['app_service'],
+      purpose: 'return only aggregate projection-delivery health without exposing event payloads',
+      typedArgs: ['integer'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
+      relationSurfaces: [{ relation: 'integrator.projection_outbox',
+        columns: ['status', 'next_try_at', 'attempts_done', 'updated_at'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.try_acquire_integrator_idempotency(text,integer)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_service'],

@@ -1180,6 +1180,61 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION app.read_integrator_projection_health(p_retry_threshold integer)
+RETURNS TABLE(
+  pending_count bigint,
+  dead_count bigint,
+  cancelled_count bigint,
+  oldest_pending_at text,
+  processing_count bigint,
+  retry_distribution jsonb,
+  last_success_at text,
+  retries_over_threshold bigint
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, integrator, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_delivery_scope_owner', 'app_service', 'service', 'integrator.projection-health.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('integer@1', int4send(p_retry_threshold))::app.port_typed_arg
+    ]), 'app.read_integrator_projection_health(integer)'::regprocedure
+  );
+  IF p_retry_threshold IS NULL OR p_retry_threshold < 0 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'retry threshold must be non-negative';
+  END IF;
+  RETURN QUERY
+  WITH summary AS (
+    SELECT
+      count(*) FILTER (WHERE outbox.status = 'pending') AS pending_count,
+      count(*) FILTER (WHERE outbox.status = 'dead') AS dead_count,
+      count(*) FILTER (WHERE outbox.status = 'cancelled') AS cancelled_count,
+      (min(outbox.next_try_at) FILTER (WHERE outbox.status = 'pending'))::text AS oldest_pending_at,
+      count(*) FILTER (WHERE outbox.status = 'processing') AS processing_count,
+      (max(outbox.updated_at) FILTER (WHERE outbox.status = 'done'))::text AS last_success_at,
+      count(*) FILTER (
+        WHERE outbox.status IN ('pending', 'processing')
+          AND outbox.attempts_done >= p_retry_threshold
+      ) AS retries_over_threshold
+    FROM integrator.projection_outbox AS outbox
+  ), retry_counts AS (
+    SELECT coalesce(jsonb_object_agg(retries.attempts_done::text, retries.row_count
+      ORDER BY retries.attempts_done), '{}'::jsonb) AS retry_distribution
+    FROM (
+      SELECT outbox.attempts_done, count(*) AS row_count
+      FROM integrator.projection_outbox AS outbox
+      WHERE outbox.status IN ('pending', 'processing')
+      GROUP BY outbox.attempts_done
+    ) AS retries
+  )
+  SELECT summary.pending_count, summary.dead_count, summary.cancelled_count,
+    summary.oldest_pending_at, summary.processing_count, retry_counts.retry_distribution,
+    summary.last_success_at, summary.retries_over_threshold
+  FROM summary CROSS JOIN retry_counts;
+END
+$function$;
+
 CREATE OR REPLACE FUNCTION app.read_patient_telegram_display_handle(p_platform_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED

@@ -97,6 +97,41 @@ ROLLBACK;
 RESET SESSION AUTHORIZATION;
 SQL
 
+projection_health_capability=$(admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='bcb_test_integrator' AND target_role='app_service' AND purpose='integrator.projection-health.read' AND function_identity='app.read_integrator_projection_health(integer)'::regprocedure")
+[[ -n "$projection_health_capability" ]] || fail 'integrator projection-health capability missing'
+retry_threshold_hash=$(admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('integer@1',int4send(3))::app.port_typed_arg]),'hex')")
+admin <<'SQL' >/dev/null
+TRUNCATE integrator.projection_outbox RESTART IDENTITY;
+INSERT INTO integrator.projection_outbox(event_type,idempotency_key,payload,status,attempts_done,next_try_at,created_at,updated_at)
+VALUES
+  ('fixture','pending','{}','pending',0,'2026-08-12 01:00:00+00','2026-08-12 00:00:00+00','2026-08-12 01:00:00+00'),
+  ('fixture','processing','{}','processing',3,'2026-08-12 02:00:00+00','2026-08-12 00:00:00+00','2026-08-12 02:00:00+00'),
+  ('fixture','dead','{}','dead',5,'2026-08-12 03:00:00+00','2026-08-12 00:00:00+00','2026-08-12 03:00:00+00'),
+  ('fixture','cancelled','{}','cancelled',1,'2026-08-12 04:00:00+00','2026-08-12 00:00:00+00','2026-08-12 04:00:00+00'),
+  ('fixture','done','{}','done',1,'2026-08-12 05:00:00+00','2026-08-12 00:00:00+00','2026-08-12 05:00:00+00');
+SQL
+projection_health_row=$(admin -Atq <<SQL
+SET SESSION AUTHORIZATION bcb_test_integrator;
+BEGIN;
+SET LOCAL TIME ZONE 'UTC';
+SELECT app.install_port_context(
+  '$projection_health_capability'::uuid,
+  ROW(1,'service'::app.port_context_class,'app_service'::name,'integrator.projection-health.read',
+      'app.read_integrator_projection_health(integer)'::regprocedure,decode('$retry_threshold_hash','hex'),
+      NULL::uuid,NULL::uuid,NULL::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims
+);
+SET LOCAL ROLE app_service;
+SELECT pending_count::text || '|' || dead_count::text || '|' || cancelled_count::text || '|' ||
+       oldest_pending_at || '|' || processing_count::text || '|' || retry_distribution::text || '|' ||
+       last_success_at || '|' || retries_over_threshold::text
+FROM app.read_integrator_projection_health(3);
+ROLLBACK;
+RESET SESSION AUTHORIZATION;
+SQL
+)
+projection_health_row=$(printf '%s\n' "$projection_health_row" | tail -n 1)
+assert_eq "$projection_health_row" '1|1|1|2026-08-12 01:00:00+00|1|{"0": 1, "3": 1}|2026-08-12 05:00:00+00|1'
+
 # A malformed dispatch argument must not bypass the exact gate with a quiet false/empty result.
 for statement in \
   "SELECT app.passkey_issue_challenge('00000000-0000-4000-8000-000000000001','invalid',NULL,'invalid','https://example.test','example.test',statement_timestamp()+interval '1 minute')" \

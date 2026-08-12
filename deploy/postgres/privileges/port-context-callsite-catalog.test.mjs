@@ -294,6 +294,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'migration.ledger.read', argCount: 0,
     source: 'apps/integrator/src/infra/db/migrate.ts',
   },
+  'app.read_integrator_projection_health(integer)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'integrator.projection-health.read', argCount: 1,
+    source: 'apps/integrator/src/infra/db/repos/projectionHealth.ts',
+  },
   'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)': {
     port: 'integrator', targetRole: 'app_service', contextClass: 'service',
     purpose: 'integrator.data-quality.upsert', argCount: 7,
@@ -386,7 +391,7 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'scheduler:claim-due-jobs',
     'scheduler:handle-tick-event',
   ],
-  'integrator:service': ['integrator-health-check', 'integrator-projection-health'],
+  'integrator:service': ['integrator-health-check'],
   'integrator:migration_ledger': ['integrator-startup-migration-ledger'],
   'webapp:worker': [
     'api/auth/channel-link/start:POST:authenticated',
