@@ -11,6 +11,12 @@ import { createIntegratorMigrationPoolProvider } from './integratorMigrationPool
 
 /** Учёт SQL-миграций integrator; всегда с квалификатором схемы — не совпадает с `public.schema_migrations` webapp (`filename`). */
 const INTEGRATOR_MIGRATIONS_TABLE = 'integrator.schema_migrations';
+const EMPTY_BOOTSTRAP_MODE = 'empty-bootstrap';
+const EMPTY_BOOTSTRAP_SUPERSEDED_MIGRATIONS = new Set([
+  'core:20260708_0001_p0_4_i1_integrator_direct_user_org.sql',
+  'core:20260708_0004_p0_4_i4_integrator_mailings_org.sql',
+  'core:20260710_0001_r2_integrator_scoped_org_not_null.sql',
+]);
 
 // Описывает одну миграцию: область (scope), имя файла, путь и версию
 export type MigrationFile = {
@@ -420,6 +426,92 @@ async function applyMigration(
   }
 }
 
+async function recordEmptyBootstrapSupersededMigration(
+  db: MigrationDbClient,
+  migration: MigrationFile,
+  ledgerShape: MigrationLedgerShape,
+): Promise<void> {
+  const migrationLogger = getMigrationLogger(migration.version);
+  const ledgerValue =
+    ledgerShape.writeColumn === 'version' ? migration.version : migration.fileName;
+
+  await db.query('BEGIN');
+  try {
+    // Freeze every surviving target while proving this really is the approved data-empty TEST
+    // bootstrap. The four D8 mailing relations must stay absent; recreating them just to satisfy
+    // historical tenant backfills would reverse their owner-approved retirement.
+    await db.query(`
+      LOCK TABLE
+        public.platform_users,
+        integrator.contacts,
+        integrator.content_access_grants,
+        integrator.conversations,
+        integrator.message_drafts,
+        integrator.user_questions,
+        integrator.conversation_messages,
+        integrator.question_messages,
+        integrator.user_reminder_rules,
+        integrator.user_reminder_occurrences,
+        integrator.user_reminder_delivery_logs
+      IN SHARE MODE
+    `);
+    const state = await db.query<{
+      surviving_rows: string;
+      mailing_logs: string | null;
+      user_subscriptions: string | null;
+      mailings: string | null;
+      mailing_topics: string | null;
+    }>(`
+      SELECT
+        (
+          (SELECT count(*) FROM public.platform_users)
+          + (SELECT count(*) FROM integrator.contacts)
+          + (SELECT count(*) FROM integrator.content_access_grants)
+          + (SELECT count(*) FROM integrator.conversations)
+          + (SELECT count(*) FROM integrator.message_drafts)
+          + (SELECT count(*) FROM integrator.user_questions)
+          + (SELECT count(*) FROM integrator.conversation_messages)
+          + (SELECT count(*) FROM integrator.question_messages)
+          + (SELECT count(*) FROM integrator.user_reminder_rules)
+          + (SELECT count(*) FROM integrator.user_reminder_occurrences)
+          + (SELECT count(*) FROM integrator.user_reminder_delivery_logs)
+        )::text AS surviving_rows,
+        to_regclass('integrator.mailing_logs')::text AS mailing_logs,
+        to_regclass('integrator.user_subscriptions')::text AS user_subscriptions,
+        to_regclass('integrator.mailings')::text AS mailings,
+        to_regclass('integrator.mailing_topics')::text AS mailing_topics
+    `);
+    const row = state.rows[0];
+    if (
+      !row ||
+      row.surviving_rows !== '0' ||
+      row.mailing_logs !== null ||
+      row.user_subscriptions !== null ||
+      row.mailings !== null ||
+      row.mailing_topics !== null
+    ) {
+      throw new Error('integrator_empty_bootstrap_superseded_state_invalid');
+    }
+
+    await db.query(
+      `INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(${ledgerShape.writeColumn}) VALUES($1)`,
+      [ledgerValue],
+    );
+    await db.query('COMMIT');
+    migrationLogger.info(
+      {
+        scope: migration.scope,
+        fileName: migration.fileName,
+        migration: migration.version,
+      },
+      'Empty bootstrap recorded superseded legacy-shaping migration',
+    );
+  } catch (error: unknown) {
+    await db.query('ROLLBACK');
+    throw error;
+  }
+}
+
 export async function verifyStartupMigrationState(
   db: MigrationDbClient,
   migrations: MigrationFile[],
@@ -496,6 +588,10 @@ export async function runMigrations(): Promise<void> {
     // embedded filename date is >= the bound. Unset => eligible is the full `migrations` list and
     // deferred is empty, so the loop below is byte-for-byte identical to the pre-existing behavior.
     const beforeDateBoundRaw = process.env.INTEGRATOR_MIGRATIONS_BEFORE_DATE?.trim() || undefined;
+    const migrationMode = process.env.INTEGRATOR_MIGRATIONS_MODE?.trim() || '';
+    if (migrationMode !== '' && migrationMode !== EMPTY_BOOTSTRAP_MODE) {
+      throw new Error(`Unsupported INTEGRATOR_MIGRATIONS_MODE: ${migrationMode}`);
+    }
     const { eligible, deferred } = applyBeforeDateBound(migrations, beforeDateBoundRaw);
 
     if (beforeDateBoundRaw) {
@@ -529,6 +625,14 @@ export async function runMigrations(): Promise<void> {
         },
         'Applying migration',
       );
+
+      if (
+        migrationMode === EMPTY_BOOTSTRAP_MODE &&
+        EMPTY_BOOTSTRAP_SUPERSEDED_MIGRATIONS.has(migration.version)
+      ) {
+        await recordEmptyBootstrapSupersededMigration(db, migration, ledgerShape);
+        continue;
+      }
 
       const sql = await readFile(migration.filePath, 'utf8'); // Читаем SQL
       await applyMigration(db, migration, sql, ledgerShape); // Применяем миграцию

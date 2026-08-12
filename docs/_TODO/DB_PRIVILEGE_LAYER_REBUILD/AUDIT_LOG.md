@@ -1878,3 +1878,14 @@ cluster rehearsal, не новый документационный мини-с�
   `0356` не создаёт schema/data/function bodies, ordinary/restored/PROD stock path не изменены, а частичный overlay
   failure не допускает TEST к запуску и не начинает zero. Независимая классификация — **ВЗГЛЯД**, вердикт
   **PASS**: порядок migrations → overlays → zero → exact seam owners/grants необходим и достаточен.
+- **LIVE-INTEGRATOR-RETIREMENT-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** Drizzle завершил все `383` entries,
+  включая D8 `0275_retire_dead_mailing_domain`, после чего первая историческая SaaS-миграция второй integrator-фазы
+  громко отказала `42P01` на уже преднамеренно отсутствующей `integrator.mailing_logs`. Возвращать D8-таблицы
+  запрещено. Только explicit `INTEGRATOR_MIGRATIONS_MODE=empty-bootstrap` теперь атомарно отмечает в integrator
+  ledger три superseded legacy-shaping версии (`20260708_0001`, `20260708_0004`, `20260710_0001`) без их body,
+  но лишь после `SHARE`-lock всех сохранившихся targets, доказанных `0` строк и exact absence четырёх D8 relations.
+  `20260708_0002/0003` продолжают исполняться; `0003` создаёт, backfill-ит и проверяет `organization_id`, FK и
+  индексы двух живых reminder delivery relations. Новая forward-миграция после owner-ordered legacy drops громко
+  запрещает `NULL` и закрепляет `NOT NULL` только на этих двух живых таблицах. Ordinary/restored/PROD без exact
+  режима остаются stock. Независимая классификация — **ВЗГЛЯД**, вердикт **PASS**: это сохраняет весь живой
+  invariant и не воскрешает удалённую schema ради пустого исторического backfill.
