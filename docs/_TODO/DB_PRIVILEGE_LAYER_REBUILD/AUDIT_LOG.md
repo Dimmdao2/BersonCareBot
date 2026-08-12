@@ -1800,3 +1800,12 @@ cluster rehearsal, не новый документационный мини-с�
   exact Telegram `0009`; SQL и ledger versions не изменены, относительный порядок всех остальных миграций сохранён,
   частично заполненный TEST ledger безопасно продолжает работу. Независимая классификация — **ВЗГЛЯД**, вердикт
   **PASS**; oracle — повтор живого TEST через ранее падавший участок, отдельный source/unit-тест не создаётся.
+- **LIVE-INTEGRATOR-SCHEMA-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** live replay прошёл ранее падавшую Telegram
+  `0009`, применил 52 integrator migration entries и затем отказал `42P01` на первом явно квалифицированном
+  `integrator.user_reminder_rules`. Причина: локальный административный channel передавал `SET ROLE`, но не
+  исторический integrator `search_path`; TEST role имеет `public, integrator`, поэтому unqualified integrator DDL
+  оказался в `public`. Обе integrator-фазы теперь получают exact `search_path=integrator,public`; webapp legacy,
+  Drizzle и D30 остаются в `public`. Независимый взгляд подтвердил сам diff и потребовал не продолжать повреждённый
+  ledger: поскольку TEST пуст и его downtime разрешён, перед повтором база пересоздаётся из `template0`, `PUBLIC`
+  закрывается, затем выполняется полный live replay с нуля. Итоговый oracle — наличие объектов в правильных схемах
+  и прохождение прежнего места отказа; отдельный source/unit-тест не создаётся.

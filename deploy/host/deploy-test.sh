@@ -236,7 +236,7 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
     APP_BASE_URL=http://127.0.0.1 \
     BOOKING_URL=http://127.0.0.1 \
-    PGOPTIONS="-c role=$DBROLE" \
+    PGOPTIONS="-c role=$DBROLE -c search_path=integrator,public" \
     INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 \
     pnpm --dir apps/integrator run migrate
   sudo -u postgres env \
@@ -249,7 +249,7 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
     APP_BASE_URL=http://127.0.0.1 \
     BOOKING_URL=http://127.0.0.1 \
-    PGOPTIONS="-c role=$DBROLE" \
+    PGOPTIONS="-c role=$DBROLE -c search_path=integrator,public" \
     pnpm --dir apps/integrator run migrate
   sudo -u postgres env PGOPTIONS="-c role=$DBROLE" \
     psql -X -v ON_ERROR_STOP=1 -d "$DB" \
