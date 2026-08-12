@@ -1,86 +1,20 @@
 /**
- * Полное удаление клиента из webapp (+ опционально integrator), как `purge-by-id` в user-phone-admin.
+ * Полное удаление клиента из канонического webapp-хранилища.
  * Вызывать только после явного подтверждения (например из API кабинета врача для заархивированных).
  *
  * Строгий сценарий (S3, advisory lock, audit): `runStrictPurgePlatformUser` в `strictPlatformUserPurge.ts`.
  */
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
-import { startPoolTransaction } from '@/infra/db/withClient';
 import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
 import {
   CONTACTS,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
 } from '@/infra/repos/userContactsSql';
 
-function trimEnv(name: string): string {
-  return process.env[name]?.trim() ?? '';
-}
-
-function isUsablePostgresUrl(raw: string): boolean {
-  if (!raw) return false;
-  try {
-    const host = new URL(raw).hostname;
-    if (host === 'base') return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * When webapp and integrator share one PostgreSQL, force `search_path` so unqualified
- * `contacts` / `identities` / `users` resolve to `integrator.*` (not `public.*`).
- */
-export function appendIntegratorSearchPathToConnectionString(connectionString: string): string {
-  try {
-    const u = new URL(connectionString);
-    u.searchParams.set('options', '-c search_path=integrator,public');
-    return u.toString();
-  } catch {
-    return connectionString;
-  }
-}
-
-/**
- * Pool for post-commit integrator cleanup during strict purge / merge preview checks.
- * - Legacy: `INTEGRATOR_DATABASE_URL` | `USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL` | `SOURCE_DATABASE_URL` only.
- * - Unified: falls back to `DATABASE_URL` with `search_path=integrator,public`.
- * - If explicit integrator URL equals `DATABASE_URL`, same `search_path` is applied (single cluster, integrator schema).
- */
+/** Compatibility result for the retired post-commit integrator cleanup path. */
 export function getIntegratorPoolForPurge(): Pool | null {
-  if ((process.env.DB_PRINCIPAL_CONTEXT_MODE ?? '').trim() === 'port-context') {
-    return getPool();
-  }
-  const explicit =
-    trimEnv('INTEGRATOR_DATABASE_URL') ||
-    trimEnv('USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL') ||
-    trimEnv('SOURCE_DATABASE_URL');
-  const databaseUrl = trimEnv('DATABASE_URL');
-
-  let baseUrl: string | null = null;
-  let useIntegratorSearchPath = false;
-
-  if (explicit && isUsablePostgresUrl(explicit)) {
-    baseUrl = explicit;
-    if (databaseUrl && explicit === databaseUrl) {
-      useIntegratorSearchPath = true;
-    }
-  } else if (databaseUrl && isUsablePostgresUrl(databaseUrl)) {
-    baseUrl = databaseUrl;
-    useIntegratorSearchPath = true;
-  }
-
-  if (!baseUrl) return null;
-
-  const connectionString = useIntegratorSearchPath
-    ? appendIntegratorSearchPathToConnectionString(baseUrl)
-    : baseUrl;
-
-  // This is a local administrative compatibility path. Runtime target mode never creates a
-  // second integrator pool; deploy-only tooling owns any separately credentialed migration work.
-  void connectionString;
-  return getPool();
+  return null;
 }
 
 /** Только цифры; для сопоставления записей по номеру. */
@@ -407,97 +341,22 @@ export async function fetchMessengerBindingsForIntegratorCleanup(
 }
 
 export async function resolveIntegratorUserIds(
-  integratorDb: Pool | null,
-  digs: string,
-  webappIntegratorUserId: string | null,
-  messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
+  _integratorDb: Pool | null,
+  _digs: string,
+  _webappIntegratorUserId: string | null,
+  _messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<string[]> {
-  if (!integratorDb) return [];
-  const ids = new Set<string>();
-  if (webappIntegratorUserId && /^\d+$/.test(webappIntegratorUserId)) {
-    ids.add(webappIntegratorUserId);
-  }
-  if (digs.length >= 10) {
-    const r = await runPurgePoolPgText<{ user_id: string }>(
-      integratorDb,
-      `SELECT DISTINCT user_id::text AS user_id FROM contacts
-       WHERE type = 'phone'
-         AND regexp_replace(value_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
-    for (const row of r.rows) ids.add(row.user_id);
-  }
-  if (messengerBindings && messengerBindings.length > 0) {
-    for (const b of messengerBindings) {
-      if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
-      const ext = typeof b.external_id === 'string' ? b.external_id.trim() : '';
-      if (!ext) continue;
-      const r = await runPurgePoolPgText<{ user_id: string }>(
-        integratorDb,
-        `SELECT user_id::text AS user_id FROM identities
-         WHERE resource = $1 AND external_id = $2 LIMIT 1`,
-        [b.channel_code, ext],
-      );
-      const id = r.rows[0]?.user_id;
-      if (id && /^\d+$/.test(id)) ids.add(id);
-    }
-  }
-  return [...ids];
-}
-
-async function clearMessengerAttributedPhonesForBindings(
-  client: PoolClient,
-  bindings: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
-): Promise<void> {
-  for (const b of bindings) {
-    if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
-    const ext = typeof b.external_id === 'string' ? b.external_id.trim() : '';
-    if (!ext) continue;
-    await runPurgeClientPgText(
-      client,
-      `DELETE FROM contacts c
-       USING identities i
-       WHERE i.resource = $1 AND i.external_id = $2
-         AND c.user_id = i.user_id
-         AND c.type = 'phone'
-         AND c.label = $1`,
-      [b.channel_code, ext],
-    );
-  }
+  return [];
 }
 
 export async function deleteIntegratorPhoneData(
-  integratorDb: Pool,
+  _integratorDb: Pool,
   _digs: string,
-  integratorUserIds: string[],
-  messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
+  _integratorUserIds: string[],
+  _messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<void> {
-  const tx = await startPoolTransaction(integratorDb);
-  const client = tx.client;
-  try {
-    if (messengerBindings && messengerBindings.length > 0) {
-      await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
-    }
-
-    // The retired retry queue was dropped after its drain; no phone-keyed queue cleanup remains.
-
-    if (integratorUserIds.length > 0) {
-      await runPurgeClientPgText(client, `DELETE FROM users WHERE id = ANY($1::bigint[])`, [
-        integratorUserIds,
-      ]);
-    }
-
-    await tx.commit();
-  } catch (err) {
-    try {
-      await tx.rollback();
-    } catch {
-      /* ignore rollback failure; preserve original error */
-    }
-    throw err;
-  } finally {
-    await tx.release();
-  }
+  // Integrator identity/contact storage was retired. Canonical user data is deleted in the webapp
+  // transaction together with user_channel_bindings.
 }
 
 export type IntegratorPurgeCleanupResult =

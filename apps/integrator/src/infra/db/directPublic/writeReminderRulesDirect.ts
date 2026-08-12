@@ -47,7 +47,6 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
-import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';
 import { collectPlatformUserCandidates } from './writeIdentityAndPreferencesDirect.js';
 import { resolveExactActiveOrganizationId } from './resolveDirectPublicActor.js';
 
@@ -122,10 +121,7 @@ export async function upsertReminderRuleDirect(
   input: UpsertReminderRuleDirectInput,
 ): Promise<UpsertReminderRuleDirectResult> {
   return db.tx(async (txDb) => {
-    const canonicalIntegratorUserId = await resolveCanonicalIntegratorUserId(
-      txDb,
-      input.integratorUserId,
-    );
+    const canonicalIntegratorUserId = input.integratorUserId;
     // Integrator_user_id-only resolution (no channel/phone args) — see file header.
     const candidates = await collectPlatformUserCandidates(txDb, {
       integratorUserId: canonicalIntegratorUserId,

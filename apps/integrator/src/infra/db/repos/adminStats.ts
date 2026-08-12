@@ -40,23 +40,20 @@ async function getUserCountsByIntegration(
 ): Promise<AdminStats['userCountsByIntegration']> {
   const result: AdminStats['userCountsByIntegration'] = {};
 
-  // Telegram: identities with resource='telegram'; withPhone = those user_ids with a phone in contacts
+  // Telegram: canonical channel bindings; phone lives on the bound platform user.
   try {
     const telegramRes = await runIntegratorSql<{ total: number; with_phone: number }>(
       db,
       sql`SELECT
-            COUNT(DISTINCT i.user_id)::int AS total,
-            COUNT(DISTINCT i.user_id) FILTER (
-              WHERE EXISTS (
-                SELECT 1 FROM contacts c
-                WHERE c.user_id = i.user_id
-                  AND c.type = 'phone'
-                  AND c.value_normalized IS NOT NULL
-                  AND TRIM(c.value_normalized) != ''
-              )
+            COUNT(DISTINCT binding.user_id)::int AS total,
+            COUNT(DISTINCT binding.user_id) FILTER (
+              WHERE user_row.phone_normalized IS NOT NULL
+                AND TRIM(user_row.phone_normalized) != ''
             )::int AS with_phone
-          FROM identities i
-          WHERE i.resource = 'telegram'`,
+          FROM public.user_channel_bindings binding
+          JOIN public.platform_users user_row ON user_row.id = binding.user_id
+          WHERE binding.channel_code = 'telegram'
+            AND user_row.merged_into_id IS NULL`,
     );
     const row = telegramRes.rows[0];
     if (row) {

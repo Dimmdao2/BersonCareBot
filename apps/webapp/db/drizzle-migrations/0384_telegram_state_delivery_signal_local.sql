@@ -1,7 +1,5 @@
 -- 0384: preserve the only live delivery signal from integrator.telegram_state before that legacy
--- table is removed. The lead assigns the final number at land; this migration has been applied to
--- DEV under 0384, so the DEV ledger must be reconciled deliberately if the filename changes.
--- TEMPORARY LOCAL MIGRATION NUMBER 0384 (AGENTS.md "Миграции").
+-- table is removed. This migration has been applied to DEV under final number 0384.
 --
 -- Owner decision (09.08.2026): telegram_state is dropped in full. Dialogue state is gone; update
 -- dedup belongs to the universal integrator.idempotency_keys mechanism. The surviving fact is that

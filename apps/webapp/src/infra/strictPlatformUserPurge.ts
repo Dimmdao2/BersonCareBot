@@ -107,24 +107,13 @@ function buildExternalCleanupAuditDetails(args: {
   };
 }
 
-/** Same rule as `resolveIntegratorUserIds`: numeric integrator.users id from webapp projection. */
-function hasNumericWebappIntegratorUserId(
-  webappIntegratorUserId: string | null | undefined,
-): boolean {
-  const t = webappIntegratorUserId?.trim() ?? '';
-  return t.length > 0 && /^\d+$/.test(t);
-}
-
 function integratorCleanupNeeded(params: {
   messengerBindings: ReadonlyArray<MessengerBindingForIntegratorCleanup>;
   digs: string;
   integratorUserIds: string[];
   webappIntegratorUserId: string | null;
 }): boolean {
-  if (params.messengerBindings.length > 0) return true;
-  if (params.integratorUserIds.length > 0) return true;
-  if (hasNumericWebappIntegratorUserId(params.webappIntegratorUserId)) return true;
-  if (params.digs.length >= 10) return true;
+  void params;
   return false;
 }
 

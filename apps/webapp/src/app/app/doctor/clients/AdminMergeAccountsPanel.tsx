@@ -102,7 +102,6 @@ export function AdminMergeAccountsPanel({
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const [busy, setBusy] = useState(false);
-  const [integratorBusy, setIntegratorBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const mergeCandidatesFetchRef = useRef<AbortController | null>(null);
@@ -408,79 +407,6 @@ export function AdminMergeAccountsPanel({
     return lines;
   }, [preview, resolution]);
 
-  const needsIntegratorCanonicalStep =
-    Boolean(preview?.platformUserMergeV2Enabled) &&
-    Boolean(preview?.hardBlockers.some((b) => b.code === 'integrator_canonical_merge_required'));
-
-  async function runIntegratorMerge(dryRun: boolean) {
-    if (!preview) return;
-    setIntegratorBusy(true);
-    setMsg(null);
-    try {
-      const res = await fetch('/api/doctor/clients/integrator-merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          targetId: preview.targetId,
-          duplicateId: preview.duplicateId,
-          dryRun,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        message?: string;
-        result?: unknown;
-        dryRun?: boolean;
-        duplicateIntegratorUserMissingInIntegrator?: boolean;
-        clearedIntegratorUserId?: string;
-        orphanIntegratorIdCleared?: boolean;
-      };
-      if (
-        data.ok === true &&
-        data.dryRun === true &&
-        data.duplicateIntegratorUserMissingInIntegrator === true
-      ) {
-        setMsg(
-          'Dry-run: у дубликата нет пользователя в integrator (фантомный integrator_user_id). Нажмите «Выполнить integrator merge» без dry-run — привязка дубликата будет сброшена, затем обновите preview и делайте обычный merge.',
-        );
-        return;
-      }
-      if (data.ok === true && data.orphanIntegratorIdCleared === true) {
-        setMsg(
-          `Сброшен фантомный integrator_user_id у дубликата (${data.clearedIntegratorUserId ?? '?'}). Обновлён preview — дальше выполняйте обычный merge в webapp.`,
-        );
-        await loadAlignedPreview({
-          targetId: preview.targetId,
-          duplicateId: preview.duplicateId,
-          secondUserIdForPair: secondUserId,
-          alignToRecommendation,
-        });
-        return;
-      }
-      if (!res.ok || !data.ok) {
-        setMsg(data.message ?? data.error ?? `integrator_merge_failed (HTTP ${res.status})`);
-        return;
-      }
-      setMsg(
-        dryRun
-          ? 'Integrator merge dry-run OK (проверка и блокировки).'
-          : 'Canonical merge в integrator выполнен. Обновите preview.',
-      );
-      await loadAlignedPreview({
-        targetId: preview.targetId,
-        duplicateId: preview.duplicateId,
-        secondUserIdForPair: secondUserId,
-        alignToRecommendation,
-      });
-    } catch {
-      setMsg('network');
-    } finally {
-      setIntegratorBusy(false);
-    }
-  }
-
   async function runMerge() {
     if (!preview || !resolution || !canMerge) return;
     if (
@@ -723,36 +649,6 @@ export function AdminMergeAccountsPanel({
               </div>
             ) : null}
 
-            {needsIntegratorCanonicalStep ? (
-              <div className="rounded-md border border-violet-500/40 bg-violet-500/10 p-3 text-sm space-y-2">
-                <p className="font-medium">Шаг 1 — integrator</p>
-                <p className="text-xs text-muted-foreground">
-                  winner <span className="font-mono">{preview.target.integratorUserId}</span> ·
-                  loser <span className="font-mono">{preview.duplicate.integratorUserId}</span>
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={integratorBusy}
-                    onClick={() => void runIntegratorMerge(true)}
-                  >
-                    {integratorBusy ? '…' : 'Dry-run integrator merge'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="sm"
-                    disabled={integratorBusy}
-                    onClick={() => void runIntegratorMerge(false)}
-                  >
-                    {integratorBusy ? '…' : 'Выполнить integrator merge'}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
             {preview.mergeAllowed &&
             preview.hardBlockers.length === 0 &&
             !preview.v1MergeEngineCallable ? (
@@ -774,63 +670,6 @@ export function AdminMergeAccountsPanel({
                 <p className="font-mono text-xs break-all">{preview.duplicateId}</p>
                 <p className="mt-2 text-sm">{preview.duplicate.displayName}</p>
               </div>
-            </div>
-
-            <div className="rounded-md border border-border/60 bg-muted/25 p-3 text-sm space-y-2">
-              <p className="font-medium">Integrator: строка в таблице users</p>
-              {preview.integratorUserPresence.checkStatus === 'skipped_no_integrator_db' ? (
-                <p className="text-xs text-muted-foreground">
-                  Проверка недоступна: в env webapp нет строки подключения к БД integrator (
-                  <span className="font-mono">INTEGRATOR_DATABASE_URL</span>,{' '}
-                  <span className="font-mono">SOURCE_DATABASE_URL</span> и т.п. — см.
-                  purge/backfill).
-                </p>
-              ) : null}
-              {preview.integratorUserPresence.checkStatus === 'query_failed' ? (
-                <p className="text-xs text-destructive" role="note">
-                  Запрос к БД integrator не выполнен.
-                </p>
-              ) : null}
-              <ul className="space-y-1.5 text-xs">
-                <li>
-                  <span className="text-muted-foreground">Целевой</span>
-                  {preview.integratorUserPresence.target.webappIntegratorUserId ? (
-                    <>
-                      : id{' '}
-                      <span className="font-mono">
-                        {preview.integratorUserPresence.target.webappIntegratorUserId}
-                      </span>
-                      {' — '}
-                      {preview.integratorUserPresence.target.rowExistsInIntegratorDb === true
-                        ? 'в integrator есть'
-                        : preview.integratorUserPresence.target.rowExistsInIntegratorDb === false
-                          ? 'в integrator нет (фантом)'
-                          : 'неизвестно'}
-                    </>
-                  ) : (
-                    <>: integrator_user_id в webapp нет</>
-                  )}
-                </li>
-                <li>
-                  <span className="text-muted-foreground">Дубликат</span>
-                  {preview.integratorUserPresence.duplicate.webappIntegratorUserId ? (
-                    <>
-                      : id{' '}
-                      <span className="font-mono">
-                        {preview.integratorUserPresence.duplicate.webappIntegratorUserId}
-                      </span>
-                      {' — '}
-                      {preview.integratorUserPresence.duplicate.rowExistsInIntegratorDb === true
-                        ? 'в integrator есть'
-                        : preview.integratorUserPresence.duplicate.rowExistsInIntegratorDb === false
-                          ? 'в integrator нет (фантом)'
-                          : 'неизвестно'}
-                    </>
-                  ) : (
-                    <>: integrator_user_id в webapp нет</>
-                  )}
-                </li>
-              </ul>
             </div>
 
             <div className="overflow-x-auto">

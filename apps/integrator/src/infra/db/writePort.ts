@@ -41,7 +41,6 @@ import {
 import type { ProjectionFanoutInput } from './repos/projectionFanout.js';
 import { tryEmitWebappProjectionThenEnqueue } from './repos/projectionFanout.js';
 import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
-import { resolveCanonicalIntegratorUserId } from './repos/canonicalUserId.js';
 import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
@@ -441,7 +440,7 @@ export function createDbWritePort(
           const notificationTopicCodeRaw = notificationTopicCodeProvided
             ? asNullableString(mutation.params.notificationTopicCode)
             : undefined;
-          const canonicalUserId = await resolveCanonicalIntegratorUserId(db, userId);
+          const canonicalUserId = userId;
           // D5 canonical write: the scheduler reads this same public row. Pending occurrences are
           // cancelled only after the canonical update commits, so an outbox fallback never removes
           // an existing schedule before its replacement is durable.
@@ -523,7 +522,7 @@ export function createDbWritePort(
             await markReminderOccurrenceSent(txDb, occurrenceId, channel);
             const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
             if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
-              const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, ctx.userId);
+              const canonicalUserId = ctx.userId;
               const payload = {
                 integratorOccurrenceId: occurrenceId,
                 integratorRuleId: ctx.ruleId,
@@ -563,7 +562,7 @@ export function createDbWritePort(
             );
             const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
             if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
-              const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, ctx.userId);
+              const canonicalUserId = ctx.userId;
               const payload = {
                 integratorOccurrenceId: occurrenceId,
                 integratorRuleId: ctx.ruleId,
@@ -595,7 +594,7 @@ export function createDbWritePort(
           const expired = await expireOrphanedReminderOccurrences(db, nowIso);
           const pendingExpired: ProjectionFanoutInput[] = [];
           for (const context of expired) {
-            const canonicalUserId = await resolveCanonicalIntegratorUserId(db, context.userId);
+            const canonicalUserId = context.userId;
             const payload = {
               integratorOccurrenceId: context.occurrenceId,
               integratorRuleId: context.ruleId,
@@ -656,7 +655,7 @@ export function createDbWritePort(
             });
             const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
             if (ctx) {
-              const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, ctx.userId);
+              const canonicalUserId = ctx.userId;
               const payload = {
                 integratorDeliveryLogId: id,
                 integratorOccurrenceId: occurrenceId,
@@ -696,7 +695,7 @@ export function createDbWritePort(
               : {};
           const pendingContent: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
-            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
+            const canonicalUserId = userId;
             const createdAt = await createContentAccessGrant(txDb, {
               id,
               userId: canonicalUserId,

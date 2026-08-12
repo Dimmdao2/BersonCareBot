@@ -479,6 +479,7 @@ export const userChannelBindings = pgTable(
     userId: uuid('user_id').notNull(),
     channelCode: text('channel_code').notNull(),
     externalId: text('external_id').notNull(),
+    displayHandle: text('display_handle'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

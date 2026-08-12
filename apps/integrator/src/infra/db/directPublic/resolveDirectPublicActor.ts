@@ -6,7 +6,6 @@
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { and, eq } from 'drizzle-orm';
-import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { orgEnrollments } from '../schema/integratorPublicProduct.js';
 import {
@@ -61,12 +60,8 @@ export async function resolvePlatformUserIdForActor(
   deps: DirectPublicActorResolveDeps = {},
 ): Promise<string> {
   const mergeCandidateIds = deps.mergeCandidateIds ?? defaultMergeCandidateIds;
-  const canonicalIntegratorUserId = await resolveCanonicalIntegratorUserId(
-    txDb,
-    actor.integratorUserId,
-  );
   const candidates = await collectPlatformUserCandidates(txDb, {
-    integratorUserId: canonicalIntegratorUserId,
+    integratorUserId: actor.integratorUserId,
     phoneNormalized: null,
     channelCode: actor.channelCode,
     externalId: actor.externalId,

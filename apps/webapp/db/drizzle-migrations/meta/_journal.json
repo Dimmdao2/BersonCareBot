@@ -2668,6 +2668,13 @@
       "when": 1793539230127,
       "tag": "0384_telegram_state_delivery_signal_local",
       "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1793539230128,
+      "tag": "0385_channel_binding_display_handle_local",
+      "breakpoints": true
     }
   ]
 }

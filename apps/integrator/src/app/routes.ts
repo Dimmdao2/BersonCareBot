@@ -6,7 +6,6 @@ import { registerOperatorAlertRelayRoute } from '../integrations/bersoncare/oper
 import { registerBersoncareRequestContactRoute } from '../integrations/bersoncare/requestContactRoute.js';
 import { registerBersoncareSendOtpRoute } from '../integrations/bersoncare/sendOtpRoute.js';
 import { registerBersoncareReminderRulesRoute } from '../integrations/bersoncare/reminderRulesRoute.js';
-import { registerBersoncareUserMergeM2mRoutes } from '../integrations/bersoncare/userMergeM2mRoute.js';
 import { registerOperatorHealthProbeRoute } from '../integrations/bersoncare/operatorHealthProbeRoute.js';
 import { registerBersoncareBookingLifecycleRoute } from '../integrations/bersoncare/bookingLifecycleRoute.js';
 import { createDbPort } from '../infra/db/client.js';
@@ -222,13 +221,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     writePort: deps.dbWritePort,
     sharedSecret: integratorWebhookSecret(),
     resolveOrganizationIdForIntegratorUserId,
-  });
-
-  await registerBersoncareUserMergeM2mRoutes(app, {
-    db: createDbPort(),
-    sharedSecret: integratorWebhookSecret(),
-    resolveOrganizationIdForIntegratorUserId,
-    resolveDeploymentOrganizationId,
   });
 
   await registerOperatorHealthProbeRoute(app, {
