@@ -726,7 +726,9 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 ```
 
 `deploy-test.sh` — **code-only/no-fresh-restore** путь (build + controlled migrate текущей TEST-БД) и не является
-поддерживаемым способом fresh restore.
+способом fresh restore. Для одноразового перехода `locked -> port-context` он после миграций вызывает общий
+DEV+TEST cutover: exact HBA → bilateral zero → minimal target → live auth readiness → restart/health. Старую strict
+closure после миграций он больше не вызывает, потому что она восстанавливала удаляемые operational logins.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
 Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим
@@ -740,15 +742,13 @@ Settings-запись через `updateSetting` может менять его;
 существующую DB-backed platform setting в TEST clinic/global context тем же путём, без чтения PROD/env и без вывода
 секрета. Если этот путь недоступен, one-off TEST write требует отдельного owner authorization и backup/rollback;
 обычный deploy не должен изобретать такой bootstrap.
-Перед миграцией он останавливает все TEST writers, выдаёт owner/BYPASS только на migration window, обязательно
-снимает временные права и передаёт post-migration этап в ту же общую strict closure, что fresh wrapper. Closure
-ставит roles/helpers/grants и E1 telemetry overlay (ambient event-writer + отдельный
-`SAAS_ISOLATION_OPERATOR_DATABASE_URL` для global-admin read/coverage), выполняет base → safe specialized overlays → FORCE/assert,
-запускает отдельный fixture reconciliation window, затем fail-closed health и независимые runtime-гейты. Поэтому
-code-only миграция не может незаметно вернуть состояние migration 0177 NO FORCE. После рестарта health/nginx
-общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
-families через отдельный diagnostic login. Активный unexplained signal или отсутствие exact fresh complete coverage
-останавливает deploy; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
+Перед миграцией он останавливает все TEST writers, выдаёт owner/BYPASS только на legacy migration window и
+обязательно снимает временные права. Затем общий cutover конвертирует TEST и DEV env в `port-context`, первым
+устанавливает exact mTLS HBA, обнуляет обе базы и cluster-global application roles, отдельно доказывает zero обеих
+БД, устанавливает ровно шесть DEV+TEST login и минимальные роли/grants, выполняет positive/negative live auth probes,
+после чего перезапускает TEST и проверяет все пять units и `/api/health`. Любой сбой до release оставляет writers
+остановленными. Повторный обычный deploy уже из `port-context` пока fail-closed до подключения NOLOGIN-migrator
+пути; откат к старому owner-login/BYPASS пути запрещён.
 Состояние `awg-quick@awg0` не является TEST deploy-гейтом: это отдельный PROD-relay dependency на том же хосте,
 который TEST deploy не запускает, не останавливает и не использует как критерий готовности TEST.
 Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Это единичная полная

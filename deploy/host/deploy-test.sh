@@ -71,8 +71,12 @@ DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
+LEGACY_ELEVATION_CLEANUP_REQUIRED=1
 
 cleanup_elevation(){
+  if [ "$LEGACY_ELEVATION_CLEANUP_REQUIRED" != "1" ]; then
+    return 0
+  fi
   local cleanup_status=0
   if [ "$DBROLE_APP_OWNER_MEMBERSHIP_ADDED" = "1" ]; then
     sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null || cleanup_status=1
@@ -213,23 +217,16 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
   psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 \
     -f \"$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX\""
 cleanup_elevation
+# The legacy role still exists here and its temporary powers were just verified absent. The shared
+# cluster cutover deliberately drops it, so the EXIT trap must keep only its writer-stop duty from
+# this point onward and must not try to ALTER the intentionally removed role after a successful zero.
+LEGACY_ELEVATION_CLEANUP_REQUIRED=0
 
-# 5) The same fail-closed closure as the fresh-restore wrapper: roles/helpers/grants, base+safe
-#    overlays, exact FORCE assertions, separate seed cleanup, locked restart, health and product smoke.
-#    Exit code 3 from the closure means "verification gates are red BUT the TEST units are up and
-#    healthy" (see CLOSURE_GATE_RED_EXIT there). It must NOT reach our own cleanup_exit unit-stop
-#    branch: on 2026-07-26 a red gate during an ordinary code deploy left the owner with all five
-#    TEST units down. A red gate makes the deploy untrustworthy; it does not make the environment
-#    disposable. Anything else non-zero is a real failure before release and still stops the units.
-set +e
-bash "$DEPLOY_REPO/$STRICT_CLOSURE" --post-migration-closure
-closure_status=$?
-set -e
-if [ "$closure_status" -eq 3 ]; then
-  SERVICES_RELEASED=1
-  echo "FATAL: post-migration closure gates are RED (see the gate list above). TEST units are left RUNNING and healthy — this is a gate failure, not an outage. Do NOT treat this deploy as done." >&2
-  exit 1
-fi
-[ "$closure_status" -eq 0 ] || exit "$closure_status"
+# 5) One-time locked→port-context transition on the current TEST data. The retired strict closure
+#    is forbidden here: it recreates diagnostic/delivery/scheduler/operator logins immediately before
+#    the owner-ordered zero. The shared cutover first installs the exact HBA, then performs bilateral
+#    DEV+TEST zero, installs only the six declared logins and minimal roles/grants, proves live auth,
+#    restarts TEST and checks its health. Any failure leaves every TEST writer stopped.
+bash "$DEPLOY_REPO/$STRICT_CLOSURE" --port-context-post-migration-cutover
 SERVICES_RELEASED=1
 echo "== deploy-test: готово =="

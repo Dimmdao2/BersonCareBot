@@ -1,7 +1,15 @@
 # SaaS hard migration protocol - fresh dump to TEST rehearsal
 
-Status: partially blocked protocol. Ordinary incremental TEST deploy remains canonical; the destructive fresh-dump
-wrapper still carries retired Rubitime input flags and must be modernized before any next rehearsal.
+Status: active TEST-first transition protocol. The retired Rubitime CLI contract has been removed. The current
+owner-ordered first proof is the existing TEST database only: migrate while the legacy migration identity still
+exists, then run shared DEV+TEST `mTLS -> bilateral zero -> minimal target -> live readiness`. It performs no PROD
+operation. A fresh-production-dump rehearsal remains a later, separately owner-gated step after this live TEST pass.
+
+**ЗАМЕНЕНО 12.08.2026:** every later reference in this document to `locked` as the final runtime, to the old
+diagnostic/delivery/scheduler/operator login closure, or to Rubitime inputs is historical data-migration context.
+The final runtime is `port-context`, exact six cluster-global application logins for DEV+TEST, PostgreSQL mTLS plus
+SCRAM, transaction context, native FORCE RLS and narrow SECURITY DEFINER seams. The executable authority is
+`deploy/host/cutover-dev-test-port-context.sh`; it must run only after legacy migrations and with all writers stopped.
 
 This document is a machine-checkable contract. It does not authorize an agent to run deploy, DB, env, SSH,
 service, or production operations unless the owner explicitly asks for that operation. It states the only
@@ -28,13 +36,15 @@ be updated in the same change.
 
 ## Hard rules
 
-1. Production is read-only for dump acquisition only. The allowed production touch is a documented
+1. Before a live TEST port-context PASS, production is not touched. A later fresh-dump rehearsal may use only the documented
    `pg_dump -Fc --no-owner --no-acl` path. No production writes, no production migrations, no production
    env edits, no service restarts, and no manual production SQL.
 2. TEST is the rehearsal target. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or
    recreates TEST. A from-zero run is a one-off full migration rehearsal, never a routine deploy/check, and requires
-   a direct owner command for that exact run. The from-zero wrapper is currently blocked: it still requires retired
-   Rubitime inputs and must not be invoked until that contract is removed in an owner-reviewed change.
+   a direct owner command for that exact run. The first locked-to-port-context transition also uses
+   `deploy-test.sh`: after controlled migrations it invokes the shared bilateral zero/target cutover instead of the
+   retired strict closure. Once TEST is already `port-context`, ordinary migration deploy remains fail-closed until
+   its NOLOGIN-migrator path is wired; it must not fall back to the old owner-login/BYPASS path.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
@@ -42,9 +52,10 @@ be updated in the same change.
    window. Both must be cleaned up fail-visibly; neither privilege window is application runtime.
 6. Reports and evidence must be aggregate-only: no patient names, phone numbers, emails, raw payloads,
    credential-bearing URLs, or secrets.
-7. The TEST wrapper owns the migration window. Both TEST env files must use
+7. The TEST wrapper owns the migration window. For the one-time transition both TEST env files start in
    `DB_PRINCIPAL_CONTEXT_MODE=locked`; DDL/backfill work happens only inside the documented temporary
-   owner-authority migration step. Runtime restart must not require an owner `DATABASE_URL` in `/opt/env`.
+   owner-authority migration step. The shared cutover then atomically renders `port-context` env and removes the
+   owner `DATABASE_URL`; runtime restart must use only the exact staff/patient/integrator URLs.
 8. Integrator API startup is not a migration runner in `shadow|locked`. `apps/integrator/src/main.ts` must call the
    startup migration gate, and that gate must skip DDL migrations in `shadow|locked`, performing only non-DDL
    migration-state verification against `integrator.schema_migrations`. The gate must prove the ledger exists,
@@ -70,41 +81,40 @@ be updated in the same change.
 
 ## Roles
 
-| Role class                      | TEST example                           | Purpose                                                         | End-state                                               |
-| ------------------------------- | -------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------- |
-| Runtime owner / migration owner | `bersoncarebot_test`                   | Owns restored tables and runs owner-only DDL/backfills          | `NOBYPASSRLS`; no temporary owner membership remains    |
-| Webapp migrator login           | role from `webapp.test` `DATABASE_URL` | Invokes `pnpm migrate` through deploy env                       | No lingering membership in the runtime owner role       |
-| Superuser/operator              | `postgres`                             | Restore, owner assertions, temporary grants, cleanup assertions | Not used as app runtime                                 |
-| App owner                       | `app_owner` in #667 model              | Future protected helper/schema owner                            | `NOLOGIN`; migration owner membership is temporary only |
-| Staff/patient runtime           | `app_staff`, `app_patient`             | Future locked runtime roles                                     | `NOBYPASSRLS`; not owners                               |
+| Role class | TEST example | Purpose | End-state |
+|---|---|---|---|
+| Local DB administrator | `postgres` | Stopped-writers migration/cutover only | Never application runtime |
+| Migration identity | `bcb_test_migrator` (`NOLOGIN`) | Explicit owner-scoped migration steps | No login, no inherited power, no surviving temporary membership |
+| Webapp logins | `bcb_test_webapp_staff`, `bcb_test_webapp_patient` | Exact mTLS/SCRAM physical entries for the webapp port | No direct table grants; only declared role membership and context installer |
+| Integrator login | `bcb_test_integrator` | Exact mTLS/SCRAM physical entry for the integrator port | No direct table grants; only declared role membership and context installer |
+| Runtime and seam roles | `app_staff`, `app_patient`, `app_integrator_request`, named seam owners | Meaning-based grants, native RLS and narrow definer power | `NOLOGIN`, `NOBYPASSRLS`, least privilege |
 
 ## Allowed TEST sequence
 
-Do not run the destructive sequence in the current revision. `deploy-test-full-reset.sh` still exposes obsolete
-`--rubitime-*` inputs even though Rubitime was retired on 2026-07-27. Modernizing that wrapper, preserving its
-FIO/security gates, and independently auditing it are prerequisites to any future owner-authorized full reset.
-
-For an ordinary code deployment, including UI fixes, use only:
+Current first live proof, with no PROD access:
 
 ```bash
 bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild
 ```
 
-That command builds code and applies only pending incremental migrations to the existing TEST database. It does not
-download a dump and does not call the restore script.
+That command builds code, applies pending migrations to the existing stopped TEST database, invokes the exact shared
+DEV+TEST cutover, restarts TEST and requires live authentication/readiness plus service health. It does not download
+a dump and does not call the restore script. A failure before release leaves all TEST writers stopped.
 
-For a future destructive path, retain the branch-bound FIO manifest verifier and all fail-closed security gates.
-Remove the retired Rubitime CSV staging/one-pass contract instead of fabricating a replacement input.
+Only after that live pass, a separately owner-gated from-zero rehearsal may use
+`deploy/host/deploy-test-full-reset.sh` with the exact protected FIO manifest and all three approved hashes. It retains
+the FIO/security gates and has no Rubitime inputs. It may obtain a read-only fresh PROD dump only after the owner
+allows that later stage.
 
 ### 1. Assert TEST runtime mode
 
-Before acquiring a dump or rebuilding anything, the wrapper must read only the `DB_PRINCIPAL_CONTEXT_MODE` key from
+Before the one-time live transition, the wrapper must read only the `DB_PRINCIPAL_CONTEXT_MODE` key from
 `/opt/env/bersoncarebot/api.test` and `/opt/env/bersoncarebot/webapp.test` as the deploy-readable TEST env files.
 Missing mode means the application default `legacy-guc`, which is now a preflight failure for TEST. Both files
 must explicitly say `locked`; `legacy-guc`, `shadow`, and every other value are rejected before writers stop.
 
-The wrapper must continue to own migrations through the temporary owner-authority window below, then restart TEST
-units in locked mode. It must not patch grants outside the
+The wrapper must continue to own migrations through the temporary owner-authority window below, then run the shared
+zero/target cutover and restart TEST units in `port-context` mode. It must not patch grants outside the
 documented migration window and must not edit `/opt/env`. The reason this restart is valid is the integrator startup
 contract: after deploy has run `pnpm migrate`, API startup skips DDL migrations in `shadow|locked` and strictly
 verifies that `integrator.schema_migrations` contains every discovered integrator migration from the deployed repo.

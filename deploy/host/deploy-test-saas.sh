@@ -104,6 +104,7 @@ P2_B_SIGNING_SECRET_VALUE=""
 P2_B_CONTEXT_INSTALLED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
+LEGACY_ELEVATION_CLEANUP_REQUIRED=1
 # Post-health gate failures collected instead of aborting. See run_closure_gate + CLOSURE_GATE_RED_EXIT.
 CLOSURE_GATE_FAILURES=()
 # Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
@@ -199,6 +200,9 @@ assert_cleanup_elevation(){
   fi
 }
 cleanup_elevation(){
+  if [ "$LEGACY_ELEVATION_CLEANUP_REQUIRED" != "1" ]; then
+    return 0
+  fi
   local cleanup_status=0
   revoke_migrator_membership || cleanup_status=1
   revoke_migrator_app_owner_membership || cleanup_status=1
@@ -3177,6 +3181,29 @@ shell_quote(){
   printf '%q' "$1"
 }
 
+run_port_context_test_release(){
+  assert_test_writers_stopped
+  # Prove that every legacy elevation is gone while the legacy DB owner still exists. Cluster zero
+  # intentionally drops that role, so after this point cleanup_exit retains only its writer-stop
+  # responsibility and must not try to ALTER the removed role on success or on a late failure.
+  cleanup_elevation
+  LEGACY_ELEVATION_CLEANUP_REQUIRED=0
+  log "shared DEV+TEST mTLS → bilateral zero → minimal target roles/grants"
+  sudo bash "$DEPLOY_REPO/deploy/host/cutover-dev-test-port-context.sh" --execute
+
+  log "restart TEST on exact port-context runtime"
+  install_and_assert_media_worker_test_unit
+  for unit_name in api worker scheduler webapp; do
+    sudo systemctl restart "bersoncarebot-$unit_name-test"
+  done
+  sudo systemctl restart bersoncarebot-media-worker-test
+  sleep 4
+  assert_test_units_active
+  assert_test_health_ok
+  SERVICES_RELEASED=1
+  log "TEST port-context release: PASS"
+}
+
 case "${1:-}" in
   --strict-closure-catalog-self-test)
     run_strict_closure_catalog_self_test
@@ -3199,6 +3226,12 @@ case "${1:-}" in
     trap cleanup_exit EXIT
     run_strict_post_migration_closure
     log "DONE — shared strict TEST post-migration closure"
+    exit 0
+    ;;
+  --port-context-post-migration-cutover)
+    WRITERS_STOPPED=1
+    trap cleanup_exit EXIT
+    run_port_context_test_release
     exit 0
     ;;
   --help|-h)
@@ -3407,17 +3440,5 @@ run_b1_doctor_admin_identity_assertion
 # closure is forbidden: it recreates diagnostic/delivery/scheduler/operator logins that the new
 # cluster-wide zero deliberately removes.  Install the shared HBA first, then bilateral zero +
 # exact six-logins target state, then prove live authentication through the two ports.
-log "shared DEV+TEST mTLS → bilateral zero → minimal target roles/grants"
-sudo bash "$DEPLOY_REPO/deploy/host/cutover-dev-test-port-context.sh" --execute
-
-log "restart TEST on exact port-context runtime"
-install_and_assert_media_worker_test_unit
-for unit_name in api worker scheduler webapp; do
-  sudo systemctl restart "bersoncarebot-$unit_name-test"
-done
-sudo systemctl restart bersoncarebot-media-worker-test
-sleep 4
-assert_test_units_active
-assert_test_health_ok
-SERVICES_RELEASED=1
+run_port_context_test_release
 log "DONE — full data-ready TEST migration (reviewed FIO + port-context runtime verified)"
