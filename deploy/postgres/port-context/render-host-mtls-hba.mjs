@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 const begin = '# BEGIN BCB MANAGED MTLS HBA';
 const end = '# END BCB MANAGED MTLS HBA';
 const namePattern = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
+const hbaSpecialIdentifiers = new Set(['all', 'sameuser', 'samerole', 'replication']);
 
 function fail(message) {
   throw new Error(`host mTLS HBA: ${message}`);
@@ -33,6 +34,9 @@ function parseArgs(argv) {
 function requiredName(args, key) {
   const value = args[key];
   if (!value || !namePattern.test(value)) fail(`--${key} must be one PostgreSQL identifier`);
+  if (hbaSpecialIdentifiers.has(value.toLowerCase())) {
+    fail(`--${key} must not be a PostgreSQL HBA special identifier`);
+  }
   return value;
 }
 
@@ -67,13 +71,17 @@ function stripManagedBlock(text) {
   const lines = text.split(/\r?\n/);
   const result = [];
   let inside = false;
+  let beginCount = 0;
+  let endCount = 0;
   for (const line of lines) {
     if (line === begin) {
-      if (inside) fail('nested managed HBA block');
+      beginCount += 1;
+      if (inside || beginCount > 1) fail('duplicate or nested managed HBA block');
       inside = true;
       continue;
     }
     if (line === end) {
+      endCount += 1;
       if (!inside) fail('managed HBA end marker without begin marker');
       inside = false;
       continue;
@@ -81,12 +89,22 @@ function stripManagedBlock(text) {
     if (!inside) result.push(line);
   }
   if (inside) fail('unterminated managed HBA block');
+  if (beginCount !== endCount) fail('malformed managed HBA markers');
   return result.join('\n').replace(/^\n+|\n+$/g, '');
 }
 
 function nonCommentRules(text) {
   return text.split(/\r?\n/).map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
     .filter(({ line }) => line && !line.startsWith('#'));
+}
+
+function isSpecialHbaField(value) {
+  return value.split(',').some((item) => {
+    const normalized = item.toLowerCase();
+    return hbaSpecialIdentifiers.has(normalized)
+      || item.startsWith('+')
+      || /[*?]/.test(item);
+  });
 }
 
 export function validateManagedHba(text, args) {
@@ -102,7 +120,12 @@ export function validateManagedHba(text, args) {
   const remainder = stripManagedBlock(text);
   for (const { line, lineNumber } of nonCommentRules(remainder)) {
     const fields = line.split(/\s+/);
+    const connectionType = fields[0] ?? '';
+    const databaseField = fields[1] ?? '';
     const userField = fields[2] ?? '';
+    if (connectionType === 'hostssl' && (isSpecialHbaField(databaseField) || isSpecialHbaField(userField))) {
+      fail(`hostssl special database/login form is forbidden outside the managed block (line ${lineNumber})`);
+    }
     // A generic legacy rule may remain below the protected first-match rows
     // during staged cutover.  It cannot match these logins first; an explicit
     // duplicate can, so reject the latter rather than falsely rejecting the
@@ -134,7 +157,8 @@ function main() {
   }
   if (command === 'merge') {
     if (!args.input || !args.output) fail('merge requires --input and --output');
-    const existing = stripManagedBlock(readFileSync(args.input, 'utf8'));
+    const source = readFileSync(args.input, 'utf8');
+    const existing = stripManagedBlock(source);
     const merged = `${renderHba(args)}${existing ? `\n${existing}\n` : ''}`;
     validateManagedHba(merged, args);
     writeFileSync(args.output, merged, { mode: 0o600 });

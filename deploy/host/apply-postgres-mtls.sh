@@ -19,6 +19,8 @@ data_dir=
 admin_user=postgres
 psql_bin=psql
 port=5432
+probe_command=
+auth_refusal_journal=
 
 die() { echo "apply-postgres-mtls: $*" >&2; exit 1; }
 usage() {
@@ -35,6 +37,14 @@ all hosts other than the documented 151.241.228.122 DEV/TEST host.
 Disposable acceptance only: BCB_PG_MTLS_SELFTEST=1 --environment disposable
 --data-dir PGDATA --admin-user USER --psql PATH.  This mode never accepts a path
 outside the disposable work directory and is not a host deployment mode.
+
+Readiness is deliberately behavioural.  It additionally requires a root-owned,
+mode-safe --probe-command and --auth-refusal-journal.  The command is invoked for
+positive-staff, positive-patient, positive-integrator, password-only, wrong-cn,
+non-tls, socket, and server-impersonation.  It must resolve the exact client
+credentials and certificate material without printing them; positive probes exit
+zero and negative probes exit non-zero.  The journal must acquire a fresh Postgres
+authentication refusal during the negative probes.
 EOF
 }
 
@@ -43,7 +53,7 @@ while (($#)); do
     --preflight) mode=preflight ;;
     --apply) mode=apply ;;
     --readiness) mode=readiness ;;
-    --environment|--database|--staff-login|--patient-login|--integrator-login|--ca-file|--crl-file|--server-cert-file|--server-key-file|--data-dir|--admin-user|--psql|--port)
+    --environment|--database|--staff-login|--patient-login|--integrator-login|--ca-file|--crl-file|--server-cert-file|--server-key-file|--data-dir|--admin-user|--psql|--port|--probe-command|--auth-refusal-journal)
       (($# >= 2)) || die "missing value for $1"
       if [[ "$1" == --psql ]]; then
         psql_bin=$2
@@ -95,6 +105,15 @@ require_tls_material() {
   openssl x509 -in "$ca_file" -noout >/dev/null
   openssl crl -in "$crl_file" -noout >/dev/null
   openssl x509 -in "$server_cert_file" -noout >/dev/null
+  openssl x509 -in "$ca_file" -checkend 0 -noout >/dev/null || die "CA certificate is expired: $ca_file"
+  openssl x509 -in "$server_cert_file" -checkend 0 -noout >/dev/null || die "server certificate is expired: $server_cert_file"
+  openssl verify -CAfile "$ca_file" "$server_cert_file" >/dev/null || die 'server certificate does not validate to the supplied CA chain'
+  [[ -n "$(openssl crl -in "$crl_file" -noout -issuer -nameopt RFC2253 | sed 's/^issuer=//')" ]] || die 'CRL does not declare an issuer'
+  openssl crl -in "$crl_file" -noout -verify -CAfile "$ca_file" >/dev/null || die 'CRL signature does not validate to the supplied CA chain'
+  local cert_public_key key_public_key
+  cert_public_key=$(openssl x509 -in "$server_cert_file" -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum | awk '{print $1}')
+  key_public_key=$(openssl pkey -in "$server_key_file" -pubout -outform DER | sha256sum | awk '{print $1}')
+  [[ "$cert_public_key" == "$key_public_key" ]] || die 'server certificate does not match server private key'
   local key_mode=$((8#$(stat -c '%a' -- "$server_key_file")))
   (( (key_mode & 077) == 0 )) || die "server key permissions are too broad: $server_key_file"
 }
@@ -110,7 +129,23 @@ fi
 render_args=(--database "$database" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login")
 require_tls_material
 
-verify_loaded() {
+verify_ssl_context() {
+  local expected actual wire_output
+  expected=$(openssl x509 -in "$server_cert_file" -noout -fingerprint -sha256 | tr -d '\r')
+  wire_output=$(mktemp)
+  if ! openssl s_client -starttls postgres -connect "127.0.0.1:$port" -CAfile "$ca_file" -verify_return_error </dev/null >"$wire_output" 2>/dev/null; then
+    rm -f -- "$wire_output"
+    die 'PostgreSQL TLS handshake did not validate with the supplied CA chain'
+  fi
+  actual=$(openssl x509 -in "$wire_output" -noout -fingerprint -sha256 2>/dev/null | tr -d '\r') || {
+    rm -f -- "$wire_output"
+    die 'PostgreSQL TLS handshake did not present a server certificate'
+  }
+  rm -f -- "$wire_output"
+  [[ "$actual" == "$expected" ]] || die 'PostgreSQL did not activate the requested server SSL context'
+}
+
+verify_loaded_configuration() {
   [[ "$(scalar 'SHOW ssl;')" == on ]] || die 'PostgreSQL did not load ssl=on'
   [[ "$(scalar 'SHOW ssl_ca_file;')" == "$ca_file" ]] || die 'PostgreSQL did not load the requested ssl_ca_file'
   [[ "$(scalar 'SHOW ssl_crl_file;')" == "$crl_file" ]] || die 'PostgreSQL did not load the requested ssl_crl_file'
@@ -118,15 +153,47 @@ verify_loaded() {
   [[ "$(scalar 'SHOW ssl_key_file;')" == "$server_key_file" ]] || die 'PostgreSQL did not load the requested ssl_key_file'
   [[ "$(scalar "SELECT count(*) FROM pg_file_settings WHERE error IS NOT NULL;")" == 0 ]] || die 'PostgreSQL reports a configuration parse error'
   [[ "$(scalar "SELECT count(*) FROM pg_settings WHERE name IN ('ssl','ssl_ca_file','ssl_crl_file','ssl_cert_file','ssl_key_file') AND pending_restart;")" == 0 ]] || die 'TLS configuration is pending restart; rollback and use the controlled restart cutover'
-  [[ "$(scalar 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;')" == 0 ]] || die 'PostgreSQL reports a pg_hba.conf parse error'
-  node "$renderer" validate --input "$hba_file" "${render_args[@]}"
-  # The catalog is consulted after reload: this proves the server parsed the
-  # active HBA, rather than only proving text in an unreferenced staging file.
-  [[ "$(scalar "SELECT count(*) FROM pg_hba_file_rules WHERE type='hostssl' AND auth_method='scram-sha-256';")" -ge 6 ]] || die 'loaded pg_hba_file_rules lacks the six exact mTLS/SCRAM rows'
+  verify_ssl_context
+}
+
+run_readiness_probes() {
+  [[ -n "$probe_command" && -n "$auth_refusal_journal" ]] || die 'readiness requires --probe-command and --auth-refusal-journal'
+  [[ "$probe_command" = /* && -x "$probe_command" && -f "$probe_command" ]] || die 'readiness probe command must be an executable absolute regular file'
+  [[ "$auth_refusal_journal" = /* && -f "$auth_refusal_journal" && -r "$auth_refusal_journal" ]] || die 'readiness auth-refusal journal must be a readable absolute regular file'
+  local probe_mode_bits
+  probe_mode_bits=$((8#$(stat -c '%a' -- "$probe_command")))
+  (( (probe_mode_bits & 022) == 0 )) || die 'readiness probe command must not be writable by group or other'
+  if [[ "$environment" != disposable ]]; then
+    [[ "$(stat -c '%u' -- "$probe_command")" == 0 ]] || die 'host readiness probe command must be owned by root'
+  fi
+  local probe_mode mode expected offset fresh_journal
+  offset=$(wc -c < "$auth_refusal_journal")
+  for probe_mode in positive-staff positive-patient positive-integrator password-only wrong-cn non-tls socket server-impersonation; do
+    case "$probe_mode" in positive-*) expected=success ;; *) expected=failure ;; esac
+    set +e
+    "$probe_command" "$probe_mode" "$database" "$staff_login" "$patient_login" "$integrator_login" >/dev/null 2>&1
+    mode=$?
+    set -e
+    if [[ "$expected" == success && $mode -ne 0 ]] || [[ "$expected" == failure && $mode -eq 0 ]]; then
+      die "readiness $probe_mode probe did not $expected"
+    fi
+  done
+  fresh_journal=$(mktemp)
+  tail -c "+$((offset + 1))" "$auth_refusal_journal" > "$fresh_journal" || true
+  if ! rg -q 'FATAL:|authentication failed|certificate authentication|no pg_hba\.conf entry' "$fresh_journal"; then
+    rm -f -- "$fresh_journal"
+    die 'readiness negative probes produced no PostgreSQL authentication refusal journal evidence'
+  fi
+  rm -f -- "$fresh_journal"
+}
+
+verify_readiness() {
+  verify_loaded_configuration
+  run_readiness_probes
 }
 
 if [[ "$mode" == preflight || "$mode" == readiness ]]; then
-  if [[ "$mode" == readiness ]]; then verify_loaded; fi
+  if [[ "$mode" == readiness ]]; then verify_readiness; fi
   printf 'apply-postgres-mtls: %s PASS (hba=%s config=%s)\n' "$mode" "$hba_file" "$config_file"
   exit 0
 fi
@@ -152,10 +219,10 @@ trap rollback EXIT
 
 node "$renderer" merge --input "$hba_file" --output "$hba_candidate" "${render_args[@]}"
 awk '
-  $0 == "# BEGIN BCB MANAGED MTLS POSTGRESQL" { inside=1; next }
-  $0 == "# END BCB MANAGED MTLS POSTGRESQL" { if (!inside) exit 2; inside=0; next }
+  $0 == "# BEGIN BCB MANAGED MTLS POSTGRESQL" { begins++; if (inside || begins > 1) invalid=1; inside=1; next }
+  $0 == "# END BCB MANAGED MTLS POSTGRESQL" { ends++; if (!inside) invalid=1; inside=0; next }
   !inside { print }
-  END { if (inside) exit 2 }
+  END { if (inside || invalid || begins != ends) exit 2 }
 ' "$config_file" > "$config_candidate" || die 'existing postgresql.conf has a malformed managed mTLS block'
 cat >> "$config_candidate" <<EOF
 
@@ -178,7 +245,7 @@ if [[ "$environment" == disposable && "${BCB_PG_MTLS_INJECT_FAULT:-}" == reload_
   die 'injected disposable reload failure'
 fi
 run_psql -qAtc 'SELECT pg_reload_conf()' >/dev/null
-verify_loaded
+verify_loaded_configuration
 rollback_needed=0
 trap - EXIT
 printf 'apply-postgres-mtls: apply PASS (backup retained at %s)\n' "$backup_dir"

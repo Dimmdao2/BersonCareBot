@@ -119,10 +119,51 @@ host_mtls_apply=(bash "$repo_root/deploy/host/apply-postgres-mtls.sh"
   --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/server.key")
 cp "$data_dir/pg_hba.conf" "$work_dir/pg_hba.before"
 cp "$data_dir/postgresql.conf" "$work_dir/postgresql.before"
+openssl genrsa -out "$cert_dir/mismatched-server.key" 2048 >/dev/null 2>&1
+chmod 0600 "$cert_dir/mismatched-server.key"
+must_fail env BCB_PG_MTLS_SELFTEST=1 bash "$repo_root/deploy/host/apply-postgres-mtls.sh" \
+  --environment disposable --apply --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port" \
+  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login" \
+  --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl" --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/mismatched-server.key"
+cmp -s "$work_dir/pg_hba.before" "$data_dir/pg_hba.conf" || fail 'mismatched key preflight did not preserve the exact HBA file'
+cmp -s "$work_dir/postgresql.before" "$data_dir/postgresql.conf" || fail 'mismatched key preflight did not preserve the exact PostgreSQL config file'
 must_fail env BCB_PG_MTLS_SELFTEST=1 BCB_PG_MTLS_INJECT_FAULT=reload_failure "${host_mtls_apply[@]}"
 cmp -s "$work_dir/pg_hba.before" "$data_dir/pg_hba.conf" || fail 'host apply fault did not restore the exact HBA file'
 cmp -s "$work_dir/postgresql.before" "$data_dir/postgresql.conf" || fail 'host apply fault did not restore the exact PostgreSQL config file'
 BCB_PG_MTLS_SELFTEST=1 "${host_mtls_apply[@]}"
+cp "$data_dir/postgresql.conf" "$work_dir/postgresql.applied"
+printf '%s\n' '' '# BEGIN BCB MANAGED MTLS POSTGRESQL' '# END BCB MANAGED MTLS POSTGRESQL' >> "$data_dir/postgresql.conf"
+cp "$data_dir/postgresql.conf" "$work_dir/postgresql.duplicate-marker"
+must_fail env BCB_PG_MTLS_SELFTEST=1 "${host_mtls_apply[@]}"
+cmp -s "$work_dir/postgresql.duplicate-marker" "$data_dir/postgresql.conf" || fail 'duplicate PostgreSQL managed block was altered instead of rejected'
+cp "$work_dir/postgresql.applied" "$data_dir/postgresql.conf"
+probe_command="$work_dir/mtls-readiness-probe.sh"
+printf '%s\n' \
+  '#!/usr/bin/env bash' 'set -euo pipefail' 'kind=$1' \
+  "base=\"host=127.0.0.1 port=$port dbname=$db_name sslrootcert=$cert_dir/ca.crt\"" \
+  "case \"\$kind\" in" \
+  "  positive-staff) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=verify-full sslcert=$cert_dir/staff-old.crt sslkey=$cert_dir/staff-old.key\" -Atqc 'SELECT current_user' ;;" \
+  "  positive-patient) PGPASSWORD=$patient_password \"$pg_bin/psql\" -X \"\$base user=$patient_login sslmode=verify-full sslcert=$cert_dir/patient.crt sslkey=$cert_dir/patient.key\" -Atqc 'SELECT current_user' ;;" \
+  "  positive-integrator) PGPASSWORD=$integrator_password \"$pg_bin/psql\" -X \"\$base user=$integrator_login sslmode=verify-full sslcert=$cert_dir/integrator.crt sslkey=$cert_dir/integrator.key\" -Atqc 'SELECT current_user' ;;" \
+  "  password-only) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=require\" -Atqc 'SELECT 1' ;;" \
+  "  wrong-cn) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=verify-full sslcert=$cert_dir/wrong-port.crt sslkey=$cert_dir/wrong-port.key\" -Atqc 'SELECT 1' ;;" \
+  "  non-tls) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"host=127.0.0.1 port=$port dbname=$db_name user=$staff_login sslmode=disable\" -Atqc 'SELECT 1' ;;" \
+  "  socket) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X -h \"$data_dir\" -p $port -U $staff_login -d $db_name -Atqc 'SELECT 1' ;;" \
+  "  server-impersonation) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=verify-full sslcert=$cert_dir/server.crt sslkey=$cert_dir/server.key\" -Atqc 'SELECT 1' ;;" \
+  '  *) exit 64 ;;' 'esac' > "$probe_command"
+chmod 0700 "$probe_command"
+host_mtls_readiness=(bash "$repo_root/deploy/host/apply-postgres-mtls.sh"
+  --environment disposable --readiness --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port"
+  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login"
+  --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl" --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/server.key"
+  --probe-command "$probe_command" --auth-refusal-journal "$log_file")
+BCB_PG_MTLS_SELFTEST=1 "${host_mtls_readiness[@]}"
+cp "$data_dir/pg_hba.conf" "$work_dir/pg_hba.applied"
+sed -i "2i hostssl all all 0.0.0.0/0 trust" "$data_dir/pg_hba.conf"
+psql_admin -c 'SELECT pg_reload_conf()' >/dev/null
+must_fail env BCB_PG_MTLS_SELFTEST=1 "${host_mtls_readiness[@]}"
+cp "$work_dir/pg_hba.applied" "$data_dir/pg_hba.conf"
+psql_admin -c 'SELECT pg_reload_conf()' >/dev/null
 if [[ "$fault" == clientcert ]]; then sed -i 's/ clientcert=verify-full clientname=CN//' "$data_dir/pg_hba.conf"; fi
 if [[ "$fault" == broad_hba ]]; then sed -i "2i hostssl $db_name all 0.0.0.0/0 trust" "$data_dir/pg_hba.conf"; fi
 psql_admin -c 'SELECT pg_reload_conf()' >/dev/null

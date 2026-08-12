@@ -1054,9 +1054,12 @@ sudo bash deploy/host/apply-postgres-mtls.sh --environment dev --preflight \
 ```
 
 `--apply` takes exact backups of the server-reported `hba_file` and `config_file`, atomically replaces both, asks
-PostgreSQL to reload, verifies `pg_file_settings`, `pg_hba_file_rules` and active TLS settings, and restores both exact
-files on any failure. `--readiness` repeats the loaded-catalog check without writing. A changed SSL setting with
-`pending_restart` remains a controlled restart/cutover decision; this stage intentionally does not make that restart.
+PostgreSQL to reload, verifies active TLS settings and the presented server certificate, and restores both exact files
+on any failure. It validates the readable, mode-safe server key, certificate/key match, CA chain and CRL before writing.
+`--readiness` is non-writing and requires an exact-credential probe command plus an authentication-refusal journal: it
+proves three TLS logins work and password-only, wrong-CN, non-TLS, socket and server-impersonation paths fail against
+the loaded server. A changed SSL setting with `pending_restart` remains a controlled restart/cutover decision; this
+stage intentionally does not make that restart.
 
 Не подтверждено текущим audit'ом:
 
