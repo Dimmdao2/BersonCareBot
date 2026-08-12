@@ -27,22 +27,6 @@ const D30_ONLINE_INDEX_ARTIFACT = path.join(
 );
 const D30_ONLINE_INDEX_VARIABLE = 'D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX';
 const TRANSACTION_FORBIDDEN_CONCURRENT_INDEX = /\b(?:CREATE(?:\s+UNIQUE)?|DROP)\s+INDEX\s+CONCURRENTLY\b/iu;
-const EMPTY_BOOTSTRAP_MODE = 'empty-bootstrap';
-const EMPTY_BOOTSTRAP_DATA_MIGRATIONS = new Set([
-  '0143_seed_staff_organization_members',
-  '0204_promote_legacy_solo_owner_membership',
-]);
-const EMPTY_BOOTSTRAP_TEST_LEDGER_RECONCILIATIONS = new Set([
-  '0330_test_ledger_schema_parity_forward_local',
-  '0331_test_ledger_0330_race_forward_local',
-]);
-const EMPTY_BOOTSTRAP_POST_MIGRATION_OWNER_REPAIRS = new Set([
-  '0356_platform_users_definer_owner_app_owner_local',
-]);
-const EMPTY_BOOTSTRAP_PLATFORM_AUDIT_GRANT_MIGRATION =
-  '0241_platform_operations_audit_health_archive_global_view';
-const EMPTY_BOOTSTRAP_APP_OWNER_PUBLIC_USAGE_MIGRATION =
-  '0261_platform_registration_events_read';
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
@@ -320,139 +304,6 @@ export function renderStructuredMigrationFailureDiagnostic(error, migrations, jo
   return `[migrate] failure migration=${identity?.tag ?? 'unknown'} idx=${identity?.idx ?? 'unknown'} reason=${diagnostic.reason} sqlstate=${diagnostic.sqlstate ?? 'unknown'}`;
 }
 
-async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
-  const client = await pool.connect();
-  try {
-    const identity = await client.query(
-      'SELECT current_user AS migration_role, session_user AS administrative_role',
-    );
-    const migrationRole = String(identity.rows[0]?.migration_role ?? '');
-    const administrativeRole = String(identity.rows[0]?.administrative_role ?? '');
-    if (!migrationRole || !administrativeRole || migrationRole === administrativeRole) {
-      throw new Error('empty_bootstrap_requires_distinct_administrative_session_and_migration_role');
-    }
-    await client.query('CREATE SCHEMA IF NOT EXISTS drizzle');
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
-        id serial PRIMARY KEY,
-        hash text NOT NULL,
-        created_at bigint
-      )
-    `);
-    const state = await client.query(`
-      SELECT
-        (SELECT count(*)::integer FROM drizzle.__drizzle_migrations) AS ledger_count,
-        (SELECT count(*)::integer FROM public.platform_users) AS platform_user_count,
-        (SELECT count(*)::integer FROM public.appointment_records) AS appointment_count
-    `);
-    const row = state.rows[0];
-    if (
-      row?.ledger_count !== 0 ||
-      row?.platform_user_count !== 0 ||
-      row?.appointment_count !== 0
-    ) {
-      throw new Error('empty_bootstrap_requires_empty_test_data_and_drizzle_ledger');
-    }
-
-    const journalByWhen = new Map(journalEntries.map((entry) => [entry.when, entry]));
-    await client.query('BEGIN');
-    try {
-      // Historical host bootstrap installed pgcrypto in app_ext before Drizzle. Recreate that
-      // foundation inside this empty-bootstrap transaction so every migration sees the same
-      // extension namespace; owner-zero later replaces its temporary ownership and grants.
-      await client.query('CREATE SCHEMA IF NOT EXISTS app_ext');
-      await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA app_ext');
-      await client.query('GRANT USAGE ON SCHEMA app_ext TO app_owner');
-      const pgcrypto = await client.query(`
-        SELECT
-          extension_schema.nspname = 'app_ext' AS schema_ok,
-          has_schema_privilege('app_owner', 'app_ext', 'USAGE') AS owner_usage_ok,
-          to_regprocedure('app_ext.digest(text,text)') IS NOT NULL AS digest_ok,
-          to_regprocedure('app_ext.gen_random_bytes(integer)') IS NOT NULL AS random_ok
-        FROM pg_extension AS extension
-        JOIN pg_namespace AS extension_schema ON extension_schema.oid = extension.extnamespace
-        WHERE extension.extname = 'pgcrypto'
-      `);
-      if (
-        pgcrypto.rowCount !== 1 ||
-        pgcrypto.rows[0]?.schema_ok !== true ||
-        pgcrypto.rows[0]?.owner_usage_ok !== true ||
-        pgcrypto.rows[0]?.digest_ok !== true ||
-        pgcrypto.rows[0]?.random_ok !== true
-      ) {
-        throw new Error('empty_bootstrap_pgcrypto_foundation_invalid');
-      }
-      for (const migration of migrations) {
-        const journal = journalByWhen.get(migration.folderMillis);
-        if (!journal) throw new Error(`migration_journal_entry_missing when=${migration.folderMillis}`);
-        if (journal.tag === EMPTY_BOOTSTRAP_PLATFORM_AUDIT_GRANT_MIGRATION) {
-          // Historical 0241 asserts app_staff grants that came from the pre-migration host
-          // provisioning overlay. Recreate only that prerequisite inside this disposable empty
-          // bootstrap transaction; the subsequent owner-ordered zero removes every legacy grant.
-          await client.query(
-            'GRANT SELECT ON public.admin_audit_log, public.operator_health_failure_archive TO app_staff',
-          );
-        }
-        if (journal.tag === EMPTY_BOOTSTRAP_APP_OWNER_PUBLIC_USAGE_MIGRATION) {
-          // Historical app_owner schema usage came from host provisioning before this migration.
-          // Its SQL function body references public.* while SET ROLE app_owner is active, so restore
-          // only schema name resolution as the administrative session, then return to the exact
-          // migration role. `RESET ROLE` cannot be used here: a startup `PGOPTIONS role=...`
-          // makes RESET return to that configured migration role rather than to session_user.
-          // The grant remains inside the disposable bootstrap transaction.
-          await client.query(`SET ROLE ${pg.escapeIdentifier(administrativeRole)}`);
-          try {
-            await client.query('GRANT USAGE ON SCHEMA public TO app_owner');
-          } finally {
-            await client.query(`SET ROLE ${pg.escapeIdentifier(migrationRole)}`);
-          }
-          const usage = await client.query(
-            "SELECT has_schema_privilege('app_owner', 'public', 'USAGE') AS enabled",
-          );
-          if (usage.rows[0]?.enabled !== true) {
-            throw new Error('empty_bootstrap_app_owner_public_usage_not_granted');
-          }
-        }
-        if (EMPTY_BOOTSTRAP_DATA_MIGRATIONS.has(journal.tag)) {
-          console.log(`[migrate] empty-bootstrap skipped data-only migration=${journal.tag}`);
-        } else if (EMPTY_BOOTSTRAP_TEST_LEDGER_RECONCILIATIONS.has(journal.tag)) {
-          console.log(
-            `[migrate] empty-bootstrap skipped TEST-ledger reconciliation=${journal.tag}`,
-          );
-        } else if (EMPTY_BOOTSTRAP_POST_MIGRATION_OWNER_REPAIRS.has(journal.tag)) {
-          // 0356 only repairs owners of functions in an already rehydrated installation. Some of
-          // those functions are intentionally materialized by the canonical post-migration
-          // runtime overlays, so they cannot exist yet in a genuinely empty Drizzle bootstrap.
-          // The TEST deploy applies that chain after all migrations and the immediate zero/target
-          // install then replaces every temporary owner and ACL from the exact function census.
-          console.log(
-            `[migrate] empty-bootstrap deferred post-migration owner repair=${journal.tag}`,
-          );
-        } else {
-          try {
-            for (const statement of migration.sql) await client.query(statement);
-          } catch (error) {
-            console.error(
-              `[migrate] empty-bootstrap failed migration=${journal.tag} idx=${journal.idx}`,
-            );
-            throw error;
-          }
-        }
-        await client.query(
-          'INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)',
-          [migration.hash, migration.folderMillis],
-        );
-      }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    }
-  } finally {
-    client.release();
-  }
-}
-
 if (process.argv.includes('--self-test')) {
   const sample = [
     'PostgresError: must be member of role app_owner',
@@ -640,11 +491,7 @@ const reconciliations = readMigrationReconciliations(migrationsFolder, journalEn
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 try {
-  if (process.env.WEBAPP_DRIZZLE_MIGRATIONS_MODE?.trim() === EMPTY_BOOTSTRAP_MODE) {
-    await migrateEmptyBootstrap(pool, migrations, journalEntries);
-  } else {
-    await migrate(drizzle(pool), { migrationsFolder });
-  }
+  await migrate(drizzle(pool), { migrationsFolder });
   const ledgerResult = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
   const completeness = inspectMigrationLedgerCompleteness({
     migrations,

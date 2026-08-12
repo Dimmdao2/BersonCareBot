@@ -19,7 +19,6 @@ export * from './operatorHealthAlertSent';
 export * from './outgoingDeliveryQueue';
 export * from './operatorHealthFailureArchive';
 export * from './notificationDeliveryAttempts';
-export * from './userEmailSetupTokens';
 export * from './specialistSignupIntents';
 export * from './staffSecurityProfiles';
 export * from './organizationMemberInvites';

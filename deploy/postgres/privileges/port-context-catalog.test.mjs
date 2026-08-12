@@ -10,14 +10,14 @@ import {
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 18,
+  webapp: 50,
   integrator: 22,
 };
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 40);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 40);
+  assert.equal(rows.length, 72);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 72);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -58,22 +58,24 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
     assert.equal(integrator[name].purpose, 'relation');
     if (name !== 'resolver') assert.ok(integrator[name].runtimeSources.length > 0);
   }
-  for (const name of ['pre_session', 'worker', 'telemetry']) {
+  for (const name of ['worker', 'telemetry']) {
     assert.equal(webapp[name].purpose, 'relation');
     assert.ok(webapp[name].runtimeSources.length > 0);
   }
+  assert.equal(webapp.pre_session, undefined, 'anonymous bootstrap has no relation-wide fallback');
   assert.equal(webapp.tenant_service, undefined);
   assert.equal(webapp.service, undefined);
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 26);
+  assert.equal(roots.length, 58);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
   assert.deepEqual(
     identityResolvers.map((row) => [row.runtimeName, row.sessionLogin]),
     [
+      ['globalAdmin_identity_resolve', 'bcb_test_webapp_global_admin'],
       ['patient_identity_resolve', 'bcb_test_webapp_patient'],
       ['staff_identity_resolve', 'bcb_test_webapp_staff'],
     ],
@@ -128,8 +130,21 @@ test('every descriptor target is SET-able by its exact session login', () => {
 test('env login render restores app schema usage after the deny-by-default artifact', () => {
   const sql = renderEnvSql(declaration, 'test', 'bersoncarebot_test');
   assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256';/);
-  for (const login of ['bcb_test_webapp_staff', 'bcb_test_webapp_patient', 'bcb_test_integrator']) {
+  for (const login of [
+    'bcb_test_webapp_staff', 'bcb_test_webapp_patient',
+    'bcb_test_webapp_global_admin', 'bcb_test_integrator',
+  ]) {
     assert.match(sql, new RegExp(`GRANT USAGE ON SCHEMA "app" TO "${login}";`));
   }
   assert.doesNotMatch(sql, /GRANT USAGE ON SCHEMA "app_ext" TO "bcb_test_/);
+});
+
+test('staff and global-admin login memberships stay disjoint at the platform boundary', () => {
+  const staff = declaration.envMapping.test.bcb_test_webapp_staff.memberships.map(({ role }) => role);
+  const globalAdmin = declaration.envMapping.test.bcb_test_webapp_global_admin.memberships.map(({ role }) => role);
+  assert.equal(staff.includes('app_platform_settings') || staff.includes('app_platform_admin'), false);
+  for (const role of ['app_staff', 'app_patient', 'app_clinic_billing', 'app_worker']) {
+    assert.equal(globalAdmin.includes(role), false, role);
+  }
+  assert.deepEqual(globalAdmin, ['app_platform_settings', 'app_platform_admin']);
 });

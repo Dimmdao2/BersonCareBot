@@ -68,7 +68,9 @@ cutover восстановленного dump порядок:
 - [x] На DEV каталогом подтверждено отсутствие 11 старых integrator tables, `integrator.telegram_state` и
   `public.appointment_records`.
 - [ ] На DEV применить zero-state и доказать ноль.
-- [ ] Обновить target declaration/contract под отдельный global-admin login и универсальную birth wall.
+- [x] Target declaration/contract обновлены под отдельный global-admin login и универсальную birth wall;
+  `pnpm test:db-initial-cutover` доказал target-only zero/install, неизменность соседней БД, late-fault возврат в
+  zero и неизменность OID обеих БД.
 - [ ] На DEV применить новый доступ и выполнить живые сценарии обоих портов.
 
 ### Исправление ошибочного ухода в пустую TEST
@@ -78,8 +80,8 @@ cutover восстановленного dump порядок:
   SHA-256 `364cb1c35778fe5b7fca8ab0134545dfd2b1aae1bc5a12ac02d0c2aea64fceeb`; archive list читается.
 - [ ] Вернуть именованную TEST из этого pre-error backup и проверить данные/ledger/catalog. Это ремонт инцидента,
   не репетиция production dump и не доказательство целевого cutover.
-- [ ] Проверить коммиты `5a01acf81..cad14a1c6`: удалить empty-TEST-specific обходы, сохранить только переносимые
-  исправления, которые нужны обычному deploy существующей БД.
+- [x] Коммиты `5a01acf81..cad14a1c6` проверены: empty-TEST-specific обходы и совместный DEV+TEST installer удалены;
+  переносимые schema/cutover исправления сведены в target-neutral механизм для существующей БД.
 
 ## Ф0–Ф1 — исследование и схема
 
@@ -124,8 +126,8 @@ cutover восстановленного dump порядок:
   policies, memberships и default privileges, закрывает `PUBLIC`, не выдавая ни одного нового права.
 - [x] Zero-state acceptance на одноразовом PostgreSQL краснеет после каждого повторно внесённого rogue grant,
   policy, membership и default privilege.
-- [ ] Сделать zero/apply механизм target-neutral: никаких захардкоженных совместных DEV+TEST действий и никаких
-  `DROP/CREATE DATABASE`.
+- [x] Zero/apply механизм target-neutral: один явно заданный target, соседняя БД сохраняется побайтно и
+  семантически, `DROP/CREATE DATABASE` отсутствует; disposable acceptance зелёный.
 - [ ] Сформировать минимальный именованный allowlist исключений точки ноль: PostgreSQL superuser и migrator
   только в окне миграций.
 - [ ] DEV offline: применить legacy migrations → zero; каталогом доказать `PUBLIC` closed, runtime login/roles без
@@ -135,11 +137,12 @@ cutover восстановленного dump порядок:
 
 ## Ф4 — минимальная модель logins, roles и seam owners
 
-- [ ] Зафиксировать четыре runtime login: webapp patient/staff/global-admin и integrator; migrator — только deploy.
+- [x] Зафиксированы четыре runtime login: webapp patient/staff/global-admin и integrator; migrator — только deploy.
 - [ ] Для каждого login/role/seam owner назвать единственную потребность; сущность без потребителя удалить.
-- [ ] Global-admin login: отдельные mTLS certificate/pool, только platform/global membership, mandatory human
+- [x] Global-admin login: отдельные mTLS certificate/pool, только platform/global membership, mandatory human
   global-admin context + 2FA; без patient/staff/clinical membership и без medical access.
-- [ ] Staff login не может `SET ROLE` global-admin; global-admin login не может `SET ROLE` staff/patient/clinical.
+- [x] Staff login не может `SET ROLE` global-admin; global-admin login не может `SET ROLE` staff/patient/clinical;
+  двусторонняя изоляция membership проверяется catalog test.
 - [ ] `saas_operator` провести через webapp role; отдельный pool/login убрать. Потребителя `saas_diag` доказать
   либо роль удалить. Пустые operational roles свести к необходимому.
 - [x] Integrator target memberships ограничены request, narrow resolver, delivery worker, scheduler,
@@ -162,7 +165,7 @@ cutover восстановленного dump порядок:
 - [x] Accessors fail loudly; disposable faults проверяют wrong database/login/backend/transaction/role/class/
   purpose/args, reuse, direct definer call и `SET ROLE` без accepted context.
 - [x] Контекст versioned и не криптографически привязан навсегда к `platform_users.id`; путь A → I сохранён.
-- [ ] Расширить contract/declaration/tests четвёртым global-admin login без создания третьего software port.
+- [x] Contract/declaration/tests расширены четвёртым global-admin login без создания третьего software port.
 - [ ] Host target provisioning: exact first-match HBA/CN/login rules, CA/CRL, certificate overlap, reload,
   revocation и mandatory pool drain. Private keys только в env соответствующего порта.
 - [ ] Live proof на DEV: wrong/missing/expired/revoked certificate, CN/login/port, non-TLS/socket и server
@@ -176,21 +179,20 @@ cutover восстановленного dump порядок:
   трёх-login/global-admin assumptions: декларация должна перечислять только актуально выдаваемое.
 - [x] Механизм relation/function/capability matrix и fault injection существует: ручной extra grant/policy/
   membership делает disposable catalog audit красным.
-- [ ] Вернуть current acceptance в green: function-census сейчас расходится с declaration, а post-zero replay
-  зависит от повреждённой именованной TEST. После восстановления TEST убрать эту live-DB зависимость либо явно
-  классифицировать, затем повторить оба proof.
+- [x] Current acceptance возвращён в green без зависимости от именованной TEST: function census, named-root
+  callsite catalog и target-only post-zero replay проходят на disposable PostgreSQL 16 fixture.
 - [ ] Подключить обязательные function-census/callsite-catalog/post-zero gates в обычный CI после исправления;
   текущий `pnpm run ci` их не запускает и не является доказательством этих инвариантов.
 - [ ] Удалить из активных migrations доступ как источник истины: новые
   `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE` запрещены; legacy migration SQL не переписывается.
-- [ ] Generator/audit обязан проверять обе стороны: relation есть, declaration нет; declaration есть, relation нет;
+- [x] Generator/audit проверяет обе стороны: relation есть, declaration нет; declaration есть, relation нет;
   плюс owners, role attributes, memberships, table/column/sequence/function ACL, policies и defaults.
-- [ ] Универсальная birth wall для **каждой** managed table: default ACL закрыты у всех creators; tenant/clinical
+- [x] Универсальная birth wall для **каждой** managed table: default ACL закрыты у всех creators; tenant/clinical
   получает `ENABLE+FORCE RLS` и свои объявленные tenant/patient policies; platform/system/identity/closed/definer
   получает явно объявленную class wall.
-- [ ] Невозможность классифицировать/наложить стену прерывает DDL/deploy. Позднее добавление tenant/patient
+- [x] Невозможность классифицировать/наложить стену прерывает DDL/deploy. Позднее добавление tenant/patient
   признака через `ALTER TABLE` повторно проверяется. Event trigger защищён от рекурсии.
-- [ ] Синхронизировать generated artifacts после global-admin/birth-wall изменений; три proof-транскрипта:
+- [x] Generated artifacts синхронизированы после global-admin/birth-wall изменений; disposable fault suite даёт:
   defect red → fixed green → injected defect red again.
 
 ## Ф7 — DEV: наложение и живой прогон

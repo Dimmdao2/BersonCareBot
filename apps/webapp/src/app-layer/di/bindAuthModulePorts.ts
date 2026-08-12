@@ -10,9 +10,7 @@ import { bindOAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
 import { bindSessionUserPort } from '@/modules/auth/sessionUserPort';
 import {
   checkAndRecordAuthRateLimitEvent,
-  countActiveAuthRateLimitEvents,
   recordAndCountAuthRateLimitEvent,
-  resetAuthRateLimitEvents,
 } from '@/infra/repos/pgAuthRateLimitEvents';
 import { pgChannelLinkDbPort } from '@/infra/repos/pgChannelLinkDbPort';
 import { pgEmailAuthPort } from '@/infra/repos/pgEmailAuth';
@@ -32,8 +30,6 @@ export function ensureAuthModulePortsBound(): void {
   bindAuthRateLimitDbPort({
     checkAndRecord: checkAndRecordAuthRateLimitEvent,
     recordAndCount: recordAndCountAuthRateLimitEvent,
-    countActive: countActiveAuthRateLimitEvents,
-    reset: resetAuthRateLimitEvents,
   });
   bindEmailAuthDbPort(pgEmailAuthPort);
   bindPhoneOtpLimitsDbPort(pgPhoneOtpLimitsPort);

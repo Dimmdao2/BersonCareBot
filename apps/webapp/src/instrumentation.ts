@@ -19,7 +19,8 @@ export async function register(): Promise<void> {
   const runtimeDatabaseConfigured = portContext
     ? Boolean(
         (process.env.DATABASE_URL_STAFF ?? '').trim() &&
-        (process.env.DATABASE_URL_PATIENT ?? '').trim(),
+        (process.env.DATABASE_URL_PATIENT ?? '').trim() &&
+        (process.env.DATABASE_URL_GLOBAL_ADMIN ?? '').trim(),
       )
     : Boolean((process.env.DATABASE_URL ?? '').trim());
   if (
@@ -29,7 +30,7 @@ export async function register(): Promise<void> {
   ) {
     throw new Error(
       portContext
-        ? 'DATABASE_URL_STAFF and DATABASE_URL_PATIENT are required in webapp port-context mode.'
+        ? 'DATABASE_URL_STAFF, DATABASE_URL_PATIENT and DATABASE_URL_GLOBAL_ADMIN are required in webapp port-context mode.'
         : 'DATABASE_URL is not set. Production webapp requires a PostgreSQL connection string in the environment.',
     );
   }

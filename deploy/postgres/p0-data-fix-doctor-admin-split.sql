@@ -150,7 +150,6 @@ BEGIN
     AND NOT EXISTS (SELECT 1 FROM user_channel_bindings b WHERE b.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM user_oauth_bindings b WHERE b.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM user_password_credentials c WHERE c.user_id = pu.id)
-    AND NOT EXISTS (SELECT 1 FROM user_pins p WHERE p.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM login_tokens t WHERE t.user_id = pu.id);
   GET DIAGNOSTICS v_archived_empty_admins = ROW_COUNT;
 

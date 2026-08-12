@@ -1,6 +1,10 @@
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappSql,
+} from '@/infra/db/runWebappSql';
 import {
   drizzlePrimaryPhoneCol,
   syncUserContactsMirrorWebapp,
@@ -175,8 +179,10 @@ async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Pro
 async function upsertOAuthBinding(
   input: UpsertOAuthBindingInput,
 ): Promise<UpsertOAuthBindingResult> {
-  const bind = await runWebappSql<{ inserted: boolean; user_id: string }>(
+  const bind = await runWebappNamedRoot<{ inserted: boolean; user_id: string }>(
     getWebappSqlDb(),
+    'app.auth_oauth_upsert_binding(uuid,text,text,text)',
+    [input.userId, input.provider, input.providerUserId, input.emailRaw],
     sql`SELECT inserted, user_id::text AS user_id
           FROM app.auth_oauth_upsert_binding(
             ${input.userId}::uuid,

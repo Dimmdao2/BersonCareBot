@@ -166,6 +166,11 @@ export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
   return requiresEstablishedStaffFactorVerification(session);
 }
 
+/** Platform-global DB entry always requires a factor-verified human session. */
+function hasVerifiedPlatformOperationsFactor(session: AppSession): boolean {
+  return session.staffSecurity?.assurance === 'factor_verified';
+}
+
 /**
  * Platform-only RSC entry. It intentionally does not resolve an organization membership.
  *
@@ -173,13 +178,13 @@ export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
  * same way `requirePlatformOperationsApiContext` already does for the API boundary. Without this,
  * every RSC page under `(global-admin)/doctor/**` (app-settings, technical, auth, integrations,
  * booking, commercial, usage, analytics) rendered with no DB principal beyond the ambient
- * "bootstrap" one, which routes the webapp DB pool to "nonstaff" (webappPoolProvider.ts's
- * choosePoolKindForPrincipal only routes "organization" | "staff" | "platform" to "staff"). The
- * nonstaff login role has no table-level SELECT on system_settings, so every direct
+ * "bootstrap" one. In port-context mode the platform principal routes to the dedicated
+ * global-admin mTLS pool; that login can SET only platform-global roles. The patient/pre-session
+ * login has no table-level SELECT on system_settings, so every direct
  * `readAdminSystemSettingString`/`listSettingsByScope` read 42501'd with "permission denied for
  * table system_settings" (reproduced live on TEST 2026-07-25, 9 occurrences across these pages in
  * one session) and Next.js surfaced the generic Server Components error page. Stamping "platform"
- * here routes those same reads through the staff pool with SET ROLE app_platform_settings, which
+ * here routes those same reads through the global-admin pool with SET ROLE app_platform_settings, which
  * already holds SELECT/INSERT/UPDATE on system_settings and app_runtime_settings
  * (deploy/postgres/u9a-platform-settings-role.sql) — no new table grant needed for this page.
  */
@@ -192,7 +197,7 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
   if (!hasLaunchCapability(capabilities, 'platform.operations')) {
     redirect('/app');
   }
-  if (isRestrictedStaffSecuritySession(session)) {
+  if (!hasVerifiedPlatformOperationsFactor(session)) {
     redirect('/app');
   }
   if (isPlatformUserUuid(session.user.userId)) {
@@ -227,7 +232,7 @@ export async function requirePlatformOperationsApiContext(): Promise<
   });
   if (
     !hasLaunchCapability(capabilities, 'platform.operations') ||
-    isRestrictedStaffSecuritySession(session)
+    !hasVerifiedPlatformOperationsFactor(session)
   ) {
     return {
       ok: false,

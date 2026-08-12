@@ -25,15 +25,19 @@ secondary_db_name=portctx_accept_secondary
 other_db_name=portctx_accept_other
 staff_login=portctx_webapp_staff
 patient_login=portctx_webapp_patient
+global_admin_login=portctx_webapp_global_admin
 integrator_login=portctx_integrator
 secondary_staff_login=portctx_secondary_webapp_staff
 secondary_patient_login=portctx_secondary_webapp_patient
+secondary_global_admin_login=portctx_secondary_webapp_global_admin
 secondary_integrator_login=portctx_secondary_integrator
 staff_password=staff-disposable-only
 patient_password=patient-disposable-only
+global_admin_password=global-admin-disposable-only
 integrator_password=integrator-disposable-only
 secondary_staff_password=secondary-staff-disposable-only
 secondary_patient_password=secondary-patient-disposable-only
+secondary_global_admin_password=secondary-global-admin-disposable-only
 secondary_integrator_password=secondary-integrator-disposable-only
 h0=0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a
 org_a=00000000-0000-0000-0000-000000000001
@@ -49,7 +53,11 @@ cleanup() {
   [[ "${PORTCTX_KEEP_DISPOSABLE:-0}" == 1 ]] || rm -rf "$work_dir"
 }
 trap cleanup EXIT
-fail() { echo "port-context acceptance: FAIL${fault:+ ($fault)}: $*" >&2; exit 1; }
+fail() {
+  echo "port-context acceptance: FAIL${fault:+ ($fault)}: $*" >&2
+  [[ "${PORTCTX_KEEP_DISPOSABLE:-0}" == 1 ]] && echo "port-context acceptance: retained disposable=$work_dir" >&2
+  exit 1
+}
 must_fail() { if "$@" >/dev/null 2>&1; then fail "unexpected success: $*"; fi; }
 must_fail_state() {
   local wanted=$1 output status; shift
@@ -99,9 +107,11 @@ openssl req -new -nodes -newkey rsa:2048 -keyout "$cert_dir/staff-rotated.key" -
 openssl x509 -req -in "$cert_dir/staff-rotated.csr" -CA "$cert_dir/ca.crt" -CAkey "$cert_dir/ca.key" -CAcreateserial -out "$cert_dir/staff-rotated.crt" -days 2 >/dev/null 2>&1
 chmod 0600 "$cert_dir/staff-rotated.key"
 issue_client patient "$patient_login"
+issue_client global-admin "$global_admin_login"
 issue_client integrator "$integrator_login"
 issue_client secondary-staff "$secondary_staff_login"
 issue_client secondary-patient "$secondary_patient_login"
+issue_client secondary-global-admin "$secondary_global_admin_login"
 issue_client secondary-integrator "$secondary_integrator_login"
 issue_client wrong-port wrong_port
 openssl req -new -nodes -newkey rsa:2048 -keyout "$cert_dir/expired.key" -out "$cert_dir/expired.csr" -subj "/CN=$staff_login" >/dev/null 2>&1
@@ -120,8 +130,9 @@ printf '%s\n' \
 "$pg_bin/createdb" -h 127.0.0.1 -p "$port" "$db_name"
 "$pg_bin/createdb" -h 127.0.0.1 -p "$port" "$secondary_db_name"
 "$pg_bin/createdb" -h 127.0.0.1 -p "$port" "$other_db_name"
-psql_admin -c "CREATE ROLE $staff_login LOGIN PASSWORD '$staff_password'; CREATE ROLE $patient_login LOGIN PASSWORD '$patient_password'; CREATE ROLE $integrator_login LOGIN PASSWORD '$integrator_password'; CREATE ROLE $secondary_staff_login LOGIN PASSWORD '$secondary_staff_password'; CREATE ROLE $secondary_patient_login LOGIN PASSWORD '$secondary_patient_password'; CREATE ROLE $secondary_integrator_login LOGIN PASSWORD '$secondary_integrator_password';"
-psql_admin -v app_staff_login="$staff_login" -v app_patient_login="$patient_login" -v integrator_login="$integrator_login" -f "$repo_root/deploy/postgres/port-context/contract.sql"
+psql_admin -c "CREATE ROLE postgres SUPERUSER NOLOGIN; CREATE ROLE $staff_login LOGIN PASSWORD '$staff_password'; CREATE ROLE $patient_login LOGIN PASSWORD '$patient_password'; CREATE ROLE $global_admin_login LOGIN PASSWORD '$global_admin_password'; CREATE ROLE $integrator_login LOGIN PASSWORD '$integrator_password'; CREATE ROLE $secondary_staff_login LOGIN PASSWORD '$secondary_staff_password'; CREATE ROLE $secondary_patient_login LOGIN PASSWORD '$secondary_patient_password'; CREATE ROLE $secondary_global_admin_login LOGIN PASSWORD '$secondary_global_admin_password'; CREATE ROLE $secondary_integrator_login LOGIN PASSWORD '$secondary_integrator_password';"
+psql_admin -v app_staff_login="$staff_login" -v app_patient_login="$patient_login" -v app_global_admin_login="$global_admin_login" -v integrator_login="$integrator_login" -f "$repo_root/deploy/postgres/port-context/contract.sql"
+psql_admin -f "$repo_root/deploy/postgres/port-context/acceptance-fixture.sql"
 
 printf '%s\n' \
   'local postgres dev trust' \
@@ -130,8 +141,8 @@ printf '%s\n' \
   'host all all 0.0.0.0/0 scram-sha-256' 'host all all ::0/0 scram-sha-256' > "$data_dir/pg_hba.conf"
 host_mtls_apply=(bash "$repo_root/deploy/host/apply-postgres-mtls.sh"
   --environment disposable --apply --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port"
-  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login"
-  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-integrator-login "$secondary_integrator_login"
+  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --global-admin-login "$global_admin_login" --integrator-login "$integrator_login"
+  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-global-admin-login "$secondary_global_admin_login" --secondary-integrator-login "$secondary_integrator_login"
   --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl"
   --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/server.key")
 cp "$data_dir/pg_hba.conf" "$work_dir/pg_hba.before"
@@ -140,8 +151,8 @@ openssl genrsa -out "$cert_dir/mismatched-server.key" 2048 >/dev/null 2>&1
 chmod 0600 "$cert_dir/mismatched-server.key"
 must_fail env BCB_PG_MTLS_SELFTEST=1 bash "$repo_root/deploy/host/apply-postgres-mtls.sh" \
   --environment disposable --apply --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port" \
-  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login" \
-  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-integrator-login "$secondary_integrator_login" \
+  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --global-admin-login "$global_admin_login" --integrator-login "$integrator_login" \
+  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-global-admin-login "$secondary_global_admin_login" --secondary-integrator-login "$secondary_integrator_login" \
   --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl" --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/mismatched-server.key"
 cmp -s "$work_dir/pg_hba.before" "$data_dir/pg_hba.conf" || fail 'mismatched key preflight did not preserve the exact HBA file'
 cmp -s "$work_dir/postgresql.before" "$data_dir/postgresql.conf" || fail 'mismatched key preflight did not preserve the exact PostgreSQL config file'
@@ -158,15 +169,17 @@ cp "$work_dir/postgresql.applied" "$data_dir/postgresql.conf"
 probe_command="$work_dir/mtls-readiness-probe.sh"
 printf '%s\n' \
   '#!/usr/bin/env bash' 'set -euo pipefail' \
-  'kind=$1' 'target_db=$2' 'target_staff=$3' 'target_patient=$4' 'target_integrator=$5' \
-  'foreign_staff=${6:-}' 'foreign_patient=${7:-}' 'foreign_integrator=${8:-}' \
+  'kind=$1' 'target_db=$2' 'target_staff=$3' 'target_patient=$4' 'target_global_admin=$5' 'target_integrator=$6' \
+  'foreign_staff=${7:-}' 'foreign_patient=${8:-}' 'foreign_global_admin=${9:-}' 'foreign_integrator=${10:-}' \
   "base=\"host=127.0.0.1 port=$port dbname=\$target_db sslrootcert=$cert_dir/ca.crt\"" \
   'credentials() {' '  case "$1" in' \
   "    $staff_login) password=$staff_password; cert=$cert_dir/staff-old.crt; key=$cert_dir/staff-old.key ;;" \
   "    $patient_login) password=$patient_password; cert=$cert_dir/patient.crt; key=$cert_dir/patient.key ;;" \
+  "    $global_admin_login) password=$global_admin_password; cert=$cert_dir/global-admin.crt; key=$cert_dir/global-admin.key ;;" \
   "    $integrator_login) password=$integrator_password; cert=$cert_dir/integrator.crt; key=$cert_dir/integrator.key ;;" \
   "    $secondary_staff_login) password=$secondary_staff_password; cert=$cert_dir/secondary-staff.crt; key=$cert_dir/secondary-staff.key ;;" \
   "    $secondary_patient_login) password=$secondary_patient_password; cert=$cert_dir/secondary-patient.crt; key=$cert_dir/secondary-patient.key ;;" \
+  "    $secondary_global_admin_login) password=$secondary_global_admin_password; cert=$cert_dir/secondary-global-admin.crt; key=$cert_dir/secondary-global-admin.key ;;" \
   "    $secondary_integrator_login) password=$secondary_integrator_password; cert=$cert_dir/secondary-integrator.crt; key=$cert_dir/secondary-integrator.key ;;" \
   '    *) exit 65 ;;' '  esac' '}' \
   'connect_named() {' '  credentials "$1"' \
@@ -175,6 +188,7 @@ printf '%s\n' \
   "case \"\$kind\" in" \
   '  positive-staff) connect_named "$target_staff" ;;' \
   '  positive-patient) connect_named "$target_patient" ;;' \
+  '  positive-global-admin) connect_named "$target_global_admin" ;;' \
   '  positive-integrator) connect_named "$target_integrator" ;;' \
   "  password-only) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X \"\$base user=\$target_staff sslmode=require\" -Atqc 'SELECT 1' ;;" \
   "  wrong-cn) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X \"\$base user=\$target_staff sslmode=verify-full sslcert=$cert_dir/wrong-port.crt sslkey=$cert_dir/wrong-port.key\" -Atqc 'SELECT 1' ;;" \
@@ -183,13 +197,14 @@ printf '%s\n' \
   "  server-impersonation) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X \"\$base user=\$target_staff sslmode=verify-full sslcert=$cert_dir/server.crt sslkey=$cert_dir/server.key\" -Atqc 'SELECT 1' ;;" \
   '  cross-environment-staff) connect_named "$foreign_staff" ;;' \
   '  cross-environment-patient) connect_named "$foreign_patient" ;;' \
+  '  cross-environment-global-admin) connect_named "$foreign_global_admin" ;;' \
   '  cross-environment-integrator) connect_named "$foreign_integrator" ;;' \
   '  *) exit 64 ;;' 'esac' > "$probe_command"
 chmod 0700 "$probe_command"
 host_mtls_readiness=(bash "$repo_root/deploy/host/apply-postgres-mtls.sh"
   --environment disposable --readiness --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port"
-  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login"
-  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-integrator-login "$secondary_integrator_login"
+  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --global-admin-login "$global_admin_login" --integrator-login "$integrator_login"
+  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-global-admin-login "$secondary_global_admin_login" --secondary-integrator-login "$secondary_integrator_login"
   --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl" --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/server.key"
   --probe-command "$probe_command" --auth-refusal-journal "$log_file")
 BCB_PG_MTLS_SELFTEST=1 "${host_mtls_readiness[@]}"
@@ -213,7 +228,7 @@ psql_admin <<SQL >/dev/null
 INSERT INTO app_ext.port_context_capabilities(capability_id,port,session_login,target_role,context_class,purpose,function_identity) VALUES
  ('00000000-0000-0000-0000-000000000101','webapp','$staff_login','app_staff','staff','relation',NULL),
  ('00000000-0000-0000-0000-000000000102','webapp','$patient_login','app_patient','patient','relation',NULL),
- ('00000000-0000-0000-0000-000000000103','webapp','$staff_login','app_platform_settings','platform','relation',NULL),
+ ('00000000-0000-0000-0000-000000000103','webapp','$global_admin_login','app_platform_settings','platform','relation',NULL),
  ('00000000-0000-0000-0000-000000000104','integrator','$integrator_login','app_integrator_request','integrator','relation',NULL),
  ('00000000-0000-0000-0000-000000000105','integrator','$integrator_login','app_tenant_service','tenant_service','relation',NULL),
  ('00000000-0000-0000-0000-000000000106','integrator','$integrator_login','app_service','service','relation',NULL),
@@ -222,10 +237,12 @@ INSERT INTO app_ext.port_context_capabilities(capability_id,port,session_login,t
  ('00000000-0000-0000-0000-000000000109','integrator','$integrator_login','app_integrator_resolver','integrator','integrator.resolve','app.resolve_integrator_request(uuid)'::regprocedure),
  ('00000000-0000-0000-0000-000000000110','webapp','$staff_login','app_staff','staff','named.staff','app.named_staff_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000111','webapp','$patient_login','app_patient','patient','named.patient','app.named_patient_root()'::regprocedure),
- ('00000000-0000-0000-0000-000000000112','webapp','$staff_login','app_platform_settings','platform','named.platform','app.named_platform_root()'::regprocedure),
+ ('00000000-0000-0000-0000-000000000112','webapp','$global_admin_login','app_platform_settings','platform','named.platform','app.named_platform_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000113','integrator','$integrator_login','app_tenant_service','tenant_service','named.tenant-service','app.named_tenant_service_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000114','integrator','$integrator_login','app_service','service','named.service','app.named_service_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000115','webapp','$patient_login','app_pre_session','pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure);
+INSERT INTO app_ext.port_context_capabilities(capability_id,port,session_login,target_role,context_class,purpose,function_identity) VALUES
+ ('00000000-0000-0000-0000-000000000116','webapp','$global_admin_login','app_platform_admin','pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure);
 INSERT INTO app.demo_context_records VALUES ('$org_a','tenant-a'),('$org_b','tenant-b');
 INSERT INTO app.platform_context_records VALUES ('platform-only');
 INSERT INTO app.service_context_records VALUES ('service-only');
@@ -279,7 +296,7 @@ SQL
     ;;
   business_using_true) psql_admin -c 'ALTER POLICY tenant_business ON app.demo_context_records USING (true)' ;;
   dropped_restrictive_gate) psql_admin -c 'DROP POLICY gate_probe_context_gate ON app.context_gate_probe' ;;
-  removed_force_rls) psql_admin -c 'ALTER TABLE app.demo_context_records NO FORCE ROW LEVEL SECURITY' ;;
+  removed_force_rls) psql_admin -c 'DROP EVENT TRIGGER bcb_relation_birth_wall; ALTER TABLE app.demo_context_records NO FORCE ROW LEVEL SECURITY' ;;
   '') ;;
   *) fail "unknown PORTCTX_INJECT_FAULT=$fault" ;;
 esac
@@ -300,6 +317,7 @@ esac
 # mTLS: valid exact CN + SCRAM works.  All connection negatives reject before SQL.
 assert_eq "$(psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -Atc 'SELECT current_user')" "$staff_login"
 assert_eq "$(psql_as "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" -Atc 'SELECT current_user')" "$patient_login"
+assert_eq "$(psql_as "$global_admin_login" "$global_admin_password" "$cert_dir/global-admin.crt" "$cert_dir/global-admin.key" -Atc 'SELECT current_user')" "$global_admin_login"
 assert_eq "$(psql_as "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt" "$cert_dir/integrator.key" -Atc 'SELECT current_user')" "$integrator_login"
 must_fail env PGPASSWORD="$staff_password" "$pg_bin/psql" -X "host=127.0.0.1 port=$port dbname=$db_name user=$staff_login sslmode=require sslrootcert=$cert_dir/ca.crt" -c 'SELECT 1'
 must_fail psql_as "$patient_login" "$patient_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c 'SELECT 1'
@@ -339,13 +357,13 @@ SQL
 # following business transactions receive those opaque values, never physical
 # IDs, and the public accessors resolve them privately for current RLS callers.
 resolve_opaque() {
-  local physical_id=$1 user=$2 password=$3 cert=$4 key=$5 capability_id=$6 hash result
+  local physical_id=$1 user=$2 password=$3 cert=$4 key=$5 capability_id=$6 target_role=${7:-app_pre_session} hash result
   hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$physical_id'::uuid))::app.port_typed_arg]),'hex')")
   result=$(psql_as "$user" "$password" "$cert" "$key" -qAt <<SQL | grep -E '^[0-9a-f-]{36}$' | tail -1
 BEGIN;
 SELECT app.clear_port_context();
-SELECT app.install_port_context('$capability_id',ROW(1,'pre_session','app_pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure,decode('$hash','hex'),NULL,NULL,NULL,NULL,'$request'::uuid)::app.port_context_claims);
-SET LOCAL ROLE app_pre_session;
+SELECT app.install_port_context('$capability_id',ROW(1,'pre_session','$target_role','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure,decode('$hash','hex'),NULL,NULL,NULL,NULL,'$request'::uuid)::app.port_context_claims);
+SET LOCAL ROLE $target_role;
 SELECT app.pre_session_resolve_identity('$physical_id'::uuid);
 RESET ROLE;
 SELECT app.clear_port_context();
@@ -358,13 +376,15 @@ SQL
 
 opaque_actor=$(resolve_opaque "$actor" "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000108)
 opaque_subject=$(resolve_opaque "$subject" "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" 00000000-0000-0000-0000-000000000115)
+opaque_global_actor=$(resolve_opaque "$actor" "$global_admin_login" "$global_admin_password" "$cert_dir/global-admin.crt" "$cert_dir/global-admin.key" 00000000-0000-0000-0000-000000000116 app_platform_admin)
+assert_eq "$opaque_global_actor" "$opaque_actor"
 
 # A physical platform_users id is never a context capability.  These are
 # install-time failures, before any context row can be inserted; the following
 # positive controls exercise the opaque→physical accessors separately.
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),'$actor'::uuid,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims);"
 must_fail_state 42501 psql_as "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000102',ROW(1,'patient','app_patient','relation',NULL,decode('$h0','hex'),'$opaque_actor'::uuid,'$subject'::uuid,'$org_a'::uuid,NULL,NULL)::app.port_context_claims);"
-must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000103',ROW(1,'platform','app_platform_settings','relation',NULL,decode('$h0','hex'),'$actor'::uuid,NULL,NULL,NULL,NULL)::app.port_context_claims);"
+must_fail_state 42501 psql_as "$global_admin_login" "$global_admin_password" "$cert_dir/global-admin.crt" "$cert_dir/global-admin.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000103',ROW(1,'platform','app_platform_settings','relation',NULL,decode('$h0','hex'),'$actor'::uuid,NULL,NULL,NULL,NULL)::app.port_context_claims);"
 
 run_gate_fault() {
   local field=$1 result
@@ -484,7 +504,7 @@ fi
 # Representative positive contexts: each receives exactly its declared result.
 run_direct "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000101 app_staff staff relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_actor'::uuid" 'NULL::uuid' "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' "SELECT app.current_actor_user_id()::text || ':' || (SELECT string_agg(note, ', ' ORDER BY note) FROM app.demo_context_records);" "$actor:tenant-a"
 run_direct "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" 00000000-0000-0000-0000-000000000102 app_patient patient relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_actor'::uuid" "'$opaque_subject'::uuid" "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' "SELECT app.current_actor_user_id()::text || ':' || app.current_patient_user_id()::text || ':' || (SELECT string_agg(note, ', ' ORDER BY note) FROM app.demo_context_records);" "$actor:$subject:tenant-a"
-run_direct "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000103 app_platform_settings platform relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_actor'::uuid" 'NULL::uuid' 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' 'SELECT note FROM app.platform_context_records;' platform-only
+run_direct "$global_admin_login" "$global_admin_password" "$cert_dir/global-admin.crt" "$cert_dir/global-admin.key" 00000000-0000-0000-0000-000000000103 app_platform_settings platform relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_global_actor'::uuid" 'NULL::uuid' 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' 'SELECT note FROM app.platform_context_records;' platform-only
 run_direct "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt" "$cert_dir/integrator.key" 00000000-0000-0000-0000-000000000104 app_integrator_request integrator relation 'NULL::regprocedure' "decode('$h0','hex')" 'NULL::uuid' 'NULL::uuid' "'$org_a'::uuid" '77::bigint' 'NULL::uuid' 'SELECT string_agg(note,$$, $$ ORDER BY note) FROM app.demo_context_records;' tenant-a
 run_direct "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt" "$cert_dir/integrator.key" 00000000-0000-0000-0000-000000000105 app_tenant_service tenant_service relation 'NULL::regprocedure' "decode('$h0','hex')" 'NULL::uuid' 'NULL::uuid' "'$org_b'::uuid" 'NULL::bigint' 'NULL::uuid' 'SELECT string_agg(note,$$, $$ ORDER BY note) FROM app.demo_context_records;' tenant-b
 run_direct "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt" "$cert_dir/integrator.key" 00000000-0000-0000-0000-000000000106 app_service service relation 'NULL::regprocedure' "decode('$h0','hex')" 'NULL::uuid' 'NULL::uuid' 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' 'SELECT note FROM app.service_context_records;' service-only
@@ -492,7 +512,7 @@ run_direct "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt"
 # Exact named roots are positive controls for every declared runtime class.
 run_direct "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000110 app_staff staff named.staff "'app.named_staff_root()'::regprocedure" "decode('$h0','hex')" "'$opaque_actor'::uuid" 'NULL::uuid' "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' 'SELECT app.named_staff_root();' named-staff
 run_direct "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" 00000000-0000-0000-0000-000000000111 app_patient patient named.patient "'app.named_patient_root()'::regprocedure" "decode('$h0','hex')" "'$opaque_actor'::uuid" "'$opaque_subject'::uuid" "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' 'SELECT app.named_patient_root();' named-patient
-run_direct "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000112 app_platform_settings platform named.platform "'app.named_platform_root()'::regprocedure" "decode('$h0','hex')" "'$opaque_actor'::uuid" 'NULL::uuid' 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' 'SELECT app.named_platform_root();' named-platform
+run_direct "$global_admin_login" "$global_admin_password" "$cert_dir/global-admin.crt" "$cert_dir/global-admin.key" 00000000-0000-0000-0000-000000000112 app_platform_settings platform named.platform "'app.named_platform_root()'::regprocedure" "decode('$h0','hex')" "'$opaque_actor'::uuid" 'NULL::uuid' 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' 'SELECT app.named_platform_root();' named-platform
 run_direct "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt" "$cert_dir/integrator.key" 00000000-0000-0000-0000-000000000113 app_tenant_service tenant_service named.tenant-service "'app.named_tenant_service_root()'::regprocedure" "decode('$h0','hex')" 'NULL::uuid' 'NULL::uuid' "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' 'SELECT app.named_tenant_service_root();' named-tenant-service
 run_direct "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt" "$cert_dir/integrator.key" 00000000-0000-0000-0000-000000000114 app_service service named.service "'app.named_service_root()'::regprocedure" "decode('$h0','hex')" 'NULL::uuid' 'NULL::uuid' 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' 'SELECT app.named_service_root();' named-service
 
@@ -524,9 +544,9 @@ NODE
 )
 assert_eq "$sql_hash" "$node_hash"
 assert_eq "$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),'hex')")" "$h0"
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_roles WHERE (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR rolinherit) AND rolname IN ('$staff_login','$patient_login','$integrator_login','app_staff','app_patient','app_object_owner','app_seam_context_owner')")" 0
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee IN ('$staff_login','$patient_login','$integrator_login') AND table_schema IN ('app','app_ext')")" 0
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.roleid JOIN pg_roles u ON u.oid=m.member WHERE u.rolname IN ('$staff_login','$patient_login','$integrator_login') AND (m.inherit_option OR NOT m.set_option OR m.admin_option)")" 0
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_roles WHERE (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR rolinherit) AND rolname IN ('$staff_login','$patient_login','$global_admin_login','$integrator_login','app_staff','app_patient','app_object_owner','app_seam_context_owner')")" 0
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee IN ('$staff_login','$patient_login','$global_admin_login','$integrator_login') AND table_schema IN ('app','app_ext')")" 0
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.roleid JOIN pg_roles u ON u.oid=m.member WHERE u.rolname IN ('$staff_login','$patient_login','$global_admin_login','$integrator_login') AND (m.inherit_option OR NOT m.set_option OR m.admin_option)")" 0
 assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_class WHERE relnamespace='app'::regnamespace AND relname IN ('demo_context_records','platform_context_records','service_context_records','context_gate_probe') AND NOT relforcerowsecurity")" 0
 # Independent PG16 catalog checks: expected owners and ACLs are asserted in
 # both directions, while login principals remain unable to call the gate.
@@ -535,10 +555,10 @@ assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_proc WHERE oid='app.hash_p
 assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_proc WHERE oid IN ('app.install_port_context(uuid,app.port_context_claims)'::regprocedure,'app.clear_port_context()'::regprocedure,'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)'::regprocedure,'app.current_org_id()'::regprocedure,'app.current_actor_user_id()'::regprocedure,'app.current_patient_user_id()'::regprocedure,'app.current_integrator_user_id()'::regprocedure) AND proowner <> 'app_seam_context_owner'::regrole")" 0
 assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_proc WHERE oid IN ('app_ext.resolve_variant_a_identity(uuid)'::regprocedure,'app_ext.resolve_variant_a_physical(uuid)'::regprocedure,'app.resolve_integrator_request(uuid)'::regprocedure) AND proowner <> 'app_seam_identity_lookup_owner'::regrole")" 0
 assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_roles WHERE (rolname LIKE 'app_seam_%_owner' OR rolname IN ('app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_worker','app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver','app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service')) AND NOT has_schema_privilege(oid,'app','USAGE')")" 0
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM aclexplode((SELECT nspacl FROM pg_namespace WHERE nspname='app')) a LEFT JOIN pg_roles r ON r.oid=a.grantee WHERE a.privilege_type='USAGE' AND COALESCE(r.rolname,'PUBLIC') NOT IN ('$staff_login','$patient_login','$integrator_login','app_object_owner','app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_worker','app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver','app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service','app_seam_context_owner','app_seam_password_auth_owner','app_seam_email_otp_owner','app_seam_passkey_owner','app_seam_phone_binding_owner','app_seam_self_security_owner','app_seam_identity_lookup_owner','app_seam_patient_invite_owner','app_seam_org_invite_owner','app_seam_specialist_provision_owner','app_seam_public_slug_owner','app_seam_public_booking_owner','app_seam_dedicated_bot_owner','app_seam_payment_webhook_owner','app_seam_delivery_scope_owner','app_seam_patient_program_resolver_owner','app_seam_settings_preauth_owner','app_seam_settings_integrator_owner','app_seam_settings_runtime_owner','app_seam_org_commerce_owner','app_seam_patient_org_projection_owner','app_seam_patient_booking_owner','app_seam_patient_self_actions_owner','app_seam_reminder_patient_owner','app_seam_reminder_materialization_owner','app_seam_reminder_specialist_owner','app_seam_reminder_appointment_owner','app_seam_reminder_email_cooldown_owner','app_seam_telemetry_patient_owner','app_seam_telemetry_media_owner','app_seam_telemetry_operator_owner','app_seam_catalog_public_owner','app_seam_catalog_admin_owner','app_seam_org_directory_owner','app_seam_telemetry_exclusion_owner','saas_telemetry_owner','saas_system_health_owner','app_seam_login_token_owner','app_seam_oauth_owner','app_seam_phone_otp_owner','app_seam_staff_security_owner','app_seam_patient_lfk_media_owner')")" 0
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_roles WHERE rolname IN ('$staff_login','$patient_login','$integrator_login') AND has_function_privilege(oid,'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)','EXECUTE')")" 0
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM aclexplode((SELECT nspacl FROM pg_namespace WHERE nspname='app')) a LEFT JOIN pg_roles r ON r.oid=a.grantee WHERE a.privilege_type='USAGE' AND COALESCE(r.rolname,'PUBLIC') NOT IN ('$staff_login','$patient_login','$global_admin_login','$integrator_login','app_object_owner','app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_platform_admin','app_worker','app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver','app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service','app_seam_context_owner','app_seam_password_auth_owner','app_seam_email_otp_owner','app_seam_passkey_owner','app_seam_phone_binding_owner','app_seam_self_security_owner','app_seam_identity_lookup_owner','app_seam_patient_invite_owner','app_seam_org_invite_owner','app_seam_specialist_provision_owner','app_seam_public_slug_owner','app_seam_public_booking_owner','app_seam_dedicated_bot_owner','app_seam_payment_webhook_owner','app_seam_delivery_scope_owner','app_seam_patient_program_resolver_owner','app_seam_settings_preauth_owner','app_seam_settings_integrator_owner','app_seam_settings_runtime_owner','app_seam_org_commerce_owner','app_seam_patient_org_projection_owner','app_seam_patient_booking_owner','app_seam_patient_self_actions_owner','app_seam_reminder_patient_owner','app_seam_reminder_materialization_owner','app_seam_reminder_specialist_owner','app_seam_reminder_appointment_owner','app_seam_reminder_email_cooldown_owner','app_seam_telemetry_patient_owner','app_seam_telemetry_media_owner','app_seam_telemetry_operator_owner','app_seam_catalog_public_owner','app_seam_catalog_admin_owner','app_seam_org_directory_owner','app_seam_telemetry_exclusion_owner','saas_telemetry_owner','saas_system_health_owner','app_seam_login_token_owner','app_seam_oauth_owner','app_seam_phone_otp_owner','app_seam_staff_security_owner','app_seam_patient_lfk_media_owner')")" 0
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_roles WHERE rolname IN ('$staff_login','$patient_login','$global_admin_login','$integrator_login') AND has_function_privilege(oid,'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)','EXECUTE')")" 0
 assert_eq "$(psql_admin -Atc "SELECT count(*) FROM pg_roles WHERE rolname IN ('app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_worker','app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver','app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service') AND NOT has_function_privilege(oid,'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)','EXECUTE')")" 0
-assert_eq "$(psql_admin -Atc "SELECT count(*) FROM aclexplode((SELECT proacl FROM pg_proc WHERE oid='app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)'::regprocedure)) a LEFT JOIN pg_roles r ON r.oid=a.grantee WHERE a.privilege_type='EXECUTE' AND COALESCE(r.rolname,'PUBLIC') IN ('PUBLIC','$staff_login','$patient_login','$integrator_login')")" 0
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM aclexplode((SELECT proacl FROM pg_proc WHERE oid='app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)'::regprocedure)) a LEFT JOIN pg_roles r ON r.oid=a.grantee WHERE a.privilege_type='EXECUTE' AND COALESCE(r.rolname,'PUBLIC') IN ('PUBLIC','$staff_login','$patient_login','$global_admin_login','$integrator_login')")" 0
 
 # Variant-A context rows retain protocol refs only; the two public accessors
 # above already proved that valid opaque actor/subject refs still resolve to
@@ -546,6 +566,7 @@ assert_eq "$(psql_admin -Atc "SELECT count(*) FROM aclexplode((SELECT proacl FRO
 physical_ids_in_context_refs=$(psql_admin -Atc "SELECT count(*) FROM app_ext.accepted_port_contexts c JOIN app_ext.variant_a_identity_refs m ON c.actor_ref=m.physical_user_id OR c.subject_ref=m.physical_user_id")
 assert_eq "$physical_ids_in_context_refs" 0
 printf 'physical_ids_in_context_refs=%s\n' "$physical_ids_in_context_refs"
+printf 'catalog_check=identity-map-not-readable-by-context-owner\n'
 assert_eq "$(psql_admin -Atc "SELECT has_table_privilege('app_seam_context_owner','app_ext.variant_a_identity_refs','SELECT')::int + has_table_privilege('app_seam_context_owner','app_ext.variant_a_identity_refs','INSERT')::int + has_table_privilege('app_seam_context_owner','app_ext.variant_a_identity_refs','UPDATE')::int + has_table_privilege('app_seam_context_owner','app_ext.variant_a_identity_refs','DELETE')::int")" 0
 
 # This is the complete disposable signature declaration.  It rejects a new
@@ -581,8 +602,8 @@ SQL
 assert_eq "$(psql_admin -At <<SQL
 WITH expected(signature,grantees) AS (VALUES
  ('app.hash_port_typed_args(app.port_typed_arg[])',ARRAY['app_seam_context_owner','app_seam_password_auth_owner','app_seam_identity_lookup_owner']::name[]),
- ('app.install_port_context(uuid,app.port_context_claims)',ARRAY['$staff_login','$patient_login','$integrator_login']::name[]),
- ('app.clear_port_context()',ARRAY['$staff_login','$patient_login','$integrator_login']::name[]),
+ ('app.install_port_context(uuid,app.port_context_claims)',ARRAY['$staff_login','$patient_login','$global_admin_login','$integrator_login']::name[]),
+ ('app.clear_port_context()',ARRAY['$staff_login','$patient_login','$global_admin_login','$integrator_login']::name[]),
  ('app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)',ARRAY['app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_worker','app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver','app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service','app_seam_password_auth_owner','app_seam_identity_lookup_owner','app_seam_staff_security_owner','app_seam_patient_self_actions_owner','app_seam_settings_runtime_owner','app_seam_org_commerce_owner','app_seam_delivery_scope_owner']::name[]),
  ('app.require_platform_principal()',ARRAY['app_platform_settings']::name[]),
  ('app.current_org_id()',ARRAY['app_staff','app_patient','app_integrator_request','app_tenant_service']::name[]),
@@ -592,14 +613,14 @@ WITH expected(signature,grantees) AS (VALUES
  ('app_ext.resolve_variant_a_identity(uuid)',ARRAY[]::name[]),
  ('app_ext.resolve_variant_a_physical(uuid)',ARRAY['app_seam_context_owner']::name[]),
  ('app.pre_session_begin_password_login(text)',ARRAY['app_pre_session']::name[]),
- ('app.pre_session_resolve_identity(uuid)',ARRAY['app_pre_session']::name[]),
+ ('app.pre_session_resolve_identity(uuid)',ARRAY['app_pre_session','app_platform_admin']::name[]),
  ('app.resolve_integrator_request(uuid)',ARRAY['app_integrator_resolver']::name[]),
  ('app.named_staff_root()',ARRAY['app_staff']::name[]),
  ('app.named_patient_root()',ARRAY['app_patient']::name[]),
  ('app.named_platform_root()',ARRAY['app_platform_settings']::name[]),
  ('app.named_tenant_service_root()',ARRAY['app_tenant_service']::name[]),
  ('app.named_service_root()',ARRAY['app_service']::name[])
-), managed_roles AS (SELECT oid,rolname FROM pg_roles WHERE rolname IN ('$staff_login','$patient_login','$integrator_login') OR rolname LIKE 'app\\_%' ESCAPE '\\' OR rolname LIKE 'saas\\_%' ESCAPE '\\'), actual(signature,role_name) AS (
+), managed_roles AS (SELECT oid,rolname FROM pg_roles WHERE rolname IN ('$staff_login','$patient_login','$global_admin_login','$integrator_login') OR rolname LIKE 'app\\_%' ESCAPE '\\' OR rolname LIKE 'saas\\_%' ESCAPE '\\'), actual(signature,role_name) AS (
  SELECT p.oid::regprocedure::text,r.rolname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace CROSS JOIN managed_roles r WHERE n.nspname IN ('app','app_ext') AND p.prokind='f' AND p.proowner<>r.oid AND has_function_privilege(r.oid,p.oid,'EXECUTE')
 ), expected_edges(signature,role_name) AS (SELECT e.signature,unnest(e.grantees)::text FROM expected e), mismatches AS (
  SELECT 1 FROM actual a LEFT JOIN expected_edges e USING(signature,role_name) WHERE e.signature IS NULL

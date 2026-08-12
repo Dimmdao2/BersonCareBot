@@ -3188,8 +3188,11 @@ run_port_context_test_release(){
   # responsibility and must not try to ALTER the removed role on success or on a late failure.
   cleanup_elevation
   LEGACY_ELEVATION_CLEANUP_REQUIRED=0
-  log "shared DEV+TEST mTLS → bilateral zero → minimal target roles/grants"
-  sudo bash "$DEPLOY_REPO/deploy/host/cutover-dev-test-port-context.sh" --execute
+  log "single-target TEST mTLS → zero/proof → minimal target roles/grants"
+  local access_backup="/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-access-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  sudo install -d -o postgres -g postgres -m 0700 "$(dirname "$access_backup")"
+  sudo bash "$DEPLOY_REPO/deploy/host/cutover-postgres-port-context.sh" \
+    --execute --environment test --database bersoncarebot_test --backup-file "$access_backup"
 
   log "restart TEST on exact port-context runtime"
   install_and_assert_media_worker_test_unit
@@ -3438,7 +3441,7 @@ run_b1_doctor_admin_identity_assertion
 # The destructive full-reset is the one authorized one-time access cutover.  All legacy migrations
 # above have completed while their migration identity still exists.  From here the old C2/C4
 # closure is forbidden: it recreates diagnostic/delivery/scheduler/operator logins that the new
-# cluster-wide zero deliberately removes.  Install the shared HBA first, then bilateral zero +
+# cluster-wide zero deliberately removes. Install the target HBA and target-only zero +
 # exact six-logins target state, then prove live authentication through the two ports.
 run_port_context_test_release
 log "DONE — full data-ready TEST migration (reviewed FIO + port-context runtime verified)"

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Creates the one shared DEV+TEST PostgreSQL mTLS authority and its exact
-# server/client certificates. Existing material is verified, never rotated.
+# Creates/verifies the host PostgreSQL mTLS authority and only the selected
+# environment's exact server/client certificates. Existing material is never rotated.
 set -euo pipefail
 set +x
 
-mode=${1:---check}
+mode=--check
+environment=all
 env_root=/etc/bersoncarebot/postgres-mtls
 authority_dir=$env_root/authority
 dev_dir=$env_root/dev
@@ -12,8 +13,18 @@ test_dir=$env_root/test
 server_dir=$env_root/server
 
 die() { echo "provision-dev-test-postgres-mtls-material: $*" >&2; exit 1; }
-
-[[ "$mode" == --check || "$mode" == --execute || "$mode" == --refresh-crl ]] || die 'usage: provision-dev-test-postgres-mtls-material.sh --check|--execute|--refresh-crl'
+while (($#)); do
+  case "$1" in
+    --check|--execute|--refresh-crl) mode=$1 ;;
+    --environment)
+      (($# >= 2)) || die '--environment requires dev, test, or all'
+      environment=$2
+      shift ;;
+    *) die 'usage: provision-dev-test-postgres-mtls-material.sh --check|--execute|--refresh-crl [--environment dev|test|all]' ;;
+  esac
+  shift
+done
+[[ "$environment" == dev || "$environment" == test || "$environment" == all ]] || die '--environment must be dev, test, or all'
 [[ $EUID -eq 0 ]] || die 'run as root'
 hostname -I | tr ' ' '\n' | grep -Fxq '151.241.228.122' || die 'refusing: this is not the documented DEV/TEST host 151.241.228.122'
 for command_name in openssl install getent realpath stat sha256sum date; do
@@ -32,19 +43,32 @@ server_key=$server_dir/server.key
 declare -A client_owner=(
   [bcb_dev_webapp_staff]=dev
   [bcb_dev_webapp_patient]=dev
+  [bcb_dev_webapp_global_admin]=dev
   [bcb_dev_integrator]=dev
   [bcb_test_webapp_staff]=root
   [bcb_test_webapp_patient]=root
+  [bcb_test_webapp_global_admin]=root
   [bcb_test_integrator]=root
 )
 declare -A client_group=(
   [bcb_dev_webapp_staff]=dev
   [bcb_dev_webapp_patient]=dev
+  [bcb_dev_webapp_global_admin]=dev
   [bcb_dev_integrator]=dev
   [bcb_test_webapp_staff]=bcb-web-test
   [bcb_test_webapp_patient]=bcb-web-test
+  [bcb_test_webapp_global_admin]=bcb-web-test
   [bcb_test_integrator]=bcb-api-test
 )
+selected_logins=()
+for login in "${!client_owner[@]}"; do
+  if [[ "$environment" == all || "$login" == bcb_"$environment"_* ]]; then
+    selected_logins+=("$login")
+  fi
+done
+selected_dirs=()
+[[ "$environment" == dev || "$environment" == all ]] && selected_dirs+=("$dev_dir")
+[[ "$environment" == test || "$environment" == all ]] && selected_dirs+=("$test_dir")
 
 client_dir() {
   case "$1" in
@@ -89,9 +113,9 @@ verify_material() {
   assert_mode_owner "$server_dir" root:postgres:750
   assert_mode_owner "$server_key" postgres:postgres:600
   assert_mode_owner "$server_cert" root:postgres:640
-  assert_mode_owner "$dev_dir" dev:dev:700
-  assert_mode_owner "$test_dir" root:root:711
-  for login in "${!client_owner[@]}"; do
+  [[ "$environment" != dev && "$environment" != all ]] || assert_mode_owner "$dev_dir" dev:dev:700
+  [[ "$environment" != test && "$environment" != all ]] || assert_mode_owner "$test_dir" root:root:711
+  for login in "${selected_logins[@]}"; do
     local directory cert key subject expected_owner expected_group
     directory=$(client_dir "$login")
     cert=$directory/$login.crt
@@ -106,14 +130,14 @@ verify_material() {
     assert_mode_owner "$key" "$expected_owner:$expected_group:640"
     assert_mode_owner "$cert" root:"$expected_group":644
   done
-  for target_dir in "$dev_dir" "$test_dir"; do
+  for target_dir in "${selected_dirs[@]}"; do
     [[ -f "$target_dir/ca.crt" && -f "$target_dir/ca.crl" ]] || die "missing client CA/CRL copies in $target_dir"
     cmp -s "$ca_cert" "$target_dir/ca.crt" || die "CA copy drift in $target_dir"
     cmp -s "$ca_crl" "$target_dir/ca.crl" || die "CRL copy drift in $target_dir"
     assert_mode_owner "$target_dir/ca.crt" root:root:644
     assert_mode_owner "$target_dir/ca.crl" root:root:644
   done
-  printf 'provision-dev-test-postgres-mtls-material: check PASS (existing material retained)\n'
+  printf 'provision-dev-test-postgres-mtls-material: check PASS (environment=%s; existing material retained)\n' "$environment"
 }
 
 if [[ "$mode" == --refresh-crl ]]; then
@@ -140,12 +164,45 @@ if [[ "$mode" == --check ]]; then
   exit 0
 fi
 
-for path in "$authority_dir" "$dev_dir" "$test_dir" "$server_dir"; do
-  [[ ! -e "$path" ]] || {
-    verify_material
-    exit 0
-  }
-done
+existing_authority=0
+[[ -e "$authority_dir" || -e "$server_dir" ]] && existing_authority=1
+if (( existing_authority == 1 )); then
+  [[ -d "$authority_dir" && ! -L "$authority_dir" && -d "$server_dir" && ! -L "$server_dir" ]] ||
+    die 'partial existing authority/server layout; refusing repair by guess'
+  for path in "$ca_cert" "$ca_crl" "$ca_key" "$server_cert" "$server_key" "$authority_dir/openssl.cnf"; do
+    [[ -f "$path" && ! -L "$path" ]] || die "incomplete existing mTLS authority: $path"
+  done
+  add_dir=$(mktemp -d "$env_root/.mtls-add-clients.XXXXXX")
+  cleanup_add() { rm -rf -- "$add_dir"; }
+  trap cleanup_add EXIT
+  if [[ "$environment" == dev || "$environment" == all ]]; then install -d -o dev -g dev -m 0700 "$dev_dir"; fi
+  if [[ "$environment" == test || "$environment" == all ]]; then install -d -o root -g root -m 0711 "$test_dir"; fi
+  for target_dir in "${selected_dirs[@]}"; do
+    [[ -f "$target_dir/ca.crt" ]] || install -o root -g root -m 0644 "$ca_cert" "$target_dir/ca.crt"
+    [[ -f "$target_dir/ca.crl" ]] || install -o root -g root -m 0644 "$ca_crl" "$target_dir/ca.crl"
+  done
+  for login in "${selected_logins[@]}"; do
+    directory=$(client_dir "$login")
+    cert=$directory/$login.crt
+    key=$directory/$login.key
+    if [[ -e "$cert" || -e "$key" ]]; then
+      [[ -f "$cert" && ! -L "$cert" && -f "$key" && ! -L "$key" ]] ||
+        die "partial client certificate/key pair for $login"
+      continue
+    fi
+    openssl req -new -nodes -newkey rsa:3072 -sha256 \
+      -keyout "$add_dir/$login.key" -out "$add_dir/$login.csr" -subj "/CN=$login" >/dev/null 2>&1
+    openssl ca -batch -config "$authority_dir/openssl.cnf" -extensions client_cert \
+      -in "$add_dir/$login.csr" -out "$add_dir/$login.crt" >/dev/null 2>&1
+    install -o root -g "${client_group[$login]}" -m 0644 "$add_dir/$login.crt" "$cert"
+    install -o "${client_owner[$login]}" -g "${client_group[$login]}" -m 0640 "$add_dir/$login.key" "$key"
+  done
+  trap - EXIT
+  cleanup_add
+  verify_material
+  printf 'provision-dev-test-postgres-mtls-material: execute PASS (environment=%s; missing exact clients added; existing CA/server/client keys retained)\n' "$environment"
+  exit 0
+fi
 
 umask 077
 install -d -o root -g root -m 0755 "$env_root"
@@ -207,7 +264,7 @@ issue_certificate() {
 }
 
 issue_certificate localhost server_cert server
-for login in "${!client_owner[@]}"; do issue_certificate "$login" client_cert "$login"; done
+for login in "${selected_logins[@]}"; do issue_certificate "$login" client_cert "$login"; done
 openssl ca -gencrl -crldays 3650 -config "$work_dir/authority/openssl.cnf" -out "$work_dir/authority/ca.crl" >/dev/null 2>&1
 rm -f -- "$work_dir/output"/*.csr
 
@@ -227,17 +284,17 @@ chmod 0600 "$authority_dir/openssl.cnf"
 install -d -o root -g postgres -m 0750 "$server_dir"
 install -o root -g postgres -m 0640 "$work_dir/output/server.crt" "$server_cert"
 install -o postgres -g postgres -m 0600 "$work_dir/output/server.key" "$server_key"
-install -d -o dev -g dev -m 0700 "$dev_dir"
-install -d -o root -g root -m 0711 "$test_dir"
-for target_dir in "$dev_dir" "$test_dir"; do
+if [[ "$environment" == dev || "$environment" == all ]]; then install -d -o dev -g dev -m 0700 "$dev_dir"; fi
+if [[ "$environment" == test || "$environment" == all ]]; then install -d -o root -g root -m 0711 "$test_dir"; fi
+for target_dir in "${selected_dirs[@]}"; do
   install -o root -g root -m 0644 "$ca_cert" "$target_dir/ca.crt"
   install -o root -g root -m 0644 "$ca_crl" "$target_dir/ca.crl"
 done
-for login in "${!client_owner[@]}"; do
+for login in "${selected_logins[@]}"; do
   directory=$(client_dir "$login")
   install -o root -g "${client_group[$login]}" -m 0644 "$work_dir/output/$login.crt" "$directory/$login.crt"
   install -o "${client_owner[$login]}" -g "${client_group[$login]}" -m 0640 "$work_dir/output/$login.key" "$directory/$login.key"
 done
 
 verify_material
-printf 'provision-dev-test-postgres-mtls-material: execute PASS (new material installed; secrets not printed)\n'
+printf 'provision-dev-test-postgres-mtls-material: execute PASS (environment=%s; new material installed; secrets not printed)\n' "$environment"

@@ -61,15 +61,12 @@ DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
 APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
-RUNTIME_OVERLAY_LIB=deploy/host/runtime-overlay-rehydrate-lib.sh
 PORT_CONTEXT_ENV_BOOTSTRAP=deploy/host/bootstrap-c4-test-env.mjs
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$DB"
 UNITS=(api worker scheduler webapp media-worker)
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
-DBROLE_DATABASE_PRIVILEGES_ADDED=0
-DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
@@ -86,20 +83,6 @@ cleanup_elevation(){
       cleanup_status=1
     fi
   fi
-  if [ "$DBROLE_DATABASE_PRIVILEGES_ADDED" = "1" ]; then
-    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE CREATE, TEMPORARY ON DATABASE \"$DB\" FROM \"$DBROLE\";" >/dev/null; then
-      DBROLE_DATABASE_PRIVILEGES_ADDED=0
-    else
-      cleanup_status=1
-    fi
-  fi
-  if [ "$DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED" = "1" ]; then
-    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "REVOKE USAGE, CREATE ON SCHEMA public FROM \"$DBROLE\";" >/dev/null; then
-      DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED=0
-    else
-      cleanup_status=1
-    fi
-  fi
   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" NOBYPASSRLS;" >/dev/null || cleanup_status=1
   local bypass_state
   bypass_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';")" || cleanup_status=1
@@ -109,12 +92,6 @@ cleanup_elevation(){
     app_owner_membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")" || cleanup_status=1
     [ "$app_owner_membership_state" = "f" ] || cleanup_status=1
   fi
-  local database_privilege_state
-  database_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE')::text || '|' || has_database_privilege('$DBROLE', '$DB', 'TEMPORARY')::text;")" || cleanup_status=1
-  [ "$database_privilege_state" = "false|false" ] || cleanup_status=1
-  local public_schema_privilege_state
-  public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")" || cleanup_status=1
-  [ "$public_schema_privilege_state" = "false|false" ] || cleanup_status=1
   return "$cleanup_status"
 }
 
@@ -174,33 +151,6 @@ echo "   HEAD: $(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD)"
   echo "FATAL: missing $PORT_CONTEXT_ENV_BOOTSTRAP" >&2
   exit 1
 }
-[ -r "$DEPLOY_REPO/$RUNTIME_OVERLAY_LIB" ] || {
-  echo "FATAL: missing $RUNTIME_OVERLAY_LIB" >&2
-  exit 1
-}
-# shellcheck source=deploy/host/runtime-overlay-rehydrate-lib.sh
-source "$DEPLOY_REPO/$RUNTIME_OVERLAY_LIB"
-
-runtime_overlay_admin_psql(){
-  sudo -u postgres psql "$@"
-}
-
-rehydrate_empty_bootstrap_runtime_overlays(){
-  if [ "${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}" != "empty-bootstrap" ] && \
-     [ "${INTEGRATOR_MIGRATIONS_MODE:-}" != "empty-bootstrap" ]; then
-    return 0
-  fi
-
-  # These canonical overlays materialize functions that are not part of the Drizzle chain. Writers
-  # remain stopped and the owner-ordered zero follows immediately, so use the retiring migration
-  # login only as the required transient E1 grantee; zero removes every overlay ACL before release.
-  runtime_overlay_apply_post_migration_chain \
-    "$DEPLOY_REPO" \
-    "$DB" \
-    "$DBROLE" \
-    0
-  echo "   empty-bootstrap post-migration runtime overlays: OK"
-}
 # This one-time transition starts from a legacy locked env whose media worker may still carry the
 # DB credential that the target intentionally removes. Validate the complete target rendering
 # read-only; the old C2 preflight would reject the source state before its approved removal.
@@ -233,31 +183,15 @@ app_owner_attributes="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT
 [ "$app_owner_attributes" = "false|false|false|false|true" ] || { echo "FATAL: $APP_OWNER_ROLE must be NOSUPERUSER NOCREATEROLE NOCREATEDB NOLOGIN BYPASSRLS" >&2; exit 1; }
 app_owner_membership="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")"
 [ "$app_owner_membership" = "f" ] || { echo "FATAL: pre-existing $DBROLE membership in $APP_OWNER_ROLE" >&2; exit 1; }
-database_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE')::text || '|' || has_database_privilege('$DBROLE', '$DB', 'TEMPORARY')::text;")"
-[ "$database_privilege_state" = "false|false" ] || { echo "FATAL: pre-existing $DBROLE CREATE/TEMPORARY privilege on $DB" >&2; exit 1; }
-public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")"
-[ "$public_schema_privilege_state" = "false|false" ] || { echo "FATAL: pre-existing $DBROLE USAGE/CREATE privilege on $DB.public" >&2; exit 1; }
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$APP_OWNER_ROLE\" TO \"$DBROLE\";" >/dev/null
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=1
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
-sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT CREATE, TEMPORARY ON DATABASE \"$DB\" TO \"$DBROLE\";" >/dev/null
-DBROLE_DATABASE_PRIVILEGES_ADDED=1
-sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "GRANT USAGE, CREATE ON SCHEMA public TO \"$DBROLE\";" >/dev/null
-DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED=1
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
 # Legacy application logins already have no CONNECT at this point and must not regain it merely
 # to run DDL. Authenticate locally as the PostgreSQL OS administrator, then SET ROLE through
 # PGOPTIONS so every migration executes with the exact historical database-owner privileges.
 (
   cd "$DEPLOY_REPO"
-  # Drizzle starts at the historical snapshot and integrator's first phase already references
-  # canonical public identity tables. A genuinely empty TEST database therefore needs the frozen
-  # legacy webapp bootstrap first; this is the only supported invocation of that retired runner.
-  sudo -u postgres env \
-    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
-    PGOPTIONS="-c role=$DBROLE" \
-    WEBAPP_LEGACY_MIGRATIONS_MODE=bootstrap \
-    pnpm --dir apps/webapp run migrate:legacy
   sudo -u postgres env \
     NODE_ENV=production \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
@@ -270,13 +204,11 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS
   sudo -u postgres env \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
     PGOPTIONS="-c role=$DBROLE" \
-    WEBAPP_DRIZZLE_MIGRATIONS_MODE="${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}" \
     pnpm --dir apps/webapp run migrate
   sudo -u postgres env \
     NODE_ENV=production \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
-    INTEGRATOR_MIGRATIONS_MODE="${INTEGRATOR_MIGRATIONS_MODE:-${WEBAPP_DRIZZLE_MIGRATIONS_MODE:-}}" \
     APP_BASE_URL=http://127.0.0.1 \
     BOOKING_URL=http://127.0.0.1 \
     PGOPTIONS="-c role=$DBROLE -c search_path=integrator,public" \
@@ -285,7 +217,6 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS
     psql -X -v ON_ERROR_STOP=1 -d "$DB" \
       -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
 )
-rehydrate_empty_bootstrap_runtime_overlays
 cleanup_elevation
 # The legacy role still exists here and its temporary powers were just verified absent. The shared
 # cluster cutover deliberately drops it, so the EXIT trap must keep only its writer-stop duty from

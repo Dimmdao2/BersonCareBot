@@ -53,7 +53,6 @@ UPDATE user_email_setup_tokens    SET created_by_user_id = 'b0021a38-fb86-45e9-9
 
 -- Способы входа, которых у выжившей записи нет: привязка Яндекса, PIN, история телефона.
 UPDATE user_oauth_bindings  SET user_id          = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE user_id          = 'a754c977-d1cc-46bb-b870-ca499be81884';
-UPDATE user_pins            SET user_id          = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE user_id          = 'a754c977-d1cc-46bb-b870-ca499be81884';
 UPDATE user_phone_history   SET platform_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE platform_user_id = 'a754c977-d1cc-46bb-b870-ca499be81884';
 
 -- Два места, где у выжившей записи уже есть своя строка и перенос упёрся бы в уникальный индекс:

@@ -24,6 +24,7 @@ export type PortCapabilityDescriptor = {
 export type WebappPortContextRuntimeConfig = {
   staff: PoolConfig;
   patient: PoolConfig;
+  globalAdmin: PoolConfig;
   capabilities: Record<string, PortCapabilityDescriptor>;
 };
 
@@ -188,6 +189,14 @@ export function createWebappPortContextRuntimeConfig(
       keyFile: env.WEBAPP_DB_PATIENT_KEY_FILE,
       label: 'WEBAPP_PATIENT',
     }),
+    globalAdmin: strictMtlsPoolConfig({
+      connectionString: env.DATABASE_URL_GLOBAL_ADMIN,
+      expectedLogin: env.WEBAPP_DB_GLOBAL_ADMIN_LOGIN,
+      caFile: env.WEBAPP_DB_TLS_CA_FILE,
+      certFile: env.WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE,
+      keyFile: env.WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE,
+      label: 'WEBAPP_GLOBAL_ADMIN',
+    }),
     capabilities: parseCapabilities(env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON),
   };
 }
@@ -236,7 +245,7 @@ export function webappPortContextPrincipal(
   principal: DbPrincipal | undefined,
   capabilities: Record<string, PortCapabilityDescriptor>,
   opaqueIdentityRef?: string,
-): { pool: 'staff' | 'patient'; principal: PortContextPrincipal } {
+): { pool: 'staff' | 'patient' | 'globalAdmin'; principal: PortContextPrincipal } {
   if (!principal) throw new Error('A webapp principal is required in port-context mode');
   const descriptorName =
     principal.kind === 'organization'
@@ -287,7 +296,7 @@ export function webappPortContextPrincipal(
       if (principal.kind !== 'platform')
         throw new Error('Platform port context requires a platform principal');
       return {
-        pool: 'staff',
+        pool: 'globalAdmin',
         principal: { ...base, actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef) },
       };
     case 'tenant_service':
@@ -301,7 +310,7 @@ export function webappPortContextPrincipal(
     case 'pre_session':
       if (principal.kind !== 'bootstrap')
         throw new Error('Pre-session port context requires a bootstrap principal');
-      return { pool: 'staff', principal: { ...base, requestId: randomUUID() } };
+      return { pool: 'patient', principal: { ...base, requestId: randomUUID() } };
     default:
       throw new Error(
         `Webapp capability ${descriptorName} has unsupported context class ${descriptor.contextClass}`,
@@ -328,8 +337,9 @@ function physicalIdentityId(principal: DbPrincipal): string | undefined {
   }
 }
 
-function poolForPrincipal(principal: DbPrincipal): 'staff' | 'patient' {
-  return principal.kind === 'patient' ? 'patient' : 'staff';
+function poolForPrincipal(principal: DbPrincipal): 'staff' | 'patient' | 'globalAdmin' {
+  if (principal.kind === 'patient' || principal.kind === 'bootstrap') return 'patient';
+  return principal.kind === 'platform' ? 'globalAdmin' : 'staff';
 }
 
 type IdentityResolverClient = {
@@ -347,12 +357,16 @@ async function runWebappPreSessionNamedRoot<T>(
   if (descriptor.functionIdentity !== functionIdentity) {
     throw new Error(`Pre-session capability does not match ${functionIdentity}`);
   }
+  if (descriptor.contextClass !== 'pre_session'
+    || (descriptor.targetRole !== 'app_pre_session' && descriptor.targetRole !== 'app_platform_admin')) {
+    throw new Error(`Invalid pre-session target for ${functionIdentity}`);
+  }
   return withPortContextTransaction(
     client,
     {
       capabilityId: descriptor.capabilityId,
       contextClass: 'pre_session',
-      targetRole: 'app_pre_session',
+      targetRole: descriptor.targetRole,
       purpose: descriptor.purpose,
       functionIdentity,
       requestId: randomUUID(),
@@ -390,7 +404,7 @@ async function resolveOpaqueIdentityRef(
   if (
     !descriptor ||
     descriptor.contextClass !== 'pre_session' ||
-    descriptor.targetRole !== 'app_pre_session' ||
+    (descriptor.targetRole !== 'app_pre_session' && descriptor.targetRole !== 'app_platform_admin') ||
     descriptor.purpose !== 'identity.variant-a.resolve' ||
     descriptor.functionIdentity !== 'app.pre_session_resolve_identity(uuid)'
   ) {
@@ -423,7 +437,7 @@ export async function resolveWebappPortContextPrincipal(
   client: IdentityResolverClient,
   principal: DbPrincipal | undefined,
   capabilities: Record<string, PortCapabilityDescriptor>,
-): Promise<{ pool: 'staff' | 'patient'; principal: PortContextPrincipal }> {
+): Promise<{ pool: 'staff' | 'patient' | 'globalAdmin'; principal: PortContextPrincipal }> {
   if (!principal) throw new Error('A webapp principal is required in port-context mode');
   const opaqueIdentityRef = await resolveOpaqueIdentityRef(client, principal, capabilities);
   return webappPortContextPrincipal(principal, capabilities, opaqueIdentityRef);

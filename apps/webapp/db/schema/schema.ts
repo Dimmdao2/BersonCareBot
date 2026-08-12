@@ -949,29 +949,6 @@ export const emailChallenges = pgTable(
   ],
 );
 
-export const userPins = pgTable(
-  'user_pins',
-  {
-    userId: uuid('user_id').primaryKey().notNull(),
-    pinHash: text('pin_hash').notNull(),
-    attemptsFailed: smallint('attempts_failed').default(0).notNull(),
-    lockedUntil: timestamp('locked_until', { withTimezone: true, mode: 'string' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [platformUsers.id],
-      name: 'user_pins_user_id_fkey',
-    }).onDelete('cascade'),
-  ],
-);
-
 /** WebAuthn account handle; opaque and stable across multiple credentials for one account. */
 export const userPasskeyAccounts = pgTable(
   'user_passkey_accounts',

@@ -34,6 +34,161 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.password.altcha-issue', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgPasswordLoginProtection.ts',
   },
+  'app.auth_login_token_create(text,uuid,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.login-token.create', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgLoginTokens.ts',
+  },
+  'app.auth_login_token_read(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.login-token.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgLoginTokens.ts',
+  },
+  'app.auth_login_token_expire_past()': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.login-token.expire', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgLoginTokens.ts',
+  },
+  'app.auth_login_token_confirm(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.login-token.confirm', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgLoginTokens.ts',
+  },
+  'app.auth_login_token_mark_session_issued(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.login-token.session-issued', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgLoginTokens.ts',
+  },
+  'app.auth_oauth_find_user(text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.oauth.callback.find-binding', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgOAuthBindings.ts',
+  },
+  'app.auth_oauth_upsert_binding(uuid,text,text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.oauth.callback.upsert-binding', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgOAuthUserResolve.ts',
+  },
+  'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.rate-limit.check-record', argCount: 7,
+    source: 'apps/webapp/src/infra/repos/pgAuthRateLimitEvents.ts',
+  },
+  'app.read_public_runtime_setting(text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'config.runtime.public.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts',
+  },
+  'app.read_webapp_server_runtime_setting(text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'config.runtime.server.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts',
+  },
+  'app.is_smtp_outbound_configured()': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.channel.smtp.configured', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.is_sms_provider_configured()': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.channel.sms.configured', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.is_telegram_login_configured()': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.channel.telegram.configured', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.is_max_bot_configured()': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.channel.max.configured', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)': {
+    port: 'webapp', argCount: 7, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_pre_session', contextClass: 'pre_session',
+        purpose: 'auth.passkey.challenge.issue' },
+      { targetRole: 'app_patient', contextClass: 'patient',
+        purpose: 'auth.passkey.registration-challenge.issue' },
+    ],
+    source: 'apps/webapp/src/infra/repos/pgPasskeyStore.ts',
+  },
+  'app.passkey_read_challenge(uuid,text)': {
+    port: 'webapp', argCount: 2, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_pre_session', contextClass: 'pre_session',
+        purpose: 'auth.passkey.challenge.read' },
+      { targetRole: 'app_patient', contextClass: 'patient',
+        purpose: 'auth.passkey.registration-challenge.read' },
+    ],
+    source: 'apps/webapp/src/infra/repos/pgPasskeyStore.ts',
+  },
+  'app.passkey_read_credential(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.passkey.credential.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPasskeyStore.ts',
+  },
+  'app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.passkey.authentication.complete', argCount: 6,
+    source: 'apps/webapp/src/infra/repos/pgPasskeyStore.ts',
+  },
+  'app.get_public_reference_baseline(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'catalog.public-reference.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgReferences.ts',
+  },
+  'app.is_organization_slug_available(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.specialist-signup.slug-availability', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgClinicDirectory.ts',
+  },
+  'app.read_webapp_preauth_provider_setting(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'config.preauth-provider.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.resolve_public_organization_by_slug(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-organization.resolve', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgClinicDirectory.ts',
+  },
+  'app.resolve_public_organization_slug(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-slug.resolve', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgClinicDirectory.ts',
+  },
+  'app.get_web_push_vapid_public_key()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.web-push.vapid-public-key.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.resolve_saas_billing_invoice_for_webhook(text,text)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'billing.webhook.invoice.resolve', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  'app.resolve_saas_billing_refund_for_webhook(text,text)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'billing.webhook.refund.resolve', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  'app.read_saas_billing_payment_provider_preauth()': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'billing.webhook.provider.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.read_saas_billing_payment_provider_clinic()': {
+    port: 'webapp', targetRole: 'app_clinic_billing', contextClass: 'staff',
+    purpose: 'billing.clinic.provider.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.read_saas_billing_payment_provider_platform()': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'billing.platform.provider.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
   'app.resolve_outgoing_delivery_scope(uuid)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
     purpose: 'delivery.resolve-scope', argCount: 1,
@@ -135,9 +290,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     source: 'apps/webapp/src/infra/repos/pgClientHistory.ts',
   },
   'app.pre_session_resolve_identity(uuid)': {
-    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
-    purpose: 'identity.variant-a.resolve', argCount: 1, descriptorCount: 2,
-    sessionRoles: ['app_patient', 'app_staff'],
+    port: 'webapp', contextClass: 'pre_session',
+    purpose: 'identity.variant-a.resolve', argCount: 1, descriptorCount: 3,
+    sessionRoles: ['app_patient', 'app_platform_settings', 'app_staff'],
+    targetRolesBySessionRole: {
+      app_patient: 'app_pre_session',
+      app_platform_settings: 'app_platform_admin',
+      app_staff: 'app_pre_session',
+    },
     source: 'apps/webapp/src/infra/db/portContextRuntime.ts',
   },
 }));
@@ -159,6 +319,9 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
   'integrator:service': ['integrator-health-check', 'integrator-projection-health'],
   'integrator:migration_ledger': ['integrator-startup-migration-ledger'],
   'webapp:worker': [
+    'api/auth/channel-link/start:POST:authenticated',
+    'api/integrator/channel-link/complete:POST:verified',
+    'api/payments/saas-webhook:POST:verified-resolver',
     'api/integrator/operator-health/digest-wake:POST',
     'api/integrator/system-health/guard-wake:POST',
     'api/internal/operator-health-digest/tick:POST',
@@ -182,11 +345,6 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/internal/media-preview/process:POST',
     'api/internal/media-transcode/enqueue:POST',
     'api/internal/media-transcode/reconcile:POST',
-  ],
-  'webapp:pre_session': [
-    'webapp-public-runtime-config',
-    'webapp-server-runtime-config',
-    'webapp-public-smtp-config',
   ],
   'webapp:telemetry': ['webapp-saas-isolation-telemetry'],
 }));
@@ -283,7 +441,21 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
       expected.descriptorCount ?? 1,
       `${callsite.path}:${callsite.line}: wrong catalog descriptor count`,
     );
+    if (expected.descriptors) {
+      assert.deepEqual(
+        descriptors.map((descriptor) => ({
+          targetRole: descriptor.targetRole,
+          contextClass: descriptor.contextClass,
+          purpose: descriptor.purpose,
+        })).sort((left, right) => left.targetRole.localeCompare(right.targetRole)),
+        [...expected.descriptors].sort((left, right) => left.targetRole.localeCompare(right.targetRole)),
+        `${callsite.path}:${callsite.line}: wrong catalog descriptor partition`,
+      );
+      continue;
+    }
     for (const descriptor of descriptors) {
+      const expectedTargetRole = expected.targetRolesBySessionRole?.[descriptor.sessionRole]
+        ?? expected.targetRole;
       assert.deepEqual({
         port: descriptor.port,
         targetRole: descriptor.targetRole,
@@ -291,7 +463,7 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
         purpose: descriptor.purpose,
       }, {
         port: expected.port,
-        targetRole: expected.targetRole,
+        targetRole: expectedTargetRole,
         contextClass: expected.contextClass,
         purpose: expected.purpose,
       }, `${callsite.path}:${callsite.line}: wrong catalog descriptor`);

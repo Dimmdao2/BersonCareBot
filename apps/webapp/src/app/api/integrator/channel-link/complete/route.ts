@@ -4,6 +4,8 @@ import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
 import { completeChannelLinkFromIntegrator } from '@/modules/auth/channelLink';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 
 const bodySchema = z.object({
   linkToken: z.string().min(4).max(500),
@@ -13,6 +15,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal('api/integrator/channel-link/complete:POST:pre-verification', request);
   ensureAuthModulePortsBound();
 
   const timestamp = request.headers.get('x-bersoncare-timestamp');
@@ -43,11 +46,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
-  const result = await completeChannelLinkFromIntegrator({
-    linkToken: parsed.data.linkToken,
-    channelCode: parsed.data.channelCode,
-    externalId: parsed.data.externalId,
-  });
+  const result = await runWithDbInfraPrincipal(
+    { source: 'api/integrator/channel-link/complete:POST:verified' },
+    () => completeChannelLinkFromIntegrator({
+      linkToken: parsed.data.linkToken,
+      channelCode: parsed.data.channelCode,
+      externalId: parsed.data.externalId,
+    }),
+  );
 
   if (!result.ok) {
     if (result.code === 'used_token') {

@@ -1,4 +1,10 @@
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import type {
   RuntimeConfigAudience,
   RuntimeSettingRow,
@@ -39,10 +45,12 @@ export function createPgAppRuntimeSettingsPort(): RuntimeSettingsRepository {
       ) {
         const result = await runWithWebappDbOperationFamily(input.operationFamily, () =>
           runWithDbBootstrapPrincipal({ source: 'webapp-public-runtime-config' }, () =>
-            runWebappPgText<RuntimeSettingDbRow>(
-              `SELECT key, scope, organization_id, audience, value_json
-                 FROM app.read_public_runtime_setting($1, $2)`,
+            runWebappNamedRoot<RuntimeSettingDbRow>(
+              getWebappSqlDb(),
+              'app.read_public_runtime_setting(text,text)',
               [input.key, input.scope],
+              sql`SELECT key, scope, organization_id, audience, value_json
+                    FROM app.read_public_runtime_setting(${input.key}, ${input.scope})`,
             ),
           ),
         );
@@ -55,10 +63,12 @@ export function createPgAppRuntimeSettingsPort(): RuntimeSettingsRepository {
       ) {
         const result = await runWithWebappDbOperationFamily(input.operationFamily, () =>
           runWithDbBootstrapPrincipal({ source: 'webapp-server-runtime-config' }, () =>
-            runWebappPgText<RuntimeSettingDbRow>(
-              `SELECT key, scope, organization_id, audience, value_json
-                 FROM app.read_webapp_server_runtime_setting($1, $2)`,
+            runWebappNamedRoot<RuntimeSettingDbRow>(
+              getWebappSqlDb(),
+              'app.read_webapp_server_runtime_setting(text,text)',
               [input.key, input.scope],
+              sql`SELECT key, scope, organization_id, audience, value_json
+                    FROM app.read_webapp_server_runtime_setting(${input.key}, ${input.scope})`,
             ),
           ),
         );

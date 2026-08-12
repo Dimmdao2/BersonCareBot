@@ -2682,6 +2682,20 @@
       "when": 1793539230129,
       "tag": "0386_offline_drop_legacy_appointment_records_local",
       "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1793539230130,
+      "tag": "0387_drop_retired_user_pins_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1793539230131,
+      "tag": "0388_drop_legacy_email_setup_tokens_local",
+      "breakpoints": true
     }
   ]
 }

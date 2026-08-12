@@ -336,6 +336,7 @@ function createPortContextWebappPool(
     config: WebappPortContextRuntimeConfig;
     staffPool: Pool;
     patientPool: Pool;
+    globalAdminPool: Pool;
     clients: Set<PoolClient>;
   };
   const listeners = new Set<(error: Error) => void>();
@@ -346,11 +347,13 @@ function createPortContextWebappPool(
       config: next,
       staffPool: poolFactory({ ...next.staff, max: 3 }),
       patientPool: poolFactory({ ...next.patient, max: 2 }),
+      globalAdminPool: poolFactory({ ...next.globalAdmin, max: 1 }),
       clients: new Set<PoolClient>(),
     };
     for (const listener of listeners) {
       generation.staffPool.on('error', listener);
       generation.patientPool.on('error', listener);
+      generation.globalAdminPool.on('error', listener);
     }
     generations.add(generation);
     return generation;
@@ -369,7 +372,7 @@ function createPortContextWebappPool(
     return client;
   };
   const preflight = async (generation: Generation): Promise<void> => {
-    for (const selectedPool of [generation.staffPool, generation.patientPool]) {
+    for (const selectedPool of [generation.staffPool, generation.patientPool, generation.globalAdminPool]) {
       const client = await checkout(generation, selectedPool);
       try {
         await client.query('SELECT 1');
@@ -380,7 +383,9 @@ function createPortContextWebappPool(
   };
   const endGeneration = async (generation: Generation): Promise<void> => {
     try {
-      await Promise.all([generation.staffPool.end(), generation.patientPool.end()]);
+      await Promise.all([
+        generation.staffPool.end(), generation.patientPool.end(), generation.globalAdminPool.end(),
+      ]);
     } finally {
       generations.delete(generation);
     }
@@ -419,10 +424,15 @@ function createPortContextWebappPool(
 
   const selectPool = (principal: DbPrincipal | undefined, generation = active) => {
     if (!principal) throw new Error('A webapp principal is required in port-context mode');
-    const poolKind = principal.kind === 'patient' ? 'patient' : 'staff';
-    if (poolKind === 'staff') metrics.staffSelections += 1;
+    const poolKind = principal.kind === 'patient' || principal.kind === 'bootstrap'
+      ? 'patient'
+      : principal.kind === 'platform'
+        ? 'globalAdmin'
+        : 'staff';
+    if (poolKind === 'staff' || poolKind === 'globalAdmin') metrics.staffSelections += 1;
     else metrics.nonstaffSelections += 1;
-    return poolKind === 'staff' ? generation.staffPool : generation.patientPool;
+    if (poolKind === 'patient') return generation.patientPool;
+    return poolKind === 'globalAdmin' ? generation.globalAdminPool : generation.staffPool;
   };
 
   const query = async (
@@ -495,10 +505,13 @@ function createPortContextWebappPool(
       if (prop === 'rotatePortContextPools') return rotatePortContextPools;
       if (prop === 'end')
         return () => Promise.all([...generations].map(endGeneration)).then(() => undefined);
-      if (prop === 'totalCount') return active.staffPool.totalCount + active.patientPool.totalCount;
-      if (prop === 'idleCount') return active.staffPool.idleCount + active.patientPool.idleCount;
+      if (prop === 'totalCount') return active.staffPool.totalCount + active.patientPool.totalCount
+        + active.globalAdminPool.totalCount;
+      if (prop === 'idleCount') return active.staffPool.idleCount + active.patientPool.idleCount
+        + active.globalAdminPool.idleCount;
       if (prop === 'waitingCount')
-        return active.staffPool.waitingCount + active.patientPool.waitingCount;
+        return active.staffPool.waitingCount + active.patientPool.waitingCount
+          + active.globalAdminPool.waitingCount;
       if (prop === 'on')
         return (event: string, listener: (error: Error) => void) => {
           if (event === 'error') {
@@ -506,6 +519,7 @@ function createPortContextWebappPool(
             for (const generation of generations) {
               generation.staffPool.on('error', listener);
               generation.patientPool.on('error', listener);
+              generation.globalAdminPool.on('error', listener);
             }
           }
           return routedPool;
@@ -517,6 +531,7 @@ function createPortContextWebappPool(
             for (const generation of generations) {
               generation.staffPool.removeListener('error', listener);
               generation.patientPool.removeListener('error', listener);
+              generation.globalAdminPool.removeListener('error', listener);
             }
           }
           return routedPool;

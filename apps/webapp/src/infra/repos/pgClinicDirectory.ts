@@ -7,7 +7,10 @@ import {
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+} from '@/infra/db/runWebappSql';
 import type { ClinicDirectoryPort } from '@/modules/clinic-directory/ports';
 import {
   beOrganizations,
@@ -54,8 +57,10 @@ function isUniqueViolation(error: unknown): boolean {
 export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
   return {
     async resolveOrganizationIdBySlug(slug) {
-      const result = await runWebappSql<{ organization_id: string | null }>(
+      const result = await runWebappNamedRoot<{ organization_id: string | null }>(
         getWebappSqlDb(),
+        'app.resolve_public_organization_by_slug(text)',
+        [slug],
         sql`SELECT app.resolve_public_organization_by_slug(${slug}::text)::text AS organization_id`,
       );
       return result.rows[0]?.organization_id ?? null;
@@ -94,12 +99,17 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
     },
 
     async resolveCanonicalSlug(slug) {
-      const result = await runWebappSql<{
+      const result = await runWebappNamedRoot<{
         organization_id: string;
         requested_slug: string;
         requested_kind: 'current' | 'alias';
         canonical_slug: string;
-      }>(getWebappSqlDb(), sql`SELECT * FROM app.resolve_public_organization_slug(${slug}::text)`);
+      }>(
+        getWebappSqlDb(),
+        'app.resolve_public_organization_slug(text)',
+        [slug],
+        sql`SELECT * FROM app.resolve_public_organization_slug(${slug}::text)`,
+      );
       const row = result.rows[0];
       if (!row) return null;
       return {
@@ -111,8 +121,10 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
     },
 
     async isSlugAvailable(slug) {
-      const result = await runWebappSql<{ available: boolean }>(
+      const result = await runWebappNamedRoot<{ available: boolean }>(
         getWebappSqlDb(),
+        'app.is_organization_slug_available(text)',
+        [slug],
         sql`SELECT app.is_organization_slug_available(${slug}::text) AS available`,
       );
       return result.rows[0]?.available === true;

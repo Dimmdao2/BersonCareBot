@@ -57,6 +57,7 @@ const TEST_PORT_CONTEXT_LOGINS = {
   integrator: 'bcb_test_integrator',
   webappStaff: 'bcb_test_webapp_staff',
   webappPatient: 'bcb_test_webapp_patient',
+  webappGlobalAdmin: 'bcb_test_webapp_global_admin',
 };
 const TEST_PORT_CONTEXT_TLS = {
   ca: '/etc/bersoncarebot/postgres-mtls/test/ca.crt',
@@ -66,6 +67,8 @@ const TEST_PORT_CONTEXT_TLS = {
   webappStaffKey: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_staff.key',
   webappPatientCert: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_patient.crt',
   webappPatientKey: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_patient.key',
+  webappGlobalAdminCert: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_global_admin.crt',
+  webappGlobalAdminKey: '/etc/bersoncarebot/postgres-mtls/test/bcb_test_webapp_global_admin.key',
 };
 const DEV_PORT_CONTEXT = {
   api: renderPortContextRuntimeEnv(declaration, 'dev', 'bcb_webapp_dev', 'integrator'),
@@ -75,6 +78,7 @@ const DEV_PORT_CONTEXT_LOGINS = {
   integrator: 'bcb_dev_integrator',
   webappStaff: 'bcb_dev_webapp_staff',
   webappPatient: 'bcb_dev_webapp_patient',
+  webappGlobalAdmin: 'bcb_dev_webapp_global_admin',
 };
 const DEV_PORT_CONTEXT_TLS = {
   ca: '/etc/bersoncarebot/postgres-mtls/dev/ca.crt',
@@ -84,6 +88,8 @@ const DEV_PORT_CONTEXT_TLS = {
   webappStaffKey: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_staff.key',
   webappPatientCert: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_patient.crt',
   webappPatientKey: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_patient.key',
+  webappGlobalAdminCert: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_global_admin.crt',
+  webappGlobalAdminKey: '/etc/bersoncarebot/postgres-mtls/dev/bcb_dev_webapp_global_admin.key',
 };
 const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
   /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
@@ -268,13 +274,17 @@ function bootstrapDev({ apiPath, webappPath, ownerUid, ownerGid, write = true, t
     ['DB_PRINCIPAL_CONTEXT_MODE', 'port-context'],
     ['DATABASE_URL_STAFF', legacyWebappBase ? makeUrl(webappBase, DEV_PORT_CONTEXT_LOGINS.webappStaff) : webapp.get('DATABASE_URL_STAFF')],
     ['DATABASE_URL_PATIENT', legacyWebappBase ? makeUrl(webappBase, DEV_PORT_CONTEXT_LOGINS.webappPatient) : requireEnvPath(webapp, 'DATABASE_URL_PATIENT', 'webapp DEV env')],
+    ['DATABASE_URL_GLOBAL_ADMIN', legacyWebappBase ? makeUrl(webappBase, DEV_PORT_CONTEXT_LOGINS.webappGlobalAdmin) : requireEnvPath(webapp, 'DATABASE_URL_GLOBAL_ADMIN', 'webapp DEV env')],
     ['WEBAPP_DB_STAFF_LOGIN', DEV_PORT_CONTEXT_LOGINS.webappStaff],
     ['WEBAPP_DB_PATIENT_LOGIN', DEV_PORT_CONTEXT_LOGINS.webappPatient],
+    ['WEBAPP_DB_GLOBAL_ADMIN_LOGIN', DEV_PORT_CONTEXT_LOGINS.webappGlobalAdmin],
     ['WEBAPP_DB_TLS_CA_FILE', tls.ca],
     ['WEBAPP_DB_STAFF_CERT_FILE', tls.webappStaffCert],
     ['WEBAPP_DB_STAFF_KEY_FILE', tls.webappStaffKey],
     ['WEBAPP_DB_PATIENT_CERT_FILE', tls.webappPatientCert],
     ['WEBAPP_DB_PATIENT_KEY_FILE', tls.webappPatientKey],
+    ['WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE', tls.webappGlobalAdminCert],
+    ['WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE', tls.webappGlobalAdminKey],
     [DEV_PORT_CONTEXT.webapp.key, DEV_PORT_CONTEXT.webapp.value],
   ]);
   const targetApi = mergedValues(api, apiAdditions);
@@ -295,6 +305,12 @@ function bootstrapDev({ apiPath, webappPath, ownerUid, ownerGid, write = true, t
     targetWebapp.get('DATABASE_URL_PATIENT'),
     DEV_PORT_CONTEXT_LOGINS.webappPatient,
     'DEV DATABASE_URL_PATIENT',
+    'bcb_webapp_dev',
+  );
+  validatePortContextUrl(
+    targetWebapp.get('DATABASE_URL_GLOBAL_ADMIN'),
+    DEV_PORT_CONTEXT_LOGINS.webappGlobalAdmin,
+    'DEV DATABASE_URL_GLOBAL_ADMIN',
     'bcb_webapp_dev',
   );
   for (const path of Object.values(tls)) assertRegular(path);
@@ -324,6 +340,7 @@ function bootstrap({
   deployGid,
   write = true,
   targetPortContext = false,
+  portContextTls = TEST_PORT_CONTEXT_TLS,
 }) {
   assertRegular(apiPath);
   assertRegular(webappPath);
@@ -382,15 +399,15 @@ function bootstrap({
     apiAdditions.set('INTEGRATOR_DB_LOGIN', TEST_PORT_CONTEXT_LOGINS.integrator);
     apiAdditions.set(
       'INTEGRATOR_DB_TLS_CA_FILE',
-      TEST_PORT_CONTEXT_TLS.ca,
+      portContextTls.ca,
     );
     apiAdditions.set(
       'INTEGRATOR_DB_TLS_CERT_FILE',
-      TEST_PORT_CONTEXT_TLS.integratorCert,
+      portContextTls.integratorCert,
     );
     apiAdditions.set(
       'INTEGRATOR_DB_TLS_KEY_FILE',
-      TEST_PORT_CONTEXT_TLS.integratorKey,
+      portContextTls.integratorKey,
     );
 
     webappAdditions.set(
@@ -401,27 +418,40 @@ function bootstrap({
       'DATABASE_URL_PATIENT',
       legacyBaseUrl ? makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappPatient) : requireEnvPath(webapp, 'DATABASE_URL_PATIENT', 'webapp.test port-context'),
     );
+    webappAdditions.set(
+      'DATABASE_URL_GLOBAL_ADMIN',
+      legacyBaseUrl ? makeUrl(baseUrl, TEST_PORT_CONTEXT_LOGINS.webappGlobalAdmin) : requireEnvPath(webapp, 'DATABASE_URL_GLOBAL_ADMIN', 'webapp.test port-context'),
+    );
     webappAdditions.set('WEBAPP_DB_STAFF_LOGIN', TEST_PORT_CONTEXT_LOGINS.webappStaff);
     webappAdditions.set('WEBAPP_DB_PATIENT_LOGIN', TEST_PORT_CONTEXT_LOGINS.webappPatient);
+    webappAdditions.set('WEBAPP_DB_GLOBAL_ADMIN_LOGIN', TEST_PORT_CONTEXT_LOGINS.webappGlobalAdmin);
     webappAdditions.set(
       'WEBAPP_DB_TLS_CA_FILE',
-      TEST_PORT_CONTEXT_TLS.ca,
+      portContextTls.ca,
     );
     webappAdditions.set(
       'WEBAPP_DB_STAFF_CERT_FILE',
-      TEST_PORT_CONTEXT_TLS.webappStaffCert,
+      portContextTls.webappStaffCert,
     );
     webappAdditions.set(
       'WEBAPP_DB_STAFF_KEY_FILE',
-      TEST_PORT_CONTEXT_TLS.webappStaffKey,
+      portContextTls.webappStaffKey,
     );
     webappAdditions.set(
       'WEBAPP_DB_PATIENT_CERT_FILE',
-      TEST_PORT_CONTEXT_TLS.webappPatientCert,
+      portContextTls.webappPatientCert,
     );
     webappAdditions.set(
       'WEBAPP_DB_PATIENT_KEY_FILE',
-      TEST_PORT_CONTEXT_TLS.webappPatientKey,
+      portContextTls.webappPatientKey,
+    );
+    webappAdditions.set(
+      'WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE',
+      portContextTls.webappGlobalAdminCert,
+    );
+    webappAdditions.set(
+      'WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE',
+      portContextTls.webappGlobalAdminKey,
     );
 
     const targetApi = mergedValues(api, apiAdditions);
@@ -441,6 +471,11 @@ function bootstrap({
       TEST_PORT_CONTEXT_LOGINS.webappPatient,
       'webapp.test DATABASE_URL_PATIENT',
     );
+    validatePortContextUrl(
+      requireEnvPath(targetWebapp, 'DATABASE_URL_GLOBAL_ADMIN', 'webapp.test port-context'),
+      TEST_PORT_CONTEXT_LOGINS.webappGlobalAdmin,
+      'webapp.test DATABASE_URL_GLOBAL_ADMIN',
+    );
     for (const [values, label, keys] of [
       [targetApi, 'api.test port-context', [
         'INTEGRATOR_DB_TLS_CA_FILE',
@@ -453,6 +488,8 @@ function bootstrap({
         'WEBAPP_DB_STAFF_KEY_FILE',
         'WEBAPP_DB_PATIENT_CERT_FILE',
         'WEBAPP_DB_PATIENT_KEY_FILE',
+        'WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE',
+        'WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE',
       ]],
     ]) {
       for (const key of keys) assertRegular(requireEnvPath(values, key, label));
@@ -696,9 +733,22 @@ function selfTest() {
       'webapp-staff.key',
       'webapp-patient.crt',
       'webapp-patient.key',
+      'webapp-global-admin.crt',
+      'webapp-global-admin.key',
     ]) {
       writeFileSync(join(root, name), 'self-test pem placeholder\n');
     }
+    const testTls = {
+      ca: join(root, 'ca.crt'),
+      integratorCert: join(root, 'integrator.crt'),
+      integratorKey: join(root, 'integrator.key'),
+      webappStaffCert: join(root, 'webapp-staff.crt'),
+      webappStaffKey: join(root, 'webapp-staff.key'),
+      webappPatientCert: join(root, 'webapp-patient.crt'),
+      webappPatientKey: join(root, 'webapp-patient.key'),
+      webappGlobalAdminCert: join(root, 'webapp-global-admin.crt'),
+      webappGlobalAdminKey: join(root, 'webapp-global-admin.key'),
+    };
     writeFileSync(
       webapp,
       readFileSync(webapp, 'utf8') +
@@ -706,7 +756,9 @@ function selfTest() {
         `WEBAPP_DB_STAFF_CERT_FILE='${join(root, 'webapp-staff.crt')}'\n` +
         `WEBAPP_DB_STAFF_KEY_FILE='${join(root, 'webapp-staff.key')}'\n` +
         `WEBAPP_DB_PATIENT_CERT_FILE='${join(root, 'webapp-patient.crt')}'\n` +
-        `WEBAPP_DB_PATIENT_KEY_FILE='${join(root, 'webapp-patient.key')}'\n`,
+        `WEBAPP_DB_PATIENT_KEY_FILE='${join(root, 'webapp-patient.key')}'\n` +
+        `WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE='${join(root, 'webapp-global-admin.crt')}'\n` +
+        `WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE='${join(root, 'webapp-global-admin.key')}'\n`,
     );
     bootstrap({
       apiPath: api,
@@ -715,6 +767,7 @@ function selfTest() {
       ownerUid: process.getuid(),
       deployGid: process.getgid(),
       targetPortContext: true,
+      portContextTls: testTls,
     });
     const portContextApi = parseEnv(readFileSync(api, 'utf8'), 'api.test');
     const portContextWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
@@ -726,6 +779,7 @@ function selfTest() {
       deployGid: process.getgid(),
       targetPortContext: true,
       write: false,
+      portContextTls: testTls,
     });
     if (new URL(portContextApi.get('INTEGRATOR_DB_URL')).username !== TEST_PORT_CONTEXT_LOGINS.integrator) {
       fail('self-test did not render integrator port-context URL');
@@ -735,6 +789,9 @@ function selfTest() {
     }
     if (new URL(portContextWebapp.get('DATABASE_URL_PATIENT')).username !== TEST_PORT_CONTEXT_LOGINS.webappPatient) {
       fail('self-test did not render webapp patient port-context URL');
+    }
+    if (new URL(portContextWebapp.get('DATABASE_URL_GLOBAL_ADMIN')).username !== TEST_PORT_CONTEXT_LOGINS.webappGlobalAdmin) {
+      fail('self-test did not render webapp global-admin port-context URL');
     }
     if (
       portContextApi.get('DB_PRINCIPAL_SIGNING_SECRET') ||
@@ -768,6 +825,8 @@ function selfTest() {
       webappStaffKey: join(root, 'webapp-staff.key'),
       webappPatientCert: join(root, 'webapp-patient.crt'),
       webappPatientKey: join(root, 'webapp-patient.key'),
+      webappGlobalAdminCert: join(root, 'webapp-global-admin.crt'),
+      webappGlobalAdminKey: join(root, 'webapp-global-admin.key'),
     };
     bootstrapDev({
       apiPath: devApi,
@@ -791,6 +850,7 @@ function selfTest() {
       new URL(targetDevApi.get('INTEGRATOR_DB_URL')).username !== DEV_PORT_CONTEXT_LOGINS.integrator ||
       new URL(targetDevWebapp.get('DATABASE_URL_STAFF')).username !== DEV_PORT_CONTEXT_LOGINS.webappStaff ||
       new URL(targetDevWebapp.get('DATABASE_URL_PATIENT')).username !== DEV_PORT_CONTEXT_LOGINS.webappPatient ||
+      new URL(targetDevWebapp.get('DATABASE_URL_GLOBAL_ADMIN')).username !== DEV_PORT_CONTEXT_LOGINS.webappGlobalAdmin ||
       targetDevApi.get('DATABASE_URL') ||
       targetDevWebapp.get('DATABASE_URL') ||
       targetDevWebapp.get('DATABASE_URL_NONSTAFF') ||

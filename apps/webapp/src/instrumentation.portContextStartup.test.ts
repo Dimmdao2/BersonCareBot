@@ -15,6 +15,7 @@ describe('webapp port-context startup database gate', () => {
     vi.stubEnv('DATABASE_URL', '');
     vi.stubEnv('DATABASE_URL_STAFF', 'postgresql://staff@example.test/app');
     vi.stubEnv('DATABASE_URL_PATIENT', 'postgresql://patient@example.test/app');
+    vi.stubEnv('DATABASE_URL_GLOBAL_ADMIN', 'postgresql://global-admin@example.test/app');
 
     await expect(register()).resolves.toBeUndefined();
   });
@@ -28,7 +29,8 @@ describe('webapp port-context startup database gate', () => {
     vi.stubEnv('DATABASE_URL', 'postgresql://legacy-must-not-mask-target@example.test/app');
     vi.stubEnv('DATABASE_URL_STAFF', 'postgresql://staff@example.test/app');
     vi.stubEnv('DATABASE_URL_PATIENT', '');
+    vi.stubEnv('DATABASE_URL_GLOBAL_ADMIN', 'postgresql://global-admin@example.test/app');
 
-    await expect(register()).rejects.toThrow('DATABASE_URL_STAFF and DATABASE_URL_PATIENT');
+    await expect(register()).rejects.toThrow('DATABASE_URL_STAFF, DATABASE_URL_PATIENT and DATABASE_URL_GLOBAL_ADMIN');
   });
 });

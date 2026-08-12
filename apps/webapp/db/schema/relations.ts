@@ -32,7 +32,6 @@ import {
   symptomTrackings,
   contentAccessGrantsWebapp,
   emailChallenges,
-  userPins,
   channelLinkSecrets,
   userChannelPreferences,
   userOauthBindings,
@@ -109,7 +108,6 @@ export const platformUsersRelations = relations(platformUsers, ({ one, many }) =
   symptomEntries: many(symptomEntries),
   contentAccessGrantsWebapps: many(contentAccessGrantsWebapp),
   emailChallenges: many(emailChallenges),
-  userPins: many(userPins),
   channelLinkSecrets: many(channelLinkSecrets),
   userChannelPreferences: many(userChannelPreferences),
   userOauthBindings: many(userOauthBindings),
@@ -263,13 +261,6 @@ export const contentAccessGrantsWebappRelations = relations(
 export const emailChallengesRelations = relations(emailChallenges, ({ one }) => ({
   platformUser: one(platformUsers, {
     fields: [emailChallenges.userId],
-    references: [platformUsers.id],
-  }),
-}));
-
-export const userPinsRelations = relations(userPins, ({ one }) => ({
-  platformUser: one(platformUsers, {
-    fields: [userPins.userId],
     references: [platformUsers.id],
   }),
 }));

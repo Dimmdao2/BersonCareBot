@@ -27,27 +27,18 @@ const TEST_ONLY = [
   'app.set_saas_isolation_test_scenario(text)',
 ].sort();
 const GENUINE_PRE_SESSION_FUNCTIONS = `
-auth_channel_link_lock_unused_secret
-auth_channel_link_mark_secret_used
-auth_channel_link_mark_secret_used_if_unused
-auth_channel_link_read_secret
-auth_email_setup_mark_used
-auth_email_setup_read
 auth_login_token_confirm
 auth_login_token_create
 auth_login_token_mark_session_issued
 auth_login_token_read
 auth_oauth_find_user
 auth_oauth_upsert_binding
-auth_rate_limit_count
-auth_rate_limit_prune_key
-auth_rate_limit_prune_scope
-auth_rate_limit_record
+auth_rate_limit_check_and_record
 email_auth_find_email_otp_lock
 email_auth_register_email_otp_lockout
 email_auth_reset_email_otp_lockout
 get_public_reference_baseline
-get_web_push_vapid_public_key
+read_saas_billing_payment_provider_preauth
 is_organization_slug_available
 is_smtp_outbound_configured
 phone_auth_find_latest_challenge_created_at
@@ -69,15 +60,15 @@ const functionsFor = (database) => Object.entries(declaration.portContext.functi
 test('legacy 244/42 census is restored without obsolete context and overlaid by rev10', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 238,
+    functions: 227,
     owners: 41,
-    test: 238,
-    dev: 225,
+    test: 227,
+    dev: 214,
     triggers: 3,
-    relationEdges: 467,
+    relationEdges: 459,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 238);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 238);
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 227);
+  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 227);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -92,28 +83,31 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 259);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 246);
-  assert.equal(testFunctions.length, 261);
-  assert.equal(devFunctions.length, 248);
-  assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 42);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 253);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 240);
+  assert.equal(testFunctions.length, 268);
+  assert.equal(devFunctions.length, 255);
+  assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 43);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
   const proconfigExceptions = Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
   assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 235);
+    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 221);
   assert.deepEqual(proconfigExceptions, [
+    ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],
     ['app.list_web_push_reminder_organization_ids(timestamp with time zone)', 'search_path=pg_catalog, public'],
     ['app.read_outbound_provider_incident_health()', 'search_path=pg_catalog, public'],
+    ['app.resolve_saas_billing_invoice_for_webhook(text,text)', 'search_path=pg_catalog, app, public, pg_temp'],
+    ['app.resolve_saas_billing_refund_for_webhook(text,text)', 'search_path=pg_catalog, app, public, pg_temp'],
   ]);
 });
 
-test('all 42 seam owners and function callers have the closed role shape', () => {
+test('all 42 application seam owners and function callers have the closed role shape', () => {
   const owners = new Set(Object.values(declaration.portContext.functions)
-    .filter((fn) => fn.security === 'DEFINER').map((fn) => fn.owner));
+    .filter((fn) => fn.security === 'DEFINER' && fn.owner !== 'postgres').map((fn) => fn.owner));
   assert.equal(owners.size, 42);
   const loginNames = new Set(Object.values(declaration.envMapping).flatMap((records) => Object.keys(records)));
   for (const owner of owners) {
@@ -127,7 +121,9 @@ test('all 42 seam owners and function callers have the closed role shape', () =>
   }
   for (const [signature, fn] of Object.entries(BUSINESS_SEAM_FUNCTIONS)) {
     assert.equal(fn.execute.some((role) => loginNames.has(role) || role === 'PUBLIC'), false, signature);
-    if (fn.invocation === 'trigger') assert.deepEqual(fn.execute, [], signature);
+    if (fn.invocation === 'trigger' || fn.invocation === 'internal') {
+      assert.deepEqual(fn.execute, [], signature);
+    }
     else assert.ok(fn.execute.length > 0, signature);
     assert.ok(fn.relationSurfaces.length > 0 || fn.delegatesTo.length > 0, signature);
     for (const surface of fn.relationSurfaces) {
@@ -137,8 +133,8 @@ test('all 42 seam owners and function callers have the closed role shape', () =>
   }
 });
 
-test('all 34 genuine pre-session roots have app_pre_session as their only caller', () => {
-  assert.equal(GENUINE_PRE_SESSION_FUNCTIONS.length, 34);
+test('all 25 genuine pre-session roots have app_pre_session as their only caller', () => {
+  assert.equal(GENUINE_PRE_SESSION_FUNCTIONS.length, 25);
   for (const functionName of GENUINE_PRE_SESSION_FUNCTIONS) {
     const matches = Object.entries(BUSINESS_SEAM_FUNCTIONS)
       .filter(([signature]) => signature.startsWith(`app.${functionName}(`));
@@ -184,7 +180,7 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     const first = generateFunctionCensusSql(declaration, database);
     assert.equal(generateFunctionCensusSql(declaration, database), first);
     assert.match(first, /function census catalog mismatch/);
-    assert.match(first, /n\.nspname IN \('public', 'app', 'integrator', 'app_ext', 'drizzle'\)/);
+    assert.match(first, /n\.nspname IN \('public', 'app', 'integrator', 'app_ext', 'app_control', 'drizzle'\)/);
     assert.match(first, /am\.member = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /am\.roleid = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /REVOKE ALL ON FUNCTION app\.resolve_clinic_dedicated_bot_organization\(text,text\) FROM PUBLIC/);

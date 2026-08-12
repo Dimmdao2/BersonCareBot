@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Root-owned live readiness probe for the exact shared DEV+TEST HBA block. */
+/** Root-owned live readiness probe for one exact DEV or TEST HBA target. */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
@@ -10,15 +10,26 @@ const fixedFiles = {
   testWebapp: '/opt/env/bersoncarebot/webapp.test',
 };
 const databaseByEnvironment = { dev: 'bcb_webapp_dev', test: 'bersoncarebot_test' };
+const accounts = {
+  dev: { staff: 'dev', patient: 'dev', globalAdmin: 'dev', integrator: 'dev' },
+  test: {
+    staff: 'bcb-web-test',
+    patient: 'bcb-web-test',
+    globalAdmin: 'bcb-web-test',
+    integrator: 'bcb-api-test',
+  },
+};
 const logins = {
   dev: {
     staff: 'bcb_dev_webapp_staff',
     patient: 'bcb_dev_webapp_patient',
+    globalAdmin: 'bcb_dev_webapp_global_admin',
     integrator: 'bcb_dev_integrator',
   },
   test: {
     staff: 'bcb_test_webapp_staff',
     patient: 'bcb_test_webapp_patient',
+    globalAdmin: 'bcb_test_webapp_global_admin',
     integrator: 'bcb_test_integrator',
   },
 };
@@ -87,62 +98,36 @@ function record({ environment, kind, values, urlKey, certKey, keyKey, account })
   };
 }
 
-const devApi = parseEnv(fixedFiles.devApi);
-const devWebapp = parseEnv(fixedFiles.devWebapp);
-const testApi = parseEnv(fixedFiles.testApi);
-const testWebapp = parseEnv(fixedFiles.testWebapp);
-for (const [label, values] of [
-  ['DEV integrator', devApi],
-  ['DEV webapp', devWebapp],
-  ['TEST integrator', testApi],
-  ['TEST webapp', testWebapp],
-]) {
-  if (values.get('DB_PRINCIPAL_CONTEXT_MODE') !== 'port-context') {
-    fail(`${label} is not in port-context mode`);
+function loadEnvironmentRecords(environment) {
+  const api = parseEnv(fixedFiles[`${environment}Api`]);
+  const webapp = parseEnv(fixedFiles[`${environment}Webapp`]);
+  for (const [label, values] of [
+    [`${environment.toUpperCase()} integrator`, api],
+    [`${environment.toUpperCase()} webapp`, webapp],
+  ]) {
+    if (values.get('DB_PRINCIPAL_CONTEXT_MODE') !== 'port-context') {
+      fail(`${label} is not in port-context mode`);
+    }
   }
+  return [
+    record({ environment, kind: 'staff', values: webapp, urlKey: 'DATABASE_URL_STAFF', certKey: 'WEBAPP_DB_STAFF_CERT_FILE', keyKey: 'WEBAPP_DB_STAFF_KEY_FILE', account: accounts[environment].staff }),
+    record({ environment, kind: 'patient', values: webapp, urlKey: 'DATABASE_URL_PATIENT', certKey: 'WEBAPP_DB_PATIENT_CERT_FILE', keyKey: 'WEBAPP_DB_PATIENT_KEY_FILE', account: accounts[environment].patient }),
+    record({ environment, kind: 'globalAdmin', values: webapp, urlKey: 'DATABASE_URL_GLOBAL_ADMIN', certKey: 'WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE', keyKey: 'WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE', account: accounts[environment].globalAdmin }),
+    record({ environment, kind: 'integrator', values: api, urlKey: 'INTEGRATOR_DB_URL', certKey: 'INTEGRATOR_DB_TLS_CERT_FILE', keyKey: 'INTEGRATOR_DB_TLS_KEY_FILE', account: accounts[environment].integrator }),
+  ];
 }
-const records = [
-  record({ environment: 'dev', kind: 'staff', values: devWebapp, urlKey: 'DATABASE_URL_STAFF', certKey: 'WEBAPP_DB_STAFF_CERT_FILE', keyKey: 'WEBAPP_DB_STAFF_KEY_FILE', account: 'dev' }),
-  record({ environment: 'dev', kind: 'patient', values: devWebapp, urlKey: 'DATABASE_URL_PATIENT', certKey: 'WEBAPP_DB_PATIENT_CERT_FILE', keyKey: 'WEBAPP_DB_PATIENT_KEY_FILE', account: 'dev' }),
-  record({ environment: 'dev', kind: 'integrator', values: devApi, urlKey: 'INTEGRATOR_DB_URL', certKey: 'INTEGRATOR_DB_TLS_CERT_FILE', keyKey: 'INTEGRATOR_DB_TLS_KEY_FILE', account: 'dev' }),
-  record({ environment: 'test', kind: 'staff', values: testWebapp, urlKey: 'DATABASE_URL_STAFF', certKey: 'WEBAPP_DB_STAFF_CERT_FILE', keyKey: 'WEBAPP_DB_STAFF_KEY_FILE', account: 'bcb-web-test' }),
-  record({ environment: 'test', kind: 'patient', values: testWebapp, urlKey: 'DATABASE_URL_PATIENT', certKey: 'WEBAPP_DB_PATIENT_CERT_FILE', keyKey: 'WEBAPP_DB_PATIENT_KEY_FILE', account: 'bcb-web-test' }),
-  record({ environment: 'test', kind: 'integrator', values: testApi, urlKey: 'INTEGRATOR_DB_URL', certKey: 'INTEGRATOR_DB_TLS_CERT_FILE', keyKey: 'INTEGRATOR_DB_TLS_KEY_FILE', account: 'bcb-api-test' }),
-];
-const byLogin = new Map(records.map((value) => [value.login, value]));
 
-function runInstaller() {
-  if (process.getuid() !== 0) fail('--run-installer requires root');
-  const postgres = identity('postgres');
-  const passwordByLogin = Object.fromEntries(records.map((value) => [value.login, value.password]));
-  const result = spawnSync(
-    '/usr/bin/setpriv',
-    [
-      '--reuid', String(postgres.uid),
-      '--regid', String(postgres.gid),
-      '--clear-groups',
-      '--',
-      '/usr/bin/node',
-      '--experimental-strip-types',
-      '/opt/projects/bersoncarebot-test/deploy/postgres/privileges/install-dev-test-shared-cluster.mjs',
-      '--admin-socket', '/var/run/postgresql',
-      '--admin-port', '5432',
-    ],
-    {
-      env: {
-        PATH: '/usr/bin:/bin',
-        LANG: 'C',
-        BCB_DEV_WEBAPP_STAFF_PASSWORD: passwordByLogin.bcb_dev_webapp_staff,
-        BCB_DEV_WEBAPP_PATIENT_PASSWORD: passwordByLogin.bcb_dev_webapp_patient,
-        BCB_DEV_INTEGRATOR_PASSWORD: passwordByLogin.bcb_dev_integrator,
-        BCB_TEST_WEBAPP_STAFF_PASSWORD: passwordByLogin.bcb_test_webapp_staff,
-        BCB_TEST_WEBAPP_PATIENT_PASSWORD: passwordByLogin.bcb_test_webapp_patient,
-        BCB_TEST_INTEGRATOR_PASSWORD: passwordByLogin.bcb_test_integrator,
-      },
-      stdio: 'inherit',
-    },
-  );
-  process.exit(result.status ?? 1);
+function environmentFor(database, quartet) {
+  for (const environment of ['dev', 'test']) {
+    if (
+      database === databaseByEnvironment[environment]
+      && quartet.staff === logins[environment].staff
+      && quartet.patient === logins[environment].patient
+      && quartet.globalAdmin === logins[environment].globalAdmin
+      && quartet.integrator === logins[environment].integrator
+    ) return environment;
+  }
+  fail('database/login quartet is not an exact declared DEV or TEST target');
 }
 
 function connect(selected, database, overrides = {}) {
@@ -178,8 +163,11 @@ function connect(selected, database, overrides = {}) {
   return result.status === 0;
 }
 
-const [mode, targetDatabase, targetStaff, targetPatient, targetIntegrator, foreignStaff, foreignPatient, foreignIntegrator] = process.argv.slice(2);
+const [mode, targetDatabase, targetStaff, targetPatient, targetGlobalAdmin, targetIntegrator, foreignStaff, foreignPatient, foreignGlobalAdmin, foreignIntegrator] = process.argv.slice(2);
 if (mode === '--validate') {
+  const selection = targetDatabase;
+  if (!['dev', 'test', 'all'].includes(selection)) fail('--validate requires dev, test, or all');
+  const records = (selection === 'all' ? ['dev', 'test'] : [selection]).flatMap(loadEnvironmentRecords);
   for (const selected of records) {
     for (const path of [selected.ca, selected.cert, selected.key]) {
       const result = spawnSync('/usr/bin/setpriv', [
@@ -194,31 +182,57 @@ if (mode === '--validate') {
   }
   process.exit(0);
 }
-if (mode === '--run-installer') runInstaller();
-if (!mode || !targetDatabase || !targetStaff || !targetPatient || !targetIntegrator) fail('incomplete probe arguments');
+if (!mode || !targetDatabase || !targetStaff || !targetPatient || !targetGlobalAdmin || !targetIntegrator) fail('incomplete probe arguments');
+const targetNames = {
+  staff: targetStaff,
+  patient: targetPatient,
+  globalAdmin: targetGlobalAdmin,
+  integrator: targetIntegrator,
+};
+const targetEnvironment = environmentFor(targetDatabase, targetNames);
+const foreignValues = [foreignStaff, foreignPatient, foreignGlobalAdmin, foreignIntegrator];
+const foreignCount = foreignValues.filter(Boolean).length;
+if (foreignCount !== 0 && foreignCount !== 4) fail('foreign environment requires all four login names');
+const foreignEnvironment = foreignCount === 4
+  ? environmentFor(databaseByEnvironment[targetEnvironment === 'dev' ? 'test' : 'dev'], {
+      staff: foreignStaff,
+      patient: foreignPatient,
+      globalAdmin: foreignGlobalAdmin,
+      integrator: foreignIntegrator,
+    })
+  : undefined;
+if (foreignEnvironment === targetEnvironment) fail('foreign login quartet must belong to the other environment');
+const records = [
+  ...loadEnvironmentRecords(targetEnvironment),
+  ...(foreignEnvironment ? loadEnvironmentRecords(foreignEnvironment) : []),
+];
+const byLogin = new Map(records.map((value) => [value.login, value]));
 const targetRecords = {
   staff: byLogin.get(targetStaff),
   patient: byLogin.get(targetPatient),
+  globalAdmin: byLogin.get(targetGlobalAdmin),
   integrator: byLogin.get(targetIntegrator),
 };
 if (Object.values(targetRecords).some((value) => !value)) fail('undeclared target login');
 if (new Set(Object.values(targetRecords).map(({ database }) => database)).size !== 1 || targetRecords.staff.database !== targetDatabase) {
-  fail('target database/login triplet mismatch');
+  fail('target database/login quartet mismatch');
 }
 
 let success;
 switch (mode) {
   case 'positive-staff': success = connect(targetRecords.staff, targetDatabase); break;
   case 'positive-patient': success = connect(targetRecords.patient, targetDatabase); break;
+  case 'positive-global-admin': success = connect(targetRecords.globalAdmin, targetDatabase); break;
   case 'positive-integrator': success = connect(targetRecords.integrator, targetDatabase); break;
   case 'password-only': success = connect(targetRecords.staff, targetDatabase, { noClientCertificate: true }); break;
   case 'wrong-cn': success = connect(targetRecords.staff, targetDatabase, { cert: targetRecords.patient.cert, key: targetRecords.patient.key }); break;
   case 'non-tls': success = connect(targetRecords.staff, targetDatabase, { sslmode: 'disable', noClientCertificate: true }); break;
   case 'socket': success = connect(targetRecords.staff, targetDatabase, { socket: true, sslmode: 'disable', noClientCertificate: true }); break;
   case 'server-impersonation': success = connect(targetRecords.staff, targetDatabase, { ca: '/etc/ssl/certs/ca-certificates.crt' }); break;
-  case 'cross-environment-staff': success = connect(byLogin.get(foreignStaff), targetDatabase); break;
-  case 'cross-environment-patient': success = connect(byLogin.get(foreignPatient), targetDatabase); break;
-  case 'cross-environment-integrator': success = connect(byLogin.get(foreignIntegrator), targetDatabase); break;
+  case 'cross-environment-staff': if (!foreignEnvironment) fail('cross-environment probe lacks foreign quartet'); success = connect(byLogin.get(foreignStaff), targetDatabase); break;
+  case 'cross-environment-patient': if (!foreignEnvironment) fail('cross-environment probe lacks foreign quartet'); success = connect(byLogin.get(foreignPatient), targetDatabase); break;
+  case 'cross-environment-global-admin': if (!foreignEnvironment) fail('cross-environment probe lacks foreign quartet'); success = connect(byLogin.get(foreignGlobalAdmin), targetDatabase); break;
+  case 'cross-environment-integrator': if (!foreignEnvironment) fail('cross-environment probe lacks foreign quartet'); success = connect(byLogin.get(foreignIntegrator), targetDatabase); break;
   default: fail(`unknown mode ${mode}`);
 }
 process.exit(success ? 0 : 1);

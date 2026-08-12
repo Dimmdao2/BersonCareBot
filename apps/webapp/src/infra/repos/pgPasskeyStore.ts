@@ -1,5 +1,10 @@
 import type { AuthenticatorTransportFuture, CredentialDeviceType } from '@simplewebauthn/server';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import type {
   PasskeyChallenge,
   PasskeyCredential,
@@ -73,16 +78,9 @@ export const pgPasskeyStore: PasskeyStore = {
   },
 
   async issueChallenge(input) {
-    const result = await runWebappPgText<{ issued: boolean }>(
-      `SELECT app.passkey_issue_challenge(
-         $1::uuid,
-         $2::text,
-         $3::uuid,
-         $4::text,
-         $5::text,
-         $6::text,
-         $7::timestamptz
-       ) AS issued`,
+    const result = await runWebappNamedRoot<{ issued: boolean }>(
+      getWebappSqlDb(),
+      'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)',
       [
         input.id,
         input.purpose,
@@ -92,21 +90,32 @@ export const pgPasskeyStore: PasskeyStore = {
         input.rpId,
         input.expiresAt,
       ],
+      sql`SELECT app.passkey_issue_challenge(
+        ${input.id}::uuid,
+        ${input.purpose}::text,
+        ${input.userId}::uuid,
+        ${input.challenge}::text,
+        ${input.expectedOrigin}::text,
+        ${input.rpId}::text,
+        ${input.expiresAt}::timestamptz
+      ) AS issued`,
     );
     return result.rows[0]?.issued === true;
   },
 
   async readChallenge(id, purpose): Promise<PasskeyChallenge | null> {
-    const result = await runWebappPgText<{
+    const result = await runWebappNamedRoot<{
       user_id: string | null;
       challenge: string;
       expected_origin: string;
       rp_id: string;
       expires_at: string;
     }>(
-      `SELECT user_id::text, challenge, expected_origin, rp_id, expires_at
-       FROM app.passkey_read_challenge($1::uuid, $2::text)`,
+      getWebappSqlDb(),
+      'app.passkey_read_challenge(uuid,text)',
       [id, purpose],
+      sql`SELECT user_id::text, challenge, expected_origin, rp_id, expires_at
+          FROM app.passkey_read_challenge(${id}::uuid, ${purpose}::text)`,
     );
     const row = result.rows[0];
     return row
@@ -121,7 +130,7 @@ export const pgPasskeyStore: PasskeyStore = {
   },
 
   async readCredential(credentialId): Promise<PasskeyCredential | null> {
-    const result = await runWebappPgText<{
+    const result = await runWebappNamedRoot<{
       credential_id: string;
       user_id: string;
       user_handle: string;
@@ -131,7 +140,10 @@ export const pgPasskeyStore: PasskeyStore = {
       device_type: string;
       backed_up: boolean;
     }>(
-      `SELECT
+      getWebappSqlDb(),
+      'app.passkey_read_credential(text)',
+      [credentialId],
+      sql`SELECT
          credential_id,
          user_id::text,
          user_handle,
@@ -140,8 +152,7 @@ export const pgPasskeyStore: PasskeyStore = {
          transports,
          device_type,
          backed_up
-       FROM app.passkey_read_credential($1::text)`,
-      [credentialId],
+         FROM app.passkey_read_credential(${credentialId}::text)`,
     );
     const row = result.rows[0];
     if (!row) return null;
@@ -184,15 +195,9 @@ export const pgPasskeyStore: PasskeyStore = {
   },
 
   async completeAuthentication(input) {
-    const result = await runWebappPgText<{ user_id: string | null }>(
-      `SELECT app.passkey_complete_authentication(
-         $1::uuid,
-         $2::text,
-         $3::bigint,
-         $4::bigint,
-         $5::text,
-         $6::boolean
-       )::text AS user_id`,
+    const result = await runWebappNamedRoot<{ user_id: string | null }>(
+      getWebappSqlDb(),
+      'app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)',
       [
         input.challengeId,
         input.credentialId,
@@ -201,6 +206,14 @@ export const pgPasskeyStore: PasskeyStore = {
         input.deviceType,
         input.backedUp,
       ],
+      sql`SELECT app.passkey_complete_authentication(
+        ${input.challengeId}::uuid,
+        ${input.credentialId}::text,
+        ${input.previousCounter}::bigint,
+        ${input.newCounter}::bigint,
+        ${input.deviceType}::text,
+        ${input.backedUp}::boolean
+      )::text AS user_id`,
     );
     return result.rows[0]?.user_id ?? null;
   },

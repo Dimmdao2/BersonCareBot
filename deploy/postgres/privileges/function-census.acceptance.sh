@@ -107,7 +107,7 @@ owner|ALTER FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) OW
 public|GRANT EXECUTE ON FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) TO PUBLIC
 execute|GRANT EXECUTE ON FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) TO app_service
 rogue_login_execute|DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='function_census_rogue') THEN CREATE ROLE function_census_rogue LOGIN; END IF; END $$; GRANT EXECUTE ON FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) TO function_census_rogue
-pre_session_missing|REVOKE EXECUTE ON FUNCTION app.auth_rate_limit_count(text,text) FROM app_pre_session
+pre_session_missing|REVOKE EXECUTE ON FUNCTION app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer) FROM app_pre_session
 owner_as_member|GRANT app_service TO app_seam_dedicated_bot_owner
 member_of_owner|GRANT app_seam_dedicated_bot_owner TO app_service
 search_path|ALTER FUNCTION app.resolve_clinic_dedicated_bot_organization(text,text) SET search_path TO public

@@ -306,7 +306,6 @@ const CONTENT_TABLES: { table: string; column: string }[] = [
 /** Tables that hold identity/auth data — deleted on reset. */
 const IDENTITY_TABLES: { table: string; column: string }[] = [
   { table: 'user_channel_bindings', column: 'user_id' },
-  { table: 'user_pins', column: 'user_id' },
   { table: 'login_tokens', column: 'user_id' },
   { table: 'user_oauth_bindings', column: 'user_id' },
 ];

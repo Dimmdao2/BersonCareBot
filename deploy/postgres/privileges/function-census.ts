@@ -4,7 +4,8 @@
  *
  * The evidence census had 244 SECURITY DEFINER functions. Three obsolete context roots
  * (install_signed_context/release_principal_context/reset_principal_context) are intentionally
- * absent. The three surviving scalar accessors are supplied by REV10_CONTEXT, leaving 238
+ * absent. The three surviving scalar accessors are supplied by REV10_CONTEXT; the four legacy
+ * rate-limit components are replaced by one atomic root, leaving 235
  * business/trigger roots here. Relation surfaces are lexical upper bounds and are not grants.
  */
 import type { DeclaredFunction } from './types.ts';
@@ -22,9 +23,9 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "security": "DEFINER",
     "returns": "record",
     "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
+    "parallel": "RESTRICTED",
     "proconfig": [
-      "search_path=pg_catalog"
+      "search_path=pg_catalog, app, public, pg_temp"
     ],
     "execute": [
       "app_patient"
@@ -336,7 +337,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_pre_session"
+      "app_worker"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
     "typedArgs": [
@@ -371,7 +372,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_pre_session"
+      "app_worker"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
     "typedArgs": [
@@ -406,7 +407,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_pre_session"
+      "app_worker"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
     "typedArgs": [
@@ -441,7 +442,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_pre_session"
+      "app_worker"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
     "typedArgs": [
@@ -481,7 +482,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_pre_session"
+      "app_worker"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
     "typedArgs": [
@@ -507,201 +508,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT",
           "INSERT",
           "DELETE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_email_setup_delete(uuid)": {
-    "owner": "app_seam_phone_binding_owner",
-    "security": "DEFINER",
-    "returns": "boolean",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
-    "typedArgs": [
-      "uuid"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_email_setup_tokens",
-        "columns": [
-          "id"
-        ],
-        "operations": [
-          "SELECT",
-          "DELETE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_email_setup_insert(uuid,text,text,timestamp with time zone,text,uuid)": {
-    "owner": "app_seam_phone_binding_owner",
-    "security": "DEFINER",
-    "returns": "uuid",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
-    "typedArgs": [
-      "uuid",
-      "text",
-      "text",
-      "timestamp with time zone",
-      "text",
-      "uuid"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_email_setup_tokens",
-        "columns": [
-          "id",
-          "user_id",
-          "email_normalized",
-          "token_hash",
-          "expires_at",
-          "source",
-          "created_by_user_id"
-        ],
-        "operations": [
-          "INSERT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_email_setup_mark_used(uuid)": {
-    "owner": "app_seam_phone_binding_owner",
-    "security": "DEFINER",
-    "returns": "boolean",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
-    "typedArgs": [
-      "uuid"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_email_setup_tokens",
-        "columns": [
-          "id",
-          "expires_at",
-          "used_at",
-          "revoked_at"
-        ],
-        "operations": [
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_email_setup_read(text)": {
-    "owner": "app_seam_phone_binding_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "volatility": "STABLE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
-    "typedArgs": [
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_email_setup_tokens",
-        "columns": [
-          "id",
-          "user_id",
-          "email_normalized",
-          "token_hash",
-          "expires_at",
-          "used_at",
-          "revoked_at"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_email_setup_revoke_active(uuid,text)": {
-    "owner": "app_seam_phone_binding_owner",
-    "security": "DEFINER",
-    "returns": "integer",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_phone_binding_owner",
-    "typedArgs": [
-      "uuid",
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_email_setup_tokens",
-        "columns": [
-          "user_id",
-          "email_normalized",
-          "used_at",
-          "revoked_at"
-        ],
-        "operations": [
-          "UPDATE"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
@@ -1090,46 +896,10 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.auth_rate_limit_count(text,text)": {
+  "app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)": {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
-    "returns": "bigint",
-    "volatility": "STABLE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
-    "typedArgs": [
-      "text",
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.auth_rate_limit_events",
-        "columns": [
-          "scope",
-          "key"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_rate_limit_prune_key(text,text,timestamp with time zone)": {
-    "owner": "app_seam_password_auth_owner",
-    "security": "DEFINER",
-    "returns": "integer",
+    "returns": "record",
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1142,45 +912,10 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text",
       "text",
-      "timestamp with time zone"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.auth_rate_limit_events",
-        "columns": [
-          "scope",
-          "key",
-          "occurred_at"
-        ],
-        "operations": [
-          "SELECT",
-          "DELETE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_rate_limit_prune_scope(text,timestamp with time zone,integer)": {
-    "owner": "app_seam_password_auth_owner",
-    "security": "DEFINER",
-    "returns": "integer",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
-    "typedArgs": [
+      "integer",
+      "integer",
       "text",
-      "timestamp with time zone",
+      "integer",
       "integer"
     ],
     "databases": [
@@ -1192,270 +927,12 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.auth_rate_limit_events",
         "columns": [
           "scope",
-          "occurred_at"
-        ],
-        "operations": [
-          "SELECT",
-          "DELETE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_rate_limit_record(text,text)": {
-    "owner": "app_seam_password_auth_owner",
-    "security": "DEFINER",
-    "returns": "void",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
-    "typedArgs": [
-      "text",
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.auth_rate_limit_events",
-        "columns": [
-          "scope",
           "key",
           "occurred_at"
         ],
         "operations": [
-          "INSERT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_user_pin_increment_failed(uuid)": {
-    "owner": "app_seam_self_security_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
-    "typedArgs": [
-      "uuid"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_pins",
-        "columns": [
-          "user_id",
-          "attempts_failed",
-          "locked_until",
-          "updated_at"
-        ],
-        "operations": [
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_user_pin_read_self()": {
-    "owner": "app_seam_self_security_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "volatility": "STABLE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_patient"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
-    "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_pins",
-        "columns": [
-          "user_id",
-          "pin_hash",
-          "attempts_failed",
-          "locked_until"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_user_pin_read(uuid)": {
-    "owner": "app_seam_self_security_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "volatility": "STABLE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
-    "typedArgs": [
-      "uuid"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_pins",
-        "columns": [
-          "user_id",
-          "pin_hash",
-          "attempts_failed",
-          "locked_until"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_user_pin_reset_attempts(uuid)": {
-    "owner": "app_seam_self_security_owner",
-    "security": "DEFINER",
-    "returns": "boolean",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
-    "typedArgs": [
-      "uuid"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_pins",
-        "columns": [
-          "user_id",
-          "attempts_failed",
-          "locked_until",
-          "updated_at"
-        ],
-        "operations": [
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_user_pin_upsert_self(text)": {
-    "owner": "app_seam_self_security_owner",
-    "security": "DEFINER",
-    "returns": "boolean",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_patient"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
-    "typedArgs": [
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_pins",
-        "columns": [
-          "user_id",
-          "pin_hash",
-          "attempts_failed",
-          "locked_until",
-          "updated_at"
-        ],
-        "operations": [
-          "INSERT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.auth_user_pin_upsert(uuid,text)": {
-    "owner": "app_seam_self_security_owner",
-    "security": "DEFINER",
-    "returns": "boolean",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
-    "typedArgs": [
-      "uuid",
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.user_pins",
-        "columns": [
-          "user_id",
-          "pin_hash",
-          "attempts_failed",
-          "locked_until",
-          "updated_at"
-        ],
-        "operations": [
+          "SELECT",
+          "DELETE",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -3939,7 +3416,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_pre_session"
+      "app_patient"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
@@ -5142,6 +4619,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
+      "app_pre_session",
       "app_patient"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
@@ -5262,6 +4740,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
+      "app_pre_session",
       "app_patient"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
@@ -9316,20 +8795,19 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.read_saas_billing_payment_provider()": {
+  "app.read_saas_billing_payment_provider_clinic()": {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "jsonb",
     "volatility": "STABLE",
-    "parallel": "UNSAFE",
+    "parallel": "RESTRICTED",
     "proconfig": [
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_clinic_billing",
-      "app_platform_settings"
+      "app_clinic_billing"
     ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_payment_webhook_owner",
+    "purpose": "billing.clinic.provider.read",
     "typedArgs": [],
     "databases": [
       "bersoncarebot_test",
@@ -9350,6 +8828,44 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
+    "invocation": "runtime"
+  },
+  "app.read_saas_billing_payment_provider_platform()": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": ["search_path=pg_catalog"],
+    "execute": ["app_platform_settings"],
+    "purpose": "billing.platform.provider.read",
+    "typedArgs": [],
+    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "relationSurfaces": [{
+      "relation": "public.system_settings",
+      "columns": ["key", "scope", "value_json", "organization_id"],
+      "operations": ["SELECT"],
+      "evidence": "pg16-function-body-lexical-upper-bound"
+    }],
+    "invocation": "runtime"
+  },
+  "app.read_saas_billing_payment_provider_preauth()": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": ["search_path=pg_catalog"],
+    "execute": ["app_pre_session"],
+    "purpose": "billing.webhook.provider.read",
+    "typedArgs": [],
+    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "relationSurfaces": [{
+      "relation": "public.system_settings",
+      "columns": ["key", "scope", "value_json", "organization_id"],
+      "operations": ["SELECT"],
+      "evidence": "pg16-function-body-lexical-upper-bound"
+    }],
     "invocation": "runtime"
   },
   "app.read_saas_isolation_events()": {
@@ -11015,7 +10531,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_public_slug_owner",
     "typedArgs": [
@@ -11025,9 +10541,25 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "bersoncarebot_test",
       "bcb_webapp_dev"
     ],
-    "relationSurfaces": [],
-    "delegatesTo": [
-      "app.resolve_public_organization_slug(text)"
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": ["id", "is_active"],
+        "operations": ["SELECT"],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.clinic_public_directory_entries",
+        "columns": ["organization_id", "slug", "is_published"],
+        "operations": ["SELECT"],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.organization_slug_claims",
+        "columns": ["id", "slug", "kind", "organization_id"],
+        "operations": ["SELECT"],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
     ],
     "invocation": "runtime"
   },
@@ -11041,7 +10573,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_public_slug_owner",
     "typedArgs": [
@@ -11096,14 +10628,14 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "security": "DEFINER",
     "returns": "record",
     "volatility": "STABLE",
-    "parallel": "UNSAFE",
+    "parallel": "RESTRICTED",
     "proconfig": [
-      "search_path=pg_catalog"
+      "search_path=pg_catalog, app, public, pg_temp"
     ],
     "execute": [
-      "app_pre_session"
+      "app_worker"
     ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_payment_webhook_owner",
+    "purpose": "billing.webhook.invoice.resolve",
     "typedArgs": [
       "text",
       "text"
@@ -11129,6 +10661,26 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
+    "invocation": "runtime"
+  },
+  "app.resolve_saas_billing_refund_for_webhook(text,text)": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": ["search_path=pg_catalog, app, public, pg_temp"],
+    "execute": ["app_worker"],
+    "purpose": "billing.webhook.refund.resolve",
+    "typedArgs": ["text", "text"],
+    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "relationSurfaces": [{
+      "relation": "public.saas_billing_refunds",
+      "columns": ["id", "organization_id", "saas_billing_invoice_id", "amount_minor", "currency", "status",
+        "provider_id", "provider_refund_ref", "provider_idempotency_key", "confirmed_at", "created_at", "updated_at"],
+      "operations": ["SELECT"],
+      "evidence": "pg16-function-body-lexical-upper-bound"
+    }],
     "invocation": "runtime"
   },
   "app.revalidate_appointment_reminder_materialization(uuid)": {
@@ -11700,9 +11252,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "proconfig": [
       "search_path=pg_catalog"
     ],
-    "execute": [
-      "app_pre_session"
-    ],
+    "execute": [],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
     "typedArgs": [
       "uuid"
@@ -11768,7 +11318,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
-    "invocation": "runtime"
+    "invocation": "internal"
   },
   "app.set_current_patient_calendar_timezone(text,boolean)": {
     "owner": "app_seam_patient_self_actions_owner",

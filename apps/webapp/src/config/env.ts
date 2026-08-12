@@ -43,16 +43,20 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? '').trim()),
-  /** Target DB runtime: two physical webapp mTLS logins, never a generic fallback URL. */
+  /** Target DB runtime: three physical webapp mTLS logins, never a generic fallback URL. */
   DATABASE_URL_STAFF: z.string().optional().transform((v) => (v ?? '').trim()),
   DATABASE_URL_PATIENT: z.string().optional().transform((v) => (v ?? '').trim()),
+  DATABASE_URL_GLOBAL_ADMIN: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_DB_STAFF_LOGIN: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_DB_PATIENT_LOGIN: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_GLOBAL_ADMIN_LOGIN: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_DB_TLS_CA_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_DB_STAFF_CERT_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_DB_STAFF_KEY_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_DB_PATIENT_CERT_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_DB_PATIENT_KEY_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
   WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: z.string().optional().transform((v) => (v ?? '').trim()),
   /** Infrastructure key custody for U3S TOTP/recovery envelopes; parsed lazily by the typed crypto port. */
   STAFF_SECURITY_KEYRING_JSON: z.string().optional(),
@@ -213,13 +217,17 @@ const parsed = envSchema.parse({
   DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,
   DATABASE_URL_STAFF: process.env.DATABASE_URL_STAFF,
   DATABASE_URL_PATIENT: process.env.DATABASE_URL_PATIENT,
+  DATABASE_URL_GLOBAL_ADMIN: process.env.DATABASE_URL_GLOBAL_ADMIN,
   WEBAPP_DB_STAFF_LOGIN: process.env.WEBAPP_DB_STAFF_LOGIN,
   WEBAPP_DB_PATIENT_LOGIN: process.env.WEBAPP_DB_PATIENT_LOGIN,
+  WEBAPP_DB_GLOBAL_ADMIN_LOGIN: process.env.WEBAPP_DB_GLOBAL_ADMIN_LOGIN,
   WEBAPP_DB_TLS_CA_FILE: process.env.WEBAPP_DB_TLS_CA_FILE,
   WEBAPP_DB_STAFF_CERT_FILE: process.env.WEBAPP_DB_STAFF_CERT_FILE,
   WEBAPP_DB_STAFF_KEY_FILE: process.env.WEBAPP_DB_STAFF_KEY_FILE,
   WEBAPP_DB_PATIENT_CERT_FILE: process.env.WEBAPP_DB_PATIENT_CERT_FILE,
   WEBAPP_DB_PATIENT_KEY_FILE: process.env.WEBAPP_DB_PATIENT_KEY_FILE,
+  WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE: process.env.WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE,
+  WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE: process.env.WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE,
   WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: process.env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
   STAFF_SECURITY_KEYRING_JSON: process.env.STAFF_SECURITY_KEYRING_JSON,
   SESSION_COOKIE_SECRET: process.env.SESSION_COOKIE_SECRET,
@@ -354,13 +362,14 @@ export function webappReposAreInMemory(): boolean {
   const runtimeDatabaseConfigured =
     env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
       ? Boolean((env.DATABASE_URL_STAFF ?? '').trim() && (env.DATABASE_URL_PATIENT ?? '').trim())
+        && Boolean((env.DATABASE_URL_GLOBAL_ADMIN ?? '').trim())
       : Boolean((env.DATABASE_URL ?? '').trim());
   if (runtimeDatabaseConfigured) return false;
   if (isTest) return true;
   if (process.env.NODE_ENV === 'development') {
     throw new Error(
       env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
-        ? 'DATABASE_URL_STAFF and DATABASE_URL_PATIENT are required in webapp port-context mode.'
+        ? 'DATABASE_URL_STAFF, DATABASE_URL_PATIENT and DATABASE_URL_GLOBAL_ADMIN are required in webapp port-context mode.'
         : 'DATABASE_URL is not set. Configure the webapp PostgreSQL URL (e.g. apps/webapp/.env.dev or .env.local).',
     );
   }

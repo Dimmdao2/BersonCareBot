@@ -34,7 +34,6 @@ export default defineConfig({
     './db/schema/outgoingDeliveryQueue.ts',
     './db/schema/operatorHealthFailureArchive.ts',
     './db/schema/notificationDeliveryAttempts.ts',
-    './db/schema/userEmailSetupTokens.ts',
     './db/schema/specialistSignupIntents.ts',
     './db/schema/staffSecurityProfiles.ts',
     './db/schema/productAnalytics.ts',

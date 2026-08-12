@@ -33,7 +33,7 @@ export const GENERATOR_VERSION = 1;
 
 /** Канонический порядок привилегий (стабильный дифф). */
 const PRIV_ORDER = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
-const MANAGED_APPLICATION_SCHEMAS = ['public', 'app', 'integrator', 'app_ext', 'drizzle'];
+const MANAGED_APPLICATION_SCHEMAS = ['public', 'app', 'integrator', 'app_ext', 'app_control', 'drizzle'];
 
 /** Ошибка «декларация неполна» — несёт перечень мест. */
 export class DeclarationGapError extends Error {
@@ -366,8 +366,8 @@ function environmentLoginRecords(declaration, env, dbName) {
   const records = declaration.envMapping?.[env];
   if (!records) throw new DeclarationGapError([{ site: `envMapping.${env}`, reason: 'environment is absent' }]);
   const selected = Object.entries(records).filter(([, record]) => record.connect?.includes(dbName));
-  if (selected.length !== 3) {
-    throw new DeclarationGapError([{ site: `envMapping.${env}`, reason: `target ${dbName} must declare exactly three LOGIN shells, got ${selected.length}` }]);
+  if (selected.length !== 4) {
+    throw new DeclarationGapError([{ site: `envMapping.${env}`, reason: `target ${dbName} must declare exactly four LOGIN shells, got ${selected.length}` }]);
   }
   if (selected.some(([, record]) => !record.port || !record.login)) {
     throw new DeclarationGapError([{ site: `envMapping.${env}`, reason: 'target shells must be declared application port logins' }]);
@@ -375,11 +375,122 @@ function environmentLoginRecords(declaration, env, dbName) {
   return selected.sort(([a], [b]) => a.localeCompare(b));
 }
 
+/** Read-only bidirectional closure for objects whose complete identity is carried by revision 11.
+ * The org allowlist relation is declaration-derived infrastructure (`orgTableAllowlist`), while
+ * transaction-private relations and every application routine are exact declaration entries. */
+export function generateCatalogClosureVerifierSql(declaration, dbName) {
+  const db = declaration.databases?.[dbName];
+  if (!db) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
+  const relations = Object.entries(db.tables)
+    .filter(([, table]) => table.disposition === 'ACTIVE')
+    .map(([identity]) => identity);
+  relations.push(...Object.keys(declaration.portContext?.privateRelations ?? {}));
+  if (db.orgTableAllowlist) relations.push('app_control.org_table_allowlist');
+  const exactRelations = [...new Set(relations)].sort();
+  const functions = functionEntriesForDatabase(declaration.portContext, dbName)
+    .map(([signature]) => signature)
+    .sort();
+  const relationRows = exactRelations.map((identity) => {
+    const [schema, name] = identity.split('.');
+    return `(${lit(schema)}::name,${lit(name)}::name)`;
+  }).join(',\n');
+  const functionRows = functions.map((signature) => `(${lit(signature)})`).join(',\n');
+  return [
+    '-- Bidirectional revision-11 catalog closure: no missing or undeclared managed relation/routine.',
+    'DO $bcb$ DECLARE bad text; BEGIN',
+    `  WITH expected(schema_name,relation_name) AS (VALUES ${relationRows})`,
+    "  SELECT expected.schema_name || '.' || expected.relation_name INTO bad FROM expected",
+    '   WHERE pg_catalog.to_regclass(pg_catalog.format(\'%I.%I\',expected.schema_name,expected.relation_name)) IS NULL LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'declared managed relation missing: %',bad; END IF;",
+    `  WITH expected(schema_name,relation_name) AS (VALUES ${relationRows})`,
+    "  SELECT namespace.nspname || '.' || relation.relname INTO bad FROM pg_catalog.pg_class relation",
+    '   JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace',
+    "   WHERE namespace.nspname IN ('public','app','app_ext','integrator','drizzle','app_control')",
+    "     AND relation.relkind IN ('r','p','v','m','f','S')",
+    "     AND NOT (relation.relkind='S' AND EXISTS (SELECT 1 FROM pg_catalog.pg_depend dependency JOIN expected owner_relation ON dependency.refobjid=pg_catalog.to_regclass(pg_catalog.format('%I.%I',owner_relation.schema_name,owner_relation.relation_name)) WHERE dependency.classid='pg_class'::pg_catalog.regclass AND dependency.objid=relation.oid AND dependency.deptype IN ('a','i')))",
+    '     AND NOT EXISTS (SELECT 1 FROM expected WHERE expected.schema_name=namespace.nspname AND expected.relation_name=relation.relname)',
+    '   ORDER BY 1 LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared managed relation: %',bad; END IF;",
+    `  WITH expected(signature) AS (VALUES ${functionRows})`,
+    '  SELECT expected.signature INTO bad FROM expected WHERE pg_catalog.to_regprocedure(expected.signature) IS NULL LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'declared managed routine missing: %',bad; END IF;",
+    `  WITH expected(signature) AS (VALUES ${functionRows})`,
+    "  SELECT pg_catalog.format('%I.%I(%s)',namespace.nspname,routine.proname,pg_catalog.replace(pg_catalog.oidvectortypes(routine.proargtypes),', ',',')) INTO bad",
+    '   FROM pg_catalog.pg_proc routine JOIN pg_catalog.pg_namespace namespace ON namespace.oid=routine.pronamespace',
+    "   WHERE namespace.nspname IN ('public','app','app_ext','integrator')",
+    "     AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend dependency WHERE dependency.classid='pg_proc'::pg_catalog.regclass AND dependency.objid=routine.oid AND dependency.deptype='e')",
+    '     AND NOT EXISTS (SELECT 1 FROM expected WHERE routine.oid=pg_catalog.to_regprocedure(expected.signature))',
+    '   ORDER BY 1 LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared managed routine: %',bad; END IF;",
+    `  RAISE NOTICE 'BCB_CATALOG_CLOSURE_VERIFIED database=${dbName} relations=${exactRelations.length} routines=${functions.length}';`,
+    'END $bcb$;',
+    '',
+  ].join('\n');
+}
+
+/** Exact birth-wall registry for ordinary ACTIVE tables plus private relations
+ * living in schemas guarded by the event trigger.  `app_control` is deliberately
+ * excluded: the trigger does not govern its own closed metadata relations. */
+export function generateRelationWallRegistrySeedSql(declaration, dbName) {
+  const db = declaration.databases?.[dbName];
+  if (!db) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
+  const guardedSchemas = new Set(['public', 'app', 'integrator', 'app_ext']);
+  const rows = new Map();
+  const add = (identity, cls, wall, expectedOwner, site) => {
+    const { schema, name } = splitQualified(identity, site);
+    if (!guardedSchemas.has(schema)) return;
+    const row = { schema, name, cls, wall, expectedOwner };
+    const previous = rows.get(identity);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(row)) {
+      throw new DeclarationGapError([{ site, reason: `conflicting birth-wall registry row for '${identity}'` }]);
+    }
+    rows.set(identity, row);
+  };
+  for (const [identity, table] of Object.entries(db.tables)) {
+    if (table.disposition !== 'ACTIVE') continue;
+    add(
+      identity,
+      table.cls,
+      table.wall,
+      table.owner === 'migrator' ? 'app_object_owner' : table.owner,
+      `databases.${dbName}.tables.${identity}`,
+    );
+  }
+  for (const [identity, relation] of Object.entries(declaration.portContext?.privateRelations ?? {})) {
+    add(identity, 'T', 'closed', relation.owner, `portContext.privateRelations.${identity}`);
+  }
+  const exactRows = [...rows.values()].sort((a, b) =>
+    `${a.schema}.${a.name}`.localeCompare(`${b.schema}.${b.name}`));
+  if (exactRows.length === 0) {
+    throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'birth-wall registry is empty' }]);
+  }
+  const values = exactRows.map((row) =>
+    `  (${lit(row.schema)}::name, ${lit(row.name)}::name, ${lit(row.cls)}, ${lit(row.wall)}, ${lit(row.expectedOwner)}::name)`).join(',\n');
+  const ownerReconciliation = exactRows.map((row) =>
+    `ALTER TABLE ${q(row.schema)}.${q(row.name)} OWNER TO ${q(row.expectedOwner)};`).join('\n');
+  return [
+    '-- Exact declaration-derived relation birth-wall registry.',
+    `-- target database: ${dbName}; guarded rows: ${exactRows.length}`,
+    "DELETE FROM app_control.relation_wall_registry WHERE schema_name IN ('public','app','integrator','app_ext');",
+    'INSERT INTO app_control.relation_wall_registry',
+    '  (schema_name, table_name, data_class, wall, expected_owner)',
+    'VALUES',
+    values,
+    'ON CONFLICT (schema_name, table_name) DO UPDATE SET',
+    '  data_class=EXCLUDED.data_class, wall=EXCLUDED.wall, expected_owner=EXCLUDED.expected_owner;',
+    '-- Reconcile restored --no-owner tables before any later table DDL.  Each ALTER',
+    '-- is itself checked by the already-installed event trigger against the row above.',
+    ownerReconciliation,
+    '',
+  ].join('\n');
+}
+
 /** Safe declaration-derived shells created before contract/object DDL. */
 export function generateEnvLoginShellSql(declaration, env, dbName) {
   const records = environmentLoginRecords(declaration, env, dbName);
   const contractVariables = new Map([
-    ['app_staff', 'app_staff_login'], ['app_patient', 'app_patient_login'], ['app_integrator_request', 'integrator_login'],
+    ['app_staff', 'app_staff_login'], ['app_patient', 'app_patient_login'],
+    ['app_platform_settings', 'app_global_admin_login'], ['app_integrator_request', 'integrator_login'],
   ]);
   return [
     '-- Exact declaration-derived LOGIN shells; credentials/grants render last.',
@@ -673,6 +784,10 @@ export function collectGaps(declaration, dbName) {
             if (named.callers.length !== 0 || seam?.execute.length !== 0 || seam?.invocation !== 'trigger') {
               add(nsite, 'trigger seam must be caller-free and non-runtime');
             }
+          } else if (named.invocation === 'internal') {
+            if (named.callers.length !== 0 || seam?.execute.length !== 0 || seam?.invocation !== 'internal') {
+              add(nsite, 'internal delegated seam must be caller-free and non-runtime');
+            }
           } else add(nsite, `unknown invocation '${named.invocation}'`);
           const surface = seam?.relationSurfaces?.find((candidate) => candidate.relation === tableKey);
           if (!surface || named.columns.some((column) => !surface.columns.includes(column))
@@ -849,14 +964,17 @@ function isSeamOwnerName(roleName) {
     || roleName === 'saas_system_health_owner';
 }
 
-function emitMembershipRevokeToEmpty(out, roleName, bothDirections = false) {
+function emitMembershipRevokeToEmpty(out, roleName, bothDirections = false, preservedMembers = []) {
+  const preserved = preservedMembers.length > 0
+    ? ` AND pg_catalog.pg_get_userbyid(am.member) <> ALL(ARRAY[${preservedMembers.map(lit).join(', ')}]::name[])`
+    : '';
   out.push(
     'DO $bcb$',
     'DECLARE m record;',
     'BEGIN',
     '  FOR m IN SELECT pg_catalog.pg_get_userbyid(am.member) AS member',
     '             FROM pg_catalog.pg_auth_members am',
-    `            WHERE am.roleid = ${lit(roleName)}::regrole ORDER BY 1 LOOP`,
+    `            WHERE am.roleid = ${lit(roleName)}::regrole${preserved} ORDER BY 1 LOOP`,
     `    EXECUTE pg_catalog.format('REVOKE %I FROM %I', ${lit(roleName)}, m.member);`,
     '  END LOOP;',
     'END',
@@ -937,43 +1055,27 @@ export function generateZeroStateSql(declaration, dbName, options = {}) {
     "INSERT INTO bcb_zero_state_grantees VALUES (0, 'PUBLIC');",
     "INSERT INTO bcb_zero_state_grantees SELECT oid, pg_catalog.format('%I', rolname) FROM pg_catalog.pg_roles WHERE rolname <> 'postgres';",
     '',
-    '-- Stop every non-superuser session in this database; exact application identities are disabled cluster-wide.',
+    '-- Stop every non-superuser session in this database. Cluster role attributes and memberships are untouched.',
     'SELECT pg_catalog.pg_terminate_backend(activity.pid)',
     '  FROM pg_catalog.pg_stat_activity activity',
     '  JOIN pg_catalog.pg_roles session_role ON session_role.rolname = activity.usename',
     ' WHERE activity.datname = pg_catalog.current_database()',
     '   AND activity.pid <> pg_catalog.pg_backend_pid() AND NOT session_role.rolsuper;',
+    '-- A prior revision-11 install may already have the target-local birth wall.  Remove only',
+    '-- that event trigger before the neutral-owner pass; the install transaction recreates it.',
+    'DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall;',
     'DO $bcb$ DECLARE target record; BEGIN',
     '  FOR target IN SELECT role_name FROM bcb_zero_state_existing_roles ORDER BY role_name LOOP',
-    "    EXECUTE pg_catalog.format('ALTER ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS', target.role_name);",
-    "    EXECUTE pg_catalog.format('ALTER ROLE %I RESET ALL', target.role_name);",
     `    EXECUTE pg_catalog.format('ALTER ROLE %I IN DATABASE %I RESET ALL', target.role_name, ${lit(dbName)});`,
-    '  END LOOP;',
-    'END $bcb$;',
-    'DO $bcb$ DECLARE edge record; BEGIN',
-    '  FOR edge IN',
-    '    SELECT granted.rolname AS granted_role, member.rolname AS member_role',
-    '      FROM pg_catalog.pg_auth_members membership',
-    '      JOIN pg_catalog.pg_roles granted ON granted.oid = membership.roleid',
-    '      JOIN pg_catalog.pg_roles member ON member.oid = membership.member',
-    '     WHERE granted.rolname IN (SELECT role_name FROM bcb_zero_state_existing_roles)',
-    '        OR member.rolname IN (SELECT role_name FROM bcb_zero_state_existing_roles)',
-    '     ORDER BY 1, 2',
-    '  LOOP',
-    "    EXECUTE pg_catalog.format('REVOKE %I FROM %I', edge.granted_role, edge.member_role);",
     '  END LOOP;',
     'END $bcb$;',
     '',
     '-- Preserve every object, but remove ownership, ACL and default-ACL dependencies of retired identities.',
     `ALTER DATABASE ${q(dbName)} OWNER TO postgres;`,
     `REVOKE ALL PRIVILEGES ON DATABASE ${q(dbName)} FROM PUBLIC;`,
-    'DO $bcb$ DECLARE target record; BEGIN',
-    '  FOR target IN SELECT role_name FROM bcb_zero_state_existing_roles ORDER BY role_name LOOP',
-    `    EXECUTE pg_catalog.format('REVOKE ALL PRIVILEGES ON DATABASE %I FROM %I', ${lit(dbName)}, target.role_name);`,
-    "    EXECUTE pg_catalog.format('REASSIGN OWNED BY %I TO postgres', target.role_name);",
-    "    EXECUTE pg_catalog.format('DROP OWNED BY %I', target.role_name);",
-    '  END LOOP;',
-    'END $bcb$;',
+    '-- REASSIGN OWNED / DROP OWNED are intentionally forbidden here: PostgreSQL also applies',
+    '-- them to shared database objects and would revoke or rewrite the sibling database.  The',
+    '-- catalog-driven owner/ACL/default-ACL passes below are exact to current_database().',
     '',
     '-- One neutral DBA owner remains; every non-system schema and object is preserved.',
     'DO $bcb$ DECLARE object record; BEGIN',
@@ -1136,18 +1238,8 @@ export function generateZeroStateSql(declaration, dbName, options = {}) {
     '  END LOOP;',
     'END $bcb$;',
     '',
-    '-- Bilateral zero-state verifier: ACL, ownership, membership, defaults, policies and FORCE RLS.',
+    '-- Per-database zero-state verifier: ACL, ownership, defaults, policies and FORCE RLS.',
     'DO $bcb$ DECLARE bad text; BEGIN',
-    '  SELECT role_name INTO bad FROM bcb_zero_state_roles target JOIN pg_catalog.pg_roles role ON role.rolname = target.role_name',
-    '   WHERE role.rolcanlogin OR role.rolsuper OR role.rolcreatedb OR role.rolcreaterole OR role.rolinherit OR role.rolreplication OR role.rolbypassrls LIMIT 1;',
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'zero-state unsafe role attributes: %', bad; END IF;",
-    '  SELECT granted.rolname || \'->\' || member.rolname INTO bad',
-    '    FROM pg_catalog.pg_auth_members membership',
-    '    JOIN pg_catalog.pg_roles granted ON granted.oid = membership.roleid',
-    '    JOIN pg_catalog.pg_roles member ON member.oid = membership.member',
-    '   WHERE granted.rolname IN (SELECT role_name FROM bcb_zero_state_roles)',
-    '      OR member.rolname IN (SELECT role_name FROM bcb_zero_state_roles) LIMIT 1;',
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'zero-state membership survived: %', bad; END IF;",
     '  SELECT namespace.nspname || \'.\' || relation.relname INTO bad',
     '    FROM pg_catalog.pg_class relation JOIN pg_catalog.pg_namespace namespace ON namespace.oid = relation.relnamespace',
     "   WHERE namespace.nspname <> 'information_schema' AND namespace.nspname !~ '^pg_' AND relation.relkind IN ('r','p')",
@@ -1200,16 +1292,23 @@ export function generateZeroStateSql(declaration, dbName, options = {}) {
   return `${out.join('\n')}\n`;
 }
 
-/** Drop the exact application principals only after every managed database passed generateZeroStateSql. */
+/** Legacy-only cluster cleanup. Shared target roles and declared runtime logins are never candidates.
+ * A legacy role is removed only when the cluster catalog proves that no database, membership or
+ * active backend still depends on it; otherwise it remains inert for a later target cutover. */
 export function generateZeroStateClusterSql(declaration, options = {}) {
   const source = options.source ?? 'deploy/postgres/privileges/declaration.ts';
-  const roles = zeroStateRoleNames(declaration);
+  const managed = new Set(managedRoleNames(declaration));
+  const declaredLogins = new Set(Object.values(declaration.envMapping ?? {}).flatMap((records) => Object.keys(records)));
+  const roles = [...new Set(declaration.zeroState?.legacyRoles ?? [])]
+    .filter((role) => !managed.has(role) && !declaredLogins.has(role))
+    .sort();
+  if (roles.length === 0) throw new DeclarationGapError([{ site: 'zeroState.legacyRoles', reason: 'no legacy-only roles declared' }]);
   const roleArray = `ARRAY[${roles.map(lit).join(', ')}]::name[]`;
   const out = [
     '-- ============================================================================',
-    '-- СГЕНЕРИРОВАННЫЙ ФИНАЛИЗАТОР ТОЧКИ НОЛЬ — УДАЛЯЕТ EXACT APPLICATION ROLES.',
+    '-- СГЕНЕРИРОВАННАЯ УБОРКА LEGACY ROLES — SHARED TARGET ROLES НЕ УДАЛЯЕТ.',
     `-- источник:   ${source}`,
-    '-- применять только после zero-state.<db>.sql для КАЖДОЙ управляемой базы.',
+    '-- безопасно повторять после per-database zero; роли с зависимостями остаются до следующего target.',
     '-- ============================================================================',
     '',
     '\\set ON_ERROR_STOP on',
@@ -1217,59 +1316,157 @@ export function generateZeroStateClusterSql(declaration, options = {}) {
     'CREATE TEMP TABLE bcb_zero_state_cluster_guard ON COMMIT DROP AS SELECT 1;',
     'CREATE TEMP TABLE bcb_zero_state_cluster_roles (role_name name PRIMARY KEY) ON COMMIT DROP;',
     `INSERT INTO bcb_zero_state_cluster_roles SELECT rolname FROM pg_catalog.pg_roles WHERE rolname = ANY (${roleArray});`,
-    'DO $bcb$ DECLARE target record; database record; edge record; BEGIN',
+    'DO $bcb$ DECLARE target record; dependency_count bigint; membership_count bigint; backend_count bigint; BEGIN',
     `  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = ANY (${roleArray}) AND rolsuper) THEN`,
     "    RAISE EXCEPTION 'application identity is SUPERUSER; cluster zero-state refused';",
     '  END IF;',
-    '  FOR edge IN',
-    '    SELECT granted.rolname AS granted_role, member.rolname AS member_role',
-    '      FROM pg_catalog.pg_auth_members membership',
-    '      JOIN pg_catalog.pg_roles granted ON granted.oid = membership.roleid',
-    '      JOIN pg_catalog.pg_roles member ON member.oid = membership.member',
-    '     WHERE granted.rolname IN (SELECT role_name FROM bcb_zero_state_cluster_roles)',
-    '        OR member.rolname IN (SELECT role_name FROM bcb_zero_state_cluster_roles)',
-    '     ORDER BY 1, 2 LOOP',
-    "    EXECUTE pg_catalog.format('REVOKE %I FROM %I', edge.granted_role, edge.member_role);",
-    '  END LOOP;',
     '  FOR target IN SELECT role_name FROM bcb_zero_state_cluster_roles ORDER BY role_name LOOP',
-    "    EXECUTE pg_catalog.format('ALTER ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS', target.role_name);",
-    "    EXECUTE pg_catalog.format('ALTER ROLE %I RESET ALL', target.role_name);",
-    '    FOR database IN SELECT datname FROM pg_catalog.pg_database ORDER BY datname LOOP',
-    "      EXECUTE pg_catalog.format('ALTER ROLE %I IN DATABASE %I RESET ALL', target.role_name, database.datname);",
-    '    END LOOP;',
-    '  END LOOP;',
-    '  FOR target IN SELECT role_name FROM bcb_zero_state_cluster_roles ORDER BY role_name LOOP',
-    "    EXECUTE pg_catalog.format('DROP ROLE %I', target.role_name);",
+    '    SELECT count(*) INTO dependency_count FROM pg_catalog.pg_shdepend dependency',
+    "     WHERE dependency.refclassid = 'pg_authid'::pg_catalog.regclass",
+    '       AND dependency.refobjid = target.role_name::regrole;',
+    '    SELECT count(*) INTO membership_count FROM pg_catalog.pg_auth_members membership',
+    '     WHERE membership.roleid = target.role_name::regrole OR membership.member = target.role_name::regrole;',
+    '    SELECT count(*) INTO backend_count FROM pg_catalog.pg_stat_activity activity WHERE activity.usename = target.role_name;',
+    '    IF dependency_count = 0 AND membership_count = 0 AND backend_count = 0 THEN',
+    "      EXECUTE pg_catalog.format('DROP ROLE %I', target.role_name);",
+    '    ELSE',
+    "      RAISE NOTICE 'legacy role % retained: dependencies=%, memberships=%, backends=%', target.role_name, dependency_count, membership_count, backend_count;",
+    '    END IF;',
     '  END LOOP;',
     'END $bcb$;',
     'DO $bcb$ BEGIN',
-    `  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = ANY (${roleArray})) THEN`,
-    "    RAISE EXCEPTION 'zero-state application role survived cluster finalizer';",
-    '  END IF;',
-    "  RAISE NOTICE 'BCB_ZERO_STATE_CLUSTER_VERIFIED';",
+    "  RAISE NOTICE 'BCB_LEGACY_ROLE_CLEANUP_RECONCILED';",
     'END $bcb$;',
     '',
-    '-- end zero-state cluster finalizer.',
+    '-- end legacy-only cluster cleanup.',
   ];
   return `${out.join('\n')}\n`;
 }
 
-/** Read-only post-zero precondition used by installer.  The expected identity
- * table is literal declaration data, so a clean cluster cannot make it empty. */
-export function generateZeroStateVerifierSql(declaration, dbName) {
-  const roles = zeroStateRoleNames(declaration);
-  const roleArray = `ARRAY[${roles.map(lit).join(', ')}]::name[]`;
+/** Idempotent shared role baseline. It never drops a role and keeps every declared login-to-role
+ * edge, including a sibling environment that has already completed its cutover. */
+export function generateSharedRoleBaselineSql(declaration) {
+  const managed = managedRoleNames(declaration);
+  const expectedMemberships = [];
+  for (const [roleName, role] of Object.entries(declaration.cluster.roles)) {
+    if (role.kind === 'superuser') continue;
+    for (const membership of role.grantedTo ?? []) {
+      expectedMemberships.push([roleName, membership.role, membership.admin, membership.inherit, membership.set]);
+    }
+  }
+  for (const records of Object.values(declaration.envMapping ?? {})) {
+    for (const [loginName, record] of Object.entries(records)) {
+      for (const membership of record.memberships ?? []) {
+        expectedMemberships.push([
+          membership.role, loginName, membership.admin, membership.inherit, membership.set,
+        ]);
+      }
+    }
+  }
+  const rows = expectedMemberships
+    .sort(([aRole, aMember], [bRole, bMember]) => `${aRole}:${aMember}`.localeCompare(`${bRole}:${bMember}`))
+    .map(([role, member, admin, inherit, set]) => `(${lit(role)}::name,${lit(member)}::name,${admin},${inherit},${set})`);
+  const expectedSql = rows.length > 0 ? rows.join(',\n') : "(''::name,''::name,false,false,false)";
+  const out = [
+    '-- Idempotent shared target-role baseline; no DROP ROLE and no per-database object DDL.',
+    'CREATE TEMP TABLE bcb_expected_shared_memberships(role_name name, member_name name, admin_option boolean, inherit_option boolean, set_option boolean) ON COMMIT DROP;',
+    `INSERT INTO bcb_expected_shared_memberships VALUES ${expectedSql};`,
+  ];
+  for (const roleName of managed) {
+    const role = declaration.cluster.roles[roleName];
+    out.push(
+      'DO $bcb$', 'BEGIN',
+      `  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=${lit(roleName)}) THEN CREATE ROLE ${q(roleName)} NOLOGIN; END IF;`,
+      'END', '$bcb$;',
+      `ALTER ROLE ${q(roleName)} ${roleAttributeClause(role)};`,
+    );
+    emitRolconfig(out, roleName, role.rolconfig, `cluster.roles.${roleName}.rolconfig`);
+  }
+  out.push(
+    'DO $bcb$ DECLARE edge record; BEGIN',
+    '  FOR edge IN SELECT granted.rolname AS role_name, member.rolname AS member_name',
+    '    FROM pg_catalog.pg_auth_members membership',
+    '    JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid',
+    '    JOIN pg_catalog.pg_roles member ON member.oid=membership.member',
+    `   WHERE (granted.rolname=ANY(ARRAY[${managed.map(lit).join(', ')}]::name[]) OR member.rolname=ANY(ARRAY[${managed.map(lit).join(', ')}]::name[]))`,
+    '     AND NOT EXISTS (SELECT 1 FROM bcb_expected_shared_memberships expected WHERE expected.role_name=granted.rolname AND expected.member_name=member.rolname AND expected.admin_option=membership.admin_option AND expected.inherit_option=membership.inherit_option AND expected.set_option=membership.set_option)',
+    '   ORDER BY 1,2 LOOP',
+    "    EXECUTE pg_catalog.format('REVOKE %I FROM %I',edge.role_name,edge.member_name);",
+    '  END LOOP;',
+    'END $bcb$;',
+    'DO $bcb$ DECLARE edge record; BEGIN',
+    '  FOR edge IN SELECT expected.* FROM bcb_expected_shared_memberships expected',
+    '   WHERE EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=expected.role_name)',
+    '     AND EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=expected.member_name)',
+    '   ORDER BY expected.role_name,expected.member_name LOOP',
+    "    EXECUTE pg_catalog.format('GRANT %I TO %I WITH ADMIN %s, INHERIT %s, SET %s',edge.role_name,edge.member_name,CASE WHEN edge.admin_option THEN 'TRUE' ELSE 'FALSE' END,CASE WHEN edge.inherit_option THEN 'TRUE' ELSE 'FALSE' END,CASE WHEN edge.set_option THEN 'TRUE' ELSE 'FALSE' END);",
+    '  END LOOP;',
+    'END $bcb$;',
+    "DO $bcb$ BEGIN RAISE NOTICE 'BCB_SHARED_ROLE_BASELINE_RECONCILED'; END $bcb$;",
+    '',
+  );
+  return out.join('\n');
+}
+
+/** Drop only the selected environment's login shells after the target database is proven zero.
+ * Legacy roles are opportunistic: they are removed only after the same cross-database dependency
+ * proof, and otherwise retained for the sibling database's later cutover. */
+export function generateTargetLoginCleanupSql(declaration, env, dbName) {
+  const records = environmentLoginRecords(declaration, env, dbName);
+  const targetLogins = records.map(([name]) => name);
+  const managed = new Set(managedRoleNames(declaration));
+  const declaredLogins = new Set(Object.values(declaration.envMapping ?? {}).flatMap((mapping) => Object.keys(mapping)));
+  const legacy = [...new Set(declaration.zeroState?.legacyRoles ?? [])]
+    .filter((name) => !managed.has(name) && !declaredLogins.has(name))
+    .sort();
+  const candidates = [
+    ...targetLogins.map((name) => `(${lit(name)}::name,true)`),
+    ...legacy.map((name) => `(${lit(name)}::name,false)`),
+  ].join(',\n');
   return [
-    '-- Declaration-owned bilateral post-zero verifier (read-only).',
-    'CREATE TEMP TABLE bcb_zero_state_roles (role_name name PRIMARY KEY) ON COMMIT DROP;',
-    `INSERT INTO bcb_zero_state_roles(role_name) VALUES ${zeroStateExpectedRoleSql(declaration)};`,
+    '-- Cross-database dependency-gated cleanup for one target environment.',
+    'CREATE TEMP TABLE bcb_target_login_cleanup(role_name name PRIMARY KEY, required_target boolean) ON COMMIT DROP;',
+    `INSERT INTO bcb_target_login_cleanup VALUES ${candidates};`,
+    'DO $bcb$ DECLARE candidate record; edge record; role_oid oid; dependency_count bigint; membership_count bigint; backend_count bigint; BEGIN',
+    `  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_database WHERE datname=${lit(dbName)}) THEN RAISE EXCEPTION 'target database does not exist: %',${lit(dbName)}; END IF;`,
+    '  FOR candidate IN SELECT * FROM bcb_target_login_cleanup ORDER BY required_target DESC,role_name LOOP',
+    '    SELECT oid INTO role_oid FROM pg_catalog.pg_roles WHERE rolname=candidate.role_name;',
+    '    IF role_oid IS NULL THEN CONTINUE; END IF;',
+    '    SELECT count(*) INTO dependency_count FROM pg_catalog.pg_shdepend dependency',
+    "     WHERE dependency.refclassid='pg_authid'::pg_catalog.regclass AND dependency.refobjid=role_oid;",
+    '    SELECT count(*) INTO membership_count FROM pg_catalog.pg_auth_members membership',
+    '     WHERE membership.roleid=role_oid OR membership.member=role_oid;',
+    '    SELECT count(*) INTO backend_count FROM pg_catalog.pg_stat_activity activity WHERE activity.usesysid=role_oid;',
+    '    IF dependency_count <> 0 OR (NOT candidate.required_target AND membership_count <> 0) OR backend_count <> 0 THEN',
+    '      IF candidate.required_target THEN',
+    "        RAISE EXCEPTION 'target login % has cross-database/cluster dependencies: dependencies=%, memberships=%, backends=%',candidate.role_name,dependency_count,membership_count,backend_count;",
+    '      END IF;',
+    "      RAISE NOTICE 'legacy role % retained: dependencies=%, memberships=%, backends=%',candidate.role_name,dependency_count,membership_count,backend_count;",
+    '      CONTINUE;',
+    '    END IF;',
+    '    IF candidate.required_target THEN',
+    '      PERFORM pg_catalog.pg_terminate_backend(pid) FROM pg_catalog.pg_stat_activity WHERE usesysid=role_oid AND pid<>pg_catalog.pg_backend_pid();',
+    '      FOR edge IN SELECT granted.rolname AS role_name,member.rolname AS member_name FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE membership.roleid=role_oid OR membership.member=role_oid LOOP',
+    "        EXECUTE pg_catalog.format('REVOKE %I FROM %I',edge.role_name,edge.member_name);",
+    '      END LOOP;',
+    '    END IF;',
+    "    EXECUTE pg_catalog.format('DROP ROLE %I',candidate.role_name);",
+    '  END LOOP;',
+    'END $bcb$;',
+    `DO $bcb$ DECLARE bad name; BEGIN SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${targetLogins.map(lit).join(', ')}]::name[]) LIMIT 1; IF bad IS NOT NULL THEN RAISE EXCEPTION 'target login cleanup incomplete: %',bad; END IF; RAISE NOTICE 'BCB_TARGET_LOGIN_CLEANUP_VERIFIED env=${env} database=${dbName}'; END $bcb$;`,
+    '',
+  ].join('\n');
+}
+
+/** Read-only per-database post-zero precondition used by the single-target installer.
+ * Shared cluster roles and sibling-environment logins may legitimately remain. */
+export function generateZeroStateVerifierSql(declaration, dbName) {
+  if (!declaration.databases?.[dbName]) {
+    throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
+  }
+  return [
+    '-- Declaration-owned per-database post-zero verifier (read-only).',
     'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
-    `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(${roleArray}) LIMIT 1;`,
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'zero-state declared identity survived: %', bad; END IF;",
-    `  SELECT role.rolname INTO bad FROM pg_catalog.pg_roles role WHERE role.rolname=ANY(${roleArray}) AND (role.rolcanlogin OR role.rolsuper OR role.rolcreatedb OR role.rolcreaterole OR role.rolinherit OR role.rolreplication OR role.rolbypassrls) LIMIT 1;`,
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'zero-state unsafe role attributes: %', bad; END IF;",
-    `  SELECT granted.rolname || '->' || member.rolname INTO bad FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE granted.rolname=ANY(${roleArray}) OR member.rolname=ANY(${roleArray}) LIMIT 1;`,
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'zero-state membership survived: %', bad; END IF;",
     "  SELECT namespace.nspname || '.' || relation.relname INTO bad FROM pg_catalog.pg_class relation JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace WHERE namespace.nspname <> 'information_schema' AND namespace.nspname !~ '^pg_' AND relation.relkind IN ('r','p') AND (NOT relation.relrowsecurity OR NOT relation.relforcerowsecurity) LIMIT 1;",
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'zero-state table is not FORCE RLS: %', bad; END IF;",
     "  SELECT namespace.nspname || '.' || relation.relname || ':' || policy.polname INTO bad FROM pg_catalog.pg_policy policy JOIN pg_catalog.pg_class relation ON relation.oid=policy.polrelid JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace WHERE namespace.nspname <> 'information_schema' AND namespace.nspname !~ '^pg_' LIMIT 1;",
@@ -1412,6 +1609,8 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   const { roles, logins } = principals(declaration);
   const dbLogins = Object.entries(declaration.envMapping ?? {}).flatMap(([, mapping]) =>
     Object.entries(mapping).filter(([, login]) => login.connect?.includes(dbName)).map(([name]) => name));
+  const allDeclaredLoginNames = [...new Set(Object.values(declaration.envMapping ?? {})
+    .flatMap((mapping) => Object.keys(mapping)))].sort();
   const managed = managedRoleNames(declaration);
   const dbOwner = db.database.owner;
   const isLogin = (name) => logins.has(name) && !roles.has(name);
@@ -1532,7 +1731,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     if (role.kind === 'superuser') continue;
     if (Array.isArray(role.members) && role.members.length === 0) {
       out.push(`-- ${roleName}: members: [] — ноль членов в стационаре (SCHEME §C/§E).`);
-      emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName));
+      emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName), allDeclaredLoginNames);
     }
     for (const m of [...(role.grantedTo ?? [])].sort((a, b) => a.role.localeCompare(b.role))) {
       if (isLogin(m.role)) {

@@ -1,6 +1,6 @@
 -- Explicitly invoked unjournaled post-zero cutover artifact.
 -- It is intentionally outside Drizzle: installer `install-post-zero.mjs` runs it only
--- after the bilateral zero-state verifier and inside the same atomic transaction.
+-- after the target database zero-state verifier and inside the same atomic transaction.
 
 -- The transaction-bound port contract replaces the legacy signed session-row
 -- context completely. Retaining either installer would leave a second DB door.
@@ -86,6 +86,969 @@ ALTER TABLE public.user_channel_bindings
 COMMENT ON COLUMN public.user_channel_bindings.display_handle IS
   'Current channel-supplied public handle without a leading @; presentation adds @ where appropriate.';
 
+
+-- One atomic admission root replaces the old prune/count/record command sequence.
+-- Dropping the components also removes their historical EXECUTE ACLs.
+DROP FUNCTION IF EXISTS app.auth_rate_limit_prune_scope(text, timestamptz, integer);
+DROP FUNCTION IF EXISTS app.auth_rate_limit_prune_key(text, text, timestamptz);
+DROP FUNCTION IF EXISTS app.auth_rate_limit_count(text, text);
+DROP FUNCTION IF EXISTS app.auth_rate_limit_record(text, text);
+
+CREATE OR REPLACE FUNCTION app.auth_rate_limit_check_and_record(
+  p_scope text,
+  p_key text,
+  p_window_ms integer,
+  p_limit integer,
+  p_action text,
+  p_scope_retention_ms integer,
+  p_scope_prune_batch integer
+)
+RETURNS TABLE (limited boolean, attempts integer)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE
+  v_now timestamptz := statement_timestamp();
+  v_attempts integer;
+  v_batch integer;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_password_auth_owner', 'app_pre_session', 'pre_session',
+    'auth.rate-limit.check-record',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_scope))::app.port_typed_arg,
+      ROW('text@1', textsend(p_key))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_window_ms))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_limit))::app.port_typed_arg,
+      ROW('text@1', textsend(p_action))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_scope_retention_ms))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_scope_prune_batch))::app.port_typed_arg
+    ]),
+    'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'::regprocedure
+  );
+
+  IF p_scope IS NULL OR length(p_scope) NOT BETWEEN 1 AND 128
+     OR p_key IS NULL OR length(p_key) NOT BETWEEN 1 AND 1024
+     OR p_window_ms IS NULL OR p_window_ms < 1
+     OR p_limit IS NULL OR p_limit < 0
+     OR p_action IS DISTINCT FROM 'check_and_record'
+     OR ((p_scope_retention_ms IS NULL) <> (p_scope_prune_batch IS NULL))
+     OR (p_scope_retention_ms IS NOT NULL AND p_scope_retention_ms < p_window_ms)
+     OR (p_scope_prune_batch IS NOT NULL AND p_scope_prune_batch < 1) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'invalid auth rate-limit request';
+  END IF;
+
+  IF p_scope_retention_ms IS NOT NULL
+     AND pg_try_advisory_xact_lock(hashtext('auth-rate-limit-scope-prune:' || p_scope)) THEN
+    v_batch := LEAST(1000, p_scope_prune_batch);
+    WITH stale AS (
+      SELECT event.ctid
+        FROM public.auth_rate_limit_events event
+       WHERE event.scope = p_scope
+         AND event.occurred_at <= v_now - p_scope_retention_ms * interval '1 millisecond'
+       ORDER BY event.occurred_at
+       LIMIT v_batch
+       FOR UPDATE SKIP LOCKED
+    )
+    DELETE FROM public.auth_rate_limit_events event
+    USING stale
+    WHERE event.ctid = stale.ctid;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(p_scope || ':' || p_key));
+  DELETE FROM public.auth_rate_limit_events event
+   WHERE event.scope = p_scope
+     AND event.key = p_key
+     AND event.occurred_at <= v_now - p_window_ms * interval '1 millisecond';
+
+  SELECT LEAST(count(*), 2147483647)::integer
+    INTO v_attempts
+    FROM public.auth_rate_limit_events event
+   WHERE event.scope = p_scope
+     AND event.key = p_key;
+
+  IF v_attempts >= p_limit THEN
+    RETURN QUERY SELECT true, v_attempts;
+    RETURN;
+  END IF;
+
+  INSERT INTO public.auth_rate_limit_events (scope, key, occurred_at)
+  VALUES (p_scope, p_key, v_now);
+  RETURN QUERY SELECT false, v_attempts + 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_oauth_find_user(
+  p_provider text,
+  p_provider_user_id text
+)
+RETURNS TABLE (user_id uuid)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_oauth_owner', 'app_pre_session', 'pre_session', 'auth.oauth.callback.find-binding',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_provider))::app.port_typed_arg,
+      ROW('text@1', textsend(p_provider_user_id))::app.port_typed_arg
+    ]), 'app.auth_oauth_find_user(text,text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT binding.user_id
+    FROM public.user_oauth_bindings binding
+   WHERE p_provider IN ('google', 'apple', 'yandex')
+     AND p_provider_user_id IS NOT NULL
+     AND btrim(p_provider_user_id) <> ''
+     AND binding.provider = p_provider
+     AND binding.provider_user_id = p_provider_user_id
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_oauth_upsert_binding(
+  p_user_id uuid,
+  p_provider text,
+  p_provider_user_id text,
+  p_email text
+)
+RETURNS TABLE (inserted boolean, user_id uuid)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE
+  v_user_id uuid;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_oauth_owner', 'app_pre_session', 'pre_session', 'auth.oauth.callback.upsert-binding',
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_provider))::app.port_typed_arg,
+      ROW('text@1', textsend(p_provider_user_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_email))::app.port_typed_arg
+    ]), 'app.auth_oauth_upsert_binding(uuid,text,text,text)'::regprocedure
+  );
+  IF p_user_id IS NULL
+     OR p_provider NOT IN ('google', 'apple', 'yandex')
+     OR p_provider_user_id IS NULL
+     OR btrim(p_provider_user_id) = '' THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO public.user_oauth_bindings (user_id, provider, provider_user_id, email)
+  VALUES (p_user_id, p_provider, p_provider_user_id, p_email)
+  ON CONFLICT (provider, provider_user_id) DO NOTHING
+  RETURNING user_oauth_bindings.user_id INTO v_user_id;
+
+  IF v_user_id IS NOT NULL THEN
+    RETURN QUERY SELECT true, v_user_id;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT false, binding.user_id
+    FROM public.user_oauth_bindings binding
+   WHERE binding.provider = p_provider
+     AND binding.provider_user_id = p_provider_user_id
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_login_token_create(
+  p_token_hash text, p_user_id uuid, p_method text, p_expires_at timestamptz
+)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_id uuid;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_login_token_owner', 'app_pre_session', 'pre_session', 'auth.login-token.create',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_token_hash))::app.port_typed_arg,
+      ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_method))::app.port_typed_arg,
+      ROW('timestamptz@1', timestamptz_send(p_expires_at))::app.port_typed_arg
+    ]), 'app.auth_login_token_create(text,uuid,text,timestamp with time zone)'::regprocedure
+  );
+  IF p_token_hash !~ '^[0-9a-f]{64}$'
+     OR p_user_id IS NULL
+     OR p_method NOT IN ('telegram', 'max')
+     OR p_expires_at <= statement_timestamp()
+     OR p_expires_at > statement_timestamp() + interval '15 minutes' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'invalid_login_token';
+  END IF;
+  INSERT INTO public.login_tokens (token_hash, user_id, method, status, expires_at)
+  VALUES (p_token_hash, p_user_id, p_method, 'pending', p_expires_at)
+  RETURNING login_tokens.id INTO v_id;
+  RETURN v_id;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_login_token_read(p_token_hash text)
+RETURNS TABLE(
+  id uuid, user_id uuid, method text, status text, expires_at timestamptz,
+  confirmed_at timestamptz, session_issued_at timestamptz
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_login_token_owner', 'app_pre_session', 'pre_session', 'auth.login-token.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_token_hash))::app.port_typed_arg
+    ]), 'app.auth_login_token_read(text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT token.id, token.user_id, token.method, token.status, token.expires_at,
+         token.confirmed_at, token.session_issued_at
+    FROM public.login_tokens token
+   WHERE p_token_hash ~ '^[0-9a-f]{64}$'
+     AND token.token_hash = p_token_hash
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_login_token_expire_past()
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_login_token_owner', 'app_pre_session', 'pre_session', 'auth.login-token.expire',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.auth_login_token_expire_past()'::regprocedure
+  );
+  UPDATE public.login_tokens token
+     SET status = 'expired'
+   WHERE token.status = 'pending'
+     AND token.expires_at < statement_timestamp();
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_login_token_confirm(p_token_hash text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_login_token_owner', 'app_pre_session', 'pre_session', 'auth.login-token.confirm',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_token_hash))::app.port_typed_arg
+    ]), 'app.auth_login_token_confirm(text)'::regprocedure
+  );
+  UPDATE public.login_tokens token
+     SET status = 'confirmed', confirmed_at = statement_timestamp()
+   WHERE p_token_hash ~ '^[0-9a-f]{64}$'
+     AND token.token_hash = p_token_hash
+     AND token.status = 'pending'
+     AND token.expires_at >= statement_timestamp();
+  RETURN FOUND;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_login_token_mark_session_issued(p_token_hash text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_login_token_owner', 'app_pre_session', 'pre_session', 'auth.login-token.session-issued',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_token_hash))::app.port_typed_arg
+    ]), 'app.auth_login_token_mark_session_issued(text)'::regprocedure
+  );
+  UPDATE public.login_tokens token
+     SET session_issued_at = statement_timestamp()
+   WHERE p_token_hash ~ '^[0-9a-f]{64}$'
+     AND token.token_hash = p_token_hash
+     AND token.status = 'confirmed'
+     AND token.session_issued_at IS NULL;
+  RETURN FOUND;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_public_runtime_setting(p_key text, p_scope text)
+RETURNS TABLE(key text, scope text, organization_id uuid, audience text, value_json jsonb)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_runtime_owner', 'app_pre_session', 'pre_session',
+    'config.runtime.public.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_key))::app.port_typed_arg,
+      ROW('text@1', textsend(p_scope))::app.port_typed_arg
+    ]), 'app.read_public_runtime_setting(text,text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT setting.key, setting.scope, setting.organization_id, setting.audience, setting.value_json
+    FROM public.app_runtime_settings setting
+   WHERE setting.key = p_key
+     AND setting.scope = p_scope
+     AND setting.organization_id IS NULL
+     AND setting.audience = 'public'
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_webapp_server_runtime_setting(p_key text, p_scope text)
+RETURNS TABLE(key text, scope text, organization_id uuid, audience text, value_json jsonb)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_runtime_owner', 'app_pre_session', 'pre_session',
+    'config.runtime.server.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_key))::app.port_typed_arg,
+      ROW('text@1', textsend(p_scope))::app.port_typed_arg
+    ]), 'app.read_webapp_server_runtime_setting(text,text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT setting.key, setting.scope, setting.organization_id, setting.audience, setting.value_json
+    FROM public.app_runtime_settings setting
+   WHERE setting.key = p_key
+     AND setting.scope = p_scope
+     AND setting.organization_id IS NULL
+     AND setting.audience = 'server'
+     AND setting.key IN (
+       'debug_forward_to_admin', 'video_presign_ttl_seconds',
+       'admin_telegram_ids', 'admin_max_ids', 'admin_phones', 'admin_emails',
+       'doctor_telegram_ids', 'doctor_max_ids', 'doctor_phones', 'auth_2fa_enabled'
+     )
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.is_smtp_outbound_configured()
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE configured boolean;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_preauth_owner', 'app_pre_session', 'pre_session',
+    'auth.channel.smtp.configured', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.is_smtp_outbound_configured()'::regprocedure
+  );
+  SELECT COALESCE(
+    NULLIF(btrim(setting.value_json #>> '{value,host}'), '') IS NOT NULL
+    AND NULLIF(btrim(setting.value_json #>> '{value,user}'), '') IS NOT NULL
+    AND NULLIF(btrim(setting.value_json #>> '{value,password}'), '') IS NOT NULL
+    AND NULLIF(btrim(setting.value_json #>> '{value,from}'), '') IS NOT NULL,
+    false
+  ) INTO configured
+    FROM public.system_settings setting
+   WHERE setting.key = 'smtp_outbound'
+     AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL
+   LIMIT 1;
+  RETURN COALESCE(configured, false);
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.is_sms_provider_configured()
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE configured boolean;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_preauth_owner', 'app_pre_session', 'pre_session',
+    'auth.channel.sms.configured', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.is_sms_provider_configured()'::regprocedure
+  );
+  SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
+    FROM public.system_settings setting
+   WHERE setting.key = 'smsc_api_key'
+     AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'runtime_setting_unavailable:smsc_api_key'; END IF;
+  RETURN configured;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.is_telegram_login_configured()
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE configured boolean;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_preauth_owner', 'app_pre_session', 'pre_session',
+    'auth.channel.telegram.configured', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.is_telegram_login_configured()'::regprocedure
+  );
+  SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
+    FROM public.app_runtime_settings setting
+   WHERE setting.key = 'telegram_login_bot_username'
+     AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL
+     AND setting.audience = 'public';
+  IF NOT FOUND THEN RAISE EXCEPTION 'runtime_setting_unavailable:telegram_login_bot_username'; END IF;
+  RETURN configured;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.is_max_bot_configured()
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE configured boolean;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_preauth_owner', 'app_pre_session', 'pre_session',
+    'auth.channel.max.configured', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.is_max_bot_configured()'::regprocedure
+  );
+  SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
+    FROM public.system_settings setting
+   WHERE setting.key = 'max_bot_api_key'
+     AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'runtime_setting_unavailable:max_bot_api_key'; END IF;
+  RETURN configured;
+END
+$function$;
+
+
+CREATE OR REPLACE FUNCTION app.passkey_issue_challenge(
+  p_id uuid,
+  p_purpose text,
+  p_user_id uuid,
+  p_challenge text,
+  p_expected_origin text,
+  p_rp_id text,
+  p_expires_at timestamptz
+)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  IF p_purpose = 'authentication' THEN
+    PERFORM app.require_accepted_context(
+      'app_seam_passkey_owner', 'app_pre_session', 'pre_session', 'auth.passkey.challenge.issue',
+      app.hash_port_typed_args(ARRAY[
+        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
+        ROW('text@1', textsend(p_purpose))::app.port_typed_arg,
+        ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg,
+        ROW('text@1', textsend(p_challenge))::app.port_typed_arg,
+        ROW('text@1', textsend(p_expected_origin))::app.port_typed_arg,
+        ROW('text@1', textsend(p_rp_id))::app.port_typed_arg,
+        ROW('timestamptz@1', timestamptz_send(p_expires_at))::app.port_typed_arg
+      ]), 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)'::regprocedure
+    );
+  ELSIF p_purpose = 'registration' THEN
+    PERFORM app.require_accepted_context(
+      'app_seam_passkey_owner', 'app_patient', 'patient', 'auth.passkey.registration-challenge.issue',
+      app.hash_port_typed_args(ARRAY[
+        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
+        ROW('text@1', textsend(p_purpose))::app.port_typed_arg,
+        ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg,
+        ROW('text@1', textsend(p_challenge))::app.port_typed_arg,
+        ROW('text@1', textsend(p_expected_origin))::app.port_typed_arg,
+        ROW('text@1', textsend(p_rp_id))::app.port_typed_arg,
+        ROW('timestamptz@1', timestamptz_send(p_expires_at))::app.port_typed_arg
+      ]), 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)'::regprocedure
+    );
+  ELSE
+    RETURN false;
+  END IF;
+
+  IF p_id IS NULL
+    OR p_challenge !~ '^[A-Za-z0-9_-]{32,1024}$'
+    OR p_expected_origin IS NULL
+    OR p_rp_id IS NULL
+    OR p_expires_at <= statement_timestamp()
+    OR p_expires_at > statement_timestamp() + interval '10 minutes'
+    OR (p_purpose = 'registration' AND (
+      p_user_id IS NULL OR p_user_id IS DISTINCT FROM app.current_patient_user_id()
+    ))
+    OR (p_purpose = 'authentication' AND p_user_id IS NOT NULL)
+  THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM public.user_passkey_challenges
+   WHERE expires_at < statement_timestamp() - interval '1 day';
+  INSERT INTO public.user_passkey_challenges (
+    id, purpose, user_id, challenge, expected_origin, rp_id, expires_at
+  ) VALUES (
+    p_id, p_purpose, p_user_id, p_challenge, p_expected_origin, p_rp_id, p_expires_at
+  );
+  RETURN true;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.passkey_read_challenge(p_id uuid, p_purpose text)
+RETURNS TABLE (
+  user_id uuid, challenge text, expected_origin text, rp_id text, expires_at timestamptz
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  IF p_purpose = 'authentication' THEN
+    PERFORM app.require_accepted_context(
+      'app_seam_passkey_owner', 'app_pre_session', 'pre_session', 'auth.passkey.challenge.read',
+      app.hash_port_typed_args(ARRAY[
+        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
+        ROW('text@1', textsend(p_purpose))::app.port_typed_arg
+      ]), 'app.passkey_read_challenge(uuid,text)'::regprocedure
+    );
+  ELSIF p_purpose = 'registration' THEN
+    PERFORM app.require_accepted_context(
+      'app_seam_passkey_owner', 'app_patient', 'patient', 'auth.passkey.registration-challenge.read',
+      app.hash_port_typed_args(ARRAY[
+        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
+        ROW('text@1', textsend(p_purpose))::app.port_typed_arg
+      ]), 'app.passkey_read_challenge(uuid,text)'::regprocedure
+    );
+  ELSE
+    RETURN;
+  END IF;
+  RETURN QUERY
+  SELECT stored.user_id, stored.challenge, stored.expected_origin, stored.rp_id, stored.expires_at
+    FROM public.user_passkey_challenges AS stored
+   WHERE stored.id = p_id
+     AND stored.purpose = p_purpose
+     AND stored.consumed_at IS NULL
+     AND stored.expires_at >= statement_timestamp();
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.passkey_read_credential(p_credential_id text)
+RETURNS TABLE (
+  credential_id text, user_id uuid, user_handle text, public_key text, counter bigint,
+  transports jsonb, device_type text, backed_up boolean
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_passkey_owner', 'app_pre_session', 'pre_session', 'auth.passkey.credential.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_credential_id))::app.port_typed_arg
+    ]), 'app.passkey_read_credential(text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT credential.credential_id, credential.user_id, account.user_handle, credential.public_key,
+         credential.counter, credential.transports, credential.device_type, credential.backed_up
+    FROM public.user_passkey_credentials AS credential
+    JOIN public.user_passkey_accounts AS account ON account.user_id = credential.user_id
+   WHERE p_credential_id ~ '^[A-Za-z0-9_-]{16,1024}$'
+     AND credential.credential_id = p_credential_id
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.passkey_complete_authentication(
+  p_challenge_id uuid,
+  p_credential_id text,
+  p_previous_counter bigint,
+  p_new_counter bigint,
+  p_device_type text,
+  p_backed_up boolean
+)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_user_id uuid;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_passkey_owner', 'app_pre_session', 'pre_session', 'auth.passkey.authentication.complete',
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1', uuid_send(p_challenge_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_credential_id))::app.port_typed_arg,
+      ROW('bigint@1', int8send(p_previous_counter))::app.port_typed_arg,
+      ROW('bigint@1', int8send(p_new_counter))::app.port_typed_arg,
+      ROW('text@1', textsend(p_device_type))::app.port_typed_arg,
+      ROW('boolean@1', boolsend(p_backed_up))::app.port_typed_arg
+    ]), 'app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)'::regprocedure
+  );
+  UPDATE public.user_passkey_challenges AS stored
+     SET consumed_at = statement_timestamp()
+   WHERE stored.id = p_challenge_id
+     AND stored.purpose = 'authentication'
+     AND stored.consumed_at IS NULL
+     AND stored.expires_at >= statement_timestamp();
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  UPDATE public.user_passkey_credentials AS credential
+     SET counter = p_new_counter,
+         device_type = p_device_type,
+         backed_up = p_backed_up,
+         last_used_at = statement_timestamp()
+   WHERE credential.credential_id = p_credential_id
+     AND credential.counter = p_previous_counter
+  RETURNING credential.user_id INTO v_user_id;
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'passkey_credential_state_changed'; END IF;
+  RETURN v_user_id;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_channel_link_replace_secret(
+  p_user_id uuid, p_channel_code text, p_token_hash text, p_expires_at timestamptz
+)
+RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $function$
+BEGIN
+  PERFORM app.require_accepted_context('app_worker', 'app_worker', 'service', 'relation',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), NULL::regprocedure);
+  IF p_user_id IS NULL OR p_channel_code NOT IN ('telegram', 'max')
+     OR p_token_hash !~ '^[0-9a-f]{64}$' OR p_expires_at <= statement_timestamp()
+     OR p_expires_at > statement_timestamp() + interval '15 minutes'
+  THEN RAISE EXCEPTION 'invalid_channel_link_secret'; END IF;
+  DELETE FROM public.channel_link_secrets AS secret
+   WHERE secret.user_id = p_user_id AND secret.channel_code = p_channel_code;
+  INSERT INTO public.channel_link_secrets (user_id, channel_code, token_hash, expires_at)
+  VALUES (p_user_id, p_channel_code, p_token_hash, p_expires_at);
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_channel_link_read_secret(p_channel_code text, p_token_hash text)
+RETURNS TABLE (id uuid, user_id uuid, expires_at timestamptz, used_at timestamptz)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $function$
+BEGIN
+  PERFORM app.require_accepted_context('app_worker', 'app_worker', 'service', 'relation',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), NULL::regprocedure);
+  RETURN QUERY SELECT secret.id, secret.user_id, secret.expires_at, secret.used_at
+    FROM public.channel_link_secrets AS secret
+   WHERE p_channel_code IN ('telegram', 'max') AND p_token_hash ~ '^[0-9a-f]{64}$'
+     AND secret.channel_code = p_channel_code AND secret.token_hash = p_token_hash LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_channel_link_mark_secret_used(p_secret_id uuid)
+RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $function$
+BEGIN
+  PERFORM app.require_accepted_context('app_worker', 'app_worker', 'service', 'relation',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), NULL::regprocedure);
+  UPDATE public.channel_link_secrets AS secret SET used_at = statement_timestamp()
+   WHERE p_secret_id IS NOT NULL AND secret.id = p_secret_id;
+  RETURN FOUND;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_channel_link_lock_unused_secret(p_secret_id uuid)
+RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $function$
+BEGIN
+  PERFORM app.require_accepted_context('app_worker', 'app_worker', 'service', 'relation',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), NULL::regprocedure);
+  PERFORM 1 FROM public.channel_link_secrets AS secret
+   WHERE p_secret_id IS NOT NULL AND secret.id = p_secret_id AND secret.used_at IS NULL FOR UPDATE;
+  RETURN FOUND;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_channel_link_mark_secret_used_if_unused(p_secret_id uuid)
+RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $function$
+BEGIN
+  PERFORM app.require_accepted_context('app_worker', 'app_worker', 'service', 'relation',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), NULL::regprocedure);
+  UPDATE public.channel_link_secrets AS secret SET used_at = statement_timestamp()
+   WHERE p_secret_id IS NOT NULL AND secret.id = p_secret_id AND secret.used_at IS NULL;
+  RETURN FOUND;
+END
+$function$;
+
+DROP FUNCTION IF EXISTS app.read_saas_billing_payment_provider();
+
+CREATE OR REPLACE FUNCTION app.read_saas_billing_payment_provider_preauth()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE value jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_payment_webhook_owner', 'app_pre_session', 'pre_session', 'billing.webhook.provider.read',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.read_saas_billing_payment_provider_preauth()'::regprocedure
+  );
+  SELECT setting.value_json INTO value FROM public.system_settings AS setting
+   WHERE setting.key = 'saas_billing_payment_provider' AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL LIMIT 1;
+  RETURN value;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_saas_billing_payment_provider_clinic()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE value jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_payment_webhook_owner', 'app_clinic_billing', 'staff', 'billing.clinic.provider.read',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.read_saas_billing_payment_provider_clinic()'::regprocedure
+  );
+  SELECT setting.value_json INTO value FROM public.system_settings AS setting
+   WHERE setting.key = 'saas_billing_payment_provider' AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL LIMIT 1;
+  RETURN value;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_saas_billing_payment_provider_platform()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE value jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_payment_webhook_owner', 'app_platform_settings', 'platform', 'billing.platform.provider.read',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.read_saas_billing_payment_provider_platform()'::regprocedure
+  );
+  SELECT setting.value_json INTO value FROM public.system_settings AS setting
+   WHERE setting.key = 'saas_billing_payment_provider' AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL LIMIT 1;
+  RETURN value;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.resolve_saas_billing_invoice_for_webhook(
+  p_provider_id text,
+  p_provider_invoice_ref text
+)
+RETURNS TABLE (id uuid, organization_id uuid, amount_minor integer, currency text)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_payment_webhook_owner', 'app_worker', 'service', 'billing.webhook.invoice.resolve',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_provider_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_provider_invoice_ref))::app.port_typed_arg
+    ]), 'app.resolve_saas_billing_invoice_for_webhook(text,text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT invoice.id, invoice.organization_id, invoice.amount_minor, invoice.currency
+    FROM public.saas_billing_invoices AS invoice
+   WHERE invoice.provider_id = p_provider_id
+     AND invoice.provider_invoice_ref = p_provider_invoice_ref
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.resolve_saas_billing_refund_for_webhook(
+  p_provider_id text,
+  p_provider_refund_ref text
+)
+RETURNS TABLE (
+  id uuid, organization_id uuid, saas_billing_invoice_id uuid, amount_minor integer,
+  currency text, status text, provider_id text, provider_refund_ref text,
+  provider_idempotency_key text, confirmed_at timestamptz, created_at timestamptz, updated_at timestamptz
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_payment_webhook_owner', 'app_worker', 'service', 'billing.webhook.refund.resolve',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_provider_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_provider_refund_ref))::app.port_typed_arg
+    ]), 'app.resolve_saas_billing_refund_for_webhook(text,text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT refund.id, refund.organization_id, refund.saas_billing_invoice_id, refund.amount_minor,
+         refund.currency, refund.status, refund.provider_id, refund.provider_refund_ref,
+         refund.provider_idempotency_key, refund.confirmed_at, refund.created_at, refund.updated_at
+    FROM public.saas_billing_refunds AS refund
+   WHERE refund.provider_id = p_provider_id
+     AND refund.provider_refund_ref = p_provider_refund_ref
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.get_public_reference_baseline(p_category_code text)
+RETURNS TABLE (
+  id uuid, category_id uuid, code text, title text, sort_order integer, is_active boolean,
+  deleted_at timestamptz, meta_json jsonb
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_catalog_public_owner', 'app_pre_session', 'pre_session', 'catalog.public-reference.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_category_code))::app.port_typed_arg
+    ]), 'app.get_public_reference_baseline(text)'::regprocedure
+  );
+  RETURN QUERY
+  WITH latest AS (
+    SELECT definition_json FROM public.reference_catalog_baselines ORDER BY version DESC LIMIT 1
+  ), category AS (
+    SELECT value AS definition
+      FROM latest, jsonb_array_elements(definition_json->'categories')
+     WHERE value->>'code' = p_category_code AND p_category_code <> 'visit_manipulation'
+  )
+  SELECT md5('public-reference-item:' || p_category_code || ':' || ((expanded.item_definition::jsonb)->>0))::uuid,
+         md5('public-reference-category:' || p_category_code)::uuid,
+         (expanded.item_definition::jsonb)->>0,
+         (expanded.item_definition::jsonb)->>1,
+         ((expanded.item_definition::jsonb)->>2)::integer,
+         true, NULL::timestamptz, COALESCE((expanded.item_definition::jsonb)->3, '{}'::jsonb)
+    FROM category
+    CROSS JOIN LATERAL jsonb_array_elements(category.definition->'items') AS expanded(item_definition)
+   ORDER BY ((expanded.item_definition::jsonb)->>2)::integer, (expanded.item_definition::jsonb)->>1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.is_organization_slug_available(p_slug text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE available boolean;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_public_slug_owner', 'app_pre_session', 'pre_session',
+    'auth.specialist-signup.slug-availability',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_slug))::app.port_typed_arg
+    ]), 'app.is_organization_slug_available(text)'::regprocedure
+  );
+  SELECT NOT EXISTS (
+    SELECT 1 FROM public.organization_slug_claims AS claim
+     WHERE lower(claim.slug) = lower(p_slug)
+  ) INTO available;
+  RETURN available;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_webapp_preauth_provider_setting(p_key text)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE value jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_preauth_owner', 'app_pre_session', 'pre_session',
+    'config.preauth-provider.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_key))::app.port_typed_arg
+    ]), 'app.read_webapp_preauth_provider_setting(text)'::regprocedure
+  );
+  SELECT setting.value_json INTO value
+    FROM public.system_settings AS setting
+   WHERE p_key IN (
+      'yandex_oauth_client_id', 'yandex_oauth_client_secret', 'yandex_oauth_redirect_uri',
+      'google_client_id', 'google_client_secret', 'google_oauth_login_redirect_uri',
+      'apple_oauth_client_id', 'apple_oauth_redirect_uri', 'apple_oauth_team_id',
+      'apple_oauth_key_id', 'apple_oauth_private_key',
+      'vk_id_application_id', 'vk_id_client_secret', 'vk_id_redirect_uri',
+      'telegram_bot_token'
+    )
+     AND setting.key = p_key
+     AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL
+   LIMIT 1;
+  RETURN value;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.resolve_public_organization_slug(p_slug text)
+RETURNS TABLE (
+  organization_id uuid, requested_slug text, requested_kind text, canonical_slug text
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_public_slug_owner', 'app_pre_session', 'pre_session', 'booking.public-slug.resolve',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_slug))::app.port_typed_arg
+    ]), 'app.resolve_public_organization_slug(text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT requested.organization_id, requested.slug, requested.kind, current_claim.slug
+    FROM public.organization_slug_claims AS requested
+    JOIN public.organization_slug_claims AS current_claim
+      ON current_claim.organization_id = requested.organization_id AND current_claim.kind = 'current'
+    JOIN public.clinic_public_directory_entries AS directory
+      ON directory.organization_id = requested.organization_id AND directory.is_published = true
+    JOIN public.be_organizations AS organization
+      ON organization.id = requested.organization_id AND organization.is_active = true
+   WHERE requested.slug = lower(btrim(p_slug))
+     AND requested.kind IN ('current', 'alias')
+   LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.resolve_public_organization_by_slug(p_slug text)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE resolved uuid;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_public_slug_owner', 'app_pre_session', 'pre_session',
+    'booking.public-organization.resolve',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_slug))::app.port_typed_arg
+    ]), 'app.resolve_public_organization_by_slug(text)'::regprocedure
+  );
+  SELECT requested.organization_id INTO resolved
+    FROM public.organization_slug_claims AS requested
+    JOIN public.organization_slug_claims AS current_claim
+      ON current_claim.organization_id = requested.organization_id AND current_claim.kind = 'current'
+    JOIN public.clinic_public_directory_entries AS directory
+      ON directory.organization_id = requested.organization_id AND directory.is_published = true
+    JOIN public.be_organizations AS organization
+      ON organization.id = requested.organization_id AND organization.is_active = true
+   WHERE requested.slug = lower(btrim(p_slug))
+     AND requested.kind IN ('current', 'alias')
+   LIMIT 1;
+  RETURN resolved;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.get_web_push_vapid_public_key()
+RETURNS text
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE public_key text;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_preauth_owner', 'app_patient', 'patient',
+    'patient.web-push.vapid-public-key.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.get_web_push_vapid_public_key()'::regprocedure
+  );
+  SELECT NULLIF(btrim(setting.value_json #>> '{value,publicKey}'), '') INTO public_key
+    FROM public.system_settings AS setting
+   WHERE setting.key = 'web_push_vapid'
+     AND setting.scope = 'admin'
+     AND setting.organization_id IS NULL
+   LIMIT 1;
+  RETURN public_key;
+END
+$function$;
 
 CREATE OR REPLACE FUNCTION app.read_integrator_migration_ledger()
 RETURNS TABLE(version text, applied_at timestamptz)

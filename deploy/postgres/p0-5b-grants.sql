@@ -238,7 +238,6 @@ VALUES
   ('public', 'user_oauth_bindings'),
   ('public', 'user_password_credentials'),
   ('public', 'user_phone_history'),
-  ('public', 'user_pins'),
   ('public', 'user_web_push_subscriptions');
 
 CREATE TEMP TABLE p0_5b_patient_grant_tables (
@@ -480,20 +479,6 @@ SELECT format(
 )
 FROM pg_attribute
 WHERE attrelid = 'public.user_oauth_bindings'::regclass
-  AND attnum > 0
-  AND NOT attisdropped
-\gexec
-
--- PIN hashes and lockout counters stay table-invisible to app_patient; authenticated access uses identity-self SECURITY DEFINER functions with no target UUID.
-REVOKE ALL PRIVILEGES ON TABLE "public"."user_pins" FROM app_patient;
-SELECT format(
-  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient',
-  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
-  'public',
-  'user_pins'
-)
-FROM pg_attribute
-WHERE attrelid = 'public.user_pins'::regclass
   AND attnum > 0
   AND NOT attisdropped
 \gexec

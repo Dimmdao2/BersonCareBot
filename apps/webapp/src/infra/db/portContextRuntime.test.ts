@@ -1,6 +1,11 @@
 import type { Pool, PoolClient, PoolConfig } from 'pg';
 import { describe, expect, it } from 'vitest';
-import { hashPortTypedArgs, portTypedArg, runWithDbStaffPrincipal } from '@bersoncare/db-principal';
+import {
+  hashPortTypedArgs,
+  portTypedArg,
+  runWithDbPlatformPrincipal,
+  runWithDbStaffPrincipal,
+} from '@bersoncare/db-principal';
 import { createWebappPoolProvider } from './webappPoolProvider';
 import { runPgPoolPgText } from './runWebappSql';
 import {
@@ -79,13 +84,17 @@ describe('webapp port-context runtime', () => {
       createWebappPortContextRuntimeConfig({
         DATABASE_URL_STAFF: 'postgresql://wrong@example.test/app',
         DATABASE_URL_PATIENT: 'postgresql://patient@example.test/app',
+        DATABASE_URL_GLOBAL_ADMIN: 'postgresql://global-admin@example.test/app',
         WEBAPP_DB_STAFF_LOGIN: 'staff',
         WEBAPP_DB_PATIENT_LOGIN: 'patient',
+        WEBAPP_DB_GLOBAL_ADMIN_LOGIN: 'global-admin',
         WEBAPP_DB_TLS_CA_FILE: '/not-read',
         WEBAPP_DB_STAFF_CERT_FILE: '/not-read',
         WEBAPP_DB_STAFF_KEY_FILE: '/not-read',
         WEBAPP_DB_PATIENT_CERT_FILE: '/not-read',
         WEBAPP_DB_PATIENT_KEY_FILE: '/not-read',
+        WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE: '/not-read',
+        WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE: '/not-read',
         WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: '{}',
       }),
     ).toThrow('WEBAPP_STAFF_DATABASE_URL username must equal WEBAPP_STAFF_DB_LOGIN');
@@ -98,6 +107,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff@example.test/app', ssl: {} },
         patient: { connectionString: 'postgresql://patient@example.test/app', ssl: {} },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: staffCapabilities,
       },
       poolFactory: (_config: PoolConfig) => fakePool(log, releases),
@@ -139,6 +149,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff@example.test/app', ssl: {} },
         patient: { connectionString: 'postgresql://patient@example.test/app', ssl: {} },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: staffCapabilities,
       },
       poolFactory: (_config: PoolConfig) => fakePool(log, releases, true),
@@ -163,6 +174,46 @@ describe('webapp port-context runtime', () => {
       pool: 'staff',
       principal: { capabilityId: CAPABILITY, targetRole: 'app_staff', contextClass: 'staff' },
     });
+  });
+
+  it('routes an authenticated platform principal only through the global-admin pool', async () => {
+    const selectedUrls: string[] = [];
+    const platformCapabilities: Record<string, PortCapabilityDescriptor> = {
+      globalAdmin_identity_resolve: {
+        ...staffIdentityCapability,
+        capabilityId: '00000000-0000-0000-0000-000000000118',
+      },
+      platform: {
+        capabilityId: '00000000-0000-0000-0000-000000000119',
+        targetRole: 'app_platform_settings',
+        contextClass: 'platform',
+        purpose: 'relation',
+      },
+    };
+    const pool = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://staff/app' },
+        patient: { connectionString: 'postgresql://patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
+        capabilities: platformCapabilities,
+      },
+      poolFactory: (config) => {
+        const inner = fakePool([], []);
+        return {
+          ...inner,
+          connect: async () => {
+            selectedUrls.push(String(config.connectionString));
+            return inner.connect();
+          },
+        } as Pool;
+      },
+    });
+
+    await runWithDbPlatformPrincipal({ platformUserId: USER }, () =>
+      runPgPoolPgText(pool, 'SELECT platform_settings'),
+    );
+
+    expect(selectedUrls).toEqual(['postgresql://global-admin/app']);
   });
 
   it('selects a named capability by exact function and purpose instead of the class default', () => {
@@ -204,6 +255,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff/app' },
         patient: { connectionString: 'postgresql://patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: { ...staffCapabilities, named },
       },
       poolFactory: () => {
@@ -247,6 +299,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff/app' },
         patient: { connectionString: 'postgresql://patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: staffCapabilities,
       },
       poolFactory: () =>
@@ -341,19 +394,23 @@ describe('webapp port-context runtime', () => {
     ).toThrow('<missing>');
   });
 
-  it('maps generic bootstrap reads to app_pre_session', () => {
+  it('maps a named bootstrap root to app_pre_session on the patient pool', () => {
     const preSession: PortCapabilityDescriptor = {
       capabilityId: '00000000-0000-0000-0000-000000000116',
       targetRole: 'app_pre_session',
       contextClass: 'pre_session',
-      purpose: 'relation',
+      purpose: 'config.runtime.public.read',
+      functionIdentity: 'app.read_public_runtime_setting(text,text)',
     };
     expect(
-      webappPortContextPrincipal(
-        { kind: 'bootstrap', source: 'webapp-public-runtime-config' },
-        { pre_session: preSession },
+      runWithWebappPortOperation(
+        { functionIdentity: preSession.functionIdentity!, typedArgs: [] },
+        () => webappPortContextPrincipal(
+          { kind: 'bootstrap', source: 'webapp-public-runtime-config' },
+          { read_public_runtime_setting: preSession },
+        ),
       ),
-    ).toMatchObject({ pool: 'staff', principal: { targetRole: 'app_pre_session' } });
+    ).toMatchObject({ pool: 'patient', principal: { targetRole: 'app_pre_session' } });
   });
 
   it('authenticates both replacement pools before swapping and keeps the old generation on failure', async () => {
@@ -387,6 +444,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://old-staff/app' },
         patient: { connectionString: 'postgresql://old-patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: staffCapabilities,
       },
       poolFactory,
@@ -395,6 +453,7 @@ describe('webapp port-context runtime', () => {
       provider.rotatePortContextPools({
         staff: { connectionString: 'postgresql://rejected-staff/app' },
         patient: { connectionString: 'postgresql://new-patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: staffCapabilities,
       }),
     ).rejects.toThrow('certificate rejected');
@@ -444,6 +503,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://old-staff/app' },
         patient: { connectionString: 'postgresql://old-patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: staffCapabilities,
       },
       poolFactory,
@@ -457,6 +517,7 @@ describe('webapp port-context runtime', () => {
       {
         staff: { connectionString: 'postgresql://new-staff/app' },
         patient: { connectionString: 'postgresql://new-patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
         capabilities: staffCapabilities,
       },
       2,

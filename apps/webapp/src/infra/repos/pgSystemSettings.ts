@@ -1,6 +1,7 @@
 import { redactSettingValueForAudit } from '@/modules/system-settings/auditRedaction';
 import {
   getWebappSqlDb,
+  runWebappNamedRoot,
   runWebappPgText,
   runWebappSql,
   runWebappTransaction,
@@ -145,9 +146,11 @@ export function systemSettingInnerValueToString(value: unknown): string | null {
 }
 
 async function readPreAuthProviderSettingInnerValue(key: string): Promise<unknown | null> {
-  const r = await runWebappPgText<{ value_json: unknown }>(
-    `SELECT app.read_webapp_preauth_provider_setting($1) AS value_json`,
+  const r = await runWebappNamedRoot<{ value_json: unknown }>(
+    getWebappSqlDb(),
+    'app.read_webapp_preauth_provider_setting(text)',
     [key],
+    sql`SELECT app.read_webapp_preauth_provider_setting(${key}::text) AS value_json`,
   );
   return parseSettingEnvelopeValue(r.rows[0]?.value_json ?? null);
 }
@@ -220,11 +223,35 @@ export async function readPublicConfigBoolean(key: string): Promise<boolean | nu
  * the shared credential table or a caller-controlled setting key.
  */
 export async function readSaasBillingPaymentProviderValue(): Promise<unknown | null> {
-  const result = await runWebappSql<{ value_json: unknown | null }>(
-    getWebappSqlDb(),
-    sql`SELECT app.read_saas_billing_payment_provider() AS value_json`,
-  );
-  return result.rows[0]?.value_json ?? null;
+  const principal = getCurrentDbPrincipal();
+  if (principal?.kind === 'bootstrap') {
+    const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
+      getWebappSqlDb(),
+      'app.read_saas_billing_payment_provider_preauth()',
+      [],
+      sql`SELECT app.read_saas_billing_payment_provider_preauth() AS value_json`,
+    );
+    return result.rows[0]?.value_json ?? null;
+  }
+  if (principal?.kind === 'clinicBilling') {
+    const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
+      getWebappSqlDb(),
+      'app.read_saas_billing_payment_provider_clinic()',
+      [],
+      sql`SELECT app.read_saas_billing_payment_provider_clinic() AS value_json`,
+    );
+    return result.rows[0]?.value_json ?? null;
+  }
+  if (principal?.kind === 'platform') {
+    const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
+      getWebappSqlDb(),
+      'app.read_saas_billing_payment_provider_platform()',
+      [],
+      sql`SELECT app.read_saas_billing_payment_provider_platform() AS value_json`,
+    );
+    return result.rows[0]?.value_json ?? null;
+  }
+  throw new Error('SaaS billing payment provider requires bootstrap, clinic billing, or platform principal');
 }
 
 /**
@@ -233,23 +260,43 @@ export async function readSaasBillingPaymentProviderValue(): Promise<unknown | n
  * unauthenticated bootstrap login pool, unlike a direct `SELECT ... FROM system_settings`, which
  * that pool has no table privilege for (see authChannelPolicy.ts:isSmtpConfigured header).
  */
-const AUTH_CHANNEL_CONFIGURED_QUERY = {
-  email: sql`SELECT app.is_smtp_outbound_configured() AS configured`,
-  sms: sql`SELECT app.is_sms_provider_configured() AS configured`,
-  telegram: sql`SELECT app.is_telegram_login_configured() AS configured`,
-  max: sql`SELECT app.is_max_bot_configured() AS configured`,
-} as const satisfies Record<PublicAuthChannelCapability, SQL>;
-
 export async function readPublicAuthChannelConfigured(
   channel: PublicAuthChannelCapability,
 ): Promise<boolean> {
   const result = await runWithDbBootstrapPrincipal(
     { source: 'webapp-public-smtp-config' },
-    () =>
-      runWebappSql<{ configured: boolean | null }>(
-        getWebappSqlDb(),
-        AUTH_CHANNEL_CONFIGURED_QUERY[channel],
-      ),
+    () => {
+      switch (channel) {
+        case 'email':
+          return runWebappNamedRoot<{ configured: boolean | null }>(
+            getWebappSqlDb(),
+            'app.is_smtp_outbound_configured()',
+            [],
+            sql`SELECT app.is_smtp_outbound_configured() AS configured`,
+          );
+        case 'sms':
+          return runWebappNamedRoot<{ configured: boolean | null }>(
+            getWebappSqlDb(),
+            'app.is_sms_provider_configured()',
+            [],
+            sql`SELECT app.is_sms_provider_configured() AS configured`,
+          );
+        case 'telegram':
+          return runWebappNamedRoot<{ configured: boolean | null }>(
+            getWebappSqlDb(),
+            'app.is_telegram_login_configured()',
+            [],
+            sql`SELECT app.is_telegram_login_configured() AS configured`,
+          );
+        case 'max':
+          return runWebappNamedRoot<{ configured: boolean | null }>(
+            getWebappSqlDb(),
+            'app.is_max_bot_configured()',
+            [],
+            sql`SELECT app.is_max_bot_configured() AS configured`,
+          );
+      }
+    },
   );
   return result.rows[0]?.configured === true;
 }
@@ -391,8 +438,11 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
     },
 
     async getWebPushVapidPublicKeyOnly(): Promise<string | null> {
-      const r = await runWebappPgText<{ public_key: string | null }>(
-        `SELECT app.get_web_push_vapid_public_key() AS public_key`,
+      const r = await runWebappNamedRoot<{ public_key: string | null }>(
+        getWebappSqlDb(),
+        'app.get_web_push_vapid_public_key()',
+        [],
+        sql`SELECT app.get_web_push_vapid_public_key() AS public_key`,
       );
       const v = r.rows[0]?.public_key;
       return typeof v === 'string' && v.trim() ? v.trim() : null;

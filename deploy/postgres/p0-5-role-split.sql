@@ -254,7 +254,6 @@ VALUES
   ('public', 'user_oauth_bindings', 'BOOTSTRAP'),
   ('public', 'user_password_credentials', 'BOOTSTRAP'),
   ('public', 'user_phone_history', 'BOOTSTRAP'),
-  ('public', 'user_pins', 'BOOTSTRAP'),
   ('public', 'user_web_push_subscriptions', 'BOOTSTRAP');
 
 \if :{?p0_5_down}

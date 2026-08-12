@@ -169,7 +169,7 @@ export interface LoginRecord {
   mustFold?: string;
   canonicalRole: string | null;
   membership?: Membership;
-  /** Revision-10 permits one port login to SET only its explicitly named runtime roles. */
+  /** A port login may SET only its explicitly named runtime roles. */
   memberships?: Membership[];
   login: true;
   superuser: false;
@@ -294,7 +294,7 @@ export interface DeclaredFunction {
   parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
   proconfig: readonly string[];
   execute: readonly string[];
-  /** Add exactly the three login grantees connected to the rendered database. */
+  /** Add every declared application login connected to the rendered database. */
   loginExecute?: true;
   purpose: string;
   typedArgs: readonly string[];
@@ -303,7 +303,7 @@ export interface DeclaredFunction {
   relationSurfaces?: readonly FunctionRelationSurface[];
   /** Exact same-seam/context roots used when this wrapper has no direct relation access. */
   delegatesTo?: readonly string[];
-  invocation?: 'runtime' | 'trigger';
+  invocation?: 'runtime' | 'trigger' | 'internal';
 }
 
 /**
@@ -489,7 +489,7 @@ export interface PrivilegeDeclaration {
   /** Exact retired application identities removed by owner-ordered zero before install. */
   zeroState?: { legacyRoles: readonly string[] };
   databases: Record<string, DatabaseDecl>;
-  /** Revision-10 transaction-context surface, separate from ordinary relation ACLs. */
+  /** Transaction-context surface, separate from ordinary relation ACLs. */
   portContext?: {
     classes: readonly string[];
     privateRelations: Record<string, { owner: string; columns: readonly string[] }>;

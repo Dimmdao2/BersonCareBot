@@ -291,8 +291,10 @@ test('tenant M and P predicates cover patient enrollment and qualified parent ch
 
 test('base port logins retain app schema usage needed to install transaction context', () => {
   for (const [database, logins] of [
-    ['bcb_webapp_dev', ['bcb_dev_webapp_staff', 'bcb_dev_webapp_patient', 'bcb_dev_integrator']],
-    ['bersoncarebot_test', ['bcb_test_webapp_staff', 'bcb_test_webapp_patient', 'bcb_test_integrator']],
+    ['bcb_webapp_dev', ['bcb_dev_webapp_staff', 'bcb_dev_webapp_patient',
+      'bcb_dev_webapp_global_admin', 'bcb_dev_integrator']],
+    ['bersoncarebot_test', ['bcb_test_webapp_staff', 'bcb_test_webapp_patient',
+      'bcb_test_webapp_global_admin', 'bcb_test_integrator']],
   ]) {
     const usage = declaration.databases[database].schemas.app.usage;
     for (const login of logins) assert.ok(usage.includes(login), `${database}: ${login}`);

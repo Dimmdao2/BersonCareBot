@@ -13,7 +13,11 @@ if (!db) throw new Error(`undeclared database '${dbName}'`);
 const context = declaration.portContext;
 const q = (name) => `"${name.replaceAll('"', '""')}"`;
 const split = (identity) => identity.split('.').map(q).join('.');
-const schemas = new Set([...Object.keys(db.schemas), ...Object.keys(db.tables).map((key) => key.split('.')[0])]);
+const schemas = new Set([
+  ...Object.keys(db.schemas),
+  ...Object.keys(db.tables).map((key) => key.split('.')[0]),
+  ...Object.keys(context.privateRelations).map((key) => key.split('.')[0]),
+]);
 const lockedColumns = new Map();
 function addColumn(table, column) {
   const columns = lockedColumns.get(table) ?? new Set(['id']);

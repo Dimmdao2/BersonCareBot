@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
+  runWebappNamedRoot: vi.fn(),
   runWebappPgText: vi.fn(),
   getCurrentDbPrincipal: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
+  runWebappNamedRoot: fakes.runWebappNamedRoot,
   runWebappPgText: fakes.runWebappPgText,
   runWebappSql: vi.fn(),
   runWebappTransaction: vi.fn(),
@@ -26,7 +28,7 @@ beforeEach(() => {
 describe('readAdminSystemSettingString under the pre-login bootstrap principal', () => {
   it('reads a fixed OAuth key via the SECURITY DEFINER accessor instead of the raw table SELECT', async () => {
     fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'bootstrap' });
-    fakes.runWebappPgText.mockResolvedValueOnce({
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({
       rows: [{ value_json: { value: 'yandex-client-id' } }],
     });
 
@@ -34,25 +36,25 @@ describe('readAdminSystemSettingString under the pre-login bootstrap principal',
       'yandex-client-id',
     );
 
-    expect(fakes.runWebappPgText).toHaveBeenCalledTimes(1);
-    const [query, params] = fakes.runWebappPgText.mock.calls[0] as [string, unknown[]];
-    expect(query).toContain('app.read_webapp_preauth_provider_setting');
-    expect(query).not.toMatch(/FROM\s+system_settings/i);
+    expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(1);
+    const [, identity, params] = fakes.runWebappNamedRoot.mock.calls[0] as [unknown, string, unknown[]];
+    expect(identity).toBe('app.read_webapp_preauth_provider_setting(text)');
     expect(params).toEqual(['yandex_oauth_client_id']);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 
   it('reads the VK ID credential keys via the same SECURITY DEFINER accessor as the other providers', async () => {
     fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'bootstrap' });
-    fakes.runWebappPgText.mockResolvedValueOnce({
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({
       rows: [{ value_json: { value: 'vk-app-id' } }],
     });
 
     await expect(readAdminSystemSettingString('vk_id_application_id')).resolves.toBe('vk-app-id');
 
-    const [query, params] = fakes.runWebappPgText.mock.calls[0] as [string, unknown[]];
-    expect(query).toContain('app.read_webapp_preauth_provider_setting');
-    expect(query).not.toMatch(/FROM\s+system_settings/i);
+    const [, identity, params] = fakes.runWebappNamedRoot.mock.calls[0] as [unknown, string, unknown[]];
+    expect(identity).toBe('app.read_webapp_preauth_provider_setting(text)');
     expect(params).toEqual(['vk_id_application_id']);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 
   it('still uses the raw table SELECT for a key outside the pre-auth allowlist', async () => {

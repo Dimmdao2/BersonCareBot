@@ -71,13 +71,17 @@ export function getPool(): Pool {
           portContext: createWebappPortContextRuntimeConfig({
             DATABASE_URL_STAFF: env.DATABASE_URL_STAFF,
             DATABASE_URL_PATIENT: env.DATABASE_URL_PATIENT,
+            DATABASE_URL_GLOBAL_ADMIN: env.DATABASE_URL_GLOBAL_ADMIN,
             WEBAPP_DB_STAFF_LOGIN: env.WEBAPP_DB_STAFF_LOGIN,
             WEBAPP_DB_PATIENT_LOGIN: env.WEBAPP_DB_PATIENT_LOGIN,
+            WEBAPP_DB_GLOBAL_ADMIN_LOGIN: env.WEBAPP_DB_GLOBAL_ADMIN_LOGIN,
             WEBAPP_DB_TLS_CA_FILE: env.WEBAPP_DB_TLS_CA_FILE,
             WEBAPP_DB_STAFF_CERT_FILE: env.WEBAPP_DB_STAFF_CERT_FILE,
             WEBAPP_DB_STAFF_KEY_FILE: env.WEBAPP_DB_STAFF_KEY_FILE,
             WEBAPP_DB_PATIENT_CERT_FILE: env.WEBAPP_DB_PATIENT_CERT_FILE,
             WEBAPP_DB_PATIENT_KEY_FILE: env.WEBAPP_DB_PATIENT_KEY_FILE,
+            WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE: env.WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE,
+            WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE: env.WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE,
             WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
           }),
         })
@@ -129,18 +133,22 @@ export function getCurrentWebappPoolRoutingMetrics(): WebappPoolRoutingMetrics |
 export async function checkDbHealth(): Promise<boolean> {
   if (env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context') {
     try {
-      // Validate both target mTLS pools before touching either one; no generic URL may mask a
-      // missing staff/patient credential in the target topology.
+      // Validate all three target mTLS pools before touching any one; no generic URL may mask a
+      // missing staff/patient/global-admin credential in the target topology.
       createWebappPortContextRuntimeConfig({
         DATABASE_URL_STAFF: env.DATABASE_URL_STAFF,
         DATABASE_URL_PATIENT: env.DATABASE_URL_PATIENT,
+        DATABASE_URL_GLOBAL_ADMIN: env.DATABASE_URL_GLOBAL_ADMIN,
         WEBAPP_DB_STAFF_LOGIN: env.WEBAPP_DB_STAFF_LOGIN,
         WEBAPP_DB_PATIENT_LOGIN: env.WEBAPP_DB_PATIENT_LOGIN,
+        WEBAPP_DB_GLOBAL_ADMIN_LOGIN: env.WEBAPP_DB_GLOBAL_ADMIN_LOGIN,
         WEBAPP_DB_TLS_CA_FILE: env.WEBAPP_DB_TLS_CA_FILE,
         WEBAPP_DB_STAFF_CERT_FILE: env.WEBAPP_DB_STAFF_CERT_FILE,
         WEBAPP_DB_STAFF_KEY_FILE: env.WEBAPP_DB_STAFF_KEY_FILE,
         WEBAPP_DB_PATIENT_CERT_FILE: env.WEBAPP_DB_PATIENT_CERT_FILE,
         WEBAPP_DB_PATIENT_KEY_FILE: env.WEBAPP_DB_PATIENT_KEY_FILE,
+        WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE: env.WEBAPP_DB_GLOBAL_ADMIN_CERT_FILE,
+        WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE: env.WEBAPP_DB_GLOBAL_ADMIN_KEY_FILE,
         WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
       });
       return await runWithDbInfraPrincipal({ source: 'webapp-health-check' }, () =>

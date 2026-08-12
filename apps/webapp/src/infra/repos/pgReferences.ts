@@ -2,7 +2,13 @@
  * PostgreSQL implementation of ReferencesPort (Stage 6 reference_categories / reference_items).
  */
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import type { WebappSqlTransactionExecutor } from '@/infra/db/runWebappSql';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { ReferencesPort } from '@/modules/references/ports';
@@ -96,7 +102,7 @@ function rowItem(row: {
 
 export const pgReferencesPort: ReferencesPort = {
   async listPublicBaselineItemsByCategoryCode(categoryCode) {
-    const res = await runWebappPgText<{
+    const res = await runWebappNamedRoot<{
       id: string;
       category_id: string;
       code: string;
@@ -106,9 +112,11 @@ export const pgReferencesPort: ReferencesPort = {
       deleted_at: Date | string | null;
       meta_json: Record<string, unknown>;
     }>(
-      `SELECT id, category_id, code, title, sort_order, is_active, deleted_at, meta_json
-       FROM app.get_public_reference_baseline($1)`,
+      getWebappSqlDb(),
+      'app.get_public_reference_baseline(text)',
       [categoryCode],
+      sql`SELECT id, category_id, code, title, sort_order, is_active, deleted_at, meta_json
+          FROM app.get_public_reference_baseline(${categoryCode}::text)`,
     );
     return res.rows.map(rowItem);
   },

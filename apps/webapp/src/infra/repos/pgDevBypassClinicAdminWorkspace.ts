@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { runWebappTransaction } from '@/infra/db/runWebappSql';
 import type { DevBypassClinicAdminWorkspacePort } from '@/modules/auth/devBypassClinicAdminWorkspacePort';
 import { reconcileDevBypassStaffWorkspace } from '@/modules/auth/devBypassClinicAdminWorkspaceReconciliation';
@@ -34,12 +34,6 @@ export const pgDevBypassClinicAdminWorkspacePort: DevBypassClinicAdminWorkspaceP
             updatedAt: now,
           },
         });
-
-      // Receipt-backed helper: first creation receives the current baseline; every later DEV
-      // reconciliation is a strict no-op and preserves arbitrary UX-agent catalog edits.
-      await tx.execute(
-        sql`SELECT app.seed_reference_catalog_snapshot(${desired.organization.id}::uuid)`,
-      );
 
       if (desired.specialist) {
         await tx

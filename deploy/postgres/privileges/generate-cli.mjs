@@ -31,9 +31,13 @@ import {
   generateOrgAllowlistSql,
   generateEnvLoginShellSql,
   generateEnvironmentVerifierSql,
+  generateCatalogClosureVerifierSql,
+  generateRelationWallRegistrySeedSql,
   generatePortContextCapabilitySeedSql,
   generatePortContextCapabilityVerifierSql,
   generatePrivilegesSql,
+  generateSharedRoleBaselineSql,
+  generateTargetLoginCleanupSql,
   generateZeroStateClusterSql,
   generateZeroStateSql,
   generateZeroStateVerifierSql,
@@ -52,7 +56,8 @@ function parseArgs(argv) {
   const knownFlags = new Set([
     'all', 'check', 'gaps', 'census', 'stdout', 'no-allowlist', 'port-context-only',
     'port-context-verify', 'zero-state', 'zero-state-cluster', 'zero-state-verify',
-    'env-login-shells', 'env-verify',
+    'env-login-shells', 'env-verify', 'shared-role-baseline', 'target-login-cleanup',
+    'catalog-closure-verify', 'relation-wall-registry',
   ]);
   const knownValues = new Set(['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env']);
   for (let i = 0; i < argv.length; i += 1) {
@@ -153,6 +158,14 @@ async function main() {
   const allDbs = Object.keys(declaration.databases).sort();
   const dbNames = args.values.has('db') ? [args.values.get('db')] : allDbs;
 
+  if (args.flags.has('shared-role-baseline')) {
+    if (args.values.has('db') || args.values.has('env')) {
+      throw new Error('--shared-role-baseline is cluster-wide and rejects --db/--env');
+    }
+    process.stdout.write(generateSharedRoleBaselineSql(declaration));
+    return;
+  }
+
   if (zeroStateCluster) {
     if (args.values.has('db')) throw new Error('--zero-state-cluster is cluster-wide and rejects --db');
     const text = generateZeroStateClusterSql(declaration, { source });
@@ -174,6 +187,18 @@ async function main() {
   if (args.flags.has('port-context-verify')) {
     if (dbNames.length !== 1) throw new Error('--port-context-verify требует --db');
     process.stdout.write(generatePortContextCapabilityVerifierSql(declaration, dbNames[0]));
+    return;
+  }
+
+  if (args.flags.has('catalog-closure-verify')) {
+    if (dbNames.length !== 1) throw new Error('--catalog-closure-verify требует --db');
+    process.stdout.write(generateCatalogClosureVerifierSql(declaration, dbNames[0]));
+    return;
+  }
+
+  if (args.flags.has('relation-wall-registry')) {
+    if (dbNames.length !== 1 || !args.values.has('db')) throw new Error('--relation-wall-registry requires --db');
+    process.stdout.write(generateRelationWallRegistrySeedSql(declaration, dbNames[0]));
     return;
   }
 
@@ -203,6 +228,10 @@ async function main() {
     if (!args.values.has('db')) throw new Error('--env требует --db');
     if (args.flags.has('env-login-shells')) {
       process.stdout.write(generateEnvLoginShellSql(declaration, env, args.values.get('db')));
+      return;
+    }
+    if (args.flags.has('target-login-cleanup')) {
+      process.stdout.write(generateTargetLoginCleanupSql(declaration, env, args.values.get('db')));
       return;
     }
     if (args.flags.has('env-verify')) {

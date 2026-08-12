@@ -19,8 +19,6 @@ function requireAuthRateLimitDbPort(): AuthRateLimitDbPort {
 const authRateLimitDb: AuthRateLimitDbPort = {
   checkAndRecord: (params) => requireAuthRateLimitDbPort().checkAndRecord(params),
   recordAndCount: (params) => requireAuthRateLimitDbPort().recordAndCount(params),
-  countActive: (params) => requireAuthRateLimitDbPort().countActive(params),
-  reset: (params) => requireAuthRateLimitDbPort().reset(params),
 };
 
 export function getAuthRateLimitDbPort(): AuthRateLimitDbPort {

@@ -380,23 +380,6 @@ export async function mergePlatformUsersInTransaction(
     await mergeOauthBindingsAuto(client, targetId, duplicateId);
   }
 
-  const pinTarget = await runMergeSql(
-    client,
-    sql`SELECT 1 FROM user_pins WHERE user_id = ${targetId}::uuid LIMIT 1`,
-  );
-  const pinDup = await runMergeSql(
-    client,
-    sql`SELECT 1 FROM user_pins WHERE user_id = ${duplicateId}::uuid LIMIT 1`,
-  );
-  if (pinTarget.rows.length === 0 && pinDup.rows.length > 0) {
-    await runMergeSql(
-      client,
-      sql`UPDATE user_pins SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-    );
-  } else {
-    await runMergeSql(client, sql`DELETE FROM user_pins WHERE user_id = ${duplicateId}::uuid`);
-  }
-
   await runMergeSql(
     client,
     sql`UPDATE channel_link_secrets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,

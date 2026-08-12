@@ -3,15 +3,10 @@ import type {
   RequestContactEmailSetupParams,
   RequestContactEmailSetupResult,
 } from '@/modules/auth/emailSetupAccess/ports';
-import type { EmailSetupTokensPort } from '@/modules/auth/emailSetupTokens/ports';
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
 
-/** `tokensPort` оставлен в сигнатуре для совместимости composition root; setup теперь кодовый. */
-export function createPgEmailSetupAccessPort(
-  tokensPort: EmailSetupTokensPort,
-): EmailSetupAccessPort {
-  void tokensPort;
-
+/** Contact email setup uses the live one-time-code flow; legacy setup-link tokens are retired. */
+export function createPgEmailSetupAccessPort(): EmailSetupAccessPort {
   return {
     async requestContactEmailSetup(
       params: RequestContactEmailSetupParams,

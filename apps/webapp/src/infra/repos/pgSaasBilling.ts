@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
@@ -1162,14 +1163,16 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     // `saas_billing_invoices`, and the bootstrap connection never becomes it). Read through the
     // narrow SECURITY DEFINER resolver instead; it returns only the four fields this lookup needs.
     async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {
-      const result = await runWebappPgText<{
-        id: string;
-        organization_id: string;
-        amount_minor: number;
-        currency: string;
-      }>(
-        `SELECT * FROM app.resolve_saas_billing_invoice_for_webhook($1::text, $2::text)`,
+      const result = await runWebappNamedRoot<{
+          id: string;
+          organization_id: string;
+          amount_minor: number;
+          currency: string;
+        }>(
+        getWebappSqlDb(),
+        'app.resolve_saas_billing_invoice_for_webhook(text,text)',
         [providerId, providerInvoiceRef],
+        sql`SELECT * FROM app.resolve_saas_billing_invoice_for_webhook(${providerId}::text, ${providerInvoiceRef}::text)`,
       );
       const row = result.rows[0];
       return row
@@ -1691,17 +1694,42 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     },
 
     async findSaasBillingRefundByProviderRef({ providerId, providerRefundRef }) {
-      const [row] = await getDrizzle()
-        .select()
-        .from(saasBillingRefunds)
-        .where(
-          and(
-            eq(saasBillingRefunds.providerId, providerId),
-            eq(saasBillingRefunds.providerRefundRef, providerRefundRef),
-          ),
-        )
-        .limit(1);
-      return row ? toSaasBillingRefund(row) : null;
+      const result = await runWebappNamedRoot<{
+          id: string;
+          organization_id: string;
+          saas_billing_invoice_id: string;
+          amount_minor: number;
+          currency: string;
+          status: string;
+          provider_id: string;
+          provider_refund_ref: string | null;
+          provider_idempotency_key: string;
+          confirmed_at: Date | string | null;
+          created_at: Date | string;
+          updated_at: Date | string;
+        }>(
+        getWebappSqlDb(),
+        'app.resolve_saas_billing_refund_for_webhook(text,text)',
+        [providerId, providerRefundRef],
+        sql`SELECT * FROM app.resolve_saas_billing_refund_for_webhook(${providerId}::text, ${providerRefundRef}::text)`,
+      );
+      const row = result.rows[0];
+      return row
+        ? {
+            id: row.id,
+            organizationId: row.organization_id,
+            saasBillingInvoiceId: row.saas_billing_invoice_id,
+            amountMinor: row.amount_minor,
+            currency: row.currency,
+            status: row.status as SaasBillingRefund['status'],
+            providerId: row.provider_id,
+            providerRefundRef: row.provider_refund_ref,
+            providerIdempotencyKey: row.provider_idempotency_key,
+            confirmedAt: row.confirmed_at === null ? null : toIsoStringSafe(row.confirmed_at),
+            createdAt: toIsoStringSafe(row.created_at),
+            updatedAt: toIsoStringSafe(row.updated_at),
+          }
+        : null;
     },
 
     async confirmSaasBillingRefund({ saasBillingRefundId, organizationId, status, confirmedAt }) {

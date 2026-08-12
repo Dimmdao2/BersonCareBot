@@ -2,13 +2,13 @@
 /**
  * Renders the one allowed PostgreSQL HBA boundary for the two application
  * ports.  This is deliberately independent of the grants declaration: host
- * installation must be possible while the three LOGIN roles do not exist yet.
+ * installation must be possible while the four LOGIN roles do not exist yet.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const begin = '# BEGIN BCB MANAGED MTLS HBA';
-const end = '# END BCB MANAGED MTLS HBA';
+const beginFor = (database) => `# BEGIN BCB MANAGED MTLS HBA ${database}`;
+const endFor = (database) => `# END BCB MANAGED MTLS HBA ${database}`;
 const namePattern = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
 const hbaSpecialIdentifiers = new Set(['all', 'sameuser', 'samerole', 'replication']);
 
@@ -40,65 +40,68 @@ function requiredName(args, key) {
   return value;
 }
 
-function declaration(args) {
-  const database = requiredName(args, 'database');
-  const staff = requiredName(args, 'staff-login');
-  const patient = requiredName(args, 'patient-login');
-  const integrator = requiredName(args, 'integrator-login');
-  if (new Set([staff, patient, integrator]).size !== 3) fail('the three application logins must be distinct');
-  const primary = { database, staff, patient, integrator };
-  const secondaryKeys = ['secondary-database', 'secondary-staff-login', 'secondary-patient-login', 'secondary-integrator-login'];
-  const secondaryValues = secondaryKeys.map((key) => args[key]);
-  if (secondaryValues.every((value) => value == null)) return { targets: [primary] };
-  if (secondaryValues.some((value) => value == null)) {
-    fail('shared mode requires secondary database and all three secondary login names');
+function declaration(args, prefix = '') {
+  const key = (name) => `${prefix}${name}`;
+  const database = requiredName(args, key('database'));
+  const staff = requiredName(args, key('staff-login'));
+  const patient = requiredName(args, key('patient-login'));
+  const globalAdmin = requiredName(args, key('global-admin-login'));
+  const integrator = requiredName(args, key('integrator-login'));
+  if (new Set([staff, patient, globalAdmin, integrator]).size !== 4) {
+    fail('the four application logins must be distinct');
   }
-  const secondary = {
-    database: requiredName(args, 'secondary-database'),
-    staff: requiredName(args, 'secondary-staff-login'),
-    patient: requiredName(args, 'secondary-patient-login'),
-    integrator: requiredName(args, 'secondary-integrator-login'),
-  };
-  if (primary.database === secondary.database) fail('the two application databases must be distinct');
-  const allLogins = [primary.staff, primary.patient, primary.integrator, secondary.staff, secondary.patient, secondary.integrator];
-  if (new Set(allLogins).size !== allLogins.length) fail('the six application logins must be globally distinct');
-  return { targets: [primary, secondary] };
+  return { database, staff, patient, globalAdmin, integrator };
 }
 
-export function renderHba(args) {
-  const { targets } = declaration(args);
-  const allLogins = targets.flatMap(({ staff, patient, integrator }) => [staff, patient, integrator]);
+function declarations(args) {
+  const primary = declaration(args);
+  const secondaryKeys = [
+    'secondary-database',
+    'secondary-staff-login',
+    'secondary-patient-login',
+    'secondary-global-admin-login',
+    'secondary-integrator-login',
+  ];
+  const present = secondaryKeys.filter((key) => args[key] != null && args[key] !== '');
+  if (present.length !== 0 && present.length !== secondaryKeys.length) {
+    fail('secondary target requires its database and all four application logins');
+  }
+  if (present.length === 0) return [primary];
+  const secondary = declaration(args, 'secondary-');
+  if (secondary.database === primary.database) fail('primary and secondary databases must be distinct');
+  return [primary, secondary];
+}
+
+function renderTarget(target) {
+  const allLogins = [target.staff, target.patient, target.globalAdmin, target.integrator];
   const loginField = allLogins.join(',');
   const lines = [
-    begin,
+    beginFor(target.database),
     '# Generated from the exact two-port declaration. No identity-map or fallback allow rule is permitted.',
+    `hostnossl ${target.database} ${loginField} 0.0.0.0/0 reject`,
+    `hostnossl ${target.database} ${loginField} ::0/0 reject`,
+    `local ${target.database} ${loginField} reject`,
   ];
-  for (const target of targets) {
-    lines.push(`hostnossl ${target.database} ${loginField} 0.0.0.0/0 reject`);
-    lines.push(`hostnossl ${target.database} ${loginField} ::0/0 reject`);
-    lines.push(`local ${target.database} ${loginField} reject`);
-    const foreignLogins = targets
-      .filter(({ database }) => database !== target.database)
-      .flatMap(({ staff, patient, integrator }) => [staff, patient, integrator]);
-    for (const login of foreignLogins) {
-      lines.push(`hostssl ${target.database} ${login} 0.0.0.0/0 reject`);
-      lines.push(`hostssl ${target.database} ${login} ::0/0 reject`);
-    }
-    for (const login of [target.staff, target.patient, target.integrator]) {
-      lines.push(`hostssl ${target.database} ${login} 0.0.0.0/0 scram-sha-256 clientcert=verify-full clientname=CN`);
-      lines.push(`hostssl ${target.database} ${login} ::0/0 scram-sha-256 clientcert=verify-full clientname=CN`);
-    }
+  for (const login of allLogins) {
+    lines.push(`hostssl ${target.database} ${login} 0.0.0.0/0 scram-sha-256 clientcert=verify-full clientname=CN`);
+    lines.push(`hostssl ${target.database} ${login} ::0/0 scram-sha-256 clientcert=verify-full clientname=CN`);
   }
   lines.push(`hostnossl all ${loginField} 0.0.0.0/0 reject`);
   lines.push(`hostnossl all ${loginField} ::0/0 reject`);
   lines.push(`hostssl all ${loginField} 0.0.0.0/0 reject`);
   lines.push(`hostssl all ${loginField} ::0/0 reject`);
   lines.push(`local all ${loginField} reject`);
-  lines.push(end);
+  lines.push(endFor(target.database));
   return `${lines.join('\n')}\n`;
 }
 
-function stripManagedBlock(text) {
+export function renderHba(args) {
+  return declarations(args).map(renderTarget).join('');
+}
+
+function stripManagedBlock(text, database) {
+  const begin = beginFor(database);
+  const end = endFor(database);
   const lines = text.split(/\r?\n/);
   const result = [];
   let inside = false;
@@ -139,22 +142,26 @@ function isSpecialHbaField(value) {
 }
 
 export function validateManagedHba(text, args) {
-  const expected = renderHba(args).trim();
-  const start = text.indexOf(begin);
-  const finish = text.indexOf(end);
-  if (start !== 0 || finish < start) fail('managed HBA block must be first and complete');
-  const actual = text.slice(start, finish + end.length).trim();
-  if (actual !== expected) fail('managed HBA block differs from the exact rendered declaration');
-
-  const { targets } = declaration(args);
-  const names = new Set(targets.flatMap(({ staff, patient, integrator }) => [staff, patient, integrator]));
-  const remainder = stripManagedBlock(text);
+  const targets = declarations(args);
+  const names = new Set(targets.flatMap((target) => [target.staff, target.patient, target.globalAdmin, target.integrator]));
+  let remainder = text;
+  for (const target of targets) {
+    const begin = beginFor(target.database);
+    const end = endFor(target.database);
+    const expected = renderTarget(target).trim();
+    const start = text.indexOf(begin);
+    const finish = text.indexOf(end);
+    if (start < 0 || finish < start) fail(`managed HBA block for ${target.database} must be present and complete`);
+    const actual = text.slice(start, finish + end.length).trim();
+    if (actual !== expected) fail(`managed HBA block for ${target.database} differs from the exact rendered declaration`);
+    if (/^(?!#).*\bmap=/m.test(actual)) fail('pg_ident map is forbidden for this boundary');
+    remainder = stripManagedBlock(remainder, target.database);
+  }
   for (const { line, lineNumber } of nonCommentRules(remainder)) {
     const fields = line.split(/\s+/);
     const connectionType = fields[0] ?? '';
-    const databaseField = fields[1] ?? '';
     const userField = fields[2] ?? '';
-    if (connectionType === 'hostssl' && (isSpecialHbaField(databaseField) || isSpecialHbaField(userField))) {
+    if (connectionType === 'hostssl' && isSpecialHbaField(userField)) {
       fail(`hostssl special database/login form is forbidden outside the managed block (line ${lineNumber})`);
     }
     // A generic legacy rule may remain below the protected first-match rows
@@ -165,12 +172,11 @@ export function validateManagedHba(text, args) {
       fail(`application login is reachable outside the managed first-match block (line ${lineNumber})`);
     }
   }
-  if (/^(?!#).*\bmap=/m.test(actual)) fail('pg_ident map is forbidden for this boundary');
   return true;
 }
 
 function usage() {
-  return `Usage:\n  node deploy/postgres/port-context/render-host-mtls-hba.mjs render --database DB --staff-login ROLE --patient-login ROLE --integrator-login ROLE [--secondary-database DB --secondary-staff-login ROLE --secondary-patient-login ROLE --secondary-integrator-login ROLE] [--output FILE]\n  node deploy/postgres/port-context/render-host-mtls-hba.mjs merge --input FILE --output FILE --database DB --staff-login ROLE --patient-login ROLE --integrator-login ROLE [--secondary-database DB --secondary-staff-login ROLE --secondary-patient-login ROLE --secondary-integrator-login ROLE]\n  node deploy/postgres/port-context/render-host-mtls-hba.mjs validate --input FILE --database DB --staff-login ROLE --patient-login ROLE --integrator-login ROLE [--secondary-database DB --secondary-staff-login ROLE --secondary-patient-login ROLE --secondary-integrator-login ROLE]`;
+  return `Usage:\n  node deploy/postgres/port-context/render-host-mtls-hba.mjs render --database DB --staff-login ROLE --patient-login ROLE --global-admin-login ROLE --integrator-login ROLE [--output FILE]\n  node deploy/postgres/port-context/render-host-mtls-hba.mjs merge --input FILE --output FILE --database DB --staff-login ROLE --patient-login ROLE --global-admin-login ROLE --integrator-login ROLE\n  node deploy/postgres/port-context/render-host-mtls-hba.mjs validate --input FILE --database DB --staff-login ROLE --patient-login ROLE --global-admin-login ROLE --integrator-login ROLE`;
 }
 
 function main() {
@@ -189,7 +195,8 @@ function main() {
   if (command === 'merge') {
     if (!args.input || !args.output) fail('merge requires --input and --output');
     const source = readFileSync(args.input, 'utf8');
-    const existing = stripManagedBlock(source);
+    const targets = declarations(args);
+    const existing = targets.reduce((text, target) => stripManagedBlock(text, target.database), source);
     const merged = `${renderHba(args)}${existing ? `\n${existing}\n` : ''}`;
     validateManagedHba(merged, args);
     writeFileSync(args.output, merged, { mode: 0o600 });

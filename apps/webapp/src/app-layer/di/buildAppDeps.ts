@@ -181,11 +181,6 @@ import {
 import { createEmailSetupAccessService } from '@/modules/auth/emailSetupAccess/service';
 import { createNoopEmailSetupAccessPort } from '@/modules/auth/emailSetupAccess/noopPort';
 import { createPgEmailSetupAccessPort } from '@/infra/repos/pgEmailSetupAccessPort';
-import { pgEmailSetupTokensPort } from '@/infra/repos/pgEmailSetupTokens';
-import { createEmailSetupTokensService } from '@/modules/auth/emailSetupTokens/service';
-import { createEmailSetupFlowService } from '@/modules/auth/emailSetupFlow/service';
-import { pgEmailSetupFlowPort } from '@/infra/repos/pgEmailSetupFlowPort';
-import { noopEmailSetupFlowPort } from '@/modules/auth/emailSetupFlow/noopPort';
 import { pgOAuthBindingsPort } from '@/infra/repos/pgOAuthBindings';
 import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
 import { pgLoginTokensPort } from '@/infra/repos/pgLoginTokens';
@@ -556,16 +551,8 @@ const identityPort = assembleIdentityPort({
   clients: doctorClientsPort,
 });
 const emailSetupAccessService = createEmailSetupAccessService(
-  !inMemoryRepos
-    ? createPgEmailSetupAccessPort(pgEmailSetupTokensPort)
-    : createNoopEmailSetupAccessPort(),
+  !inMemoryRepos ? createPgEmailSetupAccessPort() : createNoopEmailSetupAccessPort(),
 );
-const emailSetupTokensService = createEmailSetupTokensService(pgEmailSetupTokensPort);
-const emailSetupFlowService = createEmailSetupFlowService({
-  tokens: emailSetupTokensService,
-  flowPort: !inMemoryRepos ? pgEmailSetupFlowPort : noopEmailSetupFlowPort,
-  emailSetupAccess: emailSetupAccessService,
-});
 const supportCommunicationPort = !inMemoryRepos
   ? createPgSupportCommunicationPort()
   : inMemorySupportCommunicationPort;
@@ -1883,7 +1870,6 @@ function _buildAppDeps() {
     emailPasswordLookup: emailPasswordLookupPort,
     emailOtpPublicDb: emailOtpPublicDbPort,
     emailSetupAccess: emailSetupAccessService,
-    emailSetupFlow: emailSetupFlowService,
     oauthBindings: oauthBindingsPort,
     loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,

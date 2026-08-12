@@ -212,8 +212,7 @@ export const CODE_MUST_CHANGE: CodeChange[] = [
   { id: 'C10', becauseOf: 'D6-acceptance-invariant',
     what: 'отказы глотаются приложением (42501 → reason:\'user_not_found\', catch → false, catch → null) — поэтому '
       + '61 тыс. отказов в сутки прошли незамеченными',
-    where: ['apps/webapp/src/infra/repos/pgEmailSetupFlowPort.ts (FACTS §11.7)',
-      'apps/webapp/src/infra/repos/playbackUserVideoFirstResolve.ts:29-35 (И7)',
+    where: ['apps/webapp/src/infra/repos/playbackUserVideoFirstResolve.ts:29-35 (И7)',
       'apps/integrator/src/app/routes.ts:53-56,71-74'] },
   { id: 'C11', becauseOf: 'D6-acceptance-invariant',
     what: 'роль, под которой исполняется запрос, УГАДЫВАЕТСЯ в Node по строке `source`, а не объявляется',
@@ -224,10 +223,9 @@ export const CODE_MUST_CHANGE: CodeChange[] = [
     where: ['packages/db-principal/src/index.ts:1032-1037',
       'packages/db-principal/src/webappLockedInfraCronSources.ts', 'evidence/16 §«Роль прунера»'] },
   { id: 'C13', becauseOf: 'FINDINGS Д1',
-    what: 'сырой SQL по таблицам аутентификации минует полный definer-шов; декларация снимает рантайм-гранты с 13 '
-      + 'таблиц Д1, и эти два вызова ломаются, пока не переедут на аксессоры',
-    where: ['apps/webapp/src/infra/repos/pgEmailSetupFlowPort.ts:63',
-      'apps/webapp/src/infra/repos/pgEmailPasswordLookup.ts:88'] },
+    what: 'сырой SQL по таблицам аутентификации минует полный definer-шов; вызов ломается после снятия '
+      + 'рантайм-грантов, пока не переедет на аксессор',
+    where: ['apps/webapp/src/infra/repos/pgEmailPasswordLookup.ts:88'] },
   { id: 'C14', becauseOf: 'D2-patient-visibility',
     what: 'снять пациентские чтения служебного материала (staff-комментарии, booking-профиль) и перевести '
       + 'пациентскую ветку test_attempts/test_results на элемент программы',
@@ -335,7 +333,7 @@ export const PORTS: Record<Port, PortSpec> = {
     what: 'всё, что делает человек в кабинете, плюс каждая внутренняя работа: тики крона приходят на '
       + '/api/internal/**/tick ВНУТРЬ этого процесса и берут ЭТОТ пул. У воркеров и прунера своего подключения '
       + 'нет (D4, D8).',
-    logins: ['<env>_staff_login', '<env>_nonstaff_login', '<env>_maintenance_login'],
+    logins: ['<env>_webapp_staff', '<env>_webapp_patient', '<env>_webapp_global_admin'],
     reachedThrough: 'крон хоста → POST /api/internal/<job>/tick (Bearer INTERNAL_JOB_SECRET) → пул webapp с '
       + 'объявленной сервисной ролью.',
   },
@@ -343,7 +341,7 @@ export const PORTS: Record<Port, PortSpec> = {
     process: 'apps/integrator (модуль доставки)',
     what: 'входящие вебхуки, исходящая доставка, тики планировщика и проекция. По формулировке владельца '
       + '(evidence/15) интегратор — модуль ДОСТАВКИ, а не хранилище пользовательских данных.',
-    logins: ['<env>_integrator_login', '<env>_resolver_login'],
+    logins: ['<env>_integrator'],
     reachedThrough: 'один пул; операционная роль (delivery / scheduler / diagnostic) выбирается SET ROLE на '
       + 'соединении этого пула, а не открытием ещё одного пула (C5).',
   },
@@ -1469,10 +1467,9 @@ const TABLE_ROWS: TableRow[] = [
     + 'organization_id, а PERMISSIVE объединяются по OR — подмена value_normalized уводит вход на чужой аккаунт. D5: '
     + 'bootstrap-политики фильтруют роль, а не строку', defect: ['D2-user-contacts-write', 'D5-identity-bootstrap'],
     gate: ['O5-user-identity-cutover'] },
-  { t: 'public.user_email_setup_tokens', cls: 'S', wall: 'definer-only', why: 'одноразовые токены установки пароля — '
-    + 'приглашение «задайте пароль»', wallWhy: W_AUTH_DEFINER,
-    revoke: { app_staff: REV_D1 },
-    defect: ['D1-auth-tables'], code: ['C13'] },
+  { t: 'public.user_email_setup_tokens', cls: 'S', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
+    why: 'УДАЛЕНО миграцией 0388: старые ссылочные токены настройки email заменены живым password_setup OTP flow',
+    wallWhy: 'Физически удалённая legacy-таблица остаётся именованной только для двусторонней проверки каталога' },
   { t: 'public.user_identity', cls: 'P', org: false, why: 'ФИО и дата рождения — имя пациента во всех экранах',
     revoke: { app_identity_bootstrap: 'D5: тот же дефект — «кто ты» вместо «какая строка».' },
     pol: 'D6: user_identity_staff_insert несёт WITH CHECK (app.is_staff()) без org — сотрудник любой клиники заводит '
@@ -1502,10 +1499,9 @@ const TABLE_ROWS: TableRow[] = [
     pol: 'D8: единственная политика несёт ТОЛЬКО org-ветку, а app_patient держит SELECT — пациент видит историю '
     + 'телефонов всех 92 записей организации. Нужна ветка «свой пациент»',
     defect: ['D8-user-phone-history', 'I2-grant-to-login'] },
-  { t: 'public.user_pins', cls: 'S', wall: 'definer-only', why: 'ПИН-коды — быстрый вход по ПИН',
-    wallWhy: W_AUTH_DEFINER,
-    revoke: { app_staff: REV_D1 },
-    defect: ['D1-auth-tables'], code: ['C13'] },
+  { t: 'public.user_pins', cls: 'S', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
+    why: 'УДАЛЕНО миграцией 0387: legacy PIN-вход выведен из продукта, активных вызовов и причин хранения нет',
+    wallWhy: 'Физически удалённая legacy-таблица остаётся именованной только для двусторонней проверки каталога' },
   { t: 'public.user_web_push_subscriptions', cls: 'P', why: 'push-подписки браузера — без неё нет web-push',
     pol: 'D20: у app_patient полный arwd (в том числе DELETE) при инертной политике — пациент удаляет чужие '
     + 'push-подписки', defect: ['D20-notification-tables'] },
@@ -1777,7 +1773,8 @@ const db_bcb_webapp_dev: DatabaseDecl = {
  * ========================================================================================== */
 
 const REV10_RUNTIME = [
-  'app_pre_session', 'app_staff', 'app_patient', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+  'app_pre_session', 'app_staff', 'app_patient', 'app_clinic_billing', 'app_platform_settings',
+  'app_platform_admin', 'app_worker',
   'app_operational_media_worker', 'saas_telemetry_operator', 'app_integrator_request',
   'app_integrator_resolver', 'app_operational_delivery_worker', 'app_operational_scheduler',
   'app_tenant_service', 'app_service',
@@ -1810,6 +1807,8 @@ function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: s
 
 const REV10_ROLES: Record<string, RoleDecl> = Object.fromEntries([
   ...REV10_RUNTIME.map((name) => [name, revision10Role('terminal', 'NONE', 'revision-10 runtime role')]),
+  ['app_platform_settings', revision10Role('terminal', 'GLOBAL', 'global settings and system-health surface')],
+  ['app_platform_admin', revision10Role('terminal', 'GLOBAL', 'cross-organization directory/admin surface')],
   ...REV10_SEAM_OWNERS.map((name) => [name, revision10Role('owner', 'NONE', 'revision-10 narrow seam owner')]),
   ['app_object_owner', revision10Role('owner', 'NONE', 'ordinary application objects only; no definer functions')],
   ['bcb_dev_migrator', revision10Role('service', 'NONE', 'local postgres migration wrapper identity')],
@@ -1825,7 +1824,7 @@ function rev10Membership(role: string) {
 const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
   dev: {
     bcb_dev_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
-      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker',
         'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_DEV_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
@@ -1833,6 +1832,10 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
       rev10Membership('app_pre_session'), rev10Membership('app_patient'),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_DEV_WEBAPP_PATIENT_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
+    bcb_dev_webapp_global_admin: { port: 'webapp', canonicalRole: 'app_platform_settings', memberships: [
+      rev10Membership('app_platform_settings'), rev10Membership('app_platform_admin'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_DEV_WEBAPP_GLOBAL_ADMIN_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
     bcb_dev_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
       ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
         'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
@@ -1841,7 +1844,7 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
   },
   test: {
     bcb_test_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
-      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker',
         'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_TEST_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
@@ -1849,6 +1852,10 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
       rev10Membership('app_pre_session'), rev10Membership('app_patient'),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_TEST_WEBAPP_PATIENT_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+    bcb_test_webapp_global_admin: { port: 'webapp', canonicalRole: 'app_platform_settings', memberships: [
+      rev10Membership('app_platform_settings'), rev10Membership('app_platform_admin'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_TEST_WEBAPP_GLOBAL_ADMIN_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
     bcb_test_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
       ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
         'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
@@ -1887,11 +1894,6 @@ const INTEGRATOR_SERVICE_SOURCES = [
   'integrator-projection-health',
 ] as const;
 const INTEGRATOR_MIGRATION_LEDGER_SOURCES = ['integrator-startup-migration-ledger'] as const;
-const WEBAPP_PRE_SESSION_SOURCES = [
-  'webapp-public-runtime-config',
-  'webapp-server-runtime-config',
-  'webapp-public-smtp-config',
-] as const;
 const WEBAPP_MEDIA_SOURCES = [
   'api/internal/media-worker/control:POST',
   'api/internal/media-hls-proxy-errors/retention:POST',
@@ -1903,6 +1905,9 @@ const WEBAPP_MEDIA_SOURCES = [
   'api/internal/media-transcode/reconcile:POST',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
+  'api/auth/channel-link/start:POST:authenticated',
+  'api/integrator/channel-link/complete:POST:verified',
+  'api/payments/saas-webhook:POST:verified-resolver',
   'api/integrator/operator-health/digest-wake:POST',
   'api/integrator/system-health/guard-wake:POST',
   'api/internal/operator-health-digest/tick:POST',
@@ -1922,6 +1927,12 @@ const WEBAPP_TELEMETRY_SOURCES = ['webapp-saas-isolation-telemetry'] as const;
 const REV10_CONTEXT = {
   classes: ['pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'],
   privateRelations: {
+    'app_control.org_table_allowlist': { owner: 'postgres', columns: [
+      'schema_name', 'table_name',
+    ] },
+    'app_control.relation_wall_registry': { owner: 'postgres', columns: [
+      'schema_name', 'table_name', 'data_class', 'wall', 'expected_owner',
+    ] },
     'app_ext.port_context_capabilities': { owner: 'app_seam_context_owner', columns: [
       'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose', 'function_identity',
       'active_from', 'active_until',
@@ -1984,14 +1995,14 @@ const REV10_CONTEXT = {
       runtimeName: 'list_active_canonical_appointments_by_phone', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'booking.integrator-active.read',
       functionIdentity: 'app.list_active_canonical_appointments_by_phone(text)' },
-    webapp_pre_session_relation: { port: 'webapp', runtimeName: 'pre_session', sessionRole: 'app_staff',
-      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'relation',
-      runtimeSources: WEBAPP_PRE_SESSION_SOURCES },
     webapp_staff_identity_resolve: { port: 'webapp', runtimeName: 'staff_identity_resolve',
       sessionRole: 'app_staff', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid)' },
     webapp_patient_identity_resolve: { port: 'webapp', runtimeName: 'patient_identity_resolve',
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid)' },
+    webapp_global_admin_identity_resolve: { port: 'webapp', runtimeName: 'globalAdmin_identity_resolve',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'pre_session',
       purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid)' },
     webapp_staff_relation: { port: 'webapp', runtimeName: 'staff', sessionRole: 'app_staff',
       targetRole: 'app_staff', contextClass: 'staff', purpose: 'relation' },
@@ -1999,8 +2010,11 @@ const REV10_CONTEXT = {
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'relation' },
     webapp_clinic_billing_relation: { port: 'webapp', runtimeName: 'clinicBilling', sessionRole: 'app_staff',
       targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'relation' },
-    webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_staff',
+    webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform', purpose: 'relation' },
+    webapp_platform_admin_relation: { port: 'webapp', runtimeName: 'platform_admin',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin',
+      contextClass: 'platform', purpose: 'relation' },
     webapp_worker_relation: { port: 'webapp', runtimeName: 'worker', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_WORKER_SOURCES },
@@ -2010,18 +2024,115 @@ const REV10_CONTEXT = {
     webapp_telemetry_relation: { port: 'webapp', runtimeName: 'telemetry', sessionRole: 'app_staff',
       targetRole: 'saas_telemetry_operator', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_TELEMETRY_SOURCES },
-    password_login_acquire: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
+    saas_billing_invoice_webhook_resolve: { port: 'webapp',
+      runtimeName: 'saas_billing_invoice_webhook_resolve', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service', purpose: 'billing.webhook.invoice.resolve',
+      functionIdentity: 'app.resolve_saas_billing_invoice_for_webhook(text,text)' },
+    saas_billing_refund_webhook_resolve: { port: 'webapp',
+      runtimeName: 'saas_billing_refund_webhook_resolve', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service', purpose: 'billing.webhook.refund.resolve',
+      functionIdentity: 'app.resolve_saas_billing_refund_for_webhook(text,text)' },
+    saas_billing_provider_preauth_read: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'billing.webhook.provider.read',
+      functionIdentity: 'app.read_saas_billing_payment_provider_preauth()' },
+    saas_billing_provider_clinic_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'billing.clinic.provider.read',
+      functionIdentity: 'app.read_saas_billing_payment_provider_clinic()' },
+    saas_billing_provider_platform_read: { port: 'webapp', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform', purpose: 'billing.platform.provider.read',
+      functionIdentity: 'app.read_saas_billing_payment_provider_platform()' },
+    password_login_acquire: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.acquire',
       functionIdentity: 'app.password_login_acquire(text,text,uuid,text)' },
-    password_login_complete: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
+    password_login_complete: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.complete',
       functionIdentity: 'app.password_login_complete(uuid,boolean)' },
-    password_login_read_altcha_secret: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
+    password_login_read_altcha_secret: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.altcha-secret',
       functionIdentity: 'app.password_login_read_altcha_secret()' },
-    password_login_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_staff',
+    password_login_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.altcha-issue',
       functionIdentity: 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    auth_login_token_create: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.login-token.create',
+      functionIdentity: 'app.auth_login_token_create(text,uuid,text,timestamp with time zone)' },
+    auth_login_token_read: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.login-token.read',
+      functionIdentity: 'app.auth_login_token_read(text)' },
+    auth_login_token_expire_past: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.login-token.expire',
+      functionIdentity: 'app.auth_login_token_expire_past()' },
+    auth_login_token_confirm: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.login-token.confirm',
+      functionIdentity: 'app.auth_login_token_confirm(text)' },
+    auth_login_token_mark_session_issued: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.login-token.session-issued',
+      functionIdentity: 'app.auth_login_token_mark_session_issued(text)' },
+    auth_oauth_find_user: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.oauth.callback.find-binding',
+      functionIdentity: 'app.auth_oauth_find_user(text,text)' },
+    auth_oauth_upsert_binding: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.oauth.callback.upsert-binding',
+      functionIdentity: 'app.auth_oauth_upsert_binding(uuid,text,text,text)' },
+    auth_rate_limit_check_and_record: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.rate-limit.check-record',
+      functionIdentity: 'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)' },
+    read_public_runtime_setting: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'config.runtime.public.read',
+      functionIdentity: 'app.read_public_runtime_setting(text,text)' },
+    read_webapp_server_runtime_setting: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'config.runtime.server.read',
+      functionIdentity: 'app.read_webapp_server_runtime_setting(text,text)' },
+    is_smtp_outbound_configured: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.channel.smtp.configured',
+      functionIdentity: 'app.is_smtp_outbound_configured()' },
+    is_sms_provider_configured: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.channel.sms.configured',
+      functionIdentity: 'app.is_sms_provider_configured()' },
+    is_telegram_login_configured: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.channel.telegram.configured',
+      functionIdentity: 'app.is_telegram_login_configured()' },
+    is_max_bot_configured: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.channel.max.configured',
+      functionIdentity: 'app.is_max_bot_configured()' },
+    passkey_issue_authentication_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.passkey.challenge.issue',
+      functionIdentity: 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)' },
+    passkey_issue_registration_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'auth.passkey.registration-challenge.issue',
+      functionIdentity: 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)' },
+    passkey_read_authentication_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.passkey.challenge.read',
+      functionIdentity: 'app.passkey_read_challenge(uuid,text)' },
+    passkey_read_registration_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'auth.passkey.registration-challenge.read',
+      functionIdentity: 'app.passkey_read_challenge(uuid,text)' },
+    passkey_read_credential: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.passkey.credential.read',
+      functionIdentity: 'app.passkey_read_credential(text)' },
+    passkey_complete_authentication: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.passkey.authentication.complete',
+      functionIdentity: 'app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)' },
+    get_public_reference_baseline: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'catalog.public-reference.read',
+      functionIdentity: 'app.get_public_reference_baseline(text)' },
+    is_organization_slug_available: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.specialist-signup.slug-availability',
+      functionIdentity: 'app.is_organization_slug_available(text)' },
+    read_webapp_preauth_provider_setting: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'config.preauth-provider.read',
+      functionIdentity: 'app.read_webapp_preauth_provider_setting(text)' },
+    resolve_public_organization_by_slug: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-organization.resolve',
+      functionIdentity: 'app.resolve_public_organization_by_slug(text)' },
+    resolve_public_organization_slug: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-slug.resolve',
+      functionIdentity: 'app.resolve_public_organization_slug(text)' },
+    get_web_push_vapid_public_key: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'patient.web-push.vapid-public-key.read',
+      functionIdentity: 'app.get_web_push_vapid_public_key()' },
     resolve_outgoing_delivery_scope: { port: 'integrator', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_delivery_worker', contextClass: 'service', purpose: 'delivery.resolve-scope',
       functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)' },
@@ -2065,6 +2176,269 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app_control.enforce_relation_birth_wall()': rev10Function({
+      owner: 'postgres', security: 'DEFINER', returns: 'event_trigger', execute: [],
+      purpose: 'reject unknown managed table DDL and force a closed RLS baseline before commit',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app_control, pg_temp'],
+      invocation: 'trigger' as const,
+    }),
+    'app.assert_organization_slug_alias_complete()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'deferred organization slug alias completeness constraint trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'app.assert_organization_slug_rename_complete()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'deferred organization slug rename completeness constraint trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'app.enforce_lfk_child_owner()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'LFK child ownership integrity trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'app.guard_clinic_directory_current_slug()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'clinic directory current-slug integrity trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'app.guard_org_brand_revision()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'organization brand revision monotonicity trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'app.guard_organization_slug_claim_mutation()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'organization slug claim mutation guard trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'app.guard_organization_slug_rename_event_mutation()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'organization slug rename audit mutation guard trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'app.reject_staff_commercial_organization_update()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'staff commercial-organization update rejection trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'trigger' as const,
+    }),
+    'public.audit_app_runtime_settings_change()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'application runtime-settings audit trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
+    }),
+    'public.media_folders_enforce_depth()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'media-folder maximum-depth integrity trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
+    }),
+    'public.media_folders_prevent_cycle()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'media-folder cycle prevention trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
+    }),
+    'public.sync_registered_app_runtime_setting()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'registered runtime-setting projection trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
+    }),
+    'public.system_settings_test_lock_guard()': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      purpose: 'system-setting protected-key lock trigger', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
+    }),
+    'app.auth_login_token_create(text,uuid,text,timestamp with time zone)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.auth_login_token_create(text,uuid,text,timestamp with time zone)'],
+      owner: 'app_seam_login_token_owner', execute: ['app_pre_session'], purpose: 'auth.login-token.create',
+      typedArgs: ['text', 'uuid', 'text', 'timestamp with time zone'], volatility: 'VOLATILE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.auth_login_token_read(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.auth_login_token_read(text)'],
+      owner: 'app_seam_login_token_owner', execute: ['app_pre_session'], purpose: 'auth.login-token.read',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.auth_login_token_expire_past()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.auth_login_token_expire_past()'],
+      owner: 'app_seam_login_token_owner', execute: ['app_pre_session'], purpose: 'auth.login-token.expire',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.auth_login_token_confirm(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.auth_login_token_confirm(text)'],
+      owner: 'app_seam_login_token_owner', execute: ['app_pre_session'], purpose: 'auth.login-token.confirm',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.auth_login_token_mark_session_issued(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.auth_login_token_mark_session_issued(text)'],
+      owner: 'app_seam_login_token_owner', execute: ['app_pre_session'],
+      purpose: 'auth.login-token.session-issued', typedArgs: ['text'], volatility: 'VOLATILE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.auth_oauth_find_user(text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.auth_oauth_find_user(text,text)'],
+      owner: 'app_seam_oauth_owner', execute: ['app_pre_session'],
+      purpose: 'auth.oauth.callback.find-binding', typedArgs: ['text', 'text'], volatility: 'STABLE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.auth_oauth_upsert_binding(uuid,text,text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.auth_oauth_upsert_binding(uuid,text,text,text)'],
+      owner: 'app_seam_oauth_owner', execute: ['app_pre_session'],
+      purpose: 'auth.oauth.callback.upsert-binding', typedArgs: ['uuid', 'text', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS[
+        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'
+      ],
+      owner: 'app_seam_password_auth_owner', execute: ['app_pre_session'],
+      purpose: 'auth.rate-limit.check-record',
+      typedArgs: ['text', 'text', 'integer', 'integer', 'text', 'integer', 'integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.read_public_runtime_setting(text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_public_runtime_setting(text,text)'],
+      owner: 'app_seam_settings_runtime_owner', execute: ['app_pre_session'],
+      purpose: 'config.runtime.public.read', typedArgs: ['text', 'text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.read_webapp_server_runtime_setting(text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_webapp_server_runtime_setting(text,text)'],
+      owner: 'app_seam_settings_runtime_owner', execute: ['app_pre_session'],
+      purpose: 'config.runtime.server.read', typedArgs: ['text', 'text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.is_smtp_outbound_configured()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.is_smtp_outbound_configured()'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_pre_session'],
+      purpose: 'auth.channel.smtp.configured', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.is_sms_provider_configured()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.is_sms_provider_configured()'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_pre_session'],
+      purpose: 'auth.channel.sms.configured', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.is_telegram_login_configured()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.is_telegram_login_configured()'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_pre_session'],
+      purpose: 'auth.channel.telegram.configured', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.is_max_bot_configured()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.is_max_bot_configured()'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_pre_session'],
+      purpose: 'auth.channel.max.configured', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)'],
+      owner: 'app_seam_passkey_owner', execute: ['app_pre_session', 'app_patient'],
+      purpose: 'exact authentication or patient-registration challenge issue',
+      typedArgs: ['uuid', 'text', 'uuid', 'text', 'text', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.passkey_read_challenge(uuid,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.passkey_read_challenge(uuid,text)'],
+      owner: 'app_seam_passkey_owner', execute: ['app_pre_session', 'app_patient'],
+      purpose: 'exact authentication or patient-registration challenge read', typedArgs: ['uuid', 'text'],
+      volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.passkey_read_credential(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.passkey_read_credential(text)'],
+      owner: 'app_seam_passkey_owner', execute: ['app_pre_session'],
+      purpose: 'auth.passkey.credential.read', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)'],
+      owner: 'app_seam_passkey_owner', execute: ['app_pre_session'],
+      purpose: 'auth.passkey.authentication.complete',
+      typedArgs: ['uuid', 'text', 'bigint', 'bigint', 'text', 'boolean'], volatility: 'VOLATILE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.get_public_reference_baseline(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.get_public_reference_baseline(text)'],
+      owner: 'app_seam_catalog_public_owner', execute: ['app_pre_session'],
+      purpose: 'catalog.public-reference.read', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.is_organization_slug_available(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.is_organization_slug_available(text)'],
+      owner: 'app_seam_public_slug_owner', execute: ['app_pre_session'],
+      purpose: 'auth.specialist-signup.slug-availability', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.read_webapp_preauth_provider_setting(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_webapp_preauth_provider_setting(text)'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_pre_session'],
+      purpose: 'config.preauth-provider.read', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.resolve_public_organization_by_slug(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_public_organization_by_slug(text)'],
+      owner: 'app_seam_public_slug_owner', execute: ['app_pre_session'],
+      purpose: 'booking.public-organization.resolve', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.resolve_public_organization_slug(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_public_organization_slug(text)'],
+      owner: 'app_seam_public_slug_owner', execute: ['app_pre_session'],
+      purpose: 'booking.public-slug.resolve', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.get_web_push_vapid_public_key()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.get_web_push_vapid_public_key()'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_patient'],
+      purpose: 'patient.web-push.vapid-public-key.read', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.resolve_saas_billing_invoice_for_webhook(text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_saas_billing_invoice_for_webhook(text,text)'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_worker'],
+      purpose: 'billing.webhook.invoice.resolve', typedArgs: ['text', 'text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.resolve_saas_billing_refund_for_webhook(text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_saas_billing_refund_for_webhook(text,text)'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_worker'],
+      purpose: 'billing.webhook.refund.resolve', typedArgs: ['text', 'text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.read_saas_billing_payment_provider_preauth()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_saas_billing_payment_provider_preauth()'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_pre_session'],
+      purpose: 'billing.webhook.provider.read', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.read_saas_billing_payment_provider_clinic()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_saas_billing_payment_provider_clinic()'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_clinic_billing'],
+      purpose: 'billing.clinic.provider.read', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.read_saas_billing_payment_provider_platform()': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_saas_billing_payment_provider_platform()'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_platform_settings'],
+      purpose: 'billing.platform.provider.read', typedArgs: [], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
     'app.read_integrator_migration_ledger()': rev10Function({
       owner: 'app_seam_catalog_admin_owner', security: 'DEFINER', returns: 'record', execute: ['app_service'],
       purpose: 'read the exact integrator startup migration ledger without relation ACL', typedArgs: [],
@@ -2230,7 +2604,7 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.pre_session_resolve_identity(uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_pre_session'],
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_pre_session', 'app_platform_admin'],
       purpose: 'exact physical-to-opaque handoff before a human transaction', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
     }),
@@ -2368,7 +2742,7 @@ function revision10TableGrants(access: RelationAccess): Record<string, GrantDecl
   }]));
 }
 
-const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
+const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','app_platform_admin','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
 const REV10_EMPTY_TYPED_ARGS_HASH = "decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex')";
 
 function revision10ContextGates(table: string, index: number, access: RelationAccess): PolicyDecl[] {
@@ -2722,7 +3096,7 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const runtimeBusiness = [...runtimeBusinessBase, ...tenantBusiness];
     const seamBusiness = access ? revision10SeamOwnerPolicy(key, index, access) : [];
     return [key, {
-      ...table, owner: 'app_object_owner', rls: table.disposition === 'PENDING_REMOVAL' ? 'n/a' : 'force',
+      ...table, owner: 'app_object_owner', rls: table.disposition === 'ACTIVE' ? 'force' : 'n/a',
       grantMatrix: undefined, grants, policies: [...contextGates, ...runtimeBusiness, ...seamBusiness], access,
     }];
   }));

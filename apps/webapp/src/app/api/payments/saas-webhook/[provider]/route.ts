@@ -20,7 +20,7 @@
  *    event a no-op (no double payment, no access change).
  */
 
-import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { runWithDbInfraPrincipal, runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import {
@@ -77,10 +77,13 @@ export async function POST(request: Request, context: RouteContext) {
   // signature-less API refetch), resolved against saas_billing_refunds instead of invoices: a
   // refund event's ref is a refund id, never the invoice's payment ref.
   if (verified.eventType.startsWith('refund.')) {
-    const resolvedRefund = await deps.saasBilling.resolveSaasBillingRefundForWebhook({
-      providerId: resolvedProvider.providerId,
-      verified,
-    });
+    const resolvedRefund = await runWithDbInfraPrincipal(
+      { source: 'api/payments/saas-webhook:POST:verified-resolver' },
+      () => deps.saasBilling.resolveSaasBillingRefundForWebhook({
+        providerId: resolvedProvider.providerId,
+        verified,
+      }),
+    );
     if (resolvedRefund.outcome === 'unknown_reference') {
       return jsonOk({ acknowledged: true, reason: 'unknown_reference' as const });
     }
@@ -99,10 +102,13 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonOk({ captured: refundResult.captured, duplicate: refundResult.duplicate });
   }
 
-  const resolved = await deps.saasBilling.resolveSaasBillingInvoiceForWebhook({
-    providerId: resolvedProvider.providerId,
-    verified,
-  });
+  const resolved = await runWithDbInfraPrincipal(
+    { source: 'api/payments/saas-webhook:POST:verified-resolver' },
+    () => deps.saasBilling.resolveSaasBillingInvoiceForWebhook({
+      providerId: resolvedProvider.providerId,
+      verified,
+    }),
+  );
 
   if (resolved.outcome === 'unknown_reference') {
     return jsonOk({ acknowledged: true, reason: 'unknown_reference' as const });

@@ -8,6 +8,7 @@ import { startChannelLink } from '@/modules/auth/channelLink';
 import { getMaxLoginBotNickname } from '@/modules/system-settings/maxLoginBotNickname';
 import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 
 const bodySchema = z.object({
   channelCode: z.enum(['telegram', 'max', 'vk']),
@@ -44,12 +45,15 @@ export async function POST(request: Request) {
     parsed.data.channelCode === 'telegram' ? getTelegramLoginBotUsername() : Promise.resolve(''),
     parsed.data.channelCode === 'max' ? getMaxLoginBotNickname() : Promise.resolve(''),
   ]);
-  const result = await startChannelLink({
-    userId: session.user.userId,
-    channelCode: parsed.data.channelCode,
-    botUsername,
-    maxBotNickname,
-  });
+  const result = await runWithDbInfraPrincipal(
+    { source: 'api/auth/channel-link/start:POST:authenticated' },
+    () => startChannelLink({
+      userId: session.user.userId,
+      channelCode: parsed.data.channelCode,
+      botUsername,
+      maxBotNickname,
+    }),
+  );
 
   if (!result.ok) {
     const status = result.code === 'unsupported_channel' ? 400 : 500;
