@@ -90,7 +90,8 @@ install -o root -g root -m 0600 "$webapp_env" "$webapp_env_backup"
 node --experimental-strip-types "$bootstrap" "$bootstrap_mode"
 
 secret_file=$(mktemp /run/bersoncarebot-port-context-secrets.XXXXXX)
-probe=/run/bersoncarebot-port-context-probe.mjs
+probe_dir=/usr/local/libexec
+probe=$probe_dir/bersoncarebot-port-context-probe.mjs
 cleanup_secrets() { rm -f -- "$secret_file"; }
 trap cleanup_secrets EXIT
 chmod 0600 "$secret_file"
@@ -191,6 +192,7 @@ hba_args=(
   --server-cert-file /etc/bersoncarebot/postgres-mtls/server/server.crt
   --server-key-file /etc/bersoncarebot/postgres-mtls/server/server.key
 )
+install -d -o root -g root -m 0755 "$probe_dir"
 install -o root -g root -m 0700 "$probe_source" "$probe"
 node "$probe" --validate "$environment"
 
