@@ -439,13 +439,18 @@ END $$;
 -- Exact physical-to-opaque handoff used by each authenticated human pool.
 CREATE OR REPLACE FUNCTION app.pre_session_resolve_identity(p_platform_user_id uuid)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-DECLARE resolver_target name;
 BEGIN
-  resolver_target := CASE
-    WHEN pg_catalog.pg_has_role(session_user, 'app_platform_admin', 'MEMBER') THEN 'app_platform_admin'::name
-    ELSE 'app_pre_session'::name
-  END;
-  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, resolver_target, 'pre_session'::app.port_context_class, 'identity.variant-a.resolve', app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]), 'app.pre_session_resolve_identity(uuid)'::regprocedure);
+  PERFORM app.require_accepted_context(
+    'app_seam_identity_lookup_owner'::name,
+    CASE
+      WHEN pg_catalog.pg_has_role(session_user, 'app_platform_admin', 'MEMBER') THEN 'app_platform_admin'::name
+      ELSE 'app_pre_session'::name
+    END,
+    'pre_session'::app.port_context_class,
+    'identity.variant-a.resolve',
+    app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]),
+    'app.pre_session_resolve_identity(uuid)'::regprocedure
+  );
   RETURN app_ext.resolve_variant_a_identity(p_platform_user_id);
 END $$;
 

@@ -239,7 +239,7 @@ LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
 DECLARE
-  v_now timestamptz := statement_timestamp();
+  v_now timestamptz;
   v_attempts integer;
   v_batch integer;
 BEGIN
@@ -257,6 +257,7 @@ BEGIN
     ]),
     'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'::regprocedure
   );
+  v_now := statement_timestamp();
 
   IF p_scope IS NULL OR length(p_scope) NOT BETWEEN 1 AND 128
      OR p_key IS NULL OR length(p_key) NOT BETWEEN 1 AND 1024
@@ -1686,13 +1687,14 @@ RETURNS TABLE (phone text, expires_at bigint, code text, channel_context jsonb, 
 LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
-DECLARE v_challenge public.phone_challenges%ROWTYPE; v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+DECLARE v_challenge public.phone_challenges%ROWTYPE; v_now_sec bigint;
 BEGIN
   PERFORM app.require_accepted_context(
     'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-challenge.read',
     app.hash_port_typed_args(ARRAY[ROW('text@1', textsend(p_challenge_id))::app.port_typed_arg]),
     'app.phone_challenge_store_read(text)'::regprocedure
   );
+  v_now_sec := extract(epoch FROM clock_timestamp())::bigint;
   IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' THEN RETURN; END IF;
   SELECT c.* INTO v_challenge FROM public.phone_challenges c WHERE c.challenge_id = p_challenge_id;
   IF NOT FOUND THEN RETURN; END IF;
@@ -1774,7 +1776,7 @@ LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
 DECLARE
-  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  v_now_sec bigint;
   v_locked_until bigint;
   v_last_created timestamptz;
   v_intent jsonb;
@@ -1791,6 +1793,7 @@ BEGIN
       ROW('text@1', textsend(p_intent))::app.port_typed_arg
     ]), 'app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)'::regprocedure
   );
+  v_now_sec := extract(epoch FROM clock_timestamp())::bigint;
   v_intent := p_intent::jsonb;
   IF p_phone IS NULL OR btrim(p_phone) = '' OR p_challenge_id IS NULL OR btrim(p_challenge_id) = ''
      OR p_code IS NULL OR btrim(p_code) = '' OR p_ttl_sec IS NULL OR p_ttl_sec <= 0
@@ -1825,7 +1828,7 @@ SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
 #variable_conflict use_column
 DECLARE
-  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  v_now_sec bigint;
   v_challenge public.phone_challenges%ROWTYPE;
   v_intent jsonb;
   v_next_attempts integer;
@@ -1839,6 +1842,7 @@ BEGIN
       ROW('integer@1', int4send(p_lock_duration_sec))::app.port_typed_arg
     ]), 'app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)'::regprocedure
   );
+  v_now_sec := extract(epoch FROM clock_timestamp())::bigint;
   IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' OR p_code IS NULL OR btrim(p_code) = ''
      OR p_max_attempts IS NULL OR p_max_attempts <= 0
      OR p_lock_duration_sec IS NULL OR p_lock_duration_sec < 0 THEN
