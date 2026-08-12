@@ -77,6 +77,19 @@ assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolcanlogin AND rol
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolname IN ('bcb_test_webapp_staff','bcb_test_webapp_patient','bcb_test_webapp_global_admin','bcb_test_integrator') AND rolcanlogin")" 4
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_auth_members WHERE member IN ('bcb_test_webapp_staff'::regrole,'bcb_test_webapp_patient'::regrole,'bcb_test_webapp_global_admin'::regrole,'bcb_test_integrator'::regrole) AND set_option")" 16
 
+# A malformed dispatch argument must not bypass the exact gate with a quiet false/empty result.
+for statement in \
+  "SELECT app.passkey_issue_challenge('00000000-0000-4000-8000-000000000001','invalid',NULL,'invalid','https://example.test','example.test',statement_timestamp()+interval '1 minute')" \
+  "SELECT * FROM app.passkey_read_challenge('00000000-0000-4000-8000-000000000001','invalid')"
+do
+  if admin -v VERBOSITY=verbose -c "BEGIN; SET LOCAL ROLE app_pre_session; $statement; ROLLBACK" \
+    >"$work_dir/passkey-no-context.out" 2>&1; then
+    fail 'malformed passkey dispatch bypassed accepted context'
+  fi
+  grep -q '42501' "$work_dir/passkey-no-context.out" \
+    || { cat "$work_dir/passkey-no-context.out" >&2; fail 'passkey context refusal was not SQLSTATE 42501'; }
+done
+
 # Fault classes are catalog facts, not source-text assertions. Zero→install is the supported stopped-service repair.
 admin <<'SQL' >/dev/null
 GRANT SELECT ON public.platform_users TO PUBLIC;

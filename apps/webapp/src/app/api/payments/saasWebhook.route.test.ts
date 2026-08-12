@@ -18,6 +18,7 @@ vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: vi.fn(),
 }));
 vi.mock('@bersoncare/db-principal', () => ({
+  runWithDbInfraPrincipal: <T>(_principal: unknown, callback: () => T): T => callback(),
   runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T =>
     callback(),
 }));

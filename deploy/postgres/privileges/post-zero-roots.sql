@@ -669,37 +669,26 @@ LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
 BEGIN
-  IF p_purpose = 'authentication' THEN
-    PERFORM app.require_accepted_context(
-      'app_seam_passkey_owner', 'app_pre_session', 'pre_session', 'auth.passkey.challenge.issue',
-      app.hash_port_typed_args(ARRAY[
-        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
-        ROW('text@1', textsend(p_purpose))::app.port_typed_arg,
-        ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg,
-        ROW('text@1', textsend(p_challenge))::app.port_typed_arg,
-        ROW('text@1', textsend(p_expected_origin))::app.port_typed_arg,
-        ROW('text@1', textsend(p_rp_id))::app.port_typed_arg,
-        ROW('timestamptz@1', timestamptz_send(p_expires_at))::app.port_typed_arg
-      ]), 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)'::regprocedure
-    );
-  ELSIF p_purpose = 'registration' THEN
-    PERFORM app.require_accepted_context(
-      'app_seam_passkey_owner', 'app_patient', 'patient', 'auth.passkey.registration-challenge.issue',
-      app.hash_port_typed_args(ARRAY[
-        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
-        ROW('text@1', textsend(p_purpose))::app.port_typed_arg,
-        ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg,
-        ROW('text@1', textsend(p_challenge))::app.port_typed_arg,
-        ROW('text@1', textsend(p_expected_origin))::app.port_typed_arg,
-        ROW('text@1', textsend(p_rp_id))::app.port_typed_arg,
-        ROW('timestamptz@1', timestamptz_send(p_expires_at))::app.port_typed_arg
-      ]), 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)'::regprocedure
-    );
-  ELSE
-    RETURN false;
-  END IF;
+  PERFORM app.require_accepted_context(
+    'app_seam_passkey_owner',
+    CASE WHEN p_purpose = 'registration' THEN 'app_patient'::name ELSE 'app_pre_session'::name END,
+    CASE WHEN p_purpose = 'registration' THEN 'patient'::app.port_context_class
+         ELSE 'pre_session'::app.port_context_class END,
+    CASE WHEN p_purpose = 'registration' THEN 'auth.passkey.registration-challenge.issue'
+         ELSE 'auth.passkey.challenge.issue' END,
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_purpose))::app.port_typed_arg,
+      ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_challenge))::app.port_typed_arg,
+      ROW('text@1', textsend(p_expected_origin))::app.port_typed_arg,
+      ROW('text@1', textsend(p_rp_id))::app.port_typed_arg,
+      ROW('timestamptz@1', timestamptz_send(p_expires_at))::app.port_typed_arg
+    ]), 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)'::regprocedure
+  );
 
-  IF p_id IS NULL
+  IF p_purpose NOT IN ('authentication', 'registration')
+    OR p_id IS NULL
     OR p_challenge !~ '^[A-Za-z0-9_-]{32,1024}$'
     OR p_expected_origin IS NULL
     OR p_rp_id IS NULL
@@ -732,25 +721,19 @@ LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
 BEGIN
-  IF p_purpose = 'authentication' THEN
-    PERFORM app.require_accepted_context(
-      'app_seam_passkey_owner', 'app_pre_session', 'pre_session', 'auth.passkey.challenge.read',
-      app.hash_port_typed_args(ARRAY[
-        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
-        ROW('text@1', textsend(p_purpose))::app.port_typed_arg
-      ]), 'app.passkey_read_challenge(uuid,text)'::regprocedure
-    );
-  ELSIF p_purpose = 'registration' THEN
-    PERFORM app.require_accepted_context(
-      'app_seam_passkey_owner', 'app_patient', 'patient', 'auth.passkey.registration-challenge.read',
-      app.hash_port_typed_args(ARRAY[
-        ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
-        ROW('text@1', textsend(p_purpose))::app.port_typed_arg
-      ]), 'app.passkey_read_challenge(uuid,text)'::regprocedure
-    );
-  ELSE
-    RETURN;
-  END IF;
+  PERFORM app.require_accepted_context(
+    'app_seam_passkey_owner',
+    CASE WHEN p_purpose = 'registration' THEN 'app_patient'::name ELSE 'app_pre_session'::name END,
+    CASE WHEN p_purpose = 'registration' THEN 'patient'::app.port_context_class
+         ELSE 'pre_session'::app.port_context_class END,
+    CASE WHEN p_purpose = 'registration' THEN 'auth.passkey.registration-challenge.read'
+         ELSE 'auth.passkey.challenge.read' END,
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1', uuid_send(p_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_purpose))::app.port_typed_arg
+    ]), 'app.passkey_read_challenge(uuid,text)'::regprocedure
+  );
+  IF p_purpose NOT IN ('authentication', 'registration') THEN RETURN; END IF;
   RETURN QUERY
   SELECT stored.user_id, stored.challenge, stored.expected_origin, stored.rp_id, stored.expires_at
     FROM public.user_passkey_challenges AS stored

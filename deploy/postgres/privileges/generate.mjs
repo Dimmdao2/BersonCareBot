@@ -452,6 +452,7 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
     '   JOIN pg_catalog.pg_proc routine ON routine.oid=pg_catalog.to_regprocedure(expected.signature)',
     "   WHERE NOT routine.prosecdef",
     "      OR position('app.require_accepted_context' IN routine.prosrc)=0",
+    "      OR routine.prosrc !~* '^[[:space:]]*(DECLARE[[:space:][:print:]]*)?BEGIN[[:space:]]+PERFORM[[:space:]]+app[.]require_accepted_context[[:space:]]*[(]'",
     "      OR position('app.hash_port_typed_args' IN routine.prosrc)=0",
     '      OR position(expected.signature IN routine.prosrc)=0',
     '      OR position(expected.purpose IN routine.prosrc)=0',
