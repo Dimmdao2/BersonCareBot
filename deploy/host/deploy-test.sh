@@ -67,6 +67,8 @@ LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@localhost/$DB?host=%2Fvar%2F
 UNITS=(api worker scheduler webapp media-worker)
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
+DBROLE_DATABASE_PRIVILEGES_ADDED=0
+DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
@@ -77,8 +79,25 @@ cleanup_elevation(){
   fi
   local cleanup_status=0
   if [ "$DBROLE_APP_OWNER_MEMBERSHIP_ADDED" = "1" ]; then
-    sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null || cleanup_status=1
-    DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
+    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null; then
+      DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
+    else
+      cleanup_status=1
+    fi
+  fi
+  if [ "$DBROLE_DATABASE_PRIVILEGES_ADDED" = "1" ]; then
+    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE CREATE, TEMPORARY ON DATABASE \"$DB\" FROM \"$DBROLE\";" >/dev/null; then
+      DBROLE_DATABASE_PRIVILEGES_ADDED=0
+    else
+      cleanup_status=1
+    fi
+  fi
+  if [ "$DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED" = "1" ]; then
+    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "REVOKE USAGE, CREATE ON SCHEMA public FROM \"$DBROLE\";" >/dev/null; then
+      DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED=0
+    else
+      cleanup_status=1
+    fi
   fi
   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" NOBYPASSRLS;" >/dev/null || cleanup_status=1
   local bypass_state
@@ -89,6 +108,12 @@ cleanup_elevation(){
     app_owner_membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")" || cleanup_status=1
     [ "$app_owner_membership_state" = "f" ] || cleanup_status=1
   fi
+  local database_privilege_state
+  database_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE')::text || '|' || has_database_privilege('$DBROLE', '$DB', 'TEMPORARY')::text;")" || cleanup_status=1
+  [ "$database_privilege_state" = "false|false" ] || cleanup_status=1
+  local public_schema_privilege_state
+  public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")" || cleanup_status=1
+  [ "$public_schema_privilege_state" = "false|false" ] || cleanup_status=1
   return "$cleanup_status"
 }
 
@@ -180,15 +205,31 @@ app_owner_attributes="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT
 [ "$app_owner_attributes" = "false|false|false|false|true" ] || { echo "FATAL: $APP_OWNER_ROLE must be NOSUPERUSER NOCREATEROLE NOCREATEDB NOLOGIN BYPASSRLS" >&2; exit 1; }
 app_owner_membership="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")"
 [ "$app_owner_membership" = "f" ] || { echo "FATAL: pre-existing $DBROLE membership in $APP_OWNER_ROLE" >&2; exit 1; }
+database_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE')::text || '|' || has_database_privilege('$DBROLE', '$DB', 'TEMPORARY')::text;")"
+[ "$database_privilege_state" = "false|false" ] || { echo "FATAL: pre-existing $DBROLE CREATE/TEMPORARY privilege on $DB" >&2; exit 1; }
+public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")"
+[ "$public_schema_privilege_state" = "false|false" ] || { echo "FATAL: pre-existing $DBROLE USAGE/CREATE privilege on $DB.public" >&2; exit 1; }
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$APP_OWNER_ROLE\" TO \"$DBROLE\";" >/dev/null
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=1
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
+sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT CREATE, TEMPORARY ON DATABASE \"$DB\" TO \"$DBROLE\";" >/dev/null
+DBROLE_DATABASE_PRIVILEGES_ADDED=1
+sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "GRANT USAGE, CREATE ON SCHEMA public TO \"$DBROLE\";" >/dev/null
+DBROLE_PUBLIC_SCHEMA_PRIVILEGES_ADDED=1
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
 # Legacy application logins already have no CONNECT at this point and must not regain it merely
 # to run DDL. Authenticate locally as the PostgreSQL OS administrator, then SET ROLE through
 # PGOPTIONS so every migration executes with the exact historical database-owner privileges.
 (
   cd "$DEPLOY_REPO"
+  # Drizzle starts at the historical snapshot and integrator's first phase already references
+  # canonical public identity tables. A genuinely empty TEST database therefore needs the frozen
+  # legacy webapp bootstrap first; this is the only supported invocation of that retired runner.
+  sudo -u postgres env \
+    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
+    PGOPTIONS="-c role=$DBROLE" \
+    WEBAPP_LEGACY_MIGRATIONS_MODE=bootstrap \
+    pnpm --dir apps/webapp run migrate:legacy
   sudo -u postgres env \
     NODE_ENV=production \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \

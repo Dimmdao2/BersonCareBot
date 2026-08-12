@@ -1765,3 +1765,13 @@ cluster rehearsal, не новый документационный мини-с�
   working directory `/home/dev`; все команды теперь исполняются из `/opt/projects/bersoncarebot-test`. Итоговый
   независимый взгляд — **PASS**; старым application login не возвращён `CONNECT`, временные `app_owner` и
   `BYPASSRLS` по-прежнему снимаются и проверяются до bilateral zero.
+- **LIVE-BOOTSTRAP-001 — ИСПРАВЛЕНО ГРОМКО:** следующий live run открыл прежнее повреждённое промежуточное
+  состояние TEST: application objects уже принадлежали target `app_object_owner`, но оба исполняемых ledger были
+  пусты (`integrator.schema_migrations=0`, `drizzle.__drizzle_migrations=0`), поэтому обычный runner пытался
+  повторить всю историю и громко отказал `42501` до zero. TEST не содержит живой работы; утверждён безопасный
+  baseline без DEV/PROD данных: защищённый локальный backup → пересоздание только `bersoncarebot_test` OWNER
+  `postgres` → закрытие `PUBLIC` → полный bootstrap из репозитория. Исполняемый порядок исправлен на legacy
+  webapp bootstrap → integrator до `20260708` → Drizzle → integrator remainder → D30. На окно временно выдаются
+  только database `CREATE/TEMPORARY`, schema `public USAGE/CREATE`, `app_owner` membership и `BYPASSRLS`; application
+  login не получает `CONNECT`. Все grants отзываются и проверяются до bilateral zero; failed `REVOKE` сохраняет
+  cleanup flag для EXIT-retry. Независимый итоговый взгляд — **PASS**.
