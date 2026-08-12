@@ -245,7 +245,34 @@ async function discoverMigrations(): Promise<MigrationFile[]> {
 
   const merged = [...core, ...integrations];
   merged.sort((a, b) => a.fileName.localeCompare(b.fileName));
-  return merged;
+
+  // Historical telegram 0009 was numbered before the core tables it references. Existing
+  // databases already have these entries in the ledger, but a genuinely empty database must
+  // create the three prerequisites before attempting telegram_state. Move only this exact
+  // dependency chain; keep every other historical migration in its established filename order.
+  const telegramStateVersion = 'telegram:20260306_0009_add_telegram_state_split.sql';
+  const identityPrerequisiteVersions = [
+    'core:20260306_0012_create_users.sql',
+    'core:20260306_0013_create_identities.sql',
+    'core:20260306_0014_create_contacts.sql',
+  ];
+  const telegramStateIndex = merged.findIndex(
+    (migration) => migration.version === telegramStateVersion,
+  );
+  if (telegramStateIndex < 0) return merged;
+
+  const prerequisites = identityPrerequisiteVersions
+    .map((version) => merged.find((migration) => migration.version === version))
+    .filter((migration): migration is MigrationFile => migration !== undefined);
+  const prerequisiteSet = new Set(identityPrerequisiteVersions);
+  const withoutPrerequisites = merged.filter(
+    (migration) => !prerequisiteSet.has(migration.version),
+  );
+  const insertionIndex = withoutPrerequisites.findIndex(
+    (migration) => migration.version === telegramStateVersion,
+  );
+  withoutPrerequisites.splice(insertionIndex, 0, ...prerequisites);
+  return withoutPrerequisites;
 }
 
 /**
