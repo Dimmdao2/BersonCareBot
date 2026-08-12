@@ -113,7 +113,7 @@ verify_material() {
   assert_mode_owner "$server_dir" root:postgres:750
   assert_mode_owner "$server_key" postgres:postgres:600
   assert_mode_owner "$server_cert" root:postgres:640
-  [[ "$environment" != dev && "$environment" != all ]] || assert_mode_owner "$dev_dir" dev:dev:700
+  [[ "$environment" != dev && "$environment" != all ]] || assert_mode_owner "$dev_dir" dev:dev:711
   [[ "$environment" != test && "$environment" != all ]] || assert_mode_owner "$test_dir" root:root:711
   for login in "${selected_logins[@]}"; do
     local directory cert key subject expected_owner expected_group
@@ -175,7 +175,7 @@ if (( existing_authority == 1 )); then
   add_dir=$(mktemp -d "$env_root/.mtls-add-clients.XXXXXX")
   cleanup_add() { rm -rf -- "$add_dir"; }
   trap cleanup_add EXIT
-  if [[ "$environment" == dev || "$environment" == all ]]; then install -d -o dev -g dev -m 0700 "$dev_dir"; fi
+  if [[ "$environment" == dev || "$environment" == all ]]; then install -d -o dev -g dev -m 0711 "$dev_dir"; fi
   if [[ "$environment" == test || "$environment" == all ]]; then install -d -o root -g root -m 0711 "$test_dir"; fi
   for target_dir in "${selected_dirs[@]}"; do
     [[ -f "$target_dir/ca.crt" ]] || install -o root -g root -m 0644 "$ca_cert" "$target_dir/ca.crt"
@@ -284,7 +284,7 @@ chmod 0600 "$authority_dir/openssl.cnf"
 install -d -o root -g postgres -m 0750 "$server_dir"
 install -o root -g postgres -m 0640 "$work_dir/output/server.crt" "$server_cert"
 install -o postgres -g postgres -m 0600 "$work_dir/output/server.key" "$server_key"
-if [[ "$environment" == dev || "$environment" == all ]]; then install -d -o dev -g dev -m 0700 "$dev_dir"; fi
+if [[ "$environment" == dev || "$environment" == all ]]; then install -d -o dev -g dev -m 0711 "$dev_dir"; fi
 if [[ "$environment" == test || "$environment" == all ]]; then install -d -o root -g root -m 0711 "$test_dir"; fi
 for target_dir in "${selected_dirs[@]}"; do
   install -o root -g root -m 0644 "$ca_cert" "$target_dir/ca.crt"
