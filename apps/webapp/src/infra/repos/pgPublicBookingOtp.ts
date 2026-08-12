@@ -8,7 +8,7 @@
  * those two tables to app_staff only, and the anonymous booking handlers run as app_patient.
  */
 import { sql } from 'drizzle-orm';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
 import type {
   PublicBookingOtpConsumeResult,
@@ -25,21 +25,33 @@ function deliveryChannelFromRow(raw: unknown): PhoneChallengePayload['deliveryCh
 export function createPgPublicBookingOtpPort(): PublicBookingOtpPort {
   return {
     async issueChallenge(input) {
-      const result = await runWebappSql<{ issued: boolean }>(
+      const result = await runWebappNamedRoot<{ issued: boolean }>(
         getWebappSqlDb(),
-        sql`SELECT app.phone_otp_public_booking_issue_challenge(${input.phone}, ${input.challengeId}, ${input.code}, ${input.ttlSec}, ${input.resendCooldownSec}, ${input.deliveryChannel}, ${JSON.stringify(input.intent)}::jsonb) AS issued`,
+        'app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)',
+        [
+          input.phone,
+          input.challengeId,
+          input.code,
+          input.ttlSec,
+          input.resendCooldownSec,
+          input.deliveryChannel,
+          JSON.stringify(input.intent),
+        ],
+        sql`SELECT app.phone_otp_public_booking_issue_challenge(${input.phone}, ${input.challengeId}, ${input.code}, ${input.ttlSec}, ${input.resendCooldownSec}, ${input.deliveryChannel}, ${JSON.stringify(input.intent)}) AS issued`,
       );
       return result.rows[0]?.issued === true;
     },
 
     async consumeChallenge(challengeId, code, maxAttempts, lockDurationSec) {
-      const result = await runWebappSql<{
+      const result = await runWebappNamedRoot<{
         ok: boolean;
         intent: unknown;
         delivery_channel: string | null;
         retry_after_seconds: number | string | null;
       }>(
         getWebappSqlDb(),
+        'app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)',
+        [challengeId, code, maxAttempts, lockDurationSec],
         sql`SELECT ok, intent, delivery_channel, retry_after_seconds
          FROM app.phone_otp_public_booking_consume_challenge(${challengeId}, ${code}, ${maxAttempts}, ${lockDurationSec})`,
       );

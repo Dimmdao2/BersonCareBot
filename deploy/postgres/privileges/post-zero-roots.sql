@@ -8,6 +8,137 @@ DROP FUNCTION IF EXISTS app.install_signed_context(text, integer, bigint, uuid, 
 DROP FUNCTION IF EXISTS app.release_principal_context();
 DROP FUNCTION IF EXISTS app.reset_principal_context();
 
+-- Four password-login functions predate the transaction-bound context contract. Keep their
+-- reviewed business bodies byte-for-byte behind private implementation names and expose only
+-- exact-gated wrappers under the runtime identities. The zero phase has already revoked every
+-- historical EXECUTE ACL before this rename runs.
+DO $password_login_private_implementations$
+BEGIN
+  IF to_regprocedure('app.password_login_acquire_impl(text,text,uuid,text)') IS NULL THEN
+    ALTER FUNCTION app.password_login_acquire(text,text,uuid,text)
+      RENAME TO password_login_acquire_impl;
+  END IF;
+  IF to_regprocedure('app.password_login_complete_impl(uuid,boolean)') IS NULL THEN
+    ALTER FUNCTION app.password_login_complete(uuid,boolean)
+      RENAME TO password_login_complete_impl;
+  END IF;
+  IF to_regprocedure('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)') IS NULL THEN
+    ALTER FUNCTION app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)
+      RENAME TO password_login_issue_altcha_challenge_impl;
+  END IF;
+  IF to_regprocedure('app.password_login_read_altcha_secret_impl()') IS NULL THEN
+    ALTER FUNCTION app.password_login_read_altcha_secret()
+      RENAME TO password_login_read_altcha_secret_impl;
+  END IF;
+END
+$password_login_private_implementations$;
+
+CREATE OR REPLACE FUNCTION app.password_login_acquire(
+  p_email_normalized text,
+  p_identifier_key text,
+  p_altcha_challenge_id uuid DEFAULT NULL,
+  p_altcha_challenge_digest text DEFAULT NULL
+)
+RETURNS TABLE (
+  status text,
+  lease_token uuid,
+  password_hash text,
+  user_id uuid,
+  email_verified boolean,
+  retry_after_seconds integer,
+  captcha_required boolean
+)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_password_auth_owner', 'app_pre_session', 'pre_session', 'auth.password.acquire',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_email_normalized))::app.port_typed_arg,
+      ROW('text@1', textsend(p_identifier_key))::app.port_typed_arg,
+      ROW('uuid@1', uuid_send(p_altcha_challenge_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_altcha_challenge_digest))::app.port_typed_arg
+    ]), 'app.password_login_acquire(text,text,uuid,text)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT * FROM app.password_login_acquire_impl(
+    p_email_normalized, p_identifier_key, p_altcha_challenge_id, p_altcha_challenge_digest
+  );
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.password_login_complete(
+  p_lease_token uuid,
+  p_password_verified boolean
+)
+RETURNS TABLE (
+  accepted boolean,
+  succeeded boolean,
+  user_id uuid,
+  email_verified boolean,
+  attempts integer,
+  retry_after_seconds integer,
+  captcha_required boolean
+)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_password_auth_owner', 'app_pre_session', 'pre_session', 'auth.password.complete',
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1', uuid_send(p_lease_token))::app.port_typed_arg,
+      ROW('boolean@1', boolsend(p_password_verified))::app.port_typed_arg
+    ]), 'app.password_login_complete(uuid,boolean)'::regprocedure
+  );
+  RETURN QUERY
+  SELECT * FROM app.password_login_complete_impl(p_lease_token, p_password_verified);
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.password_login_issue_altcha_challenge(
+  p_email_normalized text,
+  p_challenge_id uuid,
+  p_challenge_digest text,
+  p_expires_at timestamptz
+)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_password_auth_owner', 'app_pre_session', 'pre_session', 'auth.password.altcha-issue',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_email_normalized))::app.port_typed_arg,
+      ROW('uuid@1', uuid_send(p_challenge_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_challenge_digest))::app.port_typed_arg,
+      ROW('timestamptz@1', timestamptz_send(p_expires_at))::app.port_typed_arg
+    ]),
+    'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)'::regprocedure
+  );
+  RETURN app.password_login_issue_altcha_challenge_impl(
+    p_email_normalized, p_challenge_id, p_challenge_digest, p_expires_at
+  );
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.password_login_read_altcha_secret()
+RETURNS text
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL UNSAFE
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_password_auth_owner', 'app_pre_session', 'pre_session', 'auth.password.altcha-secret',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.password_login_read_altcha_secret()'::regprocedure
+  );
+  RETURN app.password_login_read_altcha_secret_impl();
+END
+$function$;
+
 -- `telegram_state.username` was a live display fact, not dialogue state. Preserve it on the
 -- canonical channel binding before the phase-3 integrator drop chain removes identities/state.
 ALTER TABLE public.user_channel_bindings
@@ -1408,6 +1539,372 @@ BEGIN
 END
 $function$;
 
+-- Exact pre-session roots which previously survived only as broad EXECUTE grants.
+CREATE OR REPLACE FUNCTION app.email_auth_find_email_otp_lock(p_user_id uuid)
+RETURNS TABLE (locked_until bigint)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_email_otp_owner', 'app_pre_session', 'pre_session', 'auth.email-otp.lock.read',
+    app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg]),
+    'app.email_auth_find_email_otp_lock(uuid)'::regprocedure
+  );
+  RETURN QUERY SELECT l.locked_until FROM public.email_otp_locks l WHERE l.user_id = p_user_id;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.email_auth_register_email_otp_lockout(p_user_id uuid)
+RETURNS TABLE (locked_until bigint)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+#variable_conflict use_column
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_email_otp_owner', 'app_pre_session', 'pre_session', 'auth.email-otp.lock.register',
+    app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg]),
+    'app.email_auth_register_email_otp_lockout(uuid)'::regprocedure
+  );
+  RETURN QUERY
+  INSERT INTO public.email_otp_locks (user_id, lockout_cycle, locked_until)
+  VALUES (p_user_id, 1, extract(epoch FROM clock_timestamp())::bigint + 120)
+  ON CONFLICT (user_id) DO UPDATE SET
+    lockout_cycle = email_otp_locks.lockout_cycle + 1,
+    locked_until = extract(epoch FROM clock_timestamp())::bigint
+      + LEAST(1800, (120 * power(2, LEAST(email_otp_locks.lockout_cycle, 10)))::bigint)
+  RETURNING email_otp_locks.locked_until;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.email_auth_reset_email_otp_lockout(p_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_email_otp_owner', 'app_pre_session', 'pre_session', 'auth.email-otp.lock.reset',
+    app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_user_id))::app.port_typed_arg]),
+    'app.email_auth_reset_email_otp_lockout(uuid)'::regprocedure
+  );
+  DELETE FROM public.email_otp_locks WHERE user_id = p_user_id;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_auth_find_otp_lock(p_phone text)
+RETURNS TABLE (locked_until bigint)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-otp.lock.read',
+    app.hash_port_typed_args(ARRAY[ROW('text@1', textsend(p_phone))::app.port_typed_arg]),
+    'app.phone_auth_find_otp_lock(text)'::regprocedure
+  );
+  RETURN QUERY SELECT l.locked_until FROM public.phone_otp_locks l WHERE l.phone_normalized = p_phone;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_auth_find_latest_challenge_created_at(p_phone text)
+RETURNS TABLE (max_created timestamptz)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-otp.cooldown.read',
+    app.hash_port_typed_args(ARRAY[ROW('text@1', textsend(p_phone))::app.port_typed_arg]),
+    'app.phone_auth_find_latest_challenge_created_at(text)'::regprocedure
+  );
+  RETURN QUERY SELECT max(c.created_at) FROM public.phone_challenges c WHERE c.phone = p_phone;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_auth_register_otp_lockout(p_phone text, p_now_sec bigint)
+RETURNS TABLE (locked_until bigint)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-otp.lock.register',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_phone))::app.port_typed_arg,
+      ROW('bigint@1', int8send(p_now_sec))::app.port_typed_arg
+    ]), 'app.phone_auth_register_otp_lockout(text,bigint)'::regprocedure
+  );
+  RETURN QUERY
+  INSERT INTO public.phone_otp_locks (phone_normalized, lockout_cycle, locked_until)
+  VALUES (p_phone, 1, p_now_sec + 120)
+  ON CONFLICT (phone_normalized) DO UPDATE SET
+    lockout_cycle = phone_otp_locks.lockout_cycle + 1,
+    locked_until = p_now_sec + LEAST(1800, (120 * power(2, LEAST(phone_otp_locks.lockout_cycle, 10)))::bigint)
+  RETURNING phone_otp_locks.locked_until;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_auth_reset_otp_lockout(p_phone text)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-otp.lock.reset',
+    app.hash_port_typed_args(ARRAY[ROW('text@1', textsend(p_phone))::app.port_typed_arg]),
+    'app.phone_auth_reset_otp_lockout(text)'::regprocedure
+  );
+  DELETE FROM public.phone_otp_locks l WHERE l.phone_normalized = p_phone;
+END
+$function$;
+
+DROP FUNCTION IF EXISTS app.phone_challenge_store_upsert(text,text,bigint,text,jsonb,integer);
+CREATE OR REPLACE FUNCTION app.phone_challenge_store_upsert(
+  p_challenge_id text, p_phone text, p_expires_at bigint, p_code text,
+  p_channel_context text, p_verify_attempts integer
+)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_row_count integer;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-challenge.upsert',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_challenge_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_phone))::app.port_typed_arg,
+      ROW('bigint@1', int8send(p_expires_at))::app.port_typed_arg,
+      ROW('text@1', textsend(p_code))::app.port_typed_arg,
+      ROW('text@1', textsend(p_channel_context))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_verify_attempts))::app.port_typed_arg
+    ]), 'app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)'::regprocedure
+  );
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' OR p_phone IS NULL OR btrim(p_phone) = ''
+     OR p_expires_at IS NULL OR p_expires_at <= 0 OR p_verify_attempts IS NULL OR p_verify_attempts < 0 THEN
+    RETURN false;
+  END IF;
+  INSERT INTO public.phone_challenges AS c
+    (challenge_id, phone, expires_at, code, channel_context, verify_attempts)
+  VALUES (p_challenge_id, p_phone, p_expires_at, p_code, p_channel_context::jsonb, p_verify_attempts)
+  ON CONFLICT (challenge_id) DO UPDATE SET phone = EXCLUDED.phone, expires_at = EXCLUDED.expires_at,
+    code = EXCLUDED.code, channel_context = EXCLUDED.channel_context, verify_attempts = EXCLUDED.verify_attempts
+  WHERE c.phone = EXCLUDED.phone;
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count = 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_challenge_store_read(p_challenge_id text)
+RETURNS TABLE (phone text, expires_at bigint, code text, channel_context jsonb, verify_attempts integer)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_challenge public.phone_challenges%ROWTYPE; v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-challenge.read',
+    app.hash_port_typed_args(ARRAY[ROW('text@1', textsend(p_challenge_id))::app.port_typed_arg]),
+    'app.phone_challenge_store_read(text)'::regprocedure
+  );
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' THEN RETURN; END IF;
+  SELECT c.* INTO v_challenge FROM public.phone_challenges c WHERE c.challenge_id = p_challenge_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  IF v_challenge.expires_at <= v_now_sec THEN
+    DELETE FROM public.phone_challenges c WHERE c.challenge_id = p_challenge_id;
+    RETURN;
+  END IF;
+  RETURN QUERY SELECT v_challenge.phone, v_challenge.expires_at, v_challenge.code,
+    v_challenge.channel_context, v_challenge.verify_attempts::integer;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_challenge_store_delete(p_challenge_id text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_row_count integer;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-challenge.delete',
+    app.hash_port_typed_args(ARRAY[ROW('text@1', textsend(p_challenge_id))::app.port_typed_arg]),
+    'app.phone_challenge_store_delete(text)'::regprocedure
+  );
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' THEN RETURN false; END IF;
+  DELETE FROM public.phone_challenges c WHERE c.challenge_id = p_challenge_id;
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count > 0;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_challenge_store_delete_by_phone(p_phone text)
+RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_row_count integer;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-challenge.delete-by-phone',
+    app.hash_port_typed_args(ARRAY[ROW('text@1', textsend(p_phone))::app.port_typed_arg]),
+    'app.phone_challenge_store_delete_by_phone(text)'::regprocedure
+  );
+  IF p_phone IS NULL OR btrim(p_phone) = '' THEN RETURN 0; END IF;
+  DELETE FROM public.phone_challenges c WHERE c.phone = p_phone;
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_challenge_store_increment_attempts(p_challenge_id text, p_now_sec bigint)
+RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_attempts integer;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'auth.phone-challenge.attempt.increment',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_challenge_id))::app.port_typed_arg,
+      ROW('bigint@1', int8send(p_now_sec))::app.port_typed_arg
+    ]), 'app.phone_challenge_store_increment_attempts(text,bigint)'::regprocedure
+  );
+  UPDATE public.phone_challenges c SET verify_attempts = c.verify_attempts + 1
+   WHERE c.challenge_id = p_challenge_id AND c.expires_at > p_now_sec
+   RETURNING c.verify_attempts::integer INTO v_attempts;
+  RETURN v_attempts;
+END
+$function$;
+
+DROP FUNCTION IF EXISTS app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,jsonb);
+CREATE OR REPLACE FUNCTION app.phone_otp_public_booking_issue_challenge(
+  p_phone text, p_challenge_id text, p_code text, p_ttl_sec integer,
+  p_resend_cooldown_sec integer, p_delivery_channel text, p_intent text
+)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE
+  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  v_locked_until bigint;
+  v_last_created timestamptz;
+  v_intent jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'booking.public-phone-otp.issue',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_phone))::app.port_typed_arg,
+      ROW('text@1', textsend(p_challenge_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_code))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_ttl_sec))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_resend_cooldown_sec))::app.port_typed_arg,
+      ROW('text@1', textsend(p_delivery_channel))::app.port_typed_arg,
+      ROW('text@1', textsend(p_intent))::app.port_typed_arg
+    ]), 'app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)'::regprocedure
+  );
+  v_intent := p_intent::jsonb;
+  IF p_phone IS NULL OR btrim(p_phone) = '' OR p_challenge_id IS NULL OR btrim(p_challenge_id) = ''
+     OR p_code IS NULL OR btrim(p_code) = '' OR p_ttl_sec IS NULL OR p_ttl_sec <= 0
+     OR p_resend_cooldown_sec IS NULL OR p_resend_cooldown_sec < 0
+     OR p_delivery_channel IS NULL OR btrim(p_delivery_channel) = ''
+     OR v_intent IS NULL OR jsonb_typeof(v_intent) <> 'object' THEN RETURN false; END IF;
+  DELETE FROM public.phone_otp_locks WHERE locked_until <= v_now_sec;
+  SELECT l.locked_until INTO v_locked_until FROM public.phone_otp_locks l
+   WHERE l.phone_normalized = p_phone FOR UPDATE;
+  IF FOUND AND v_locked_until > v_now_sec THEN RETURN false; END IF;
+  SELECT max(c.created_at) INTO v_last_created FROM public.phone_challenges c WHERE c.phone = p_phone;
+  IF v_last_created IS NOT NULL
+     AND extract(epoch FROM (clock_timestamp() - v_last_created)) < p_resend_cooldown_sec THEN
+    RETURN false;
+  END IF;
+  DELETE FROM public.phone_challenges WHERE phone = p_phone;
+  INSERT INTO public.phone_challenges
+    (challenge_id, phone, expires_at, code, channel_context, verify_attempts)
+  VALUES (p_challenge_id, p_phone, v_now_sec + p_ttl_sec, p_code,
+    jsonb_build_object('otpDelivery', p_delivery_channel, 'publicBookingIntent', v_intent), 0)
+  ON CONFLICT (challenge_id) DO NOTHING;
+  RETURN FOUND;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_otp_public_booking_consume_challenge(
+  p_challenge_id text, p_code text, p_max_attempts integer, p_lock_duration_sec integer
+)
+RETURNS TABLE (ok boolean, intent jsonb, delivery_channel text, retry_after_seconds integer)
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+#variable_conflict use_column
+DECLARE
+  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  v_challenge public.phone_challenges%ROWTYPE;
+  v_intent jsonb;
+  v_next_attempts integer;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_phone_otp_owner', 'app_pre_session', 'pre_session', 'booking.public-phone-otp.consume',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_challenge_id))::app.port_typed_arg,
+      ROW('text@1', textsend(p_code))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_max_attempts))::app.port_typed_arg,
+      ROW('integer@1', int4send(p_lock_duration_sec))::app.port_typed_arg
+    ]), 'app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)'::regprocedure
+  );
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' OR p_code IS NULL OR btrim(p_code) = ''
+     OR p_max_attempts IS NULL OR p_max_attempts <= 0
+     OR p_lock_duration_sec IS NULL OR p_lock_duration_sec < 0 THEN
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer; RETURN;
+  END IF;
+  SELECT c.* INTO v_challenge FROM public.phone_challenges c
+   WHERE c.challenge_id = p_challenge_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer; RETURN; END IF;
+  IF v_challenge.expires_at <= v_now_sec THEN
+    DELETE FROM public.phone_challenges WHERE challenge_id = p_challenge_id;
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer; RETURN;
+  END IF;
+  v_intent := v_challenge.channel_context -> 'publicBookingIntent';
+  IF v_intent IS NULL OR jsonb_typeof(v_intent) <> 'object' THEN
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer; RETURN;
+  END IF;
+  IF v_challenge.code IS NULL OR v_challenge.code <> p_code THEN
+    UPDATE public.phone_challenges SET verify_attempts = verify_attempts + 1
+     WHERE challenge_id = p_challenge_id RETURNING verify_attempts::integer INTO v_next_attempts;
+    IF v_next_attempts >= p_max_attempts THEN
+      DELETE FROM public.phone_challenges WHERE challenge_id = p_challenge_id;
+      INSERT INTO public.phone_otp_locks (phone_normalized, locked_until)
+      VALUES (v_challenge.phone, v_now_sec + p_lock_duration_sec)
+      ON CONFLICT (phone_normalized) DO UPDATE SET locked_until = EXCLUDED.locked_until;
+      RETURN QUERY SELECT false, NULL::jsonb, NULL::text, p_lock_duration_sec; RETURN;
+    END IF;
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer; RETURN;
+  END IF;
+  DELETE FROM public.phone_challenges WHERE challenge_id = p_challenge_id;
+  RETURN QUERY SELECT true, v_intent, v_challenge.channel_context ->> 'otpDelivery', NULL::integer;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.auth_oauth_list_user_providers(p_user_id uuid)
+RETURNS TABLE (provider text)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_oauth_owner', 'app_worker', 'service', 'relation',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), NULL::regprocedure
+  );
+  RETURN QUERY SELECT DISTINCT b.provider FROM public.user_oauth_bindings b
+   WHERE p_user_id IS NOT NULL AND b.user_id = p_user_id
+     AND b.provider IN ('google', 'apple', 'yandex', 'vk');
+END
+$function$;
+
 DO $ownership$
 DECLARE item record;
 BEGIN
@@ -1425,7 +1922,26 @@ BEGIN
     ('app.delete_google_calendar_event_id(uuid)', 'app_seam_patient_booking_owner'),
     ('app.read_booking_calendar_patient_profile(uuid)', 'app_seam_patient_booking_owner'),
     ('app.read_booking_calendar_latest_staff_comment(uuid)', 'app_seam_patient_booking_owner'),
-    ('app.is_current_patient_self_booking_allowed()', 'app_seam_patient_booking_owner')
+    ('app.is_current_patient_self_booking_allowed()', 'app_seam_patient_booking_owner'),
+    ('app.email_auth_find_email_otp_lock(uuid)', 'app_seam_email_otp_owner'),
+    ('app.email_auth_register_email_otp_lockout(uuid)', 'app_seam_email_otp_owner'),
+    ('app.email_auth_reset_email_otp_lockout(uuid)', 'app_seam_email_otp_owner'),
+    ('app.phone_auth_find_otp_lock(text)', 'app_seam_phone_otp_owner'),
+    ('app.phone_auth_find_latest_challenge_created_at(text)', 'app_seam_phone_otp_owner'),
+    ('app.phone_auth_register_otp_lockout(text,bigint)', 'app_seam_phone_otp_owner'),
+    ('app.phone_auth_reset_otp_lockout(text)', 'app_seam_phone_otp_owner'),
+    ('app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)', 'app_seam_phone_otp_owner'),
+    ('app.phone_challenge_store_read(text)', 'app_seam_phone_otp_owner'),
+    ('app.phone_challenge_store_delete(text)', 'app_seam_phone_otp_owner'),
+    ('app.phone_challenge_store_delete_by_phone(text)', 'app_seam_phone_otp_owner'),
+    ('app.phone_challenge_store_increment_attempts(text,bigint)', 'app_seam_phone_otp_owner'),
+    ('app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)', 'app_seam_phone_otp_owner'),
+    ('app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)', 'app_seam_phone_otp_owner'),
+    ('app.password_login_acquire(text,text,uuid,text)', 'app_seam_password_auth_owner'),
+    ('app.password_login_complete(uuid,boolean)', 'app_seam_password_auth_owner'),
+    ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)', 'app_seam_password_auth_owner'),
+    ('app.password_login_read_altcha_secret()', 'app_seam_password_auth_owner'),
+    ('app.auth_oauth_list_user_providers(uuid)', 'app_seam_oauth_owner')
   ) AS rows(signature, owner_name) LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', item.signature);
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = item.owner_name) THEN

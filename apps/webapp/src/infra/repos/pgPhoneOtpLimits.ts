@@ -1,11 +1,14 @@
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, webappSqlFromPgText } from '@/infra/db/runWebappSql';
 
 export async function findPhoneOtpLock(
   phoneNormalized: string,
 ): Promise<{ locked_until: string | number } | null> {
-  const lockRow = await runWebappPgText<{ locked_until: string | number }>(
-    'SELECT locked_until FROM app.phone_auth_find_otp_lock($1::text)',
+  const query = 'SELECT locked_until FROM app.phone_auth_find_otp_lock($1::text)';
+  const lockRow = await runWebappNamedRoot<{ locked_until: string | number }>(
+    getWebappSqlDb(),
+    'app.phone_auth_find_otp_lock(text)',
     [phoneNormalized],
+    webappSqlFromPgText(query, [phoneNormalized]),
   );
   return lockRow.rows[0] ?? null;
 }
@@ -13,9 +16,12 @@ export async function findPhoneOtpLock(
 export async function findLatestPhoneChallengeCreatedAt(
   phoneNormalized: string,
 ): Promise<Date | null> {
-  const lastCh = await runWebappPgText<{ max_created: Date | string | null }>(
-    'SELECT max_created FROM app.phone_auth_find_latest_challenge_created_at($1::text)',
+  const query = 'SELECT max_created FROM app.phone_auth_find_latest_challenge_created_at($1::text)';
+  const lastCh = await runWebappNamedRoot<{ max_created: Date | string | null }>(
+    getWebappSqlDb(),
+    'app.phone_auth_find_latest_challenge_created_at(text)',
     [phoneNormalized],
+    webappSqlFromPgText(query, [phoneNormalized]),
   );
   const raw = lastCh.rows[0]?.max_created;
   if (!raw) return null;
@@ -43,16 +49,27 @@ export async function registerPhoneOtpLockout(
   phoneNormalized: string,
   nowSec: number,
 ): Promise<number> {
-  const r = await runWebappPgText<{ locked_until: string | number }>(
-    'SELECT locked_until FROM app.phone_auth_register_otp_lockout($1::text, $2::bigint)',
+  const query =
+    'SELECT locked_until FROM app.phone_auth_register_otp_lockout($1::text, $2::bigint)';
+  const args = [phoneNormalized, nowSec] as const;
+  const r = await runWebappNamedRoot<{ locked_until: string | number }>(
+    getWebappSqlDb(),
+    'app.phone_auth_register_otp_lockout(text,bigint)',
     [phoneNormalized, nowSec],
+    webappSqlFromPgText(query, args),
   );
   return Number(r.rows[0]!.locked_until);
 }
 
 /** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
 export async function resetPhoneOtpLockout(phoneNormalized: string): Promise<void> {
-  await runWebappPgText('SELECT app.phone_auth_reset_otp_lockout($1::text)', [phoneNormalized]);
+  const query = 'SELECT app.phone_auth_reset_otp_lockout($1::text)';
+  await runWebappNamedRoot(
+    getWebappSqlDb(),
+    'app.phone_auth_reset_otp_lockout(text)',
+    [phoneNormalized],
+    webappSqlFromPgText(query, [phoneNormalized]),
+  );
 }
 
 export const pgPhoneOtpLimitsPort = {

@@ -70,8 +70,9 @@ bootstrap="$repo_root/deploy/host/bootstrap-c4-test-env.mjs"
 apply_hba="$repo_root/deploy/host/apply-postgres-mtls.sh"
 probe_source="$repo_root/deploy/host/probe-dev-test-postgres-mtls.mjs"
 cutover="$repo_root/deploy/postgres/privileges/initial-cutover.mjs"
+sequence="$repo_root/deploy/host/port-context-cutover-sequence.sh"
 journal=/var/log/postgresql/postgresql-16-main.log
-for path in "$material" "$bootstrap" "$apply_hba" "$probe_source" "$cutover" "$api_env" "$webapp_env"; do
+for path in "$material" "$bootstrap" "$apply_hba" "$probe_source" "$cutover" "$sequence" "$api_env" "$webapp_env"; do
   [[ -f "$path" && ! -L "$path" ]] || die "missing regular artifact $path"
 done
 [[ -f "$journal" && -r "$journal" ]] || die "unreadable PostgreSQL journal $journal"
@@ -135,26 +136,48 @@ export "${password_prefix}_INTEGRATOR_PASSWORD=$(read_secret integrator)"
 connection_limit=$(runuser -u postgres -- psql -X -d postgres -Atqc \
   "SELECT datconnlimit FROM pg_catalog.pg_database WHERE datname='$database';")
 [[ "$connection_limit" =~ ^-?[0-9]+$ ]] || die 'could not capture target connection limit'
-limit_locked=1
-restore_connection_limit() {
+PORT_CONTEXT_CUTOVER_STARTED=0
+PORT_CONTEXT_CUTOVER_COMPLETE=0
+port_context_cutover_close_target() {
+  runuser -u postgres -- psql -X -d postgres -v ON_ERROR_STOP=1 -c \
+    "ALTER DATABASE $database CONNECTION LIMIT 0;
+     SELECT pg_terminate_backend(pid) FROM pg_catalog.pg_stat_activity
+     WHERE datname='$database' AND pid<>pg_backend_pid();" >/dev/null
+}
+port_context_cutover_install_target() {
+  node --experimental-strip-types "$cutover" \
+    --env "$environment" --db "$database" \
+    --admin-socket /var/run/postgresql --admin-port 5432 \
+    --backup-file "$backup_file"
+}
+port_context_cutover_apply_hba() {
+  bash "$apply_hba" --apply "${hba_args[@]}"
+}
+port_context_cutover_open_readiness_window() {
+  # Probes are sequential, so one connection is sufficient.  The EXIT guard
+  # immediately returns this target to zero if any probe or later step fails.
+  runuser -u postgres -- psql -X -d postgres -v ON_ERROR_STOP=1 \
+    -c "ALTER DATABASE $database CONNECTION LIMIT 1;" >/dev/null
+}
+port_context_cutover_verify_readiness() {
+  bash "$apply_hba" --readiness "${hba_args[@]}" \
+    --probe-command "$probe" --auth-refusal-journal "$journal"
+}
+port_context_cutover_restore_operational_limit() {
+  runuser -u postgres -- psql -X -d postgres -v ON_ERROR_STOP=1 \
+    -c "ALTER DATABASE $database CONNECTION LIMIT $connection_limit;" >/dev/null
+}
+fail_closed_exit() {
   local status=$?
   cleanup_secrets
-  if [[ ${limit_locked:-0} -eq 1 ]]; then
-    runuser -u postgres -- psql -X -d postgres -v ON_ERROR_STOP=1 \
-      -c "ALTER DATABASE $database CONNECTION LIMIT $connection_limit;" >/dev/null || true
+  if [[ ${PORT_CONTEXT_CUTOVER_STARTED:-0} -eq 1 && ${PORT_CONTEXT_CUTOVER_COMPLETE:-0} -ne 1 ]]; then
+    if ! port_context_cutover_close_target; then
+      echo 'cutover-postgres-port-context: failed to leave target at CONNECTION LIMIT 0' >&2
+      status=70
+    fi
   fi
   exit "$status"
 }
-trap restore_connection_limit EXIT
-runuser -u postgres -- psql -X -d postgres -v ON_ERROR_STOP=1 -c \
-  "ALTER DATABASE $database CONNECTION LIMIT 0;
-   SELECT pg_terminate_backend(pid) FROM pg_catalog.pg_stat_activity
-   WHERE datname='$database' AND pid<>pg_backend_pid();" >/dev/null
-
-node --experimental-strip-types "$cutover" \
-  --env "$environment" --db "$database" \
-  --admin-socket /var/run/postgresql --admin-port 5432 \
-  --backup-file "$backup_file"
 
 hba_args=(
   --environment "$environment"
@@ -168,15 +191,13 @@ hba_args=(
   --server-cert-file /etc/bersoncarebot/postgres-mtls/server/server.crt
   --server-key-file /etc/bersoncarebot/postgres-mtls/server/server.key
 )
-bash "$apply_hba" --apply "${hba_args[@]}"
-runuser -u postgres -- psql -X -d postgres -v ON_ERROR_STOP=1 \
-  -c "ALTER DATABASE $database CONNECTION LIMIT $connection_limit;" >/dev/null
-limit_locked=0
-
 install -o root -g root -m 0700 "$probe_source" "$probe"
 node "$probe" --validate "$environment"
-bash "$apply_hba" --readiness "${hba_args[@]}" \
-  --probe-command "$probe" --auth-refusal-journal "$journal"
+
+# shellcheck source=deploy/host/port-context-cutover-sequence.sh
+source "$sequence"
+trap fail_closed_exit EXIT
+run_port_context_cutover_sequence
 
 trap - EXIT
 cleanup_secrets

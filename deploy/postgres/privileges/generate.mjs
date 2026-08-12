@@ -390,11 +390,36 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
   const functions = functionEntriesForDatabase(declaration.portContext, dbName)
     .map(([signature]) => signature)
     .sort();
+  const exactPreSessionCapabilities = new Map();
+  for (const capability of Object.values(declaration.portContext?.capabilities ?? {})) {
+    if (capability.targetRole !== 'app_pre_session' || !capability.functionIdentity) continue;
+    const previous = exactPreSessionCapabilities.get(capability.functionIdentity);
+    if (previous && previous !== capability.purpose) {
+      throw new DeclarationGapError([{ site: `portContext.capabilities.${capability.functionIdentity}`,
+        reason: 'exact pre-session identity has conflicting purposes' }]);
+    }
+    exactPreSessionCapabilities.set(capability.functionIdentity, capability.purpose);
+  }
+  const exactPreSessionRoots = functionEntriesForDatabase(declaration.portContext, dbName)
+    .filter(([, routine]) => routine.security === 'DEFINER'
+      && routine.owner !== 'app_seam_context_owner'
+      && routine.execute?.includes('app_pre_session'))
+    .map(([signature]) => [signature, exactPreSessionCapabilities.get(signature)])
+    .sort(([a], [b]) => a.localeCompare(b));
+  const missingExactPreSession = exactPreSessionRoots.filter(([, purpose]) => !purpose);
+  if (missingExactPreSession.length > 0) {
+    throw new DeclarationGapError(missingExactPreSession.map(([signature]) => ({
+      site: `portContext.functions.${signature}`,
+      reason: 'app_pre_session business definer lacks an exact named capability',
+    })));
+  }
   const relationRows = exactRelations.map((identity) => {
     const [schema, name] = identity.split('.');
     return `(${lit(schema)}::name,${lit(name)}::name)`;
   }).join(',\n');
   const functionRows = functions.map((signature) => `(${lit(signature)})`).join(',\n');
+  const preSessionRows = exactPreSessionRoots
+    .map(([signature, purpose]) => `(${lit(signature)},${lit(purpose)})`).join(',\n');
   return [
     '-- Bidirectional revision-11 catalog closure: no missing or undeclared managed relation/routine.',
     'DO $bcb$ DECLARE bad text; BEGIN',
@@ -422,7 +447,17 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
     '     AND NOT EXISTS (SELECT 1 FROM expected WHERE routine.oid=pg_catalog.to_regprocedure(expected.signature))',
     '   ORDER BY 1 LIMIT 1;',
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared managed routine: %',bad; END IF;",
-    `  RAISE NOTICE 'BCB_CATALOG_CLOSURE_VERIFIED database=${dbName} relations=${exactRelations.length} routines=${functions.length}';`,
+    `  WITH expected(signature,purpose) AS (VALUES ${preSessionRows})`,
+    '  SELECT expected.signature INTO bad FROM expected',
+    '   JOIN pg_catalog.pg_proc routine ON routine.oid=pg_catalog.to_regprocedure(expected.signature)',
+    "   WHERE NOT routine.prosecdef",
+    "      OR position('app.require_accepted_context' IN routine.prosrc)=0",
+    "      OR position('app.hash_port_typed_args' IN routine.prosrc)=0",
+    '      OR position(expected.signature IN routine.prosrc)=0',
+    '      OR position(expected.purpose IN routine.prosrc)=0',
+    '   ORDER BY 1 LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'pre-session exact gate missing or mismatched: %',bad; END IF;",
+    `  RAISE NOTICE 'BCB_CATALOG_CLOSURE_VERIFIED database=${dbName} relations=${exactRelations.length} routines=${functions.length} exact_pre_session_roots=${exactPreSessionRoots.length}';`,
     'END $bcb$;',
     '',
   ].join('\n');
@@ -1293,8 +1328,9 @@ export function generateZeroStateSql(declaration, dbName, options = {}) {
 }
 
 /** Legacy-only cluster cleanup. Shared target roles and declared runtime logins are never candidates.
- * A legacy role is removed only when the cluster catalog proves that no database, membership or
- * active backend still depends on it; otherwise it remains inert for a later target cutover. */
+ * A legacy-only membership edge is removed only after both endpoints have no database dependency
+ * or active backend. Roles with any remaining dependency or non-legacy membership stay inert for a
+ * later target cutover. */
 export function generateZeroStateClusterSql(declaration, options = {}) {
   const source = options.source ?? 'deploy/postgres/privileges/declaration.ts';
   const managed = new Set(managedRoleNames(declaration));
@@ -1308,7 +1344,7 @@ export function generateZeroStateClusterSql(declaration, options = {}) {
     '-- ============================================================================',
     '-- СГЕНЕРИРОВАННАЯ УБОРКА LEGACY ROLES — SHARED TARGET ROLES НЕ УДАЛЯЕТ.',
     `-- источник:   ${source}`,
-    '-- безопасно повторять после per-database zero; роли с зависимостями остаются до следующего target.',
+    '-- безопасно повторять после per-database zero; legacy-only memberships снимаются лишь после очистки всех их database dependencies.',
     '-- ============================================================================',
     '',
     '\\set ON_ERROR_STOP on',
@@ -1316,10 +1352,26 @@ export function generateZeroStateClusterSql(declaration, options = {}) {
     'CREATE TEMP TABLE bcb_zero_state_cluster_guard ON COMMIT DROP AS SELECT 1;',
     'CREATE TEMP TABLE bcb_zero_state_cluster_roles (role_name name PRIMARY KEY) ON COMMIT DROP;',
     `INSERT INTO bcb_zero_state_cluster_roles SELECT rolname FROM pg_catalog.pg_roles WHERE rolname = ANY (${roleArray});`,
-    'DO $bcb$ DECLARE target record; dependency_count bigint; membership_count bigint; backend_count bigint; BEGIN',
+    'DO $bcb$ DECLARE edge record; BEGIN',
     `  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = ANY (${roleArray}) AND rolsuper) THEN`,
     "    RAISE EXCEPTION 'application identity is SUPERUSER; cluster zero-state refused';",
     '  END IF;',
+    '  FOR edge IN SELECT granted.rolname AS role_name, member.rolname AS member_name',
+    '    FROM pg_catalog.pg_auth_members membership',
+    '    JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid',
+    '    JOIN pg_catalog.pg_roles member ON member.oid=membership.member',
+    '   WHERE (granted.rolname IN (SELECT role_name FROM bcb_zero_state_cluster_roles)',
+    '       OR member.rolname IN (SELECT role_name FROM bcb_zero_state_cluster_roles))',
+    '     AND NOT EXISTS (SELECT 1 FROM unnest(ARRAY[granted.oid,member.oid]) endpoint(role_oid)',
+    '       JOIN pg_catalog.pg_roles endpoint_role ON endpoint_role.oid=endpoint.role_oid',
+    '      WHERE endpoint_role.rolname IN (SELECT role_name FROM bcb_zero_state_cluster_roles)',
+    "        AND (EXISTS (SELECT 1 FROM pg_catalog.pg_shdepend dependency WHERE dependency.refclassid='pg_authid'::pg_catalog.regclass AND dependency.refobjid=endpoint.role_oid)",
+    '          OR EXISTS (SELECT 1 FROM pg_catalog.pg_stat_activity activity WHERE activity.usesysid=endpoint.role_oid)))',
+    '   ORDER BY 1,2 LOOP',
+    "    EXECUTE pg_catalog.format('REVOKE %I FROM %I',edge.role_name,edge.member_name);",
+    '  END LOOP;',
+    'END $bcb$;',
+    'DO $bcb$ DECLARE target record; dependency_count bigint; membership_count bigint; backend_count bigint; BEGIN',
     '  FOR target IN SELECT role_name FROM bcb_zero_state_cluster_roles ORDER BY role_name LOOP',
     '    SELECT count(*) INTO dependency_count FROM pg_catalog.pg_shdepend dependency',
     "     WHERE dependency.refclassid = 'pg_authid'::pg_catalog.regclass",

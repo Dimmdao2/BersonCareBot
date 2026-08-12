@@ -751,7 +751,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_pre_session"
+      "app_worker"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_oauth_owner",
     "typedArgs": [
@@ -6477,7 +6477,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.phone_challenge_store_upsert(text,text,bigint,text,jsonb,integer)": {
+  "app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)": {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "boolean",
@@ -6495,7 +6495,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "bigint",
       "text",
-      "jsonb",
+      "text",
       "integer"
     ],
     "databases": [
@@ -6576,7 +6576,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,jsonb)": {
+  "app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)": {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "boolean",
@@ -6596,7 +6596,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "integer",
       "integer",
       "text",
-      "jsonb"
+      "text"
     ],
     "databases": [
       "bersoncarebot_test",
@@ -11455,10 +11455,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "proconfig": [
       "search_path=pg_catalog"
     ],
-    "execute": [
-      "app_pre_session"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
+    "execute": [],
+    "purpose": "obsolete predecessor of app.password_credentials_replace_self; no runtime caller",
     "typedArgs": [
       "text"
     ],
@@ -11482,7 +11480,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
-    "invocation": "runtime"
+    "invocation": "internal"
   },
   "app.specialist_task_reminder_materialization_fingerprint(uuid)": {
     "owner": "app_seam_reminder_specialist_owner",

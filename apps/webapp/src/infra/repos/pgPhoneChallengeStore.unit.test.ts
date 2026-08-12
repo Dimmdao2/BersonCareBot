@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  runWebappPgText: vi.fn(),
+  db: {},
+  runWebappNamedRoot: vi.fn(),
+  webappSqlFromPgText: vi.fn(() => ({})),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText: fakes.runWebappPgText,
+  getWebappSqlDb: () => fakes.db,
+  runWebappNamedRoot: fakes.runWebappNamedRoot,
+  webappSqlFromPgText: fakes.webappSqlFromPgText,
 }));
 
 import { createPgPhoneChallengeStore } from './pgPhoneChallengeStore';
@@ -16,7 +20,7 @@ beforeEach(() => {
 
 describe('pgPhoneChallengeStore phone trust metadata', () => {
   it('round-trips an explicit false value through channel_context', async () => {
-    fakes.runWebappPgText.mockResolvedValueOnce({ rows: [{ ok: true }] }).mockResolvedValueOnce({
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ ok: true }] }).mockResolvedValueOnce({
       rows: [
         {
           phone: '+79991234567',
@@ -43,7 +47,7 @@ describe('pgPhoneChallengeStore phone trust metadata', () => {
       phoneNumberProven: false,
       channelContext: { channel: 'web', chatId: 'browser-1005' },
     });
-    const upsertParams = fakes.runWebappPgText.mock.calls[0]?.[1] as unknown[];
+    const upsertParams = fakes.runWebappNamedRoot.mock.calls[0]?.[2] as unknown[];
     expect(JSON.parse(String(upsertParams[4]))).toMatchObject({
       otpDelivery: 'sms',
       phoneNumberProven: false,

@@ -156,10 +156,12 @@ cutover восстановленного dump порядок:
 - [x] Webapp и integrator используют общий exact-client transaction wrapper: begin → clear → install context →
   `SET LOCAL ROLE` → queries → cleanup → commit/rollback; cleanup failure уничтожает connection. Отдельный
   global-admin physical pool и live wiring остаются ниже.
-- [ ] Завершить замену общего bootstrap на exact `pre_session`: сейчас exact descriptors покрывают только часть
-  roots, а общий `webapp_pre_session_relation` capability и широкий callable auth/public surface ещё существуют.
-- [ ] Каждый pre-session SECURITY DEFINER root первым действием требует accepted exact function/purpose/typed-args
-  и имеет только named relation/column/action surface. Текущий function census рассинхронизирован с declaration.
+- [x] Общий `webapp_pre_session_relation` удалён: production callsite oracle и capability catalog оставляют только
+  named roots; generic pre-session relation descriptor отсутствует.
+- [x] Все `43` уникальных callable pre-session SECURITY DEFINER roots первым действием требуют accepted exact
+  function/purpose/typed-args. Catalog verifier проверяет реальные `prosrc`; четыре старых password-login body
+  сохранены как private `*_impl` без EXECUTE, наружу доступны только exact-gated wrappers. Function census,
+  callsite oracle, real PG16 post-zero replay и single-target late-fault acceptance зелёные.
 - [x] Revoke-only zero/post-zero artifacts снимают старые direct bootstrap grants и `PUBLIC EXECUTE`; membership
   само по себе не открывает accepted context. Применение и доказательство на DEV остаются в Ф3/Ф7.
 - [x] Accessors fail loudly; disposable faults проверяют wrong database/login/backend/transaction/role/class/
@@ -197,6 +199,9 @@ cutover восстановленного dump порядок:
 
 ## Ф7 — DEV: наложение и живой прогон
 
+- [x] Host cutover wrapper fail-closed: с начала изменения доступа target держится с `CONNECTION LIMIT 0`, при
+  любой ошибке install/HBA/readiness снова закрывается, исходный limit возвращается только после полного PASS;
+  шесть fault points проверены self-test.
 - [ ] После доказанного DEV zero применить cluster-baseline, host mTLS readiness, port-context catalog и
   declaration-generated grants/RLS/seams — строго в этом порядке.
 - [ ] Проверить все cluster logins из `pg_roles`, все SET-able roles, `PUBLIC` и каждую definer-функцию; исключения

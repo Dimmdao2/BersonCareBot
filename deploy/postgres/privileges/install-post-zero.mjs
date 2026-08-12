@@ -49,6 +49,7 @@ const shells = generator('--env', env, '--db', db, '--env-login-shells');
 const envRender = generator('--env', env, '--db', db);
 const envVerifier = generator('--env', env, '--db', db, '--env-verify');
 const capabilityVerifier = generator('--db', db, '--port-context-verify');
+const relationWallRegistry = generator('--db', db, '--relation-wall-registry');
 const sql = [
   '\\set ON_ERROR_STOP on',
   `\\set DBNAME ${db}`,
@@ -56,6 +57,7 @@ const sql = [
   zeroVerifier,
   shells,
   `\\i ${resolve(root, files[0])}`,
+  relationWallRegistry,
   `\\i ${resolve(root, files[1])}`,
   `\\i ${resolve(root, files[2])}`,
   `\\i ${resolve(root, files[3])}`,

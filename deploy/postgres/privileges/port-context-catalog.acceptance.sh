@@ -11,6 +11,7 @@ log_file="$work_dir/postgres.log"
 db_name=bersoncarebot_test
 staff_login=bcb_test_webapp_staff
 patient_login=bcb_test_webapp_patient
+global_admin_login=bcb_test_webapp_global_admin
 integrator_login=bcb_test_integrator
 full_schema_source_db=${PORTCTX_FULL_SCHEMA_SOURCE_DB:-}
 full_schema_mode=0
@@ -64,8 +65,8 @@ DO \$roles\$
 DECLARE role_name text;
 BEGIN
   FOREACH role_name IN ARRAY ARRAY[
-    '$staff_login','$patient_login','$integrator_login',
-    'bcb_dev_webapp_staff','bcb_dev_webapp_patient','bcb_dev_integrator'
+    '$staff_login','$patient_login','$global_admin_login','$integrator_login',
+    'bcb_dev_webapp_staff','bcb_dev_webapp_patient','bcb_dev_webapp_global_admin','bcb_dev_integrator'
   ] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
       EXECUTE format('CREATE ROLE %I LOGIN', role_name);
@@ -79,6 +80,7 @@ SQL
 psql_admin \
   -v app_staff_login="$staff_login" \
   -v app_patient_login="$patient_login" \
+  -v app_global_admin_login="$global_admin_login" \
   -v integrator_login="$integrator_login" \
   -f "$repo_root/deploy/postgres/port-context/contract.sql" >/dev/null
 
@@ -133,6 +135,7 @@ if [[ "$full_schema_mode" == 1 ]]; then
     psql_admin -1 \
       -v BCB_TEST_INTEGRATOR_PASSWORD=disposable-integrator \
       -v BCB_TEST_WEBAPP_PATIENT_PASSWORD=disposable-patient \
+      -v BCB_TEST_WEBAPP_GLOBAL_ADMIN_PASSWORD=disposable-global-admin \
       -v BCB_TEST_WEBAPP_STAFF_PASSWORD=disposable-staff >/dev/null
 fi
 node --experimental-strip-types "$repo_root/deploy/postgres/privileges/generate-cli.mjs" \
@@ -220,16 +223,17 @@ assert_eq "$(psql_admin -Atc "
 WITH expected(session_login, target_role) AS (
   VALUES
     ('$staff_login','app_pre_session'), ('$staff_login','app_staff'),
-    ('$staff_login','app_clinic_billing'), ('$staff_login','app_platform_settings'),
-    ('$staff_login','app_worker'), ('$staff_login','app_operational_media_worker'),
+    ('$staff_login','app_clinic_billing'), ('$staff_login','app_worker'),
+    ('$staff_login','app_operational_media_worker'),
     ('$staff_login','saas_telemetry_operator'),
-    ('$patient_login','app_patient'),
+    ('$patient_login','app_pre_session'), ('$patient_login','app_patient'),
+    ('$global_admin_login','app_platform_settings'), ('$global_admin_login','app_platform_admin'),
     ('$integrator_login','app_integrator_request'), ('$integrator_login','app_integrator_resolver'),
     ('$integrator_login','app_operational_delivery_worker'), ('$integrator_login','app_operational_scheduler'),
     ('$integrator_login','app_tenant_service'), ('$integrator_login','app_service')
 )
 SELECT count(*) FROM expected
-WHERE pg_has_role(session_login, target_role, 'SET')")" 14
+WHERE pg_has_role(session_login, target_role, 'SET')")" 16
 assert_eq "$(psql_admin -Atc "SELECT
   pg_has_role('$staff_login','app_tenant_service','SET')
   OR pg_has_role('$staff_login','app_service','SET')")" f
@@ -295,6 +299,7 @@ if [[ "$full_schema_mode" == 1 ]]; then
     psql_admin -1 \
       -v BCB_TEST_INTEGRATOR_PASSWORD=disposable-integrator \
       -v BCB_TEST_WEBAPP_PATIENT_PASSWORD=disposable-patient \
+      -v BCB_TEST_WEBAPP_GLOBAL_ADMIN_PASSWORD=disposable-global-admin \
       -v BCB_TEST_WEBAPP_STAFF_PASSWORD=disposable-staff >/dev/null
 
   org_a=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1

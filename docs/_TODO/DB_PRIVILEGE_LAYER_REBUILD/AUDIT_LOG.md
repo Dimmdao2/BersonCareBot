@@ -1930,3 +1930,37 @@ cluster rehearsal, не новый документационный мини-с�
 - **DEPLOY-SCOPE-001 — НЕ ИСПРАВЛЕНО:** bilateral DEV+TEST/shared-cutover и org-only birth trigger заменены
   owner-решениями: один target за deploy; HBA/mTLS one-time provisioning + ordinary readiness; birth wall для
   каждой managed table; отдельный global-admin DB-login/certificate/pool при двух software ports.
+
+## Audit pass DEV-cutover-checkpoint-2026-08-12
+
+| Поле | Значение |
+|---|---|
+| Candidate | `3ddebfe61937c90034976494096b025f4da3d2ae`, `feat/doctor-ui-rebuild` |
+| Метод | **Взгляд**: owner order + target-neutral cutover failure paths + declaration/capability/function-body comparison |
+| Вердикт | **FAIL ДЛЯ LIVE DEV — два MUST FIX до backup/zero** |
+
+- **CUTOVER-FAILCLOSED-001 — ОТКРЫТО, MUST FIX:** если target roles/install уже применены, а последующий
+  `apply-postgres-mtls.sh --apply` или readiness падает, внутренний HBA rollback возвращает прежний файл, а общий
+  EXIT trap восстанавливает исходный `CONNECTION LIMIT`. При допустимом старом broad SCRAM-правиле новые runtime
+  login/password после ошибки снова получают соединение без обязательного client certificate. Cutover обязан
+  оставлять target database закрытой при любом неуспехе после начала изменения доступа и возвращать исходный
+  limit только после полного HBA/readiness/install/proof PASS.
+- **PRESESSION-EXACT-001 — ОТКРЫТО, MUST FIX УТОЧНЁН:** прежняя запись про generic pre-session подтверждена и
+  расширена: статическое двустороннее сравнение EXECUTE `app_pre_session` против exact capability descriptors
+  нашло `16` SECURITY DEFINER roots без exact function/purpose/typed-args gate. Достижимый пример —
+  `app.phone_challenge_store_read(text)`: прямой вызов после `SET ROLE app_pre_session` читает phone/code без
+  `require_accepted_context`. Каждый живой pre-session root должен получить exact descriptor/gate; функции,
+  вызываемые только после human/service authentication, должны быть сняты с `app_pre_session` и переведены на
+  соответствующий runtime context.
+
+  Число `16` воспроизведено на candidate, а не взято из narrative аудитора: команда `git archive
+  3ddebfe61937c90034976494096b025f4da3d2ae deploy/postgres/privileges docs/_TODO/SAAS_FOUNDATION/scripts`
+  распакована в `mktemp`, затем Node с `--experimental-strip-types` сравнил сигнатуры
+  `declaration.portContext.functions`, где `security=DEFINER`, `owner!=app_seam_context_owner` и
+  `execute` содержит `app_pre_session`, с `portContext.capabilities[*].functionIdentity` для
+  `targetRole=app_pre_session`; stdout: `missing=16` и все 16 сигнатур.
+
+Процессная оценка аудитора: target-neutral zero/install, четыре runtime login, universal birth wall и удаление
+empty-TEST-specific обходов — реальный прогресс в правильном направлении. До live DEV остаются эти два
+ограниченных исправления и один контролируемый проход `backup → offline zero/proof → install → live matrix`;
+объём точечной отладки после живого запуска заранее определяется только реальными `42501` из PostgreSQL journal.

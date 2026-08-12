@@ -112,15 +112,16 @@ for zero_db in bersoncarebot_test bcb_webapp_dev; do
         AND object_collation.collname='unknown_collation';" | grep -qx 'postgres:true:postgres'
 done
 
-# Existing credentials are disabled before role deletion, and PostgreSQL logs the loud refusal.
+# Target-local zero revokes CONNECT before the cluster finalizer deletes shared
+# login roles, and PostgreSQL logs the loud database-specific refusal.
 set +e
 psql -X -h "$ZERO_SOCKET" -U bcb_webapp_dev_user -d bcb_webapp_dev -Atc 'SELECT 1' \
   >"$ZERO_WORK/nologin.out" 2>&1
 nologin_rc=$?
 set -e
 test "$nologin_rc" -ne 0
-grep -Eq 'not permitted to log in|не разрешено входить' "$ZERO_WORK/nologin.out"
-grep -Eq 'not permitted to log in|не разрешено входить' "$ZERO_LOG"
+grep -Eq 'permission denied for database|нет доступа к базе данных' "$ZERO_WORK/nologin.out"
+grep -Eq 'permission denied for database|нет доступа к базе данных' "$ZERO_LOG"
 
 # Inject nine independent fault classes; a second run must repair every one and keep the row.
 psql_admin -d bcb_webapp_dev <<'SQL'
@@ -139,9 +140,11 @@ psql_admin -d bcb_webapp_dev -1 -f "$GENERATED/zero-state.bcb_webapp_dev.sql" >/
 psql_admin -d bcb_webapp_dev -Atc \
   "SELECT (SELECT count(*) FROM public.probe) || ':' || pg_get_userbyid(relowner) || ':' || relrowsecurity || ':' || relforcerowsecurity
      FROM pg_class WHERE oid='public.probe'::regclass;" | grep -qx '1:postgres:true:true'
+# Role membership is cluster-wide, so the target-local pass must leave it for
+# the finalizer after every target database has reached zero.
 psql_admin -d postgres -Atc \
   "SELECT count(*) FROM pg_auth_members WHERE roleid='app_owner'::regrole OR member='app_owner'::regrole;" \
-  | grep -qx 0
+  | grep -qx 2
 psql_admin -d bcb_webapp_dev -Atc \
   "SELECT pg_get_userbyid(type.typowner) || ':' ||
           (NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(type.typacl, acldefault('T', type.typowner))) acl WHERE acl.grantee=0)) || ':' ||
@@ -165,21 +168,25 @@ test "$atomic_rc" -ne 0
 psql_admin -d bcb_webapp_dev -Atc \
   "SELECT has_table_privilege('public', 'public.probe', 'SELECT');" | grep -qx f
 
-# The cluster finalizer must fail closed on an ownership dependency in any third database.
+# Shared role cleanup is target-neutral: it retains a role while any third
+# database still depends on it, then removes it after all target-local zero and
+# login cleanup passes have made that role globally disposable.
 psql_admin -d postgres -c 'CREATE DATABASE zero_state_dependency_probe OWNER postgres' >/dev/null
-psql_admin -d zero_state_dependency_probe -c 'CREATE TABLE public.blocker(id integer); ALTER TABLE public.blocker OWNER TO app_staff;' >/dev/null
-set +e
-psql_admin -d postgres -1 -f "$GENERATED/zero-state.cluster.sql" >"$ZERO_WORK/cluster-red.out" 2>&1
-cluster_red_rc=$?
-set -e
-test "$cluster_red_rc" -ne 0
-grep -Eq 'cannot be dropped|не может быть удалена' "$ZERO_WORK/cluster-red.out"
+psql_admin -d zero_state_dependency_probe -c 'CREATE TABLE public.blocker(id integer); ALTER TABLE public.blocker OWNER TO app_owner;' >/dev/null
+psql_admin -d postgres -1 -f "$GENERATED/zero-state.cluster.sql" >"$ZERO_WORK/cluster-retained.out" 2>&1
+grep -Eq 'legacy role app_owner retained' "$ZERO_WORK/cluster-retained.out"
+psql_admin -d postgres -Atc "SELECT count(*) FROM pg_roles WHERE rolname='app_owner';" | grep -qx 1
 psql_admin -d postgres -c 'DROP DATABASE zero_state_dependency_probe;' >/dev/null
 
+node "$CLI" --env dev --db bcb_webapp_dev --target-login-cleanup >"$ZERO_WORK/dev-login-cleanup.sql"
+node "$CLI" --env test --db bersoncarebot_test --target-login-cleanup >"$ZERO_WORK/test-login-cleanup.sql"
+psql_admin -d postgres -1 -f "$ZERO_WORK/dev-login-cleanup.sql" >/dev/null
+psql_admin -d postgres -1 -f "$ZERO_WORK/test-login-cleanup.sql" >/dev/null
 psql_admin -d postgres -1 -f "$GENERATED/zero-state.cluster.sql" >/dev/null
 psql_admin -d postgres -Atc \
-  "SELECT count(*) FROM pg_roles WHERE rolname IN ('app_owner','app_staff','bersoncarebot_test','bcb_webapp_dev_user');" \
+  "SELECT count(*) FROM pg_roles WHERE rolname IN ('app_owner','bersoncarebot_test','bcb_webapp_dev_user');" \
   | grep -qx 0
+psql_admin -d postgres -Atc "SELECT count(*) FROM pg_roles WHERE rolname='app_staff';" | grep -qx 1
 psql_admin -d postgres -Atc "SELECT count(*) FROM pg_roles WHERE rolname='harmless_admin';" | grep -qx 1
 
 set +e
@@ -191,4 +198,4 @@ test "$dropped_rc" -ne 0
 grep -Eq 'does not exist|не существует' "$ZERO_WORK/dropped-login.out"
 grep -Eq 'does not exist|не существует' "$ZERO_LOG"
 
-echo 'zero-state acceptance: PASS (ACL/owner/default/policy/RLS repair, atomicity, cross-DB role-drop gate, loud login refusal)'
+echo 'zero-state acceptance: PASS (ACL/owner/default/policy/RLS repair, atomicity, cross-DB role-drop gate, loud target CONNECT refusal)'

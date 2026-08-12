@@ -74,6 +74,76 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.rate-limit.check-record', argCount: 7,
     source: 'apps/webapp/src/infra/repos/pgAuthRateLimitEvents.ts',
   },
+  'app.email_auth_find_email_otp_lock(uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.lock.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgEmailAuth.ts',
+  },
+  'app.email_auth_register_email_otp_lockout(uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.lock.register', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgEmailAuth.ts',
+  },
+  'app.email_auth_reset_email_otp_lockout(uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.lock.reset', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgEmailAuth.ts',
+  },
+  'app.phone_auth_find_latest_challenge_created_at(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-otp.cooldown.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPhoneOtpLimits.ts',
+  },
+  'app.phone_auth_find_otp_lock(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-otp.lock.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPhoneOtpLimits.ts',
+  },
+  'app.phone_auth_register_otp_lockout(text,bigint)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-otp.lock.register', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPhoneOtpLimits.ts',
+  },
+  'app.phone_auth_reset_otp_lockout(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-otp.lock.reset', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPhoneOtpLimits.ts',
+  },
+  'app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-challenge.upsert', argCount: 6,
+    source: 'apps/webapp/src/infra/repos/pgPhoneChallengeStore.ts',
+  },
+  'app.phone_challenge_store_read(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-challenge.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPhoneChallengeStore.ts',
+  },
+  'app.phone_challenge_store_delete(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-challenge.delete', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPhoneChallengeStore.ts',
+  },
+  'app.phone_challenge_store_delete_by_phone(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-challenge.delete-by-phone', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPhoneChallengeStore.ts',
+  },
+  'app.phone_challenge_store_increment_attempts(text,bigint)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-challenge.attempt.increment', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPhoneChallengeStore.ts',
+  },
+  'app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-phone-otp.issue', argCount: 7,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingOtp.ts',
+  },
+  'app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-phone-otp.consume', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingOtp.ts',
+  },
   'app.read_public_runtime_setting(text,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'config.runtime.public.read', argCount: 2,

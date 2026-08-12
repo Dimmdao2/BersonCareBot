@@ -678,6 +678,7 @@ assert_eq "$(psql_as "$staff_login" "$staff_password" "$cert_dir/staff-rotated.c
 grep -q 'accepted port context required' "$log_file" || fail '42501 denial absent from PostgreSQL server log'
 
 if [[ "$single_mode" != --single && -z "$fault" ]]; then
+  bash "$repo_root/deploy/host/port-context-cutover-sequence.sh" --self-test
   printf 'fault\tinjected\tmechanism\texpected_error_or_result\n'
   faults=(clientcert broad_hba forbidden_claim forbidden_tag wrong_function wrong_purpose wrong_hash wrong_xid wrong_backend wrong_role wrong_effective_role business_using_true dropped_restrictive_gate removed_force_rls)
   for batch_start in 0 3 6 9 12; do

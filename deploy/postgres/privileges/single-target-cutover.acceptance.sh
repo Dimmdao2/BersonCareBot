@@ -50,7 +50,7 @@ for db in "$target_db" "$sibling_db"; do
   "$pg_bin/createdb" -h "$data_dir" -p "$port" -U dev "$db"
   admin "$db" -f "$work_dir/source.sql" >/dev/null
   node --experimental-strip-types "$repo_root/deploy/postgres/privileges/fixtures/production-catalog.mjs" "$db" \
-    | awk '/^CREATE SCHEMA IF NOT EXISTS / { print; next } /^CREATE TABLE / { sub(/^CREATE TABLE /, "CREATE TABLE IF NOT EXISTS "); print }' \
+    | awk '/^CREATE SCHEMA IF NOT EXISTS / { print; next } /^CREATE TABLE / { if ($3 ~ /^"app_control"\./ || $3 ~ /^"app_ext"\."(accepted_port_contexts|port_context_capabilities|variant_a_identity_refs)"/) next; sub(/^CREATE TABLE /, "CREATE TABLE IF NOT EXISTS "); print }' \
     | admin "$db" >/dev/null 2>"$work_dir/catalog-$db.log"
   # Canonical external legacy stage: it is committed before access zero/cutover.
   admin "$db" -1 -f "$repo_root/apps/integrator/src/infra/db/migrations/core/20260812_0001_offline_drop_legacy_identity.sql" \

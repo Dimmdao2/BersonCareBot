@@ -2,8 +2,10 @@ import type { QueryResultRow } from 'pg';
 import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import {
   runWebappPgText,
+  runWebappNamedRoot,
   runWebappTransaction,
   getWebappSqlDb,
+  webappSqlFromPgText,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
 import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
@@ -285,9 +287,12 @@ export async function findLatestPendingEmailChallengeForUser(
 export async function findEmailOtpLock(
   userId: string,
 ): Promise<{ locked_until: string | number } | null> {
-  const row = await runWebappPgText<{ locked_until: string | number }>(
-    'SELECT locked_until FROM app.email_auth_find_email_otp_lock($1::uuid)',
+  const query = 'SELECT locked_until FROM app.email_auth_find_email_otp_lock($1::uuid)';
+  const row = await runWebappNamedRoot<{ locked_until: string | number }>(
+    getWebappSqlDb(),
+    'app.email_auth_find_email_otp_lock(uuid)',
     [userId],
+    webappSqlFromPgText(query, [userId]),
   );
   return row.rows[0] ?? null;
 }
@@ -298,16 +303,25 @@ export async function findEmailOtpLock(
  * inside a single `INSERT ... ON CONFLICT DO UPDATE` -- see that function's comment for the formula.
  */
 export async function registerEmailOtpLockout(userId: string): Promise<number> {
-  const r = await runWebappPgText<{ locked_until: string | number }>(
-    'SELECT locked_until FROM app.email_auth_register_email_otp_lockout($1::uuid)',
+  const query = 'SELECT locked_until FROM app.email_auth_register_email_otp_lockout($1::uuid)';
+  const r = await runWebappNamedRoot<{ locked_until: string | number }>(
+    getWebappSqlDb(),
+    'app.email_auth_register_email_otp_lockout(uuid)',
     [userId],
+    webappSqlFromPgText(query, [userId]),
   );
   return Number(r.rows[0]!.locked_until);
 }
 
 /** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
 export async function resetEmailOtpLockout(userId: string): Promise<void> {
-  await runWebappPgText('SELECT app.email_auth_reset_email_otp_lockout($1::uuid)', [userId]);
+  const query = 'SELECT app.email_auth_reset_email_otp_lockout($1::uuid)';
+  await runWebappNamedRoot(
+    getWebappSqlDb(),
+    'app.email_auth_reset_email_otp_lockout(uuid)',
+    [userId],
+    webappSqlFromPgText(query, [userId]),
+  );
 }
 
 export const pgEmailAuthPort = {
