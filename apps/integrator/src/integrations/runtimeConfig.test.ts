@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DbPort, DeliveryAdapter, OutgoingIntent } from '../kernel/contracts/index.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
-import { readMaxRuntimeConfig, readSmscRuntimeConfig, readTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import {
+  readMaxRuntimeConfig,
+  readSmscRuntimeConfig,
+  readTelegramRuntimeConfig,
+} from '../infra/adapters/integrationRuntimeConfig.js';
 
 type SettingValues = Record<string, unknown>;
 
@@ -11,11 +15,8 @@ function dbFor(values: SettingValues, failure?: Error): DbPort {
     query: vi.fn((query: string, params: unknown[] = []) => {
       if (failure) return Promise.reject(failure);
       const principal = getCurrentDbPrincipal();
-      if (
-        principal?.kind !== 'bootstrap' ||
-        principal.source !== 'integrator-server-runtime-config'
-      ) {
-        return Promise.reject(new Error('runtime config bootstrap principal missing'));
+      if (principal?.kind !== 'infra' || principal.source !== 'integrator-server-runtime-config') {
+        return Promise.reject(new Error('runtime config service principal missing'));
       }
       // Mirrors the locked TEST login: direct credential-table reads are denied, while the
       // fixed-key SECURITY DEFINER capability is executable.
@@ -40,7 +41,11 @@ function intent(channel: 'telegram' | 'max' | 'smsc'): OutgoingIntent {
       outboundMessageClass: 'operator_security',
       outboundCapability: 'operator_alert',
     },
-    payload: { recipient: { chatId: 1 }, message: { text: 'x' }, delivery: { channels: [channel] } },
+    payload: {
+      recipient: { chatId: 1 },
+      message: { text: 'x' },
+      delivery: { channels: [channel] },
+    },
   } as unknown as OutgoingIntent;
 }
 
@@ -68,7 +73,11 @@ const cases = [
   {
     name: 'SMSC',
     channel: 'smsc' as const,
-    values: { smsc_enabled: true, smsc_api_key: 'api-key', smsc_base_url: 'https://smsc.ru/sys/send.php' },
+    values: {
+      smsc_enabled: true,
+      smsc_api_key: 'api-key',
+      smsc_base_url: 'https://smsc.ru/sys/send.php',
+    },
     read: readSmscRuntimeConfig,
   },
 ] as const;

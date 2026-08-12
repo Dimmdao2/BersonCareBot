@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {
   getCurrentDatabasePrincipal,
   runWithBootstrapPrincipal,
 } from '../principal/organizationPrincipal.js';
-import { runIntegratorSql } from './runIntegratorSql.js';
+import { runIntegratorNamedRoot } from './runIntegratorSql.js';
 import { parseSystemSettingTrueLiteral } from './publicSystemSettings.js';
 
 export type AuthChannel = 'email' | 'sms' | 'telegram' | 'max';
@@ -20,13 +21,14 @@ const SETTING_BY_CHANNEL: Readonly<Record<AuthChannel, string>> = {
  * Fixed allowlist capability for the four global auth-channel enable flags. The integrator
  * runtime login receives EXECUTE on the function, never table SELECT.
  */
-async function fetchAuthChannelSettingValueJson(
-  db: DbPort,
-  key: string,
-): Promise<unknown | null> {
-  const result = await runIntegratorSql<{ value_json: unknown }>(
-    db,
-    sql`SELECT app.read_integrator_auth_channel_setting(${key}) AS value_json`,
+async function fetchAuthChannelSettingValueJson(db: DbPort, key: string): Promise<unknown | null> {
+  const result = await runWithDbInfraPrincipal({ source: 'integrator-server-runtime-config' }, () =>
+    runIntegratorNamedRoot<{ value_json: unknown }>(
+      db,
+      'app.read_integrator_auth_channel_setting(text)',
+      [key],
+      sql`SELECT app.read_integrator_auth_channel_setting(${key}) AS value_json`,
+    ),
   );
   return result.rows[0]?.value_json ?? null;
 }

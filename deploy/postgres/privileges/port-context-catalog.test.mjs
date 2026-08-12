@@ -12,29 +12,31 @@ import {
 
 const EXPECTED = {
   webapp: 64,
-  integrator: 23,
+  integrator: 26,
 };
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 87);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 87);
-  assert.ok(new Set(rows.map((row) => [
-    row.port,
-    row.sessionLogin,
-    row.targetRole,
-    row.contextClass,
-    row.purpose,
-    row.functionIdentity ?? '',
-  ].join('\0'))).size <= rows.length, 'capability IDs remain the authority even when descriptive tuples coincide');
+  assert.equal(rows.length, 90);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 90);
+  assert.ok(
+    new Set(
+      rows.map((row) =>
+        [
+          row.port,
+          row.sessionLogin,
+          row.targetRole,
+          row.contextClass,
+          row.purpose,
+          row.functionIdentity ?? '',
+        ].join('\0'),
+      ),
+    ).size <= rows.length,
+    'capability IDs remain the authority even when descriptive tuples coincide',
+  );
 
   for (const [port, count] of Object.entries(EXPECTED)) {
-    const rendered = renderPortContextRuntimeEnv(
-      declaration,
-      'test',
-      'bersoncarebot_test',
-      port,
-    );
+    const rendered = renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', port);
     const descriptors = JSON.parse(rendered.value);
     assert.equal(Object.keys(descriptors).length, count);
     for (const row of rows.filter((candidate) => candidate.port === port)) {
@@ -49,12 +51,12 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
     }
   }
 
-  const integrator = JSON.parse(renderPortContextRuntimeEnv(
-    declaration, 'test', 'bersoncarebot_test', 'integrator',
-  ).value);
-  const webapp = JSON.parse(renderPortContextRuntimeEnv(
-    declaration, 'test', 'bersoncarebot_test', 'webapp',
-  ).value);
+  const integrator = JSON.parse(
+    renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'integrator').value,
+  );
+  const webapp = JSON.parse(
+    renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'webapp').value,
+  );
   for (const name of ['delivery', 'scheduler', 'service', 'resolver']) {
     assert.equal(integrator[name].purpose, 'relation');
     if (name !== 'resolver') assert.ok(integrator[name].runtimeSources.length > 0);
@@ -69,7 +71,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 73);
+  assert.equal(roots.length, 76);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
@@ -100,18 +102,20 @@ test('relation capability mutations are visible to the declaration-owned seed', 
   const seed = generatePortContextCapabilitySeedSql(mutated, 'bersoncarebot_test');
   const original = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   assert.notEqual(seed, original);
-  assert.match(seed, /'app_operational_delivery_worker'::name, 'integrator'::app\.port_context_class/);
+  assert.match(
+    seed,
+    /'app_operational_delivery_worker'::name, 'integrator'::app\.port_context_class/,
+  );
 });
 
 test('capability IDs are stable per database and do not cross environments', () => {
   const testRows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
   const devRows = resolvePortContextCapabilities(declaration, 'bcb_webapp_dev');
-  assert.deepEqual(
-    resolvePortContextCapabilities(declaration, 'bersoncarebot_test'),
-    testRows,
-  );
+  assert.deepEqual(resolvePortContextCapabilities(declaration, 'bersoncarebot_test'), testRows);
   assert.equal(
-    testRows.some((row) => devRows.some((candidate) => candidate.capabilityId === row.capabilityId)),
+    testRows.some((row) =>
+      devRows.some((candidate) => candidate.capabilityId === row.capabilityId),
+    ),
     false,
   );
 });
@@ -121,7 +125,9 @@ test('every descriptor target is SET-able by its exact session login', () => {
 
   const unreachable = structuredClone(declaration);
   const staffLogin = unreachable.envMapping.test.bcb_test_webapp_staff;
-  staffLogin.memberships = staffLogin.memberships.filter((membership) => membership.role !== 'app_worker');
+  staffLogin.memberships = staffLogin.memberships.filter(
+    (membership) => membership.role !== 'app_worker',
+  );
   assert.throws(
     () => resolvePortContextCapabilities(unreachable, 'bersoncarebot_test'),
     /bcb_test_webapp_staff must have exactly one SET-able membership in app_worker/,
@@ -132,8 +138,10 @@ test('env login render restores app schema usage after the deny-by-default artif
   const sql = renderEnvSql(declaration, 'test', 'bersoncarebot_test');
   assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256';/);
   for (const login of [
-    'bcb_test_webapp_staff', 'bcb_test_webapp_patient',
-    'bcb_test_webapp_global_admin', 'bcb_test_integrator',
+    'bcb_test_webapp_staff',
+    'bcb_test_webapp_patient',
+    'bcb_test_webapp_global_admin',
+    'bcb_test_integrator',
   ]) {
     assert.match(sql, new RegExp(`GRANT USAGE ON SCHEMA "app" TO "${login}";`));
   }
@@ -141,9 +149,16 @@ test('env login render restores app schema usage after the deny-by-default artif
 });
 
 test('staff and global-admin login memberships stay disjoint at the platform boundary', () => {
-  const staff = declaration.envMapping.test.bcb_test_webapp_staff.memberships.map(({ role }) => role);
-  const globalAdmin = declaration.envMapping.test.bcb_test_webapp_global_admin.memberships.map(({ role }) => role);
-  assert.equal(staff.includes('app_platform_settings') || staff.includes('app_platform_admin'), false);
+  const staff = declaration.envMapping.test.bcb_test_webapp_staff.memberships.map(
+    ({ role }) => role,
+  );
+  const globalAdmin = declaration.envMapping.test.bcb_test_webapp_global_admin.memberships.map(
+    ({ role }) => role,
+  );
+  assert.equal(
+    staff.includes('app_platform_settings') || staff.includes('app_platform_admin'),
+    false,
+  );
   for (const role of ['app_staff', 'app_patient', 'app_clinic_billing', 'app_worker']) {
     assert.equal(globalAdmin.includes(role), false, role);
   }

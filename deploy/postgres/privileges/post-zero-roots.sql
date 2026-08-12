@@ -1235,6 +1235,70 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION app.read_integrator_provider_runtime_setting(p_key text)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE value_json jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_integrator_owner', 'app_service', 'service', 'config.integrator-provider.read',
+    app.hash_port_typed_args(ARRAY[ROW('text@1',textsend(p_key))::app.port_typed_arg]),
+    'app.read_integrator_provider_runtime_setting(text)'::regprocedure
+  );
+  SELECT setting.value_json INTO value_json
+  FROM public.system_settings AS setting
+  WHERE p_key IN ('telegram_bot_token','telegram_webhook_secret','telegram_send_menu_on_button_press',
+                  'max_bot_api_key','max_webhook_secret','max_api_base_url',
+                  'smsc_enabled','smsc_api_key','smsc_base_url')
+    AND setting.key = p_key AND setting.scope = 'admin' AND setting.organization_id IS NULL
+  LIMIT 1;
+  RETURN value_json;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_integrator_auth_channel_setting(p_key text)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE value_json jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_integrator_owner', 'app_service', 'service', 'config.integrator-auth-channel.read',
+    app.hash_port_typed_args(ARRAY[ROW('text@1',textsend(p_key))::app.port_typed_arg]),
+    'app.read_integrator_auth_channel_setting(text)'::regprocedure
+  );
+  SELECT setting.value_json INTO value_json
+  FROM public.system_settings AS setting
+  WHERE p_key IN ('auth_email_enabled','auth_sms_enabled','auth_telegram_enabled','auth_max_enabled')
+    AND setting.key = p_key AND setting.scope = 'admin' AND setting.organization_id IS NULL
+  LIMIT 1;
+  RETURN value_json;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_integrator_smtp_outbound_setting()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE value_json jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_settings_integrator_owner', 'app_service', 'service', 'config.integrator-smtp.read',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.read_integrator_smtp_outbound_setting()'::regprocedure
+  );
+  SELECT setting.value_json INTO value_json
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'smtp_outbound' AND setting.scope = 'admin' AND setting.organization_id IS NULL
+  LIMIT 1;
+  RETURN value_json;
+END
+$function$;
+
 CREATE OR REPLACE FUNCTION app.read_patient_telegram_display_handle(p_platform_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
