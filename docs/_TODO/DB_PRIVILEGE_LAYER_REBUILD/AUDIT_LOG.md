@@ -1756,3 +1756,12 @@ cluster rehearsal, не новый документационный мини-с�
   пользователя закономерно отклонил исходный media-worker `DATABASE_URL`, который утверждённый port-context
   bootstrap должен удалить. Для одноразового перехода старый source-state gate заменён exact read-only target
   renderer `bootstrap-c4-test-env.mjs --port-context-check`; на реальном TEST env он печатает PASS без записи.
+- **LIVE-MIGRATE-001 — ИСПРАВЛЕНО ГРОМКО:** второй реальный запуск дошёл до остановки TEST writers, но штатно
+  отказал до миграций/zero: legacy webapp login уже не имел `CONNECT` к `bersoncarebot_test`. Возвращать ему grant
+  запрещено owner-порядком. Миграции переведены на локальный Unix-socket: PostgreSQL аутентифицирует системного
+  `postgres`, а `PGOPTIONS` устанавливает exact historical owner `bersoncarebot_test`; реальный `node-postgres`
+  probe доказал `session_user=postgres`, `current_user=bersoncarebot_test`, exact TEST database и Unix socket.
+  Независимый аудит нашёл и исправил второй достижимый отказ: Corepack наследовал недоступный для `postgres`
+  working directory `/home/dev`; все команды теперь исполняются из `/opt/projects/bersoncarebot-test`. Итоговый
+  независимый взгляд — **PASS**; старым application login не возвращён `CONNECT`, временные `app_owner` и
+  `BYPASSRLS` по-прежнему снимаются и проверяются до bilateral zero.

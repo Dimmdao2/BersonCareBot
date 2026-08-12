@@ -63,10 +63,8 @@ APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
 PORT_CONTEXT_ENV_BOOTSTRAP=deploy/host/bootstrap-c4-test-env.mjs
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
+LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@localhost/$DB?host=%2Fvar%2Frun%2Fpostgresql"
 UNITS=(api worker scheduler webapp media-worker)
-MIGRATOR_ROLE=""
-MIGRATOR_MEMBERSHIP_ADDED=0
-MIGRATOR_MEMBERSHIP_GRANTED_THIS_RUN=0
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 WRITERS_STOPPED=0
@@ -82,10 +80,6 @@ cleanup_elevation(){
     sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null || cleanup_status=1
     DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
   fi
-  if [ "$MIGRATOR_MEMBERSHIP_ADDED" = "1" ] && [ -n "$MIGRATOR_ROLE" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
-    sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$DBROLE\" FROM \"$MIGRATOR_ROLE\";" >/dev/null || cleanup_status=1
-    MIGRATOR_MEMBERSHIP_ADDED=0
-  fi
   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" NOBYPASSRLS;" >/dev/null || cleanup_status=1
   local bypass_state
   bypass_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';")" || cleanup_status=1
@@ -94,11 +88,6 @@ cleanup_elevation(){
     local app_owner_membership_state
     app_owner_membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")" || cleanup_status=1
     [ "$app_owner_membership_state" = "f" ] || cleanup_status=1
-  fi
-  if [ "$MIGRATOR_MEMBERSHIP_GRANTED_THIS_RUN" = "1" ] && [ -n "$MIGRATOR_ROLE" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
-    local membership_state
-    membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');")" || cleanup_status=1
-    [ "$membership_state" = "f" ] || cleanup_status=1
   fi
   return "$cleanup_status"
 }
@@ -115,11 +104,6 @@ cleanup_exit(){
   fi
   if [ "$original_status" -eq 0 ] && [ "$cleanup_status" -ne 0 ]; then exit "$cleanup_status"; fi
   exit "$original_status"
-}
-
-read_test_identity(){
-  local url_expression="$1"
-  sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=$url_expression && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\""
 }
 
 resolve_test_runtime_mode(){
@@ -190,18 +174,8 @@ for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
 WRITERS_STOPPED=1
 trap cleanup_exit EXIT
 
-identity="$(read_test_identity '"$DATABASE_URL"')"
-MIGRATOR_ROLE="${identity%%|*}"
-database_name="${identity#*|}"
-[[ "$MIGRATOR_ROLE" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "FATAL: invalid webapp TEST role" >&2; exit 1; }
-[ "$database_name" = "$DB" ] || { echo "FATAL: webapp.test points to $database_name, expected $DB" >&2; exit 1; }
-if [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
-  membership="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');")"
-  [ "$membership" = "f" ] || { echo "FATAL: pre-existing $MIGRATOR_ROLE membership in $DBROLE" >&2; exit 1; }
-  sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$DBROLE\" TO \"$MIGRATOR_ROLE\";" >/dev/null
-  MIGRATOR_MEMBERSHIP_ADDED=1
-  MIGRATOR_MEMBERSHIP_GRANTED_THIS_RUN=1
-fi
+database_name="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc 'SELECT current_database();')"
+[ "$database_name" = "$DB" ] || { echo "FATAL: local TEST migration channel reached $database_name, expected $DB" >&2; exit 1; }
 app_owner_attributes="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$APP_OWNER_ROLE';")"
 [ "$app_owner_attributes" = "false|false|false|false|true" ] || { echo "FATAL: $APP_OWNER_ROLE must be NOSUPERUSER NOCREATEROLE NOCREATEDB NOLOGIN BYPASSRLS" >&2; exit 1; }
 app_owner_membership="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")"
@@ -210,12 +184,36 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$APP_OWNER_ROLE\" TO \"$
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=1
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
-sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
-  export PGOPTIONS='-c role=$DBROLE' && \
-  API_ENV_FILE='$API_ENV' WEBAPP_ENV_FILE='$WEBAPP_ENV' pnpm migrate && \
-  set -a && source '$WEBAPP_ENV' && set +a && \
-  psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 \
-    -f \"$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX\""
+# Legacy application logins already have no CONNECT at this point and must not regain it merely
+# to run DDL. Authenticate locally as the PostgreSQL OS administrator, then SET ROLE through
+# PGOPTIONS so every migration executes with the exact historical database-owner privileges.
+(
+  cd "$DEPLOY_REPO"
+  sudo -u postgres env \
+    NODE_ENV=production \
+    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
+    DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
+    APP_BASE_URL=http://127.0.0.1 \
+    BOOKING_URL=http://127.0.0.1 \
+    PGOPTIONS="-c role=$DBROLE" \
+    INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 \
+    pnpm --dir apps/integrator run migrate
+  sudo -u postgres env \
+    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
+    PGOPTIONS="-c role=$DBROLE" \
+    pnpm --dir apps/webapp run migrate
+  sudo -u postgres env \
+    NODE_ENV=production \
+    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
+    DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
+    APP_BASE_URL=http://127.0.0.1 \
+    BOOKING_URL=http://127.0.0.1 \
+    PGOPTIONS="-c role=$DBROLE" \
+    pnpm --dir apps/integrator run migrate
+  sudo -u postgres env PGOPTIONS="-c role=$DBROLE" \
+    psql -X -v ON_ERROR_STOP=1 -d "$DB" \
+      -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
+)
 cleanup_elevation
 # The legacy role still exists here and its temporary powers were just verified absent. The shared
 # cluster cutover deliberately drops it, so the EXIT trap must keep only its writer-stop duty from
