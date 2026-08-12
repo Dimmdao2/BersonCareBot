@@ -39,7 +39,7 @@ function onlineSlot(
 async function clearFixture(): Promise<void> {
   await runWithDbOrganizationPrincipal(organizationId, async () => {
     await getPool().query(
-      'TRUNCATE be_appointment_history_events, be_appointment_events, be_patient_timeline_events, be_appointments',
+      'TRUNCATE be_appointment_history_events, be_patient_timeline_events, be_appointments',
     );
   });
 }

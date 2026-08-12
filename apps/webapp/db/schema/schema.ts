@@ -3316,11 +3316,6 @@ export const mediaUploadSessions = pgTable(
   ],
 );
 
-export const schemaMigrations = pgTable('schema_migrations', {
-  version: text().primaryKey().notNull(),
-  appliedAt: timestamp('applied_at', { withTimezone: true, mode: 'string' }).defaultNow(),
-});
-
 export const deliveryAttemptLogs = pgTable(
   'delivery_attempt_logs',
   {

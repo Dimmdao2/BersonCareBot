@@ -20,12 +20,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(__dirname, '..', 'migrations');
 
 /**
- * Ledger for webapp SQL files — must not collide with integrator `schema_migrations` (`version` PK).
- * Always qualified as `public.*`: DB role may use `search_path` with `integrator` first; unqualified
- * `schema_migrations` would then hit `integrator.schema_migrations` and break legacy backfill (`filename`).
+ * Ledger for webapp SQL files — distinct from integrator `schema_migrations` (`version` PK).
+ * Always qualified as `public.*`: DB role may use `search_path` with `integrator` first.
  */
 const WEBAPP_MIGRATIONS_TABLE = 'public.webapp_schema_migrations';
-const LEGACY_PUBLIC_SCHEMA_MIGRATIONS = 'public.schema_migrations';
 const LEGACY_MIGRATION_MODE_VALUES = new Set(['manual', 'bootstrap', 'emergency']);
 const migrationFileNameSchema = z
   .string()
@@ -34,10 +32,6 @@ const migrationFileNameSchema = z
   .refine((name) => name.endsWith('.sql'), {
     message: 'Migration filename must end with .sql',
   });
-const migrationLedgerCountRowSchema = z.object({
-  c: z.coerce.number().int().nonnegative(),
-});
-
 loadCutoverEnv();
 
 function resolveLegacyMigrationMode() {
@@ -72,43 +66,12 @@ function enforceLegacyMigrationGuardrails(mode) {
   );
 }
 
-/**
- * If this DB was created with an older webapp runner, applied files were recorded in
- * `schema_migrations (filename, ...)`. On unified DB, integrator owns `schema_migrations (version, ...)`,
- * so we use WEBAPP_MIGRATIONS_TABLE and copy legacy rows once when possible.
- */
 async function ensureWebappMigrationsTable(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS ${WEBAPP_MIGRATIONS_TABLE} (
       filename TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
-  `);
-}
-
-async function backfillLedgerFromLegacyWebappTable(client) {
-  const col = await client.query(
-    `SELECT 1
-     FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'schema_migrations'
-       AND column_name = 'filename'`,
-  );
-  if (col.rowCount === 0) {
-    return;
-  }
-
-  const count = await client.query(`SELECT COUNT(*)::int AS c FROM ${WEBAPP_MIGRATIONS_TABLE}`);
-  const ledgerCount = migrationLedgerCountRowSchema.parse(count.rows[0] ?? {});
-  if (ledgerCount.c > 0) {
-    return;
-  }
-
-  await client.query(`
-    INSERT INTO ${WEBAPP_MIGRATIONS_TABLE} (filename, applied_at)
-    SELECT filename, COALESCE(applied_at, now())
-    FROM ${LEGACY_PUBLIC_SCHEMA_MIGRATIONS}
-    ON CONFLICT (filename) DO NOTHING
   `);
 }
 
@@ -126,7 +89,6 @@ async function main() {
   await client.connect();
   try {
     await ensureWebappMigrationsTable(client);
-    await backfillLedgerFromLegacyWebappTable(client);
 
     const files = (await readdir(migrationsDir)).filter((f) => f.endsWith('.sql')).sort();
 

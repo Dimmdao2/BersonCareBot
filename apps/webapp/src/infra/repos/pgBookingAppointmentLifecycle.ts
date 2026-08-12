@@ -16,7 +16,6 @@ import {
   beAppointmentReschedules,
 } from '../../../db/schema/bookingPolicies';
 import {
-  beAppointmentEvents,
   beAppointmentHistoryEvents,
   beAppointments,
   bePatientTimelineEvents,
@@ -250,13 +249,6 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           toStartAt: input.newStartAt,
           manualOverride: input.manualOverride ?? false,
         };
-        await tx.insert(beAppointmentEvents).values({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          eventType: 'rescheduled',
-          actorId: input.actorId,
-          payload,
-        });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
@@ -359,13 +351,6 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           wasFree: input.wasFree,
           manualOverride: input.manualOverride ?? false,
         };
-        await tx.insert(beAppointmentEvents).values({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          eventType: 'cancelled',
-          actorId: input.actorId,
-          payload,
-        });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
@@ -493,13 +478,6 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           toStatus: 'no_show',
           manualOverride: input.manualOverride ?? true,
         };
-        await tx.insert(beAppointmentEvents).values({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          eventType: 'no_show',
-          actorId: input.actorId,
-          payload,
-        });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,

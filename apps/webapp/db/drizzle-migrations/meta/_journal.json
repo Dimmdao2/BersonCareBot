@@ -2696,6 +2696,13 @@
       "when": 1793539230131,
       "tag": "0388_drop_legacy_email_setup_tokens_local",
       "breakpoints": true
+    },
+    {
+      "idx": 385,
+      "version": "7",
+      "when": 1793539230132,
+      "tag": "0389_drop_duplicate_appointment_events_and_legacy_ledger_local",
+      "breakpoints": true
     }
   ]
 }

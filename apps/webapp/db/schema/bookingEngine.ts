@@ -629,46 +629,6 @@ export const beAppointments = pgTable(
   ],
 );
 
-export const beAppointmentEvents = pgTable(
-  'be_appointment_events',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id').notNull(),
-    appointmentId: uuid('appointment_id').notNull(),
-    eventType: text('event_type').notNull(),
-    actorId: uuid('actor_id'),
-    payload: jsonb()
-      .$type<Record<string, unknown>>()
-      .notNull()
-      .default(sql`'{}'::jsonb`),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_be_appointment_events_appt_created').using(
-      'btree',
-      table.appointmentId.asc().nullsLast().op('uuid_ops'),
-      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    foreignKey({
-      columns: [table.organizationId],
-      foreignColumns: [beOrganizations.id],
-      name: 'be_appointment_events_organization_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.appointmentId],
-      foreignColumns: [beAppointments.id],
-      name: 'be_appointment_events_appointment_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.actorId],
-      foreignColumns: [platformUsers.id],
-      name: 'be_appointment_events_actor_id_fkey',
-    }).onDelete('set null'),
-  ],
-);
-
 export const bePatientTimelineEvents = pgTable(
   'be_patient_timeline_events',
   {

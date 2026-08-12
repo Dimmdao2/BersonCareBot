@@ -17,7 +17,6 @@ import {
 } from '@/infra/repos/pgManualPatientCommand';
 import { BE_DEFAULT_ORGANIZATION_ID } from '../../../db/schema/bookingEngine';
 import {
-  beAppointmentEvents,
   beAppointmentHistoryEvents,
   beAppointments,
   beBranches,
@@ -40,9 +39,7 @@ import { pickPreferredSsaId } from '@/modules/booking-scheduling/ssaResolve';
 import { isChainFree } from '@/modules/booking-scheduling/computeSlots';
 import { listBookingBusyIntervals } from '@/infra/repos/pgBookingScheduling';
 import type { BookingEngineCorePort } from '@/modules/booking-engine/ports';
-import {
-  normalizeAppointmentReminderSettings,
-} from '@/modules/booking-notifications/appointmentReminderPresets';
+import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
 import type {
   AppointmentStatus,
   BeAppointment,
@@ -196,19 +193,13 @@ async function insertAppointmentInTransaction(
       attributionJson: input.attributionJson ?? {},
       appointmentReminderAllowedPresetIds: input.appointmentReminderAllowedPresetIds ?? [],
       appointmentReminderPresetId: input.appointmentReminderPresetId ?? null,
-      appointmentReminderSelectionSource: input.appointmentReminderSelectionSource ?? 'specialist_default',
+      appointmentReminderSelectionSource:
+        input.appointmentReminderSelectionSource ?? 'specialist_default',
       createdAt: now,
       updatedAt: now,
     })
     .returning();
   const appointment = mapAppointment(inserted[0]!);
-  await tx.insert(beAppointmentEvents).values({
-    organizationId: appointment.organizationId,
-    appointmentId: appointment.id,
-    eventType: 'created',
-    actorId: input.actorId ?? null,
-    payload: { status },
-  });
   await tx.insert(beAppointmentHistoryEvents).values({
     organizationId: appointment.organizationId,
     appointmentId: appointment.id,
@@ -1265,10 +1256,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         })
         .from(beSpecialists)
         .where(
-          and(
-            eq(beSpecialists.id, specialistId),
-            eq(beSpecialists.organizationId, organizationId),
-          ),
+          and(eq(beSpecialists.id, specialistId), eq(beSpecialists.organizationId, organizationId)),
         )
         .limit(1);
       const row = rows[0];
@@ -1290,10 +1278,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           updatedAt: new Date().toISOString(),
         })
         .where(
-          and(
-            eq(beSpecialists.id, specialistId),
-            eq(beSpecialists.organizationId, organizationId),
-          ),
+          and(eq(beSpecialists.id, specialistId), eq(beSpecialists.organizationId, organizationId)),
         );
       return (result.rowCount ?? 0) === 1;
     },
@@ -1757,13 +1742,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             })
             .returning();
           const appt = mapAppointment(inserted[0]!);
-          await tx.insert(beAppointmentEvents).values({
-            organizationId: appt.organizationId,
-            appointmentId: appt.id,
-            eventType: 'created',
-            actorId: input.actorId ?? null,
-            payload: { status },
-          });
           await tx.insert(beAppointmentHistoryEvents).values({
             organizationId: appt.organizationId,
             appointmentId: appt.id,
@@ -1814,13 +1792,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           })
           .where(eq(beAppointments.id, input.appointmentId));
         const payload = { fromStatus, toStatus: input.toStatus, ...(input.payload ?? {}) };
-        await tx.insert(beAppointmentEvents).values({
-          organizationId: current.organizationId,
-          appointmentId: input.appointmentId,
-          eventType: 'status_changed',
-          actorId: input.actorId ?? null,
-          payload,
-        });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: current.organizationId,
           appointmentId: input.appointmentId,
