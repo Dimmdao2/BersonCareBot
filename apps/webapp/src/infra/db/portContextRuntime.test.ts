@@ -13,6 +13,7 @@ import {
 
 const ORG = '00000000-0000-4000-8000-000000000001';
 const USER = '00000000-0000-4000-8000-000000000010';
+const OPAQUE_USER = '10000000-0000-4000-8000-000000000010';
 const CAPABILITY = '00000000-0000-0000-0000-000000000101';
 
 const staffCapability: PortCapabilityDescriptor = {
@@ -20,6 +21,17 @@ const staffCapability: PortCapabilityDescriptor = {
   targetRole: 'app_staff',
   contextClass: 'staff',
   purpose: 'relation',
+};
+const staffIdentityCapability: PortCapabilityDescriptor = {
+  capabilityId: '00000000-0000-0000-0000-000000000102',
+  targetRole: 'app_pre_session',
+  contextClass: 'pre_session',
+  purpose: 'identity.variant-a.resolve',
+  functionIdentity: 'app.pre_session_resolve_identity(uuid)',
+};
+const staffCapabilities = {
+  staff: staffCapability,
+  staff_identity_resolve: staffIdentityCapability,
 };
 
 function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool {
@@ -32,6 +44,9 @@ function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool 
         log.filter((entry) => entry === sql).length === 2
       ) {
         throw new Error('clear failed');
+      }
+      if (sql.startsWith('SELECT app.pre_session_resolve_identity')) {
+        return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
       }
       return { rows: [{ client }], rowCount: 1 };
     },
@@ -71,7 +86,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff@example.test/app', ssl: {} },
         patient: { connectionString: 'postgresql://patient@example.test/app', ssl: {} },
-        capabilities: { staff: staffCapability },
+        capabilities: staffCapabilities,
       },
       poolFactory: (_config: PoolConfig) => fakePool(log, releases),
     });
@@ -83,6 +98,15 @@ describe('webapp port-context runtime', () => {
 
     expect(result.rows[0]).toHaveProperty('client');
     expect(log).toEqual([
+      'BEGIN',
+      'RESET ROLE',
+      'SELECT app.clear_port_context()',
+      'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
+      'SET LOCAL ROLE app_pre_session',
+      'SELECT app.pre_session_resolve_identity($1::uuid) AS opaque_ref',
+      'RESET ROLE',
+      'SELECT app.clear_port_context()',
+      'COMMIT',
       'BEGIN',
       'RESET ROLE',
       'SELECT app.clear_port_context()',
@@ -103,7 +127,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff@example.test/app', ssl: {} },
         patient: { connectionString: 'postgresql://patient@example.test/app', ssl: {} },
-        capabilities: { staff: staffCapability },
+        capabilities: staffCapabilities,
       },
       poolFactory: (_config: PoolConfig) => fakePool(log, releases, true),
     });
@@ -121,6 +145,7 @@ describe('webapp port-context runtime', () => {
     const selected = webappPortContextPrincipal(
       { kind: 'staff', organizationId: ORG, platformUserId: USER },
       { staff: staffCapability },
+      OPAQUE_USER,
     );
     expect(selected).toMatchObject({
       pool: 'staff',
@@ -145,6 +170,7 @@ describe('webapp port-context runtime', () => {
         webappPortContextPrincipal(
           { kind: 'staff', organizationId: ORG, platformUserId: USER },
           { staff: staffCapability, read_profile: named },
+          OPAQUE_USER,
         ),
     );
     expect(selected.principal).toMatchObject({
@@ -166,12 +192,15 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff/app' },
         patient: { connectionString: 'postgresql://patient/app' },
-        capabilities: { staff: staffCapability, named },
+        capabilities: { ...staffCapabilities, named },
       },
       poolFactory: () => {
         const client = {
           query: async (query: string, values?: readonly unknown[]) => {
             if (query.includes('app.install_port_context')) installs.push([...(values ?? [])]);
+            if (query.startsWith('SELECT app.pre_session_resolve_identity')) {
+              return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
+            }
             return { rows: [], rowCount: 0 };
           },
           release: () => undefined,
@@ -192,9 +221,10 @@ describe('webapp port-context runtime', () => {
         () => runPgPoolPgText(pool, 'SELECT app.read_staff_profile($1::uuid)', [USER]),
       ),
     );
-    expect(installs).toHaveLength(1);
-    expect(installs[0]?.[4]).toBe(named.functionIdentity);
-    expect(installs[0]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', USER)]));
+    expect(installs).toHaveLength(2);
+    expect(installs[0]?.[4]).toBe(staffIdentityCapability.functionIdentity);
+    expect(installs[1]?.[4]).toBe(named.functionIdentity);
+    expect(installs[1]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', USER)]));
   });
 
   it('rejects a missing principal before physical checkout', async () => {
@@ -204,7 +234,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://staff/app' },
         patient: { connectionString: 'postgresql://patient/app' },
-        capabilities: { staff: staffCapability },
+        capabilities: staffCapabilities,
       },
       poolFactory: () =>
         ({
@@ -326,6 +356,9 @@ describe('webapp port-context runtime', () => {
             state.queries.push(query);
             if (state.url.includes('rejected') && query === 'SELECT 1')
               throw new Error('certificate rejected');
+            if (query.startsWith('SELECT app.pre_session_resolve_identity')) {
+              return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
+            }
             return { rows: [{ generation: state.url }], rowCount: 1 };
           },
           release: () => undefined,
@@ -340,7 +373,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://old-staff/app' },
         patient: { connectionString: 'postgresql://old-patient/app' },
-        capabilities: { staff: staffCapability },
+        capabilities: staffCapabilities,
       },
       poolFactory,
     }) as Pool & { rotatePortContextPools(next: WebappPortContextRuntimeConfig): Promise<void> };
@@ -348,7 +381,7 @@ describe('webapp port-context runtime', () => {
       provider.rotatePortContextPools({
         staff: { connectionString: 'postgresql://rejected-staff/app' },
         patient: { connectionString: 'postgresql://new-patient/app' },
-        capabilities: { staff: staffCapability },
+        capabilities: staffCapabilities,
       }),
     ).rejects.toThrow('certificate rejected');
     await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
@@ -397,7 +430,7 @@ describe('webapp port-context runtime', () => {
       portContext: {
         staff: { connectionString: 'postgresql://old-staff/app' },
         patient: { connectionString: 'postgresql://old-patient/app' },
-        capabilities: { staff: staffCapability },
+        capabilities: staffCapabilities,
       },
       poolFactory,
     }) as Pool & {
@@ -410,7 +443,7 @@ describe('webapp port-context runtime', () => {
       {
         staff: { connectionString: 'postgresql://new-staff/app' },
         patient: { connectionString: 'postgresql://new-patient/app' },
-        capabilities: { staff: staffCapability },
+        capabilities: staffCapabilities,
       },
       2,
     );

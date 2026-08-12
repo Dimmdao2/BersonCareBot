@@ -18,26 +18,32 @@ import {
 } from '@/infra/db/saasIsolationDbFailureReporting';
 import {
   createWebappPortContextRuntimeConfig,
-  webappPortContextPrincipal,
+  resolveWebappPortContextPrincipal,
 } from '@/infra/db/portContextRuntime';
 
 function isPortContextMode(): boolean {
   return process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context';
 }
 
-function currentWebappPortContextPrincipal() {
+async function currentWebappPortContextPrincipal(client: PoolClient) {
   const config = createWebappPortContextRuntimeConfig(process.env);
-  return webappPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities).principal;
+  return (
+    await resolveWebappPortContextPrincipal(
+      client,
+      getCurrentDbPrincipal(),
+      config.capabilities,
+    )
+  ).principal;
 }
 
 async function withPortContextPoolTransaction<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const principal = currentWebappPortContextPrincipal();
   const client = await pool.connect();
   let completed = false;
   try {
+    const principal = await currentWebappPortContextPrincipal(client);
     const result = await withPortContextTransaction(client, principal, async (sameClient) =>
       fn(sameClient as PoolClient),
     );
@@ -158,10 +164,10 @@ export type PoolTransactionHandle = {
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
   if (isPortContextMode()) {
-    const principal = currentWebappPortContextPrincipal();
     const client = await pool.connect();
     let handle: Awaited<ReturnType<typeof startPortContextTransaction>>;
     try {
+      const principal = await currentWebappPortContextPrincipal(client);
       handle = await startPortContextTransaction(client, principal);
     } catch (error) {
       // The shared lifecycle has already destroyed this exact checkout.

@@ -10,14 +10,14 @@ import {
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 14,
-  integrator: 21,
+  webapp: 18,
+  integrator: 22,
 };
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 35);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 35);
+  assert.equal(rows.length, 40);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 40);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -67,7 +67,17 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 21);
+  assert.equal(roots.length, 26);
+  const identityResolvers = roots.filter(
+    (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
+  );
+  assert.deepEqual(
+    identityResolvers.map((row) => [row.runtimeName, row.sessionLogin]),
+    [
+      ['patient_identity_resolve', 'bcb_test_webapp_patient'],
+      ['staff_identity_resolve', 'bcb_test_webapp_staff'],
+    ],
+  );
   for (const row of rows) {
     assert.match(seed, new RegExp(row.capabilityId));
     if (row.functionIdentity) {
@@ -75,7 +85,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
     }
   }
   assert.equal((seed.match(/NULL::regprocedure/g) ?? []).length, rows.length - roots.length);
-  assert.match(seed, /DELETE FROM app_ext\.port_context_capabilities existing/);
+  assert.match(seed, /DELETE FROM app_ext\.accepted_port_contexts;/);
+  assert.match(seed, /DELETE FROM app_ext\.port_context_capabilities;/);
   assert.doesNotMatch(seed, /existing\.function_identity IS NOT NULL/);
 });
 

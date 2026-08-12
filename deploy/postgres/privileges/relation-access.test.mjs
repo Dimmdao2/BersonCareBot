@@ -42,6 +42,13 @@ test('patient runtime has no direct appointment table grant', () => {
   );
 });
 
+test('clinical visit insert uses only the canonical appointment link', () => {
+  const grant = grantFor('public.clinical_visit', 'app_staff', 'INSERT');
+  assert.notEqual(grant.columns, 'table');
+  assert.equal(grant.columns.includes('canonical_appointment_id'), true);
+  assert.equal(grant.columns.includes('appointment_record_id'), false);
+});
+
 test('tenant calendar and package roots expose only their proven columns', () => {
   exactColumns('public.be_appointments', 'app_tenant_service', 'SELECT', [
     'id',

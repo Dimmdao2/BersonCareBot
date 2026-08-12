@@ -2792,7 +2792,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "anamnesis_text",
-          "appointment_record_id",
           "canonical_appointment_id",
           "created_by",
           "duration",

@@ -134,6 +134,12 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'booking.self.allowed', argCount: 0,
     source: 'apps/webapp/src/infra/repos/pgClientHistory.ts',
   },
+  'app.pre_session_resolve_identity(uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'identity.variant-a.resolve', argCount: 1, descriptorCount: 2,
+    sessionRoles: ['app_patient', 'app_staff'],
+    source: 'apps/webapp/src/infra/db/portContextRuntime.ts',
+  },
 }));
 
 const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
@@ -215,9 +221,11 @@ function collectNamedRootCallsites() {
       function visit(node) {
         if (ts.isCallExpression(node)
           && ts.isIdentifier(node.expression)
-          && ['runIntegratorNamedRoot', 'runWebappNamedRoot'].includes(node.expression.text)) {
-          const identity = node.arguments[1];
-          const typedArgs = node.arguments[2];
+          && ['runIntegratorNamedRoot', 'runWebappNamedRoot', 'runWebappPreSessionNamedRoot']
+            .includes(node.expression.text)) {
+          const isPreSession = node.expression.text === 'runWebappPreSessionNamedRoot';
+          const identity = node.arguments[isPreSession ? 2 : 1];
+          const typedArgs = node.arguments[isPreSession ? 3 : 2];
           const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
           assert.ok(identity, `${path}:${line}: named root identity is required`);
           assert.ok(typedArgs, `${path}:${line}: typed arguments are required`);
@@ -255,9 +263,10 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
 
   const roots = Object.values(candidate.portContext.capabilities)
     .filter((descriptor) => descriptor.functionIdentity);
-  assert.equal(roots.length, EXPECTED_ROOTS.size, 'function-bound catalog size changed');
-  const byIdentity = new Map(roots.map((descriptor) => [descriptor.functionIdentity, descriptor]));
-  assert.equal(byIdentity.size, roots.length, 'function-bound catalog identities must be unique');
+  const expectedDescriptorCount = [...EXPECTED_ROOTS.values()]
+    .reduce((count, descriptor) => count + (descriptor.descriptorCount ?? 1), 0);
+  assert.equal(roots.length, expectedDescriptorCount, 'function-bound catalog size changed');
+  const byIdentity = Map.groupBy(roots, (descriptor) => descriptor.functionIdentity);
 
   for (const callsite of callsites) {
     const expected = EXPECTED_ROOTS.get(callsite.identity);
@@ -268,19 +277,32 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
       `${callsite.path}:${callsite.line}: named root moved to the wrong port`);
     assert.equal(callsite.argCount, expected.argCount,
       `${callsite.path}:${callsite.line}: typed argument count does not match function identity`);
-    const descriptor = byIdentity.get(callsite.identity);
-    assert.ok(descriptor, `${callsite.path}:${callsite.line}: missing catalog descriptor`);
-    assert.deepEqual({
-      port: descriptor.port,
-      targetRole: descriptor.targetRole,
-      contextClass: descriptor.contextClass,
-      purpose: descriptor.purpose,
-    }, {
-      port: expected.port,
-      targetRole: expected.targetRole,
-      contextClass: expected.contextClass,
-      purpose: expected.purpose,
-    }, `${callsite.path}:${callsite.line}: wrong catalog descriptor`);
+    const descriptors = byIdentity.get(callsite.identity);
+    assert.equal(
+      descriptors?.length,
+      expected.descriptorCount ?? 1,
+      `${callsite.path}:${callsite.line}: wrong catalog descriptor count`,
+    );
+    for (const descriptor of descriptors) {
+      assert.deepEqual({
+        port: descriptor.port,
+        targetRole: descriptor.targetRole,
+        contextClass: descriptor.contextClass,
+        purpose: descriptor.purpose,
+      }, {
+        port: expected.port,
+        targetRole: expected.targetRole,
+        contextClass: expected.contextClass,
+        purpose: expected.purpose,
+      }, `${callsite.path}:${callsite.line}: wrong catalog descriptor`);
+    }
+    if (expected.sessionRoles) {
+      assert.deepEqual(
+        descriptors.map((descriptor) => descriptor.sessionRole).sort(),
+        [...expected.sessionRoles].sort(),
+        `${callsite.path}:${callsite.line}: wrong physical-login role partition`,
+      );
+    }
   }
   assert.deepEqual([...byIdentity.keys()].sort(), [...EXPECTED_ROOTS.keys()].sort(),
     'catalog contains a function-bound root without a production callsite');

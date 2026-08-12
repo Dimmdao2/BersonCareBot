@@ -8,6 +8,7 @@ import type {
   PortContextPrincipal,
   PortTypedArg,
 } from '@bersoncare/db-principal';
+import { portTypedArg, withPortContextTransaction } from '@bersoncare/db-principal';
 
 export type PortCapabilityDescriptor = {
   capabilityId: string;
@@ -30,6 +31,7 @@ export type WebappPortOperation = {
 };
 
 const operationStorage = new AsyncLocalStorage<WebappPortOperation>();
+const requestOpaqueIdentityRefs = new WeakMap<DbPrincipal, Promise<string>>();
 
 export function runWithWebappPortOperation<T>(operation: WebappPortOperation, fn: () => T): T {
   return operationStorage.run(operation, fn);
@@ -231,6 +233,7 @@ function capabilityFor(
 export function webappPortContextPrincipal(
   principal: DbPrincipal | undefined,
   capabilities: Record<string, PortCapabilityDescriptor>,
+  opaqueIdentityRef?: string,
 ): { pool: 'staff' | 'patient'; principal: PortContextPrincipal } {
   if (!principal) throw new Error('A webapp principal is required in port-context mode');
   const descriptorName =
@@ -262,7 +265,7 @@ export function webappPortContextPrincipal(
         pool: 'staff',
         principal: {
           ...base,
-          actorRef: principal.platformUserId,
+          actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
           organizationId: principal.organizationId,
         },
       };
@@ -273,15 +276,18 @@ export function webappPortContextPrincipal(
         pool: 'patient',
         principal: {
           ...base,
-          actorRef: principal.platformUserId,
-          subjectRef: principal.platformUserId,
+          actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
+          subjectRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
           organizationId: principal.organizationId,
         },
       };
     case 'platform':
       if (principal.kind !== 'platform')
         throw new Error('Platform port context requires a platform principal');
-      return { pool: 'staff', principal: { ...base, actorRef: principal.platformUserId } };
+      return {
+        pool: 'staff',
+        principal: { ...base, actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef) },
+      };
     case 'tenant_service':
       if (principal.kind !== 'organization')
         throw new Error('Tenant-service port context requires an organization principal');
@@ -299,4 +305,125 @@ export function webappPortContextPrincipal(
         `Webapp capability ${descriptorName} has unsupported context class ${descriptor.contextClass}`,
       );
   }
+}
+
+function requiredOpaqueIdentityRef(value: string | undefined): string {
+  if (!value || !UUID_RE.test(value)) {
+    throw new Error('An opaque identity reference is required for a human port context');
+  }
+  return value.toLowerCase();
+}
+
+function physicalIdentityId(principal: DbPrincipal): string | undefined {
+  switch (principal.kind) {
+    case 'staff':
+    case 'clinicBilling':
+    case 'patient':
+    case 'platform':
+      return principal.platformUserId;
+    default:
+      return undefined;
+  }
+}
+
+function poolForPrincipal(principal: DbPrincipal): 'staff' | 'patient' {
+  return principal.kind === 'patient' ? 'patient' : 'staff';
+}
+
+type IdentityResolverClient = {
+  query(sql: string, values?: readonly unknown[]): Promise<unknown>;
+  release?(error?: Error): void;
+};
+
+async function runWebappPreSessionNamedRoot<T>(
+  client: IdentityResolverClient,
+  descriptor: PortCapabilityDescriptor,
+  functionIdentity: string,
+  typedArgs: readonly PortTypedArg[],
+  fn: (sameClient: IdentityResolverClient) => Promise<T>,
+): Promise<T> {
+  if (descriptor.functionIdentity !== functionIdentity) {
+    throw new Error(`Pre-session capability does not match ${functionIdentity}`);
+  }
+  return withPortContextTransaction(
+    client,
+    {
+      capabilityId: descriptor.capabilityId,
+      contextClass: 'pre_session',
+      targetRole: 'app_pre_session',
+      purpose: descriptor.purpose,
+      functionIdentity,
+      requestId: randomUUID(),
+      typedArgs,
+    },
+    fn,
+  );
+}
+
+function opaqueRefFromResult(result: unknown): string {
+  if (!result || typeof result !== 'object' || !('rows' in result) || !Array.isArray(result.rows)) {
+    throw new Error('Identity resolver returned no row set');
+  }
+  const row = result.rows[0];
+  const opaqueRef = row && typeof row === 'object' && 'opaque_ref' in row ? row.opaque_ref : undefined;
+  if (typeof opaqueRef !== 'string' || !UUID_RE.test(opaqueRef)) {
+    throw new Error('Identity resolver returned an invalid opaque reference');
+  }
+  return opaqueRef.toLowerCase();
+}
+
+async function resolveOpaqueIdentityRef(
+  client: IdentityResolverClient,
+  principal: DbPrincipal,
+  capabilities: Record<string, PortCapabilityDescriptor>,
+): Promise<string | undefined> {
+  const physicalId = physicalIdentityId(principal);
+  if (!physicalId) return undefined;
+  const existing = requestOpaqueIdentityRefs.get(principal);
+  if (existing) return existing;
+
+  const pool = poolForPrincipal(principal);
+  const descriptorName = `${pool}_identity_resolve`;
+  const descriptor = capabilities[descriptorName];
+  if (
+    !descriptor ||
+    descriptor.contextClass !== 'pre_session' ||
+    descriptor.targetRole !== 'app_pre_session' ||
+    descriptor.purpose !== 'identity.variant-a.resolve' ||
+    descriptor.functionIdentity !== 'app.pre_session_resolve_identity(uuid)'
+  ) {
+    throw new Error(`Missing exact declared webapp identity capability: ${descriptorName}`);
+  }
+
+  const resolution = runWebappPreSessionNamedRoot(
+    client,
+    descriptor,
+    'app.pre_session_resolve_identity(uuid)',
+    [portTypedArg('uuid', physicalId)],
+    async (sameClient) =>
+      opaqueRefFromResult(
+        await sameClient.query(
+          'SELECT app.pre_session_resolve_identity($1::uuid) AS opaque_ref',
+          [physicalId],
+        ),
+      ),
+  );
+  requestOpaqueIdentityRefs.set(principal, resolution);
+  try {
+    return await resolution;
+  } catch (error) {
+    requestOpaqueIdentityRefs.delete(principal);
+    throw error;
+  }
+}
+
+/** Exact physical→opaque handoff on the checked-out mTLS connection, before human context install. */
+export async function resolveWebappPortContextPrincipal(
+  client: IdentityResolverClient,
+  principal: DbPrincipal | undefined,
+  capabilities: Record<string, PortCapabilityDescriptor>,
+): Promise<{ pool: 'staff' | 'patient'; principal: PortContextPrincipal }> {
+  if (!principal) throw new Error('A webapp principal is required in port-context mode');
+  const opaqueIdentityRef = await resolveOpaqueIdentityRef(client, principal, capabilities);
+  return webappPortContextPrincipal(principal, capabilities, opaqueIdentityRef);
 }

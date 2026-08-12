@@ -348,9 +348,8 @@ CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE opaque uuid;
 BEGIN
-  -- The exact password-auth root has already checked function/purpose/args;
-  -- beyond its identity owner, this private resolver is executable only by
-  -- that declared password-root owner.
+  -- The exact public identity root has already checked function/purpose/args;
+  -- this private resolver remains executable only by its identity owner.
   INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
   VALUES (p_platform_user_id, (
     substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||
@@ -384,7 +383,7 @@ END $$;
 CREATE OR REPLACE FUNCTION app.pre_session_resolve_identity(p_platform_user_id uuid)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.password.resolve', app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]), 'app.pre_session_resolve_identity(uuid)'::regprocedure);
+  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'identity.variant-a.resolve', app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]), 'app.pre_session_resolve_identity(uuid)'::regprocedure);
   RETURN app_ext.resolve_variant_a_identity(p_platform_user_id);
 END $$;
 CREATE OR REPLACE FUNCTION app.resolve_integrator_request(p_external_identity uuid)
@@ -430,7 +429,7 @@ ALTER FUNCTION app.current_integrator_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.pre_session_begin_password_login(text) OWNER TO app_seam_password_auth_owner;
-ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_password_auth_owner;
+ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.resolve_integrator_request(uuid) OWNER TO app_seam_identity_lookup_owner;
 -- Each business root has its declared seam owner.  app_seam_context_owner is
 -- reserved for the port/context surface and is never a fallback owner.
@@ -451,7 +450,7 @@ GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_patient, app_in
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_request;
 GRANT EXECUTE ON FUNCTION app.pre_session_begin_password_login(text), app.pre_session_resolve_identity(uuid) TO app_pre_session;
-GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_identity(uuid) TO app_seam_password_auth_owner;
+REVOKE ALL ON FUNCTION app_ext.resolve_variant_a_identity(uuid) FROM app_pre_session, app_seam_password_auth_owner;
 GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid) TO app_seam_context_owner;
 GRANT EXECUTE ON FUNCTION app.resolve_integrator_request(uuid) TO app_integrator_resolver;
 GRANT EXECUTE ON FUNCTION app.named_staff_root() TO app_staff;

@@ -403,6 +403,9 @@ export function generateEnvironmentVerifierSql(declaration, env, dbName) {
   if (!db) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
   const records = environmentLoginRecords(declaration, env, dbName);
   const names = records.map(([name]) => name);
+  const allDeclaredLoginNames = [...new Set(Object.values(declaration.envMapping ?? {})
+    .flatMap((mapping) => Object.keys(mapping)))].sort();
+  const foreignNames = allDeclaredLoginNames.filter((name) => !names.includes(name));
   const memberships = records.flatMap(([login, record]) => (record.memberships ?? []).map((m) =>
     `(${lit(login)}::name,${lit(m.role)}::name,${m.admin},${m.inherit},${m.set})`));
   const usages = records.flatMap(([login]) => Object.entries(db.schemas)
@@ -410,19 +413,27 @@ export function generateEnvironmentVerifierSql(declaration, env, dbName) {
     .map(([schema]) => `(${lit(login)}::name,${lit(schema)}::name)`));
   const expectedMemberships = memberships.join(', ');
   const expectedNames = names.map(lit).join(', ');
+  const allDeclaredNames = allDeclaredLoginNames.map(lit).join(', ');
+  const foreignDeclaredNames = foreignNames.map(lit).join(', ');
   return [
     '-- Exact target environment verifier: three LOGIN attrs, memberships, CONNECT and schema USAGE.',
     'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
     `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${expectedNames}]::name[]) AND (NOT rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR rolinherit) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'environment login attributes mismatch: %', bad; END IF;",
-    `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolcanlogin AND rolname ~ '^(app_|bcb_|saas_|bersoncarebot_)' AND rolname <> ALL(ARRAY[${expectedNames}]::name[]) LIMIT 1;`,
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'extra or cross-environment BCB LOGIN survived: %', bad; END IF;",
+    `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolcanlogin AND rolname ~ '^(app_|bcb_|saas_|bersoncarebot_)' AND rolname <> ALL(ARRAY[${allDeclaredNames}]::name[]) LIMIT 1;`,
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared BCB LOGIN survived: %', bad; END IF;",
     `  SELECT expected.login_name::text || '->' || expected.role_name::text INTO bad FROM (VALUES ${expectedMemberships}) AS expected(login_name,role_name,admin_option,inherit_option,set_option) WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles role ON role.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE member.rolname=expected.login_name AND role.rolname=expected.role_name AND membership.admin_option=expected.admin_option AND membership.inherit_option=expected.inherit_option AND membership.set_option=expected.set_option) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'missing exact login membership: %', bad; END IF;",
     `  SELECT member.rolname || '->' || role.rolname INTO bad FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles role ON role.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE member.rolname=ANY(ARRAY[${expectedNames}]::name[]) AND NOT EXISTS (SELECT 1 FROM (VALUES ${expectedMemberships}) AS expected(login_name,role_name,admin_option,inherit_option,set_option) WHERE expected.login_name=member.rolname AND expected.role_name=role.rolname AND expected.admin_option=membership.admin_option AND expected.inherit_option=membership.inherit_option AND expected.set_option=membership.set_option) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'unexpected login membership: %', bad; END IF;",
     `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${expectedNames}]::name[]) AND NOT has_database_privilege(rolname,${lit(dbName)},'CONNECT') LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'environment LOGIN lacks CONNECT: %', bad; END IF;",
+    ...(foreignNames.length ? [
+      `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${foreignDeclaredNames}]::name[]) AND has_database_privilege(rolname,${lit(dbName)},'CONNECT') LIMIT 1;`,
+      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'foreign environment LOGIN can CONNECT: %', bad; END IF;",
+      `  SELECT role_row.rolname || ':' || schema_row.nspname INTO bad FROM pg_catalog.pg_roles role_row CROSS JOIN pg_catalog.pg_namespace schema_row WHERE role_row.rolname=ANY(ARRAY[${foreignDeclaredNames}]::name[]) AND schema_row.nspname=ANY(ARRAY['app','app_ext','integrator','public']::name[]) AND has_schema_privilege(role_row.rolname,schema_row.oid,'USAGE') LIMIT 1;`,
+      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'foreign environment LOGIN has schema USAGE: %', bad; END IF;",
+    ] : []),
     `  SELECT expected.login_name::text || ':' || expected.schema_name::text INTO bad FROM (VALUES ${usages.join(', ') || '(NULL::name,NULL::name)'}) AS expected(login_name,schema_name) WHERE expected.login_name IS NOT NULL AND NOT has_schema_privilege(expected.login_name,expected.schema_name,'USAGE') LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'environment LOGIN lacks schema USAGE: %', bad; END IF;",
     `  RAISE NOTICE 'BCB_ENVIRONMENT_VERIFIED env=${env} database=${dbName} logins=${names.length}';`,

@@ -177,13 +177,14 @@ INSERT INTO app_ext.port_context_capabilities(capability_id,port,session_login,t
  ('00000000-0000-0000-0000-000000000105','integrator','$integrator_login','app_tenant_service','tenant_service','relation',NULL),
  ('00000000-0000-0000-0000-000000000106','integrator','$integrator_login','app_service','service','relation',NULL),
  ('00000000-0000-0000-0000-000000000107','webapp','$staff_login','app_pre_session','pre_session','auth.password.begin','app.pre_session_begin_password_login(text)'::regprocedure),
- ('00000000-0000-0000-0000-000000000108','webapp','$staff_login','app_pre_session','pre_session','auth.password.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure),
+ ('00000000-0000-0000-0000-000000000108','webapp','$staff_login','app_pre_session','pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure),
  ('00000000-0000-0000-0000-000000000109','integrator','$integrator_login','app_integrator_resolver','integrator','integrator.resolve','app.resolve_integrator_request(uuid)'::regprocedure),
  ('00000000-0000-0000-0000-000000000110','webapp','$staff_login','app_staff','staff','named.staff','app.named_staff_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000111','webapp','$patient_login','app_patient','patient','named.patient','app.named_patient_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000112','webapp','$staff_login','app_platform_settings','platform','named.platform','app.named_platform_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000113','integrator','$integrator_login','app_tenant_service','tenant_service','named.tenant-service','app.named_tenant_service_root()'::regprocedure),
- ('00000000-0000-0000-0000-000000000114','integrator','$integrator_login','app_service','service','named.service','app.named_service_root()'::regprocedure);
+ ('00000000-0000-0000-0000-000000000114','integrator','$integrator_login','app_service','service','named.service','app.named_service_root()'::regprocedure),
+ ('00000000-0000-0000-0000-000000000115','webapp','$patient_login','app_pre_session','pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure);
 INSERT INTO app.demo_context_records VALUES ('$org_a','tenant-a'),('$org_b','tenant-b');
 INSERT INTO app.platform_context_records VALUES ('platform-only');
 INSERT INTO app.service_context_records VALUES ('service-only');
@@ -273,6 +274,7 @@ if [[ "$fault" != dropped_restrictive_gate ]]; then
   must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c 'BEGIN; SET LOCAL ROLE app_staff; SELECT * FROM app.context_gate_probe; COMMIT'
 fi
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c 'BEGIN; SET LOCAL ROLE app_pre_session; SELECT app.pre_session_begin_password_login($$person@example.test$$); COMMIT'
+must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SET LOCAL ROLE app_pre_session; SELECT app.pre_session_resolve_identity('$actor'::uuid); COMMIT"
 
 run_direct() {
   local user=$1 password=$2 cert=$3 key=$4 cap=$5 role=$6 class=$7 purpose=$8 fn=$9 hash=${10} actor_sql=${11} subject_sql=${12} org_sql=${13} integrator_sql=${14} request_sql=${15} query=${16} expected=${17}
@@ -296,12 +298,12 @@ SQL
 # following business transactions receive those opaque values, never physical
 # IDs, and the public accessors resolve them privately for current RLS callers.
 resolve_opaque() {
-  local physical_id=$1 hash result
+  local physical_id=$1 user=$2 password=$3 cert=$4 key=$5 capability_id=$6 hash result
   hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$physical_id'::uuid))::app.port_typed_arg]),'hex')")
-  result=$(psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -qAt <<SQL | grep -E '^[0-9a-f-]{36}$' | tail -1
+  result=$(psql_as "$user" "$password" "$cert" "$key" -qAt <<SQL | grep -E '^[0-9a-f-]{36}$' | tail -1
 BEGIN;
 SELECT app.clear_port_context();
-SELECT app.install_port_context('00000000-0000-0000-0000-000000000108',ROW(1,'pre_session','app_pre_session','auth.password.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure,decode('$hash','hex'),NULL,NULL,NULL,NULL,'$request'::uuid)::app.port_context_claims);
+SELECT app.install_port_context('$capability_id',ROW(1,'pre_session','app_pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure,decode('$hash','hex'),NULL,NULL,NULL,NULL,'$request'::uuid)::app.port_context_claims);
 SET LOCAL ROLE app_pre_session;
 SELECT app.pre_session_resolve_identity('$physical_id'::uuid);
 RESET ROLE;
@@ -313,8 +315,8 @@ SQL
   printf '%s\n' "$result"
 }
 
-opaque_actor=$(resolve_opaque "$actor")
-opaque_subject=$(resolve_opaque "$subject")
+opaque_actor=$(resolve_opaque "$actor" "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000108)
+opaque_subject=$(resolve_opaque "$subject" "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" 00000000-0000-0000-0000-000000000115)
 
 # A physical platform_users id is never a context capability.  These are
 # install-time failures, before any context row can be inserted; the following
@@ -522,7 +524,7 @@ WITH expected(signature,owner_name,is_definer,volatility,parallelism,config) AS 
  ('app_ext.resolve_variant_a_identity(uuid)','app_seam_identity_lookup_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
  ('app_ext.resolve_variant_a_physical(uuid)','app_seam_identity_lookup_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
  ('app.pre_session_begin_password_login(text)','app_seam_password_auth_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
- ('app.pre_session_resolve_identity(uuid)','app_seam_password_auth_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
+ ('app.pre_session_resolve_identity(uuid)','app_seam_identity_lookup_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
  ('app.resolve_integrator_request(uuid)','app_seam_identity_lookup_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
  ('app.named_staff_root()','app_seam_staff_security_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
  ('app.named_patient_root()','app_seam_patient_self_actions_owner',true,'v'::"char",'u'::"char",ARRAY['search_path=pg_catalog, app, app_ext, pg_temp']::text[]),
@@ -546,7 +548,7 @@ WITH expected(signature,grantees) AS (VALUES
  ('app.current_actor_user_id()',ARRAY['app_staff','app_patient','app_platform_settings']::name[]),
  ('app.current_patient_user_id()',ARRAY['app_patient']::name[]),
  ('app.current_integrator_user_id()',ARRAY['app_integrator_request']::name[]),
- ('app_ext.resolve_variant_a_identity(uuid)',ARRAY['app_seam_password_auth_owner']::name[]),
+ ('app_ext.resolve_variant_a_identity(uuid)',ARRAY[]::name[]),
  ('app_ext.resolve_variant_a_physical(uuid)',ARRAY['app_seam_context_owner']::name[]),
  ('app.pre_session_begin_password_login(text)',ARRAY['app_pre_session']::name[]),
  ('app.pre_session_resolve_identity(uuid)',ARRAY['app_pre_session']::name[]),

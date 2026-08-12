@@ -16,7 +16,7 @@ import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailu
 import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import {
   type WebappPortContextRuntimeConfig,
-  webappPortContextPrincipal,
+  resolveWebappPortContextPrincipal,
 } from '@/infra/db/portContextRuntime';
 
 function currentWebappDbSourceOperation() {
@@ -417,17 +417,12 @@ function createPortContextWebappPool(
   const metrics = createEmptyRoutingMetrics();
   let routedPool: WebappPortContextPool;
 
-  const select = (generation = active) => {
-    const selected = webappPortContextPrincipal(
-      getCurrentDbPrincipal(),
-      generation.config.capabilities,
-    );
-    if (selected.pool === 'staff') metrics.staffSelections += 1;
+  const selectPool = (principal: DbPrincipal | undefined, generation = active) => {
+    if (!principal) throw new Error('A webapp principal is required in port-context mode');
+    const poolKind = principal.kind === 'patient' ? 'patient' : 'staff';
+    if (poolKind === 'staff') metrics.staffSelections += 1;
     else metrics.nonstaffSelections += 1;
-    return {
-      pool: selected.pool === 'staff' ? generation.staffPool : generation.patientPool,
-      principal: selected.principal,
-    };
+    return poolKind === 'staff' ? generation.staffPool : generation.patientPool;
   };
 
   const query = async (
@@ -438,10 +433,15 @@ function createPortContextWebappPool(
     }
     const generation = active;
     const execute = async (): Promise<Awaited<ReturnType<Pool['query']>>> => {
-      const selected = select(generation);
-      const client = await checkout(generation, selected.pool);
+      const principalSnapshot = getCurrentDbPrincipal();
+      const client = await checkout(generation, selectPool(principalSnapshot, generation));
       let completed = false;
       try {
+        const selected = await resolveWebappPortContextPrincipal(
+          client,
+          principalSnapshot,
+          generation.config.capabilities,
+        );
         const result = await withPortContextTransaction(
           client,
           selected.principal,
@@ -489,7 +489,7 @@ function createPortContextWebappPool(
         // Direct checkout is only consumed by withClient.ts, which applies the same wrapper.
         return () => {
           const generation = active;
-          return checkout(generation, select(generation).pool);
+          return checkout(generation, selectPool(getCurrentDbPrincipal(), generation));
         };
       }
       if (prop === 'rotatePortContextPools') return rotatePortContextPools;
