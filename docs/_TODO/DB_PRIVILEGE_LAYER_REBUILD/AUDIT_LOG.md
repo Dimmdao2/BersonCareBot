@@ -1860,3 +1860,12 @@ cluster rehearsal, не новый документационный мини-с�
   namespace, `digest(text,text)` и `gen_random_bytes(integer)`. Откатываемый live PostgreSQL 16 probe с теми же
   временными правами доказал create/use и полный rollback схемы, extension и grant; ordinary/restored/PROD path
   не изменён, последующий owner-zero заменяет временные ownership/grants целевыми.
+- **LIVE-EMPTY-LEDGER-001 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** replay прошёл `0274` и дошёл до exact
+  `0330_test_ledger_schema_parity_forward_local`, где атомарно отказал `42P01`: этот TEST-specific forward
+  reconciliation проверяет `public.booking_calendar_map.appointment_key`, создаваемый второй integrator-фазой
+  только после Drizzle. `0330` и следующий `0331` исправляют гонку старого TEST-ledger; на greenfield все семь
+  source migrations применяются напрямую с текущими hashes, `0259` уже не выдаёт ambient staff billing access,
+  `0265` сам удаляет ошибочный platform conversation access, а `0278` выполняет exact owner-data cleanup.
+  Explicit empty-bootstrap поэтому отмечает только exact `0330/0331` original hashes/times без исполнения их
+  TEST-state assertions. Остальная chain и ordinary/restored/PROD stock path не изменены; финальная parity
+  доказывается всей chain, второй integrator-фазой и последующим owner-zero/installer acceptance.

@@ -32,6 +32,10 @@ const EMPTY_BOOTSTRAP_DATA_MIGRATIONS = new Set([
   '0143_seed_staff_organization_members',
   '0204_promote_legacy_solo_owner_membership',
 ]);
+const EMPTY_BOOTSTRAP_TEST_LEDGER_RECONCILIATIONS = new Set([
+  '0330_test_ledger_schema_parity_forward_local',
+  '0331_test_ledger_0330_race_forward_local',
+]);
 const EMPTY_BOOTSTRAP_PLATFORM_AUDIT_GRANT_MIGRATION =
   '0241_platform_operations_audit_health_archive_global_view';
 const EMPTY_BOOTSTRAP_APP_OWNER_PUBLIC_USAGE_MIGRATION =
@@ -408,6 +412,10 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
         }
         if (EMPTY_BOOTSTRAP_DATA_MIGRATIONS.has(journal.tag)) {
           console.log(`[migrate] empty-bootstrap skipped data-only migration=${journal.tag}`);
+        } else if (EMPTY_BOOTSTRAP_TEST_LEDGER_RECONCILIATIONS.has(journal.tag)) {
+          console.log(
+            `[migrate] empty-bootstrap skipped TEST-ledger reconciliation=${journal.tag}`,
+          );
         } else {
           try {
             for (const statement of migration.sql) await client.query(statement);
