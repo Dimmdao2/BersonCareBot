@@ -1782,3 +1782,9 @@ cluster rehearsal, не новый документационный мини-с�
   Реальный `node-postgres` probe доказал `session_user=postgres`, `current_user=bersoncarebot_test`, exact TEST DB
   и `inet_server_addr() IS NULL`. Independent negative matrix отвергла double-encoding, `/tmp`, TEST→PROD DB и
   `?host=`; итоговый взгляд — **PASS**.
+- **LIVE-INTERLEAVE-001 — ИСПРАВЛЕНО ГРОМКО:** empty bootstrap атомарно применил legacy webapp `001–081`,
+  затем `082` отказал на ещё не созданной Drizzle-таблице `recommendations`. Bootstrap теперь пропускает ровно
+  `082_recommendations_domain.sql`: файл содержит только idempotent `recommendations.domain` + index, а каноническая
+  Drizzle `0001` создаёт таблицу и `0053` применяет exact parity до всех её последующих use. Legacy `083–089`
+  продолжают исполняться до Drizzle; manual/emergency режимы не изменены. Независимый взгляд подтвердил отсутствие
+  потери schema/data и других достижимых order-break — **PASS**.

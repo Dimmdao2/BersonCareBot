@@ -27,6 +27,7 @@ const migrationsDir = join(__dirname, '..', 'migrations');
 const WEBAPP_MIGRATIONS_TABLE = 'public.webapp_schema_migrations';
 const LEGACY_PUBLIC_SCHEMA_MIGRATIONS = 'public.schema_migrations';
 const LEGACY_MIGRATION_MODE_VALUES = new Set(['manual', 'bootstrap', 'emergency']);
+const BOOTSTRAP_DRIZZLE_SUPERSEDED_FILES = new Set(['082_recommendations_domain.sql']);
 const migrationFileNameSchema = z
   .string()
   .trim()
@@ -132,6 +133,10 @@ async function main() {
 
     for (const rawFile of files) {
       const file = migrationFileNameSchema.parse(rawFile);
+      if (legacyMode === 'bootstrap' && BOOTSTRAP_DRIZZLE_SUPERSEDED_FILES.has(file)) {
+        console.log(`Skipping ${file} (bootstrap parity is canonical Drizzle 0053)`);
+        continue;
+      }
       const already = await client.query(
         `SELECT 1 FROM ${WEBAPP_MIGRATIONS_TABLE} WHERE filename = $1`,
         [file],
