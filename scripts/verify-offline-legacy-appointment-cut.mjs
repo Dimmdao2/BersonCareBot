@@ -158,6 +158,34 @@ END
 $verify$;`);
 
   psql(`${fixtureSql}
+INSERT INTO public.be_appointments(id, organization_id) VALUES
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111');
+INSERT INTO public.appointment_records(id, integrator_record_id)
+VALUES ('10000000-0000-0000-0000-000000000005', 'be:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+INSERT INTO public.clinical_visit(id, appointment_record_id, canonical_appointment_id)
+VALUES (
+  '20000000-0000-0000-0000-000000000005',
+  '10000000-0000-0000-0000-000000000005',
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+);
+BEGIN;
+${migrationSql}
+COMMIT;
+`, false);
+  psql(`DO $verify$
+BEGIN
+  IF to_regclass('public.appointment_records') IS NULL THEN
+    RAISE EXCEPTION 'canonical-conflict failure dropped the legacy evidence';
+  END IF;
+  IF (SELECT canonical_appointment_id FROM public.clinical_visit LIMIT 1)
+       <> 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid THEN
+    RAISE EXCEPTION 'canonical-conflict failure mutated the existing target';
+  END IF;
+END
+$verify$;`);
+
+  psql(`${fixtureSql}
 INSERT INTO public.be_appointments(id, organization_id)
 VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111');
 INSERT INTO public.appointment_records(id, integrator_record_id)

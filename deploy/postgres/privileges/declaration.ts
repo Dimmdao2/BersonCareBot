@@ -874,21 +874,11 @@ const TABLE_ROWS: TableRow[] = [
     revoke: { app_staff: 'D14: очередь дедупа вебхуков — не место арендной роли.' },
     pol: 'приоритет низкий: ПДн нет вовсе — опровергнуто замером (~225 живых строк, response_body=\'{}\' в 261 из '
     + '261). Стены клиники/пациента не требуется', defect: ['D14-integrator-no-wall'] },
-  { t: 'integrator.identities', cls: 'P', why: 'связка «человек ↔ внешний аккаунт» — никто не узнаёт, чей это чат — '
-    + 'весь вход в бота ломается', defect: ['D14-integrator-no-wall', 'D25-foundation-identities'],
-    drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §10-11 — волна 3 (это и есть незакрытый фундамент D25)',
-      blockedBy: 'горячий путь каждого вебхука; integrator.telegram_state держит FK — дропать только после её '
-      + 'урезания. До сноса пять пациентских стен, построенных на EXISTS по этой таблице, остаются недействующими' },
-    disp: 'ACTIVE', wall: 'platform-role', wallWhy: 'POSTZERO-R3: live integrator-only path remains closed to clinic and patient roles until the canonical cutover.' },
   { t: 'integrator.integration_data_quality_incidents', cls: 'S', org: false, why: 'инциденты качества внешней '
     + 'интеграции — не видно, что система прислала мусор',
     revoke: { app_staff: 'D14: raw_value может содержать исходное значение поля пациента или филиала.' },
     pol: 'по смыслу клиническая стена (инцидент принадлежит интеграции конкретной клиники), но organization_id нет; '
     + 'при 3 строках приоритет низкий (evidence/15 §19).', defect: ['D14-integrator-no-wall'] },
-  { t: 'integrator.message_drafts', cls: 'P', org: true, why: 'черновик сообщения пациента в боте — пациент теряет '
-    + 'набранный, но не отправленный текст', pol: 'D25: пациентская ветка построена на EXISTS по '
-    + 'integrator.identities, у которой стены нет и которая СНОСИТСЯ — перевесить на public.user_channel_bindings',
-    defect: ['D25-foundation-identities'] },
   { t: 'integrator.projection_outbox', cls: 'S', org: false, why: 'очередь проекций событий в webapp — события '
     + 'интегратора перестают доезжать в webapp',
     revoke: { app_staff: 'D14: payload несёт события по конкретным пациентам и записям.' },
@@ -900,12 +890,6 @@ const TABLE_ROWS: TableRow[] = [
       + 'public.support_question_messages 20/20; не читается ниоткуда' } },
   { t: 'integrator.schema_migrations', cls: 'T', rls: 'off', why: 'журнал миграций интегратора — миграции '
     + 'применяются повторно или не применяются', rlsWhy: RLS_OFF_MIGRATOR_LEDGER },
-  { t: 'integrator.telegram_state', cls: 'P', why: 'УСТАРЕЛО/ЗАМЕНЕНО 09.08.2026: '
-    + 'вариант «оставить и урезать» заменён owner-решением удалить legacy state целиком',
-    defect: ['D14-integrator-no-wall'],
-    drop: { verdict: 'DROP', source: 'evidence/41 + migration 20260808_0012: owner decision 09.08.2026; '
-      + 'DEV relation physically dropped without CASCADE after preserving the only meaningful negative signal' },
-    disp: 'ACTIVE', wall: 'platform-role', wallWhy: 'POSTZERO-R3: production callers still mutate Telegram state; only integrator runtime reaches it.' },
   { t: 'integrator.telegram_users', cls: 'P', why: 'легаси-хранилище Telegram-аккаунтов — ничего не ломается — '
     + 'таблица мёртвая', defect: ['D14-integrator-no-wall'],
     drop: { verdict: 'DROP', source: 'evidence/15 §1 — волна 0, 2 строки, единственная таблица, где обе оценки '
@@ -923,10 +907,6 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'integrator.user_reminder_rules', cls: 'P', why: 'правила напоминаний пациента — пациент перестаёт получать '
     + 'напоминания',
     drop: { verdict: 'DROP', source: 'evidence/15 §4 — 27/27 уже в public.reminder_rules' } },
-  { t: 'integrator.users', cls: 'P', why: 'реестр пользователей интегратора — нет якоря, к которому цепляются '
-    + 'идентичности, контакты и напоминания', defect: ['D14-integrator-no-wall'],
-    drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §10-11 — волна 3', blockedBy: 'горячий путь; зеркало '
-      + 'public.platform_users.integrator_user_id / .merged_into_id' } },
   { t: 'public.admin_audit_log', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'журнал административных '
     + 'действий — пропадает разбор «кто что сделал» и авто-мерджи конфликтов', wallWhy: W_PLATFORM_OR_CLINIC },
   { t: 'public.app_runtime_settings', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'настройки рантайма — '
@@ -1988,10 +1968,22 @@ const REV10_CONTEXT = {
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'integrator.data-quality.upsert',
       functionIdentity: 'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)' },
+    count_active_canonical_appointments: { port: 'integrator',
+      runtimeName: 'count_active_canonical_appointments', sessionRole: 'app_integrator_request',
+      targetRole: 'app_service', contextClass: 'service', purpose: 'booking.admin-active.count',
+      functionIdentity: 'app.count_active_canonical_appointments()' },
     read_patient_telegram_display_handle: { port: 'webapp', runtimeName: 'read_patient_telegram_display_handle',
       sessionRole: 'app_staff', targetRole: 'app_staff', contextClass: 'staff',
       purpose: 'messaging.patient-telegram-handle.read',
       functionIdentity: 'app.read_patient_telegram_display_handle(uuid)' },
+    read_canonical_appointment_by_external_id: { port: 'webapp',
+      runtimeName: 'read_canonical_appointment_by_external_id', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service', purpose: 'booking.integrator-record.read',
+      functionIdentity: 'app.read_canonical_appointment_by_external_id(text)' },
+    list_active_canonical_appointments_by_phone: { port: 'webapp',
+      runtimeName: 'list_active_canonical_appointments_by_phone', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service', purpose: 'booking.integrator-active.read',
+      functionIdentity: 'app.list_active_canonical_appointments_by_phone(text)' },
     webapp_pre_session_relation: { port: 'webapp', runtimeName: 'pre_session', sessionRole: 'app_staff',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'relation',
       runtimeSources: WEBAPP_PRE_SESSION_SOURCES },
@@ -2115,6 +2107,40 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    'app.read_canonical_appointment_by_external_id(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      purpose: 'return one canonical appointment for an HMAC-authenticated integrator external id',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_external_entity_mappings',
+          columns: ['entity_type', 'external_system', 'external_id', 'canonical_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'phone_normalized', 'start_at', 'status', 'attribution_json',
+            'branch_id', 'created_at', 'updated_at', 'deleted_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.list_active_canonical_appointments_by_phone(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      purpose: 'return only active canonical appointments for an HMAC-authenticated integrator phone lookup',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.be_appointments',
+        columns: ['id', 'organization_id', 'phone_normalized', 'start_at', 'status', 'attribution_json',
+          'branch_id', 'created_at', 'updated_at', 'deleted_at'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.count_active_canonical_appointments()': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'bigint', execute: ['app_service'],
+      purpose: 'return only the global active appointment count for the integrator admin dashboard',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.be_appointments',
+        columns: ['status', 'deleted_at', 'start_at'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
     'app.get_google_calendar_event_id(uuid)': rev10Function({
       owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', execute: ['app_tenant_service'],
       purpose: 'read one Google event id after proving appointment organization', typedArgs: ['uuid'],
@@ -2208,16 +2234,6 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
-  'integrator.identities': {
-    kind: 'direct', purpose: 'integrator resolves and maintains external channel identities; no clinic or patient role reaches this legacy table',
-    codePaths: ['apps/integrator/src/infra/db/repos/channelUsers.ts', 'apps/integrator/src/infra/db/repos/messageThreads.ts', 'apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts'],
-    grants: [{ role: 'app_integrator_request', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' }],
-  },
-  'integrator.telegram_state': {
-    kind: 'direct', purpose: 'integrator alone maintains Telegram delivery and dialog state until the declared drop migration can run',
-    codePaths: ['apps/integrator/src/infra/db/repos/channelUsers.ts', 'apps/integrator/src/infra/db/repos/messageThreads.ts', 'apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts'],
-    grants: [{ role: 'app_integrator_request', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' }],
-  },
   'public.operator_health_failure_archive': {
     kind: 'direct', purpose: 'clinic staff handles only its archive rows; platform health route handles only global archive rows',
     codePaths: ['apps/webapp/src/app/api/admin/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
@@ -2612,7 +2628,6 @@ function revision10TenantPolicies(
 }
 
 const REV10_EXPLICIT_ORG_COLUMN = new Set([
-  'integrator.message_drafts',
   'public.operator_health_failure_archive',
   'public.be_organization_members', 'public.manual_patient_commands', 'public.org_brand_revisions',
   'public.organization_slug_claims', 'public.organization_slug_rename_events', 'public.patient_bookings',

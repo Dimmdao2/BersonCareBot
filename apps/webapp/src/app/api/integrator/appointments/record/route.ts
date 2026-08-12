@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       { status: 503 },
     );
   }
-  const row = await deps.appointmentAccess.getByExternalRecordId(integratorRecordId);
+  const row = await deps.appointmentAccess.getByExternalRecordIdForIntegrator(integratorRecordId);
   const record = row
     ? {
         externalRecordId: row.externalRecordId,

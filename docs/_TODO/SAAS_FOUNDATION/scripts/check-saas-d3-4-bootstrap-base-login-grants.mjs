@@ -2,11 +2,7 @@
 
 import { readFileSync } from 'node:fs';
 
-import {
-  appStaffNoRuntimeDmlTables,
-  getAppStaffGrantTables,
-  renderP05bGrantsSql,
-} from './p0-5b-grants-sql.mjs';
+import { getAppStaffGrantTables, renderP05bGrantsSql } from './p0-5b-grants-sql.mjs';
 
 const artifactPath = 'deploy/postgres/p0-5b-grants.sql';
 
@@ -37,13 +33,10 @@ if (leakedDedicatedTables.length > 0) {
   );
 }
 
-if (!appStaffNoRuntimeDmlTables.has('integrator.message_drafts')) {
-  fail('integrator.message_drafts must be an explicit app_staff no-runtime-DML relation');
-}
 if (
   getAppStaffGrantTables().some((table) => table.qualifiedName === 'integrator.message_drafts')
 ) {
-  fail('integrator.message_drafts leaked into the generated app_staff grant surface');
+  fail('dropped integrator.message_drafts leaked into the generated app_staff grant surface');
 }
 
 console.log('check-saas-d3-4-bootstrap-base-login-grants: generated grant artifact OK');

@@ -89,6 +89,21 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'messaging.patient-telegram-handle.read', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgPatientTelegramUsernameMention.ts',
   },
+  'app.read_canonical_appointment_by_external_id(text)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'booking.integrator-record.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgCanonicalAppointments.ts',
+  },
+  'app.list_active_canonical_appointments_by_phone(text)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'booking.integrator-active.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgCanonicalAppointments.ts',
+  },
+  'app.count_active_canonical_appointments()': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'booking.admin-active.count', argCount: 0,
+    source: 'apps/integrator/src/infra/db/repos/adminStats.ts',
+  },
   'app.get_google_calendar_event_id(uuid)': {
     port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
     purpose: 'calendar.map.get', argCount: 1,
@@ -338,6 +353,6 @@ test('production discovery is path-independent and excludes tests/generated outp
   assert.ok(files.length > 10);
   assert.equal(files.some((path) => TEST_FILE_RE.test(path) || path.includes('/generated/')), false);
   const discovered = collectNamedRootCallsites();
-  assert.equal(discovered.filter((row) => row.kind === 'literal').length, 21);
+  assert.equal(discovered.filter((row) => row.kind === 'literal').length, EXPECTED_ROOTS.size);
   assert.equal(discovered.filter((row) => row.kind === 'dynamic').length, 1);
 });

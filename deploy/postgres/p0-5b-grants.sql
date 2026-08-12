@@ -392,19 +392,7 @@ SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_staff', 'public') WHERE EXISTS
 SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_patient', 'integrator') WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient') \gexec
 SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_patient', 'public') WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient') \gexec
 
--- LEGACY registry-only relation: no app_staff runtime SELECT/DML surface.
-REVOKE ALL PRIVILEGES ON TABLE "integrator"."message_drafts" FROM app_staff;
-SELECT format(
-  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_staff',
-  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
-  'integrator',
-  'message_drafts'
-)
-FROM pg_attribute
-WHERE attrelid = 'integrator.message_drafts'::regclass
-  AND attnum > 0
-  AND NOT attisdropped
-\gexec
+
 
 \echo 'P0.5b grants DOWN complete.'
 \else
@@ -420,19 +408,7 @@ FROM p0_5b_staff_grant_tables
 ORDER BY schema_name, table_name
 \gexec
 
--- LEGACY registry-only relation: no app_staff runtime SELECT/DML surface.
-REVOKE ALL PRIVILEGES ON TABLE "integrator"."message_drafts" FROM app_staff;
-SELECT format(
-  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_staff',
-  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
-  'integrator',
-  'message_drafts'
-)
-FROM pg_attribute
-WHERE attrelid = 'integrator.message_drafts'::regclass
-  AND attnum > 0
-  AND NOT attisdropped
-\gexec
+
 
 SELECT format('GRANT %s ON TABLE %I.%I TO app_patient', privileges, schema_name, table_name)
 FROM p0_5b_patient_grant_tables

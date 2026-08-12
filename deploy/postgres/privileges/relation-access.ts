@@ -17,58 +17,6 @@ export type Revision10ClinicalAccess =
  * operation upper bound.
  */
 export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
-  "integrator.message_drafts": {
-    "kind": "direct",
-    "purpose": "черновик сообщения пациента в боте — пациент теряет набранный, но не отправленный текст",
-    "codePaths": [
-      "apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts",
-      "apps/integrator/src/infra/db/repos/messageThreads.ts",
-      "apps/integrator/src/kernel/domain/handleIncomingEvent.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "SELECT",
-          "INSERT"
-        ],
-        "columns": [
-          "created_at",
-          "draft_text_current",
-          "external_chat_id",
-          "external_message_id",
-          "id",
-          "identity_id",
-          "organization_id",
-          "source",
-          "state",
-          "updated_at"
-        ]
-      },
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "UPDATE"
-        ],
-        "columns": [
-          "draft_text_current",
-          "external_chat_id",
-          "external_message_id",
-          "identity_id",
-          "organization_id",
-          "state",
-          "updated_at"
-        ]
-      },
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "DELETE"
-        ],
-        "columns": "table"
-      }
-    ]
-  },
   "integrator.user_reminder_delivery_logs": {
     "kind": "direct",
     "purpose": "журнал доставки напоминаний — не видно, почему напоминание не дошло",

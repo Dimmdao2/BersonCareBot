@@ -29,7 +29,8 @@ export async function GET(request: Request) {
       { status: 503 },
     );
   }
-  const rows = await deps.appointmentAccess.listActiveByPhoneNormalized(phoneNormalized);
+  const rows =
+    await deps.appointmentAccess.listActiveByPhoneNormalizedForIntegrator(phoneNormalized);
   const records = rows.map((row) => ({
     externalRecordId: row.externalRecordId,
     recordAt: row.recordAt,

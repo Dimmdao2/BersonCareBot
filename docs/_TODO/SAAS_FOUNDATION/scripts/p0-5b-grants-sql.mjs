@@ -137,11 +137,10 @@ const s01RetiredLegacyBookingProjectionTables = new Set([
   'public.branches',
 ]);
 
-// The registry keeps message_drafts as LEGACY until its eventual DROP, but there is no live runtime
-// path left. FORCE RLS with no permissive policy keeps it deny-all; removing runtime ACL as well avoids
-// making that boundary depend on RLS alone. It is a historical schema record, not part of app_staff's
-// broad LEGACY surface. The generated UP and DOWN paths also revoke stale whole-table and column grants.
-export const appStaffNoRuntimeDmlTables = new Set(['integrator.message_drafts']);
+// The historical tier registry is immutable evidence. Runtime grants must not mention the relation
+// after the atomic legacy identity migration has physically removed it.
+const retiredLegacyIdentityTables = new Set(['integrator.message_drafts']);
+export const appStaffNoRuntimeDmlTables = new Set();
 
 const appStaffGrantTiers = new Set(['SCOPED', 'BOOTSTRAP', 'INFRA', 'LEGACY', 'TELEMETRY']);
 
@@ -164,6 +163,7 @@ export function getAppStaffGrantTables() {
         !overlayManagedAppStaffTables.has(row.table) &&
         !r7DroppedRawRubitimeTables.has(row.table) &&
         !s01RetiredLegacyBookingProjectionTables.has(row.table) &&
+        !retiredLegacyIdentityTables.has(row.table) &&
         !appStaffNoRuntimeDmlTables.has(row.table),
     )
     .map((row) => ({ ...splitQualifiedName(row.table), qualifiedName: row.table, tier: row.tier }))

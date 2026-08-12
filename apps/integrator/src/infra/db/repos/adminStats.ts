@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot, runIntegratorSql } from '../runIntegratorSql.js';
 
 export type AdminStats = {
   activeBookings: number;
@@ -19,23 +19,13 @@ export async function getAdminStats(db: DbPort): Promise<AdminStats> {
 }
 
 async function getActiveBookingsCount(db: DbPort): Promise<number> {
-  try {
-    const res = await runIntegratorSql<{ cnt: number }>(
-      db,
-      sql`SELECT COUNT(*)::int AS cnt
-          FROM public.be_appointments
-          WHERE status IN (
-            'created', 'awaiting_payment', 'paid', 'confirmed', 'rescheduled',
-            'visit_confirmed', 'charged_to_package', 'manual_review_required'
-          )
-            AND deleted_at IS NULL
-            AND start_at >= now()`,
-    );
-    return res.rows[0]?.cnt ?? 0;
-  } catch (err) {
-    logger.error({ err }, 'get active bookings count failed');
-    return 0;
-  }
+  const res = await runIntegratorNamedRoot<{ cnt: number }>(
+    db,
+    'app.count_active_canonical_appointments()',
+    [],
+    sql`SELECT app.count_active_canonical_appointments()::int AS cnt`,
+  );
+  return res.rows[0]?.cnt ?? 0;
 }
 
 async function getUserCountsByIntegration(

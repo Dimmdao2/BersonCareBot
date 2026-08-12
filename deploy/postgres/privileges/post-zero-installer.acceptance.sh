@@ -45,13 +45,6 @@ admin -f "$work_dir/source.sql" >/dev/null
 node --experimental-strip-types "$repo_root/deploy/postgres/privileges/fixtures/production-catalog.mjs" "$db_name" \
   | awk '/^CREATE TABLE / { sub(/^CREATE TABLE /, "CREATE TABLE IF NOT EXISTS "); print }' \
   | admin >/dev/null
-admin <<'SQL' >/dev/null
-ALTER TABLE integrator.telegram_state ADD COLUMN IF NOT EXISTS username text;
-ALTER TABLE integrator.telegram_state ADD COLUMN IF NOT EXISTS identity_id bigint;
-ALTER TABLE integrator.identities ADD COLUMN IF NOT EXISTS resource text;
-ALTER TABLE integrator.identities ADD COLUMN IF NOT EXISTS external_id text;
-SQL
-
 zero() {
   admin -1 -f "$repo_root/deploy/postgres/generated/zero-state.$db_name.sql" >/dev/null
   "$pg_bin/psql" -X -v ON_ERROR_STOP=1 -h "$data_dir" -p "$port" -U postgres -d postgres -1 \

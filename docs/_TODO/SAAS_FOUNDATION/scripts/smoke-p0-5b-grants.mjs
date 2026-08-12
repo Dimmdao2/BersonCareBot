@@ -126,7 +126,6 @@ const {
   appPatientColumnGrants,
   getAppStaffGrantTables,
   getAppPatientGrantTables,
-  renderAppStaffNoRuntimeDmlStatements,
 } = await import(path.join(__dirname, 'p0-5b-grants-sql.mjs'));
 
 const staffTables = getAppStaffGrantTables();
@@ -134,10 +133,6 @@ const patientTables = getAppPatientGrantTables();
 if (staffTables.some((table) => table.qualifiedName === 'integrator.message_drafts')) {
   throw new Error('integrator.message_drafts must NOT be in the app_staff grant set');
 }
-const appStaffNoRuntimeDmlSql =
-  process.env.P0_5B_SMOKE_INJECT_STALE_MESSAGE_DRAFTS_ACL === '1'
-    ? ''
-    : renderAppStaffNoRuntimeDmlStatements();
 
 function findOrThrow(tables, qualifiedName) {
   const found = tables.find((table) => table.qualifiedName === qualifiedName);
@@ -342,12 +337,6 @@ CREATE TABLE integrator.projection_outbox (
   id bigserial PRIMARY KEY
 );
 
--- LEGACY registry-only table: deliberately no RLS/policies and no runtime ACL after normalization.
-CREATE TABLE integrator.message_drafts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  body text NOT NULL
-);
-
 -- (e): a representative platform_users row -- calendar_timezone/reminder_muted_until are the
 -- confirmed patient-self-service columns; role is the staff-only column the audit flagged.
 CREATE TABLE public.platform_users (
@@ -436,8 +425,6 @@ INSERT INTO public.patient_merge_candidates (id) VALUES
 
 INSERT INTO integrator.projection_outbox DEFAULT VALUES;
 
-INSERT INTO integrator.message_drafts (body) VALUES ('historical draft');
-
 INSERT INTO public.platform_users (id, role, calendar_timezone) VALUES
   ('b5000000-0000-4000-8000-0000000000a1', 'patient', 'Europe/Moscow');
 
@@ -495,11 +482,6 @@ GRANT USAGE ON SCHEMA public, integrator TO app_staff, app_patient;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.be_appointments TO app_staff;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.patient_merge_candidates TO app_staff;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.projection_outbox TO app_staff;
--- Production-shaped stale state from the previous broad LEGACY grant, followed by the real
--- generated normalizer.  This proves a rerun repairs all table and column ACLs.
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.message_drafts TO app_staff;
-GRANT SELECT (body), INSERT (body), UPDATE (body) ON TABLE integrator.message_drafts TO app_staff;
-${appStaffNoRuntimeDmlSql}
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.platform_users TO app_staff;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.org_enrollments TO app_staff;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.be_patient_booking_profiles TO app_staff;
@@ -550,61 +532,6 @@ SELECT (count(*) = 1)::int AS b5g_a_staff_reads_infra_table FROM integrator.proj
 ${fatal('b5g_a_staff_reads_infra_table', '(a) app_staff must be able to SELECT integrator.projection_outbox (INFRA)')}
 
 RESET SESSION AUTHORIZATION;
-`;
-
-// (n): the LEGACY registry record is not a runtime surface.  First prove all four effective table
-// ACLs are false after the production-shaped stale grant + generated normalizer, then prove each
-// operation is rejected by PostgreSQL under app_staff.
-const proofN = String.raw`
-SELECT
-  (NOT has_table_privilege('app_staff', 'integrator.message_drafts', 'SELECT'))::int AS select_acl_absent,
-  (NOT has_table_privilege('app_staff', 'integrator.message_drafts', 'INSERT'))::int AS insert_acl_absent,
-  (NOT has_table_privilege('app_staff', 'integrator.message_drafts', 'UPDATE'))::int AS update_acl_absent,
-  (NOT has_table_privilege('app_staff', 'integrator.message_drafts', 'DELETE'))::int AS delete_acl_absent
-\gset b5g_n_
-${fatal('b5g_n_select_acl_absent', '(n) app_staff SELECT ACL on integrator.message_drafts must be false')}
-${fatal('b5g_n_insert_acl_absent', '(n) app_staff INSERT ACL on integrator.message_drafts must be false')}
-${fatal('b5g_n_update_acl_absent', '(n) app_staff UPDATE ACL on integrator.message_drafts must be false')}
-${fatal('b5g_n_delete_acl_absent', '(n) app_staff DELETE ACL on integrator.message_drafts must be false')}
-SELECT format(
-  'message_drafts_acl SELECT=%s INSERT=%s UPDATE=%s DELETE=%s',
-  has_table_privilege('app_staff', 'integrator.message_drafts', 'SELECT'),
-  has_table_privilege('app_staff', 'integrator.message_drafts', 'INSERT'),
-  has_table_privilege('app_staff', 'integrator.message_drafts', 'UPDATE'),
-  has_table_privilege('app_staff', 'integrator.message_drafts', 'DELETE')
-);
-
-SET SESSION AUTHORIZATION app_staff;
-\set ON_ERROR_STOP off
-SELECT * FROM integrator.message_drafts;
-\set ON_ERROR_STOP on
-\if :ERROR
-\else
-SELECT 1/0;
-\endif
-\set ON_ERROR_STOP off
-INSERT INTO integrator.message_drafts (body) VALUES ('forbidden');
-\set ON_ERROR_STOP on
-\if :ERROR
-\else
-SELECT 1/0;
-\endif
-\set ON_ERROR_STOP off
-UPDATE integrator.message_drafts SET body = 'forbidden';
-\set ON_ERROR_STOP on
-\if :ERROR
-\else
-SELECT 1/0;
-\endif
-\set ON_ERROR_STOP off
-DELETE FROM integrator.message_drafts;
-\set ON_ERROR_STOP on
-\if :ERROR
-\else
-SELECT 1/0;
-\endif
-RESET SESSION AUTHORIZATION;
-\echo 'CONFIRMED (n): app_staff has no SELECT/INSERT/UPDATE/DELETE ACL or behavior on integrator.message_drafts.'
 `;
 
 // (b) app_patient: own patient-owned table row readable.
@@ -850,7 +777,6 @@ try {
   psql(
     [
       proofA,
-      proofN,
       proofB,
       proofC,
       proofD,

@@ -1,5 +1,12 @@
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 
@@ -26,7 +33,13 @@ export type CanonicalAppointmentDeleteOptions = {
 
 export type CanonicalAppointmentAccessPort = {
   getByExternalRecordId(externalRecordId: string): Promise<CanonicalAppointmentRecord | null>;
+  getByExternalRecordIdForIntegrator(
+    externalRecordId: string,
+  ): Promise<CanonicalAppointmentRecord | null>;
   listActiveByPhoneNormalized(phoneNormalized: string): Promise<CanonicalAppointmentRecord[]>;
+  listActiveByPhoneNormalizedForIntegrator(
+    phoneNormalized: string,
+  ): Promise<CanonicalAppointmentRecord[]>;
   listHistoryByPhoneNormalized(
     phoneNormalized: string,
     limit?: number,
@@ -95,21 +108,23 @@ async function resolveCanonicalId(
 ): Promise<string | null> {
   const result = await runWebappPgText<{ id: string }>(
     `WITH target AS (
-       SELECT CASE
-                WHEN $1 ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-                THEN substring($1 FROM 4)::uuid
-              END AS id
+       SELECT direct.id, 0 AS priority
+         FROM (SELECT CASE
+                        WHEN $1 ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                        THEN substring($1 FROM 4)::uuid
+                      END AS id) direct
+        WHERE direct.id IS NOT NULL
        UNION ALL
-       SELECT mapping.canonical_id
+       SELECT mapping.canonical_id, 1 AS priority
          FROM public.be_external_entity_mappings mapping
         WHERE mapping.entity_type = 'appointment'
           AND mapping.external_system = 'rubitime'
           AND mapping.external_id = $1
-        LIMIT 1
      )
      SELECT appointment.id::text AS id
        FROM target
        JOIN public.be_appointments appointment ON appointment.id = target.id
+      ORDER BY target.priority
       LIMIT 1`,
     [externalId],
     tx,
@@ -118,6 +133,31 @@ async function resolveCanonicalId(
 }
 
 export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAccessPort {
+  const getByExternalRecordIdForIntegrator: CanonicalAppointmentAccessPort['getByExternalRecordIdForIntegrator'] =
+    async (externalId) =>
+      runWithDbInfraPrincipal({ source: 'api/integrator/appointments:GET' }, async () => {
+        const result = await runWebappNamedRoot<CanonicalAppointmentDbRow>(
+          getWebappSqlDb(),
+          'app.read_canonical_appointment_by_external_id(text)',
+          [externalId],
+          sql`SELECT * FROM app.read_canonical_appointment_by_external_id(${externalId})`,
+        );
+        const row = result.rows[0];
+        return row ? mapRow(row) : null;
+      });
+
+  const listActiveByPhoneNormalizedForIntegrator: CanonicalAppointmentAccessPort['listActiveByPhoneNormalizedForIntegrator'] =
+    async (phoneNormalized) =>
+      runWithDbInfraPrincipal({ source: 'api/integrator/appointments:GET' }, async () => {
+        const result = await runWebappNamedRoot<CanonicalAppointmentDbRow>(
+          getWebappSqlDb(),
+          'app.list_active_canonical_appointments_by_phone(text)',
+          [phoneNormalized],
+          sql`SELECT * FROM app.list_active_canonical_appointments_by_phone(${phoneNormalized})`,
+        );
+        return result.rows.map(mapRow);
+      });
+
   const softDeleteByExternalRecordId: CanonicalAppointmentAccessPort['softDeleteByExternalRecordId'] =
     async (externalId, options = {}) => {
       const pool = getPool();
@@ -185,6 +225,8 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
       return row ? mapRow(row) : null;
     },
 
+    getByExternalRecordIdForIntegrator,
+
     async listActiveByPhoneNormalized(phoneNormalized) {
       const result = await runWebappPgText<CanonicalAppointmentDbRow>(
         `${canonicalSelect}
@@ -200,6 +242,8 @@ export function createPgCanonicalAppointmentAccessPort(): CanonicalAppointmentAc
       );
       return result.rows.map(mapRow);
     },
+
+    listActiveByPhoneNormalizedForIntegrator,
 
     async listHistoryByPhoneNormalized(phoneNormalized, limit = 50) {
       const result = await runWebappPgText<CanonicalAppointmentDbRow>(

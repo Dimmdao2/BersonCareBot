@@ -133,6 +133,111 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION app.read_canonical_appointment_by_external_id(p_external_id text)
+RETURNS TABLE(
+  id uuid, organization_id uuid, phone_normalized text, start_at timestamptz, status text,
+  attribution_json jsonb, branch_id uuid, created_at timestamptz, updated_at timestamptz,
+  deleted_at timestamptz
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  IF p_external_id IS NULL OR btrim(p_external_id) = '' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'external appointment id required';
+  END IF;
+  PERFORM app.require_accepted_context(
+    'app_seam_patient_booking_owner', 'app_worker', 'service', 'booking.integrator-record.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_external_id))::app.port_typed_arg
+    ]), 'app.read_canonical_appointment_by_external_id(text)'::regprocedure
+  );
+  RETURN QUERY
+    WITH target AS (
+      SELECT direct.canonical_id, 0 AS priority
+        FROM (SELECT CASE
+                       WHEN p_external_id ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                       THEN substring(p_external_id FROM 4)::uuid
+                     END AS canonical_id) direct
+       WHERE direct.canonical_id IS NOT NULL
+      UNION ALL
+      SELECT mapping.canonical_id, 1 AS priority
+        FROM public.be_external_entity_mappings mapping
+       WHERE mapping.entity_type = 'appointment'
+         AND mapping.external_system = 'rubitime'
+         AND mapping.external_id = p_external_id
+    )
+    SELECT appointment.id, appointment.organization_id, appointment.phone_normalized,
+           appointment.start_at, appointment.status, appointment.attribution_json,
+           appointment.branch_id, appointment.created_at, appointment.updated_at,
+           appointment.deleted_at
+      FROM target
+      JOIN public.be_appointments appointment ON appointment.id = target.canonical_id
+     ORDER BY target.priority
+     LIMIT 1;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.list_active_canonical_appointments_by_phone(p_phone_normalized text)
+RETURNS TABLE(
+  id uuid, organization_id uuid, phone_normalized text, start_at timestamptz, status text,
+  attribution_json jsonb, branch_id uuid, created_at timestamptz, updated_at timestamptz,
+  deleted_at timestamptz
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  IF p_phone_normalized IS NULL OR btrim(p_phone_normalized) = '' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'normalized phone required';
+  END IF;
+  PERFORM app.require_accepted_context(
+    'app_seam_patient_booking_owner', 'app_worker', 'service', 'booking.integrator-active.read',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_phone_normalized))::app.port_typed_arg
+    ]), 'app.list_active_canonical_appointments_by_phone(text)'::regprocedure
+  );
+  RETURN QUERY
+    SELECT appointment.id, appointment.organization_id, appointment.phone_normalized,
+           appointment.start_at, appointment.status, appointment.attribution_json,
+           appointment.branch_id, appointment.created_at, appointment.updated_at,
+           appointment.deleted_at
+      FROM public.be_appointments appointment
+     WHERE appointment.phone_normalized = p_phone_normalized
+       AND appointment.deleted_at IS NULL
+       AND appointment.start_at >= now()
+       AND appointment.status IN (
+         'created', 'awaiting_payment', 'paid', 'confirmed', 'rescheduled',
+         'visit_confirmed', 'charged_to_package', 'manual_review_required'
+       )
+     ORDER BY appointment.start_at ASC;
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.count_active_canonical_appointments()
+RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+DECLARE v_count bigint;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_patient_booking_owner', 'app_service', 'service', 'booking.admin-active.count',
+    app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),
+    'app.count_active_canonical_appointments()'::regprocedure
+  );
+  SELECT count(*) INTO v_count
+    FROM public.be_appointments appointment
+   WHERE appointment.status IN (
+     'created', 'awaiting_payment', 'paid', 'confirmed', 'rescheduled',
+     'visit_confirmed', 'charged_to_package', 'manual_review_required'
+   )
+     AND appointment.deleted_at IS NULL
+     AND appointment.start_at >= now();
+  RETURN v_count;
+END
+$function$;
+
 CREATE OR REPLACE FUNCTION app.try_acquire_integrator_idempotency(p_key text, p_ttl_seconds integer)
 RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
@@ -346,6 +451,9 @@ BEGIN
   FOR item IN SELECT * FROM (VALUES
     ('app.read_integrator_migration_ledger()', 'app_seam_catalog_admin_owner'),
     ('app.read_patient_telegram_display_handle(uuid)', 'app_seam_delivery_scope_owner'),
+    ('app.read_canonical_appointment_by_external_id(text)', 'app_seam_patient_booking_owner'),
+    ('app.list_active_canonical_appointments_by_phone(text)', 'app_seam_patient_booking_owner'),
+    ('app.count_active_canonical_appointments()', 'app_seam_patient_booking_owner'),
     ('app.try_acquire_integrator_idempotency(text,integer)', 'app_seam_delivery_scope_owner'),
     ('app.release_integrator_idempotency(text)', 'app_seam_delivery_scope_owner'),
     ('app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)', 'app_seam_delivery_scope_owner'),

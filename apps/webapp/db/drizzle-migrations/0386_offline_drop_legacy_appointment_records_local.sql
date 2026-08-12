@@ -54,6 +54,54 @@ BEGIN
           conflicting_links;
       END IF;
 
+      SELECT count(*)
+        INTO conflicting_links
+        FROM public.clinical_visit visit
+        JOIN public.appointment_records legacy ON legacy.id = visit.appointment_record_id
+        LEFT JOIN public.be_external_entity_mappings mapping
+          ON mapping.external_system = 'rubitime'
+         AND mapping.entity_type = 'appointment'
+         AND mapping.external_id = legacy.integrator_record_id
+        LEFT JOIN public.be_appointments mapped_appointment
+          ON mapped_appointment.id = mapping.canonical_id
+        LEFT JOIN public.be_appointments direct_appointment
+          ON direct_appointment.id = CASE
+               WHEN legacy.integrator_record_id ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+               THEN substring(legacy.integrator_record_id FROM 4)::uuid
+             END
+       WHERE visit.canonical_appointment_id IS NOT NULL
+         AND COALESCE(direct_appointment.id, mapped_appointment.id) IS NOT NULL
+         AND visit.canonical_appointment_id <> COALESCE(direct_appointment.id, mapped_appointment.id);
+
+      IF conflicting_links <> 0 THEN
+        RAISE EXCEPTION
+          '0386 found % clinical_visit links whose existing canonical appointment conflicts with the legacy target',
+          conflicting_links;
+      END IF;
+
+      SELECT count(*)
+        INTO unresolved_links
+        FROM public.clinical_visit visit
+        JOIN public.appointment_records legacy ON legacy.id = visit.appointment_record_id
+        LEFT JOIN public.be_external_entity_mappings mapping
+          ON mapping.external_system = 'rubitime'
+         AND mapping.entity_type = 'appointment'
+         AND mapping.external_id = legacy.integrator_record_id
+        LEFT JOIN public.be_appointments mapped_appointment
+          ON mapped_appointment.id = mapping.canonical_id
+        LEFT JOIN public.be_appointments direct_appointment
+          ON direct_appointment.id = CASE
+               WHEN legacy.integrator_record_id ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+               THEN substring(legacy.integrator_record_id FROM 4)::uuid
+             END
+       WHERE COALESCE(direct_appointment.id, mapped_appointment.id) IS NULL;
+
+      IF unresolved_links <> 0 THEN
+        RAISE EXCEPTION
+          '0386 refuses to drop public.appointment_records: % clinical_visit legacy targets are unresolved',
+          unresolved_links;
+      END IF;
+
       UPDATE public.clinical_visit visit
          SET canonical_appointment_id = COALESCE(direct_appointment.id, mapped_appointment.id)
         FROM public.appointment_records legacy
@@ -72,17 +120,6 @@ BEGIN
          AND visit.canonical_appointment_id IS NULL
          AND COALESCE(direct_appointment.id, mapped_appointment.id) IS NOT NULL;
 
-      SELECT count(*)
-        INTO unresolved_links
-        FROM public.clinical_visit
-       WHERE appointment_record_id IS NOT NULL
-         AND canonical_appointment_id IS NULL;
-
-      IF unresolved_links <> 0 THEN
-        RAISE EXCEPTION
-          '0386 refuses to drop public.appointment_records: % clinical_visit links are unresolved',
-          unresolved_links;
-      END IF;
     END IF;
 
     EXECUTE 'ALTER TABLE public.clinical_visit DROP COLUMN appointment_record_id';
