@@ -31,6 +31,9 @@ for path in "$material" "$bootstrap" "$apply_hba" "$probe_source"; do
 done
 [[ -f "$journal" && -r "$journal" ]] || { echo "cutover-dev-test-port-context: unreadable PostgreSQL journal $journal" >&2; exit 1; }
 
+# Refreshing the signed revocation list is safe and does not rotate the CA or
+# any leaf key. The subsequent check requires at least seven days of validity.
+bash "$material" --refresh-crl
 bash "$material" --check
 install -o root -g root -m 0700 "$probe_source" "$probe"
 node --experimental-strip-types "$bootstrap" --port-context-check

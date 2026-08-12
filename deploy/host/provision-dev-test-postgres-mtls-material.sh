@@ -13,10 +13,10 @@ server_dir=$env_root/server
 
 die() { echo "provision-dev-test-postgres-mtls-material: $*" >&2; exit 1; }
 
-[[ "$mode" == --check || "$mode" == --execute ]] || die 'usage: provision-dev-test-postgres-mtls-material.sh --check|--execute'
+[[ "$mode" == --check || "$mode" == --execute || "$mode" == --refresh-crl ]] || die 'usage: provision-dev-test-postgres-mtls-material.sh --check|--execute|--refresh-crl'
 [[ $EUID -eq 0 ]] || die 'run as root'
 hostname -I | tr ' ' '\n' | grep -Fxq '151.241.228.122' || die 'refusing: this is not the documented DEV/TEST host 151.241.228.122'
-for command_name in openssl install getent realpath stat sha256sum; do
+for command_name in openssl install getent realpath stat sha256sum date; do
   command -v "$command_name" >/dev/null || die "missing command: $command_name"
 done
 for account in postgres dev bcb-api-test bcb-web-test; do
@@ -75,6 +75,11 @@ verify_material() {
   done
   openssl x509 -in "$ca_cert" -checkend 86400 -noout >/dev/null || die 'CA expires within 24 hours'
   openssl crl -in "$ca_crl" -noout -verify -CAfile "$ca_cert" >/dev/null || die 'CRL signature is invalid'
+  local crl_next_update crl_next_epoch now_epoch
+  crl_next_update=$(openssl crl -in "$ca_crl" -noout -nextupdate | sed 's/^nextUpdate=//')
+  crl_next_epoch=$(date -u -d "$crl_next_update" +%s) || die 'CRL nextUpdate is invalid'
+  now_epoch=$(date -u +%s)
+  (( crl_next_epoch - now_epoch >= 604800 )) || die 'CRL expires within 7 days; run --refresh-crl'
   openssl verify -purpose sslserver -CAfile "$ca_cert" -crl_check -CRLfile "$ca_crl" "$server_cert" >/dev/null || die 'server certificate verification failed'
   openssl x509 -in "$server_cert" -checkip 127.0.0.1 -noout >/dev/null || die 'server certificate lacks 127.0.0.1 SAN'
   openssl x509 -in "$server_cert" -checkhost localhost -noout >/dev/null || die 'server certificate lacks localhost SAN'
@@ -110,6 +115,25 @@ verify_material() {
   done
   printf 'provision-dev-test-postgres-mtls-material: check PASS (existing material retained)\n'
 }
+
+if [[ "$mode" == --refresh-crl ]]; then
+  [[ -f "$ca_cert" && ! -L "$ca_cert" && -f "$ca_key" && ! -L "$ca_key" ]] || die 'cannot refresh CRL without the complete existing authority'
+  refresh_dir=$(mktemp -d "$env_root/.crl-refresh.XXXXXX")
+  cleanup_refresh() { rm -rf -- "$refresh_dir"; }
+  trap cleanup_refresh EXIT
+  openssl ca -gencrl -crldays 3650 -config "$authority_dir/openssl.cnf" -out "$refresh_dir/ca.crl" >/dev/null 2>&1
+  openssl crl -in "$refresh_dir/ca.crl" -noout -verify -CAfile "$ca_cert" >/dev/null || die 'refreshed CRL signature is invalid'
+  for destination in "$ca_crl" "$dev_dir/ca.crl" "$test_dir/ca.crl"; do
+    temporary="$destination.tmp.$$"
+    install -o root -g root -m 0644 "$refresh_dir/ca.crl" "$temporary"
+    mv -f -- "$temporary" "$destination"
+  done
+  trap - EXIT
+  cleanup_refresh
+  verify_material
+  printf 'provision-dev-test-postgres-mtls-material: refresh-crl PASS (CA/leaf keys unchanged)\n'
+  exit 0
+fi
 
 if [[ "$mode" == --check ]]; then
   verify_material
@@ -184,7 +208,7 @@ issue_certificate() {
 
 issue_certificate localhost server_cert server
 for login in "${!client_owner[@]}"; do issue_certificate "$login" client_cert "$login"; done
-openssl ca -gencrl -config "$work_dir/authority/openssl.cnf" -out "$work_dir/authority/ca.crl" >/dev/null 2>&1
+openssl ca -gencrl -crldays 3650 -config "$work_dir/authority/openssl.cnf" -out "$work_dir/authority/ca.crl" >/dev/null 2>&1
 rm -f -- "$work_dir/output"/*.csr
 
 install -d -o root -g root -m 0700 "$authority_dir"
