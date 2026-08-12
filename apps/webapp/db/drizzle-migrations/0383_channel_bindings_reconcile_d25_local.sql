@@ -1,6 +1,6 @@
 -- 0383: D25 — messenger links land in `public.user_channel_bindings`; the numeric back-pointer
 -- `platform_users.integrator_user_id` stops being trusted as an identity key.
--- TEMPORARY LOCAL MIGRATION NUMBER 0383 (AGENTS.md "Миграции") — lead renumbers at land.
+-- Final migration number 0383; already integrated in the shared migration journal.
 --
 -- Authority: ACCESS_MODEL.md ("интегратор — модуль доставки, а не хранилище данных людей"),
 -- WORK_ORDER.md D25, evidence `15-integrator-tables-disposition.md` §10-11 and
