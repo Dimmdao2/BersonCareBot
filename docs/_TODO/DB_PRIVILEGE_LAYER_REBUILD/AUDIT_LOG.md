@@ -1635,3 +1635,41 @@ host cutover — тот остаётся отдельным атомарным g
 `app_pre_session_table_grants=0`, positive `BYPASSRLS=0`, по `172` restrictive context policies в каждом generated
 artifact; матрица заметно сузила writes. Следующий fixer использует эти шесть сценариев как сохранённый kill-set и
 заканчивает один stage; новый blind audit до этого не запускается.
+
+## Independent installer audit POSTZERO-INSTALLER-2026-08-12 — `9f50ae649` → partial `65a0c7be6`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд** по exact SHA: реальный zero→installer порядок, role/env render, bilateral catalog, transaction и roots DDL |
+| Вердикт | **FAIL — roots приняты; installer/runtime E2E остаётся блокером** |
+
+- **INSTALLER-001 — ОТКРЫТО:** честный cluster zero удаляет три login, а installer начинает с `contract.sql`,
+  который делает им `ALTER ROLE`; первый positive cutover падает `role does not exist` и откатывается.
+- **INSTALLER-002 — ОТКРЫТО:** даже заранее созданные login не помогают: generated privileges позже снимает
+  membership/CONNECT/schema grants и installer не выполняет exact env login renderer последним. Transaction может
+  commit с мёртвыми positive ports; post-verifier это пока не ловит.
+- **INSTALLER-003 — ЧАСТИЧНО ИСПРАВЛЕНО `65a0c7be6`, НУЖЕН FAULT PROOF:** ручной subset zero guard заменён
+  извлечённым generated verifier. Однако temporary expected-role list строится через `SELECT` только по уже
+  существующим ролям; после zero он пуст и не доказывает отсутствие всех declared BCB roles. Нужен literal exact
+  expected set и fault injection ACL/owner/default/PUBLIC/policy/membership/powerful legacy role до первого DDL.
+- **INSTALLER-004 — ИСПРАВЛЕНО ГРОМКО `65a0c7be6`:** roots/legacy context drops вынесены из orphan Drizzle
+  `0385` в явно вызываемый cutover-only `deploy/postgres/privileges/post-zero-roots.sql`; ordinary locked migration
+  больше не может преждевременно удалить старую дверь.
+- **INSTALLER-005 — ОТКРЫТО:** capability seed/verifier удаляет stale rows только трёх текущих login и не сверяет
+  `active_from`. Чужая legacy login row или future `active_from` переживает replace/reapply и даёт false-green либо
+  постоянный `42501` легитимному порту.
+- **INSTALLER-006 — ОТКРЫТО:** installer допускает только zero-first запуск; безопасного exact target reapply для
+  ремонта ACL/policy/membership/function/capability drift нет. Повтор после успеха отказывается из-за существующих
+  ролей вместо восстановления target.
+- **INSTALLER-007 — ОТКРЫТО:** installer не имеет behavior test. Текущий catalog acceptance создаёт облегчённые
+  boolean stubs и не проверяет real roots owner/security/search_path/returns/EXECUTE. Нужен disposable PostgreSQL
+  16 full zero→install→positive/negative runtime, late rollback, drift repair, repeat apply и journal/SQLSTATE.
+- **INSTALLER-008 — ОБЩИЙ CUTOVER GATE:** новые LOGIN/grants нельзя commit при активной legacy password HBA.
+  Финальная integration orchestration обязана сначала доказать фактически загруженный exact mTLS HBA реальными
+  negative probes, использовать явно проверенный local admin socket, остановленные services, затем installer.
+
+Что независимо принято: 11 real roots имеют согласованные signatures/returns/owners, SECURITY DEFINER,
+volatility/parallel/search_path, exact six-dimensional gate tuple и planned EXECUTE; SQL errors находятся внутри
+`BEGIN`/`ON_ERROR_STOP`/verifier/`COMMIT`. Partial `65a0c7be6` также восстановил zero generator, оставил живые
+relations ACTIVE и исправил platform settings/health policy направления. Следующий worker занимается только
+installer/E2E и сохранёнными INSTALLER-001–007; host integration закрывает INSTALLER-008.
