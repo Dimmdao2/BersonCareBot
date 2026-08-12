@@ -29,13 +29,6 @@ export type BaseContext = {
   linkedPhone?: boolean;
   /** Нормализованный телефон пользователя (из БД), доступен при linkedPhone. */
   phoneNormalized?: string;
-  hasActiveDraft?: boolean;
-  draftState?: string;
-  draftTextCurrent?: string;
-  draftSourceMessageId?: string;
-  hasOpenConversation?: boolean;
-  activeConversationId?: string;
-  activeConversationStatus?: string;
 };
 
 export type OrchestratorInput = {

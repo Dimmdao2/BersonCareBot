@@ -14,7 +14,6 @@ import {
   getReminderOccurrenceOwnerUserId,
   getStaleReminderMessengerMessageIdForResend,
 } from './repos/reminders.js';
-import { getActiveDraftByIdentity, getOpenConversationByIdentity } from './repos/messageThreads.js';
 import { getPhoneNormalizedForDeliveryLookup } from './repos/platformUserDeliveryPhone.js';
 import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
 
@@ -71,17 +70,6 @@ export function createDbReadPort(
             externalId,
           })) as T;
         }
-        case 'draft.activeByIdentity': {
-          const resource = asNonEmptyString(query.params.resource);
-          const externalId = asNonEmptyString(query.params.externalId);
-          const source = asNonEmptyString(query.params.source);
-          if (!resource || !externalId) return null as T;
-          return (await getActiveDraftByIdentity(db, {
-            resource,
-            externalId,
-            ...(source ? { source } : {}),
-          })) as T;
-        }
         case 'platformUser.idByChannelBinding': {
           const channelCode = asNonEmptyString(query.params.channelCode ?? query.params.resource);
           const externalId = asNonEmptyString(query.params.externalId);
@@ -91,17 +79,6 @@ export function createDbReadPort(
           return (await resolveCanonicalPlatformUserIdByChannel(db, {
             channelCode,
             externalId,
-          })) as T;
-        }
-        case 'conversation.openByIdentity': {
-          const resource = asNonEmptyString(query.params.resource);
-          const externalId = asNonEmptyString(query.params.externalId);
-          const source = asNonEmptyString(query.params.source);
-          if (!resource || !externalId) return null as T;
-          return (await getOpenConversationByIdentity(db, {
-            resource,
-            externalId,
-            ...(source ? { source } : {}),
           })) as T;
         }
         case 'booking.byExternalId': {

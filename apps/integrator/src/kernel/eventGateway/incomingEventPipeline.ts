@@ -16,7 +16,6 @@ import type {
   TemplatePort,
   WebappEventsPort,
 } from '../contracts/index.js';
-import type { SupportRelayPolicy } from '../domain/executor/helpers.js';
 import { executeDomainAction, processAcceptedIncomingEvent } from '../domain/index.js';
 
 export type IncomingEventPipelineDeps = {
@@ -35,8 +34,6 @@ export type IncomingEventPipelineDeps = {
   /** When true, executor attaches main reply keyboard to every message to user that has no keyboard. */
   isTelegramMenuOnButtonPress?: () => Promise<boolean>;
   contentPort?: ContentPort;
-  /** Policy for support relay allowed message types. When unset, default from app config is used. */
-  supportRelayPolicy?: SupportRelayPolicy | null;
   /** Optional: execute signed integrator-to-webapp operations. */
   webappEventsPort?: WebappEventsPort;
   /** Optional: resolve delivery targets for multi-channel booking fan-out. */
@@ -121,9 +118,6 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
               ? { isTelegramMenuOnButtonPress: deps.isTelegramMenuOnButtonPress }
               : {}),
             ...(deps.contentPort ? { contentPort: deps.contentPort } : {}),
-            ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null
-              ? { supportRelayPolicy: deps.supportRelayPolicy }
-              : {}),
             ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
             ...(deps.deliveryTargetsPort ? { deliveryTargetsPort: deps.deliveryTargetsPort } : {}),
             ...(deps.remindersWebappWritesPort

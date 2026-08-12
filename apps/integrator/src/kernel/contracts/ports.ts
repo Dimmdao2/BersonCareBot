@@ -20,9 +20,6 @@ export type DbReadQueryType =
   | 'user.byIdentity'
   | 'user.byPhone'
   | 'user.phoneForDeliveryLookup'
-  | 'draft.activeByIdentity'
-  | 'conversation.openByIdentity'
-  | 'identity.idByResourceAndExternalId'
   | 'platformUser.idByChannelBinding'
   | 'booking.byExternalId'
   | 'booking.activeByUser'
@@ -33,23 +30,12 @@ export type DbReadQueryType =
   | 'reminders.occurrences.forRuleRange'
   | 'reminders.occurrence.ownerUserId'
   | 'reminders.delivery.staleMessengerMessage'
-  | 'delivery.pending'
-  | 'identities.allByUserId';
+  | 'delivery.pending';
 
 /** Категории write-мутаций к хранилищу. */
 export type DbWriteMutationType =
-  | 'identity.ensure'
   | 'user.upsert'
   | 'user.phone.link'
-  | 'draft.upsert'
-  | 'draft.cancel'
-  | 'conversation.open'
-  | 'conversation.mergeLegacyToPlatform'
-  | 'conversation.message.add'
-  | 'conversation.state.set'
-  | 'question.create'
-  | 'question.message.add'
-  | 'question.markAnswered'
   | 'reminders.rule.upsert'
   | 'reminders.occurrence.markSent'
   | 'reminders.occurrence.markFailed'

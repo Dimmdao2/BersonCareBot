@@ -43,13 +43,6 @@ const baseContextSchema = z.object({
     .optional(),
   linkedPhone: z.boolean().optional(),
   phoneNormalized: z.string().min(1).optional(),
-  hasActiveDraft: z.boolean().optional(),
-  draftState: z.string().min(1).optional(),
-  draftTextCurrent: z.string().min(1).optional(),
-  draftSourceMessageId: z.string().min(1).optional(),
-  hasOpenConversation: z.boolean().optional(),
-  activeConversationId: z.string().min(1).optional(),
-  activeConversationStatus: z.string().min(1).optional(),
 });
 
 /** Валидация входящего события pipeline. */
@@ -190,9 +183,6 @@ export const dbReadQuerySchema = z.object({
     'user.byIdentity',
     'user.byPhone',
     'user.phoneForDeliveryLookup',
-    'draft.activeByIdentity',
-    'conversation.openByIdentity',
-    'identity.idByResourceAndExternalId',
     'platformUser.idByChannelBinding',
     'booking.byExternalId',
     'booking.activeByUser',
@@ -210,18 +200,8 @@ export const dbReadQuerySchema = z.object({
 /** Валидация write-контракта для DB-порта. */
 export const dbWriteMutationSchema = z.object({
   type: z.enum([
-    'identity.ensure',
     'user.upsert',
     'user.phone.link',
-    'draft.upsert',
-    'draft.cancel',
-    'conversation.open',
-    'conversation.mergeLegacyToPlatform',
-    'conversation.message.add',
-    'conversation.state.set',
-    'question.create',
-    'question.message.add',
-    'question.markAnswered',
     'reminders.rule.upsert',
     'reminders.occurrence.markSent',
     'reminders.occurrence.markFailed',

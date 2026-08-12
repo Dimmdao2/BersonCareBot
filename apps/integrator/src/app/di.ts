@@ -57,7 +57,6 @@ import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
-import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
 import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
 import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.js';
@@ -286,7 +285,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     contentPort,
     isTelegramMenuOnButtonPress: async () =>
       (await getTelegramRuntimeConfig()).sendMenuOnButtonPress,
-    supportRelayPolicy: defaultSupportRelayPolicy,
     webappEventsPort,
     deliveryTargetsPort,
     ...(remindersWebappWritesPort !== undefined ? { remindersWebappWritesPort } : {}),

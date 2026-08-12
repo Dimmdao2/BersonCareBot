@@ -20,8 +20,6 @@
     "db:migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate:prod": "node dist/infra/db/migrate.js",
     "scenarios": "tsx e2e/run-webhook-scenarios.ts",
-    "auto-close-conversations": "tsx src/infra/scripts/auto-close-stale-conversations.ts",
-    "auto-close-conversations:host": "node dist/infra/scripts/auto-close-stale-conversations.js",
     "smsc:check": "tsx src/infra/scripts/check-smsc.ts",
     "s3:check": "tsx src/infra/scripts/check-s3.ts",
     "mail:check": "tsx src/infra/scripts/check-mail.ts",

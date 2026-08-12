@@ -22,7 +22,6 @@ import type { DbWriteMutation } from '../contracts/index.js';
 import { executeAction } from './executor/executeAction.js';
 import { buildScriptInterpolationVars } from '../orchestrator/scriptVars.js';
 import { interpolateTemplate } from '../orchestrator/templateInterpolation.js';
-import { logger } from '../../infra/observability/logger.js';
 
 type HandleIncomingEventDeps = {
   readPort?: DbReadPort;
@@ -106,35 +105,11 @@ type ReadUserContext = {
   phoneNormalized?: unknown;
 };
 
-type ReadDraftContext = {
-  state?: unknown;
-  draft_text_current?: unknown;
-  external_message_id?: unknown;
-};
-
-type ReadConversationContext = {
-  id?: unknown;
-  status?: unknown;
-};
-
-/** Загружает из базы состояние пользователя, черновик вопроса и открытый диалог по идентификатору канала. */
+/** Загружает каноническую привязку канала и телефон по идентификатору канала. */
 async function loadUserContext(
   event: IncomingEvent,
   readPort?: DbReadPort,
-): Promise<
-  Pick<
-    BaseContext,
-    | 'linkedPhone'
-    | 'phoneNormalized'
-    | 'hasActiveDraft'
-    | 'draftState'
-    | 'draftTextCurrent'
-    | 'draftSourceMessageId'
-    | 'hasOpenConversation'
-    | 'activeConversationId'
-    | 'activeConversationStatus'
-  >
-> {
+): Promise<Pick<BaseContext, 'linkedPhone' | 'phoneNormalized'>> {
   if (!readPort) return {};
   const externalId = extractChannelId(event);
   if (!externalId) return {};
@@ -144,139 +119,17 @@ async function loadUserContext(
       : null;
   if (!resource) return {};
 
-  // Fail-open per read: on the bootstrap pre-routing/unresolved-org path (brand-new/never-enrolled
-  // messenger user, runWithBootstrapPrincipal({source:'*-webhook:unresolved-org'})) these three reads
-  // hit RLS-FORCE tables (integrator.contacts/message_drafts/conversations) whose policies call
-  // app.is_staff()/app.current_org_id()/app.current_integrator_user_id() — functions the bare bootstrap
-  // login role does NOT have EXECUTE on by design (deploy/postgres/integrator-login-public-identity-
-  // grants.sql, "A7 addendum #1 — REMOVED" comment: granting that EXECUTE broke a deploy assertion and
-  // took TEST down). A 42501 here must degrade to "no linked user / no draft / no open conversation"
-  // (same shape as the existing !user branch below), not propagate and drop the whole inbound message
-  // (see kernel/eventGateway/index.ts pipeline.run try/catch -> status:'rejected').
-  const [user, draft, openConversation] = await Promise.all([
-    readPort
-      .readDb<ReadUserContext | null>({
-        type: 'user.byIdentity',
-        params: { resource, externalId },
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'loadUserContext: user.byIdentity failed, treating as unknown user');
-        return null;
-      }),
-    readPort
-      .readDb<ReadDraftContext | null>({
-        type: 'draft.activeByIdentity',
-        params: { resource, externalId, source: event.meta.source },
-      })
-      .catch((err: unknown) => {
-        logger.warn(
-          { err },
-          'loadUserContext: draft.activeByIdentity failed, treating as no active draft',
-        );
-        return null;
-      }),
-    readPort
-      .readDb<ReadConversationContext | null>({
-        type: 'conversation.openByIdentity',
-        params: { resource, externalId, source: event.meta.source },
-      })
-      .catch((err: unknown) => {
-        logger.warn(
-          { err },
-          'loadUserContext: conversation.openByIdentity failed, treating as no open conversation',
-        );
-        return null;
-      }),
-  ]);
+  const user = await readPort.readDb<ReadUserContext | null>({
+    type: 'user.byIdentity',
+    params: { resource, externalId },
+  });
+  if (!user || typeof user !== 'object') return { linkedPhone: false };
 
-  const result: Pick<
-    BaseContext,
-    | 'linkedPhone'
-    | 'phoneNormalized'
-    | 'hasActiveDraft'
-    | 'draftState'
-    | 'draftTextCurrent'
-    | 'draftSourceMessageId'
-    | 'hasOpenConversation'
-    | 'activeConversationId'
-    | 'activeConversationStatus'
-  > = {};
-
-  if (!user || typeof user !== 'object') {
-    if (draft && typeof draft === 'object') {
-      const draftState =
-        typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
-      const draftTextCurrent =
-        typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
-          ? draft.draft_text_current
-          : undefined;
-      const draftSourceMessageId =
-        typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
-          ? draft.external_message_id
-          : undefined;
-      result.hasActiveDraft = true;
-      if (draftState) result.draftState = draftState;
-      if (draftTextCurrent) result.draftTextCurrent = draftTextCurrent;
-      if (draftSourceMessageId) result.draftSourceMessageId = draftSourceMessageId;
-    }
-    if (openConversation && typeof openConversation === 'object') {
-      const conversationId =
-        typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
-          ? openConversation.id
-          : undefined;
-      const conversationStatus =
-        typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
-          ? openConversation.status
-          : undefined;
-      result.hasOpenConversation = !!conversationId;
-      if (conversationId) result.activeConversationId = conversationId;
-      if (conversationStatus) result.activeConversationStatus = conversationStatus;
-    }
-    if (result.hasOpenConversation === undefined) result.hasOpenConversation = false;
-    result.linkedPhone = false;
-    return result;
-  }
   const phoneNormalized =
     typeof user.phoneNormalized === 'string' && user.phoneNormalized.trim().length > 0
       ? user.phoneNormalized.trim()
       : undefined;
-  const linkedPhone = !!phoneNormalized;
-  result.linkedPhone = linkedPhone;
-  if (phoneNormalized) result.phoneNormalized = phoneNormalized;
-
-  if (draft && typeof draft === 'object') {
-    const draftState =
-      typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
-    const draftTextCurrent =
-      typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
-        ? draft.draft_text_current
-        : undefined;
-    const draftSourceMessageId =
-      typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
-        ? draft.external_message_id
-        : undefined;
-    result.hasActiveDraft = true;
-    if (draftState) result.draftState = draftState;
-    if (draftTextCurrent) result.draftTextCurrent = draftTextCurrent;
-    if (draftSourceMessageId) result.draftSourceMessageId = draftSourceMessageId;
-  }
-
-  if (openConversation && typeof openConversation === 'object') {
-    const conversationId =
-      typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
-        ? openConversation.id
-        : undefined;
-    const conversationStatus =
-      typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
-        ? openConversation.status
-        : undefined;
-    result.hasOpenConversation = !!conversationId;
-    if (conversationId) result.activeConversationId = conversationId;
-    if (conversationStatus) result.activeConversationStatus = conversationStatus;
-  }
-  if (result.hasOpenConversation === undefined) result.hasOpenConversation = false;
-
-  return result;
+  return phoneNormalized ? { linkedPhone: true, phoneNormalized } : { linkedPhone: false };
 }
 
 /** Собирает базовый контекст: связки пользователя (телефон, идентификатор), состояние из БД, признак админа. */

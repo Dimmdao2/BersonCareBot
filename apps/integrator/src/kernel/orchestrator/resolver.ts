@@ -307,7 +307,6 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   if (action && MESSENGER_START_SPECIAL_ACTIONS.has(action)) return null;
 
   if (isTruthyString(inc.phone) || isTruthyString(inc.contactPhone)) return null;
-  if (input.context.hasActiveDraft === true) return null;
   if (isTruthyString(inc.relayMessageType)) return null;
 
   if (!effectiveAction || !MESSAGE_MENU_ACTIONS_NEED_PHONE.has(effectiveAction)) return null;

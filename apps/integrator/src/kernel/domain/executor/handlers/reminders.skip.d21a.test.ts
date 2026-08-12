@@ -18,7 +18,6 @@ import { incomingCallbackUpdateFromTelegramCallbackQuery } from '../../../../int
 import { fromMax } from '../../../../integrations/max/mapIn.js';
 import { executeAction } from '../executeAction.js';
 import { handleReminders } from './reminders.js';
-import { handleConversationUserMessage } from './supportRelay.js';
 
 const occurrenceId = '33333333-3333-4333-8333-333333333333';
 const userId = '22222222-2222-4222-8222-222222222222';
@@ -110,62 +109,6 @@ describe('D21a: reminders.skip.applyPreset records skip in one step, no reason a
     expect(
       result.intents?.some((i) => i.type === 'message.edit' || i.type === 'message.send'),
     ).toBe(true);
-  });
-});
-
-describe('D21a: the message after a one-step skip remains an ordinary message', () => {
-  it('relays the next message without any stored dialogue state', async () => {
-    const ctx: DomainContext = {
-      event: {
-        type: 'message.received',
-        meta: {
-          eventId: 'event-after-skip-1',
-          occurredAt: '2026-07-31T09:01:00.000Z',
-          source: 'telegram',
-          userId: '7001',
-        },
-        payload: { incoming: { chatId: 7001, messageId: 56, text: 'Было очень больно' } },
-      },
-      nowIso: '2026-07-31T09:01:00.000Z',
-      values: {},
-      base: {
-        actor: { isAdmin: false },
-        identityLinks: [],
-        facts: { adminChatId: 9001 },
-      },
-    };
-    const readPort: DbReadPort = {
-      readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
-        if (query.type === 'conversation.openByIdentity') {
-          return { id: 'legacy-conversation', first_name: 'Иван' } as T;
-        }
-        if (query.type === 'platformUser.idByChannelBinding') {
-          return userId as T;
-        }
-        throw new Error(`unexpected read: ${query.type}`);
-      },
-    };
-    const writePort: DbWritePort = { writeDb: async () => {} };
-    const action: Action = {
-      id: 'relay-after-skip',
-      type: 'conversation.user.message',
-      mode: 'sync',
-      params: { source: 'telegram' },
-    };
-
-    const result = await handleConversationUserMessage(action, ctx, {
-      readPort,
-      writePort,
-      webappEventsPort: {
-        emit: async () => ({ ok: true, status: 200 }),
-        syncSupportUserMessage: async () => ({ ok: true, status: 200 }),
-      },
-    });
-
-    // D21A_AUDIT.md F3: an assertion pinning the removed `CONVERSATION_USER_BLOCKED_SKIP_REASON`
-    // string can never go red (the string no longer exists anywhere in source) — the status check
-    // below is what actually proves the message reaches support instead of being swallowed.
-    expect(result.status).toBe('success');
   });
 });
 
