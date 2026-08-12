@@ -62,6 +62,17 @@ BEGIN
     RAISE EXCEPTION 'в dev-базе нет активной организации с активным специалистом — кабинет открыть нечем';
   END IF;
 
+  -- Один staff-login принадлежит ровно одной клинике. Старые DEV-факты от прежних fixture runs
+  -- сохраняем как историю, но они не могут оставаться вторым active membership.
+  UPDATE be_organization_members
+     SET status = 'disabled', updated_at = now()
+   WHERE platform_user_id IN (
+           '00000000-0000-0000-0000-000000000002'::uuid,
+           '00000000-0000-0000-0000-000000000004'::uuid
+         )
+     AND organization_id <> v_org_id
+     AND status = 'active';
+
   INSERT INTO be_organization_members (organization_id, platform_user_id, role, specialist_id, status)
   VALUES (v_org_id, v_user_id, 'doctor', v_spec_id, 'active')
   ON CONFLICT (organization_id, platform_user_id) DO UPDATE

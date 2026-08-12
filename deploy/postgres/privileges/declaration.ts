@@ -2027,6 +2027,9 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.staff-workspace.resolve',
       functionIdentity: 'app.resolve_staff_workspace_memberships(uuid)' },
+    resolve_staff_workspace_memberships_in_context: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff', purpose: 'auth.staff-workspace.resolve',
+      functionIdentity: 'app.resolve_staff_workspace_memberships(uuid)' },
     webapp_staff_relation: { port: 'webapp', runtimeName: 'staff', sessionRole: 'app_staff',
       targetRole: 'app_staff', contextClass: 'staff', purpose: 'relation' },
     webapp_patient_relation: { port: 'webapp', runtimeName: 'patient', sessionRole: 'app_patient',
@@ -2735,7 +2738,7 @@ const REV10_CONTEXT = {
     }),
     'app.resolve_staff_workspace_memberships(uuid)': rev10Function({
       owner: 'app_seam_org_directory_owner', security: 'DEFINER', returns: 'record',
-      execute: ['app_pre_session'], purpose: 'resolve active organization memberships before staff routing',
+      execute: ['app_pre_session', 'app_staff'], purpose: 'resolve active organization memberships before staff routing and revalidate self after routing',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.be_organization_members',

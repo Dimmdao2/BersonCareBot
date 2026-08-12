@@ -1314,16 +1314,26 @@ RETURNS TABLE(
 LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
+DECLARE v_staff_context boolean;
 BEGIN
   PERFORM app.require_accepted_context(
-    'app_seam_org_directory_owner', 'app_pre_session', 'pre_session',
+    'app_seam_org_directory_owner',
+    CASE WHEN pg_has_role(session_user, 'app_staff', 'MEMBER')
+         THEN 'app_staff'::name ELSE 'app_pre_session'::name END,
+    CASE WHEN pg_has_role(session_user, 'app_staff', 'MEMBER')
+         THEN 'staff'::app.port_context_class
+         ELSE 'pre_session'::app.port_context_class END,
     'auth.staff-workspace.resolve',
     app.hash_port_typed_args(ARRAY[
       ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg
     ]), 'app.resolve_staff_workspace_memberships(uuid)'::regprocedure
   );
+  v_staff_context := pg_has_role(session_user, 'app_staff', 'MEMBER');
   IF p_platform_user_id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'platform user id required';
+  END IF;
+  IF v_staff_context AND p_platform_user_id <> app.current_actor_user_id() THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'staff workspace self-resolution required';
   END IF;
   RETURN QUERY
   SELECT membership.id,

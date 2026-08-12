@@ -25,8 +25,13 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     source: 'apps/webapp/src/infra/repos/pgIdentityResolution.ts',
   },
   'app.resolve_staff_workspace_memberships(uuid)': {
-    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
-    purpose: 'auth.staff-workspace.resolve', argCount: 1,
+    port: 'webapp', argCount: 1, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_pre_session', contextClass: 'pre_session',
+        purpose: 'auth.staff-workspace.resolve' },
+      { targetRole: 'app_staff', contextClass: 'staff',
+        purpose: 'auth.staff-workspace.resolve' },
+    ],
     source: 'apps/webapp/src/infra/repos/pgOrganizationMembership.ts',
   },
   'app.password_login_complete(uuid,boolean)': {
