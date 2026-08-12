@@ -98,6 +98,10 @@ function generator(...args) {
   ]);
 }
 
+function repositorySql(relativePath) {
+  return readFileSync(resolve(root, relativePath), 'utf8');
+}
+
 function psql(database, sql, singleTransaction = false) {
   return command('psql', [
     '-X', '-A', '-t', ...(singleTransaction ? ['-1'] : []),
@@ -168,11 +172,11 @@ function installAndVerifyTarget() {
     'BEGIN;',
     generator('--shared-role-baseline'),
     generator('--env', envName, '--db', dbName, '--env-login-shells'),
-    `\\i ${resolve(root, 'deploy/postgres/port-context/contract.sql')}`,
+    repositorySql('deploy/postgres/port-context/contract.sql'),
     generator('--db', dbName, '--relation-wall-registry'),
-    `\\i ${resolve(root, 'deploy/postgres/privileges/post-zero-roots.sql')}`,
-    `\\i ${resolve(root, `deploy/postgres/generated/org-allowlist.${dbName}.sql`)}`,
-    `\\i ${resolve(root, `deploy/postgres/generated/privileges.${dbName}.sql`)}`,
+    repositorySql('deploy/postgres/privileges/post-zero-roots.sql'),
+    repositorySql(`deploy/postgres/generated/org-allowlist.${dbName}.sql`),
+    repositorySql(`deploy/postgres/generated/privileges.${dbName}.sql`),
     // Passwords are read by psql via \getenv; neither argv nor this process logs them.
     generator('--env', envName, '--db', dbName),
     generator('--db', dbName, '--port-context-verify'),
