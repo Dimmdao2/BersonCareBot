@@ -1563,22 +1563,24 @@ grants до отдельного live DEV zero-state proof и не приним�
 | Поле | Значение |
 |---|---|
 | Метод | **Взгляд + independent PostgreSQL 16.14 fault injection**: HBA exactness, loaded config, TLS material, readiness/rollback |
-| Вердикт | **FAIL — 3 MUST FIX, НЕ К LAND/LIVE APPLY** |
+| Вердикт | **FAIL → ИСПРАВЛЕНО ГРОМКО `3de484cb1` → PASS OFFLINE** |
 
-- **HOST-MTLS-001 — ОТКРЫТО:** `--readiness` смотрит текущий файл через `pg_hba_file_rules`, а не фактически
-  загруженный HBA, и не выполняет connection probes. Незагруженный exact файл + активный broad password-only
-  `trust` дал ложный `readiness PASS`, после чего staff login вошёл без сертификата.
-- **HOST-MTLS-002 — ОТКРЫТО:** apply не проверяет соответствие server certificate/private key и успешную загрузку
-  нового SSL context. Несовпадающая пара дала PostgreSQL `SSL configuration was not reloaded`, но скрипт напечатал
-  `apply PASS`, не откатил файл и оставил будущий restart сломанным.
-- **HOST-MTLS-003 — ОТКРЫТО:** renderer принимает специальные HBA tokens `all`/`sameuser`/`samerole`/`replication`,
-  а validator скрывает второй marked block. Независимые probes получили `hostssl all all ...` и
-  `duplicate_managed_block_accepted=true`.
+- **HOST-MTLS-001 — ИСПРАВЛЕНО ГРОМКО `3de484cb1`:** readiness теперь выполняет три реальные positive и пять
+  negative connection probes и требует свежую запись auth refusal в PostgreSQL journal. Сохранённая инъекция
+  активного `hostssl all all ... trust` делает readiness красным вместо ложного PASS.
+- **HOST-MTLS-002 — ИСПРАВЛЕНО ГРОМКО `3de484cb1`:** preflight проверяет CA/CRL, cert↔key и key mode до записи;
+  apply сверяет реально предъявленный PostgreSQL server certificate после reload. Несовпадающий ключ отвергается,
+  исходные HBA/config остаются побайтно прежними.
+- **HOST-MTLS-003 — ИСПРАВЛЕНО ГРОМКО `3de484cb1`:** renderer запрещает HBA special identifiers, wildcard/role
+  forms и duplicate/nested/malformed managed blocks; unit faults по каждому классу зелёные.
 - Остальной сохранённый oracle зелёный: три mTLS positive, password/wrong-CN/non-TLS/socket/server-impersonation
   negatives, CRL rejection/drain, прежние context/RLS fault classes, `managed_hostssl_rules=6`, role/grant DDL `0`.
 
-Следующий шаг — один fixer по этим трём сохранённым сценариям; новый blind audit не требуется. Live DEV/TEST/PROD
-и host files аудитом не затрагивались.
+Лидер повторил сохранённый oracle на итоговом SHA: `bash -n` обоих shell-файлов, `node --check` обоих renderer
+файлов, `git diff --check 69dcadeb6..3de484cb1` и `pnpm run test:postgres-mtls-host` — PASS; disposable PostgreSQL
+16 отработал mTLS apply/readiness, broad-HBA rejection и все прежние context/RLS fault classes. Live
+DEV/TEST/PROD и host files не затрагивались. PASS разрешает интеграцию offline primitive, но не является live
+host cutover — тот остаётся отдельным атомарным gate вместе с ролями/grants.
 
 ## Completeness gate POSTZERO-ACCESS-R3-2026-08-12 — `4a4dbef6a`
 
