@@ -59,19 +59,23 @@ cutover восстановленного dump порядок:
 
 ## Текущее фактическое положение на 12.08
 
-**Мы между шагами 3 и 4 owner-порядка.** На DEV legacy уже удалён, но точка ноль и новый доступ ещё не
-применялись. Значит DEV пока не защищён целевой схемой.
+**DEV находится на шагах 8–9 owner-порядка.** Legacy удалён; target прошёл backup → offline zero/proof →
+cluster baseline → mTLS readiness → declaration install. Webapp и integrator поднялись через новые pools;
+идёт разбор оставшихся громких runtime-отказов по одному до полного green live matrix.
 
 - [x] Полезные ветки сведены в `feat/doctor-ui-rebuild`; ветка запушена до live-операций.
 - [x] Написаны и на disposable PostgreSQL 16 доказаны legacy migrations, revoke-only zero, post-zero installer,
   declaration generator, port-context contract и host-mTLS primitive.
 - [x] На DEV каталогом подтверждено отсутствие 11 старых integrator tables, `integrator.telegram_state` и
   `public.appointment_records`.
-- [ ] На DEV применить zero-state и доказать ноль.
+- [x] На DEV применён zero-state; wrapper получил `BCB_ZERO_STATE_VERIFIED`, после чего только на закрытый target
+  наложен новый доступ. База не пересоздавалась, данные не обнулялись.
 - [x] Target declaration/contract обновлены под отдельный global-admin login и универсальную birth wall;
   `pnpm test:db-initial-cutover` доказал target-only zero/install, неизменность соседней БД, late-fault возврат в
   zero и неизменность OID обеих БД.
-- [ ] На DEV применить новый доступ и выполнить живые сценарии обоих портов.
+- [ ] Новый доступ на DEV применён; webapp (`/`, `/api/me`) и integrator (`/health`, `/health/projection`) уже
+  прошли startup/smoke. Полная patient/staff/global-admin/integrator live matrix и ручная проверка владельцем
+  ещё не завершены.
 
 ### Исправление ошибочного ухода в пустую TEST
 
@@ -130,7 +134,7 @@ cutover восстановленного dump порядок:
   семантически, `DROP/CREATE DATABASE` отсутствует; disposable acceptance зелёный.
 - [ ] Сформировать минимальный именованный allowlist исключений точки ноль: PostgreSQL superuser и migrator
   только в окне миграций.
-- [ ] DEV offline: применить legacy migrations → zero; каталогом доказать `PUBLIC` closed, runtime login/roles без
+- [x] DEV offline: применить legacy migrations → zero; каталогом доказать `PUBLIC` closed, runtime login/roles без
   data ACL/membership, default privileges closed, policies absent, permanent `BYPASSRLS=0`.
 - [ ] Негативный контроль DEV: каждый login/role/definer без port context не раскрывает данные и даёт громкий
   отказ там, где соединение/вызов достижим.
@@ -202,7 +206,7 @@ cutover восстановленного dump порядок:
 - [x] Host cutover wrapper fail-closed: с начала изменения доступа target держится с `CONNECTION LIMIT 0`, при
   любой ошибке install/HBA/readiness снова закрывается, исходный limit возвращается только после полного PASS;
   шесть fault points проверены self-test.
-- [ ] После доказанного DEV zero применить cluster-baseline, host mTLS readiness, port-context catalog и
+- [x] После доказанного DEV zero применить cluster-baseline, host mTLS readiness, port-context catalog и
   declaration-generated grants/RLS/seams — строго в этом порядке.
 - [ ] Проверить все cluster logins из `pg_roles`, все SET-able roles, `PUBLIC` и каждую definer-функцию; исключения
   перечислить поимённо. Непрошедший context — no disclosure + SQLSTATE `42501` + PostgreSQL system log.

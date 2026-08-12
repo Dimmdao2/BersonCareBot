@@ -2,7 +2,7 @@
 /**
  * Stage 4 release gate: projection health + person-domain reconciliation.
  * Run after CI for unambiguous go/no-go. Requires:
- *   - DATABASE_URL (integrator) when running projection-health from integrator cwd
+ *   - live integrator at INTEGRATOR_API_URL (or loopback PORT/3200) for projection-health
  *   - DATABASE_URL (webapp) and INTEGRATOR_DATABASE_URL for reconcile-person-domain
  *
  * Usage: pnpm run stage4-gate

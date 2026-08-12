@@ -22,11 +22,6 @@ const deployOnlyPoolProviderFiles = new Set([
   'apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts',
 ]);
 
-const disposableOrAdminPoolProviderFiles = new Set([
-  // CLI health proof only; never imported by API/worker/scheduler runtime.
-  'apps/integrator/src/infra/scripts/projectionHealthPoolProvider.ts',
-]);
-
 const allowedConnectFiles = new Set([
   'apps/webapp/src/infra/db/withClient.ts',
   'apps/integrator/src/infra/db/withClient.ts',
@@ -217,8 +212,7 @@ function collectOffenders(files) {
     if (
       poolCount > 0 &&
       !allowedPoolProviderFiles.has(rel) &&
-      !deployOnlyPoolProviderFiles.has(rel) &&
-      !disposableOrAdminPoolProviderFiles.has(rel)
+      !deployOnlyPoolProviderFiles.has(rel)
     ) {
       poolOffenders.push(`${rel} (${poolCount}x new Pool)`);
     }
@@ -290,8 +284,7 @@ if (process.argv.includes('--self-test')) {
     if (
       poolCount > 0 &&
       !allowedPoolProviderFiles.has(rel) &&
-      !deployOnlyPoolProviderFiles.has(rel) &&
-      !disposableOrAdminPoolProviderFiles.has(rel)
+      !deployOnlyPoolProviderFiles.has(rel)
     ) {
       poolOffenders.push(`${rel} (${poolCount}x new Pool)`);
     }

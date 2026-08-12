@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Stage 13 release gate: preflight + projection health + optional e2e.
- * Requires DATABASE_URL and INTEGRATOR_DATABASE_URL. Exit 1 when any step fails.
+ * Reconciles require DB URLs; projection health uses the live integrator runtime port.
  *
  * Order: stage13-preflight (stage12-gate + all reconciles) → projection health → [e2e if STAGE13_E2E=1]
  *

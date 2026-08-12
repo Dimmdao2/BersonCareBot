@@ -31,8 +31,8 @@ function executeRows<T>(
 /**
  * Single runtime source of projection_outbox health metrics.
  *
- * All statements are parameterized Drizzle fragments and execute through the caller's DB
- * adapter. This keeps the runtime repository and the deploy CLI on the same DB boundary.
+ * All statements are parameterized Drizzle fragments and execute only through the live
+ * integrator DB adapter. The deploy CLI consumes the HTTP projection of this result.
  */
 export async function readProjectionHealthSnapshot(
   db: ProjectionHealthQueryable,

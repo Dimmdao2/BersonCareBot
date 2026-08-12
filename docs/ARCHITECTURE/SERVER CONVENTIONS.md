@@ -376,7 +376,7 @@ Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не явля
 
 Назначение:
 
-- отдельный ops-only env для `backfill-*`, `reconcile-*`, `projection-health`, `stage*-gate`;
+- отдельный ops-only env для `backfill-*`, `reconcile-*`, `stage*-gate`;
 - не используется как runtime env для `bersoncarebot-webapp-prod.service`;
 - при **legacy** двух БД позволял не дублировать integrator URL в `webapp.prod`; после unification переменные могут указывать на **одну** базу.
 
@@ -384,6 +384,9 @@ Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не явля
 
 - `DATABASE_URL` — целевая БД webapp-миграций (схема **`public`**); после unification совпадает с `webapp.prod`;
 - `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — источник integrator-данных; после unification часто **та же** строка, что `DATABASE_URL`, либо отдельная только в dev/миграционных сценариях.
+
+`projection-health` не является DB/cutover-скриптом: он принимает только `INTEGRATOR_API_URL`/`PORT` и читает
+канонический `GET /health/projection` живого integrator-порта.
 
 Скрипты репозитория автоматически пытаются загрузить cutover env в таком порядке:
 
@@ -454,7 +457,7 @@ TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NO
 
 Назначение:
 
-- отдельный ops/dev-only env для `backfill-*`, `reconcile-*`, `projection-health`, `stage*-gate`;
+- отдельный ops/dev-only env для `backfill-*`, `reconcile-*`, `stage*-gate`;
 - не смешивает source и target DB URL в runtime env webapp;
 - позволяет запускать dev cutover тем же способом, что и prod.
 
@@ -462,6 +465,9 @@ TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NO
 
 - `DATABASE_URL` — **webapp dev** DB;
 - `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator dev** DB.
+
+DEV `projection-health` получает `INTEGRATOR_API_URL` либо использует loopback `PORT`; DB URL из cutover env
+не читает.
 
 Подтвержденные **имена dev БД** (по env preview в workspace, без секретов; **2026-06-10** — unified dev на audited host):
 

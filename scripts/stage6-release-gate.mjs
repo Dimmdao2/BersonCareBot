@@ -2,7 +2,7 @@
 /**
  * Stage 6 release gate: projection health + communication-domain reconciliation.
  * Run after CI for unambiguous go/no-go. Requires:
- *   - DATABASE_URL (integrator) when running projection-health from integrator cwd
+ *   - live integrator at INTEGRATOR_API_URL (or loopback PORT/3200) for projection-health
  *   - DATABASE_URL (webapp) and INTEGRATOR_DATABASE_URL for reconcile-communication-domain
  *
  * Usage: pnpm run stage6-gate

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Stage 11 release gate: projection health + subscription/mailing-domain reconciliation.
- * Run after CI for go/no-go. Requires DATABASE_URL and INTEGRATOR_DATABASE_URL for reconcile.
+ * Run after CI for go/no-go. Projection health uses the live integrator; DB URLs are only for reconcile.
  *
  * Usage: pnpm run stage11-gate
  * Exit: 0 when both checks pass; 1 when any check fails.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Stage 9 release gate: projection health + appointments-domain reconciliation.
- * Run after CI for go/no-go. Requires DATABASE_URL and INTEGRATOR_DATABASE_URL for reconcile.
+ * Run after CI for go/no-go. Projection health uses the live integrator; DB URLs are only for reconcile.
  *
  * Usage: pnpm run stage9-gate
  * Exit: 0 when both checks pass; 1 when any check fails.

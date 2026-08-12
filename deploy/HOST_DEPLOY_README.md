@@ -645,7 +645,6 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 
 - `backfill-*`
 - `reconcile-*`
-- `projection-health`
 - `stage*-gate`
 
 Обязательные ключи:
@@ -658,6 +657,9 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - это не runtime env для `bersoncarebot-webapp-prod.service`;
 - `webapp.prod` не обязан дублировать cutover-переменные — URL для скриптов живут в `cutover.prod`;
 - preferred схема для cutover/gate — отдельный `cutover.prod`.
+
+`projection-health` не читает этот файл и не получает DB credentials. Он проверяет живой integrator через
+`{INTEGRATOR_API_URL}/health/projection` либо loopback (`PORT`, по умолчанию `127.0.0.1:3200`).
 
 ### Dev env
 

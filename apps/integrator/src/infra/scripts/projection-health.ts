@@ -1,30 +1,22 @@
 #!/usr/bin/env node
 /**
  * Prints projection_outbox health for release gate and deploy checklists.
- * Uses INTEGRATOR_DATABASE_URL when set (gate from monorepo root), then
- * SOURCE_DATABASE_URL, then DATABASE_URL.
+ * Reads the canonical integrator runtime endpoint; this CLI never receives DB credentials.
  *
  * Exit code: 0 when not degraded (no dead, retriesOverThreshold within bounds);
  * 1 otherwise. `cancelled` is reported explicitly and does not mark degraded.
  */
 import 'dotenv/config';
-import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
 import {
   isProjectionHealthDegraded,
-  readProjectionHealthSnapshot,
+  type ProjectionHealthSnapshot,
 } from '../db/repos/projectionHealthCore.js';
-import {
-  createProjectionHealthPoolProvider,
-  type ProjectionHealthPool,
-} from './projectionHealthPoolProvider.js';
 
-type ProjectionHealthCliEnv = {
-  INTEGRATOR_DATABASE_URL?: string;
-  SOURCE_DATABASE_URL?: string;
-  DATABASE_URL?: string;
-  CUTOVER_ENV_FILE?: string;
+export type ProjectionHealthCliEnv = {
+  INTEGRATOR_API_URL?: string;
+  PORT?: string;
 };
 
 type ProjectionHealthCliWriter = {
@@ -33,100 +25,52 @@ type ProjectionHealthCliWriter = {
 
 export type ProjectionHealthCliDeps = {
   env?: ProjectionHealthCliEnv;
-  createPool?: (connectionString: string) => ProjectionHealthPool;
+  fetch?: typeof globalThis.fetch;
   stdout?: ProjectionHealthCliWriter;
   stderr?: ProjectionHealthCliWriter;
 };
 
-type LoadedEnv = {
-  loaded: boolean;
-  path: string | null;
-};
+const projectionHealthSnapshotSchema = z.object({
+  pendingCount: z.number().int().nonnegative(),
+  deadCount: z.number().int().nonnegative(),
+  cancelledCount: z.number().int().nonnegative(),
+  oldestPendingAt: z.string().nullable(),
+  processingCount: z.number().int().nonnegative(),
+  retryDistribution: z.record(z.string(), z.number().int().nonnegative()),
+  lastSuccessAt: z.string().nullable(),
+  retriesOverThreshold: z.number().int().nonnegative(),
+});
 
-function resolveRepoRootFromThisFile(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, '..', '..', '..', '..', '..');
-}
-
-function parseEnvFile(content: string): Record<string, string> {
-  const parsed: Record<string, string> = {};
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const normalized = line.startsWith('export ') ? line.slice('export '.length).trim() : line;
-    const eqIdx = normalized.indexOf('=');
-    if (eqIdx <= 0) continue;
-    const key = normalized.slice(0, eqIdx).trim();
-    let value = normalized.slice(eqIdx + 1).trim();
-    if (
-      value.length >= 2 &&
-      ((value.startsWith("'") && value.endsWith("'")) ||
-        (value.startsWith('"') && value.endsWith('"')))
-    ) {
-      value = value.slice(1, -1);
-    }
-    parsed[key] = value;
-  }
-  return parsed;
-}
-
-export function loadProjectionHealthCutoverEnv(
-  env: ProjectionHealthCliEnv = process.env,
-): LoadedEnv {
-  const repoRoot = resolveRepoRootFromThisFile();
-  const explicitPath = env.CUTOVER_ENV_FILE;
-  const candidates = explicitPath
-    ? [explicitPath]
-    : [
-        '/opt/env/bersoncarebot/cutover.prod',
-        path.join(repoRoot, '.env.cutover.dev'),
-        path.join(repoRoot, '.env.cutover'),
-      ];
-  const resolvedPath =
-    candidates.find((candidate) => candidate && existsSync(candidate)) ?? candidates[0] ?? null;
-  if (!resolvedPath || !existsSync(resolvedPath)) {
-    return { loaded: false, path: resolvedPath };
-  }
-
-  const parsed = parseEnvFile(readFileSync(resolvedPath, 'utf8'));
-  for (const [key, value] of Object.entries(parsed)) {
-    if (
-      env[key as keyof ProjectionHealthCliEnv] == null ||
-      env[key as keyof ProjectionHealthCliEnv] === ''
-    ) {
-      env[key as keyof ProjectionHealthCliEnv] = value;
-    }
-  }
-  return { loaded: true, path: resolvedPath };
-}
-
-function resolveDatabaseUrl(env: ProjectionHealthCliEnv): string | null {
-  return env.INTEGRATOR_DATABASE_URL || env.SOURCE_DATABASE_URL || env.DATABASE_URL || null;
+function resolveProjectionHealthUrl(env: ProjectionHealthCliEnv): string {
+  const configured = env.INTEGRATOR_API_URL?.trim();
+  const baseUrl = configured || `http://127.0.0.1:${env.PORT?.trim() || '3200'}`;
+  return `${baseUrl.replace(/\/+$/, '')}/health/projection`;
 }
 
 export async function runProjectionHealthCli(deps: ProjectionHealthCliDeps = {}): Promise<number> {
   const env = deps.env ?? process.env;
   const stdout = deps.stdout ?? process.stdout;
   const stderr = deps.stderr ?? process.stderr;
-  loadProjectionHealthCutoverEnv(env);
-
-  const url = resolveDatabaseUrl(env);
-  if (!url || !url.trim()) {
-    stderr.write('INTEGRATOR_DATABASE_URL or DATABASE_URL is not set\n');
-    return 1;
-  }
-
-  const createPool =
-    deps.createPool ??
-    ((connectionString: string): ProjectionHealthPool =>
-      createProjectionHealthPoolProvider(connectionString));
-  const pool = createPool(url);
+  const fetchHealth = deps.fetch ?? globalThis.fetch;
+  const url = resolveProjectionHealthUrl(env);
   try {
-    const snapshot = await readProjectionHealthSnapshot(pool);
+    const response = await fetchHealth(url, { headers: { accept: 'application/json' } });
+    if (!response.ok) {
+      stderr.write(`projection health endpoint returned HTTP ${response.status}\n`);
+      return 1;
+    }
+    const parsed = projectionHealthSnapshotSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      stderr.write('projection health endpoint returned an invalid payload\n');
+      return 1;
+    }
+    const snapshot = parsed.data as ProjectionHealthSnapshot;
     stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
     return isProjectionHealthDegraded(snapshot) ? 1 : 0;
-  } finally {
-    await pool.end();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown fetch failure';
+    stderr.write(`projection health endpoint request failed: ${message}\n`);
+    return 1;
   }
 }
 

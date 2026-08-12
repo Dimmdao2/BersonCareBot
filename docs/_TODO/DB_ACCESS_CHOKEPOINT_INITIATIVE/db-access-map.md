@@ -95,8 +95,10 @@ Script-only pools:
 - `scripts/check-telegram-users.ts`
 - `apps/webapp/scripts/user-phone-admin.ts`
 - `apps/webapp/scripts/migrate-fio-dev.ts`
-- `apps/integrator/src/infra/scripts/projection-health.ts`
 - `apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts`
+
+`projection-health` больше не входит в pool inventory: CLI читает живой
+`GET /health/projection` integrator-порта и не принимает DB URL.
 
 ## Port/layer bypass inventory for S1
 

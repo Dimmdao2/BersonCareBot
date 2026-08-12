@@ -150,7 +150,6 @@ curl -s http://127.0.0.1:6200/api/health
 
 - `backfill-*`
 - `reconcile-*`
-- `projection-health`
 - `stage*-gate`
 
 Обязательные ключи:
@@ -166,6 +165,9 @@ curl -s http://127.0.0.1:6200/api/health
 
 - это **не runtime env** для `bersoncarebot-webapp-prod.service`;
 - после unification оба URL **совпадают**; в legacy cutover второй URL указывал на **отдельную** integrator-базу.
+
+`projection-health` не использует `cutover.prod` и не принимает DB URL: он вызывает
+`{INTEGRATOR_API_URL}/health/projection` либо loopback integrator (`PORT`, по умолчанию `127.0.0.1:3200`).
 
 ---
 
