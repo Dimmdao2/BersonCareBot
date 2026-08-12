@@ -1,5 +1,9 @@
 # C2 secrets and deployment plumbing
 
+> **УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026:** HMAC signing secret и отдельный telemetry operator URL ниже — старый locked
+> contour. Target использует PostgreSQL mTLS и четыре runtime DB-login; global-admin имеет отдельный webapp-owned
+> certificate/pool, а не `SAAS_ISOLATION_OPERATOR_DATABASE_URL`. Канон — DB privilege scheme revision 11.
+
 Status: Phase C2 repo-side preflight package. No real secret generation or live host execution.
 
 ## Contract

@@ -1898,3 +1898,35 @@ cluster rehearsal, не новый документационный мини-с�
   исполняются после обеих migration phases и D30, до cleanup/zero. Unset ordinary TEST и PROD не изменены;
   неизвестный integrator mode отвергается fail-closed. Независимая классификация — **ВЗГЛЯД**, вердикт **PASS**:
   resume сохраняет owner-порядок writers stopped → complete schema/overlays → cleanup → zero → target install.
+
+## Plan/order reconciliation 2026-08-12 — empty TEST work rejected
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд**: owner-order против git history, текущего кода и read-only DEV catalog |
+| Вердикт | **FAIL: существенное отклонение от порядка; план исправлен, live-работа ещё открыта** |
+
+- **ORDER-001 — НЕ ИСПРАВЛЕНО:** после успешного legacy cleanup на DEV работа должна была перейти к
+  `zero(DEV) → prove-zero(DEV) → install(DEV) → live-proof(DEV)`. Вместо этого была начата реконструкция
+  искусственно пустой TEST. DEV сейчас имеет удалённый legacy, но не имеет ни применённого zero-state, ни
+  target mTLS/context/grants/RLS. Следующий live target после ремонта TEST — DEV, строго по `PLAN.md` v10.
+- **EMPTY-TEST-001 — ЗАМЕНЕНО/НЕ ЗАСЧИТЫВАЕТСЯ:** вся цепочка находок `LIVE-BOOTSTRAP-001` и
+  `LIVE-EMPTY-*` выше описывает ошибочный empty-TEST маршрут. Её локальные PASS не являются приёмкой cutover,
+  не закрывают ни один live DEV/TEST пункт и не разрешают сохранять empty-bootstrap обходы. Коммиты
+  `5a01acf81..cad14a1c6` подлежат отдельному разбору: empty-TEST-specific удалить, переносимое оставить.
+- **TEST-RECOVERY-001 — НЕ ИСПРАВЛЕНО:** до ошибочного пересоздания создан читаемый pre-error archive
+  `/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-portctx-20260812T143633Z.dump`, SHA-256
+  `364cb1c35778fe5b7fca8ab0134545dfd2b1aae1bc5a12ac02d0c2aea64fceeb`. Именованная TEST должна быть
+  восстановлена из него и проверена отдельно; это ремонт инцидента, не финальная production-dump репетиция.
+- **PRESESSION-EXACT-001 — НЕ ИСПРАВЛЕНО:** старые auth roots всё ещё достижимы через generic
+  `webapp_pre_session_relation` вместо exact function/purpose/typed-args. Конкретный путь:
+  `pgLoginTokens.ts → runWebappPgText → app.auth_login_token_{create,read,expire,confirm,mark_session_issued}`;
+  exact context ставит только `runWebappNamedRoot`, а тела этих функций не вызывают
+  `require_accepted_context`. Поэтому Ф5 exact pre-session остаётся открытым.
+- **GATE-WIRING-001 — НЕ ИСПРАВЛЕНО:** current function-census test красный из-за рассинхрона declaration;
+  post-zero installer replay красный на повреждённой TEST и ошибочно зависит от named live TEST. Эти gates не
+  входят в обычный `pnpm run ci`, поэтому прежний зелёный full CI не доказывает их. До live DEV надо вернуть
+  оба proof в green, убрать/классифицировать live-TEST зависимость и подключить обязательные gates к CI.
+- **DEPLOY-SCOPE-001 — НЕ ИСПРАВЛЕНО:** bilateral DEV+TEST/shared-cutover и org-only birth trigger заменены
+  owner-решениями: один target за deploy; HBA/mTLS one-time provisioning + ordinary readiness; birth wall для
+  каждой managed table; отдельный global-admin DB-login/certificate/pool при двух software ports.

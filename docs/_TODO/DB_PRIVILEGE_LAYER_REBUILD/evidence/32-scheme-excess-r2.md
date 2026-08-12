@@ -1,5 +1,8 @@
 # 32 — ревью `SCHEME.md` revision 2: излишки, прослеживаемость, последствия удалений
 
+> **ИСТОРИЧЕСКИЙ AUDIT; LOGIN TOPOLOGY ЗАМЕНЕНА 12.08.2026.** Выводы про три runtime login/global-admin через
+> staff относятся к старой revision. Target — четыре runtime login при двух ports; см. SCHEME revision 11.
+
 Независимый аудит, круг 2. Главное дерево, только чтение. Предмет: `SCHEME.md` (446 строк, ревизия
 `b7cd9efab`). Мера: `docs/OWNER_DECISIONS.md` §«Права БД, роли и стены (владелец, 08–09.08)», `PLAN.md`
 (П1/П2/П3), `FACTS.md` §9. Входы: мой отчёт круга 1 (`evidence/29`), `evidence/26`, `28`, `30`.

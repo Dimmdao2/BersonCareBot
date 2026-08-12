@@ -1,5 +1,11 @@
 # Tenant isolation — the complete model (grounded, for owner sign-off)
 
+> **ОБНОВЛЕНО 12.08.2026:** полный target дополнительно содержит `app_platform_settings` и
+> `app_platform_admin` как две узкие объявленные platform-global
+> роли и отдельный webapp-owned global-admin DB-login/mTLS certificate/pool. Ни global-admin через staff pool,
+> ни staff→platform `SET ROLE` больше не допускаются. Старые `app_owner`/bootstrap/pool формулировки ниже описывают
+> исходную реализацию и заменяются DB-layer contract в `DB_PRIVILEGE_LAYER_REBUILD/SCHEME.md` revision 11.
+
 One page, the whole picture, so we stop discovering roles one at a time. Grounded in the current code; items
 marked (verify) are to be confirmed during the build, not assumed.
 
@@ -15,17 +21,22 @@ as a **non-owner** role. NO per-route / per-query org filtering. (The stamp hook
 - `app_owner` — owns tables/policies; **migrations/setup only**; never an app connection.
 - `app_staff` — all staff (doctor/admin) connections. Sees its **own clinic** (org-scoped).
 - `app_patient` — all patient connections. Sees **only own** data.
+- `app_platform_settings` — platform settings/system-health surface only.
+- `app_platform_admin` — cross-organization directory/admin surface only. Обе platform-роли без
+  clinic/patient/medical membership и `BYPASSRLS`, доступны только dedicated global-admin login после human admin
+  context + 2FA.
 - `app_worker` — **infra role for background dispatch** (NEW to create). Tied to NO tenant. **NARROW grants
   only** (queue/delivery/media tables it touches) + call-site allowlist + audit. **Never owner/BYPASSRLS,
   never "read all"** — a broad worker role re-opens the leak.
 
 ## The principal kinds (ALL already coded in `packages/db-principal`)
 
-`organization · staff · patient · integrator · bootstrap · infra` — each maps to a role + a source of "who":
+`organization · staff · patient · platform_admin · integrator · pre_session · infra` — each maps to a role + a source of "who":
 
 | Entrypoint                                                     | Principal                 | Source of "who"                                                                                   | Role                     |
 | -------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------ |
 | Authenticated webapp request                                   | staff / patient           | **session membership** (already: sessionPrincipal.ts resolves org from `be_organization_members`) | app_staff / app_patient  |
+| Authenticated global-admin webapp request                      | platform_admin            | dedicated global-admin session + mandatory 2FA                                                    | exact app_platform_settings or app_platform_admin surface |
 | Pre-auth: login, OTP, public booking, **registration**         | bootstrap                 | **entry type** (split registration: staff-signup vs patient-signup declares which)                | nonstaff pool base       |
 | Integrator inbound (Telegram/MAX/webhook)                      | integrator / organization | the message→user/org mapping (verify in `apps/integrator`)                                        | app_patient / org-scoped |
 | **Dispatch worker** (send a queued broadcast/message/reminder) | **infra**                 | nothing — the task was already filtered at enqueue                                                | app_worker               |
@@ -65,9 +76,10 @@ Builds on existing `content_access_grants` (RLS on) + `modules/entitlements` + `
 
 ## Pools (connections)
 
-- webapp: **staff pool** (login ∈ app_staff) + **nonstaff/bootstrap pool** (login ∈ app_patient only, so
-  `app.is_staff()` is false after RESET) — selected by ALS principal before checkout. **(two-pool code: DONE,
-  under review — `DATABASE_URL_STAFF` / `DATABASE_URL_NONSTAFF`, legacy `DATABASE_URL` fallback.)**
+- webapp target: separate physical pools/logins/certificates for **staff**, **patient/pre-session** and
+  **global-admin**, all owned by the same webapp port. Global-admin is not a third software port; its DB login is a
+  distinct trust boundary because it crosses organizations. Current two-pool code is incomplete until the third
+  webapp-owned pool and mutually exclusive memberships are implemented.
 - integrator/worker/media units: connect with the role matching their principal — `app_worker` for dispatch,
   org-scoped for cross-tenant generators. (verify each entrypoint's current DB access during fanout.)
 

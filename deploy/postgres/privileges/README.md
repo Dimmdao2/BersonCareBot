@@ -89,8 +89,8 @@ throw-ами на уровне приложения. Здесь отказыва
 | `definerExceptions[*].searchPath` (`proconfig`) | **ТЕЛО функции в её миграции**, НЕ генератор | одна власть (dbt #6238); §F только *сравнивает* |
 | `ACCEPTANCE_INVARIANT.contextAccessorsMustRaise` | **ТЕЛО функции в её миграции** | там же, где `searchPath`; генератор тел не пишет |
 | `dbSettings.perRoleInDatabase` (`ALTER ROLE … IN DATABASE … SET`) | **env-render** в момент применения | напр. dev-строка `search_path=public, integrator` |
-| стена org-таблиц (allowlist, `ENABLE/FORCE RLS` при рождении) | **event trigger** (§E) читает `orgTableAllowlist` | выводится из `tables[*].org === true` |
-| `wall`, `cls`, `pol` (policyRequirement), `revoke`, `drop` (removal), `code` (codeMustChange) | **человек и ревью, не машина** | это ТРЕБОВАНИЕ к политике/грантам; генератор эмитит уже написанные политики, а `policyRequirement` — критерий, против которого их принимают |
+| birth wall каждой managed table | **event trigger + deploy gate** читают class/declaration | tenant/clinical: `ENABLE/FORCE RLS` + tenant/patient policies; остальные классы — explicit class wall; неизвестный объект = FAIL |
+| `wall`, `cls`, `pol` (policyRequirement), `drop` (removal), `code` (codeMustChange) | **declaration + generator/gates** | полные policy definitions/grants исполняемы; human requirement не заменяет машинную стену; поле `revoke` устарело и удаляется |
 
 Проверка точки ноль на одноразовом PostgreSQL 16:
 
@@ -100,7 +100,7 @@ node deploy/postgres/privileges/generate-cli.mjs --zero-state-cluster --check
 pnpm test:db-zero-state
 ```
 
-Атомарный post-zero установщик сначала выполняет generated bilateral zero verifier,
+Атомарный post-zero установщик для одной target-БД сначала выполняет её generated zero verifier,
 затем в одной транзакции создаёт login-shells, context contract, exact roots, grants,
 capability seed и проверяет итоговый environment/catalog. Его behavior gate:
 

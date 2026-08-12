@@ -261,8 +261,10 @@ platform port с обязательным audit reason. `org admin` не пол�
 - `deploy/postgres/p2-b-protected-principal-context.sql:159`: добавить `principal_kind` и `platform_user_id` в
   protected backend context, HMAC payload и helpers `current_platform_user_id()` / `is_platform_admin()`;
 - сохранить reset/release и nonce/TTL guarantees (`p2-b-protected-principal-context.sql:306`);
-- `apps/webapp/src/infra/db/webappPoolProvider.ts:90`: `platform_admin` выбирает staff login pool, после чего locked
-  mode делает `SET ROLE app_platform_admin`; третий connection pool не нужен;
+- **ЗАМЕНЕНО 12.08.2026:** `platform_admin` не выбирает staff login pool. При прежних двух software ports webapp
+  владеет отдельным global-admin DB-login/mTLS certificate/pool; только он может `SET ROLE app_platform_admin`
+  для этого directory surface или `app_platform_settings` для отдельного settings/system-health surface.
+  Staff login не имеет platform-global membership, global-admin login не имеет staff/patient/clinical membership;
 - `apps/webapp/src/app-layer/guards/requireRole.ts:215`: новый platform guard проверяет session role/adminMode,
   ставит platform principal и не разрешает использовать clinic repository в этом scope;
 - отдельный `PlatformOrganizationDirectoryPort` — единственный application port с cross-org list/update.
@@ -450,8 +452,9 @@ instance mode однозначно выбирает org-scoped dedicated credent
       Где: `deploy/postgres/p2-b-protected-principal-context.sql:159`,
       `docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs:1`, smoke `:new/updated`.
       Доказательство: old signature не даёт platform access; released pooled connection возвращает NULL helpers.
-- [ ] Добавить `app_platform_admin` как `NOLOGIN` runtime role, доступную только через locked `SET ROLE` из staff
-      login, и helper с двойной проверкой role + signed DB user. Где: `deploy/postgres/p0-5b-role-split-staff-patient.sql:1`,
+- [ ] Добавить `app_platform_admin` как `NOLOGIN` runtime role, доступную только через `SET LOCAL ROLE` из
+      dedicated global-admin login после accepted port/human context, и helper с двойной проверкой role + DB user.
+      Staff login membership в этой роли запрещён. Где: `deploy/postgres/p0-5b-role-split-staff-patient.sql:1`,
       `deploy/postgres/p2-b-protected-principal-context.sql:344`. Доказательство: adminMode под staff principal не
       читает cross-org; platform principal обычного user id отклоняется.
 - [ ] Добавить `requirePlatformAdminApiContext` и запретить использование clinic repositories внутри него. Где:

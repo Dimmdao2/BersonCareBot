@@ -1,5 +1,8 @@
 # 33 — полнота `SCHEME.md`, round 3
 
+> **ИСТОРИЧЕСКИЙ AUDIT; LOGIN TOPOLOGY ЗАМЕНЕНА 12.08.2026.** Выводы про три runtime login/global-admin через
+> staff относятся к старой revision. Target — четыре runtime login при двух ports; см. SCHEME revision 11.
+
 ## Вердикт
 
 **НЕТ — свойство в revision 4 не держится. Найдено 4 разрыва: 1 блокирующий, 2 высоких и 1 существенный.**

@@ -284,6 +284,11 @@ The required enforced product evidence now belongs to D3 (reads), D4 (writes), E
 
 ### Phase C0 — locked topology ADR and executable role proof · tier: deep · audit: deep
 
+> **УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026:** двух-login/two-pool locked topology ниже — исторический промежуточный этап.
+> Target: два software ports, четыре runtime DB-login на target (webapp staff/patient/global-admin + integrator),
+> отдельный global-admin certificate/pool и mutually exclusive staff/platform memberships. Канон —
+> `DB_PRIVILEGE_LAYER_REBUILD/SCHEME.md` revision 11; C0/C1/C2 checks не являются target acceptance.
+
 **Decision: use two runtime login roles and two pools, not a SECURITY DEFINER role-switch bridge.**
 
 Topology:
@@ -720,17 +725,16 @@ No G2 exit exists on the current path. No action after G1 is specified here.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-Resolved for implementation: **dual NOBYPASSRLS login roles + dual pools selected by principal before checkout**.
-This is the smallest topology consistent with both `SET ROLE app_staff` and bootstrap `app.is_staff()=false` after
-`RESET ROLE`. Separate process pools may use the same two logical credentials, but each process must expose only the
-principal classes it actually needs. A third narrowly granted operational pool is permitted only after C4 documents
-an unavoidable cross-org job; owner/BYPASSRLS is forbidden for normal runtime.
+**УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026:** dual-login/dual-pool решение ниже было промежуточным locked contour. Target:
+два software ports; webapp-owned staff, patient/pre-session и global-admin pools/logins/certificates; integrator
+login/pool; никаких отдельных operational login. Global-admin имеет только platform-global memberships,
+staff не имеет их; owner/BYPASSRLS запрещён runtime. Канон — DB privilege scheme revision 11.
 
 Disposition of the questions recorded in the earlier roadmap pass:
 
 - **resolved below:** #664 task/columns, TEST smoke authentication, shadow acceptance, and signing-key rotation;
-- **still open:** which genuinely global scheduler/cron operations, if any, justify a separately audited infra
-  pool;
+- **заменено:** scheduler/cron/worker отдельного infra login/pool не получают; работают внутри одного из двух
+  software ports с узкой declared role;
 - **deferred to the separate owner-controlled new-domain launch:** its project-copy operational procedure, after
   G1's TEST gates and product checklists are complete. It is not an external rollout, an ON/OFF design, or a
   maintenance-window decision threshold in this roadmap.

@@ -1,5 +1,9 @@
 # C0 locked topology ADR
 
+> **УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026:** это доказательство старого two-login locked contour, не текущий target.
+> Текущий target имеет два software ports и четыре runtime DB-login, включая отдельный webapp-owned
+> global-admin certificate/pool; см. `DB_PRIVILEGE_LAYER_REBUILD/SCHEME.md` revision 11.
+
 Status: Phase C0 contract for Tenant Hard Mode. Repo-side ADR and executable scratch proof only; no
 application runtime flip.
 

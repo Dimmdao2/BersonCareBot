@@ -2,6 +2,11 @@
 
 # Phase 0 design-lock — multitenant TEST enforcement
 
+> **ИСТОРИЧЕСКИЙ DESIGN EVIDENCE; TOPOLOGY ЗАМЕНЕНА 12.08.2026.** Старые staff/nonstaff pool и bootstrap
+> решения ниже сохраняются как provenance, но target topology задаёт `DB_PRIVILEGE_LAYER_REBUILD/SCHEME.md`
+> revision 11: два software ports, четыре runtime DB-login, отдельный global-admin certificate/pool и exact
+> transaction context.
+
 Status: Phase 0 design-lock delivered 2026-07-12 after branch sync. Scope: design-lock only; no Phase 1+
 code until the owner confirms the Phase 1 direction recorded at the end of this file.
 

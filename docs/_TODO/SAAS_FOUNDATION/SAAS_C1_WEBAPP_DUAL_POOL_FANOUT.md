@@ -1,5 +1,9 @@
 # C1 webapp dual-pool fanout
 
+> **УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026:** dual-pool — подтверждённая исходная реализация, но не полный target.
+> Webapp target владеет тремя физическими pools/logins/certificates: staff, patient/pre-session и global-admin;
+> integrator остаётся вторым software port со своим login. Канон — DB privilege scheme revision 11.
+
 Status: Phase C1 repo-side webapp stage. No live runtime credential flip.
 
 ## Scope

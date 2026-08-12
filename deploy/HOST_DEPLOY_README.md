@@ -726,9 +726,10 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 ```
 
 `deploy-test.sh` — **code-only/no-fresh-restore** путь (build + controlled migrate текущей TEST-БД) и не является
-способом fresh restore. Для одноразового перехода `locked -> port-context` он после миграций вызывает общий
-DEV+TEST cutover: exact HBA → bilateral zero → minimal target → live auth readiness → restart/health. Старую strict
-closure после миграций он больше не вызывает, потому что она восстанавливала удаляемые operational logins.
+способом fresh restore. Его текущий общий DEV+TEST/bilateral port-context cutover **УСТАРЕЛ/ЗАПРЕЩЁН**: каждый
+запуск должен менять одну target-БД, а следующий initial cutover выполняется сначала на DEV. До target-neutral
+замены wrapper не является допустимым способом перехода `locked -> port-context`. Старую strict closure после
+миграций тоже не возвращать: она восстанавливала удаляемые operational logins.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
 Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим
@@ -742,13 +743,11 @@ Settings-запись через `updateSetting` может менять его;
 существующую DB-backed platform setting в TEST clinic/global context тем же путём, без чтения PROD/env и без вывода
 секрета. Если этот путь недоступен, one-off TEST write требует отдельного owner authorization и backup/rollback;
 обычный deploy не должен изобретать такой bootstrap.
-Перед миграцией он останавливает все TEST writers, выдаёт owner/BYPASS только на legacy migration window и
-обязательно снимает временные права. Затем общий cutover конвертирует TEST и DEV env в `port-context`, первым
-устанавливает exact mTLS HBA, обнуляет обе базы и cluster-global application roles, отдельно доказывает zero обеих
-БД, устанавливает ровно шесть DEV+TEST login и минимальные роли/grants, выполняет positive/negative live auth probes,
-после чего перезапускает TEST и проверяет все пять units и `/api/health`. Любой сбой до release оставляет writers
-остановленными. Повторный обычный deploy уже из `port-context` пока fail-closed до подключения NOLOGIN-migrator
-пути; откат к старому owner-login/BYPASS пути запрещён.
+**УСТАРЕЛО/ЗАПРЕЩЕНО 12.08.2026:** прежний wrapper останавливал TEST writers, затем совместно менял TEST+DEV,
+обнулял обе базы и устанавливал шесть cluster-global login. Этот bilateral маршрут не исполнять. Target-neutral
+initial cutover меняет одну явно названную БД: `legacy → zero/proof → install → live`; следующий target — DEV.
+После принятого cutover ordinary deploy выполняет только birth-closed migrations → declaration reconcile →
+bidirectional catalog audit → smoke. Откат к owner-login/BYPASS запрещён.
 Состояние `awg-quick@awg0` не является TEST deploy-гейтом: это отдельный PROD-relay dependency на том же хосте,
 который TEST deploy не запускает, не останавливает и не использует как критерий готовности TEST.
 Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Это единичная полная
@@ -1032,8 +1031,10 @@ curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
 
 ### Staged PostgreSQL mTLS host boundary (DEV/TEST only; not applied by this repository stage)
 
-`deploy/host/apply-postgres-mtls.sh` is the only host primitive for the target two-port boundary. It accepts one exact
-database plus three distinct login names, renders the six first-match `hostssl … scram-sha-256
+`deploy/host/apply-postgres-mtls.sh` is the current host primitive for the target two-port boundary, but its
+three-login CLI is **УСТАРЕЛО/ЗАМЕНЕНО 2026-08-12** by the separate global-admin login decision. Do not use
+`--apply` for the target until the tool accepts one exact database plus four distinct login names and renders eight
+first-match `hostssl … scram-sha-256
 clientcert=verify-full clientname=CN` rules and preceding non-TLS/socket rejects, then rejects duplicate explicit
 application-login HBA rules or a `pg_ident` map. A broad legacy loopback rule may remain only **below** that block
 while the role/grant cutover is staged.
@@ -1048,7 +1049,8 @@ private client keys stay in the two port envs and are never arguments to this ho
 # paths and declaration-expanded DB/login names have been reviewed.
 sudo bash deploy/host/apply-postgres-mtls.sh --environment dev --preflight \
   --database '<managed_db>' --staff-login '<env>_webapp_staff' \
-  --patient-login '<env>_webapp_patient' --integrator-login '<env>_integrator' \
+  --patient-login '<env>_webapp_patient' \
+  --global-admin-login '<env>_webapp_global_admin' --integrator-login '<env>_integrator' \
   --ca-file '<public_ca_pem>' --crl-file '<public_crl_pem>' \
   --server-cert-file '<server_cert_pem>' --server-key-file '<server_key_pem>'
 ```
@@ -1056,8 +1058,9 @@ sudo bash deploy/host/apply-postgres-mtls.sh --environment dev --preflight \
 `--apply` takes exact backups of the server-reported `hba_file` and `config_file`, atomically replaces both, asks
 PostgreSQL to reload, verifies active TLS settings and the presented server certificate, and restores both exact files
 on any failure. It validates the readable, mode-safe server key, certificate/key match, CA chain and CRL before writing.
-`--readiness` is non-writing and requires an exact-credential probe command plus an authentication-refusal journal: it
-proves three TLS logins work and password-only, wrong-CN, non-TLS, socket and server-impersonation paths fail against
+The command above is the required target CLI after implementation; the current script must fail rather than silently
+omit `--global-admin-login`. `--readiness` is non-writing and requires an exact-credential probe command plus an
+authentication-refusal journal: it proves four TLS logins work and password-only, wrong-CN, non-TLS, socket and server-impersonation paths fail against
 the loaded server. A changed SSL setting with `pending_restart` remains a controlled restart/cutover decision; this
 stage intentionally does not make that restart.
 

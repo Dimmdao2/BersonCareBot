@@ -1,387 +1,228 @@
-# PLAN v9 — слой прав БД: привести к мировой схеме
-
-Дословные формулировки владельца — [`docs/OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), раздел «Права БД,
-роли и стены». **Здесь они превращены в пункты работ**: каждое решение стоит в том шаге, где исполняется,
-своими словами и без отсылок «см. по ссылке». Что не помечено решением владельца — инженерное, ему подчинено.
-
-## ЦЕЛЬ (владелец, дословно)
-
-**Отсутствие бардака: чёткая структура — как, кому и когда выдаются роли и где какие стоят стены. И чтобы
-это не чинилось заплатками при каждой миграции — иначе хаос, как сейчас.**
-
-**Критерий приёмки (дословно):** «любой запрос к базе данных без контекста и точного совпадения разрешений
-выдаёт 0 строк и пишет ошибку в журнал». Отказ обязан быть ГРОМКИМ — тихий ноль не засчитывается.
-
-**Норма классификации (дословно):** «Все таблицы с любыми данными клиник/докторов и пациентов должны быть
-обязательно закрыты стенами и клиники и пациента, с правильным доступом глобал админа. Как и системные
-таблицы платформы должны нести стену своей роли».
-
-## ЕДИНСТВЕННОЕ, ЧТО НАДО ДОКАЗАТЬ (владелец, 09.08, дословно)
-
-> «единственное что от вас надо — доказать что в новой схеме база НЕ ПУСКАЕТ НИКОГО мимо одного из портов».
-
-Это и есть приёмка всей работы. Не «схема красивая», не «аудит зелёный», не «тесты прошли» — **исполняемое
-доказательство**, которое гоняется одной командой и печатает результат по каждому принципалу.
-
-Форма доказательства — обход ВСЕХ входов, а не выборки:
-
-- [ ] **Каждый логин кластера** (включая те, что мы не заводили, — берутся из `pg_roles`, а не из
-      декларации) подключается напрямую с верным паролем и БЕЗ ключа порта → на каждом классе таблиц
-      обязан получить отказ, ноль строк и строку в системном логе
-- [ ] **Каждая роль** через переключение — то же самое
-- [ ] **PUBLIC** — нет CONNECT к базе, нет USAGE на схемах: посторонняя роль не подключается вовсе
-- [ ] **Каждая definer-функция** вызывается без контекста → отказ, а не выдача данных
-- [ ] **Именованные исключения** (суперпользователь, мигратор в окне миграций) перечислены поимённо и
-      объявлены; всё, что не в списке, обязано быть закрыто
-- [ ] **ПОЛОЖИТЕЛЬНЫЙ КОНТРОЛЬ — обязателен.** Те же запросы через порт с ключом возвращают строки.
-      Стена, которая не пускает никого, включая приложение, доказывает не безопасность, а поломку
-- [ ] Красный воспроизводится на сегодняшней базе: сейчас прямое подключение данные ОТДАЁТ
-
-## Четыре принципа целевой архитектуры
-
-1. **Одна декларация — один генератор.** Права живут в одном файле; гранты существуют только как вывод
-   генератора; миграции несут только схему.
-2. **Deny by default + стена в точке создания.** Рантайм-роли не получают ничего по умолчанию; новая
-   таблица рождается закрытой; забыл объявить — громкий отказ, никогда тихая утечка.
-3. **Двусторонняя сверка.** «объявлено EXCEPT есть» И «есть EXCEPT объявлено» — оба непусты = красный.
-4. **Стену держит движок + свип как страховка.** Применяет Postgres, не код.
-
-## Два сквозных правила, действующих в КАЖДОМ шаге
-
-**П1 — доступ только по потребности (владелец).** «В схеме лучше сделать меньше доступа, потом на базе
-проверить, куда кто не может попасть, решить надо ли ему туда и потом уже выдавать». Проектируем от
-минимума. Ошибка в сторону меньшего доступа — рабочая ситуация; в сторону большего — дефект.
-
-**П2 — текущее состояние не является источником состава (владелец).** «Текущее состояние ролей и логинов —
-не учитывать вообще. Все ненужные логины чистить, роли тоже». Живой каталог — материал для ПРОВЕРКИ, а не
-основание объявить существующее нужным.
-
-**П3 — заранее продумываются ДВА места, остальное чинит отладка (владелец).** «около сотни мест в коде —
-нет, 2 места. 2 порта. Это всё. Остальное будет чиниться на отладке потому что база не пустила… забыл — не
-страшно». Перепись мест в коде до включения стены — запрещённая работа: она воспроизводит режим «каждый
-ход ловим забытое». Пропущенное место — ожидаемый вход в отладку, а не риск.
-
-## Что владелец считает сделанной работой (09.08, его формулировка)
-
-Схема вычищена, пересобрана и **проверена на излишки** · генератор собран · **RLS не обходятся никем** ·
-весь мусор из БД удалён **миграциями, а не руками** · база обновлена по схеме · системный журнал ошибок
-пишется · база поднята и проверена на dev — с разбором каждой ошибки доступа: **чистить код или довыдать
-прав**.
-
-**Целевая runtime-цепочка по позднему решению владельца 11.08:** PostgreSQL mTLS → минимальные роли и grants →
-transaction-bound private context → нативный FORCE RLS deny-by-default → узкие SECURITY DEFINER-функции. Это
-архитектура работающей системы, а не порядок её накатывания.
-
-**Порядок внедрения задаёт только `OWNER_DECISIONS.md`, пункты 4–9:** сначала воспроизводимая миграция удаляет
-старые application login/roles/grants/default privileges, закрывает `PUBLIC` и приводит базу в точку ноль; затем
-disposable/DEV отдельно доказывает, что ни один прикладной вход не получает данные; только после этого по смыслу
-доступа накладываются минимальные роли, mTLS/context/RLS/definer-контур и grants; дальше идут живой прогон и
-поимённая доработка по системному журналу отказов. Уже выполненное проектирование сохраняется, но не разрешает
-применить новые гранты раньше точки ноль. Номера фаз ниже группируют требования и не меняют этот порядок.
-
-**Режим cutover по решению владельца 12.08:** TEST и PROD переводятся атомарно офлайн; сайт/сервисы не
-обслуживают людей от начала legacy-drop до положительного контроля нового доступа. Поддерживать рабочий
-промежуточный режим между legacy, точкой ноль и post-zero не требуется.
-
-Декларация revision 8 не применяется как промежуточное состояние.
-
-## Правило приёмки инкремента
-
-Три транскрипта в сообщении коммита: **КРАСНЫЙ** (на непочиненной реальности) → **ЗЕЛЁНЫЙ** (после починки)
-→ **СНОВА КРАСНЫЙ** (дефект внесён обратно в откатываемой транзакции). «Аудит доволен» ≠ готово. Стоп-правило:
-два круга без закрытой галочки → эскалация моделей и контекста; ещё два — стоп и вопрос владельцу.
-
----
-
-## Ф0 — исследования верны `[ЗАКРЫТО 08.08]`
-
-- [x] Внешние утверждения по первоисточникам: 14/15 подтверждены (`FACTS.md` §5)
-- [x] Механизмы Postgres доказаны ИСПОЛНЕНИЕМ: 10/10 (`FACTS.md` §4.1, `evidence/12`)
-
-## Ф1 — СХЕМА: пересборка `[ЗАКРЫТО 09.08 — принята после чистого финального круга]`
-
-Владелец 09.08: «есть ощущение что схема сырая. Ты перечислил много ошибок. После фиксации решений —
-пересобрать и на аудит». Приёмка 08.08 «принять сейчас, начать стройку» этим ОТМЕНЕНА.
-
-- [x] Ч1.1 Схема пересобрана от решений, не от живого каталога — 8 ревизий, 869 → 343 строки
-- [x] Ч1.2 Всё противоречащее решениям 09.08 снято: постоянного BYPASSRLS нет ни у одной роли,
-      `app_owner` упразднён, лишние логины и роли из схемы убраны
-- [x] Ч1.3 Десять независимых проверок двумя моделями, пять кругов по два аудитора:
-      12 разрывов (5 критических) → 4 → 4 → 3 → **чисто**. `evidence/28`–`/40`
-- [ ] Ч1.4 Приёмка владельцем всей схемы — pre-session развилка Ф3б закрыта решением A от 11.08; перед повторным
-      предъявлением revision 9 должна получить exact signatures Ф3б-A1 и синхронизированную декларацию Ф4
-
-## Ф2 — состав ролей и логинов заново, от потребности
-
-**Решение владельца:** логин даёт вход, роль решает что видно. Состав берётся от потребности, не от того,
-что есть в кластере.
-
-- [ ] Логины: ровно по точкам входа — канал деплоя (мигратор) + порт webapp (сессия персонала, сессия
-      пациента) + порт integrator. Всё прочее работает ВНУТРИ порта переключением роли
-- [ ] **Глобал-админ отдельного логина не получает** — ходит портом webapp, переключаясь на свою роль
-- [ ] `saas_operator` (телеметрия изоляции) — перевести в порт webapp на роль; предполётную проверку,
-      которая сегодня ТРЕБУЕТ отдельный логин, изменить вместе с этим
-- [ ] `saas_diag` — доказать отсутствие потребителя и снести
-- [ ] Шесть операционных ролей с пустой табличной поверхностью — свести к необходимому
-- [ ] Роли-владельцы definer-швов — состав по Ф3, не по нынешнему
-- [ ] Приёмка: список ролей и логинов, где у КАЖДОГО названа потребность; лишних нет
-
-## Ф3 — definer-швы без обхода RLS
-
-**Решение владельца:** «если ему надо что-то видеть типа „этот чат принадлежит какой организации?" — надо
-сделать отдельно только под эти таблицы». BYPASSRLS как решение отвергнут.
-
-- [ ] Разложить 132 функции по швам: аутентификация до сессии (вход, passkey, OTP, привязка телефона,
-      приглашения) · аксессоры контекста · предмаршрутный резолв · телеметрия · здоровье
-- [ ] Каждому шву — свой владелец с правами РОВНО на его таблицы; ни одного владельца с BYPASSRLS
-- [ ] Право «видеть через стену» выдаётся политикой на конкретной таблице для конкретного владельца —
-      видно в каталоге, ловится сверкой
-- [ ] Временная элевация остаётся только в окне миграций и снимается после
-- [ ] Приёмка: ноль ролей с BYPASSRLS вне окна миграций (кроме суперпользователя); каждый шов проверен
-      живым вызовом
-
-## Ф3б — КЛЮЧ И КОНТЕКСТ: база не пускает мимо порта
-
-**Решение владельца (09.08, дословно):** «надо сделать так чтобы БД не пускала мимо порта без ключа, а ключ
-даётся только портом. И порт автоматически не пускает без знания кто это». Развитие его же пункта 6:
-«ключ из env, без которого база технически не отдаёт данные».
-
-### Решение развилки A/I (владелец, 11.08)
-
-- [x] **A — текущая граница.** Неизвестный человек не получает DB credentials/собственного соединения. Известный
-      webapp port до human principal может открыть только attested pre-session transaction с exact
-      function/purpose/typed-args hash. Это необходимый вход в сам процесс опознания, а не доступ неизвестного
-      пользователя к данным
-- [x] **I — будущее обезличивание, не текущий scope.** Identity map отделяется от медицинского контура, медицина
-      адресуется opaque subject id. Переход A → I допустим без замены port-attestation: меняются identity resolver
-      и subject id. Отложенный privacy scope остаётся в
-      `RU_PRIVACY_AND_PRODUCTION_READINESS/PII_MEDICAL_STORE_SEPARATION_RECON_2026-07-24.md`
-- [x] **Совместимость A → I обязательна уже сейчас.** Port proof и human identity proof — разные части контекста;
-      versioned context class/claims — отдельный шов; доказательство порта не
-      связывается навсегда с физическим `platform_users.id`
-
-### УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026: фактическое состояние до offline-реализации A
-
-Актуальное состояние: revision-10 declaration/generator, transaction-bound context contract, приложение обоих
-портов, revoke-only zero-state, post-zero installer и host-mTLS primitive уже находятся в
-`feat/doctor-ui-rebuild` и проходят disposable PostgreSQL 16 acceptance. Не выполнены единый cutover двух БД
-общего DEV/TEST-кластера, живое применение на TEST и последующий offline PROD-cutover. Пункты ниже сохранены как
-исходный замер разрыва и больше не описывают текущий код.
-
-- [x] В приложении есть единый AsyncLocalStorage principal carrier, `bootstrap`, маршрутизация webapp в
-      staff/nonstaff pool, интеграторский allowlist технических `source`, установка роли и уничтожение соединения
-      при ошибке очистки. Это готовый транспортный каркас
-- [x] Для опознанных principal существует `app.install_signed_context`: старый HMAC context/pool carrier.
-      Он не является target: mTLS должен проверять порт при открытии connection, а новый context — быть
-      server-bound к login/backend/transaction/capability
-- [x] Pre-session бизнес-швы уже существуют: password, OTP, passkey, OAuth, PIN, invite, public resolver и
-      rate-limit. Их бизнес-логику сохраняем; меняется способ допуска к вызову
-- [x] Нынешний `bootstrap` не является полномочием порта: webapp принимает любую внутреннюю строку `source`, а
-      `applySignedDbPrincipal` для bootstrap очищает контекст и оставляет запрос под bare nonstaff login
-- [x] На живой DEV bare nonstaff login имеет прямые table ACL, membership `app_identity_bootstrap` и безусловный
-      `EXECUTE` на pre-session функции. Поэтому верный DB-пароль без port key уже является доступом — главный
-      инвариант A не держится
-- [x] Целевые mTLS-HBA rules, `app.install_port_context` и
-      `app.require_accepted_context` отсутствуют в коде и DEV. В декларации ветки `wt/declaration` target
-      context functions остаются `pendingFunctions` до реализации A2–A9
-- [x] Текущие `current_*` accessors без контекста возвращают `NULL`, а не бросают ошибку; обычные auth-вызовы не
-      собраны в transaction-bound port context
-
-Read-only проверка фактической DEV-границы, без чтения строк с ПДн:
-
-```bash
-# Поиск реализации в индексированном коде и точный поиск в исполняемых каталогах:
-node /home/dev/brain/tools/code-search.mjs \
-  "install port context accepted context mTLS pre-session" --repo bcb -k 20
-rg -n "install_port_context|require_accepted_context|pre_session" \
-  packages apps deploy/postgres
-
-# Каталог фактически поднятой DEV-базы и effective direct grants login:
-set -a
-. apps/webapp/.env.dev
-set +a
-bcb_probe_url="${DATABASE_URL_NONSTAFF:-$DATABASE_URL}"
-psql "$bcb_probe_url" -X -v ON_ERROR_STOP=1 -P pager=off -Atc "
-SELECT current_database(), current_user;
-SELECT n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
-FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-WHERE n.nspname='app' AND p.proname IN (
-  'install_signed_context', 'install_port_context', 'require_accepted_context'
-) ORDER BY p.proname, pg_get_function_identity_arguments(p.oid);
-SELECT parent.rolname, membership.inherit_option, membership.set_option, membership.admin_option
-FROM pg_auth_members membership
-JOIN pg_roles parent ON parent.oid=membership.roleid
-JOIN pg_roles member ON member.oid=membership.member
-WHERE member.rolname=current_user ORDER BY parent.rolname;
-SELECT table_schema, table_name, privilege_type
-FROM information_schema.role_table_grants
-WHERE grantee=current_user AND table_schema IN ('public','app','integrator')
-ORDER BY table_schema, table_name, privilege_type;"
-```
-
-### Исполнение варианта A — один технический этап до Ф4
-
-- [ ] **Ф3б-A1 — зафиксировать исполняемый mTLS/context contract.** Определены first-match
-      `hostssl ... scram-sha-256 clientcert=verify-full` HBA и отдельный exact certificate-CN→login для трёх
-      application logins (staff/patient material only webapp env; integrator material only integrator env), без
-      `pg_ident`/user-name mapping;
-      exact SQL signatures/types `install_port_context`, boolean `require_accepted_context`, platform gate,
-      accessors, cleanup, private capability/accepted-state rows, typed-args framing, definer/RLS split,
-      declaration-derived census and revocation/pool-drain controls — в `SCHEME.md`. **Historical replacement:**
-      custom OpenPGP transaction challenge expressly replaced. **Revision 10 technical correction:** integrator
-      membership is only `app_integrator_request`, narrow `app_integrator_resolver`, delivery-worker, scheduler,
-      `tenant_service` and no-tenant `service`, all SET-only/non-transitive; request has exact
-      `integrator_user_id + organization_id`, resolver is a distinct narrow pre-routing capability, and
-      `app_operational_diagnostic`/webapp→delivery are absent. Контракт, declaration, generator и offline
-      primitives реализованы; A1 остаётся открытым только до whole-chain runtime proof и live port wiring.
-- [ ] **Ф3б-A2 — mTLS material and rotation.** For each port place client private key/certificate/CA only in
-      its env; configure PostgreSQL public CA/CRL verifier material and exact HBA/certificate-CN rows. Test bounded
-      certificate overlap, reload semantics, CRL revocation and mandatory pool drain/backend termination; DB never
-      stores a port private key
-- [ ] **Ф3б-A3 — единый transaction wrapper портов.** Единственная точка DB checkout executes
-      `BEGIN → RESET ROLE → clear context → install declared context → SET LOCAL ROLE → queries → RESET ROLE →
-      clear → COMMIT/ROLLBACK`; every transaction installs a fresh context and any cleanup failure destroys
-      the client. Direct query outside wrapper is mechanically forbidden
-- [ ] **Ф3б-A4 — отдельный pre-session principal.** Заменить общий unsigned `bootstrap` на `pre_session` только в
-      webapp; request id, exact purpose/function и typed-args hash строит порт, а не HTTP-клиент. До human principal
-      разрешены только операции опознания; после доказательства личности порт переходит на human context
-- [ ] **Ф3б-A5 — context gate and private state in PostgreSQL.** Accepted context is bound server-side to declared
-      capability, mTLS-authenticated login/port, database/backend/transaction, role/class/purpose/args. Wrong
-      capability/binding/role/transaction or cleared context raises `42501`; private rows are inaccessible to
-      login/runtime/non-context seam owners
-- [ ] **Ф3б-A6 — закрыть каждый pre-session шов.** Каждый существующий auth/public `SECURITY DEFINER` первым
-      действием требует accepted `pre_session` exact purpose/args; caller-supplied UUID сам по себе не полномочие;
-      владельцы швов имеют только named relation/column/action surface
-- [ ] **Ф3б-A7 — убрать старую дверь.** У прикладных login ноль table/column/sequence ACL; убрать
-      `app_identity_bootstrap` и прямые bootstrap grants; `PUBLIC EXECUTE` отсутствует; membership даёт только
-      `SET LOCAL ROLE`, но без accepted context ни одна роль/функция данных не отдаёт
-- [ ] **Ф3б-A8 — громкий fail closed и очистка.** `current_*`/platform/service accessors бросают при missing,
-      expired или mismatched context; cleanup выполняется на success/error/rollback, а ошибка cleanup уничтожает
-      connection. Отказ попадает в системный Postgres log без отдельной audit-таблицы
-- [ ] **Ф3б-A9 — исполняемое доказательство.** Live negatives: password without accepted certificate; wrong/missing/
-      expired/revoked certificate, CN/login/port, non-TLS/socket and server impersonation; wrong capability/
-      DB/role/backend/transaction/class/purpose/args, pool reuse, direct definer call and `SET ROLE` without
-      context. Positive webapp pre-session/staff/patient/platform/service and integrator paths pass only via their ports
-- [ ] **Ф3б-A10 — сохранить путь к I.** Контекст и seam APIs используют версионированные actor/subject fields и
-      отдельный identity resolver. Тест/документ фиксирует, что будущая замена `platform_users.id` на opaque subject
-      id не требует менять mTLS port proof, role graph или RLS gate; реальный перенос данных остаётся privacy-этапом
-
-### Граница ответственности
-
-**Владелец уже решил:** A сейчас; I — будущее направление обезличивания; неизвестный человек не имеет своего
-DB-доступа; private client key only in port env; доступ минимальный; отказ громкий. **Агент решает без нового
-owner-вопроса:** exact HBA/certificate/material layout, context signatures, rotation/revocation, wrapper API, seam mapping
-and test vectors by accepted `SCHEME.md` and standard practice. Новый owner gate возникает только если реализация меняет product auth-flow,
-стоимость/инфраструктуру или отказывается от совместимости с I.
-
-## Ф4 — декларация и генератор (принцип 1)
-
-**Решение владельца:** «мы же сбрасываем все гранты» — поля «у кого отобрать» в декларации быть не должно.
-
-**УСТАРЕЛО/ЗАМЕНЕНО 12.08.2026.** Описание отдельной revision-8 ветки ниже — историческое: полезная работа
-перегенерирована как revision 10 и сведена в `feat/doctor-ui-rebuild`; применять `a5c6472a1` по-прежнему нельзя.
-Текущий открытый gate — не генерация декларации, а единая restore-shaped цепочка
-`legacy drop обеих БД → zero обеих БД → cluster zero → post-zero обеих БД → runtime proof`.
-
-**Историческое состояние на 11.08.2026 — реализация существует, этап не принят.** В опубликованной отдельной ветке
-`wt/declaration`, коммит `a5c6472a1`, декларация и generator перестроены из `SCHEME.md` revision 8;
-отчёт и RED→GREEN→RED-again disposable proof находятся в
-`evidence/42-declaration-from-scheme.md` той же ветки. Коммит не влит в интеграционную ветку, не применён
-к DEV/TEST и не доказывает общую приёмку владельца: fixture проверяет один representative login-grant,
-а не полный обход всех логинов, ролей, definer-функций и обоих портов.
-После решения A от 11.08 целевая схема имеет revision 9, поэтому опубликованная декларация revision 8 теперь ещё
-и содержательно устарела: её нельзя вливать или применять до Ф3б-A1 и повторной генерации из revision 9.
-
-**БЛОКЕР ПОРЯДКА Ф4↔Ф7.** Production-generator намеренно отказывает при structural gaps, но `F4-G2…G6`
-в `evidence/42` оставлены до именованных живых отказов Ф7. Получается замкнутая зависимость: без артефакта
-нельзя применить точку ноль и собрать отказы Ф7; без Ф7 текущий gate не разрешает создать артефакт.
-Не обходить это молчаливым отключением `--gaps`: до применения надо явно определить безопасный путь
-первого deny-minimum прогона либо закрыть exact signatures/maps раньше Ф7 и записать выбранный механизм здесь.
-
-Измерение блокера на зафиксированном `a5c6472a1`:
-
-```bash
-set +e
-node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --gaps \
-  >/tmp/bcb-f4-gaps.out 2>&1
-rc=$?
-set -e
-printf 'rc=%s\n' "$rc"
-rg -c '•' /tmp/bcb-f4-gaps.out
-# rc=2
-# 16 — по 8 записей на DEV и TEST: 6 общих F4-G1…G6 + 2 missing exact signatures на базу
-```
-
-- [ ] Убрать поле отзыва: декларация перечисляет ТОЛЬКО выданное
-- [ ] Оптовый сброс на каждой таблице обязан покрывать и ЛОГИН-роли (сегодня не покрывает — дефект,
-      подтверждён двумя аудитами: на TEST 22 гранта логинам переживают переприменение)
-- [ ] Декларация заполняется от Ф1–Ф3 (минимум по П1), НЕ снимком живого каталога
-- [ ] Политики — в декларации; сегодня объявлено ноль при 222 таблицах с FORCE, а генератор сносит все
-      живые: это единственный пробел, который не отказывает громко
-- [ ] Переприменение — одной транзакцией (раздельные autocommit ломают открытых читателей)
-- [ ] Гейт «миграции — только схема»: GRANT/REVOKE/CREATE POLICY/CREATE ROLE в новой миграции = красная сборка
-- [ ] Приёмка: три транскрипта
-
-## Ф5 — deny by default + стена в точке рождения (принцип 2)
-
-- [ ] REVOKE дефолтов; новая таблица рождается закрытой. Дефолты живут по-создающей-роли — закрыть всех
-      создателей и перечислить
-- [ ] Event trigger: org-таблица при рождении получает RLS+FORCE или создание отклоняется. Включить тег
-      `ALTER TABLE` (поздняя org-колонка), защиту от рекурсии; владелец триггера — суперпользователь
-- [ ] Приёмка: три транскрипта
-
-## Ф6 — сверка и свип (принципы 3 и 4)
-
-- [ ] Двусторонняя сверка на все роли: table ACL + колоночные + function ACL + политики + атрибуты ролей
-- [ ] Свип, 9 каталожных инвариантов; отдельным — «ноль ролей с BYPASSRLS вне объявленного»
-- [ ] Стенд a1: закрыть 5 дыр проверки (`FACTS.md` §3.1), затем ломатель
-- [ ] Приёмка: красный воспроизводится на любом ручном GRANT мимо декларации
-
-## Ф7 — живой прогон: где не хватает прав, и надо ли их туда
-
-**Решение владельца:** «потом на базе проверить, куда кто не может попасть, решить надо ли ему туда и потом
-уже выдавать». Это отдельный шаг плана, а не «доработка по ходу».
-
-- [ ] Прогнать живые сценарии обоих портов и глобал-админа, собрать ВСЕ отказы из системного лога
-- [ ] По каждому отказу решение: **почистить код** (ходил мимо порта — перевести на порт) · выдать право
-      поимённо · перевести на definer-шов · признать лишним. Первый исход — основной: отказ чаще означает
-      обход порта, чем недостачу прав
-- [ ] Выдача правок — только через декларацию и генератор, руками в базу никто не ходит
-- [ ] Приёмка: живая проверка агентом (скриншоты/curl), затем владельцем руками
-
-## Ф8 — журнал отказов
-
-**Решение владельца:** «а что, журнал системный не может быть? Зачем писать в БД?»
-
-- [ ] Журнал отказов — системный лог Postgres; таблицы-журнала в БД не заводить
-- [ ] Стена для запроса без контекста ставится правами и функциями контекста, которые БРОСАЮТ ошибку;
-      политика, молча фильтрующая в ноль, критерий владельца не выполняет
-- [ ] Приёмка: запрос без контекста → ошибка в системном логе, ноль строк, ни одной записи в БД
-
-## Ф9 — мусор
-
-- [x] Все production-callers старого Telegram dialogue/state/user store удалены; привязка канала и телефон
-      разрешаются через `public.user_channel_bindings`, универсальный дедуп остаётся в
-      `integrator.idempotency_keys` (`f656a60cb`–`78b7b0020`)
-- [x] Атомарная fail-loud миграция переносит только канальные факты, создаёт при необходимости UUID-владельца
-      привязки без credentials и удаляет без `CASCADE` в порядке `telegram_state → message_drafts → identities
-      → users`; PostgreSQL 16 proof проверяет positive, idempotency, полный rollback и неизвестный channel code
-- [ ] Применить эту миграцию на восстановленном production dump в полной TEST-репетиции и доказать каталогом,
-      что четыре legacy relations отсутствуют
-- [x] `integrator.telegram_state` — решение о полном сносе исполнено в коде и миграции (решение владельца 09.08: ПДн убрать несомненно, дедуп
-      уходит в единый универсальный, диалога больше нет). Признак «человек начал диалог, писать можно»
-      переезжает к привязке канала в вебапп
-- [x] `public.appointment_records` и production-callers старой записи удалены; живые чтения, staff-delete,
-      purge/merge и статистика переведены на `public.be_appointments`. Миграция `0386` без `CASCADE` переносит
-      доказуемые связи `clinical_visit`, громко отклоняет потерю/конфликт/FK и воспроизводимо удаляет таблицу;
-      два HMAC integrator-read идут через exact named roots, а ошибка admin-count больше не превращается тихо в
-      ноль. Disposable PostgreSQL 16 proof проверяет positive, idempotency и полный rollback трёх отказов
-- [ ] Дроп-миграции 11 таблиц — прогнать на dev и TEST (написаны, цепочка доказана на одноразовом кластере)
-- [ ] Переписать упавший после выреза код: очередь доставки на `public.outgoing_delivery_queue` и прочее
-- [ ] Аналитика — «она чья, кто её видит и какую именно» (решение владельца 08.08)
-
-## Что план сознательно НЕ делает
-
-Не переписывает применённые миграции · не вводит «всегда бросать» (`FACTS.md` §9.2) · не пишет
-AST-анализаторов (§9.3) · не идёт в capability-only (§9.4) · не выполняет PROD-cutover вне отдельной
-проверенной production-операции.
+# PLAN v10 — единый слой доступа PostgreSQL
+
+Дословный owner-канон: [`docs/OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), раздел «Права БД, роли и стены».
+Этот файл — исполняемый порядок и состояние работ. Более позднее owner-решение всегда заменяет старый пункт;
+история замен остаётся в git и [`AUDIT_LOG.md`](./AUDIT_LOG.md), но не действует одновременно с новым планом.
+
+## Конечный результат
+
+Рабочая цепочка: **PostgreSQL mTLS → минимальные logins/roles/grants → transaction-bound context → нативный
+FORCE RLS → узкие SECURITY DEFINER-функции**.
+
+- Портов два: webapp и integrator. Мимо них прикладная БД не доступна.
+- Runtime DB-logins четыре: `webapp_patient`, `webapp_staff`, `webapp_global_admin`, `integrator`; мигратор
+  существует только в окне deploy. Точные env-префиксы имён формирует target-конфигурация.
+- Неизвестный человек не получает DB credentials. До человеческой сессии только webapp может открыть короткую
+  attested `pre_session`-транзакцию с exact function/purpose/typed-args hash.
+- У runtime/seam ролей нет `BYPASSRLS`; global-admin пересекает организации отдельным login/certificate/pool,
+  но не получает clinical/medical роли.
+- Всё, чего нет в единой декларации, запрещено. Миграции меняют schema/data, а generator после миграций одной
+  транзакцией приводит owners, roles, memberships, grants, policies и context catalog к декларации.
+- Любая новая управляемая таблица рождается закрытой и остаётся недоступной до явной классификации и стены.
+- Отказ без требуемого контекста означает: **данные не раскрыты, statement падает с SQLSTATE `42501`, отказ
+  виден в системном журнале PostgreSQL**. Формулировка «одновременно ошибка и возвращены 0 строк» не используется.
+
+## Неизменяемый порядок владельца
+
+Ни номер фазы ниже, ни удобство скрипта не могут переставить эти шаги:
+
+0. Не тушить отдельные дыры заплатками; строить целую воспроизводимую систему.
+1. Почистить разросшиеся журналы и обеспечить регулярную очистку.
+2. Сохранить все реальные находки в общем audit log, исправленные громко помечать.
+3. Разобрать дубли integrator/legacy, перевести живых потребителей и удалить мусор миграциями.
+4. На target-БД сначала удалить старые application logins/roles/grants/default privileges, закрыть `PUBLIC` и
+   получить доказанную **точку ноль: никто из прикладных принципалов не получает данные**.
+5. От потребности спроектировать минимальный состав logins/roles и доступ каждой таблицы/функции.
+6. Ввести неэкспортируемое доказательство порта: mTLS при connection + private transaction context.
+7. Только после доказанной точки ноль наложить из декларации минимальные grants/RLS/definer-допуски.
+8. Выполнить живую проверку: сначала агент, затем владелец руками.
+9. Каждый громкий отказ разобрать по одному: удалить лишний вызов, провести его через порт/узкий seam либо
+   добавить доказанно необходимое право в декларацию; затем повторить проверку.
+
+## Один target за любой deploy/cutover
+
+Каждый запуск принимает одну явно названную target-среду и изменяет только её БД. Для initial cutover или
+cutover восстановленного dump порядок:
+
+`legacy(target) → zero(target) → prove-zero(target) → install-access(target) → live-proof(target)`.
+
+- После принятого cutover обычный deploy **не повторяет legacy/zero и не удаляет runtime logins**. Его цикл:
+  `schema/data migrations (birth-closed) → declaration reconcile → bidirectional catalog audit → smoke`.
+- Ни initial cutover, ни обычный deploy не делает `DROP/CREATE` target-БД и не создаёт пустую TEST.
+- DEV и TEST не объединяются в одну обязательную транзакцию/цепочку. Один и тот же переносимый механизм
+  выполняется для каждой среды отдельно.
+- Общие cluster roles приводятся идемпотентным cluster-baseline; env-login удаляется только после проверки
+  зависимостей во всех БД кластера.
+- HBA/mTLS — разовое host provisioning при вводе среды плюс ротация сертификатов. Обычный deploy сохраняет
+  соседние HBA-блоки и только проверяет готовность своего target. DB roles/grants/RLS сверяются каждый deploy.
+- TEST и PROD проходят offline cutover: сервисы не запускаются между legacy-drop, zero и положительным proof.
+
+## Текущее фактическое положение на 12.08
+
+**Мы между шагами 3 и 4 owner-порядка.** На DEV legacy уже удалён, но точка ноль и новый доступ ещё не
+применялись. Значит DEV пока не защищён целевой схемой.
+
+- [x] Полезные ветки сведены в `feat/doctor-ui-rebuild`; ветка запушена до live-операций.
+- [x] Написаны и на disposable PostgreSQL 16 доказаны legacy migrations, revoke-only zero, post-zero installer,
+  declaration generator, port-context contract и host-mTLS primitive.
+- [x] На DEV каталогом подтверждено отсутствие 11 старых integrator tables, `integrator.telegram_state` и
+  `public.appointment_records`.
+- [ ] На DEV применить zero-state и доказать ноль.
+- [ ] Обновить target declaration/contract под отдельный global-admin login и универсальную birth wall.
+- [ ] На DEV применить новый доступ и выполнить живые сценарии обоих портов.
+
+### Исправление ошибочного ухода в пустую TEST
+
+- [x] До ошибочного пересоздания сохранён backup исходной именованной TEST:
+  `/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-portctx-20260812T143633Z.dump`;
+  SHA-256 `364cb1c35778fe5b7fca8ab0134545dfd2b1aae1bc5a12ac02d0c2aea64fceeb`; archive list читается.
+- [ ] Вернуть именованную TEST из этого pre-error backup и проверить данные/ledger/catalog. Это ремонт инцидента,
+  не репетиция production dump и не доказательство целевого cutover.
+- [ ] Проверить коммиты `5a01acf81..cad14a1c6`: удалить empty-TEST-specific обходы, сохранить только переносимые
+  исправления, которые нужны обычному deploy существующей БД.
+
+## Ф0–Ф1 — исследование и схема
+
+- [x] PostgreSQL-примитивы проверены исполнением на PostgreSQL 16; первичные факты сведены в `FACTS.md`.
+- [x] Схема revision 10 была пересобрана от owner-решений, а не от живого каталога; её прежний трёх-login
+  target теперь частично заменён поздним решением об отдельном global-admin login и требует синхронизации ниже.
+- [x] Вариант A выбран для текущего pre-session; вариант I оставлен будущим privacy-этапом; port proof и human
+  identity proof разделены.
+- [ ] Синхронизировать `SCHEME.md`, declaration и generated artifacts с поздним решением об отдельном
+  global-admin login и универсальной стене рождения; затем один независимый audit pass.
+
+## Шаги 1–2 owner-порядка — журналы и сохранение находок
+
+- [x] Разовая инвентаризация и очистка разросшихся DB-журналов выполнена в `bca1d376a`, evidence
+  `evidence/16-journal-retention.md`.
+- [ ] Реализовать и live-доказать регулярную retention/rotation: DB cleanup под `app_operational_maintenance`
+  только через webapp port; PostgreSQL/systemd/application log rotation проверить новым фактическим замером.
+- [x] Все findings этой инициативы ведутся в одном [`AUDIT_LOG.md`](./AUDIT_LOG.md); новый отдельный audit-документ
+  не создаётся.
+- Постоянное правило: каждую новую реальную находку добавлять туда; после исправления менять её статус на
+  **ИСПРАВЛЕНО ГРОМКО** с проверяемым evidence, не оставляя активной рядом со старой формулировкой.
+
+## Ф2 — pre-zero: мусор и старые потребители
+
+Этот этап исполняется **до точки ноль**, а не в конце.
+
+- [x] Production-callers старого Telegram dialogue/state/user store удалены; channel binding хранится в
+  `public.user_channel_bindings`, дедуп — в `integrator.idempotency_keys`.
+- [x] Fail-loud migration удаляет `telegram_state`, `message_drafts`, `identities`, `users` без `CASCADE`,
+  переносит только необходимые channel facts и доказана positive/idempotent/rollback сценариями.
+- [x] `public.appointment_records` и его callers заменены `public.be_appointments`; migration `0386` доказана
+  positive/idempotent/rollback сценариями.
+- [x] Код очереди доставки переведён с удалённой `integrator.message_retry_jobs` на
+  `public.outgoing_delivery_queue`; соответствующие callers старой очереди удалены.
+- [x] DEV: 11 legacy integrator tables, `telegram_state` и `appointment_records` отсутствуют.
+- [ ] TEST: проверять legacy-drop только после восстановления pre-error TEST; не создавать ради этого пустую БД.
+- [ ] Классифицировать оставшуюся аналитику: владелец данных, видимость и точная стена; лишнее удалить.
+
+## Ф3 — точка ноль
+
+- [x] Revoke-only generator снимает database/schema/table/column/sequence/function/type/large-object/FDW ACL,
+  policies, memberships и default privileges, закрывает `PUBLIC`, не выдавая ни одного нового права.
+- [x] Zero-state acceptance на одноразовом PostgreSQL краснеет после каждого повторно внесённого rogue grant,
+  policy, membership и default privilege.
+- [ ] Сделать zero/apply механизм target-neutral: никаких захардкоженных совместных DEV+TEST действий и никаких
+  `DROP/CREATE DATABASE`.
+- [ ] Сформировать минимальный именованный allowlist исключений точки ноль: PostgreSQL superuser и migrator
+  только в окне миграций.
+- [ ] DEV offline: применить legacy migrations → zero; каталогом доказать `PUBLIC` closed, runtime login/roles без
+  data ACL/membership, default privileges closed, policies absent, permanent `BYPASSRLS=0`.
+- [ ] Негативный контроль DEV: каждый login/role/definer без port context не раскрывает данные и даёт громкий
+  отказ там, где соединение/вызов достижим.
+
+## Ф4 — минимальная модель logins, roles и seam owners
+
+- [ ] Зафиксировать четыре runtime login: webapp patient/staff/global-admin и integrator; migrator — только deploy.
+- [ ] Для каждого login/role/seam owner назвать единственную потребность; сущность без потребителя удалить.
+- [ ] Global-admin login: отдельные mTLS certificate/pool, только platform/global membership, mandatory human
+  global-admin context + 2FA; без patient/staff/clinical membership и без medical access.
+- [ ] Staff login не может `SET ROLE` global-admin; global-admin login не может `SET ROLE` staff/patient/clinical.
+- [ ] `saas_operator` провести через webapp role; отдельный pool/login убрать. Потребителя `saas_diag` доказать
+  либо роль удалить. Пустые operational roles свести к необходимому.
+- [x] Integrator target memberships ограничены request, narrow resolver, delivery worker, scheduler,
+  tenant-service и no-tenant service; все SET-only/non-transitive.
+- [ ] Приёмка: полный список login/roles/owners, у каждого есть потребность и exact access surface; лишних нет.
+
+## Ф5 — два порта, mTLS и transaction context (вариант A)
+
+- [x] Exact SQL contract реализован: private capabilities/accepted contexts, binding к database/login/backend/
+  transaction/role/class/purpose/typed-args, SQLSTATE `42501`, cleanup и revocation.
+- [x] Webapp и integrator используют общий exact-client transaction wrapper: begin → clear → install context →
+  `SET LOCAL ROLE` → queries → cleanup → commit/rollback; cleanup failure уничтожает connection. Отдельный
+  global-admin physical pool и live wiring остаются ниже.
+- [ ] Завершить замену общего bootstrap на exact `pre_session`: сейчас exact descriptors покрывают только часть
+  roots, а общий `webapp_pre_session_relation` capability и широкий callable auth/public surface ещё существуют.
+- [ ] Каждый pre-session SECURITY DEFINER root первым действием требует accepted exact function/purpose/typed-args
+  и имеет только named relation/column/action surface. Текущий function census рассинхронизирован с declaration.
+- [x] Revoke-only zero/post-zero artifacts снимают старые direct bootstrap grants и `PUBLIC EXECUTE`; membership
+  само по себе не открывает accepted context. Применение и доказательство на DEV остаются в Ф3/Ф7.
+- [x] Accessors fail loudly; disposable faults проверяют wrong database/login/backend/transaction/role/class/
+  purpose/args, reuse, direct definer call и `SET ROLE` без accepted context.
+- [x] Контекст versioned и не криптографически привязан навсегда к `platform_users.id`; путь A → I сохранён.
+- [ ] Расширить contract/declaration/tests четвёртым global-admin login без создания третьего software port.
+- [ ] Host target provisioning: exact first-match HBA/CN/login rules, CA/CRL, certificate overlap, reload,
+  revocation и mandatory pool drain. Private keys только в env соответствующего порта.
+- [ ] Live proof на DEV: wrong/missing/expired/revoked certificate, CN/login/port, non-TLS/socket и server
+  impersonation; positive pre-session/staff/patient/global-admin/integrator только через свои pools.
+
+## Ф6 — декларация, generator и стена рождения
+
+- [x] Generator умеет сначала оптом отзывать ACL у `PUBLIC`, runtime login и roles, затем создавать exact
+  grants/policies одной транзакцией.
+- [ ] Удалить из executable declaration устаревшие `revoke`/`OWNER_GATES_OPEN`, diagnostic/operator login и
+  трёх-login/global-admin assumptions: декларация должна перечислять только актуально выдаваемое.
+- [x] Механизм relation/function/capability matrix и fault injection существует: ручной extra grant/policy/
+  membership делает disposable catalog audit красным.
+- [ ] Вернуть current acceptance в green: function-census сейчас расходится с declaration, а post-zero replay
+  зависит от повреждённой именованной TEST. После восстановления TEST убрать эту live-DB зависимость либо явно
+  классифицировать, затем повторить оба proof.
+- [ ] Подключить обязательные function-census/callsite-catalog/post-zero gates в обычный CI после исправления;
+  текущий `pnpm run ci` их не запускает и не является доказательством этих инвариантов.
+- [ ] Удалить из активных migrations доступ как источник истины: новые
+  `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE` запрещены; legacy migration SQL не переписывается.
+- [ ] Generator/audit обязан проверять обе стороны: relation есть, declaration нет; declaration есть, relation нет;
+  плюс owners, role attributes, memberships, table/column/sequence/function ACL, policies и defaults.
+- [ ] Универсальная birth wall для **каждой** managed table: default ACL закрыты у всех creators; tenant/clinical
+  получает `ENABLE+FORCE RLS` и свои объявленные tenant/patient policies; platform/system/identity/closed/definer
+  получает явно объявленную class wall.
+- [ ] Невозможность классифицировать/наложить стену прерывает DDL/deploy. Позднее добавление tenant/patient
+  признака через `ALTER TABLE` повторно проверяется. Event trigger защищён от рекурсии.
+- [ ] Синхронизировать generated artifacts после global-admin/birth-wall изменений; три proof-транскрипта:
+  defect red → fixed green → injected defect red again.
+
+## Ф7 — DEV: наложение и живой прогон
+
+- [ ] После доказанного DEV zero применить cluster-baseline, host mTLS readiness, port-context catalog и
+  declaration-generated grants/RLS/seams — строго в этом порядке.
+- [ ] Проверить все cluster logins из `pg_roles`, все SET-able roles, `PUBLIC` и каждую definer-функцию; исключения
+  перечислить поимённо. Непрошедший context — no disclosure + SQLSTATE `42501` + PostgreSQL system log.
+- [ ] Положительный контроль: реальные webapp patient/staff/global-admin и integrator сценарии работают через
+  свои pools. Стена, которая не пускает приложение, не принимается.
+- [ ] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
+  или добавить минимальное право в declaration. Ручные GRANT запрещены.
+- [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.
+
+## Ф8 — финальная TEST-репетиция на restored production dump
+
+Этот этап остаётся обязательным, но **не запускается автономно**.
+
+- [ ] Все Ф0–Ф7 завершены на коде/disposable/DEV; branch committed, pushed, audited; rollback и backup проверены.
+- [ ] Получена прямая команда владельца на начало, владелец контролирует окно; текущая именованная TEST сохранена.
+- [ ] Production dump восстановлен именно в именованную TEST — не в пустую замену и не в придуманную среду.
+- [ ] На restored dump offline выполнена та же target-neutral цепочка: legacy → zero/proof → install → live proof.
+- [ ] Данные и migration ledgers сохранены; legacy relations отсутствуют; services поднимаются только после
+  полного positive control обоих портов и global-admin.
+
+## Ф9 — PROD
+
+- [ ] Только после принятой TEST-репетиции подготовить отдельную production operation/rollback.
+- [ ] Ничего на PROD не выполнять без нового явного разрешения владельца и подтверждения host `135.106.162.170`.
+
+## Что не считается готовностью
+
+Документ, audit PASS, generated SQL, disposable DB или зелёный CI сами по себе не закрывают live DEV/TEST.
+Пункт закрывается только evidence той же природы: код — tests/fault injection; каталог — read-only catalog proof;
+живой путь — реальный runtime; owner-gated этап — прямое решение владельца.

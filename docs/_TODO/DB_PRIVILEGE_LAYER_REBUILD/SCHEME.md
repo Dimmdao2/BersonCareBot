@@ -1,32 +1,45 @@
-# SCHEME revision 10 — целевой слой прав БД BersonCareBot
+# SCHEME revision 11 — целевой слой прав БД BersonCareBot
 
 Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md). Это target-contract до Ф4: не миграция и не описание текущего каталога.
 
+> **REVISION 11 ЕЩЁ НЕ РАЗРЕШЕНА К НАКАТЫВАНИЮ.** Она заменяет старый трёх-login target отдельным
+> `<env>_webapp_global_admin` login/certificate/pool при прежних двух software ports, требует один target для
+> любого deploy/cutover и универсальную birth wall для каждой managed table. До синхронизации declaration,
+> generator, generated artifacts и live proof это исполняемый контракт следующей реализации, а не готовое
+> состояние базы. Exact mTLS/context/typed-args/A→I части revision 10 сохранены без изменения.
+
 ## 1. Две двери: mTLS до SQL
 
-У managed application data две двери: **webapp** и **integrator**. Application-login — `<env>_webapp_staff`, `<env>_webapp_patient`, `<env>_integrator`; `<env>_migrator` — `NOLOGIN`, локальный `postgres` — единственное административное исключение §7. Неизвестный человек никогда не получает credential или connection: его запрос обслуживает уже известный webapp port только в `pre_session`-транзакции.
+У managed application data две двери: **webapp** и **integrator**. Application-login —
+`<env>_webapp_staff`, `<env>_webapp_patient`, `<env>_webapp_global_admin`, `<env>_integrator`;
+`<env>_migrator` — `NOLOGIN`, локальный `postgres` — единственное административное исключение §7. Три первых
+login принадлежат одному webapp port, поэтому отдельный global-admin login не создаёт третий software port.
+Неизвестный человек никогда не получает credential или connection: его запрос обслуживает уже известный webapp
+port только в `pre_session`-транзакции.
 
 Пароль — второй фактор, не доказательство порта. Каждая application connection проходит именно первую подходящую HBA-строку ниже; более широкая allow-строка для этих users запрещена. PostgreSQL применяет только первую совпавшую HBA-строку и при auth failure не переходит к следующей ([PG 16 HBA](https://www.postgresql.org/docs/16/auth-pg-hba-conf.html)).
 
 ```conf
-hostnossl  <managed_db>  <env>_webapp_staff,<env>_webapp_patient,<env>_integrator  0.0.0.0/0  reject
-hostnossl  <managed_db>  <env>_webapp_staff,<env>_webapp_patient,<env>_integrator  ::0/0       reject
-local      <managed_db>  <env>_webapp_staff,<env>_webapp_patient,<env>_integrator              reject
+hostnossl  <managed_db>  <env>_webapp_staff,<env>_webapp_patient,<env>_webapp_global_admin,<env>_integrator  0.0.0.0/0  reject
+hostnossl  <managed_db>  <env>_webapp_staff,<env>_webapp_patient,<env>_webapp_global_admin,<env>_integrator  ::0/0       reject
+local      <managed_db>  <env>_webapp_staff,<env>_webapp_patient,<env>_webapp_global_admin,<env>_integrator              reject
 hostssl    <managed_db>  <env>_webapp_staff    0.0.0.0/0  scram-sha-256 clientcert=verify-full clientname=CN
 hostssl    <managed_db>  <env>_webapp_staff    ::0/0       scram-sha-256 clientcert=verify-full clientname=CN
 hostssl    <managed_db>  <env>_webapp_patient  0.0.0.0/0  scram-sha-256 clientcert=verify-full clientname=CN
 hostssl    <managed_db>  <env>_webapp_patient  ::0/0       scram-sha-256 clientcert=verify-full clientname=CN
+hostssl    <managed_db>  <env>_webapp_global_admin  0.0.0.0/0  scram-sha-256 clientcert=verify-full clientname=CN
+hostssl    <managed_db>  <env>_webapp_global_admin  ::0/0       scram-sha-256 clientcert=verify-full clientname=CN
 hostssl    <managed_db>  <env>_integrator      0.0.0.0/0  scram-sha-256 clientcert=verify-full clientname=CN
 hostssl    <managed_db>  <env>_integrator      ::0/0       scram-sha-256 clientcert=verify-full clientname=CN
 ```
 
-`<managed_db>` and `<env>` are declaration parameters already expanded per database/environment; they are never HBA `all` user/database entries. There is no `pg_ident.conf` dependency. Each application login has its own client certificate whose CN is exactly that login: staff and patient key/certificate material exists only in the webapp port env, integrator material only in the integrator port env. `verify-full` requires the trusted certificate CN to equal the requested login and can pair with SCRAM ([PG 16 HBA](https://www.postgresql.org/docs/16/auth-pg-hba-conf.html), [certificate auth](https://www.postgresql.org/docs/16/auth-cert.html)). `local postgres ... peer` is a separate preceding admin-only rule; there is no `local` exception for application logins.
+`<managed_db>` and `<env>` are declaration parameters already expanded per database/environment; they are never HBA `all` user/database entries. There is no `pg_ident.conf` dependency. Each application login has its own client certificate whose CN is exactly that login: staff, patient and global-admin key/certificate material exists only in the webapp port env, integrator material only in the integrator port env. `verify-full` requires the trusted certificate CN to equal the requested login and can pair with SCRAM ([PG 16 HBA](https://www.postgresql.org/docs/16/auth-pg-hba-conf.html), [certificate auth](https://www.postgresql.org/docs/16/auth-cert.html)). `local postgres ... peer` is a separate preceding admin-only rule; there is no `local` exception for application logins.
 
 The port uses `sslmode=verify-full`, client key, client certificate and CA bundle only from its own env. The server certificate is issued with exact DNS/IP SAN for every configured host. PG16/libpq verifies chain and host name: a matching CN remains its standard fallback when no applicable SAN exists, so a missing SAN alone is not an acceptance-negative; no custom SAN-only verifier is introduced ([PG 16 libpq SSL](https://www.postgresql.org/docs/16/libpq-ssl.html)). PostgreSQL host keeps server key/certificate and public CA/CRL verifier material only. `ssl_ca_file` enables client verification and `ssl_crl_file`/`ssl_crl_dir` supply CRL input ([PG 16 connection settings](https://www.postgresql.org/docs/16/runtime-config-connection.html)). A private key is never an SQL parameter, GUC, table/dump value, application log value or PostgreSQL log value.
 
 Rotation adds new certificate/key to its port env and accepts its public chain during bounded overlap; then revoke old serial and remove old env key. HBA needs reload for **new** connections; `ssl_crl_file` loads at configuration reload, while new CRLs in `ssl_crl_dir` are used at connection time ([PG 16 HBA](https://www.postgresql.org/docs/16/auth-pg-hba-conf.html), [SSL settings](https://www.postgresql.org/docs/16/runtime-config-connection.html)). A changed PostgreSQL SSL setting that reports pending restart is applied only by the controlled restart in the host runbook, followed by fresh connection verification. Neither reload nor restart re-authenticates surviving TLS backends. Revocation requires reload, drain both pools, terminate every backend authenticated by that certificate, then establish fresh pooled connections.
 
-Positive controls: valid webapp staff/patient certificate with its exact login CN + SCRAM; valid integrator certificate with its exact login CN + SCRAM; and a port whose server `verify-full` succeeds. Negative controls: wrong/missing/expired/revoked certificate, wrong CN/login/port, non-TLS/socket, stolen password and server impersonation. Each rejects before application SQL. **Historical replacement:** HBA authentication is complete port proof; target has no custom challenge, ciphertext, nonce, proof, replay ledger, verifier, PGP key type or crypto rotation.
+Positive controls: valid webapp staff/patient/global-admin certificate with its exact login CN + SCRAM; valid integrator certificate with its exact login CN + SCRAM; and a port whose server `verify-full` succeeds. Negative controls: wrong/missing/expired/revoked certificate, wrong CN/login/port, non-TLS/socket, stolen password and server impersonation. Each rejects before application SQL. **Historical replacement:** HBA authentication is complete port proof; target has no custom challenge, ciphertext, nonce, proof, replay ledger, verifier, PGP key type or crypto rotation.
 
 ## 2. Transaction context (Ф3б-A1)
 
@@ -77,10 +90,10 @@ All context definers are owner `app_seam_context_owner`, `SECURITY DEFINER VOLAT
 
 | Exact signature | Result | EXECUTE |
 |---|---|---|
-| `app.install_port_context(p_capability_id uuid,p_claims app.port_context_claims)` | `void`; inserts one current transaction row or `42501` | three application logins |
+| `app.install_port_context(p_capability_id uuid,p_claims app.port_context_claims)` | `void`; inserts one current transaction row or `42501` | four application logins |
 | `app.require_accepted_context(p_effective_role name,p_target_role name,p_context_class app.port_context_class,p_purpose text,p_typed_args_hash bytea,p_function_identity regprocedure)` | `boolean`; true or `42501`, never NULL | exact declaration runtime roles/seam owners |
 | `app.require_platform_principal()` | `boolean`; true or `42501` | declared platform roles/seam owners |
-| `app.clear_port_context()` | `void`; clears only caller current row | three application logins |
+| `app.clear_port_context()` | `void`; clears only caller current row | four application logins |
 | `app.current_org_id()`, `app.current_actor_user_id()`, `app.current_patient_user_id()`, `app.current_integrator_user_id()` | matching `uuid`/`bigint` or `42501` | only declared carrying roles/seam owners |
 | `app.hash_port_typed_args(p_args app.port_typed_arg[])` | `bytea`, **SECURITY INVOKER IMMUTABLE PARALLEL SAFE**, `SET search_path=pg_catalog` | context owner and exact named seam owners |
 | `app_ext.resolve_variant_a_identity(p_platform_user_id uuid)` | `uuid`; private definer resolver | exact declared pre-session root owners |
@@ -113,17 +126,24 @@ A declared pre-session root validates human credential then privately calls `res
 
 ## 3. Roles, grants and RLS
 
-All managed login/runtime/seam/object-owner roles and `<env>_migrator` are `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`; only three application roles have `LOGIN`. Application login has `CONNECT`, minimal schema access and only `install_port_context`/`clear_port_context` EXECUTE, but zero managed table/column/sequence ACL. Runtime relation access and every named root begin only after installed context and `SET LOCAL ROLE`.
+All managed login/runtime/seam/object-owner roles and `<env>_migrator` are `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`; only four application roles have `LOGIN`. Application login has `CONNECT`, minimal schema access and only `install_port_context`/`clear_port_context` EXECUTE, but zero managed table/column/sequence ACL. Runtime relation access and every named root begin only after installed context and `SET LOCAL ROLE`.
 
 Every membership is `INHERIT FALSE, SET TRUE, ADMIN FALSE`, with no transitive edges:
 
 | Login | Exact target roles |
 |---|---|
-| `<env>_webapp_staff` | `app_pre_session,app_staff,app_clinic_billing,app_platform_settings,app_worker,app_operational_media_worker,saas_telemetry_operator` |
+| `<env>_webapp_staff` | `app_pre_session,app_staff,app_clinic_billing,app_worker,app_operational_media_worker,saas_telemetry_operator` |
 | `<env>_webapp_patient` | `app_pre_session,app_patient` |
+| `<env>_webapp_global_admin` | `app_platform_settings,app_platform_admin` |
 | `<env>_integrator` | `app_integrator_request,app_integrator_resolver,app_operational_delivery_worker,app_operational_scheduler,app_tenant_service,app_service` |
 
-Global admin uses webapp staff login/role; no own login. Webapp has no delivery-role membership. `app_object_owner` is NOLOGIN, memberless, no definer functions and subject to FORCE RLS. 42 narrow seam owners remain separate, NOLOGIN, memberless, without BYPASSRLS. `app_operational_diagnostic` is absent.
+Global admin uses its dedicated webapp-owned login/certificate/pool and only platform/global roles after mandatory
+human global-admin context and 2FA. `app_platform_settings` is the settings/system-health surface;
+`app_platform_admin` is the separately declared cross-organization directory/admin surface. Staff cannot `SET ROLE`
+either platform role; global-admin cannot `SET ROLE` staff/patient/clinical roles and has no medical access.
+Webapp has no delivery-role membership. `app_object_owner`
+is NOLOGIN, memberless, no definer functions and subject to FORCE RLS. 42 narrow seam owners remain separate,
+NOLOGIN, memberless, without BYPASSRLS. `app_operational_diagnostic` is absent.
 
 The 42 exact owners/seams remain: `app_seam_context_owner` (port/context), `app_seam_password_auth_owner`,
 `app_seam_email_otp_owner`, `app_seam_passkey_owner`, `app_seam_phone_binding_owner`,
@@ -145,7 +165,15 @@ The 42 exact owners/seams remain: `app_seam_context_owner` (port/context), `app_
 `app_seam_staff_security_owner`, `app_seam_patient_lfk_media_owner`. Each owns only its declared definer
 signatures and relation/column/operation surface; no owner is a fallback for another seam.
 
-Each managed relation requires exact object/column grant, ENABLE+FORCE RLS, restrictive context gate and permissive business policy. Restrictive policies AND; permissive policies OR ([PG 16 CREATE POLICY](https://www.postgresql.org/docs/16/sql-createpolicy.html)). `USING`/`WITH CHECK` carry same context gate. Missing context raises `42501` before a data-dependent scan and logs; only no-scan query may be quietly empty. `USING (true)` is only exact service/seam owner+relation+operation after gate, never principal-aware. Sequence ACL is zero for PUBLIC/login/runtime/service; only named seam owner can hold named sequence privilege.
+Every managed relation is born with no `PUBLIC`/runtime ACL and must have one declared class wall before DDL may
+commit. Tenant/clinical relations require `ENABLE+FORCE RLS`, restrictive context gate and their declared
+tenant/patient business policies. Platform/system/identity/closed/definer relations require the exact wall declared
+for that class; they are never accepted merely because they are «not org tables». Restrictive policies AND;
+permissive policies OR ([PG 16 CREATE POLICY](https://www.postgresql.org/docs/16/sql-createpolicy.html)).
+`USING`/`WITH CHECK` carry the same context gate. Missing context raises `42501` before a data-dependent scan and
+logs; only no-scan query may be quietly empty. `USING (true)` is only exact service/seam owner+relation+operation
+after gate, never principal-aware. Sequence ACL is zero for PUBLIC/login/runtime/service; only named seam owner can
+hold named sequence privilege.
 
 ## 6. Владение, декларация и полный объектный контур
 
@@ -179,9 +207,20 @@ attributes и dependencies. До её применения миграционн�
 
 Контур включает database `CONNECT/CREATE/TEMPORARY/settings`; schemas; tables/columns/RLS/policies; sequences; functions/procedures/signatures/security/proconfig; invoker views; matviews/foreign tables; large objects; triggers, constraints/cascades; roles/memberships; FDW/servers/mappings; publications/subscriptions/slots; extensions, languages и tablespaces. Matview/foreign table/large object с managed data по умолчанию запрещён.
 
-Default privileges закрываются для каждого creator. Event trigger `postgres` проверяет `CREATE TABLE` и `ALTER TABLE`, включая позднюю scope-column, и ставит объявленную стену либо отклоняет DDL; защита от рекурсии обязательна. CI запрещает ACL/policy/role DDL в migrations и требует declaration для нового объекта. Cluster allowlist строится из фактических roles, owners и memberships; мощный attribute, predefined role или object вне exact allowlist — FAIL.
+Default privileges закрываются для каждого creator. Event trigger `postgres` проверяет каждую managed
+`CREATE TABLE` и `ALTER TABLE`, включая позднюю tenant/patient scope-column, и ставит объявленную class wall либо
+отклоняет DDL; защита от рекурсии обязательна. CI запрещает ACL/policy/role DDL в migrations и требует declaration
+для нового объекта. Cluster allowlist строится из фактических roles, owners и memberships; мощный attribute,
+predefined role или object вне exact allowlist — FAIL.
 
 ## 7. Миграция, backup и restore
+
+Каждый ordinary deploy и initial/restored-dump cutover получает ровно один target database/environment и не
+изменяет sibling DEV/TEST. Initial/restored-dump cutover выполняет `legacy → zero → prove-zero → install → live`;
+обычный post-cutover deploy — `schema/data migrations (birth-closed) → declaration reconcile → bidirectional
+catalog audit → smoke`. Ни один режим не делает `DROP/CREATE` target database. Общий cluster-role baseline
+идемпотентен; удаление env-login требует предварительной проверки зависимостей во всех БД кластера. Host HBA/mTLS
+provisioning — разовая операция ввода среды/ротации, а обычный deploy только проверяет readiness своего блока.
 
 Окно — одно локальное соединение `postgres` и одна транзакция. Wrapper временно выдаёт `<env>_migrator` `INHERIT FALSE, SET TRUE, ADMIN FALSE` membership ровно в owners затрагиваемых объектов, затем делает `SET LOCAL SESSION AUTHORIZATION <env>_migrator` и перед каждым schema DDL — `SET LOCAL ROLE <declared_owner>`. Новый object поэтому сразу принадлежит `app_object_owner`, exact seam owner либо `postgres`; существующий DDL получает owner-power той же роли. После `RESET ROLE; RESET SESSION AUTHORIZATION` необходимый backfill исполняет `postgres`. Временные memberships отзываются, exact owner/ACL/policy post-state проверяется до commit.
 
@@ -208,7 +247,7 @@ Backup — локальная административная операция 
 11. положительный и crash-контроли миграционного окна §7 оба проходят;
 12. зелёный target и снова красный после отката одной независимой поломки каждого механизма.
 
-Generator derives all definer totals from the revision-9 declaration per database (no fixed DEV/TEST total), compares `prosecdef` bidirectionally, and separately checks context/private-state execute, configuration and ACL. The context owner owns exactly two private relations; the identity lookup owner owns the physical→opaque map/resolver. **Historical replacements:** `install_signed_context`, `release_principal_context`, `reset_principal_context` and custom OpenPGP/challenge helpers are absent.
+Generator derives all definer totals from the revision-11 declaration per database (no fixed DEV/TEST total), compares `prosecdef` bidirectionally, and separately checks context/private-state execute, configuration and ACL. The context owner owns exactly two private relations; the identity lookup owner owns the physical→opaque map/resolver. **Historical replacements:** `install_signed_context`, `release_principal_context`, `reset_principal_context` and custom OpenPGP/challenge helpers are absent.
 
 ## 9. Closed design decisions
 

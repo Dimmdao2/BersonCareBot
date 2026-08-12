@@ -260,8 +260,10 @@ active membership, а все четыре токена синхронизиру�
    done
    ```
 
-3. Контролируемо остановить только этот DEV server, вернуть в `.env.dev`
-   `DB_PRINCIPAL_CONTEXT_MODE=locked` и locked dual-pool URLs, не меняя signing secret. Проверить permission `0600`
+3. **Только для текущего pre-cutover legacy runtime:** контролируемо остановить этот DEV server, вернуть в
+   `.env.dev` `DB_PRINCIPAL_CONTEXT_MODE=locked` и locked dual-pool URLs, не меняя signing secret. Это не target
+   topology: после revision 11 cutover используются staff/patient/global-admin webapp pools и integrator pool с
+   mTLS. Проверить permission `0600`
    как в разделе 3, затем запустить ровно один DEV server заново.
 4. Повторить четыре входа и для каждого cookie проверить `/api/me`; все четыре запроса должны вернуть успешную
    сессию. В этом проходе DB не меняется: любой fail означает drift/missing preparation, а не повод дать runtime
@@ -504,7 +506,12 @@ bash deploy/host/migrate-dev.sh --execute
 Для канонической `bcb_webapp_dev` используйте wrapper выше: он проверяет точную локальную БД и запускает общие
 pending migrations без reset/restore.
 
-### 6.6 SaaS diagnostics contour (System Health / isolation telemetry)
+### 6.6 SaaS diagnostics contour (System Health / isolation telemetry) — legacy/pre-cutover only
+
+> **УСТАРЕЛО ДЛЯ TARGET 12.08.2026:** отдельный operator login ниже не переносится в revision 11. Global-admin
+> diagnostics идут через dedicated global-admin webapp login/certificate/pool и `app_platform_settings`; staff
+> login не может переключиться в platform-global role. Пока DEV ещё не прошёл cutover, блок ниже только описывает
+> фактически существующий legacy runtime и не является инструкцией по созданию target access.
 
 `migrate-dev.sh` **не** ставит telemetry/health overlays и **не** перенакатывает d3-4 bootstrap grants.
 Для карточек «Всё состояние» / `saasIsolation` и для phone-bind accessors после `0371` на DEV нужен
