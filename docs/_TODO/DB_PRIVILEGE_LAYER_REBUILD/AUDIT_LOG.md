@@ -1906,10 +1906,11 @@ cluster rehearsal, не новый документационный мини-с�
 | Метод | **Взгляд**: owner-order против git history, текущего кода и read-only DEV catalog |
 | Вердикт | **FAIL: существенное отклонение от порядка; план исправлен, live-работа ещё открыта** |
 
-- **ORDER-001 — НЕ ИСПРАВЛЕНО:** после успешного legacy cleanup на DEV работа должна была перейти к
+- **ORDER-001 — ИСПРАВЛЕНО `c8b10de44`:** после успешного legacy cleanup на DEV работа должна была перейти к
   `zero(DEV) → prove-zero(DEV) → install(DEV) → live-proof(DEV)`. Вместо этого была начата реконструкция
-  искусственно пустой TEST. DEV сейчас имеет удалённый legacy, но не имеет ни применённого zero-state, ни
-  target mTLS/context/grants/RLS. Следующий live target после ремонта TEST — DEV, строго по `PLAN.md` v10.
+  искусственно пустой TEST. Ошибочный маршрут остановлен: DEV без пересоздания прошёл backup → target-neutral
+  zero/proof → cluster baseline → mTLS readiness → declaration install; webapp и integrator поднялись через
+  целевые pools. Полная live matrix остаётся открытым этапом Ф7, TEST не использовалась.
 - **EMPTY-TEST-001 — ЗАМЕНЕНО/НЕ ЗАСЧИТЫВАЕТСЯ:** вся цепочка находок `LIVE-BOOTSTRAP-001` и
   `LIVE-EMPTY-*` выше описывает ошибочный empty-TEST маршрут. Её локальные PASS не являются приёмкой cutover,
   не закрывают ни один live DEV/TEST пункт и не разрешают сохранять empty-bootstrap обходы. Коммиты
@@ -1918,16 +1919,18 @@ cluster rehearsal, не новый документационный мини-с�
   `/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-portctx-20260812T143633Z.dump`, SHA-256
   `364cb1c35778fe5b7fca8ab0134545dfd2b1aae1bc5a12ac02d0c2aea64fceeb`. Именованная TEST должна быть
   восстановлена из него и проверена отдельно; это ремонт инцидента, не финальная production-dump репетиция.
-- **PRESESSION-EXACT-001 — НЕ ИСПРАВЛЕНО:** старые auth roots всё ещё достижимы через generic
+- **PRESESSION-EXACT-001 — ИСПРАВЛЕНО `48f2431a0..14a7c39ff`:** старые auth roots были достижимы через generic
   `webapp_pre_session_relation` вместо exact function/purpose/typed-args. Конкретный путь:
   `pgLoginTokens.ts → runWebappPgText → app.auth_login_token_{create,read,expire,confirm,mark_session_issued}`;
   exact context ставит только `runWebappNamedRoot`, а тела этих функций не вызывают
-  `require_accepted_context`. Поэтому Ф5 exact pre-session остаётся открытым.
-- **GATE-WIRING-001 — НЕ ИСПРАВЛЕНО:** current function-census test красный из-за рассинхрона declaration;
+  `require_accepted_context`. Generic descriptor удалён; `43` callable pre-session roots получили exact
+  function/purpose/typed-args gates, а verifier отдельно отвергает prior statement и nested-gate bypass.
+- **GATE-WIRING-001 — ИСПРАВЛЕНО ДЛЯ CUTOVER `14a7c39ff`:** function-census был красным из-за рассинхрона declaration;
   post-zero installer replay красный на повреждённой TEST и ошибочно зависит от named live TEST. Эти gates не
   входят в обычный `pnpm run ci`, поэтому прежний зелёный full CI не доказывает их. До live DEV надо вернуть
-  оба proof в green, убрать/классифицировать live-TEST зависимость и подключить обязательные gates к CI.
-- **DEPLOY-SCOPE-001 — НЕ ИСПРАВЛЕНО:** bilateral DEV+TEST/shared-cutover и org-only birth trigger заменены
+  оба proof возвращены в green на disposable PostgreSQL 16 без зависимости от именованной TEST. Их подключение
+  к обычному CI остаётся отдельным незакрытым пунктом Ф6 и не выдаётся за выполненное.
+- **DEPLOY-SCOPE-001 — ИСПРАВЛЕНО `72e82121b..48f2431a0`:** bilateral DEV+TEST/shared-cutover и org-only birth trigger заменены
   owner-решениями: один target за deploy; HBA/mTLS one-time provisioning + ordinary readiness; birth wall для
   каждой managed table; отдельный global-admin DB-login/certificate/pool при двух software ports.
 
@@ -1939,13 +1942,15 @@ cluster rehearsal, не новый документационный мини-с�
 | Метод | **Взгляд**: owner order + target-neutral cutover failure paths + declaration/capability/function-body comparison |
 | Вердикт | **FAIL ДЛЯ LIVE DEV — два MUST FIX до backup/zero** |
 
-- **CUTOVER-FAILCLOSED-001 — ОТКРЫТО, MUST FIX:** если target roles/install уже применены, а последующий
+- **CUTOVER-FAILCLOSED-001 — ИСПРАВЛЕНО `48f2431a0`:** если target roles/install уже применены, а последующий
   `apply-postgres-mtls.sh --apply` или readiness падает, внутренний HBA rollback возвращает прежний файл, а общий
   EXIT trap восстанавливает исходный `CONNECTION LIMIT`. При допустимом старом broad SCRAM-правиле новые runtime
   login/password после ошибки снова получают соединение без обязательного client certificate. Cutover обязан
   оставлять target database закрытой при любом неуспехе после начала изменения доступа и возвращать исходный
-  limit только после полного HBA/readiness/install/proof PASS.
-- **PRESESSION-EXACT-001 — ОТКРЫТО, MUST FIX УТОЧНЁН:** прежняя запись про generic pre-session подтверждена и
+  limit только после полного HBA/readiness/install/proof PASS. Wrapper теперь держит target с
+  `CONNECTION LIMIT 0` на любом failure и возвращает исходный limit только после полного PASS; шесть fault points
+  проверены self-test.
+- **PRESESSION-EXACT-001 — ИСПРАВЛЕНО `48f2431a0..14a7c39ff`:** прежняя запись про generic pre-session подтверждена и
   расширена: статическое двустороннее сравнение EXECUTE `app_pre_session` против exact capability descriptors
   нашло `16` SECURITY DEFINER roots без exact function/purpose/typed-args gate. Достижимый пример —
   `app.phone_challenge_store_read(text)`: прямой вызов после `SET ROLE app_pre_session` читает phone/code без
@@ -1958,9 +1963,39 @@ cluster rehearsal, не новый документационный мини-с�
   распакована в `mktemp`, затем Node с `--experimental-strip-types` сравнил сигнатуры
   `declaration.portContext.functions`, где `security=DEFINER`, `owner!=app_seam_context_owner` и
   `execute` содержит `app_pre_session`, с `portContext.capabilities[*].functionIdentity` для
-  `targetRole=app_pre_session`; stdout: `missing=16` и все 16 сигнатур.
+  `targetRole=app_pre_session`; stdout: `missing=16` и все 16 сигнатур. После исправления callable set покрыт
+  exact descriptors/bodies, а independent nested/prior-statement mutation снова делает gate красным.
 
 Процессная оценка аудитора: target-neutral zero/install, четыре runtime login, universal birth wall и удаление
 empty-TEST-specific обходов — реальный прогресс в правильном направлении. До live DEV остаются эти два
 ограниченных исправления и один контролируемый проход `backup → offline zero/proof → install → live matrix`;
 объём точечной отладки после живого запуска заранее определяется только реальными `42501` из PostgreSQL journal.
+
+## Audit/live pass DEV-runtime-matrix-2026-08-12
+
+| Поле | Значение |
+|---|---|
+| Candidate | `91ee0ddd4..e1ce4ebca`, `feat/doctor-ui-rebuild` |
+| Метод | Живой DEV startup/smoke + PostgreSQL journal + exact catalog/callsite tests + real PostgreSQL 16 post-zero replay |
+| Вердикт | **IN PROGRESS: защита fail-closed работает; runtime-разрывы исправлены в коде, повторный live DEV прогон открыт** |
+
+- **LIVE-PRIVATE-RLS-001 — ИСПРАВЛЕНО `2d4e8bc1d`:** первый integrator startup громко отказал на чтении
+  migration ledger: `FORCE RLS` закрыл private context metadata даже от exact seam owner. Добавлены ровно пять
+  owner-only policies; catalog closure требует по одной exact policy и real PostgreSQL 16 acceptance доказал
+  startup path без широкого runtime grant.
+- **LIVE-PROJECTION-ROOT-001 — ИСПРАВЛЕНО `c8b10de44`:** прямой health query к
+  `integrator.projection_outbox` был заблокирован. Добавлен один exact service root
+  `app.read_integrator_projection_health(integer)`, возвращающий только агрегаты. Живой
+  `GET /health/projection` после повторного target-neutral DEV cutover вернул `200`; независимый взгляд подтвердил
+  отсутствие payload/id disclosure и широкого `SELECT`.
+- **LIVE-INTEGRATOR-CONFIG-001 — ИСПРАВЛЕНО В КОДЕ `91ee0ddd4`, LIVE-ПОДТВЕРЖДЕНИЕ ОТКРЫТО:** startup выявил
+  три чтения provider/auth/SMTP settings без exact operation. Все три переведены на named roots с фиксированными
+  allowlists; unit/typecheck, exact catalog `18/18` и real PostgreSQL 16 replay прошли, вызов без context получил
+  SQLSTATE `42501`. Изменение ещё должно пройти повторный live DEV cutover/startup.
+- **LIVE-CLI-BYPASS-001 — ИСПРАВЛЕНО `e1ce4ebca`:** `apps/integrator/src/infra/scripts/projection-health.ts`
+  принимал `INTEGRATOR_DATABASE_URL`/`SOURCE_DATABASE_URL`/`DATABASE_URL` и создавал отдельный DB pool. Отдельный
+  provider удалён; CLI принимает только `INTEGRATOR_API_URL`/`PORT` и вызывает канонический
+  `GET /health/projection`. Тест доказывает, что даже переданный `DATABASE_URL` игнорируется; HTTP non-2xx,
+  invalid payload и network failure дают exit `1`. Targeted tests `5/5`, typecheck, integrator build,
+  chokepoint/raw-SQL gates и живой compiled CLI против DEV `4200` прошли. Независимый взгляд дал PASS после
+  синхронизации активных server/deploy/env docs.
