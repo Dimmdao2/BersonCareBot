@@ -2,12 +2,7 @@
  * Wave 3 phase 15E — optional signed HTTP bind orchestration.
  * Domain SQL/TX helpers live in `infra/repos/pgMessengerPhoneHttpBind`.
  *
- * Logic is kept in sync with:
- * - `apps/integrator/src/infra/db/writePort.ts` (`user.phone.link`)
- * - `apps/integrator/src/infra/db/repos/messengerPhonePublicBind.ts`
- * - `apps/integrator/src/infra/db/repos/channelUsers.ts` (`setUserPhone`)
- * - `apps/integrator/src/infra/db/repos/canonicalUserId.ts`
- * - `apps/integrator/src/infra/db/repos/messageThreads.ts` (`ensureIdentityForMessenger`)
+ * Logic is kept in sync with the binding-first `user.phone.link` path in integrator.
  *
  * Implemented here (not imported from `apps/integrator`) so Next.js production build does not bundle integrator sources with `.js` import paths.
  */
@@ -25,11 +20,7 @@ import {
 } from '@bersoncare/platform-merge';
 import { computeConflictKeyFromCandidateIds, writeAuditLog } from '@/infra/adminAuditLog';
 import {
-  ensureIdentityForMessenger,
-  loadIntegratorIdentityUserId,
   poolAsMessengerPhoneBindDb,
-  resolveCanonicalIntegratorUserId,
-  setUserPhone,
   startMessengerPhoneBindTransaction,
 } from '@/infra/repos/pgMessengerPhoneHttpBind';
 import { notifyMessengerPhoneBindBlockedFromWebapp } from '@/modules/admin-incidents/sendAdminIncidentAlerts';
@@ -56,9 +47,7 @@ function pgSqlStateFromUnknown(err: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
-export type MessengerPhoneHttpBindFailureReason =
-  | 'no_integrator_identity'
-  | MessengerPhoneLinkFailureCode;
+export type MessengerPhoneHttpBindFailureReason = MessengerPhoneLinkFailureCode;
 
 export type MessengerPhoneHttpBindResult =
   | { ok: true; platformUserId: string }
@@ -111,36 +100,15 @@ export async function executeMessengerPhoneHttpBind(
   let applied = false;
 
   try {
-    const txDb = tx.db;
-
     try {
-      if (resource === 'max') {
-        await ensureIdentityForMessenger(txDb, { resource: 'max', externalId: channelUserId });
-      }
-      const integratorIdentityUserId = await loadIntegratorIdentityUserId(txDb, {
-        resource,
-        channelUserId,
+      const { platformUserId } = await applyMessengerPhonePublicBind(tx.mergeDb, {
+        channelCode: resource,
+        externalId: channelUserId,
+        phoneNormalized,
+        canonicalIntegratorUserId: null,
       });
-      if (integratorIdentityUserId === null) {
-        phoneLinkEarly = { ok: false, reason: 'no_integrator_identity' };
-      } else {
-        const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, integratorIdentityUserId);
-        const { platformUserId } = await applyMessengerPhonePublicBind(tx.mergeDb, {
-          channelCode: resource,
-          externalId: channelUserId,
-          phoneNormalized,
-          canonicalIntegratorUserId: canonicalUid,
-        });
-        platformUserIdForLog = platformUserId;
-        const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
-        if (outcome === 'failed') {
-          throw new MessengerPhoneLinkError('db_transient_failure');
-        }
-        if (outcome === 'noop_conflict') {
-          throw new MessengerPhoneLinkError('legacy_contacts_conflict');
-        }
-        applied = true;
-      }
+      platformUserIdForLog = platformUserId;
+      applied = true;
     } catch (err) {
       await tx.rollback();
       if (err instanceof MessengerPhoneLinkError) {
