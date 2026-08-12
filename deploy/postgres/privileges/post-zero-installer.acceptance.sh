@@ -77,6 +77,26 @@ assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolcanlogin AND rol
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolname IN ('bcb_test_webapp_staff','bcb_test_webapp_patient','bcb_test_webapp_global_admin','bcb_test_integrator') AND rolcanlogin")" 4
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_auth_members WHERE member IN ('bcb_test_webapp_staff'::regrole,'bcb_test_webapp_patient'::regrole,'bcb_test_webapp_global_admin'::regrole,'bcb_test_integrator'::regrole) AND set_option")" 16
 
+# FORCE RLS must not blind the exact SECURITY DEFINER owner that installs the
+# transaction context. This is the real startup path, not a source-text check.
+migration_capability=$(admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='bcb_test_integrator' AND target_role='app_service' AND purpose='migration.ledger.read' AND function_identity='app.read_integrator_migration_ledger()'::regprocedure")
+[[ -n "$migration_capability" ]] || fail 'integrator migration-ledger capability missing'
+empty_args_hash=$(admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]),'hex')")
+admin <<SQL >/dev/null
+SET SESSION AUTHORIZATION bcb_test_integrator;
+BEGIN;
+SELECT app.install_port_context(
+  '$migration_capability'::uuid,
+  ROW(1,'service'::app.port_context_class,'app_service'::name,'migration.ledger.read',
+      'app.read_integrator_migration_ledger()'::regprocedure,decode('$empty_args_hash','hex'),
+      NULL::uuid,NULL::uuid,NULL::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims
+);
+SET LOCAL ROLE app_service;
+SELECT count(*) FROM app.read_integrator_migration_ledger();
+ROLLBACK;
+RESET SESSION AUTHORIZATION;
+SQL
+
 # A malformed dispatch argument must not bypass the exact gate with a quiet false/empty result.
 for statement in \
   "SELECT app.passkey_issue_challenge('00000000-0000-4000-8000-000000000001','invalid',NULL,'invalid','https://example.test','example.test',statement_timestamp()+interval '1 minute')" \

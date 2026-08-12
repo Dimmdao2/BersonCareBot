@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { declaration } from './declaration.ts';
 import {
+  generateCatalogClosureVerifierSql,
   generatePortContextCapabilitySeedSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
@@ -147,4 +148,14 @@ test('staff and global-admin login memberships stay disjoint at the platform bou
     assert.equal(globalAdmin.includes(role), false, role);
   }
   assert.deepEqual(globalAdmin, ['app_platform_settings', 'app_platform_admin']);
+});
+
+test('catalog closure requires one exact owner policy on every private relation', () => {
+  const sql = generateCatalogClosureVerifierSql(declaration, 'bersoncarebot_test');
+  for (const [identity, relation] of Object.entries(declaration.portContext.privateRelations)) {
+    const [schema, name] = identity.split('.');
+    assert.match(sql, new RegExp(`bcb_private_owner_${schema}_${name}`));
+    assert.match(sql, new RegExp(relation.owner));
+  }
+  assert.match(sql, /private relation owner policy missing or non-exact/);
 });

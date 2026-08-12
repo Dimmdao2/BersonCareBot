@@ -460,6 +460,12 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
   const functionRows = functions.map((signature) => `(${lit(signature)})`).join(',\n');
   const preSessionRows = exactPreSessionRoots
     .map(([signature, purpose]) => `(${lit(signature)},${lit(purpose)})`).join(',\n');
+  const privatePolicyRows = Object.entries(declaration.portContext?.privateRelations ?? {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([identity, relation]) => {
+      const { schema, name } = splitQualified(identity, `portContext.privateRelations.${identity}`);
+      return `(${lit(schema)}::name,${lit(name)}::name,${lit(`bcb_private_owner_${schema}_${name}`)}::name,${lit(relation.owner)}::name)`;
+    }).join(',\n');
   return [
     '-- Bidirectional revision-11 catalog closure: no missing or undeclared managed relation/routine.',
     'DO $bcb$ DECLARE bad text; BEGIN',
@@ -487,6 +493,16 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
     '     AND NOT EXISTS (SELECT 1 FROM expected WHERE routine.oid=pg_catalog.to_regprocedure(expected.signature))',
     '   ORDER BY 1 LIMIT 1;',
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared managed routine: %',bad; END IF;",
+    `  WITH expected(schema_name,relation_name,policy_name,owner_name) AS (VALUES ${privatePolicyRows})`,
+    "  SELECT expected.schema_name || '.' || expected.relation_name INTO bad FROM expected",
+    '   WHERE (SELECT count(*) FROM pg_catalog.pg_policy policy',
+    "           WHERE policy.polrelid=pg_catalog.to_regclass(pg_catalog.format('%I.%I',expected.schema_name,expected.relation_name))) <> 1",
+    '      OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policy policy JOIN pg_catalog.pg_roles owner_role ON owner_role.rolname=expected.owner_name',
+    "           WHERE policy.polrelid=pg_catalog.to_regclass(pg_catalog.format('%I.%I',expected.schema_name,expected.relation_name))",
+    "             AND policy.polname=expected.policy_name AND policy.polcmd='*' AND policy.polpermissive",
+    '             AND policy.polroles=ARRAY[owner_role.oid]::oid[] AND policy.polqual IS NOT NULL AND policy.polwithcheck IS NOT NULL)',
+    '   ORDER BY 1 LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'private relation owner policy missing or non-exact: %',bad; END IF;",
     ...preSessionGateVerifierLines(preSessionRows),
     `  RAISE NOTICE 'BCB_CATALOG_CLOSURE_VERIFIED database=${dbName} relations=${exactRelations.length} routines=${functions.length} exact_pre_session_roots=${exactPreSessionRoots.length}';`,
     'END $bcb$;',
@@ -1796,11 +1812,18 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     out.push('-- ─────────── 1b. REVISION-10 PRIVATE PORT CONTEXT ───────────', '');
     out.push(generateFunctionCensusSql(declaration, dbName));
     for (const [identity, relation] of Object.entries(portContext.privateRelations).sort(([a], [b]) => a.localeCompare(b))) {
-      const { qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
+      const { schema, name, qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
+      const policyName = `bcb_private_owner_${schema}_${name}`;
       out.push(`ALTER TABLE ${qualified} OWNER TO ${q(relation.owner)};`);
       out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM PUBLIC;`);
       const targets = revokeTargets(relation.owner);
       if (targets.length > 0) out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM ${revokeList(targets)};`);
+      out.push(`DROP POLICY IF EXISTS ${q(policyName)} ON ${qualified};`);
+      out.push(
+        `CREATE POLICY ${q(policyName)} ON ${qualified} AS PERMISSIVE FOR ALL TO ${q(relation.owner)}`,
+        `  USING (current_user = ${lit(relation.owner)}::name)`,
+        `  WITH CHECK (current_user = ${lit(relation.owner)}::name);`,
+      );
     }
     out.push(generatePortContextCapabilitySeedSql(declaration, dbName));
     out.push('');
