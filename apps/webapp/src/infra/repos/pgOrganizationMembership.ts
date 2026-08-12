@@ -1,5 +1,6 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type {
   OrganizationMembership,
   OrganizationMemberDirectoryRecord,
@@ -17,6 +18,18 @@ import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userId
 import { beOrganizationMembers, beSpecialists } from '../../../db/schema/bookingEngine';
 
 type OrganizationMembershipRow = typeof beOrganizationMembers.$inferSelect;
+
+type WorkspaceResolutionMembershipRow = {
+  id: string;
+  organization_id: string;
+  platform_user_id: string;
+  role: string;
+  specialist_id: string | null;
+  status: string;
+  doctor_screens_disabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 function isOrganizationMembershipRole(value: string): value is OrganizationMembershipRole {
   return ORGANIZATION_MEMBERSHIP_ROLES.includes(value as OrganizationMembershipRole);
@@ -47,6 +60,22 @@ function mapOrganizationMembershipRow(row: OrganizationMembershipRow): Organizat
     doctorScreensDisabled: row.doctorScreensDisabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function mapWorkspaceResolutionMembershipRow(
+  row: WorkspaceResolutionMembershipRow,
+): OrganizationMembership {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    platformUserId: row.platform_user_id,
+    role: parseOrganizationMembershipRole(row.role),
+    specialistId: row.specialist_id,
+    status: parseOrganizationMembershipStatus(row.status),
+    doctorScreensDisabled: row.doctor_screens_disabled,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -131,6 +160,16 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
         )
         .orderBy(asc(beOrganizationMembers.createdAt), asc(beOrganizationMembers.organizationId));
       return rows.map(mapOrganizationMembershipRow);
+    },
+
+    async listActiveForWorkspaceResolution(platformUserId) {
+      const result = await runWebappNamedRoot<WorkspaceResolutionMembershipRow>(
+        getWebappSqlDb(),
+        'app.resolve_staff_workspace_memberships(uuid)',
+        [platformUserId],
+        sql`SELECT * FROM app.resolve_staff_workspace_memberships(${platformUserId}::uuid)`,
+      );
+      return result.rows.map(mapWorkspaceResolutionMembershipRow);
     },
 
     async listByOrganization(organizationId) {

@@ -1299,6 +1299,49 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION app.resolve_staff_workspace_memberships(p_platform_user_id uuid)
+RETURNS TABLE(
+  id uuid,
+  organization_id uuid,
+  platform_user_id uuid,
+  role text,
+  specialist_id uuid,
+  status text,
+  doctor_screens_disabled boolean,
+  created_at text,
+  updated_at text
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_org_directory_owner', 'app_pre_session', 'pre_session',
+    'auth.staff-workspace.resolve',
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg
+    ]), 'app.resolve_staff_workspace_memberships(uuid)'::regprocedure
+  );
+  IF p_platform_user_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'platform user id required';
+  END IF;
+  RETURN QUERY
+  SELECT membership.id,
+         membership.organization_id,
+         membership.platform_user_id,
+         membership.role,
+         membership.specialist_id,
+         membership.status,
+         membership.doctor_screens_disabled,
+         membership.created_at::text,
+         membership.updated_at::text
+    FROM public.be_organization_members membership
+   WHERE membership.platform_user_id = p_platform_user_id
+     AND membership.status = 'active'
+   ORDER BY membership.created_at, membership.organization_id;
+END
+$function$;
+
 CREATE OR REPLACE FUNCTION app.auth_channel_binding_session(
   p_channel_code text,
   p_external_id text

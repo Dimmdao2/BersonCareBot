@@ -86,7 +86,9 @@ export const platformUserProfileRowSchema = z.object({
 });
 
 export const preSessionChannelBindingSessionRowSchema = platformUserProfileRowSchema.extend({
-  user_id: z.string().uuid(),
+  // DEV fixture principals intentionally use stable UUID-shaped all-zero ids;
+  // PostgreSQL already enforces the column type, so do not re-impose RFC version bits here.
+  user_id: z.string(),
   channel_code: identityChannelCodeSchema,
   external_id: z.string(),
 });

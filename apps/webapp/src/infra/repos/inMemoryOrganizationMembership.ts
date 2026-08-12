@@ -27,6 +27,10 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
       return rows.filter((row) => row.platformUserId === platformUserId && row.status === 'active');
     },
 
+    async listActiveForWorkspaceResolution(platformUserId) {
+      return rows.filter((row) => row.platformUserId === platformUserId && row.status === 'active');
+    },
+
     async listByOrganization(organizationId) {
       return rows
         .filter((row) => row.organizationId === organizationId)

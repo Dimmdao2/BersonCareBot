@@ -33,6 +33,8 @@ export type OrganizationSpecialistDirectoryRecord = {
 export type OrganizationMembershipPort = {
   listByPlatformUser(platformUserId: string): Promise<OrganizationMembership[]>;
   listActiveByPlatformUser(platformUserId: string): Promise<OrganizationMembership[]>;
+  /** Exact pre-routing read used after human login but before an organization context exists. */
+  listActiveForWorkspaceResolution(platformUserId: string): Promise<OrganizationMembership[]>;
   listByOrganization(organizationId: string): Promise<OrganizationMemberDirectoryRecord[]>;
   listPlatformDirectoryByOrganization(
     organizationId: string,

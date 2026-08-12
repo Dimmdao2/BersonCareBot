@@ -162,7 +162,7 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   global-admin physical pool и live wiring остаются ниже.
 - [x] Общий `webapp_pre_session_relation` удалён: production callsite oracle и capability catalog оставляют только
   named roots; generic pre-session relation descriptor отсутствует.
-- [x] Все `43` уникальных callable pre-session SECURITY DEFINER roots первым действием требуют accepted exact
+- [x] Все `45` уникальных callable pre-session SECURITY DEFINER roots первым действием требуют accepted exact
   function/purpose/typed-args. Catalog verifier проверяет реальные `prosrc`; четыре старых password-login body
   сохранены как private `*_impl` без EXECUTE, наружу доступны только exact-gated wrappers. Function census,
   callsite oracle, real PG16 post-zero replay и single-target late-fault acceptance зелёные.

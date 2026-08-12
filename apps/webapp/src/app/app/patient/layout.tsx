@@ -49,6 +49,9 @@ function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boo
  * Путь: `x-bc-pathname` / `x-bc-search` из middleware; при пустом pathname — fallback по `referer` (`resolvePatientLayoutPathname`).
  */
 export default async function PatientLayout({ children }: { children: ReactNode }) {
+  // Bind module ports in this RSC module graph before any settings/auth policy read.
+  // Next.js may compile instrumentation and route/layout chunks independently in dev.
+  const deps = buildAppDeps();
   const h = await headers();
   const pathname = resolvePatientLayoutPathname((name) => h.get(name));
   const search = h.get('x-bc-search') ?? '';
@@ -78,7 +81,6 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   }
 
   if (session.user.role === 'client') {
-    const deps = buildAppDeps();
     const patientContext = await resolvePatientOrganizationRequestContext(
       deps.patientOrganization,
       session.user.userId,

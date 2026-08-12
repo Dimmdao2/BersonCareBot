@@ -59,7 +59,9 @@ export function createOrganizationMembershipService(deps: {
     async resolveOrganizationForUser(
       input: ResolveOrganizationForUserInput,
     ): Promise<OrganizationResolution> {
-      const memberships = await deps.membershipPort.listActiveByPlatformUser(input.platformUserId);
+      const memberships = await deps.membershipPort.listActiveForWorkspaceResolution(
+        input.platformUserId,
+      );
       if (memberships.length === 0) {
         return { ok: false, reason: 'no_active_membership' };
       }

@@ -24,6 +24,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.channel-binding.session', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgIdentityResolution.ts',
   },
+  'app.resolve_staff_workspace_memberships(uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.staff-workspace.resolve', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgOrganizationMembership.ts',
+  },
   'app.password_login_complete(uuid,boolean)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'auth.password.complete', argCount: 2,
