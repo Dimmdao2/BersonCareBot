@@ -7712,7 +7712,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "ends_at",
           "post_trial_behavior",
           "post_trial_tariff_id",
-          "status"
+          "status",
+          "created_by"
         ],
         "operations": [
           "SELECT"
@@ -10166,7 +10167,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "post_trial_behavior",
           "post_trial_tariff_id",
           "status",
-          "created_at"
+          "created_at",
+          "created_by"
         ],
         "operations": [
           "SELECT"
@@ -10284,7 +10286,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "post_trial_behavior",
           "post_trial_tariff_id",
           "status",
-          "created_at"
+          "created_at",
+          "created_by"
         ],
         "operations": [
           "SELECT"
