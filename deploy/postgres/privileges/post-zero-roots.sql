@@ -1299,6 +1299,76 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION app.auth_channel_binding_session(
+  p_channel_code text,
+  p_external_id text
+)
+RETURNS TABLE(
+  user_id uuid,
+  display_name text,
+  role text,
+  phone_normalized text,
+  channel_code text,
+  external_id text
+)
+LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+SET search_path = pg_catalog, app, public, pg_temp
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_identity_lookup_owner', 'app_pre_session', 'pre_session',
+    'auth.channel-binding.session',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_channel_code))::app.port_typed_arg,
+      ROW('text@1', textsend(p_external_id))::app.port_typed_arg
+    ]), 'app.auth_channel_binding_session(text,text)'::regprocedure
+  );
+  IF p_channel_code IS NULL OR p_channel_code NOT IN ('telegram', 'max', 'vk')
+     OR p_external_id IS NULL OR btrim(p_external_id) = '' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'valid channel binding required';
+  END IF;
+  RETURN QUERY
+  WITH RECURSIVE identity_chain AS (
+    SELECT binding.user_id AS candidate_id, 0 AS depth
+      FROM public.user_channel_bindings binding
+     WHERE binding.channel_code = p_channel_code
+       AND binding.external_id = p_external_id
+    UNION ALL
+    SELECT candidate.merged_into_id, chain.depth + 1
+      FROM identity_chain chain
+      JOIN public.platform_users candidate ON candidate.id = chain.candidate_id
+     WHERE candidate.merged_into_id IS NOT NULL
+       AND chain.depth < 5
+  ), canonical AS (
+    SELECT chain.candidate_id
+      FROM identity_chain chain
+      JOIN public.platform_users candidate ON candidate.id = chain.candidate_id
+     ORDER BY chain.depth DESC
+     LIMIT 1
+  )
+  SELECT person.id,
+         identity.display_name,
+         person.role,
+         primary_phone.value_normalized,
+         binding.channel_code,
+         binding.external_id
+    FROM canonical
+    JOIN public.platform_users person ON person.id = canonical.candidate_id
+    LEFT JOIN public.user_identity identity ON identity.platform_user_id = person.id
+    LEFT JOIN LATERAL (
+      SELECT contact.value_normalized
+        FROM public.user_contacts contact
+       WHERE contact.platform_user_id = person.id
+         AND contact.contact_kind = 'phone'
+         AND contact.is_primary = true
+       LIMIT 1
+    ) primary_phone ON true
+    JOIN public.user_channel_bindings binding ON binding.user_id = person.id
+   WHERE person.merged_into_id IS NULL
+   ORDER BY binding.channel_code, binding.external_id;
+END
+$function$;
+
 CREATE OR REPLACE FUNCTION app.read_patient_telegram_display_handle(p_platform_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED

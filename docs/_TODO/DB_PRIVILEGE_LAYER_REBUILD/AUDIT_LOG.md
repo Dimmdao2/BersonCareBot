@@ -1999,3 +1999,19 @@ empty-TEST-specific обходов — реальный прогресс в пр
   invalid payload и network failure дают exit `1`. Targeted tests `5/5`, typecheck, integrator build,
   chokepoint/raw-SQL gates и живой compiled CLI против DEV `4200` прошли. Независимый взгляд дал PASS после
   синхронизации активных server/deploy/env docs.
+- **LIVE-WEBAPP-CHANNEL-SESSION-001 — ИСПРАВЛЕНО В КОДЕ, LIVE-ПОДТВЕРЖДЕНИЕ ОТКРЫТО:** команда живой матрицы
+  через `/api/auth/dev-bypass` для `client`, `doctor` и `clinic-admin` получила `500`; webapp log назвал
+  `Missing declared webapp port capability: pre_session` на прямом чтении
+  `pgIdentityResolution.findByChannelBinding → user_channel_bindings`. Generic pre-session relation capability
+  намеренно не возвращён. В candidate добавлен exact
+  `app.auth_channel_binding_session(text,text)`: первый statement проверяет function/purpose/typed-args, а
+  результат ограничен canonical user id, ролью, display name, primary phone и messenger bindings. Production
+  caller переведён на `runWebappNamedRoot`; backing tables не получили runtime grant. Exact catalog/callsite
+  tests `18/18`, strict declaration TypeScript и webapp typecheck прошли. Закрытие finding — только после
+  повторного target-neutral DEV cutover и зелёного dev-bypass `/api/me` для всех четырёх ролей.
+- **POSTZERO-REPLAY-DEV-SOURCE-001 — ОТКРЫТО, НЕ RUNTIME-БЛОКЕР:** команда
+  `POSTZERO_SCHEMA_SOURCE_DB=bcb_webapp_dev pnpm test:db-post-zero-installer` завершилась exit `3` до нового root:
+  schema-only dump уже-cutover DEV включает активный relation-birth event trigger; при последовательном replay
+  trigger срабатывает на ещё не загруженную declaration registry и отвергает `integrator.contacts` как
+  undeclared. DEV не изменялась. Этот harness-дефект не заменяется PASS на именованной TEST и не закрывает live
+  пункт; текущий candidate проверяется штатным backup → target-neutral zero/install → live DEV matrix.

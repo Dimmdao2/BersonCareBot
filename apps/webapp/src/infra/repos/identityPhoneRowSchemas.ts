@@ -85,6 +85,12 @@ export const platformUserProfileRowSchema = z.object({
   phone_normalized: z.string().nullable(),
 });
 
+export const preSessionChannelBindingSessionRowSchema = platformUserProfileRowSchema.extend({
+  user_id: z.string().uuid(),
+  channel_code: identityChannelCodeSchema,
+  external_id: z.string(),
+});
+
 export const phoneOnlyRowSchema = z.object({
   phone_normalized: z.string().nullable(),
 });

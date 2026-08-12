@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { sql } from 'drizzle-orm';
 /**
  * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")`.
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
@@ -23,6 +24,7 @@ import {
   parseIdentityRow,
   parseMessengerIdentityResolutionHints,
   parseUserRole,
+  preSessionChannelBindingSessionRowSchema,
   platformUserProfileRowSchema,
   userIdRowSchema,
   platformUserIdRowSchema,
@@ -30,7 +32,11 @@ import {
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { withPoolTransaction } from '@/infra/db/withClient';
-import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+} from '@/infra/db/runWebappSql';
 import {
   FIO,
   syncUserIdentityFioMirrorWebapp,
@@ -211,16 +217,30 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
 
   async findByChannelBinding(params): Promise<SessionUser | null> {
     const parsed = parseChannelBindingLookupParams(params);
-    const existing = await runIdentityPoolPgText(
-      'SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2',
+    const result = await runWebappNamedRoot(
+      getWebappSqlDb(),
+      'app.auth_channel_binding_session(text,text)',
       [parsed.channelCode, parsed.externalId],
+      sql`SELECT * FROM app.auth_channel_binding_session(
+        ${parsed.channelCode}::text,
+        ${parsed.externalId}::text
+      )`,
     );
-    if (existing.rows.length === 0) return null;
-    const userId = parseIdentityRow(
-      userIdRowSchema,
-      existing.rows[0],
-      'find_by_channel_binding',
-    ).user_id;
-    return loadSessionUserForId(userId, parsed.externalId);
+    if (result.rows.length === 0) return null;
+    const rows = result.rows.map((row, index) =>
+      parseIdentityRow(
+        preSessionChannelBindingSessionRowSchema,
+        row,
+        `find_by_channel_binding[${index}]`,
+      ),
+    );
+    const first = rows[0]!;
+    return {
+      userId: first.user_id,
+      role: parseUserRole(first.role, 'find_by_channel_binding.role'),
+      displayName: first.display_name ?? parsed.externalId,
+      phone: first.phone_normalized ?? undefined,
+      bindings: bindingsFromRows(rows),
+    };
   },
 };

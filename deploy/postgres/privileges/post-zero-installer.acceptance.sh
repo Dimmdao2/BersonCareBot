@@ -206,6 +206,56 @@ fi
 grep -q '42501' "$work_dir/integrator-setting-no-context.out" \
   || { cat "$work_dir/integrator-setting-no-context.out" >&2; fail 'integrator setting refusal was not SQLSTATE 42501'; }
 
+# A verified messenger binding reaches exactly the session fields needed by
+# auth.  The pre-session role still cannot read any backing relation directly.
+admin <<'SQL' >/dev/null
+INSERT INTO public.platform_users(id,display_name,role)
+VALUES ('00000000-0000-4000-8000-000000000701','legacy mirror','doctor');
+INSERT INTO public.user_identity(platform_user_id,display_name)
+VALUES ('00000000-0000-4000-8000-000000000701','Exact Session Doctor');
+INSERT INTO public.user_contacts(platform_user_id,contact_kind,value_normalized,is_primary,source_origin)
+VALUES ('00000000-0000-4000-8000-000000000701','phone','+79990000701',true,'platform_users');
+INSERT INTO public.user_channel_bindings(user_id,channel_code,external_id)
+VALUES
+  ('00000000-0000-4000-8000-000000000701','telegram','7701'),
+  ('00000000-0000-4000-8000-000000000701','max','max-701');
+SQL
+channel_session_capability=$(admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='bcb_test_webapp_patient' AND target_role='app_pre_session' AND purpose='auth.channel-binding.session' AND function_identity='app.auth_channel_binding_session(text,text)'::regprocedure")
+[[ -n "$channel_session_capability" ]] || fail 'channel-binding session capability missing'
+channel_session_hash=$(admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('text@1',textsend('telegram'))::app.port_typed_arg,ROW('text@1',textsend('7701'))::app.port_typed_arg]),'hex')")
+channel_session_row=$(admin -Atq <<SQL
+SET SESSION AUTHORIZATION bcb_test_webapp_patient;
+BEGIN;
+SELECT app.install_port_context(
+  '$channel_session_capability'::uuid,
+  ROW(1,'pre_session'::app.port_context_class,'app_pre_session'::name,'auth.channel-binding.session',
+      'app.auth_channel_binding_session(text,text)'::regprocedure,decode('$channel_session_hash','hex'),
+      NULL::uuid,NULL::uuid,NULL::uuid,NULL::bigint,'00000000-0000-4000-8000-000000000702'::uuid)::app.port_context_claims
+);
+SET LOCAL ROLE app_pre_session;
+SELECT user_id::text || '|' || display_name || '|' || role || '|' || phone_normalized || '|' ||
+       string_agg(channel_code || ':' || external_id, ',' ORDER BY channel_code,external_id)
+  FROM app.auth_channel_binding_session('telegram','7701')
+ GROUP BY user_id,display_name,role,phone_normalized;
+ROLLBACK;
+RESET SESSION AUTHORIZATION;
+SQL
+)
+assert_eq "$(printf '%s\n' "$channel_session_row" | tail -n 1)" \
+  '00000000-0000-4000-8000-000000000701|Exact Session Doctor|doctor|+79990000701|max:max-701,telegram:7701'
+if admin -v VERBOSITY=verbose -c "BEGIN; SET LOCAL ROLE app_pre_session; SELECT * FROM public.user_channel_bindings; ROLLBACK" \
+  >"$work_dir/channel-binding-direct.out" 2>&1; then
+  fail 'pre-session role gained direct channel-binding access'
+fi
+grep -q '42501' "$work_dir/channel-binding-direct.out" \
+  || { cat "$work_dir/channel-binding-direct.out" >&2; fail 'direct channel-binding refusal was not SQLSTATE 42501'; }
+if admin -v VERBOSITY=verbose -c "BEGIN; SET LOCAL ROLE app_pre_session; SELECT * FROM app.auth_channel_binding_session('telegram','7701'); ROLLBACK" \
+  >"$work_dir/channel-binding-no-context.out" 2>&1; then
+  fail 'channel-binding session root accepted a request without port context'
+fi
+grep -q '42501' "$work_dir/channel-binding-no-context.out" \
+  || { cat "$work_dir/channel-binding-no-context.out" >&2; fail 'channel-binding context refusal was not SQLSTATE 42501'; }
+
 # A malformed dispatch argument must not bypass the exact gate with a quiet false/empty result.
 for statement in \
   "SELECT app.passkey_issue_challenge('00000000-0000-4000-8000-000000000001','invalid',NULL,'invalid','https://example.test','example.test',statement_timestamp()+interval '1 minute')" \

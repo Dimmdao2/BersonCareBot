@@ -254,9 +254,9 @@ export interface TableDecl {
 export interface NamedSeamAccess {
   regprocedure: string;
   owner: string;
-  /** Exact runtime/capability roles which may invoke the root. Triggers have no SQL callers. */
+  /** Exact runtime/capability roles which may invoke the root. Trigger/internal roots have no SQL callers. */
   callers: string[];
-  invocation: 'runtime' | 'trigger';
+  invocation: 'runtime' | 'trigger' | 'internal';
   columns: string[];
   operations: Privilege[];
   purpose: string;
