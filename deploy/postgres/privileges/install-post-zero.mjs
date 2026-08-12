@@ -31,35 +31,32 @@ const patient = identifier(value('patient-login'));
 const integrator = identifier(value('integrator-login'));
 const files = [
   'deploy/postgres/port-context/contract.sql',
-  'apps/webapp/db/drizzle-migrations/0385_port_context_exact_relation_roots_local.sql',
+  'deploy/postgres/privileges/post-zero-roots.sql',
   `deploy/postgres/generated/port-context-capabilities.${db}.sql`,
   `deploy/postgres/generated/org-allowlist.${db}.sql`,
   `deploy/postgres/generated/privileges.${db}.sql`,
 ];
 for (const file of files) if (!existsSync(resolve(root, file))) throw new Error(`missing ${file}`);
 
-// This is deliberately catalog evidence, not a transcript marker.  The zero
-// migration makes all data relations FORCE RLS without policies and removes
-// every managed role/login before this installer is allowed to create them.
-const zeroProof = `
-DO $$
-DECLARE bad_relations bigint; bad_policies bigint; bad_roles bigint;
-BEGIN
-  SELECT count(*) INTO bad_relations
-    FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
-   WHERE c.relkind IN ('r','p') AND n.nspname IN ('public','integrator')
-     AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity);
-  SELECT count(*) INTO bad_policies
-    FROM pg_catalog.pg_policy p JOIN pg_catalog.pg_class c ON c.oid=p.polrelid
-      JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
-   WHERE n.nspname IN ('public','integrator');
-  SELECT count(*) INTO bad_roles FROM pg_catalog.pg_roles
-   WHERE rolname IN ('${staff}','${patient}','${integrator}') OR rolname LIKE 'app\\_%' ESCAPE '\\';
-  IF bad_relations <> 0 OR bad_policies <> 0 OR bad_roles <> 0 THEN
-    RAISE EXCEPTION USING ERRCODE='55000',
-      MESSAGE=format('post-zero catalog required (relations=%s policies=%s managed-roles=%s)', bad_relations,bad_policies,bad_roles);
-  END IF;
-END $$;`;
+// Do not duplicate a weaker list of catalog checks here.  The installer extracts
+// the verifier emitted by the same zero generator that made the target state;
+// relation/table/sequence/function/type/schema/default ACL, ownership, policy,
+// FORCE RLS and membership drift therefore fail before any persistent cutover DDL.
+const zeroArtifact = spawnSync('node', ['--experimental-strip-types',
+  resolve(root, 'deploy/postgres/privileges/generate-cli.mjs'), '--db', db, '--zero-state', '--stdout'],
+{ encoding: 'utf8', env: process.env });
+if (zeroArtifact.status !== 0) {
+  process.stderr.write(zeroArtifact.stderr ?? '');
+  process.exit(zeroArtifact.status ?? 1);
+}
+const zeroRoleInsert = zeroArtifact.stdout.match(/INSERT INTO bcb_zero_state_roles SELECT[^\n]+;/u)?.[0];
+const zeroVerifier = zeroArtifact.stdout.match(/-- Bilateral zero-state verifier:[\s\S]*?-- end zero-state database migration\./u)?.[0];
+if (!zeroRoleInsert || !zeroVerifier) throw new Error('generated zero-state artifact has no extractable bilateral verifier');
+const zeroProof = [
+  'CREATE TEMP TABLE bcb_zero_state_roles (role_name name PRIMARY KEY) ON COMMIT DROP;',
+  zeroRoleInsert,
+  zeroVerifier,
+].join('\n');
 
 const verifier = spawnSync('node', ['--experimental-strip-types',
   resolve(root, 'deploy/postgres/privileges/generate-cli.mjs'), '--db', db, '--port-context-verify'],

@@ -9,6 +9,8 @@
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база>   # login-рендер (НЕ коммитится)
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база> --port-context-env <webapp|integrator>
  *   node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only # exact DB capability seeds
+ *   node deploy/postgres/privileges/generate-cli.mjs --all --zero-state      # revoke-only per-DB artifacts
+ *   node deploy/postgres/privileges/generate-cli.mjs --zero-state-cluster    # exact role-drop finalizer
  *
  * Флаги:
  *   --declaration <путь>  другой файл декларации (по умолчанию ./declaration.ts) — нужен пруф-фикстурам
@@ -29,6 +31,8 @@ import {
   generatePortContextCapabilitySeedSql,
   generatePortContextCapabilityVerifierSql,
   generatePrivilegesSql,
+  generateZeroStateClusterSql,
+  generateZeroStateSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
 } from './generate.mjs';
@@ -40,11 +44,17 @@ const DEFAULT_OUT_DIR = path.join(repoRoot, 'deploy', 'postgres', 'generated');
 
 function parseArgs(argv) {
   const args = { flags: new Set(), values: new Map() };
+  const knownFlags = new Set([
+    'all', 'check', 'gaps', 'stdout', 'no-allowlist', 'port-context-only',
+    'port-context-verify', 'zero-state', 'zero-state-cluster',
+  ]);
+  const knownValues = new Set(['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env']);
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token.startsWith('--')) throw new Error(`неожиданный аргумент '${token}'`);
     const key = token.slice(2);
-    const takesValue = ['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env'].includes(key);
+    const takesValue = knownValues.has(key);
+    if (!takesValue && !knownFlags.has(key)) throw new Error(`неизвестный флаг '--${key}'`);
     if (takesValue) {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) throw new Error(`--${key} требует значение`);
@@ -71,10 +81,12 @@ function artifactPaths(outDir, dbName) {
     privileges: path.join(outDir, `privileges.${dbName}.sql`),
     allowlist: path.join(outDir, `org-allowlist.${dbName}.sql`),
     portContext: path.join(outDir, `port-context-capabilities.${dbName}.sql`),
+    zeroState: path.join(outDir, `zero-state.${dbName}.sql`),
   };
 }
 
-function buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly = false) {
+function buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly = false, zeroState = false) {
+  if (zeroState) return [{ kind: 'zeroState', text: generateZeroStateSql(declaration, dbName, { source }) }];
   if (portContextOnly) {
     return [{ kind: 'portContext', text: generatePortContextCapabilitySeedSql(declaration, dbName) }];
   }
@@ -125,10 +137,33 @@ async function main() {
   const outDir = args.values.get('out-dir') ?? DEFAULT_OUT_DIR;
   const withAllowlist = !args.flags.has('no-allowlist');
   const portContextOnly = args.flags.has('port-context-only');
+  const zeroState = args.flags.has('zero-state');
+  const zeroStateCluster = args.flags.has('zero-state-cluster');
+  if ([portContextOnly, zeroState, zeroStateCluster].filter(Boolean).length > 1) {
+    throw new Error('--port-context-only, --zero-state and --zero-state-cluster are mutually exclusive');
+  }
   const declaration = await loadDeclaration(declarationPath);
   const source = path.relative(repoRoot, path.resolve(declarationPath));
   const allDbs = Object.keys(declaration.databases).sort();
   const dbNames = args.values.has('db') ? [args.values.get('db')] : allDbs;
+
+  if (zeroStateCluster) {
+    if (args.values.has('db')) throw new Error('--zero-state-cluster is cluster-wide and rejects --db');
+    const text = generateZeroStateClusterSql(declaration, { source });
+    const file = args.values.has('out') ? path.resolve(args.values.get('out')) : path.join(outDir, 'zero-state.cluster.sql');
+    if (args.flags.has('stdout') || args.values.get('out') === '-') { process.stdout.write(text); return; }
+    if (args.flags.has('check')) {
+      if (!fs.existsSync(file)) { console.error(`КРАСНЫЙ cluster/zeroState: артефакт ${path.relative(repoRoot, file)} не закоммичен`); process.exit(1); }
+      const committed = fs.readFileSync(file, 'utf8');
+      if (committed !== text) { console.error(`КРАСНЫЙ cluster/zeroState: ${path.relative(repoRoot, file)} разошёлся с декларацией`); console.error(firstDifference(committed, text)); process.exit(1); }
+      console.log(`ok cluster/zeroState: ${path.relative(repoRoot, file)} совпадает побайтно`);
+      return;
+    }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text, 'utf8');
+    console.log(`записано: ${path.relative(repoRoot, file)} (${text.length} байт)`);
+    return;
+  }
 
   if (args.flags.has('port-context-verify')) {
     if (dbNames.length !== 1) throw new Error('--port-context-verify требует --db');
@@ -162,7 +197,7 @@ async function main() {
     let red = 0;
     for (const dbName of dbNames) {
       const paths = artifactPaths(outDir, dbName);
-      for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly)) {
+      for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly, zeroState)) {
         const file = paths[artifact.kind];
         if (!fs.existsSync(file)) {
           console.error(`КРАСНЫЙ ${dbName}/${artifact.kind}: артефакт ${path.relative(repoRoot, file)} не закоммичен`);
@@ -191,7 +226,9 @@ async function main() {
     if (dbNames.length !== 1) throw new Error('--stdout требует ровно одну базу (--db)');
     process.stdout.write(portContextOnly
       ? generatePortContextCapabilitySeedSql(declaration, dbNames[0])
-      : generatePrivilegesSql(declaration, dbNames[0], { source }));
+      : zeroState
+        ? generateZeroStateSql(declaration, dbNames[0], { source })
+        : generatePrivilegesSql(declaration, dbNames[0], { source }));
     return;
   }
 
@@ -200,11 +237,11 @@ async function main() {
   fs.mkdirSync(explicitOut ? path.dirname(path.resolve(explicitOut)) : outDir, { recursive: true });
   for (const dbName of dbNames) {
     const paths = artifactPaths(outDir, dbName);
-    for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly)) {
-      const file = explicitOut && (artifact.kind === 'privileges' || artifact.kind === 'portContext')
+    for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly, zeroState)) {
+      const file = explicitOut && ['privileges', 'portContext', 'zeroState'].includes(artifact.kind)
         ? path.resolve(explicitOut)
         : paths[artifact.kind];
-      if (explicitOut && artifact.kind !== 'privileges' && artifact.kind !== 'portContext') continue;
+      if (explicitOut && !['privileges', 'portContext', 'zeroState'].includes(artifact.kind)) continue;
       fs.writeFileSync(file, artifact.text, 'utf8');
       console.log(`записано: ${path.relative(repoRoot, file)} (${artifact.text.length} байт)`);
     }

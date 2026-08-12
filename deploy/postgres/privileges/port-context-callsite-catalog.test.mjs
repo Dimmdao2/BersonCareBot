@@ -64,6 +64,61 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'delivery.appointment-reminder-advance', argCount: 3,
     source: 'apps/integrator/src/infra/db/repos/appointmentReminderDelivery.ts',
   },
+  'app.read_integrator_migration_ledger()': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'migration.ledger.read', argCount: 0,
+    source: 'apps/integrator/src/infra/db/migrate.ts',
+  },
+  'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'integrator.data-quality.upsert', argCount: 7,
+    source: 'apps/integrator/src/infra/db/repos/integrationDataQualityIncidents.ts',
+  },
+  'app.try_acquire_integrator_idempotency(text,integer)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'integrator.idempotency.acquire', argCount: 2,
+    source: 'apps/integrator/src/infra/db/repos/idempotencyKeys.ts',
+  },
+  'app.release_integrator_idempotency(text)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'integrator.idempotency.release', argCount: 1,
+    source: 'apps/integrator/src/infra/db/repos/idempotencyKeys.ts',
+  },
+  'app.read_patient_telegram_display_handle(uuid)': {
+    port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
+    purpose: 'messaging.patient-telegram-handle.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPatientTelegramUsernameMention.ts',
+  },
+  'app.get_google_calendar_event_id(uuid)': {
+    port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'calendar.map.get', argCount: 1,
+    source: 'apps/integrator/src/infra/db/repos/bookingCalendarMap.ts',
+  },
+  'app.upsert_google_calendar_event_id(uuid,text)': {
+    port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'calendar.map.upsert', argCount: 2,
+    source: 'apps/integrator/src/infra/db/repos/bookingCalendarMap.ts',
+  },
+  'app.delete_google_calendar_event_id(uuid)': {
+    port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'calendar.map.delete', argCount: 1,
+    source: 'apps/integrator/src/infra/db/repos/bookingCalendarMap.ts',
+  },
+  'app.read_booking_calendar_patient_profile(uuid)': {
+    port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'calendar.patient-profile.read', argCount: 1,
+    source: 'apps/integrator/src/integrations/google-calendar/calendarDescription.ts',
+  },
+  'app.read_booking_calendar_latest_staff_comment(uuid)': {
+    port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'calendar.staff-comment.read', argCount: 1,
+    source: 'apps/integrator/src/integrations/google-calendar/calendarDescription.ts',
+  },
+  'app.is_current_patient_self_booking_allowed()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.self.allowed', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgClientHistory.ts',
+  },
 }));
 
 const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
@@ -283,6 +338,6 @@ test('production discovery is path-independent and excludes tests/generated outp
   assert.ok(files.length > 10);
   assert.equal(files.some((path) => TEST_FILE_RE.test(path) || path.includes('/generated/')), false);
   const discovered = collectNamedRootCallsites();
-  assert.equal(discovered.filter((row) => row.kind === 'literal').length, 10);
+  assert.equal(discovered.filter((row) => row.kind === 'literal').length, 21);
   assert.equal(discovered.filter((row) => row.kind === 'dynamic').length, 1);
 });

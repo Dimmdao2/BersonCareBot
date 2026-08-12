@@ -83,7 +83,7 @@ psql_admin \
   -f "$repo_root/deploy/postgres/port-context/contract.sql" >/dev/null
 
 if [[ "$full_schema_mode" == 1 ]]; then
-  psql_admin -f "$repo_root/apps/webapp/db/drizzle-migrations/0385_port_context_exact_relation_roots_local.sql" >/dev/null
+  psql_admin -f "$repo_root/deploy/postgres/privileges/post-zero-roots.sql" >/dev/null
   awk '
     /^CREATE OR REPLACE FUNCTION / { capture=1 }
     capture { print }

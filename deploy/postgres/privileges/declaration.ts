@@ -878,7 +878,8 @@ const TABLE_ROWS: TableRow[] = [
     + 'весь вход в бота ломается', defect: ['D14-integrator-no-wall', 'D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §10-11 — волна 3 (это и есть незакрытый фундамент D25)',
       blockedBy: 'горячий путь каждого вебхука; integrator.telegram_state держит FK — дропать только после её '
-      + 'урезания. До сноса пять пациентских стен, построенных на EXISTS по этой таблице, остаются недействующими' } },
+      + 'урезания. До сноса пять пациентских стен, построенных на EXISTS по этой таблице, остаются недействующими' },
+    disp: 'ACTIVE', wall: 'platform-role', wallWhy: 'POSTZERO-R3: live integrator-only path remains closed to clinic and patient roles until the canonical cutover.' },
   { t: 'integrator.integration_data_quality_incidents', cls: 'S', org: false, why: 'инциденты качества внешней '
     + 'интеграции — не видно, что система прислала мусор',
     revoke: { app_staff: 'D14: raw_value может содержать исходное значение поля пациента или филиала.' },
@@ -903,7 +904,8 @@ const TABLE_ROWS: TableRow[] = [
     + 'вариант «оставить и урезать» заменён owner-решением удалить legacy state целиком',
     defect: ['D14-integrator-no-wall'],
     drop: { verdict: 'DROP', source: 'evidence/41 + migration 20260808_0012: owner decision 09.08.2026; '
-      + 'DEV relation physically dropped without CASCADE after preserving the only meaningful negative signal' } },
+      + 'DEV relation physically dropped without CASCADE after preserving the only meaningful negative signal' },
+    disp: 'ACTIVE', wall: 'platform-role', wallWhy: 'POSTZERO-R3: production callers still mutate Telegram state; only integrator runtime reaches it.' },
   { t: 'integrator.telegram_users', cls: 'P', why: 'легаси-хранилище Telegram-аккаунтов — ничего не ломается — '
     + 'таблица мёртвая', defect: ['D14-integrator-no-wall'],
     drop: { verdict: 'DROP', source: 'evidence/15 §1 — волна 0, 2 строки, единственная таблица, где обе оценки '
@@ -936,7 +938,8 @@ const TABLE_ROWS: TableRow[] = [
     drop: { verdict: 'DUP-DROP (сначала перевести код)', source: 'evidence/18 §7 — 394/410 отображены в '
       + 'be_appointments, phone 394/394', blockedBy: 'шесть живых читателей (бот, админ интегратора, список врача) — '
       + 'перевести на be_appointments.phone_normalized. До сноса таблица стоит БЕЗ обеих стен (D15) и это '
-      + 'единственный пункт списка, где ошибка видна пациенту' } },
+      + 'единственный пункт списка, где ошибка видна пациенту' },
+    disp: 'ACTIVE', wall: 'clinic', wallWhy: 'POSTZERO-R3: legacy projection has live staff/integrator callers but no patient runtime surface.' },
   { t: 'public.auth_rate_limit_events', cls: 'S', org: false, wall: 'definer-only', why: 'счётчик попыток '
     + 'входа/отправки кода — снимается защита от перебора OTP и OAuth-стартов', wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
@@ -2215,6 +2218,32 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
+  'integrator.identities': {
+    kind: 'direct', purpose: 'integrator resolves and maintains external channel identities; no clinic or patient role reaches this legacy table',
+    codePaths: ['apps/integrator/src/infra/db/repos/channelUsers.ts', 'apps/integrator/src/infra/db/repos/messageThreads.ts', 'apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts'],
+    grants: [{ role: 'app_integrator_request', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' }],
+  },
+  'integrator.telegram_state': {
+    kind: 'direct', purpose: 'integrator alone maintains Telegram delivery and dialog state until the declared drop migration can run',
+    codePaths: ['apps/integrator/src/infra/db/repos/channelUsers.ts', 'apps/integrator/src/infra/db/repos/messageThreads.ts', 'apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts'],
+    grants: [{ role: 'app_integrator_request', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' }],
+  },
+  'public.appointment_records': {
+    kind: 'direct', purpose: 'legacy appointment projection remains required by integrator stats and webapp projection, purge and merge paths before its explicitly ordered replacement',
+    codePaths: ['apps/integrator/src/infra/db/repos/adminStats.ts', 'apps/webapp/src/infra/repos/pgAppointmentProjection.ts', 'apps/webapp/src/infra/platformUserFullPurge.ts', 'packages/platform-merge/src/pgPlatformUserMerge.ts'],
+    grants: [
+      { role: 'app_integrator_request', operations: ['SELECT'], columns: ['status', 'deleted_at', 'record_at'] },
+      { role: 'app_staff', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.operator_health_failure_archive': {
+    kind: 'direct', purpose: 'clinic staff handles only its archive rows; platform health route handles only global archive rows',
+    codePaths: ['apps/webapp/src/app/api/admin/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
+    ],
+  },
   'integrator.projection_outbox': {
     kind: 'direct', purpose: 'enqueue projections in request transactions and drain them in the dedicated worker',
     codePaths: ['apps/integrator/src/infra/db/repos/projectionOutbox.ts', 'apps/integrator/src/infra/runtime/worker/projectionWorker.ts'],
@@ -2245,12 +2274,9 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.system_settings_audit': {
-    kind: 'direct', purpose: 'staff and platform settings changes append and inspect the redacted settings ledger',
+    kind: 'direct', purpose: 'only the platform settings role may read or append the global secret-bearing settings ledger',
     codePaths: ['apps/webapp/src/infra/repos/pgSystemSettings.ts'],
-    grants: [
-      { role: 'app_staff', operations: ['SELECT', 'INSERT'], columns: 'table' },
-      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' },
-    ],
+    grants: [{ role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' }],
   },
 };
 
@@ -2605,6 +2631,7 @@ function revision10TenantPolicies(
 
 const REV10_EXPLICIT_ORG_COLUMN = new Set([
   'integrator.message_drafts',
+  'public.appointment_records', 'public.operator_health_failure_archive',
   'public.be_organization_members', 'public.manual_patient_commands', 'public.org_brand_revisions',
   'public.organization_slug_claims', 'public.organization_slug_rename_events', 'public.patient_bookings',
   'public.product_analytics_hourly', 'public.saas_billing_accounts', 'public.saas_billing_invoices',
@@ -2624,6 +2651,8 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
     + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = app.current_org_id()))';
   if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = app.current_org_id())";
   if (tableKey === 'public.be_organizations') return "(current_user = 'app_staff'::name AND id = app.current_org_id())";
+  if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
+  if (tableKey === 'public.system_settings_audit') return "(current_user = 'app_platform_settings'::name AND organization_id IS NULL)";
   const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
   if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
     + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active'))`;

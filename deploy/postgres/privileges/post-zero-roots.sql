@@ -1,5 +1,6 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0385 — final number assigned at land, per AGENTS.md §1.
--- Revision-10 exact roots required before the atomic privilege reset/regrant.
+-- Explicitly invoked unjournaled post-zero cutover artifact.
+-- It is intentionally outside Drizzle: installer `install-post-zero.mjs` runs it only
+-- after the bilateral zero-state verifier and inside the same atomic transaction.
 
 -- The transaction-bound port contract replaces the legacy signed session-row
 -- context completely. Retaining either installer would leave a second DB door.

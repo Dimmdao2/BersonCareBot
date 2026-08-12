@@ -3,6 +3,7 @@ import '../../config/loadEnv.js';
 import { readdir, readFile, stat } from 'fs/promises'; // Работа с файловой системой
 import { join } from 'path'; // Склейка путей
 import { fileURLToPath } from 'url';
+import { sql } from 'drizzle-orm';
 import { getAppRoot } from '../../config/appRoot.js';
 import { env } from '../../config/env.js'; // Переменные окружения
 import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
@@ -537,21 +538,17 @@ export async function runStartupMigrationGateWithDeps(
   if (deps.dbPrincipalContextMode?.trim() === 'port-context' && deps.createDb === undefined) {
     // The runtime login has no DDL capability and must never instantiate the legacy migration
     // pool. Ledger verification goes through the same mTLS/context chokepoint as every query.
-    const [{ db: runtimePool }, { withIntegratorPoolClient }, { runWithDbInfraPrincipal },
-      { runWithIntegratorPortOperation }] = await Promise.all([
+    const [{ db: runtimePool, createDbPort }, { runWithDbInfraPrincipal }, { runIntegratorNamedRoot }] = await Promise.all([
       import('./client.js'),
-      import('./withClient.js'),
       import('@bersoncare/db-principal'),
-      import('./portContextRuntime.js'),
+      import('./runIntegratorSql.js'),
     ]);
     const migrations = await (deps.discoverMigrationsFn ?? discoverMigrations)();
-    const identity = 'app.read_integrator_migration_ledger()';
     const result = await runWithDbInfraPrincipal(
       { source: 'integrator-startup-migration-ledger' },
-      () => runWithIntegratorPortOperation(
-        { functionIdentity: identity, typedArgs: [] },
-        () => withIntegratorPoolClient(runtimePool, async (client) =>
-          client.query<{ version: string }>('SELECT version FROM app.read_integrator_migration_ledger()')),
+      () => runIntegratorNamedRoot<{ version: string }>(
+        createDbPort(runtimePool), 'app.read_integrator_migration_ledger()', [],
+        sql`SELECT version FROM app.read_integrator_migration_ledger()`,
       ),
     );
     verifyAppliedMigrationVersions(result.rows.map((row) => row.version), migrations);

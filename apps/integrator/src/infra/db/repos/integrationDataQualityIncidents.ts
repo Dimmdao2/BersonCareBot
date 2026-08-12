@@ -17,13 +17,12 @@ export async function upsertIntegrationDataQualityIncident(
   input: IntegrationDataQualityIncidentInput,
 ): Promise<UpsertIntegrationDataQualityIncidentResult> {
   try {
-    const args = [input.integration, input.entity, input.externalId, input.field, input.rawValue,
-      input.timezoneUsed, input.errorReason] as const;
     const res = await runWithDbInfraPrincipal({ source: 'integrator-data-quality' }, () =>
       runIntegratorNamedRoot<{ occurrences: number }>(
         db,
         'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)',
-        args,
+        [input.integration, input.entity, input.externalId, input.field, input.rawValue,
+          input.timezoneUsed, input.errorReason],
         sql`SELECT app.upsert_integration_data_quality_incident(
           ${input.integration}, ${input.entity}, ${input.externalId}, ${input.field}, ${input.rawValue},
           ${input.timezoneUsed}, ${input.errorReason}
