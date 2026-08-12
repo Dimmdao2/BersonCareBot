@@ -11,7 +11,8 @@
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { DbPort } from '../../kernel/contracts/index.js';
-import { runIntegratorSql } from './runIntegratorSql.js';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { runIntegratorNamedRoot, runIntegratorSql } from './runIntegratorSql.js';
 
 export type IntegratorProviderRuntimeSettingKey =
   | 'telegram_bot_token'
@@ -82,10 +83,11 @@ export async function fetchIntegratorProviderRuntimeSettingValueJson(
   db: DbPort,
   key: IntegratorProviderRuntimeSettingKey,
 ): Promise<unknown | null> {
-  const result = await runIntegratorSql<{ value_json: unknown }>(
-    db,
-    sql`SELECT app.read_integrator_provider_runtime_setting(${key}) AS value_json`,
-  );
+  const result = await runWithDbInfraPrincipal({ source: 'integrator-server-runtime-config' }, () =>
+    runIntegratorNamedRoot<{ value_json: unknown }>(
+      db, 'app.read_integrator_provider_runtime_setting(text)', [key],
+      sql`SELECT app.read_integrator_provider_runtime_setting(${key}) AS value_json`,
+    ));
   const row = result.rows[0];
   return row?.value_json ?? null;
 }

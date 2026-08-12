@@ -20,7 +20,7 @@ function failingDb(error: Error): DbPort {
 }
 
 describe('isAuthChannelEnabled', () => {
-  it('дано: signed M2M вызов без principal → fixed-key read получает только runtime-config bootstrap principal', async () => {
+  it('дано: signed M2M вызов без principal → fixed-key read получает exact service principal', async () => {
     const observed: unknown[] = [];
     const db = {
       query: vi.fn().mockImplementation(async () => {
@@ -33,7 +33,7 @@ describe('isAuthChannelEnabled', () => {
     await expect(isAuthChannelEnabled(db, 'email')).resolves.toBe(true);
     expect(observed).toEqual([
       expect.objectContaining({
-        kind: 'bootstrap',
+        kind: 'infra',
         source: 'integrator-server-runtime-config',
       }),
     ]);

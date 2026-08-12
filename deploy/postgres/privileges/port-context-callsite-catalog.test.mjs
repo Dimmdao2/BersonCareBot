@@ -299,6 +299,21 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'integrator.projection-health.read', argCount: 1,
     source: 'apps/integrator/src/infra/db/repos/projectionHealth.ts',
   },
+  'app.read_integrator_provider_runtime_setting(text)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'config.integrator-provider.read', argCount: 1,
+    source: 'apps/integrator/src/infra/db/publicSystemSettings.ts',
+  },
+  'app.read_integrator_auth_channel_setting(text)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'config.integrator-auth-channel.read', argCount: 1,
+    source: 'apps/integrator/src/infra/db/authChannelPolicy.ts',
+  },
+  'app.read_integrator_smtp_outbound_setting()': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'config.integrator-smtp.read', argCount: 0,
+    source: 'apps/integrator/src/infra/db/publicRestrictedSettings.ts',
+  },
   'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)': {
     port: 'integrator', targetRole: 'app_service', contextClass: 'service',
     purpose: 'integrator.data-quality.upsert', argCount: 7,

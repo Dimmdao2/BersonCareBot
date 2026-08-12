@@ -12,10 +12,10 @@ function dbFor(values: SettingValues, failure?: Error): DbPort {
       if (failure) return Promise.reject(failure);
       const principal = getCurrentDbPrincipal();
       if (
-        principal?.kind !== 'bootstrap' ||
+        principal?.kind !== 'infra' ||
         principal.source !== 'integrator-server-runtime-config'
       ) {
-        return Promise.reject(new Error('runtime config bootstrap principal missing'));
+        return Promise.reject(new Error('runtime config service principal missing'));
       }
       // Mirrors the locked TEST login: direct credential-table reads are denied, while the
       // fixed-key SECURITY DEFINER capability is executable.
