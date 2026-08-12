@@ -316,6 +316,14 @@ export function renderStructuredMigrationFailureDiagnostic(error, migrations, jo
 async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
   const client = await pool.connect();
   try {
+    const identity = await client.query(
+      'SELECT current_user AS migration_role, session_user AS administrative_role',
+    );
+    const migrationRole = String(identity.rows[0]?.migration_role ?? '');
+    const administrativeRole = String(identity.rows[0]?.administrative_role ?? '');
+    if (!migrationRole || !administrativeRole || migrationRole === administrativeRole) {
+      throw new Error('empty_bootstrap_requires_distinct_administrative_session_and_migration_role');
+    }
     await client.query('CREATE SCHEMA IF NOT EXISTS drizzle');
     await client.query(`
       CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
@@ -356,8 +364,20 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
         if (journal.tag === EMPTY_BOOTSTRAP_APP_OWNER_PUBLIC_USAGE_MIGRATION) {
           // Historical app_owner schema usage came from host provisioning before this migration.
           // Its SQL function body references public.* while SET ROLE app_owner is active, so restore
-          // only schema name resolution inside the disposable bootstrap transaction.
-          await client.query('GRANT USAGE ON SCHEMA public TO app_owner');
+          // only schema name resolution as the administrative session, then return to the exact
+          // migration role. The grant remains inside the disposable bootstrap transaction.
+          await client.query('RESET ROLE');
+          try {
+            await client.query('GRANT USAGE ON SCHEMA public TO app_owner');
+          } finally {
+            await client.query(`SET ROLE ${pg.escapeIdentifier(migrationRole)}`);
+          }
+          const usage = await client.query(
+            "SELECT has_schema_privilege('app_owner', 'public', 'USAGE') AS enabled",
+          );
+          if (usage.rows[0]?.enabled !== true) {
+            throw new Error('empty_bootstrap_app_owner_public_usage_not_granted');
+          }
         }
         if (EMPTY_BOOTSTRAP_DATA_MIGRATIONS.has(journal.tag)) {
           console.log(`[migrate] empty-bootstrap skipped data-only migration=${journal.tag}`);
