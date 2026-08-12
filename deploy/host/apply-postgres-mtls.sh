@@ -11,6 +11,10 @@ database=
 staff_login=
 patient_login=
 integrator_login=
+secondary_database=
+secondary_staff_login=
+secondary_patient_login=
+secondary_integrator_login=
 ca_file=
 crl_file=
 server_cert_file=
@@ -25,8 +29,9 @@ auth_refusal_journal=
 die() { echo "apply-postgres-mtls: $*" >&2; exit 1; }
 usage() {
   cat <<'EOF'
-Usage: sudo bash deploy/host/apply-postgres-mtls.sh --environment dev|test --preflight|--apply|--readiness \
+Usage: sudo bash deploy/host/apply-postgres-mtls.sh --environment dev|test|dev-test --preflight|--apply|--readiness \
   --database DB --staff-login ROLE --patient-login ROLE --integrator-login ROLE \
+  [--secondary-database DB --secondary-staff-login ROLE --secondary-patient-login ROLE --secondary-integrator-login ROLE] \
   --ca-file PATH --crl-file PATH --server-cert-file PATH --server-key-file PATH
 
 The script obtains hba_file/config_file from PostgreSQL, backs both up, atomically
@@ -41,7 +46,11 @@ outside the disposable work directory and is not a host deployment mode.
 Readiness is deliberately behavioural.  It additionally requires a root-owned,
 mode-safe --probe-command and --auth-refusal-journal.  The command is invoked for
 positive-staff, positive-patient, positive-integrator, password-only, wrong-cn,
-non-tls, socket, and server-impersonation.  It must resolve the exact client
+non-tls, socket, and server-impersonation for each database.  Shared mode also
+invokes cross-environment-staff, cross-environment-patient, and
+cross-environment-integrator for each database.  Shared probes receive the target
+DB/login triplet followed by the foreign login triplet; single-target probes keep
+the original DB/login arguments.  The command must resolve the exact client
 credentials and certificate material without printing them; positive probes exit
 zero and negative probes exit non-zero.  The journal must acquire a fresh Postgres
 authentication refusal during the negative probes.
@@ -53,7 +62,7 @@ while (($#)); do
     --preflight) mode=preflight ;;
     --apply) mode=apply ;;
     --readiness) mode=readiness ;;
-    --environment|--database|--staff-login|--patient-login|--integrator-login|--ca-file|--crl-file|--server-cert-file|--server-key-file|--data-dir|--admin-user|--psql|--port|--probe-command|--auth-refusal-journal)
+    --environment|--database|--staff-login|--patient-login|--integrator-login|--secondary-database|--secondary-staff-login|--secondary-patient-login|--secondary-integrator-login|--ca-file|--crl-file|--server-cert-file|--server-key-file|--data-dir|--admin-user|--psql|--port|--probe-command|--auth-refusal-journal)
       (($# >= 2)) || die "missing value for $1"
       if [[ "$1" == --psql ]]; then
         psql_bin=$2
@@ -69,6 +78,12 @@ done
 
 [[ -x "$renderer" || -f "$renderer" ]] || die "missing HBA renderer: $renderer"
 [[ -n "$environment" && -n "$database" && -n "$staff_login" && -n "$patient_login" && -n "$integrator_login" ]] || die 'environment, database, and all three login names are required'
+secondary_values=("$secondary_database" "$secondary_staff_login" "$secondary_patient_login" "$secondary_integrator_login")
+secondary_count=0
+for value in "${secondary_values[@]}"; do [[ -n "$value" ]] && secondary_count=$((secondary_count + 1)); done
+(( secondary_count == 0 || secondary_count == 4 )) || die 'shared mode requires secondary database and all three secondary login names'
+shared_mode=0
+(( secondary_count == 4 )) && shared_mode=1
 for path in "$ca_file" "$crl_file" "$server_cert_file" "$server_key_file"; do
   [[ -n "$path" && "$path" = /* && "$path" != *$'\n'* && "$path" != *"'"* ]] || die 'TLS material paths must be absolute and contain neither newline nor quote'
 done
@@ -84,7 +99,12 @@ if [[ "$environment" == disposable ]]; then
   for path in "$ca_file" "$crl_file" "$server_cert_file" "$server_key_file"; do is_within "$path" "$disposable_root" || die "disposable TLS path escapes the disposable work directory: $path"; done
   [[ -x "$psql_bin" ]] || die "disposable --psql must name the PG16 psql binary"
 else
-  [[ "$environment" == dev || "$environment" == test ]] || die 'only documented dev or test hosts are eligible; PROD is always refused'
+  [[ "$environment" == dev || "$environment" == test || "$environment" == dev-test ]] || die 'only documented dev, test, or shared dev-test hosts are eligible; PROD is always refused'
+  if (( shared_mode == 1 )); then
+    [[ "$environment" == dev-test ]] || die 'host shared mode requires --environment dev-test'
+  else
+    [[ "$environment" != dev-test ]] || die '--environment dev-test requires the complete secondary target'
+  fi
   hostname -I | tr ' ' '\n' | grep -Fxq '151.241.228.122' || die 'refusing: this is not the documented DEV/TEST host 151.241.228.122'
   [[ $EUID -eq 0 ]] || die 'host apply/preflight must run as root so backup and atomic replacement preserve PostgreSQL ownership'
   admin_user=postgres
@@ -127,6 +147,10 @@ if [[ "$environment" == disposable ]]; then
 fi
 
 render_args=(--database "$database" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login")
+if (( shared_mode == 1 )); then
+  render_args+=(--secondary-database "$secondary_database" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-integrator-login "$secondary_integrator_login")
+fi
+node "$renderer" render "${render_args[@]}" >/dev/null
 require_tls_material
 
 verify_ssl_context() {
@@ -168,16 +192,35 @@ run_readiness_probes() {
   fi
   local probe_mode mode expected offset fresh_journal
   offset=$(wc -c < "$auth_refusal_journal")
-  for probe_mode in positive-staff positive-patient positive-integrator password-only wrong-cn non-tls socket server-impersonation; do
-    case "$probe_mode" in positive-*) expected=success ;; *) expected=failure ;; esac
-    set +e
-    "$probe_command" "$probe_mode" "$database" "$staff_login" "$patient_login" "$integrator_login" >/dev/null 2>&1
-    mode=$?
-    set -e
-    if [[ "$expected" == success && $mode -ne 0 ]] || [[ "$expected" == failure && $mode -eq 0 ]]; then
-      die "readiness $probe_mode probe did not $expected"
+  run_target_probes() {
+    local target_database=$1 target_staff=$2 target_patient=$3 target_integrator=$4
+    local foreign_staff=${5:-} foreign_patient=${6:-} foreign_integrator=${7:-}
+    local -a probe_args
+    probe_args=("$target_database" "$target_staff" "$target_patient" "$target_integrator")
+    if [[ -n "$foreign_staff" ]]; then
+      probe_args+=("$foreign_staff" "$foreign_patient" "$foreign_integrator")
     fi
-  done
+    local -a modes=(positive-staff positive-patient positive-integrator password-only wrong-cn non-tls socket server-impersonation)
+    if [[ -n "$foreign_staff" ]]; then
+      modes+=(cross-environment-staff cross-environment-patient cross-environment-integrator)
+    fi
+    for probe_mode in "${modes[@]}"; do
+      case "$probe_mode" in positive-*) expected=success ;; *) expected=failure ;; esac
+      set +e
+      "$probe_command" "$probe_mode" "${probe_args[@]}" >/dev/null 2>&1
+      mode=$?
+      set -e
+      if [[ "$expected" == success && $mode -ne 0 ]] || [[ "$expected" == failure && $mode -eq 0 ]]; then
+        die "readiness $target_database $probe_mode probe did not $expected"
+      fi
+    done
+  }
+  if (( shared_mode == 1 )); then
+    run_target_probes "$database" "$staff_login" "$patient_login" "$integrator_login" "$secondary_staff_login" "$secondary_patient_login" "$secondary_integrator_login"
+    run_target_probes "$secondary_database" "$secondary_staff_login" "$secondary_patient_login" "$secondary_integrator_login" "$staff_login" "$patient_login" "$integrator_login"
+  else
+    run_target_probes "$database" "$staff_login" "$patient_login" "$integrator_login"
+  fi
   fresh_journal=$(mktemp)
   tail -c "+$((offset + 1))" "$auth_refusal_journal" > "$fresh_journal" || true
   if ! rg -q 'FATAL:|authentication failed|certificate authentication|no pg_hba\.conf entry' "$fresh_journal"; then
@@ -189,6 +232,16 @@ run_readiness_probes() {
 
 verify_readiness() {
   verify_loaded_configuration
+  node "$renderer" validate --input "$hba_file" "${render_args[@]}"
+  local declared_logins login_list
+  declared_logins=("$staff_login" "$patient_login" "$integrator_login")
+  if (( shared_mode == 1 )); then
+    declared_logins+=("$secondary_staff_login" "$secondary_patient_login" "$secondary_integrator_login")
+  fi
+  login_list=$(printf "'%s'," "${declared_logins[@]}")
+  login_list=${login_list%,}
+  [[ "$(scalar "SELECT count(*) FROM pg_authid WHERE rolname IN ($login_list) AND rolcanlogin AND rolpassword LIKE 'SCRAM-SHA-256\$%';")" == "${#declared_logins[@]}" ]] ||
+    die 'readiness requires every declared LOGIN to have a SCRAM-SHA-256 verifier'
   run_readiness_probes
 }
 

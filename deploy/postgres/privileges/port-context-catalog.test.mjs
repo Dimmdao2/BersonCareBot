@@ -127,6 +127,7 @@ test('every descriptor target is SET-able by its exact session login', () => {
 
 test('env login render restores app schema usage after the deny-by-default artifact', () => {
   const sql = renderEnvSql(declaration, 'test', 'bersoncarebot_test');
+  assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256';/);
   for (const login of ['bcb_test_webapp_staff', 'bcb_test_webapp_patient', 'bcb_test_integrator']) {
     assert.match(sql, new RegExp(`GRANT USAGE ON SCHEMA "app" TO "${login}";`));
   }

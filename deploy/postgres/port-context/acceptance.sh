@@ -12,19 +12,29 @@ data_dir="$work_dir/data"
 cert_dir="$work_dir/certs"
 log_file="$work_dir/postgres.log"
 port=0
+port_slot=${PORTCTX_PORT_SLOT:-0}
+[[ "$port_slot" =~ ^([0-9]|1[0-4])$ ]] || { echo 'port-context acceptance: invalid disposable port slot' >&2; exit 1; }
 for _ in $(seq 1 40); do
-  candidate=$((55000 + RANDOM % 1000))
+  candidate=$((52000 + port_slot * 200 + RANDOM % 150))
   if ! ss -ltn "sport = :$candidate" 2>/dev/null | grep -q LISTEN; then port=$candidate; break; fi
 done
 [[ "$port" != 0 ]] || { echo 'port-context acceptance: no free disposable port' >&2; exit 1; }
 
 db_name=portctx_accept
+secondary_db_name=portctx_accept_secondary
+other_db_name=portctx_accept_other
 staff_login=portctx_webapp_staff
 patient_login=portctx_webapp_patient
 integrator_login=portctx_integrator
+secondary_staff_login=portctx_secondary_webapp_staff
+secondary_patient_login=portctx_secondary_webapp_patient
+secondary_integrator_login=portctx_secondary_integrator
 staff_password=staff-disposable-only
 patient_password=patient-disposable-only
 integrator_password=integrator-disposable-only
+secondary_staff_password=secondary-staff-disposable-only
+secondary_patient_password=secondary-patient-disposable-only
+secondary_integrator_password=secondary-integrator-disposable-only
 h0=0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a
 org_a=00000000-0000-0000-0000-000000000001
 org_b=00000000-0000-0000-0000-000000000002
@@ -90,6 +100,9 @@ openssl x509 -req -in "$cert_dir/staff-rotated.csr" -CA "$cert_dir/ca.crt" -CAke
 chmod 0600 "$cert_dir/staff-rotated.key"
 issue_client patient "$patient_login"
 issue_client integrator "$integrator_login"
+issue_client secondary-staff "$secondary_staff_login"
+issue_client secondary-patient "$secondary_patient_login"
+issue_client secondary-integrator "$secondary_integrator_login"
 issue_client wrong-port wrong_port
 openssl req -new -nodes -newkey rsa:2048 -keyout "$cert_dir/expired.key" -out "$cert_dir/expired.csr" -subj "/CN=$staff_login" >/dev/null 2>&1
 openssl x509 -req -in "$cert_dir/expired.csr" -CA "$cert_dir/ca.crt" -CAkey "$cert_dir/ca.key" -CAcreateserial -out "$cert_dir/expired.crt" -days 0 >/dev/null 2>&1
@@ -105,16 +118,20 @@ printf '%s\n' \
   "password_encryption = 'scram-sha-256'" 'log_min_messages = warning' 'log_min_error_statement = error' >> "$data_dir/postgresql.conf"
 "$pg_bin/pg_ctl" -D "$data_dir" -l "$log_file" -o '-c log_line_prefix=%m[%p] ' start >/dev/null
 "$pg_bin/createdb" -h 127.0.0.1 -p "$port" "$db_name"
-psql_admin -c "CREATE ROLE $staff_login LOGIN PASSWORD '$staff_password'; CREATE ROLE $patient_login LOGIN PASSWORD '$patient_password'; CREATE ROLE $integrator_login LOGIN PASSWORD '$integrator_password';"
+"$pg_bin/createdb" -h 127.0.0.1 -p "$port" "$secondary_db_name"
+"$pg_bin/createdb" -h 127.0.0.1 -p "$port" "$other_db_name"
+psql_admin -c "CREATE ROLE $staff_login LOGIN PASSWORD '$staff_password'; CREATE ROLE $patient_login LOGIN PASSWORD '$patient_password'; CREATE ROLE $integrator_login LOGIN PASSWORD '$integrator_password'; CREATE ROLE $secondary_staff_login LOGIN PASSWORD '$secondary_staff_password'; CREATE ROLE $secondary_patient_login LOGIN PASSWORD '$secondary_patient_password'; CREATE ROLE $secondary_integrator_login LOGIN PASSWORD '$secondary_integrator_password';"
 psql_admin -v app_staff_login="$staff_login" -v app_patient_login="$patient_login" -v integrator_login="$integrator_login" -f "$repo_root/deploy/postgres/port-context/contract.sql"
 
 printf '%s\n' \
   'local postgres dev trust' \
   "local $db_name dev trust" \
-  'host all all 0.0.0.0/0 reject' 'host all all ::0/0 reject' > "$data_dir/pg_hba.conf"
+  "local $secondary_db_name dev trust" \
+  'host all all 0.0.0.0/0 scram-sha-256' 'host all all ::0/0 scram-sha-256' > "$data_dir/pg_hba.conf"
 host_mtls_apply=(bash "$repo_root/deploy/host/apply-postgres-mtls.sh"
   --environment disposable --apply --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port"
   --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login"
+  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-integrator-login "$secondary_integrator_login"
   --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl"
   --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/server.key")
 cp "$data_dir/pg_hba.conf" "$work_dir/pg_hba.before"
@@ -124,6 +141,7 @@ chmod 0600 "$cert_dir/mismatched-server.key"
 must_fail env BCB_PG_MTLS_SELFTEST=1 bash "$repo_root/deploy/host/apply-postgres-mtls.sh" \
   --environment disposable --apply --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port" \
   --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login" \
+  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-integrator-login "$secondary_integrator_login" \
   --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl" --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/mismatched-server.key"
 cmp -s "$work_dir/pg_hba.before" "$data_dir/pg_hba.conf" || fail 'mismatched key preflight did not preserve the exact HBA file'
 cmp -s "$work_dir/postgresql.before" "$data_dir/postgresql.conf" || fail 'mismatched key preflight did not preserve the exact PostgreSQL config file'
@@ -139,24 +157,47 @@ cmp -s "$work_dir/postgresql.duplicate-marker" "$data_dir/postgresql.conf" || fa
 cp "$work_dir/postgresql.applied" "$data_dir/postgresql.conf"
 probe_command="$work_dir/mtls-readiness-probe.sh"
 printf '%s\n' \
-  '#!/usr/bin/env bash' 'set -euo pipefail' 'kind=$1' \
-  "base=\"host=127.0.0.1 port=$port dbname=$db_name sslrootcert=$cert_dir/ca.crt\"" \
+  '#!/usr/bin/env bash' 'set -euo pipefail' \
+  'kind=$1' 'target_db=$2' 'target_staff=$3' 'target_patient=$4' 'target_integrator=$5' \
+  'foreign_staff=${6:-}' 'foreign_patient=${7:-}' 'foreign_integrator=${8:-}' \
+  "base=\"host=127.0.0.1 port=$port dbname=\$target_db sslrootcert=$cert_dir/ca.crt\"" \
+  'credentials() {' '  case "$1" in' \
+  "    $staff_login) password=$staff_password; cert=$cert_dir/staff-old.crt; key=$cert_dir/staff-old.key ;;" \
+  "    $patient_login) password=$patient_password; cert=$cert_dir/patient.crt; key=$cert_dir/patient.key ;;" \
+  "    $integrator_login) password=$integrator_password; cert=$cert_dir/integrator.crt; key=$cert_dir/integrator.key ;;" \
+  "    $secondary_staff_login) password=$secondary_staff_password; cert=$cert_dir/secondary-staff.crt; key=$cert_dir/secondary-staff.key ;;" \
+  "    $secondary_patient_login) password=$secondary_patient_password; cert=$cert_dir/secondary-patient.crt; key=$cert_dir/secondary-patient.key ;;" \
+  "    $secondary_integrator_login) password=$secondary_integrator_password; cert=$cert_dir/secondary-integrator.crt; key=$cert_dir/secondary-integrator.key ;;" \
+  '    *) exit 65 ;;' '  esac' '}' \
+  'connect_named() {' '  credentials "$1"' \
+  "  PGPASSWORD=\$password \"$pg_bin/psql\" -X \"\$base user=\$1 sslmode=verify-full sslcert=\$cert sslkey=\$key\" -Atqc 'SELECT current_user'" \
+  '}' \
   "case \"\$kind\" in" \
-  "  positive-staff) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=verify-full sslcert=$cert_dir/staff-old.crt sslkey=$cert_dir/staff-old.key\" -Atqc 'SELECT current_user' ;;" \
-  "  positive-patient) PGPASSWORD=$patient_password \"$pg_bin/psql\" -X \"\$base user=$patient_login sslmode=verify-full sslcert=$cert_dir/patient.crt sslkey=$cert_dir/patient.key\" -Atqc 'SELECT current_user' ;;" \
-  "  positive-integrator) PGPASSWORD=$integrator_password \"$pg_bin/psql\" -X \"\$base user=$integrator_login sslmode=verify-full sslcert=$cert_dir/integrator.crt sslkey=$cert_dir/integrator.key\" -Atqc 'SELECT current_user' ;;" \
-  "  password-only) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=require\" -Atqc 'SELECT 1' ;;" \
-  "  wrong-cn) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=verify-full sslcert=$cert_dir/wrong-port.crt sslkey=$cert_dir/wrong-port.key\" -Atqc 'SELECT 1' ;;" \
-  "  non-tls) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"host=127.0.0.1 port=$port dbname=$db_name user=$staff_login sslmode=disable\" -Atqc 'SELECT 1' ;;" \
-  "  socket) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X -h \"$data_dir\" -p $port -U $staff_login -d $db_name -Atqc 'SELECT 1' ;;" \
-  "  server-impersonation) PGPASSWORD=$staff_password \"$pg_bin/psql\" -X \"\$base user=$staff_login sslmode=verify-full sslcert=$cert_dir/server.crt sslkey=$cert_dir/server.key\" -Atqc 'SELECT 1' ;;" \
+  '  positive-staff) connect_named "$target_staff" ;;' \
+  '  positive-patient) connect_named "$target_patient" ;;' \
+  '  positive-integrator) connect_named "$target_integrator" ;;' \
+  "  password-only) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X \"\$base user=\$target_staff sslmode=require\" -Atqc 'SELECT 1' ;;" \
+  "  wrong-cn) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X \"\$base user=\$target_staff sslmode=verify-full sslcert=$cert_dir/wrong-port.crt sslkey=$cert_dir/wrong-port.key\" -Atqc 'SELECT 1' ;;" \
+  "  non-tls) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X \"host=127.0.0.1 port=$port dbname=\$target_db user=\$target_staff sslmode=disable\" -Atqc 'SELECT 1' ;;" \
+  "  socket) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X -h \"$data_dir\" -p $port -U \"\$target_staff\" -d \"\$target_db\" -Atqc 'SELECT 1' ;;" \
+  "  server-impersonation) credentials \"\$target_staff\"; PGPASSWORD=\$password \"$pg_bin/psql\" -X \"\$base user=\$target_staff sslmode=verify-full sslcert=$cert_dir/server.crt sslkey=$cert_dir/server.key\" -Atqc 'SELECT 1' ;;" \
+  '  cross-environment-staff) connect_named "$foreign_staff" ;;' \
+  '  cross-environment-patient) connect_named "$foreign_patient" ;;' \
+  '  cross-environment-integrator) connect_named "$foreign_integrator" ;;' \
   '  *) exit 64 ;;' 'esac' > "$probe_command"
 chmod 0700 "$probe_command"
 host_mtls_readiness=(bash "$repo_root/deploy/host/apply-postgres-mtls.sh"
   --environment disposable --readiness --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port"
   --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login"
+  --secondary-database "$secondary_db_name" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-integrator-login "$secondary_integrator_login"
   --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl" --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/server.key"
   --probe-command "$probe_command" --auth-refusal-journal "$log_file")
+BCB_PG_MTLS_SELFTEST=1 "${host_mtls_readiness[@]}"
+must_fail env PGPASSWORD="$staff_password" "$pg_bin/psql" -X "host=127.0.0.1 port=$port dbname=$other_db_name user=$staff_login sslmode=verify-full sslrootcert=$cert_dir/ca.crt sslcert=$cert_dir/staff-old.crt sslkey=$cert_dir/staff-old.key" -Atqc 'SELECT 1'
+must_fail env PGPASSWORD="$secondary_staff_password" "$pg_bin/psql" -X "host=127.0.0.1 port=$port dbname=$other_db_name user=$secondary_staff_login sslmode=verify-full sslrootcert=$cert_dir/ca.crt sslcert=$cert_dir/secondary-staff.crt sslkey=$cert_dir/secondary-staff.key" -Atqc 'SELECT 1'
+psql_admin -c "ALTER ROLE $secondary_integrator_login PASSWORD NULL;" >/dev/null
+must_fail env BCB_PG_MTLS_SELFTEST=1 "${host_mtls_readiness[@]}"
+psql_admin -c "ALTER ROLE $secondary_integrator_login PASSWORD '$secondary_integrator_password';" >/dev/null
 BCB_PG_MTLS_SELFTEST=1 "${host_mtls_readiness[@]}"
 cp "$data_dir/pg_hba.conf" "$work_dir/pg_hba.applied"
 sed -i "2i hostssl all all 0.0.0.0/0 trust" "$data_dir/pg_hba.conf"
@@ -626,7 +667,7 @@ if [[ "$single_mode" != --single && -z "$fault" ]]; then
       [[ $fault_index -lt ${#faults[@]} ]] || continue
       injected=${faults[$fault_index]}
       mutation_log="$work_dir/mutation.${injected}.log"
-      PORTCTX_INJECT_FAULT="$injected" "$0" --single >"$mutation_log" 2>&1 &
+      PORTCTX_PORT_SLOT=$((fault_index + 1)) PORTCTX_INJECT_FAULT="$injected" "$0" --single >"$mutation_log" 2>&1 &
       batch_pids+=("$!")
       batch_faults+=("$injected")
     done

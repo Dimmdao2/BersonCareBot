@@ -416,10 +416,12 @@ export function generateEnvironmentVerifierSql(declaration, env, dbName) {
   const allDeclaredNames = allDeclaredLoginNames.map(lit).join(', ');
   const foreignDeclaredNames = foreignNames.map(lit).join(', ');
   return [
-    '-- Exact target environment verifier: three LOGIN attrs, memberships, CONNECT and schema USAGE.',
+    '-- Exact target environment verifier: three SCRAM LOGIN attrs, memberships, CONNECT and schema USAGE.',
     'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
     `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${expectedNames}]::name[]) AND (NOT rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR rolinherit) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'environment login attributes mismatch: %', bad; END IF;",
+    `  SELECT rolname INTO bad FROM pg_catalog.pg_authid WHERE rolname=ANY(ARRAY[${expectedNames}]::name[]) AND COALESCE(rolpassword, '') NOT LIKE 'SCRAM-SHA-256$%' LIMIT 1;`,
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'environment LOGIN lacks SCRAM verifier: %', bad; END IF;",
     `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolcanlogin AND rolname ~ '^(app_|bcb_|saas_|bersoncarebot_)' AND rolname <> ALL(ARRAY[${allDeclaredNames}]::name[]) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared BCB LOGIN survived: %', bad; END IF;",
     `  SELECT expected.login_name::text || '->' || expected.role_name::text INTO bad FROM (VALUES ${expectedMemberships}) AS expected(login_name,role_name,admin_option,inherit_option,set_option) WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles role ON role.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE member.rolname=expected.login_name AND role.rolname=expected.role_name AND membership.admin_option=expected.admin_option AND membership.inherit_option=expected.inherit_option AND membership.set_option=expected.set_option) LIMIT 1;`,
@@ -1891,6 +1893,7 @@ export function renderEnvSql(declaration, env, dbName) {
     '-- применение: psql -1 -v ON_ERROR_STOP=1 -v <PASSWORD_VAR>=… -f -',
     '',
     '\\set ON_ERROR_STOP on',
+    "SET LOCAL password_encryption = 'scram-sha-256';",
     '',
   ];
   for (const loginName of sortedKeys(records)) {

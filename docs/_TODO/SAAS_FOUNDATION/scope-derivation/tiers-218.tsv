@@ -59,10 +59,8 @@ INFRA|public.saas_trial_policy
 INFRA|public.saas_registration_tariff_policy
 INFRA|public.saas_paid_period_policy
 INFRA|public.webapp_schema_migrations
-LEGACY|public.appointment_records
 LEGACY|public.booking_cities
 LEGACY|public.patient_bookings
-LEGACY|integrator.message_drafts
 SCOPED|integrator.user_reminder_delivery_logs
 SCOPED|integrator.user_reminder_occurrences
 SCOPED|public.admin_audit_log
