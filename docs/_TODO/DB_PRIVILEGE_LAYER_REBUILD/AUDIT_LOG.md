@@ -1788,3 +1788,8 @@ cluster rehearsal, не новый документационный мини-с�
   Drizzle `0001` создаёт таблицу и `0053` применяет exact parity до всех её последующих use. Legacy `083–089`
   продолжают исполняться до Drizzle; manual/emergency режимы не изменены. Независимый взгляд подтвердил отсутствие
   потери schema/data и других достижимых order-break — **PASS**.
+- **LIVE-INTERLEAVE-002 — ИСПРАВЛЕНО ГРОМКО:** после успешных legacy `083–085` файл `086` достиг второй
+  Drizzle-зависимости (`content_sections.kind`). Bootstrap superseded-map теперь exact: legacy `082 → Drizzle 0053`,
+  `086 → Drizzle 0055`; обе пары независимо сопоставлены по schema/seed/index/FK/check и имеют полную parity.
+  Legacy `087–089` намеренно остаются до Drizzle: они формируют недублированный baseline, который поздние миграции
+  используют/расширяют. Итоговый независимый взгляд — **PASS**, следующего pre-Drizzle order-break не найдено.
