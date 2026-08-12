@@ -8,9 +8,9 @@
 
 CREATE TEMP TABLE bcb_zero_state_cluster_guard ON COMMIT DROP AS SELECT 1;
 CREATE TEMP TABLE bcb_zero_state_cluster_roles (role_name name PRIMARY KEY) ON COMMIT DROP;
-INSERT INTO bcb_zero_state_cluster_roles SELECT rolname FROM pg_catalog.pg_roles WHERE rolname = ANY (ARRAY['app_owner', 'bcb_webapp_dev_user', 'bersoncarebot_test']::name[]);
+INSERT INTO bcb_zero_state_cluster_roles SELECT rolname FROM pg_catalog.pg_roles WHERE rolname = ANY (ARRAY['app_bootstrap_base_c1_20260713021531', 'app_owner', 'app_runtime_login_c1_20260713021531', 'bcb_dev', 'bcb_dev_runtime_nonstaff_login', 'bcb_dev_runtime_staff_login', 'bcb_saas_diag_test', 'bcb_saas_operator_dev', 'bcb_saas_operator_test', 'bcb_test_integrator_login', 'bcb_test_maintenance_login', 'bcb_test_nonstaff_login', 'bcb_test_operational_delivery_login', 'bcb_test_operational_diagnostic_login', 'bcb_test_operational_media_login', 'bcb_test_operational_scheduler_login', 'bcb_test_operational_web_push_reminder_login', 'bcb_test_staff_login', 'bcb_test_worker_login', 'bcb_webapp_dev_user', 'bcb_webapp_prod', 'bersoncarebot_test']::name[]);
 DO $bcb$ DECLARE edge record; BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = ANY (ARRAY['app_owner', 'bcb_webapp_dev_user', 'bersoncarebot_test']::name[]) AND rolsuper) THEN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = ANY (ARRAY['app_bootstrap_base_c1_20260713021531', 'app_owner', 'app_runtime_login_c1_20260713021531', 'bcb_dev', 'bcb_dev_runtime_nonstaff_login', 'bcb_dev_runtime_staff_login', 'bcb_saas_diag_test', 'bcb_saas_operator_dev', 'bcb_saas_operator_test', 'bcb_test_integrator_login', 'bcb_test_maintenance_login', 'bcb_test_nonstaff_login', 'bcb_test_operational_delivery_login', 'bcb_test_operational_diagnostic_login', 'bcb_test_operational_media_login', 'bcb_test_operational_scheduler_login', 'bcb_test_operational_web_push_reminder_login', 'bcb_test_staff_login', 'bcb_test_worker_login', 'bcb_webapp_dev_user', 'bcb_webapp_prod', 'bersoncarebot_test']::name[]) AND rolsuper) THEN
     RAISE EXCEPTION 'application identity is SUPERUSER; cluster zero-state refused';
   END IF;
   FOR edge IN SELECT granted.rolname AS role_name, member.rolname AS member_name

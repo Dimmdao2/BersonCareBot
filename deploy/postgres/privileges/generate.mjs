@@ -1492,8 +1492,8 @@ export function generateSharedRoleBaselineSql(declaration) {
 }
 
 /** Drop only the selected environment's login shells after the target database is proven zero.
- * Legacy roles are opportunistic: they are removed only after the same cross-database dependency
- * proof, and otherwise retained for the sibling database's later cutover. */
+ * Every exact legacy login is first made inert and stripped of membership edges.  It is dropped
+ * when dependency-free; cross-database owners remain only as NOLOGIN dependency anchors. */
 export function generateTargetLoginCleanupSql(declaration, env, dbName) {
   const records = environmentLoginRecords(declaration, env, dbName);
   const targetLogins = records.map(([name]) => name);
@@ -1520,18 +1520,21 @@ export function generateTargetLoginCleanupSql(declaration, env, dbName) {
     '    SELECT count(*) INTO membership_count FROM pg_catalog.pg_auth_members membership',
     '     WHERE membership.roleid=role_oid OR membership.member=role_oid;',
     '    SELECT count(*) INTO backend_count FROM pg_catalog.pg_stat_activity activity WHERE activity.usesysid=role_oid;',
-    '    IF dependency_count <> 0 OR (NOT candidate.required_target AND membership_count <> 0) OR backend_count <> 0 THEN',
+    '    IF candidate.required_target AND (dependency_count <> 0 OR backend_count <> 0) THEN',
     '      IF candidate.required_target THEN',
     "        RAISE EXCEPTION 'target login % has cross-database/cluster dependencies: dependencies=%, memberships=%, backends=%',candidate.role_name,dependency_count,membership_count,backend_count;",
     '      END IF;',
-    "      RAISE NOTICE 'legacy role % retained: dependencies=%, memberships=%, backends=%',candidate.role_name,dependency_count,membership_count,backend_count;",
-    '      CONTINUE;',
     '    END IF;',
-    '    IF candidate.required_target THEN',
-    '      PERFORM pg_catalog.pg_terminate_backend(pid) FROM pg_catalog.pg_stat_activity WHERE usesysid=role_oid AND pid<>pg_catalog.pg_backend_pid();',
-    '      FOR edge IN SELECT granted.rolname AS role_name,member.rolname AS member_name FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE membership.roleid=role_oid OR membership.member=role_oid LOOP',
-    "        EXECUTE pg_catalog.format('REVOKE %I FROM %I',edge.role_name,edge.member_name);",
-    '      END LOOP;',
+    '    PERFORM pg_catalog.pg_terminate_backend(pid) FROM pg_catalog.pg_stat_activity WHERE usesysid=role_oid AND pid<>pg_catalog.pg_backend_pid();',
+    '    FOR edge IN SELECT granted.rolname AS role_name,member.rolname AS member_name FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE membership.roleid=role_oid OR membership.member=role_oid LOOP',
+    "      EXECUTE pg_catalog.format('REVOKE %I FROM %I',edge.role_name,edge.member_name);",
+    '    END LOOP;',
+    '    IF NOT candidate.required_target THEN',
+    "      EXECUTE pg_catalog.format('ALTER ROLE %I NOLOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',candidate.role_name);",
+    '      IF dependency_count <> 0 THEN',
+    "        RAISE NOTICE 'legacy role % retained inert: dependencies=%',candidate.role_name,dependency_count;",
+    '        CONTINUE;',
+    '      END IF;',
     '    END IF;',
     "    EXECUTE pg_catalog.format('DROP ROLE %I',candidate.role_name);",
     '  END LOOP;',
