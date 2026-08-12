@@ -1,15 +1,15 @@
 /**
  * D15b/2 — live write path for `user.upsert` (Telegram/MAX webhooks).
  *
- * One bounded integrator transaction that writes the channel anchor (integrator-only channel
- * identity, retained) PLUS the canonical webapp tables directly via qualified `public.*`:
+ * One bounded integrator transaction that writes the canonical webapp tables directly via
+ * qualified `public.*`:
  *   - `public.platform_users`          (canonical person; insert or enrich)
  *   - `public.user_channel_bindings`   (messenger identity → platform user)
  *
  * The actual `platform_users`/`user_channel_bindings` write is the shared
  * `@bersoncare/platform-merge` `identityProjectionWrite` implementation — the SAME code the webapp's
  * `pgUserProjection.ts` calls on its own pool transaction. This file owns only what is genuinely
- * integrator-specific: the retained channel anchor, the cross-webhook advisory lock, and the
+ * integrator-specific: the cross-webhook advisory lock and the
  * candidate-collapse dependency-injection seam kept for tests that must not invoke the real merge
  * engine (see `WriteIdentityAndPreferencesDeps.mergeCandidateIds`).
  *
@@ -49,27 +49,7 @@ export type DirectPublicIdentityInput = {
   topics?: ReadonlyArray<{ topicCode: string; isEnabled: boolean }>;
 };
 
-/** Result of the retained integrator-only channel anchor write. */
-export type ChannelAnchorResult = {
-  /** Canonical integrator user id (numeric text for telegram, identities.user_id for max). */
-  integratorUserId: string;
-};
-
 export type WriteIdentityAndPreferencesDeps = {
-  /**
-   * Writes the integrator-only channel anchor / identity and returns the canonical integrator user id.
-   *
-   * D1 requires this to RETAIN integrator-only channel identity/state — it is NOT a duplicate business
-   * projection. The server agent wires this to the existing repos inside the SAME tx:
-   *   - telegram: `upsertUser(txDb, {...})` then `resolveCanonicalIntegratorUserId`
-   *   - max:      `ensureIdentityForMessenger(txDb, {...})` then read `identities.user_id`
-   * (see the `user.upsert` case in writePort.ts). Returns `null` when the anchor cannot be resolved
-   * (e.g. non-numeric telegram id / missing identity) — the caller then aborts without any public write.
-   */
-  writeChannelAnchor(
-    txDb: DbPort,
-    input: DirectPublicIdentityInput,
-  ): Promise<ChannelAnchorResult | null>;
   /**
    * Collapses duplicate canonical `public.platform_users` rows to a single id.
    * Production wires this to `mergeCandidateIdsViaPlatformMerge` (`@bersoncare/platform-merge`'s
@@ -81,14 +61,12 @@ export type WriteIdentityAndPreferencesDeps = {
 };
 
 export type WriteIdentityAndPreferencesResult = {
-  integratorUserId: string;
   platformUserId: string;
   channelBindingInserted: boolean;
   topicsWritten: number;
 };
 
 export type DirectPublicWriteFailureCode =
-  | 'channel_anchor_unresolved'
   | 'channel_anchor_owned_by_other_user'
   | 'ambiguous_platform_user_candidates'
   | 'no_platform_user_candidate'
@@ -127,17 +105,15 @@ export function normalizeChannelDisplayHandle(value: string | null | undefined):
   return trimmed.slice(0, CHANNEL_DISPLAY_HANDLE_MAX_LENGTH);
 }
 
-/**
- * A3 — concurrent-webhook idempotency: serialize all direct-public writes for the same canonical
- * integrator user id. Two webhooks racing for the same person (e.g. `user.upsert` + `notifications.update`
- * fired back-to-back, or duplicate delivery) must not interleave candidate-collection with another
- * transaction's insert/merge. Key idiom harvested from the retired `codex/direct-public-d1-987` branch's
- * SECURITY DEFINER function (`hashtextextended('<ns>:' || id, 0)`), reproduced here as plain TS/SQL.
- */
-async function lockOnIntegratorUserId(txDb: DbPort, integratorUserId: string): Promise<void> {
+/** Serialize writes for the canonical channel key; no integrator-local anchor is created. */
+async function lockOnChannelIdentity(
+  txDb: DbPort,
+  channelCode: string,
+  externalId: string,
+): Promise<void> {
   await runIntegratorSql(
     txDb,
-    sql`SELECT pg_advisory_xact_lock(hashtextextended('direct-public-identity:' || ${integratorUserId}::text, 0))`,
+    sql`SELECT pg_advisory_xact_lock(hashtextextended('direct-public-channel:' || ${channelCode}::text || ':' || ${externalId}::text, 0))`,
   );
 }
 
@@ -164,7 +140,7 @@ async function defaultMergeCandidateIds(_txDb: DbPort, candidateIds: string[]): 
 export async function collectPlatformUserCandidates(
   txDb: DbPort,
   input: {
-    integratorUserId: string;
+    integratorUserId?: string | null;
     phoneNormalized: string | null;
     channelCode: string;
     externalId: string;
@@ -209,12 +185,12 @@ export async function upsertNotificationTopics(
 }
 
 /**
- * D1 entrypoint: ONE bounded transaction writes the retained integrator channel anchor plus the
- * canonical `public.platform_users` / `user_channel_bindings` (via the shared
+ * D1 entrypoint: ONE bounded transaction writes canonical `public.platform_users` /
+ * `user_channel_bindings` (via the shared
  * `@bersoncare/platform-merge` identity-projection write) / `public.user_notification_topics`.
  *
  * Ordering inside the single tx:
- *   1. channel anchor (integrator-only identity, retained) → canonical integrator user id
+ *   1. lock the canonical channel key
  *   2. resolve/insert/enrich canonical `public.platform_users` + `public.user_channel_bindings`
  *   3. upsert `public.user_notification_topics`
  *
@@ -234,21 +210,13 @@ export async function writeIdentityAndPreferencesDirect(
   const topics = input.topics ?? [];
 
   return db.tx(async (txDb) => {
-    // 1) Retained integrator-only channel identity/anchor (NOT a duplicate business projection).
-    const anchor = await deps.writeChannelAnchor(txDb, input);
-    if (!anchor || !trimmedOrNull(anchor.integratorUserId)) {
-      throw new DirectPublicWriteError('channel_anchor_unresolved');
-    }
-    const integratorUserId = anchor.integratorUserId.trim();
-
-    // A3: serialize concurrent webhooks for the same person before any candidate read/write.
-    await lockOnIntegratorUserId(txDb, integratorUserId);
+    await lockOnChannelIdentity(txDb, input.channelCode, input.externalId);
 
     const mergeDbClient = txDb as PlatformMergeDbClient;
 
     // 2) Canonical public.platform_users + public.user_channel_bindings (shared implementation).
     const candidates = await collectPlatformUserCandidates(txDb, {
-      integratorUserId,
+      integratorUserId: null,
       phoneNormalized,
       channelCode: input.channelCode,
       externalId: input.externalId,
@@ -258,7 +226,7 @@ export async function writeIdentityAndPreferencesDirect(
     try {
       if (candidates.length === 0) {
         platformUserId = await insertIdentityProjection(mergeDbClient, {
-          integratorUserId,
+          integratorUserId: null,
           phoneNormalized,
           displayName,
           firstName,
@@ -268,7 +236,7 @@ export async function writeIdentityAndPreferencesDirect(
       } else {
         platformUserId = await mergeCandidateIds(txDb, candidates);
         await enrichIdentityProjection(mergeDbClient, platformUserId, {
-          integratorUserId,
+          integratorUserId: null,
           phoneNormalized,
           displayName,
           firstName,
@@ -309,6 +277,6 @@ export async function writeIdentityAndPreferencesDirect(
     // 3) public.user_notification_topics.
     const topicsWritten = await upsertNotificationTopics(txDb, platformUserId, topics);
 
-    return { integratorUserId, platformUserId, channelBindingInserted, topicsWritten };
+    return { platformUserId, channelBindingInserted, topicsWritten };
   });
 }

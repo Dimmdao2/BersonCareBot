@@ -28,7 +28,8 @@ import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 const CHANNEL_PREFERENCES_SEED_CHANNELS = new Set(['telegram', 'max', 'sms']);
 
 export type IdentityProjectionInput = {
-  integratorUserId: string;
+  /** Legacy numeric anchor. New messenger identities are keyed only by channel binding. */
+  integratorUserId?: string | null;
   phoneNormalized?: string | null;
   displayName?: string | null;
   firstName?: string | null;
@@ -123,7 +124,7 @@ export async function collapseIdentityProjectionCandidates(
 export async function collectIdentityProjectionCandidates(
   db: PlatformMergeDbClient,
   params: {
-    integratorUserId: string;
+    integratorUserId?: string | null;
     phoneNormalized?: string | null;
     channelCode?: string | null;
     externalId?: string | null;
@@ -136,21 +137,24 @@ export async function collectIdentityProjectionCandidates(
   let channelCandidateId: string | null = null;
   let channelCandidateIntegratorId: string | null = null;
 
-  const byInt = await runMergeSql<{ id: string }>(
-    db,
-    sql`SELECT id::text AS id FROM platform_users
-     WHERE integrator_user_id = ${params.integratorUserId}::bigint AND merged_into_id IS NULL
-     LIMIT 3`,
-  );
-  if (byInt.rows.length > 1) {
-    throw new MergeConflictError(
-      'ambiguous integrator_user_id match',
-      byInt.rows.map((r) => r.id),
+  const integratorUserId = trimmedOrNull(params.integratorUserId);
+  if (integratorUserId) {
+    const byInt = await runMergeSql<{ id: string }>(
+      db,
+      sql`SELECT id::text AS id FROM platform_users
+       WHERE integrator_user_id = ${integratorUserId}::bigint AND merged_into_id IS NULL
+       LIMIT 3`,
     );
-  }
-  if (byInt.rows[0]) {
-    integratorMatched = true;
-    ids.push(byInt.rows[0].id);
+    if (byInt.rows.length > 1) {
+      throw new MergeConflictError(
+        'ambiguous integrator_user_id match',
+        byInt.rows.map((r) => r.id),
+      );
+    }
+    if (byInt.rows[0]) {
+      integratorMatched = true;
+      ids.push(byInt.rows[0].id);
+    }
   }
 
   const phoneNormalized = trimmedOrNull(params.phoneNormalized);
@@ -197,7 +201,8 @@ export async function collectIdentityProjectionCandidates(
     channelCandidateId &&
     typeof channelCandidateIntegratorId === 'string' &&
     channelCandidateIntegratorId.length > 0 &&
-    channelCandidateIntegratorId !== params.integratorUserId
+    integratorUserId !== null &&
+    channelCandidateIntegratorId !== integratorUserId
   ) {
     throw new MergeConflictError('channel_anchor_owned_by_other_user', [channelCandidateId]);
   }
@@ -213,7 +218,7 @@ export async function collectIdentityProjectionCandidates(
 export async function insertIdentityProjection(
   db: PlatformMergeDbClient,
   input: {
-    integratorUserId: string;
+    integratorUserId?: string | null;
     phoneNormalized: string | null;
     displayName: string | null;
     firstName: string | null;
@@ -222,6 +227,7 @@ export async function insertIdentityProjection(
   },
 ): Promise<string> {
   const displayName = input.displayName ?? '';
+  const integratorUserId = trimmedOrNull(input.integratorUserId);
   const res = await runMergeSql<{ id: string }>(
     db,
     sql`INSERT INTO platform_users (
@@ -229,7 +235,7 @@ export async function insertIdentityProjection(
        patient_phone_trust_at
      )
      VALUES (
-       ${input.integratorUserId}::bigint, ${input.phoneNormalized}, ${displayName}, ${input.firstName}, ${input.lastName}, ${input.email},
+       ${integratorUserId}::bigint, ${input.phoneNormalized}, ${displayName}, ${input.firstName}, ${input.lastName}, ${input.email},
        CASE WHEN ${input.phoneNormalized}::text IS NOT NULL AND trim(${input.phoneNormalized}::text) <> '' THEN now() ELSE NULL END
      )
      RETURNING id::text AS id`,
@@ -266,7 +272,7 @@ export async function enrichIdentityProjection(
   db: PlatformMergeDbClient,
   platformUserId: string,
   input: {
-    integratorUserId: string;
+    integratorUserId?: string | null;
     phoneNormalized: string | null;
     displayName: string | null;
     firstName: string | null;
@@ -276,6 +282,7 @@ export async function enrichIdentityProjection(
   },
 ): Promise<void> {
   const phoneNormalized = input.phoneNormalized?.trim();
+  const integratorUserId = trimmedOrNull(input.integratorUserId);
   if (phoneNormalized) {
     // D28: this UPDATE below is about to (re)set `phone_normalized` for an EXISTING account — close
     // its previous active confirmation spell (if any, and if the number actually changed) before the
@@ -309,7 +316,7 @@ export async function enrichIdentityProjection(
          WHEN ${input.phoneNormalized}::text IS NOT NULL AND trim(${input.phoneNormalized}::text) <> '' THEN now()
          ELSE patient_phone_trust_at
        END,
-       integrator_user_id = COALESCE(integrator_user_id, ${input.integratorUserId}::bigint),
+       integrator_user_id = COALESCE(integrator_user_id, ${integratorUserId}::bigint),
        updated_at = now()
      WHERE id = ${platformUserId}::uuid AND merged_into_id IS NULL`,
   );
@@ -438,7 +445,12 @@ export async function upsertIdentityProjection(
       displayHandle,
     );
     if (channelBindingInserted) {
-      await seedChannelPreferencesDefaultsForProjection(db, platformUserId, channelCode, new Date());
+      await seedChannelPreferencesDefaultsForProjection(
+        db,
+        platformUserId,
+        channelCode,
+        new Date(),
+      );
     }
   }
 

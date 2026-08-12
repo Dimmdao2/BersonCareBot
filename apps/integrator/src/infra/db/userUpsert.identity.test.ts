@@ -149,7 +149,8 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         (c) => c.type === 'phone' && c.value_normalized === phone,
       );
       if (conflicting && conflicting.user_id !== owner) return rows([]);
-      if (!conflicting) tables.contacts.push({ user_id: owner, type: 'phone', value_normalized: phone });
+      if (!conflicting)
+        tables.contacts.push({ user_id: owner, type: 'phone', value_normalized: phone });
       return { rows: [] as T[], rowCount: 1 };
     }
     if (q.startsWith('delete from contacts')) return { rows: [] as T[], rowCount: 0 };
@@ -335,29 +336,24 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
           (u) => u.id === platformUserId && u.merged_into_id === null,
         );
         if (!hit) return { rows: [] as T[], rowCount: 0 };
-        const [, displayName, firstName, lastName, , phoneNormalized, integratorUserId, channelCode] = p;
-        const isMessenger = channelCode === 'telegram' || channelCode === 'max';
-        if (displayName && firstName && lastName) hit.display_name = displayName;
-        else if (!hit.display_name && displayName) hit.display_name = displayName;
-        hit.first_name = isMessenger
-          ? (hit.first_name ?? firstName ?? null)
-          : (firstName ?? hit.first_name ?? null);
-        hit.last_name = isMessenger
-          ? (hit.last_name ?? lastName ?? null)
-          : (lastName ?? hit.last_name ?? null);
-        if (phoneNormalized) hit.phone_normalized = phoneNormalized;
-        if (integratorUserId && !hit.integrator_user_id) hit.integrator_user_id = integratorUserId;
+        // The messenger path intentionally supplies no canonical FIO/phone/integrator id, so this
+        // behavioral model only needs to prove that the already-bound row remains the target.
         return { rows: [] as T[], rowCount: 1 };
       }
       // enrichIdentityProjection (legacy param order): [platformUserId, displayName, ...]
       const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
       if (!hit) return { rows: [] as T[], rowCount: 0 };
-      const [, displayName, firstName, lastName, , phoneNormalized, integratorUserId, channelCode] = p;
+      const [, displayName, firstName, lastName, , phoneNormalized, integratorUserId, channelCode] =
+        p;
       const isMessenger = channelCode === 'telegram' || channelCode === 'max';
       if (displayName && firstName && lastName) hit.display_name = displayName;
       else if (!hit.display_name && displayName) hit.display_name = displayName;
-      hit.first_name = isMessenger ? (hit.first_name ?? firstName ?? null) : (firstName ?? hit.first_name ?? null);
-      hit.last_name = isMessenger ? (hit.last_name ?? lastName ?? null) : (lastName ?? hit.last_name ?? null);
+      hit.first_name = isMessenger
+        ? (hit.first_name ?? firstName ?? null)
+        : (firstName ?? hit.first_name ?? null);
+      hit.last_name = isMessenger
+        ? (hit.last_name ?? lastName ?? null)
+        : (lastName ?? hit.last_name ?? null);
       if (phoneNormalized) hit.phone_normalized = phoneNormalized;
       if (integratorUserId && !hit.integrator_user_id) hit.integrator_user_id = integratorUserId;
       return { rows: [] as T[], rowCount: 1 };
@@ -410,16 +406,24 @@ const CHANNELS: Array<'telegram' | 'max'> = ['telegram', 'max'];
 describe('user.upsert: новый человек на первом вебхуке', () => {
   for (const channel of CHANNELS) {
     it(`дано: ${channel}-id никогда не писал → когда приходит первое сообщение → тогда создаётся один platform_users и канал привязан`, async () => {
-      // Genuinely new: no `identities`/`users` seed — `resolveOrCreateAnchor` models the real
-      // `upsertUser`/`ensureIdentityForMessenger` CTE creating both on first contact.
+      // Genuinely new: no legacy `identities`/`users` seed. The channel binding is the identity.
       const tables = emptyTables();
       const db = makeDb(tables);
-      await upsertUser(db, { resource: channel, externalId: '777', firstName: 'Иван', lastName: 'Петров' });
+      await upsertUser(db, {
+        resource: channel,
+        externalId: '777',
+        firstName: 'Иван',
+        lastName: 'Петров',
+      });
 
       expect(tables.platformUsers).toHaveLength(1);
       const pu = tables.platformUsers[0]!;
-      expect(tables.identities).toEqual([{ resource: channel, external_id: '777', user_id: pu.integrator_user_id }]);
-      expect(tables.bindings).toEqual([{ channel_code: channel, external_id: '777', user_id: pu.id }]);
+      expect(pu.integrator_user_id).toBeNull();
+      expect(tables.identities).toEqual([]);
+      expect(tables.users).toEqual([]);
+      expect(tables.bindings).toEqual([
+        { channel_code: channel, external_id: '777', user_id: pu.id },
+      ]);
       expect(tables.channelPrefs).toEqual([{ user_id: pu.id, channel_code: channel }]);
     });
   }
@@ -428,12 +432,22 @@ describe('user.upsert: новый человек на первом вебхук�
     const tables = emptyTables();
     const db = makeDb(tables);
 
-    await upsertUser(db, { resource: 'telegram', externalId: '777', firstName: 'Иван', lastName: 'Петров' });
+    await upsertUser(db, {
+      resource: 'telegram',
+      externalId: '777',
+      firstName: 'Иван',
+      lastName: 'Петров',
+    });
     expect(tables.platformUsers).toHaveLength(1);
     const firstId = tables.platformUsers[0]!.id;
 
     // Second message from the same channel identity — same anchor, same candidate via channel binding.
-    await upsertUser(db, { resource: 'telegram', externalId: '777', firstName: 'Иван', lastName: 'Петров' });
+    await upsertUser(db, {
+      resource: 'telegram',
+      externalId: '777',
+      firstName: 'Иван',
+      lastName: 'Петров',
+    });
 
     expect(tables.platformUsers).toHaveLength(1);
     expect(tables.platformUsers[0]!.id).toBe(firstId);
@@ -466,8 +480,6 @@ describe('user.upsert: новый человек на первом вебхук�
     // `enrichIdentityProjection`: for messenger channels, first_name/last_name prefer the EXISTING
     // value — a human correction in the app must survive a stale Telegram/MAX profile name.
     const tables = emptyTables({
-      identities: [{ resource: 'max', external_id: '42', user_id: '6000' }],
-      users: [{ id: '6000', merged_into_user_id: null }],
       platformUsers: [
         {
           id: 'pu-existing',
@@ -479,10 +491,16 @@ describe('user.upsert: новый человек на первом вебхук�
           merged_into_id: null,
         },
       ],
+      bindings: [{ channel_code: 'max', external_id: '42', user_id: 'pu-existing' }],
     });
     const db = makeDb(tables);
 
-    await upsertUser(db, { resource: 'max', externalId: '42', firstName: 'MariaOldProfileName', lastName: 'Smirnova' });
+    await upsertUser(db, {
+      resource: 'max',
+      externalId: '42',
+      firstName: 'MariaOldProfileName',
+      lastName: 'Smirnova',
+    });
 
     expect(tables.platformUsers).toHaveLength(1);
     const pu = tables.platformUsers[0]!;
@@ -490,7 +508,9 @@ describe('user.upsert: новый человек на первом вебхук�
     expect(pu.first_name).toBe('Мария');
     expect(pu.last_name).toBe('Иванова');
     expect(pu.phone_normalized).toBe('+79180000099');
-    expect(tables.bindings).toEqual([{ channel_code: 'max', external_id: '42', user_id: 'pu-existing' }]);
+    expect(tables.bindings).toEqual([
+      { channel_code: 'max', external_id: '42', user_id: 'pu-existing' },
+    ]);
   });
 });
 
@@ -508,8 +528,10 @@ describe('два вебхука подряд: создание на первом
     expect(tables.platformUsers).toHaveLength(1);
     const pu = tables.platformUsers[0]!;
     expect(pu.phone_normalized).toBeNull();
-    expect(tables.bindings).toEqual([{ channel_code: 'telegram', external_id: '888', user_id: pu.id }]);
-    const integratorUserId = pu.integrator_user_id!;
+    expect(tables.bindings).toEqual([
+      { channel_code: 'telegram', external_id: '888', user_id: pu.id },
+    ]);
+    expect(pu.integrator_user_id).toBeNull();
 
     // Webhook 2 — user.phone.link (the reply to the "share contact" prompt).
     const linkResult = await writePort.writeDb({
@@ -521,9 +543,9 @@ describe('два вебхука подряд: создание на первом
     expect(tables.platformUsers).toHaveLength(1);
     expect(tables.platformUsers[0]!.id).toBe(pu.id);
     expect(tables.platformUsers[0]!.phone_normalized).toBe('+79170000022');
-    expect(tables.contacts).toEqual([
-      { user_id: integratorUserId, type: 'phone', value_normalized: '+79170000022' },
-    ]);
+    expect(tables.contacts).toEqual([]);
+    expect(tables.identities).toEqual([]);
+    expect(tables.users).toEqual([]);
   });
 });
 
@@ -567,9 +589,7 @@ describe('D28: отзыв подтверждения вместе с номер�
     // Old number's active confirmation is gone — a different future owner of it could confirm it
     // without hitting `uq_user_phone_history_phone_active` (§Р-D28: «значит конфликта не будет»).
     expect(
-      tables.phoneHistory.some(
-        (h) => h.phone_normalized === '+79180000011' && h.valid_to === null,
-      ),
+      tables.phoneHistory.some((h) => h.phone_normalized === '+79180000011' && h.valid_to === null),
     ).toBe(false);
     // The new number is the account's one active spell.
     expect(tables.phoneHistory.filter((h) => h.valid_to === null)).toEqual([

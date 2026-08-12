@@ -12,7 +12,7 @@ import { appSettings } from '../../config/appSettings.js';
 import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
-import { setUserPhone, setUserState, upsertUser, getIntegratorUserIdByResourceAndExternalId } from './repos/channelUsers.js';
+import { setUserState } from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
   applyMessengerPhonePublicBind,
@@ -66,11 +66,8 @@ import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   writeIdentityAndPreferencesDirect,
-  DirectPublicWriteError,
   normalizeChannelDisplayHandle,
-  type ChannelAnchorResult,
   type DirectPublicChannelCode,
-  type DirectPublicIdentityInput,
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
 import {
   mergeCandidateIdsViaPlatformMerge,
@@ -159,45 +156,6 @@ function readChannelUserId(params: Record<string, unknown>): string | null {
 function readResource(params: Record<string, unknown>): string {
   const r = asNonEmptyString(params.resource);
   return r ?? 'telegram';
-}
-
-/**
- * A1 — D1 channel-anchor hook for `writeIdentityAndPreferencesDirect`: writes the retained
- * integrator-only channel identity (telegram `upsertUser`, max `ensureIdentityForMessenger`) on the
- * SAME tx-bound `DbPort` the scaffold's public writes use, then resolves the canonical integrator user
- * id — exactly the same two steps `user.upsert` performed before D1 (see the removed inline logic this
- * replaces). Returns null (no anchor, no public write) for the same cases that used to silently `return`:
- * a non-numeric telegram external id, or a max identity that failed to resolve a `user_id`.
- */
-function buildChannelAnchorWriter(
-  /** Caller has already asserted `resource === 'telegram' || resource === 'max'` at the call site. */
-  resource: string,
-  externalId: string,
-  username: string | null,
-  firstName: string | null,
-  lastName: string | null,
-): (txDb: DbPort, input: DirectPublicIdentityInput) => Promise<ChannelAnchorResult | null> {
-  return async (txDb: DbPort): Promise<ChannelAnchorResult | null> => {
-    let integratorUserId: string | null;
-    if (resource === 'telegram') {
-      const parsedId = Number(externalId);
-      if (!Number.isFinite(parsedId)) return null;
-      const userPayload = {
-        id: Math.trunc(parsedId),
-        ...(username ? { username } : {}),
-        ...(firstName ? { first_name: firstName } : {}),
-        ...(lastName ? { last_name: lastName } : {}),
-      };
-      const row = await upsertUser(txDb, userPayload);
-      integratorUserId = row?.id ?? null;
-    } else {
-      await ensureIdentityForMessenger(txDb, { resource: 'max', externalId });
-      integratorUserId = await getIntegratorUserIdByResourceAndExternalId(txDb, resource, externalId);
-    }
-    if (!integratorUserId) return null;
-    const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, integratorUserId);
-    return { integratorUserId: canonicalUserId };
-  };
 }
 
 /** Last digits only — avoid logging full E.164 in clear text. */
@@ -306,20 +264,16 @@ export function createDbWritePort(
               mutation.params.channelId,
           );
           const username = asNullableString(mutation.params.username);
-          const firstName = asNullableString(mutation.params.firstName);
-          const lastName = asNullableString(mutation.params.lastName);
           if (!externalId) return;
           // `readResource` returns a wide `string`; the guard above only proves it AT RUNTIME, TS does
           // not narrow a plain `string` from `!==` checks — re-derive a properly literal-typed value.
           const channelCode: DirectPublicChannelCode = resource === 'max' ? 'max' : 'telegram';
-          // D1: ONE tx writes the retained channel anchor PLUS the canonical public.platform_users /
-          // user_channel_bindings directly — replaces the `user.upserted` HTTP projection fanout.
+          // D1: ONE tx writes the canonical public.platform_users/user_channel_bindings directly.
           //
           // D29 (owner, 31.07): the canonical ФИО (`platform_users.first_name`/`last_name`, and the
           // `display_name` derived from them) is no longer autofilled from the channel's own profile —
-          // the person types it at registration. `firstName`/`lastName` still go to
-          // `buildChannelAnchorWriter` below: that's the integrator's own channel-profile bookkeeping
-          // (`identities`/channel anchor), not the webapp canon, and is out of this decision's scope.
+          // the person types it at registration. The messenger profile contributes only its channel
+          // display handle; no integrator-local identity or user row is created.
           try {
             // D15b/4 fix (access sweep 2026-08-04, ACCESS_SWEEP_2026-08-04.md "Топ находка"): this
             // writes `public.platform_users`/`user_channel_bindings` directly (see
@@ -339,23 +293,11 @@ export function createDbWritePort(
                   displayName: null,
                 },
                 {
-                  writeChannelAnchor: buildChannelAnchorWriter(
-                    resource,
-                    externalId,
-                    username,
-                    firstName,
-                    lastName,
-                  ),
                   mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
                 },
               ),
             );
           } catch (err) {
-            if (err instanceof DirectPublicWriteError && err.code === 'channel_anchor_unresolved') {
-              // Parity: old code silently returned when the anchor couldn't resolve (non-numeric
-              // telegram id / missing max identity) — no write, no error.
-              return;
-            }
             if (isIdentityMergeAmbiguityError(err)) {
               logger.warn(
                 { err, mutationType: mutation.type, resource, externalId },
@@ -405,63 +347,22 @@ export function createDbWritePort(
           const phoneSuffix = phoneLogSuffix(phoneNormalized);
           try {
             let applied = false;
-            let phoneLinkEarly: DbWriteDbResult | undefined;
             let platformUserIdForLog: string | undefined;
-            // Same D15b/4 fix as `user.upsert` above: `applyMessengerPhonePublicBind` writes
-            // `public.platform_users`/`user_channel_bindings` directly and is RLS-denied under the
-            // bare "integrator" principal. The integrator-local statements in this same tx
-            // (`ensureIdentityForMessenger`/`setUserPhone` — `integrator.identities`/`integrator.users`,
-            // neither RLS'd) are unaffected by running under `app_staff` for the tx's duration.
+            // Same D15b/4 fix as `user.upsert` above: this binding-first canonical write is RLS-denied
+            // under the bare integrator principal, so it runs with the already-resolved organization
+            // principal. It does not create or update integrator-local identity/user rows.
             await runDirectPublicWriteWithOrgPrincipal(() =>
               db.tx(async (txDb) => {
-                if (resource === 'max') {
-                  await ensureIdentityForMessenger(txDb, {
-                    resource: 'max',
-                    externalId: channelUserId,
-                  });
-                }
-                const rawUid = await getIntegratorUserIdByResourceAndExternalId(
-                  txDb,
-                  resource,
-                  channelUserId,
-                );
-                if (!rawUid) {
-                  phoneLinkEarly = {
-                    userPhoneLinkApplied: false,
-                    phoneLinkReason: 'no_integrator_identity',
-                  };
-                  return;
-                }
-                const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
                 const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
                   channelCode: resource,
                   externalId: channelUserId,
                   phoneNormalized,
-                  canonicalIntegratorUserId: canonicalUid,
+                  canonicalIntegratorUserId: null,
                 });
                 platformUserIdForLog = platformUserId;
-                const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
-                if (outcome === 'failed') {
-                  throw new MessengerPhoneLinkError('db_transient_failure');
-                }
-                if (outcome === 'noop_conflict') {
-                  throw new MessengerPhoneLinkError('legacy_contacts_conflict');
-                }
                 applied = true;
               }),
             );
-            if (phoneLinkEarly) {
-              logger.warn(
-                {
-                  ...bindLogBase,
-                  bindOutcome: 'bind_tx_fail',
-                  reason: phoneLinkEarly.phoneLinkReason ?? 'no_integrator_identity',
-                  phoneSuffix,
-                },
-                'bind_tx_fail',
-              );
-              return phoneLinkEarly;
-            }
             logger.info(
               {
                 event: 'messenger_phone_bind_tx',

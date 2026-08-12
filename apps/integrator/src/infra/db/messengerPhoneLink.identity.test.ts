@@ -22,10 +22,7 @@ import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
 import { setUserPhone } from './repos/channelUsers.js';
-import {
-  DirectPublicWriteError,
-  writeIdentityAndPreferencesDirect,
-} from './directPublic/writeIdentityAndPreferencesDirect.js';
+import { writeIdentityAndPreferencesDirect } from './directPublic/writeIdentityAndPreferencesDirect.js';
 
 type IdentityRow = { resource: string; external_id: string; user_id: string };
 type UserRow = { id: string; merged_into_user_id: string | null };
@@ -171,9 +168,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       );
     }
     if (q.startsWith('insert into user_channel_bindings')) {
-      const exists = tables.bindings.some(
-        (b) => b.channel_code === p[1] && b.external_id === p[2],
-      );
+      const exists = tables.bindings.some((b) => b.channel_code === p[1] && b.external_id === p[2]);
       if (exists) return rows([]);
       tables.bindings.push({ user_id: p[0]!, channel_code: p[1]!, external_id: p[2]! });
       return rows([{ user_id: p[0] }]);
@@ -297,12 +292,12 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         hit.integrator_user_id = at(0);
         return { rows: [] as T[], rowCount: 1 };
       }
-      // enrichIdentityProjection (shared package): params are
-      // [platformUserId, displayName, firstName, lastName, email, phoneNormalized, integratorUserId, channelCode]
-      const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
+      const idMatch = q.match(/where id = \$(\d+)/);
+      const platformUserId = idMatch ? at(Number(idMatch[1]) - 1) : p[0];
+      const hit = tables.platformUsers.find(
+        (u) => u.id === platformUserId && u.merged_into_id === null,
+      );
       if (!hit) return { rows: [] as T[], rowCount: 0 };
-      if (hit.integrator_user_id === null) hit.integrator_user_id = at(6);
-      if (hit.phone_normalized === null) hit.phone_normalized = at(5);
       return { rows: [] as T[], rowCount: 1 };
     }
 
@@ -417,9 +412,7 @@ describe('привязка телефона: в чей аккаунт он по�
     });
   });
 
-  it('дано: интегратор не знает этой мессенджер-идентичности → тогда отказ назван, и в канон не ушло ничего', async () => {
-    // арбитр: убрать ранний возврат `if (!rawUid)` в writePort — привязка пойдёт дальше
-    // с неразрешённым человеком
+  it('дано: binding есть, а legacy identity нет → телефон привязывается к каноническому человеку', async () => {
     const tables = emptyTables({
       platformUsers: [
         { id: 'pu-a', phone_normalized: null, integrator_user_id: '1000', merged_into_id: null },
@@ -430,20 +423,17 @@ describe('привязка телефона: в чей аккаунт он по�
 
     const result = await linkPhone(db, { externalId: '555', phone: PHONE });
 
-    expect(result).toEqual({
-      userPhoneLinkApplied: false,
-      phoneLinkReason: 'no_integrator_identity',
-    });
-    expect(tables.platformUsers[0]!.phone_normalized).toBeNull();
+    expect(result).toEqual({ userPhoneLinkApplied: true });
+    expect(tables.platformUsers[0]!.phone_normalized).toBe(PHONE);
+    expect(tables.identities).toEqual([]);
+    expect(tables.users).toEqual([]);
   });
 
   it('дано: канал входа выключен в настройках → тогда телефон не привязывается и причина названа', async () => {
     // арбитр: убрать проверку `if (!(await authChannelPolicy(resource)))` в writePort
     const tables = emptyTables({
-      identities: [{ resource: 'telegram', external_id: '555', user_id: '1000' }],
-      users: [{ id: '1000', merged_into_user_id: null }],
       platformUsers: [
-        { id: 'pu-a', phone_normalized: null, integrator_user_id: '1000', merged_into_id: null },
+        { id: 'pu-a', phone_normalized: null, integrator_user_id: null, merged_into_id: null },
       ],
       bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-a' }],
     });
@@ -479,7 +469,7 @@ describe('привязка телефона: в чей аккаунт он по�
 
     expect(result).toEqual({ userPhoneLinkApplied: true });
     expect(tables.platformUsers[0]!.phone_normalized).toBe(PHONE);
-    expect(tables.contacts).toEqual([{ user_id: '1000', type: 'phone', value_normalized: PHONE }]);
+    expect(tables.contacts).toEqual([]);
     expect(tables.userContacts).toEqual([
       {
         platform_user_id: 'pu-a',
@@ -489,28 +479,6 @@ describe('привязка телефона: в чей аккаунт он по�
         is_primary: true,
       },
     ]);
-  });
-
-  it('дано: интеграторская учётка слита в другую → когда привязка → тогда телефон уходит ЦЕЛЕВОЙ учётке, не исчезнувшей', async () => {
-    // арбитр: убрать `resolveCanonicalIntegratorUserId` из writePort (писать rawUid) —
-    // телефон запишется в аккаунт, которого уже нет
-    const tables = emptyTables({
-      identities: [{ resource: 'telegram', external_id: '555', user_id: '1000' }],
-      users: [
-        { id: '1000', merged_into_user_id: '2000' },
-        { id: '2000', merged_into_user_id: null },
-      ],
-      platformUsers: [
-        { id: 'pu-a', phone_normalized: null, integrator_user_id: '2000', merged_into_id: null },
-      ],
-      bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-a' }],
-    });
-    const db = makeDb(tables);
-
-    const result = await linkPhone(db, { externalId: '555', phone: PHONE });
-
-    expect(result).toEqual({ userPhoneLinkApplied: true });
-    expect(tables.contacts).toEqual([{ user_id: '2000', type: 'phone', value_normalized: PHONE }]);
   });
 
   it('дано: этот номер уже принадлежит другому каноническому аккаунту → тогда телефон НЕ дописывается второму аккаунту и «привязано» человеку не говорят', async () => {
@@ -570,34 +538,10 @@ describe('привязка телефона: в чей аккаунт он по�
     expect(result).toMatchObject({ userPhoneLinkApplied: false });
     expect(tables.platformUsers.find((u) => u.id === 'pu-a')?.phone_normalized).toBeNull();
     expect(
-      tables.userContacts.filter((uc) => uc.contact_kind === 'phone' && uc.value_normalized === PHONE),
+      tables.userContacts.filter(
+        (uc) => uc.contact_kind === 'phone' && uc.value_normalized === PHONE,
+      ),
     ).toHaveLength(1);
-  });
-
-  it('дано: строку контакта отдать нельзя (она за другим человеком) → тогда отказ назван и КАНОНИЧЕСКАЯ запись телефона откачена', async () => {
-    // Это тот самый исход `SetUserPhoneOutcome = noop_conflict` из карты: человек НЕ должен
-    // остаться наполовину привязанным к чужому номеру.
-    // арбитр: в writePort убрать `if (outcome === 'noop_conflict') throw …` —
-    // канонический аккаунт останется с чужим телефоном, а вызывающему скажут «привязано»
-    const tables = emptyTables({
-      identities: [{ resource: 'telegram', external_id: '555', user_id: '1000' }],
-      users: [{ id: '1000', merged_into_user_id: null }],
-      platformUsers: [
-        { id: 'pu-a', phone_normalized: null, integrator_user_id: '1000', merged_into_id: null },
-      ],
-      bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-a' }],
-      contactsInsertBlocked: true,
-    });
-    const db = makeDb(tables);
-
-    const result = await linkPhone(db, { externalId: '555', phone: PHONE });
-
-    expect(result).toEqual({
-      userPhoneLinkApplied: false,
-      phoneLinkReason: 'legacy_contacts_conflict',
-    });
-    expect(tables.platformUsers[0]!.phone_normalized).toBeNull();
-    expect(tables.contacts).toEqual([]);
   });
 });
 
@@ -706,54 +650,55 @@ describe('SetUserPhoneOutcome: applied против noop_conflict', () => {
   // зелёным, но дефект виден в отчёте прогона, а не потерян. Починка — отдельная работа (не эта):
   // либо привести DELETE в соответствие с обещанием (перестать сносить чужую строку без разбора),
   // либо честно переписать комментарий функции, если продукт решит сохранить нынешнее поведение.
-  it.fails('дано: телефон уже занят строкой контакта другого человека → тогда чужая привязка НЕ перезаписывается, исход noop_conflict (план: D20_INTEGRATOR_MAP.md п.6)', async () => {
-    // ФАКТ на сегодня (не то, что проверяет этот тест): DELETE строкой выше сносит чужую строку
-    // безусловно, и до охраняющего `ON CONFLICT … WHERE contacts.user_id = …` конфликт не
-    // доезжает — реальный исход `applied`, чужая строка исчезает. См. B1-тест выше: тот же guard
-    // реально удерживает захват только в окне гонки между DELETE и INSERT одной транзакции.
-    const contacts: ContactRow[] = [
-      { user_id: '900', type: 'phone', value_normalized: PHONE },
-    ];
-    const db: DbPort = {
-      async query<T>(text: string, params: unknown[] = []): Promise<DbQueryResult<T>> {
-        const q = norm(text);
-        const p = params.map((v) => (v === null || v === undefined ? null : String(v)));
-        if (q.startsWith('delete from contacts')) {
-          const before = contacts.length;
-          for (let i = contacts.length - 1; i >= 0; i -= 1) {
-            const c = contacts[i]!;
-            if (c.type === 'phone' && c.value_normalized === p[0] && c.user_id !== p[1]) {
-              contacts.splice(i, 1);
+  it.fails(
+    'дано: телефон уже занят строкой контакта другого человека → тогда чужая привязка НЕ перезаписывается, исход noop_conflict (план: D20_INTEGRATOR_MAP.md п.6)',
+    async () => {
+      // ФАКТ на сегодня (не то, что проверяет этот тест): DELETE строкой выше сносит чужую строку
+      // безусловно, и до охраняющего `ON CONFLICT … WHERE contacts.user_id = …` конфликт не
+      // доезжает — реальный исход `applied`, чужая строка исчезает. См. B1-тест выше: тот же guard
+      // реально удерживает захват только в окне гонки между DELETE и INSERT одной транзакции.
+      const contacts: ContactRow[] = [{ user_id: '900', type: 'phone', value_normalized: PHONE }];
+      const db: DbPort = {
+        async query<T>(text: string, params: unknown[] = []): Promise<DbQueryResult<T>> {
+          const q = norm(text);
+          const p = params.map((v) => (v === null || v === undefined ? null : String(v)));
+          if (q.startsWith('delete from contacts')) {
+            const before = contacts.length;
+            for (let i = contacts.length - 1; i >= 0; i -= 1) {
+              const c = contacts[i]!;
+              if (c.type === 'phone' && c.value_normalized === p[0] && c.user_id !== p[1]) {
+                contacts.splice(i, 1);
+              }
             }
+            return { rows: [] as T[], rowCount: before - contacts.length };
           }
-          return { rows: [] as T[], rowCount: before - contacts.length };
-        }
-        if (q.startsWith('insert into contacts')) {
-          const conflicting = contacts.find(
-            (c) => c.type === 'phone' && c.value_normalized === p[1],
-          );
-          if (conflicting && conflicting.user_id !== p[0]) {
-            return { rows: [] as T[], rowCount: 0 };
+          if (q.startsWith('insert into contacts')) {
+            const conflicting = contacts.find(
+              (c) => c.type === 'phone' && c.value_normalized === p[1],
+            );
+            if (conflicting && conflicting.user_id !== p[0]) {
+              return { rows: [] as T[], rowCount: 0 };
+            }
+            if (!conflicting) {
+              contacts.push({ user_id: p[0]!, type: 'phone', value_normalized: p[1]! });
+            }
+            return { rows: [] as T[], rowCount: 1 };
           }
-          if (!conflicting) {
-            contacts.push({ user_id: p[0]!, type: 'phone', value_normalized: p[1]! });
+          if (q.includes('from identities i')) {
+            return { rows: [{ user_id: '1000' }] as T[], rowCount: 1 };
           }
-          return { rows: [] as T[], rowCount: 1 };
-        }
-        if (q.includes('from identities i')) {
-          return { rows: [{ user_id: '1000' }] as T[], rowCount: 1 };
-        }
-        if (q.includes('merged_into_user_id')) return { rows: [] as T[], rowCount: 0 };
-        throw new Error(`неожиданный запрос: ${q}`);
-      },
-      async tx(fn) {
-        return fn(this);
-      },
-    };
+          if (q.includes('merged_into_user_id')) return { rows: [] as T[], rowCount: 0 };
+          throw new Error(`неожиданный запрос: ${q}`);
+        },
+        async tx(fn) {
+          return fn(this);
+        },
+      };
 
-    await expect(setUserPhone(db, '555', PHONE)).resolves.toBe('noop_conflict');
-    expect(contacts).toEqual([{ user_id: '900', type: 'phone', value_normalized: PHONE }]);
-  });
+      await expect(setUserPhone(db, '555', PHONE)).resolves.toBe('noop_conflict');
+      expect(contacts).toEqual([{ user_id: '900', type: 'phone', value_normalized: PHONE }]);
+    },
+  );
 
   it('дано: интегратор не знает этой мессенджер-идентичности → тогда исход failed, а не applied', async () => {
     // арбитр: `if (!rawUserId) return 'failed'` → `return 'applied'`
@@ -770,82 +715,52 @@ describe('SetUserPhoneOutcome: applied против noop_conflict', () => {
   });
 });
 
-describe('чужой якорь канала при записи идентичности в канон', () => {
-  const anchorFor = (integratorUserId: string) => ({
-    writeChannelAnchor: async () => ({ integratorUserId }),
-  });
-
-  it('дано: канал привязан к аккаунту B, а по интеграторскому id находится аккаунт A → тогда ЯВНЫЙ отказ, и ничего не записано', async () => {
-    // арбитр: в defaultMergeCandidateIds вернуть `uniq[0]` вместо
-    // `throw new DirectPublicWriteError('ambiguous_platform_user_candidates')`
+describe('каноническая channel-binding без integrator identity', () => {
+  it('дано: channel binding уже существует → профиль канала обновляет именно связанного человека без legacy-якоря', async () => {
     const tables = emptyTables({
       platformUsers: [
-        { id: 'pu-a', phone_normalized: null, integrator_user_id: '1000', merged_into_id: null },
-        { id: 'pu-b', phone_normalized: null, integrator_user_id: '900', merged_into_id: null },
+        { id: 'pu-a', phone_normalized: null, integrator_user_id: null, merged_into_id: null },
       ],
-      bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-b' }],
+      bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-a' }],
     });
     const db = makeDb(tables);
 
-    const failure = await writeIdentityAndPreferencesDirect(
+    const result = await writeIdentityAndPreferencesDirect(
       db,
       {
         channelCode: 'telegram',
         externalId: '555',
         topics: [{ topicCode: 'appointment_reminders', isEnabled: false }],
       },
-      anchorFor('1000'),
-    ).catch((err: unknown) => err);
+      {},
+    );
 
-    expect(failure).toBeInstanceOf(DirectPublicWriteError);
-    expect((failure as DirectPublicWriteError).code).toBe('ambiguous_platform_user_candidates');
-    expect((failure as DirectPublicWriteError).candidateIds).toEqual(['pu-a', 'pu-b']);
-    expect(tables.topics).toEqual([]);
+    expect(result.platformUserId).toBe('pu-a');
+    expect(tables.topics).toEqual([
+      { user_id: 'pu-a', topic_code: 'appointment_reminders', is_enabled: false },
+    ]);
+    expect(tables.identities).toEqual([]);
+    expect(tables.users).toEqual([]);
   });
 
-  it('дано: якорь канала не разрешился → тогда отказ назван, и в канон не ушло ничего', async () => {
-    // арбитр: убрать `throw new DirectPublicWriteError('channel_anchor_unresolved')` —
-    // запись пойдёт с пустым интеграторским id
+  it('дано: канал пришёл впервые → создаются platform user и binding, но не legacy identity/user', async () => {
     const tables = emptyTables();
     const db = makeDb(tables);
 
-    const failure = await writeIdentityAndPreferencesDirect(
+    const result = await writeIdentityAndPreferencesDirect(
       db,
-      { channelCode: 'telegram', externalId: '555', topics: [] },
-      { writeChannelAnchor: async () => null },
-    ).catch((err: unknown) => err);
+      { channelCode: 'max', externalId: 'max-555', displayHandle: '@new_user' },
+      {},
+    );
 
-    expect(failure).toBeInstanceOf(DirectPublicWriteError);
-    expect((failure as DirectPublicWriteError).code).toBe('channel_anchor_unresolved');
-    expect(tables.platformUsers).toEqual([]);
-  });
-
-  // Fail-closed: foreign channel anchor with no self by-integrator/by-phone match.
-  it('дано: канал привязан к чужому аккаунту, а своего у человека ещё нет → тогда ЯВНЫЙ отказ, и настройки НЕ уходят в чужой аккаунт (план: D20_INTEGRATOR_MAP.md, Уровень 1 п.6)', async () => {
-    const tables = emptyTables({
-      platformUsers: [
-        { id: 'pu-b', phone_normalized: null, integrator_user_id: '900', merged_into_id: null },
-      ],
-      bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-b' }],
-    });
-    const bindingsBefore = structuredClone(tables.bindings);
-    const db = makeDb(tables);
-
-    const failure = await writeIdentityAndPreferencesDirect(
-      db,
-      {
-        channelCode: 'telegram',
-        externalId: '555',
-        topics: [{ topicCode: 'appointment_reminders', isEnabled: false }],
-      },
-      anchorFor('1000'),
-    ).catch((err: unknown) => err);
-
-    expect(failure).toBeInstanceOf(DirectPublicWriteError);
-    expect((failure as DirectPublicWriteError).code).toBe('channel_anchor_owned_by_other_user');
-    expect((failure as DirectPublicWriteError).candidateIds).toEqual(['pu-b']);
-    expect(tables.topics).toEqual([]);
-    expect(tables.bindings).toEqual(bindingsBefore);
-    expect(tables.platformUsers[0]!.integrator_user_id).toBe('900');
+    expect(result.platformUserId).toBe('pu-new-1');
+    expect(tables.platformUsers).toEqual([
+      expect.objectContaining({ id: 'pu-new-1', integrator_user_id: null }),
+    ]);
+    expect(tables.bindings).toEqual([
+      { channel_code: 'max', external_id: 'max-555', user_id: 'pu-new-1' },
+    ]);
+    expect(tables.identities).toEqual([]);
+    expect(tables.users).toEqual([]);
   });
 });
