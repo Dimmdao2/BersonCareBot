@@ -365,8 +365,10 @@ async function migrateEmptyBootstrap(pool, migrations, journalEntries) {
           // Historical app_owner schema usage came from host provisioning before this migration.
           // Its SQL function body references public.* while SET ROLE app_owner is active, so restore
           // only schema name resolution as the administrative session, then return to the exact
-          // migration role. The grant remains inside the disposable bootstrap transaction.
-          await client.query('RESET ROLE');
+          // migration role. `RESET ROLE` cannot be used here: a startup `PGOPTIONS role=...`
+          // makes RESET return to that configured migration role rather than to session_user.
+          // The grant remains inside the disposable bootstrap transaction.
+          await client.query(`SET ROLE ${pg.escapeIdentifier(administrativeRole)}`);
           try {
             await client.query('GRANT USAGE ON SCHEMA public TO app_owner');
           } finally {

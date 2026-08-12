@@ -1836,7 +1836,7 @@ cluster rehearsal, не новый документационный мини-с�
   ordinary/restored/PROD stock path не изменён, дальнейший fail откатывает prerequisite, последующий owner-zero
   снимает его после успешного bootstrap. Независимая классификация была **ВЗГЛЯД / PASS**, но следующий live
   replay опроверг достаточность реализации: право пытался выдать migration role без grant option.
-- **LIVE-EMPTY-SCHEMA-002 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** системный PostgreSQL-журнал следующего replay
+- **LIVE-EMPTY-SCHEMA-002 — НЕПОЛНОЕ ИСПРАВЛЕНИЕ, ЗАМЕНЕНО → `LIVE-EMPTY-SCHEMA-003`:** системный PostgreSQL-журнал следующего replay
   сохранил исходный `permission denied for schema public` и перед ним точное предупреждение
   `no privileges were granted for "public"`. Причина: соединение имеет `session_user=postgres`, но штатный
   `PGOPTIONS role=bersoncarebot_test`; прежний hook выполнял `GRANT` от migration role, не владеющей схемой.
@@ -1844,3 +1844,11 @@ cluster rehearsal, не новый документационный мини-с�
   транзакции временно делает `RESET ROLE`, выдаёт exact schema `USAGE`, гарантированно возвращает исходную роль
   через escaped identifier и отдельно проверяет фактический privilege. Ordinary/restored/PROD path не изменён;
   table/data privilege не добавлен, failure откатывает grant, последующий owner-zero снимает его после PASS.
+  Следующий live replay опроверг семантическое предположение о `RESET ROLE`: при startup
+  `PGOPTIONS role=bersoncarebot_test` команда оставила `current_user=bersoncarebot_test`, поэтому grant снова не
+  был выдан; собственный privilege-check громко остановил chain до `0261`.
+- **LIVE-EMPTY-SCHEMA-003 — ИСПРАВЛЕНО ГРОМКО ДЛЯ ПОВТОРА:** откатываемый live PostgreSQL 16 probe с тем же
+  `PGOPTIONS` доказал: `session_user=postgres`, `current_user=bersoncarebot_test`; `RESET ROLE` сохраняет
+  `current_user=bersoncarebot_test`, а explicit `SET ROLE postgres` даёт exact schema grant, возврат в
+  `bersoncarebot_test` работает, `ROLLBACK` снимает grant. Runner теперь использует обнаруженный и escaped
+  `administrativeRole` вместо `RESET ROLE`, затем возвращает escaped `migrationRole` и проверяет право fail-closed.
