@@ -94,6 +94,16 @@ node deploy/postgres/privileges/generate-cli.mjs --zero-state-cluster --check
 pnpm test:db-zero-state
 ```
 
+Пост-zero установщик намеренно не является обходом этой точки.  Он принимает только
+сохранённый успешный transcript `zero-state.acceptance.sh`, затем отказывается при
+любом unresolved relation-access gap и только на полном declaration открывает одну
+`psql`-транзакцию для login-shells → context contract → generated grants → capability
+seed.  Пока матрица неполна, безопасный ожидаемый результат:
+
+```bash
+pnpm test:db-postzero-apply
+```
+
 **Байтовая точность важна:** строки `searchPath` и `dbSettings` хранятся дословно как в каталоге
 (например `search_path=public, integrator` — с пробелом после запятой). §F сравнивает побайтово;
 переформатированный литерал = ложный красный.
