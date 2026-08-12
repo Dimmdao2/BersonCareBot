@@ -109,17 +109,20 @@ psql_admin -c "CREATE ROLE $staff_login LOGIN PASSWORD '$staff_password'; CREATE
 psql_admin -v app_staff_login="$staff_login" -v app_patient_login="$patient_login" -v integrator_login="$integrator_login" -f "$repo_root/deploy/postgres/port-context/contract.sql"
 
 printf '%s\n' \
+  'local postgres dev trust' \
   "local $db_name dev trust" \
-  "hostnossl $db_name $staff_login,$patient_login,$integrator_login 0.0.0.0/0 reject" \
-  "hostnossl $db_name $staff_login,$patient_login,$integrator_login ::0/0 reject" \
-  "local $db_name $staff_login,$patient_login,$integrator_login reject" \
-  "hostssl $db_name $staff_login 0.0.0.0/0 scram-sha-256 clientcert=verify-full clientname=CN" \
-  "hostssl $db_name $staff_login ::0/0 scram-sha-256 clientcert=verify-full clientname=CN" \
-  "hostssl $db_name $patient_login 0.0.0.0/0 scram-sha-256 clientcert=verify-full clientname=CN" \
-  "hostssl $db_name $patient_login ::0/0 scram-sha-256 clientcert=verify-full clientname=CN" \
-  "hostssl $db_name $integrator_login 0.0.0.0/0 scram-sha-256 clientcert=verify-full clientname=CN" \
-  "hostssl $db_name $integrator_login ::0/0 scram-sha-256 clientcert=verify-full clientname=CN" \
   'host all all 0.0.0.0/0 reject' 'host all all ::0/0 reject' > "$data_dir/pg_hba.conf"
+host_mtls_apply=(bash "$repo_root/deploy/host/apply-postgres-mtls.sh"
+  --environment disposable --apply --data-dir "$data_dir" --admin-user dev --psql "$pg_bin/psql" --port "$port"
+  --database "$db_name" --staff-login "$staff_login" --patient-login "$patient_login" --integrator-login "$integrator_login"
+  --ca-file "$cert_dir/ca.crt" --crl-file "$cert_dir/ca.crl"
+  --server-cert-file "$cert_dir/server.crt" --server-key-file "$cert_dir/server.key")
+cp "$data_dir/pg_hba.conf" "$work_dir/pg_hba.before"
+cp "$data_dir/postgresql.conf" "$work_dir/postgresql.before"
+must_fail env BCB_PG_MTLS_SELFTEST=1 BCB_PG_MTLS_INJECT_FAULT=reload_failure "${host_mtls_apply[@]}"
+cmp -s "$work_dir/pg_hba.before" "$data_dir/pg_hba.conf" || fail 'host apply fault did not restore the exact HBA file'
+cmp -s "$work_dir/postgresql.before" "$data_dir/postgresql.conf" || fail 'host apply fault did not restore the exact PostgreSQL config file'
+BCB_PG_MTLS_SELFTEST=1 "${host_mtls_apply[@]}"
 if [[ "$fault" == clientcert ]]; then sed -i 's/ clientcert=verify-full clientname=CN//' "$data_dir/pg_hba.conf"; fi
 if [[ "$fault" == broad_hba ]]; then sed -i "2i hostssl $db_name all 0.0.0.0/0 trust" "$data_dir/pg_hba.conf"; fi
 psql_admin -c 'SELECT pg_reload_conf()' >/dev/null

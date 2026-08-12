@@ -122,6 +122,15 @@ TLS DB credential или principal context. Обязательны `MEDIA_WORKER
 - Telegram / SMSC runtime-переменные сюда не класть;
 - `INTEGRATOR_SHARED_SECRET` должен совпадать с `api.prod`.
 
+### Planned PostgreSQL mTLS port material (not a live-env instruction yet)
+
+After the separately approved host boundary apply and role cutover, each runtime port will additionally receive only
+its own `sslmode=verify-full` client certificate/key and public CA path: webapp owns the staff+patient client material;
+integrator owns only its client material. PostgreSQL receives public CA/CRL verifier material and its server
+certificate/key through `deploy/host/apply-postgres-mtls.sh`; it never receives a client private key. Do not add these
+values to a shared env, media-worker env, database table, SQL artifact, or log. This repository stage has **not**
+applied those keys or changed any DEV/TEST/PROD env file.
+
 Проверка:
 
 ```bash

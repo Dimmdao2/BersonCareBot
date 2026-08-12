@@ -1030,6 +1030,34 @@ curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
 - PostgreSQL слушает только `127.0.0.1:5432`
 - `psql` запускать под `postgres`: `sudo -u postgres psql`
 
+### Staged PostgreSQL mTLS host boundary (DEV/TEST only; not applied by this repository stage)
+
+`deploy/host/apply-postgres-mtls.sh` is the only host primitive for the target two-port boundary. It accepts one exact
+database plus three distinct login names, renders the six first-match `hostssl … scram-sha-256
+clientcert=verify-full clientname=CN` rules and preceding non-TLS/socket rejects, then rejects duplicate explicit
+application-login HBA rules or a `pg_ident` map. A broad legacy loopback rule may remain only **below** that block
+while the role/grant cutover is staged.
+
+It does not create roles, set passwords, generate a CA/private key, edit application env, restart services, or run on
+PROD. On a real host it refuses anything except the documented `151.241.228.122` DEV/TEST host and requires root.
+Before an owner-approved live apply, DB-admin supplies already-issued public CA/CRL and server certificate/key paths;
+private client keys stay in the two port envs and are never arguments to this host tool.
+
+```bash
+# On the confirmed 151.241.228.122 DEV/TEST host only, after the exact material
+# paths and declaration-expanded DB/login names have been reviewed.
+sudo bash deploy/host/apply-postgres-mtls.sh --environment dev --preflight \
+  --database '<managed_db>' --staff-login '<env>_webapp_staff' \
+  --patient-login '<env>_webapp_patient' --integrator-login '<env>_integrator' \
+  --ca-file '<public_ca_pem>' --crl-file '<public_crl_pem>' \
+  --server-cert-file '<server_cert_pem>' --server-key-file '<server_key_pem>'
+```
+
+`--apply` takes exact backups of the server-reported `hba_file` and `config_file`, atomically replaces both, asks
+PostgreSQL to reload, verifies `pg_file_settings`, `pg_hba_file_rules` and active TLS settings, and restores both exact
+files on any failure. `--readiness` repeats the loaded-catalog check without writing. A changed SSL setting with
+`pending_restart` remains a controlled restart/cutover decision; this stage intentionally does not make that restart.
+
 Не подтверждено текущим audit'ом:
 
 - точный актуальный список баз и owners
