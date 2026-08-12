@@ -1775,3 +1775,10 @@ cluster rehearsal, не новый документационный мини-с�
   только database `CREATE/TEMPORARY`, schema `public USAGE/CREATE`, `app_owner` membership и `BYPASSRLS`; application
   login не получает `CONNECT`. Все grants отзываются и проверяются до bilateral zero; failed `REVOKE` сохраняет
   cleanup flag для EXIT-retry. Независимый итоговый взгляд — **PASS**.
+- **LIVE-SOCKET-001 — ИСПРАВЛЕНО ГРОМКО:** первый empty-TEST bootstrap остановился до SQL, потому что общий
+  target guard правильно запрещает libpq query override `?host=`. Локальный административный URL переведён на
+  стандартный percent-encoded Unix-socket authority; guard принимает только exact canonical
+  `/var/run/postgresql`, по-прежнему требует разрешённую database текущего host и запрещает query overrides.
+  Реальный `node-postgres` probe доказал `session_user=postgres`, `current_user=bersoncarebot_test`, exact TEST DB
+  и `inet_server_addr() IS NULL`. Independent negative matrix отвергла double-encoding, `/tmp`, TEST→PROD DB и
+  `?host=`; итоговый взгляд — **PASS**.

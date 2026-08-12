@@ -63,7 +63,7 @@ APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
 PORT_CONTEXT_ENV_BOOTSTRAP=deploy/host/bootstrap-c4-test-env.mjs
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
-LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@localhost/$DB?host=%2Fvar%2Frun%2Fpostgresql"
+LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$DB"
 UNITS=(api worker scheduler webapp media-worker)
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0

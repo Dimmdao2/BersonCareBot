@@ -14,6 +14,11 @@ const DEV_CUTOVER_ENV_FILES = [
 ];
 
 export const DEFAULT_CUTOVER_ENV_FILES = [PROD_CUTOVER_ENV_FILE, ...DEV_CUTOVER_ENV_FILES];
+const LOCAL_POSTGRES_HOSTS = new Set([
+  '127.0.0.1',
+  'localhost',
+  encodeURIComponent('/var/run/postgresql').toLowerCase(),
+]);
 
 function hasLocalIpv4(expectedAddress) {
   return Object.values(networkInterfaces())
@@ -74,7 +79,7 @@ function assertTargetDatabaseContract(parsedEnv, productionHost, override) {
     const target = databaseTarget(value);
     if (
       !target ||
-      (target.host !== '127.0.0.1' && target.host !== 'localhost') ||
+      !LOCAL_POSTGRES_HOSTS.has(target.host) ||
       !expectedDatabases.has(target.database)
     ) {
       throw new Error(
