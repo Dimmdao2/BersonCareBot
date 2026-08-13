@@ -2254,3 +2254,24 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   port-context catalog `12/12`; independent production callsite oracle `5/5`; relation access `20/20`;
   `generate-cli.mjs --check` — четыре generated artifacts совпадают побайтно. Каталог содержит `95` exact
   capabilities (`68` webapp + `27` integrator), из них `81` function-bound root.
+
+## Audit/live pass DEV-integrator-auth-delivery-routes-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | рабочее дерево после `d3fdeeea1`, `feat/doctor-ui-rebuild` |
+| Метод | Signed live calls send-sms/send-email/send-otp + central no-send guard + exact audit rows + PostgreSQL journal cursor |
+| Вердикт | **PASS ДЛЯ ТРЁХ AUTH-DELIVERY ROUTES; остальные integrator routes остаются открыты** |
+
+- SMS protocol дал `400 missing_headers`, `401 invalid_signature`, затем корректно подписанный запрос — `200`.
+  Email OTP и MAX OTP с положительным numeric user id дали `200`. Все три были остановлены единым
+  `PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS`, provider не вызывался.
+- **LIVE-MAX-OTP-RECIPIENT-VALIDATION-001 — ИСПРАВЛЕНО ГРОМКО:** signed MAX OTP с `recipientId` произвольной
+  строкой проходил общую Zod-schema, после чего `maxUserRecipient` бросал исключение вне route catch и HTTP
+  отвечал `500`. Route schema теперь требует для MAX положительный decimal platform user id: тот же запрос даёт
+  `400 {"error":"invalid_payload"}` до dispatch, numeric id продолжает давать `200`. Behavioral test `2/2`
+  проверяет обе ветки; integrator typecheck — exit `0`.
+- DB-контроль после трёх positive route calls нашёл ровно три новые строки (`smsc`, `email`, `max`) со status
+  `success`, reason `dev_redirect_suppressed` и payload `{"kind":"otp_redacted",...}`: код и recipient не
+  попали в audit. PostgreSQL cursor финального MAX retest пуст. Probe rows `7080..7082` удалены точным условием;
+  контроль вернул `remaining=0`.

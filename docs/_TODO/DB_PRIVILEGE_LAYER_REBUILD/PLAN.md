@@ -228,8 +228,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   создать одноразовую treatment-program fixture и проверить touch/complete без вывода прав из наличия кода.
   Staff render закрыт: `260` role/path сочетаний без `4xx/5xx` и `28/28` живых dynamic URL дали `200`.
   Global-admin render закрыт: `13` прямых страниц дали `200`, три product redirect соответствуют маршрутам,
-  dynamic clinic page дала `200`. Integrator signed relay auth/dedup/audit slice закрыт; ещё открыты staff/global
-  mutations и остальные incoming/outgoing/scheduler/worker integrator-сценарии.
+  dynamic clinic page дала `200`. Integrator signed relay auth/dedup/audit slice закрыт; отдельные signed
+  SMS/email/MAX-OTP routes прошли central no-send guard и exact audit, включая OTP payload redaction. Ещё открыты
+  staff/global mutations и остальные incoming/outgoing/scheduler/worker integrator-сценарии.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

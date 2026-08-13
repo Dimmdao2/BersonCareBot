@@ -11,11 +11,21 @@ import { logger } from '../../infra/observability/logger.js';
 
 const WINDOW_SECONDS = 300;
 
-const bodySchema = z.object({
-  channel: z.enum(['telegram', 'max']),
-  recipientId: z.string().min(1),
-  code: z.string().min(4).max(8),
-});
+const bodySchema = z
+  .object({
+    channel: z.enum(['telegram', 'max']),
+    recipientId: z.string().min(1),
+    code: z.string().min(4).max(8),
+  })
+  .superRefine((value, ctx) => {
+    if (value.channel === 'max' && !/^[1-9]\d*$/u.test(value.recipientId.trim())) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['recipientId'],
+        message: 'positive MAX platform user id required',
+      });
+    }
+  });
 
 type SendOtpBody = z.infer<typeof bodySchema>;
 
