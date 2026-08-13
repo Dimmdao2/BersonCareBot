@@ -2682,7 +2682,7 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.be_appointments', columns: ['id', 'organization_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.booking_calendar_map', columns: ['appointment_key', 'gcal_event_id', 'updated_at'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.patient_bookings', columns: ['canonical_appointment_id', 'gcal_event_id', 'updated_at'], operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_bookings', columns: ['canonical_appointment_id', 'gcal_event_id', 'updated_at'], operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.delete_google_calendar_event_id(uuid)': rev10Function({
@@ -2691,8 +2691,8 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
         { relation: 'public.be_appointments', columns: ['id', 'organization_id'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.booking_calendar_map', columns: ['appointment_key'], operations: ['DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.patient_bookings', columns: ['canonical_appointment_id', 'gcal_event_id', 'updated_at'], operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.booking_calendar_map', columns: ['appointment_key'], operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_bookings', columns: ['canonical_appointment_id', 'gcal_event_id', 'updated_at'], operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.read_booking_calendar_patient_profile(uuid)': rev10Function({

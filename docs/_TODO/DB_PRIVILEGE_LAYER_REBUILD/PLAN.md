@@ -201,7 +201,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 - [ ] Удалить из активных migrations доступ как источник истины: новые
   `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE` запрещены; legacy migration SQL не переписывается.
 - [x] Generator/audit проверяет обе стороны: relation есть, declaration нет; declaration есть, relation нет;
-  плюс owners, role attributes, memberships, table/column/sequence/function ACL, policies и defaults.
+  плюс owners, role attributes, memberships, table/column/sequence/function ACL, policies и defaults. Live
+  function-body verifier также сверяет объявленные `SELECT/INSERT/UPDATE/DELETE` с фактическим `prosrc`, включая
+  дополнительные права, требуемые `ON CONFLICT` и `RETURNING`; расхождение прерывает reconcile.
 - [x] Универсальная birth wall для **каждой** managed table: default ACL закрыты у всех creators; tenant/clinical
   получает `ENABLE+FORCE RLS` и свои объявленные tenant/patient policies; platform/system/identity/closed/definer
   получает явно объявленную class wall.

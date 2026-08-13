@@ -1805,6 +1805,48 @@ function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
   ].join('\n');
 }
 
+function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
+  const rows = databaseFunctions.flatMap(([signature, fn]) =>
+    (fn.relationSurfaces ?? []).map((surface) =>
+      `  (${lit(signature)}, ${lit(surface.relation)}, ARRAY[${surface.columns.map(lit).join(', ')}]::text[], ARRAY[${surface.operations.map(lit).join(', ')}]::text[])`));
+  if (rows.length === 0) return '';
+  return [
+    '-- Function-body relation-operation verifier: the declaration must cover PostgreSQL statement semantics.',
+    'CREATE TEMP TABLE bcb_function_relation_surfaces(signature text NOT NULL, relation_name text NOT NULL, columns text[] NOT NULL, operations text[] NOT NULL) ON COMMIT DROP;',
+    'INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,operations) VALUES',
+    rows.join(',\n'),
+    ';',
+    'DO $bcb$',
+    'DECLARE surface record; source text; relation_pattern text; column_pattern text; mutation text; read_ref text[];',
+    'BEGIN',
+    '  FOR surface IN SELECT * FROM bcb_function_relation_surfaces ORDER BY signature,relation_name LOOP',
+    '    SELECT pg_catalog.lower(p.prosrc) INTO source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(surface.signature);',
+    "    IF source IS NULL THEN RAISE EXCEPTION 'function body surface target missing: %',surface.signature; END IF;",
+    "    relation_pattern := pg_catalog.replace(surface.relation_name, '.', '\\.');",
+    "    column_pattern := pg_catalog.array_to_string(surface.columns, '|');",
+    "    IF source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M') AND NOT ('INSERT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared INSERT: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    IF source ~ ('\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M') AND NOT ('UPDATE'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared UPDATE: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    IF source ~ ('\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M') AND NOT ('DELETE'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared DELETE: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    IF (source ~ ('\\mselect\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mjoin[[:space:]]+'||relation_pattern||'\\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    mutation := (pg_catalog.regexp_match(source, '(\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M[^;]*)'))[1];",
+    "    IF mutation ~ '\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M' AND NOT ('UPDATE'=ANY(surface.operations)) THEN RAISE EXCEPTION 'ON CONFLICT DO UPDATE requires undeclared UPDATE: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    IF mutation ~ ('\\mreturning\\M[^;]*\\m('||column_pattern||')\\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'INSERT RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    IF mutation ~ '\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN",
+    "      SELECT matched INTO read_ref FROM pg_catalog.regexp_matches(mutation, '\\m([a-z_][a-z0-9_]*)\\.('||column_pattern||')\\M', 'g') matched WHERE matched[1] <> 'excluded' LIMIT 1;",
+    "      IF read_ref IS NOT NULL THEN RAISE EXCEPTION 'ON CONFLICT existing-row read requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;",
+    '    END IF;',
+    "    mutation := (pg_catalog.regexp_match(source, '(\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M[^;]*)'))[1];",
+    "    IF mutation ~ ('\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'UPDATE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    mutation := (pg_catalog.regexp_match(source, '(\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M[^;]*)'))[1];",
+    "    IF mutation ~ ('\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'DELETE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;",
+    '  END LOOP;',
+    `  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=${rows.length}';`,
+    'END',
+    '$bcb$;',
+    '',
+  ].join('\n');
+}
+
 /* ─────────────────────────── генерация SQL ─────────────────────────── */
 
 /**
@@ -1852,6 +1894,7 @@ export function generateFunctionCensusSql(declaration, dbName) {
   for (const owner of seamOwners) emitMembershipRevokeToEmpty(out, owner, true);
   if (seamOwners.length > 0) out.push('');
   out.push(generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions));
+  out.push(generateFunctionBodySurfaceVerifySql(databaseFunctions));
   for (const [signature, fn] of databaseFunctions) {
     out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
     out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);

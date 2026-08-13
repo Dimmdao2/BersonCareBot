@@ -173,6 +173,10 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /am\.member = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /am\.roleid = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /REVOKE ALL ON FUNCTION app\.resolve_clinic_dedicated_bot_organization\(text,text\) FROM PUBLIC/);
+    assert.match(first, /BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=/);
+    assert.match(first, /ON CONFLICT DO UPDATE requires undeclared UPDATE/);
+    assert.match(first, /UPDATE predicate\/RETURNING requires undeclared SELECT/);
+    assert.match(first, /app\.record_operator_outbound_probe_run\(text,timestamp with time zone,text,jsonb\)/);
     assert.doesNotMatch(first, /install_signed_context|release_principal_context|reset_principal_context/);
     for (const signature of TEST_ONLY) {
       if (database === 'bersoncarebot_test') assert.ok(first.includes(`ALTER FUNCTION ${signature} OWNER TO`), signature);
