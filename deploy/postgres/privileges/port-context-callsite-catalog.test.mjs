@@ -414,6 +414,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'integrator.event-idempotency.store', argCount: 5,
     source: 'apps/webapp/src/infra/idempotency/pgStore.ts',
   },
+  'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.reminder-occurrence-finalized.record', argCount: 10,
+    source: 'apps/webapp/src/infra/repos/pgReminderProjection.ts',
+  },
   'app.read_patient_telegram_display_handle(uuid)': {
     port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
     purpose: 'messaging.patient-telegram-handle.read', argCount: 1,

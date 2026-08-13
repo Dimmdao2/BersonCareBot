@@ -56,17 +56,31 @@ test('patient reminder history is readable and only its seen cursor is mutable',
     assert.deepEqual(policy?.to, ['app_patient', 'app_staff']);
     assert.match(policy?.using ?? '', /platform_user_id = app\.current_patient_user_id\(\)/u);
     assert.match(policy?.using ?? '', /organization_id = app\.current_org_id\(\)/u);
-    exactColumns('public.reminder_occurrence_history', 'app_tenant_service', 'INSERT', [
-      'category', 'delivery_channel', 'error_code', 'integrator_occurrence_id',
-      'integrator_rule_id', 'integrator_user_id', 'organization_id', 'occurred_at',
-      'platform_user_id', 'status',
-    ]);
+    assertNoOperation('public.reminder_occurrence_history', 'app_tenant_service', 'INSERT');
     assertNoOperation('public.reminder_occurrence_history', 'app_staff', 'INSERT');
-    const tenantInsert = table.policies.find((candidate) =>
-      candidate.name.startsWith('rev10_tenant_insert_'));
-    assert.deepEqual(tenantInsert?.to, ['app_tenant_service']);
-    assert.match(tenantInsert?.withCheck ?? '', /organization_id = app\.current_org_id\(\)/u);
-    assert.match(tenantInsert?.withCheck ?? '', /tenant_patient\.platform_user_id/u);
+    assert.equal(table.policies.some((candidate) =>
+      candidate.name.startsWith('rev10_tenant_insert_')), false);
+    const projection = declaration.portContext.functions[
+      'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'
+    ];
+    assert.deepEqual(projection.execute, ['app_tenant_service']);
+    assert.deepEqual(projection.relationSurfaces, [
+      {
+        relation: 'public.org_enrollments',
+        columns: ['organization_id', 'platform_user_id', 'status'],
+        operations: ['SELECT'],
+        evidence: 'pg16-function-body-lexical-upper-bound',
+      },
+      {
+        relation: 'public.reminder_occurrence_history',
+        columns: [
+          'integrator_occurrence_id', 'integrator_rule_id', 'integrator_user_id', 'platform_user_id',
+          'organization_id', 'category', 'status', 'delivery_channel', 'error_code', 'occurred_at',
+        ],
+        operations: ['INSERT'],
+        evidence: 'pg16-function-body-lexical-upper-bound',
+      },
+    ]);
   }
 });
 
@@ -679,8 +693,8 @@ test('tenant service has one command-aware D/M/P policy for every exact relation
     }
   }
 
-  assert.equal(expectedEdges.size, 131, 'measured exact tenant operation census changed');
-  assert.equal(tenantRelations.size, 62, 'measured exact tenant relation census changed');
+  assert.equal(expectedEdges.size, 130, 'measured exact tenant operation census changed');
+  assert.equal(tenantRelations.size, 61, 'measured exact tenant relation census changed');
   assert.deepEqual(actualEdges, expectedEdges);
 });
 

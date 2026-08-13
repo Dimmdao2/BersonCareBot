@@ -6,7 +6,7 @@
 
 import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
 import { env } from '@/config/env';
 import { loadWarmupsSectionSlugs } from '@/infra/repos/pgWarmupsSectionSlugs';
@@ -63,20 +63,34 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
     },
 
     async appendFinalizedOccurrenceFromProjection(params) {
-      await runWebappSql(
+      await runWebappNamedRoot(
         getWebappSqlDb(),
+        'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)',
+        [
+          params.integratorOccurrenceId,
+          params.integratorRuleId,
+          params.integratorUserId,
+          params.platformUserId,
+          params.organizationId,
+          params.category,
+          params.status,
+          params.deliveryChannel ?? null,
+          params.errorCode ?? null,
+          params.occurredAt,
+        ],
         sql`
-        INSERT INTO reminder_occurrence_history (
-          integrator_occurrence_id, integrator_rule_id, integrator_user_id, platform_user_id,
-          organization_id, category,
-          status, delivery_channel, error_code, occurred_at
-        ) VALUES (
-          ${params.integratorOccurrenceId}, ${params.integratorRuleId}, ${params.integratorUserId}::bigint,
-          ${params.platformUserId}::uuid, ${params.organizationId}::uuid, ${params.category}, ${params.status},
-          ${params.deliveryChannel ?? null},
-          ${params.errorCode ?? null}, ${params.occurredAt}::timestamptz
-        )
-        ON CONFLICT (integrator_occurrence_id) DO NOTHING`,
+        SELECT app.record_reminder_occurrence_finalized_projection(
+          ${params.integratorOccurrenceId}::text,
+          ${params.integratorRuleId}::text,
+          ${params.integratorUserId}::bigint,
+          ${params.platformUserId}::uuid,
+          ${params.organizationId}::uuid,
+          ${params.category}::text,
+          ${params.status}::text,
+          ${params.deliveryChannel ?? null}::text,
+          ${params.errorCode ?? null}::text,
+          ${params.occurredAt}::timestamptz
+        ) AS inserted`,
       );
     },
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { drizzleSqlFragmentToApproximateSql } from '@/infra/db/drizzleSqlDebugText';
 
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
+const runWebappNamedRootMock = vi.hoisted(() => vi.fn());
 const findCanonicalMock = vi.hoisted(() => vi.fn());
 const loadWarmupsMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({})));
@@ -20,6 +21,7 @@ vi.mock('@/infra/repos/pgWarmupsSectionSlugs', () => ({
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(() => ({})),
+  runWebappNamedRoot: runWebappNamedRootMock,
   runWebappSql: runWebappSqlMock,
 }));
 
@@ -30,12 +32,19 @@ function lastApproxSql(): string {
   return drizzleSqlFragmentToApproximateSql(fragment);
 }
 
+function lastNamedApproxSql(): string {
+  const fragment = runWebappNamedRootMock.mock.calls.at(-1)?.[3];
+  return drizzleSqlFragmentToApproximateSql(fragment);
+}
+
 describe('createPgReminderProjectionPort (pg SQL)', () => {
   beforeEach(() => {
     runWebappSqlMock.mockClear();
+    runWebappNamedRootMock.mockClear();
     findCanonicalMock.mockClear();
     loadWarmupsMock.mockClear();
     runWebappSqlMock.mockResolvedValue({ rows: [], rowCount: 0 });
+    runWebappNamedRootMock.mockResolvedValue({ rows: [{ inserted: true }], rowCount: 1 });
     findCanonicalMock.mockResolvedValue('platform-uuid-canonical');
   });
 
@@ -82,7 +91,7 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
     expect(findCanonicalMock).not.toHaveBeenCalled();
   });
 
-  it('appendFinalizedOccurrenceFromProjection uses ON CONFLICT DO NOTHING (idempotent)', async () => {
+  it('appendFinalizedOccurrenceFromProjection uses its exact organization-scoped root', async () => {
     const port = createPgReminderProjectionPort();
     await port.appendFinalizedOccurrenceFromProjection({
       integratorOccurrenceId: 'occ-1',
@@ -96,13 +105,27 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
       errorCode: null,
       occurredAt: '2026-01-01T12:00:00.000Z',
     });
-    const sql = lastApproxSql();
-    expect(sql).toContain('reminder_occurrence_history');
-    expect(sql).toContain('platform_user_id');
-    expect(sql).toContain('organization_id');
+    const [, identity, args] = runWebappNamedRootMock.mock.calls[0] as unknown[];
+    expect(identity).toBe(
+      'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)',
+    );
+    expect(args).toEqual([
+      'occ-1',
+      'rule-1',
+      '99',
+      '9f000001-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001',
+      'lfk',
+      'sent',
+      null,
+      null,
+      '2026-01-01T12:00:00.000Z',
+    ]);
+    const sql = lastNamedApproxSql();
+    expect(sql).toContain('record_reminder_occurrence_finalized_projection');
     expect(sql).toContain('9f000001-0000-4000-8000-000000000001');
     expect(sql).toContain('a0000000-0000-4000-8000-000000000001');
-    expect(sql).toContain('ON CONFLICT (integrator_occurrence_id) DO NOTHING');
+    expect(runWebappSqlMock).not.toHaveBeenCalled();
   });
 
   it('appendDeliveryEventFromProjection uses ON CONFLICT on integrator_delivery_log_id', async () => {

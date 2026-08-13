@@ -1840,7 +1840,7 @@ function rev10Membership(role: string) {
 const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
   dev: {
     bcb_dev_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
-      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker',
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker', 'app_tenant_service',
         'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_DEV_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
@@ -1860,7 +1860,7 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
   },
   test: {
     bcb_test_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
-      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker',
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker', 'app_tenant_service',
         'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_TEST_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
@@ -2164,6 +2164,10 @@ const REV10_CONTEXT = {
     integrator_event_idempotency_store: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'integrator.event-idempotency.store',
       functionIdentity: 'app.integrator_event_idempotency_store(text,text,integer,text,integer)' },
+    integrator_reminder_occurrence_finalized_record: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.reminder-occurrence-finalized.record',
+      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     auth_oauth_find_user: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.oauth.callback.find-binding',
       functionIdentity: 'app.auth_oauth_find_user(text,text)' },
@@ -3533,7 +3537,6 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.patient_daily_warmup_presentations', 'public.patient_daily_warmup_video_views',
   'public.patient_diary_day_snapshots', 'public.patient_lfk_assignments',
   'public.patient_practice_completions', 'public.product_analytics_events_recent',
-  'public.reminder_occurrence_history',
   'public.platform_user_contacts', 'public.product_analytics_user_hourly', 'public.product_push_notifications',
   'public.program_action_log',
   'public.reminder_rules', 'public.specialist_tasks', 'public.support_conversation_messages',
@@ -3568,7 +3571,6 @@ const REV10_TENANT_MEMBERSHIP_WRITE: Record<string, Partial<Record<'INSERT' | 'U
   },
   'public.be_patient_packages': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_patient_timeline_events': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
-  'public.reminder_occurrence_history': { INSERT: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_payment_history_events': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_payment_intents': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_payments': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },

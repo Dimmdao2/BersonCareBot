@@ -3600,6 +3600,70 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)": {
+    "owner": "app_seam_reminder_patient_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_tenant_service"
+    ],
+    "purpose": "integrator.reminder-occurrence-finalized.record",
+    "typedArgs": [
+      "text",
+      "text",
+      "bigint",
+      "uuid",
+      "uuid",
+      "text",
+      "text",
+      "text",
+      "text",
+      "timestamp with time zone"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.reminder_occurrence_history",
+        "columns": [
+          "integrator_occurrence_id",
+          "integrator_rule_id",
+          "integrator_user_id",
+          "platform_user_id",
+          "organization_id",
+          "category",
+          "status",
+          "delivery_channel",
+          "error_code",
+          "occurred_at"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)": {
     "owner": "app_seam_telemetry_media_owner",
     "security": "DEFINER",
