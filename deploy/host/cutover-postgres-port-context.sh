@@ -6,17 +6,18 @@ set +x
 environment=
 database=
 backup_file=
+operational_connection_limit=
 execute=0
 
 die() { echo "cutover-postgres-port-context: $*" >&2; exit 1; }
 usage() {
-  echo 'usage: cutover-postgres-port-context.sh --execute --environment dev|test --database DB --backup-file /dedicated/new.dump' >&2
+  echo 'usage: cutover-postgres-port-context.sh --execute --environment dev|test --database DB --backup-file /dedicated/new.dump [--operational-connection-limit -1|N]' >&2
 }
 
 while (($#)); do
   case "$1" in
     --execute) execute=1 ;;
-    --environment|--database|--backup-file)
+    --environment|--database|--backup-file|--operational-connection-limit)
       (($# >= 2)) || die "missing value for $1"
       key=${1#--}; key=${key//-/_}; printf -v "$key" '%s' "$2"
       shift ;;
@@ -134,9 +135,18 @@ export "${password_prefix}_WEBAPP_PATIENT_PASSWORD=$(read_secret patient)"
 export "${password_prefix}_WEBAPP_GLOBAL_ADMIN_PASSWORD=$(read_secret globalAdmin)"
 export "${password_prefix}_INTEGRATOR_PASSWORD=$(read_secret integrator)"
 
-connection_limit=$(runuser -u postgres -- psql -X -d postgres -Atqc \
+captured_connection_limit=$(runuser -u postgres -- psql -X -d postgres -Atqc \
   "SELECT datconnlimit FROM pg_catalog.pg_database WHERE datname='$database';")
-[[ "$connection_limit" =~ ^-?[0-9]+$ ]] || die 'could not capture target connection limit'
+[[ "$captured_connection_limit" =~ ^-?[0-9]+$ ]] || die 'could not capture target connection limit'
+if [[ "$captured_connection_limit" == 0 ]]; then
+  [[ "$operational_connection_limit" =~ ^(-1|[1-9][0-9]*)$ ]] ||
+    die 'target is already fail-closed at CONNECTION LIMIT 0; retry requires --operational-connection-limit -1|N'
+  connection_limit=$operational_connection_limit
+elif [[ -n "$operational_connection_limit" ]]; then
+  die '--operational-connection-limit is only valid when retrying a target already at CONNECTION LIMIT 0'
+else
+  connection_limit=$captured_connection_limit
+fi
 PORT_CONTEXT_CUTOVER_STARTED=0
 PORT_CONTEXT_CUTOVER_COMPLETE=0
 port_context_cutover_close_target() {
