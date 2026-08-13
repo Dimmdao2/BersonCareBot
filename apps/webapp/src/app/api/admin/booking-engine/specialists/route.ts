@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
-import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 
 const PostSchema = z.object({
   fullName: z.string().min(1).max(200),

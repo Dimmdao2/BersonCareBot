@@ -19,7 +19,7 @@ vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   getMechanicSurfaceVisibility: fakes.getMechanicSurfaceVisibility,
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
 }));
-vi.mock('../_requireAdminBookingEngine', () => ({
+vi.mock('../_requireClinicManagementBookingEngine', () => ({
   requireClinicManagementBookingEngine: fakes.requireClinicManagementBookingEngine,
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({

@@ -6,21 +6,15 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getPool } from '@/app-layer/db/client';
 import { resolveAdminAuditConflictById } from '@/app-layer/admin/auditLog';
-import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import {
-  requireAdminApiContext,
-  requireDoctorWorkspaceApiContext,
-} from '@/app-layer/guards/requireRole';
+import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 
 const bodySchema = z.object({
   id: z.string().uuid(),
 });
 
 export async function POST(req: Request) {
-  const gate = await requireAdminApiContext();
+  const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
-  const workspaceGate = await requireDoctorWorkspaceApiContext();
-  if (!workspaceGate.ok) return workspaceGate.response;
 
   let body: unknown;
   try {
@@ -38,9 +32,7 @@ export async function POST(req: Request) {
   }
 
   const pool = getPool();
-  const result = await withDoctorWorkspacePrincipal(workspaceGate.ctx, () =>
-    resolveAdminAuditConflictById(pool, parsed.data.id),
-  );
+  const result = await resolveAdminAuditConflictById(pool, parsed.data.id);
   if (!result.ok) {
     const status = result.error === 'not_found' ? 404 : 409;
     return NextResponse.json({ ok: false, error: result.error }, { status });

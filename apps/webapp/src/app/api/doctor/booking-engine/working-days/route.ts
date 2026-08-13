@@ -5,8 +5,8 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganiza
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
 
-// Doctor-self-scoped mirror of /api/admin/booking-engine/working-days (per-date overrides).
-// The server resolves the doctor's own specialist and FORCES it on list/upsert/close/clear;
+// Doctor-self-scoped per-date schedule overrides. The server resolves the doctor's own
+// specialist and FORCES it on list/upsert/close/clear;
 // any client-supplied specialistId is ignored, so a doctor can only read/write their own
 // per-date rows (never another specialist's, never clinic-wide NULL rows).
 

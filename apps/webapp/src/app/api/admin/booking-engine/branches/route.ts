@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
-import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 import { isReservedOnlineLocationIdentity } from '@/modules/booking-engine/onlineLocation';
 
 /** Thrown by the infra atomic quota port; compared by message, not class, to keep this route free of an infra import. */

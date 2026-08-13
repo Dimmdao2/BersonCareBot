@@ -7,7 +7,7 @@ import {
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 
 const upsertSchema = z.discriminatedUnion('scope', [
   z.object({

@@ -3,7 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
 import { beAppointments } from '../../../../../../db/schema/bookingEngine';
-import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 
 export async function GET(request: Request) {
   const gate = await requireClinicManagementBookingEngine();

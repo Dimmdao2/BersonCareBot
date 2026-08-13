@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 
 const scopeLevel = z.enum(['organization', 'specialist', 'service', 'product']);
 

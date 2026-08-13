@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { jsonIfInvalidUuid } from '../../_uuid';
-import { requireClinicManagementBookingEngine } from '../../_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '../../_requireClinicManagementBookingEngine';
 
 const PatchSchema = z.object({
   fullName: z.string().min(1).max(200).optional(),

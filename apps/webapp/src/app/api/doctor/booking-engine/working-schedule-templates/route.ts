@@ -5,8 +5,8 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganiza
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
 
-// Doctor-self-scoped mirror of /api/admin/booking-engine/working-schedule-templates.
-// Templates themselves are org-level named presets (no specialist column), so list/create/
+// Doctor workspace schedule templates. Templates are org-level named presets (no specialist
+// column), so list/create/
 // delete are org-scoped (gate.ctx.organizationId). The ONE specialist-scoped operation is
 // `?action=apply`, which writes per-date rows for a specialist — there the server FORCES the
 // doctor's own specialist and ignores any client-supplied specialistId.

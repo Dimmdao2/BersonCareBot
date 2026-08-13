@@ -248,7 +248,9 @@
 
 - **Карточка** — `ClientProfileCard` на **`/app/doctor/clients/[userId]`**: табы (Обзор, Программа, Коммуникации, …); на табе «Программа» — read-only дерево активной программы и список назначений. Список `/app/doctor/clients` карточку не рендерит.
 - **Admin + admin mode:** секции «Объединение учётных записей» и «История операций» не дергают тяжёлые API, пока секция закрыта (ленивая загрузка).
-- **Редактирование профиля клиента админом** (ФИО, email, телефон): `PATCH /api/admin/users/:userId/profile` и панель `AdminClientProfileEditPanel`; доверие телефона — trusted source `admin_manual_profile_patch` (см. `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §8).
+- **Редактирование данных пациента специалистом:** текущая карточка `/app/doctor/patients/[userId]` меняет
+  структурированное ФИО, дату рождения и пол через org-scoped `PATCH /api/doctor/patients/:userId/fio`.
+  Старый global profile PATCH, позволявший менять email/телефон по одному UUID, удалён.
 
 ---
 

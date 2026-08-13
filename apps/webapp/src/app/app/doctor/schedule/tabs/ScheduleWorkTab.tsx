@@ -49,8 +49,7 @@ import type { ScheduleTabProps } from '../scheduleTabRegistry';
 
 // Doctor-self-scoped routes: the server resolves the doctor's own specialist and forces
 // it on every read/write, so the editor works for the `doctor` role (solo owner) and
-// reads/writes the SAME specialist-scoped rows the calendar paints. (Admin mirrors at
-// /api/admin/booking-engine/* still serve the admin Settings flows.)
+// reads/writes the SAME specialist-scoped rows the calendar paints.
 const WD_BASE = '/api/doctor/booking-engine/working-days';
 const TPL_BASE = '/api/doctor/booking-engine/working-schedule-templates';
 const WH_BASE = '/api/doctor/booking-engine/working-hours';

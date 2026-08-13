@@ -29,7 +29,7 @@ export enum TrustedPatientPhoneSource {
    * Не создаёт нового доверия «из воздуха».
    */
   PlatformUserMerge = 'platform_user_merge',
-  /** Ручное изменение телефона админом (`PATCH /api/admin/users/.../profile`). */
+  /** Privileged manual correction of a canonical patient phone. */
   AdminManualProfilePatch = 'admin_manual_profile_patch',
   /** Публичная запись по телефону (этап 2 OWN_BOOKING_ENGINE). */
   PublicBookingByPhone = 'public_booking_by_phone',

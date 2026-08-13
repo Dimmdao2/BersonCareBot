@@ -76,10 +76,10 @@ API остаётся fail-closed. Существующие authenticated intake-
 
 Модуль: `modules/payments/`. Admin: `BookingPaymentsSection`, `BookingPrepaymentSection`; staff B-pay — `BookingStaffPaymentPanel`.
 
-## Admin
+## Staff and clinic management
 
-- `POST /api/admin/booking-engine/appointments/manual` — ручная бронь.
-- `GET`/`POST`/`DELETE /api/admin/booking-engine/schedule-blocks` — блокировки расписания.
+- `POST /api/doctor/booking-engine/appointments/manual` — ручная бронь в server-resolved doctor/clinic scope.
+- Рабочий график редактируется через doctor schedule API; старые admin schedule-block mirrors удалены.
 - `GET`/`POST /api/admin/booking-engine/policies` — политики отмены/переноса (org-level в UI).
 - `GET`/`PUT /api/admin/booking-engine/prepayment-policies` — предоплата по услуге или онлайн-категории.
 

@@ -253,9 +253,13 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   и error event записываются одной атомарной exact-функцией; health aggregate/retention вынесены в отдельные
   exact roots, поэтому `app_worker` не имеет direct table grants. Ещё открыты staff/global mutations, оставшиеся
   patient mutations и остальные incoming/outgoing/scheduler/worker integrator-сценарии. Staff/clinic census
-  уже выявил системный blocker: `28` mutation exports под `requireAdminBookingEngine` требуют одновременно
-  legacy `session.role=admin` и clinical workspace, поэтому настоящий clinic-admin ими пользоваться не может;
-  этот класс надо разделить по смыслу на doctor/clinic/platform/dead, не выдавая global-admin clinical grants.
+  выявил и кодом закрыл systemic hybrid-guard blocker: все `29` route-файлов со старым
+  `requireAdminBookingEngine` оказались legacy HTTP/UI поверхностью и удалены; живые clinic-management routes
+  используют `requireClinicManagementBookingEngine`, doctor schedule/package/appointment paths — doctor routes.
+  Пять platform audit/health mutations переведены с невозможного clinical membership на обязательный
+  `requirePlatformOperationsApiContext`; два небезопасных orphan routes удалены. Targeted route tests `24/24`,
+  entitlement registry coverage `8/8` и webapp typecheck зелёные; положительный live DEV-прогон этих групп ещё
+  входит в открытый census.
   Integrator census свёл остаток к `6` HTTP route-группам, `5` projection event types, `8` outgoing kinds и
   `4` scheduler paths. Action/worker-пробы запускаются только отдельным one-shot process с отключёнными default
   redirect targets и пустым passthrough: обычный DEV redirect перенаправляет, а не гарантирует no-send.

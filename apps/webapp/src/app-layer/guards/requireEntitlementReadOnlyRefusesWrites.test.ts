@@ -15,7 +15,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: vi.fn(),
   requireClinicManagementApiContext: vi.fn(),
 }));
-vi.mock('@/app/api/admin/booking-engine/_requireAdminBookingEngine', () => ({
+vi.mock('@/app/api/admin/booking-engine/_requireClinicManagementBookingEngine', () => ({
   requireClinicManagementBookingEngine: vi.fn(),
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
@@ -34,7 +34,7 @@ import {
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
 } from '@/app-layer/guards/requireRole';
-import { requireClinicManagementBookingEngine } from '@/app/api/admin/booking-engine/_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '@/app/api/admin/booking-engine/_requireClinicManagementBookingEngine';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { PATCH as updateCourse } from '@/app/api/doctor/courses/[id]/route';
 import { DELETE as revokeClinicInvite } from '@/app/api/clinic/invites/[id]/route';

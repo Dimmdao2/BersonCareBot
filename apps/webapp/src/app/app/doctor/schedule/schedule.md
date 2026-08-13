@@ -102,7 +102,7 @@
   метка = `shortTitle ?? title.split(" ")[0]` (E2), перерывы = «обед HH–HH» / «N перерывов» (B3).
 - Мультивыбор: клик / Shift / Ctrl+Cmd.
 - **Панель часов** (справа, E4): Начало / Конец + строчные перерывы (`+ перерыв` / `×` кнопка),
-  Локация → **Сохранить** → `PUT /api/admin/booking-engine/working-days { breaks: [...]  }`;
+  Локация → **Сохранить** → `PUT /api/doctor/booking-engine/working-days { breaks: [...]  }`;
   **Закрыть выбранные дни** / **Очистить выбор**.
 - **Фильтр сетки**: бэкенд-фильтр по `branchId` (E3); пустые дни видны всегда.
 - **Шаблоны** (снизу, полная ширина, E5): создать с N перерывами, применить, удалить.
@@ -153,13 +153,14 @@ breaks jsonb NOT NULL DEFAULT '[]', isClosed)`.
 
 ### API-роуты
 
-- `GET/PUT /api/admin/booking-engine/working-days` — range-выборка + upsert/close/clear.
-- `GET/POST/DELETE /api/admin/booking-engine/working-schedule-templates` — CRUD + apply.
+- `GET/PUT /api/doctor/booking-engine/working-days` — server-forced own-specialist range + upsert/close/clear.
+- `GET/POST/DELETE /api/doctor/booking-engine/working-schedule-templates` — org templates + own-specialist apply.
 - `GET /api/doctor/schedule-kpis?from=&to=&branchId?=&serviceId?=` — 9 метрик.
 - `GET /api/doctor/schedule/nearest-free-window` — ближайшее свободное окно (C3).
 - `GET /api/doctor/booking-engine/calendar` — события календаря + `workingBounds` (C1/C2).
 
-Авторизация: `requireAdminBookingEngine` (booking routes) / `requireDoctorAccess` (KPI, calendar).
+Авторизация: `requireDoctorBookingEngine` / doctor schedule scope; organization settings routes используют
+`requireClinicManagementBookingEngine`. Старый hybrid `requireAdminBookingEngine` удалён.
 
 ## Связанные документы
 

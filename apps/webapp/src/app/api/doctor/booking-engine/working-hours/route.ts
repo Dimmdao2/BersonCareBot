@@ -5,8 +5,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganiza
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
 
-// Doctor-self-scoped mirror of /api/admin/booking-engine/working-hours.
-// The doctor owns ONLY their own specialist's weekly schedule. The server resolves
+// Doctor-self-scoped weekly schedule endpoint. The server resolves
 // that specialist and FORCES it on every read/write — a client-supplied specialistId
 // is never trusted, so a doctor can never read/write another specialist's rows or
 // clinic-wide (NULL-specialist) rows through this route.

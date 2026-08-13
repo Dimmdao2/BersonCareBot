@@ -9,7 +9,7 @@ const fakes = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
-vi.mock('../_requireAdminBookingEngine', () => ({
+vi.mock('../_requireClinicManagementBookingEngine', () => ({
   requireClinicManagementBookingEngine: fakes.requireClinicManagementBookingEngine,
 }));
 vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: fakes.getDrizzle }));

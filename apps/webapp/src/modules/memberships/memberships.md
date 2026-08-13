@@ -36,7 +36,7 @@ One booking appointment can have reserve/release/refund rows, but must not be ch
 
 ## API «Пересчитать» — ST-02
 
-`POST /api/doctor/booking-engine/patient-packages/[id]/recalc` and `POST /api/admin/booking-engine/patient-packages/[id]/recalc` — gate `requireDoctorBookingEngine()` / `requireAdminBookingEngine()`; no body (package id from params). The routes wrap only `recalcPastSessionsForPackageDbPhase({ organizationId (from gate), patientPackageId, createdByPlatformUserId })` in the doctor workspace DB principal, then run `refreshRecalcPastSessionsCalendar(...)` outside that wrapper. The doctor route also performs best-effort calendar sync per debited appointment outside the wrapper. Returns full `{ ok, summary }` with `debited[]`, `skipped[]`, `outOfBalance[]`, and `corrected[]`. **IDOR/ownership (OQ-1):** `organizationId` from the gate scopes `getPatientPackage(id, organizationId)` — a foreign-org package → `package_not_found` (400); recalc can never touch another org's package (same guarantee as `consume`).
+`POST /api/doctor/booking-engine/patient-packages/[id]/recalc` — gate `requireDoctorBookingEngine()`; no body (package id from params). The route wraps only `recalcPastSessionsForPackageDbPhase({ organizationId (from gate), patientPackageId, createdByPlatformUserId })` in the doctor workspace DB principal, then runs `refreshRecalcPastSessionsCalendar(...)` outside that wrapper and performs best-effort calendar sync per debited appointment. Returns full `{ ok, summary }` with `debited[]`, `skipped[]`, `outOfBalance[]`, and `corrected[]`. **IDOR/ownership (OQ-1):** `organizationId` from the gate scopes `getPatientPackage(id, organizationId)` — a foreign-org package → `package_not_found` (400); recalc can never touch another org's package (same guarantee as `consume`).
 
 ## Doctor UI acceptance semantics (2026-07)
 
@@ -60,21 +60,21 @@ One booking appointment can have reserve/release/refund rows, but must not be ch
 
 UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/memberships/[id]`, package picker in `ConfirmStepClient`.
 
-## Staff APIs (admin + doctor mirror)
+## Staff APIs
 
 | Method   | Path                                                                                                                                   |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| GET/POST | `/api/admin/booking-engine/packages`                                                                                                   |
-| GET/POST | `/api/admin/booking-engine/patient-packages` (`?platformUserId=` on GET; manual POST optional `title`, `notes`; catalog offer `notes`) |
+| GET/POST | `/api/doctor/booking-engine/packages`                                                                                                   |
+| GET/POST | `/api/doctor/booking-engine/patient-packages` (`?platformUserId=` on GET; manual POST optional `title`, `notes`; catalog offer `notes`) |
 | PATCH    | `.../patient-packages/[id]` — `{ notes: string \| null }`                                                                              |
 | GET      | `.../patient-packages/[id]/sessions?includePast=` — session rows + server `actions`                                                    |
 | POST     | `.../patient-packages/[id]/consume`                                                                                                    |
 | POST     | `.../appointments/[id]/package/detach` — `{ outcome?, confirmPastTwice? }` (late → `409 late_detach_choice_required`)                  |
 | POST     | `.../appointments/[id]/package/unlink` / `refund` — thin wrappers → detach                                                             |
 
-Same under `/api/doctor/booking-engine/...` where mirrored. Admin setting `booking_allow_doctor_unlink_past_package_sessions` (boolean, scope `admin`) gates past detach in UI/API.
+Admin setting `booking_allow_doctor_unlink_past_package_sessions` (boolean, scope `admin`) gates past detach in UI/API.
 
-UI: `BookingPatientPackagesSection` (admin booking ops), **`DoctorClientMembershipsPanel`** + `PatientPackageCard` / `PatientPackageSessionsList` on patient card tab «Записи».
+UI: **`DoctorClientMembershipsPanel`** + `PatientPackageCard` / `PatientPackageSessionsList` on patient card tab «Записи».
 
 ## Race safety — ST-02 advisory lock
 

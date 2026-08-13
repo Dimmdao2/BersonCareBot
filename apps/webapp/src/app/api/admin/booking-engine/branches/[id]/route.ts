@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
-import { requireClinicManagementBookingEngine } from '../../_requireAdminBookingEngine';
+import { requireClinicManagementBookingEngine } from '../../_requireClinicManagementBookingEngine';
 
 /** Thrown by the infra atomic quota port; compared by message, not class, to keep this route free of an infra import. */
 const BRANCHES_QUOTA_REACHED_MESSAGE = 'saas_quota_reached:branches';

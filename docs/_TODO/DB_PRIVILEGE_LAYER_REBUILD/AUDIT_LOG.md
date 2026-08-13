@@ -2582,6 +2582,36 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   clinic-admin и global-admin mutation families перечислены исполнителем и проверяются блоками с synthetic
   cross-org fixture, reversible state и central no-send.
 
+## Fix pass admin-guard-separation-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `2238b8fcd`, `feat/doctor-ui-rebuild` |
+| Метод | Independent read-only caller classification → minimal deletion/separation → targeted behavior tests/typecheck |
+| Вердикт | **КОД ИСПРАВЛЕН; ПОЛОЖИТЕЛЬНЫЙ LIVE DEV CENSUS ОСТАЁТСЯ ОТКРЫТ** |
+
+- **ADMIN-BOOKING-HYBRID-GUARD-001 — ИСПРАВЛЕНО ГРОМКО:** точный caller census классифицировал все `29`
+  route-файлов старого guard как legacy HTTP-поверхность: рабочие appointment/package действия уже имеют
+  doctor routes, каталоги и расписание обслуживаются текущими doctor/clinic-management путями, а старые UI
+  hosts не монтируются либо всегда перенаправляются middleware. Эти routes и orphan UI удалены; сам hybrid
+  helper удалён, а живой helper переименован в `_requireClinicManagementBookingEngine.ts`.
+- Удаление закрывает два достижимых cross-org bypass, а не маскирует их новым grant: старый manual appointment
+  принимал произвольный body `organizationId` и подменял attested organization; merge-candidate dismiss менял
+  строку по UUID без organization predicate. Global-admin clinical grants под эти пути не выдавались.
+- **ADMIN-PLATFORM-CLINICAL-HYBRID-002 — ИСПРАВЛЕНО ГРОМКО:** пять живых platform operations (audit list/
+  resolve, health archive clear, operator incident acknowledge/resolve) теперь требуют только строгий
+  `requirePlatformOperationsApiContext`, который одновременно проверяет platform capability + factor и ставит
+  отдельный platform DB principal. Orphan reference archive и небезопасный global user-profile PATCH удалены.
+- Поведенческий gate:
+  `pnpm --dir apps/webapp exec vitest --run src/app/api/admin/platformOperationsRoutes.route.test.ts
+  src/app/api/admin/booking-engine/policies/route.route.test.ts
+  src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts
+  src/app/api/admin/booking-engine/public-appointments/route.route.test.ts
+  src/app-layer/guards/requireEntitlementReadOnlyRefusesWrites.test.ts` → `5` files / `24` tests PASS.
+  `protectedActionRegistryCoverage.unit.test.ts` → `8/8`; `pnpm --dir apps/webapp run typecheck` → PASS.
+- Это закрывает найденный класс в коде, но не заменяет живое доказательство: clinic-admin и global-admin
+  mutations должны пройти через DEV с правильными pool/context, а staff/global census остаётся открытым.
+
 ## Audit/live-matrix census integrator-2026-08-13
 
 | Поле | Значение |
