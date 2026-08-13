@@ -2816,6 +2816,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
     ],
   },
+  'public.user_channel_bindings': {
+    kind: 'direct',
+    purpose: 'patient reads only its own messenger binding channel and creation time for account authentication settings',
+    codePaths: ['apps/webapp/src/infra/repos/pgChannelPreferences.ts#getDefaultAuthOtpChannel'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: ['channel_code', 'created_at', 'user_id'] },
+    ],
+  },
   'public.user_web_push_subscriptions': {
     kind: 'direct',
     purpose: 'patient manages only its own browser push subscriptions',
@@ -3390,6 +3398,7 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
 }
 
 const REV10_PATIENT_SELF_MANAGED_COLUMN: Record<string, string> = {
+  'public.user_channel_bindings': 'user_id',
   'public.user_channel_preferences': 'platform_user_id',
   'public.user_notification_topic_channels': 'user_id',
   'public.user_notification_topics': 'user_id',

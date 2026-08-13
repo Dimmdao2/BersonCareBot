@@ -260,6 +260,7 @@ test('runtime settings and account email use semantic row walls without broad pa
 
 test('patient notification preferences are product-complete and remain self-only', () => {
   const expected = {
+    'public.user_channel_bindings': ['SELECT'],
     'public.user_channel_preferences': ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
     'public.user_notification_topic_channels': ['INSERT', 'SELECT', 'UPDATE'],
     'public.user_notification_topics': ['INSERT', 'SELECT', 'UPDATE'],
