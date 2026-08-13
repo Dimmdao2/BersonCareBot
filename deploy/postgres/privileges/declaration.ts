@@ -2833,6 +2833,43 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
+  'public.user_channel_preferences': {
+    kind: 'direct',
+    purpose: 'patient reads and changes only its own channel preferences',
+    codePaths: ['apps/webapp/src/infra/repos/pgChannelPreferences.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications',
+          'is_preferred_for_auth', 'platform_user_id', 'updated_at', 'user_id'] },
+      { role: 'app_patient', operations: ['UPDATE'],
+        columns: ['is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth',
+          'platform_user_id', 'updated_at'] },
+      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
+    ],
+  },
+  'public.user_notification_topics': {
+    kind: 'direct',
+    purpose: 'patient reads and changes only its own notification topic switches',
+    codePaths: ['apps/webapp/src/infra/repos/pgPatientNotificationTopics.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['is_enabled', 'topic_code', 'updated_at', 'user_id'] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['is_enabled', 'updated_at'] },
+    ],
+  },
+  'public.user_notification_topic_channels': {
+    kind: 'direct',
+    purpose: 'patient reads and changes only its own per-topic channel switches',
+    codePaths: ['apps/webapp/src/infra/repos/pgTopicChannelPrefs.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['channel_code', 'is_enabled', 'topic_code', 'updated_at', 'user_id'] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['is_enabled', 'updated_at'] },
+    ],
+  },
   'public.system_settings': {
     kind: 'direct',
     purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows',
@@ -3343,19 +3380,29 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
   ];
 }
 
-function revision10UserWebPushPolicies(index: number): PolicyDecl[] {
-  const patientWall = '(user_id = app.current_patient_user_id())';
+const REV10_PATIENT_SELF_MANAGED_COLUMN: Record<string, string> = {
+  'public.user_channel_preferences': 'platform_user_id',
+  'public.user_notification_topic_channels': 'user_id',
+  'public.user_notification_topics': 'user_id',
+  'public.user_web_push_subscriptions': 'user_id',
+};
+
+function revision10PatientSelfManagedPolicies(tableKey: string, index: number): PolicyDecl[] {
+  const relationName = tableKey.slice('public.'.length);
+  const userColumn = REV10_PATIENT_SELF_MANAGED_COLUMN[tableKey];
+  if (!userColumn) throw new Error(`missing patient self-managed column for ${tableKey}`);
+  const patientWall = `(${userColumn} = app.current_patient_user_id())`;
   const staffWall = '(EXISTS (SELECT 1 FROM public.be_organization_members access_member'
-    + ' WHERE access_member.platform_user_id = user_web_push_subscriptions.user_id'
+    + ` WHERE access_member.platform_user_id = ${relationName}.${userColumn}`
     + ' AND access_member.organization_id = app.current_org_id()'
     + " AND access_member.status = 'active'))";
   return [
-    { name: `rev10_user_web_push_patient_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+    { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_patient'], using: patientWall, withCheck: patientWall,
-      note: 'patient manages only its own browser push subscriptions' },
-    { name: `rev10_user_web_push_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+      note: `patient manages only its own rows in ${tableKey}` },
+    { name: `rev10_staff_member_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: staffWall, withCheck: staffWall,
-      note: 'staff manages push subscriptions only for current-clinic members' },
+      note: `staff manages ${tableKey} only for current-clinic members` },
   ];
 }
 
@@ -3401,8 +3448,8 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         ? revision10AppRuntimeSettingsPolicies(index)
       : key === 'public.platform_users' && access?.kind === 'direct'
         ? revision10PlatformUsersPolicies(index)
-      : key === 'public.user_web_push_subscriptions' && access?.kind === 'direct'
-        ? revision10UserWebPushPolicies(index)
+      : REV10_PATIENT_SELF_MANAGED_COLUMN[key] && access?.kind === 'direct'
+        ? revision10PatientSelfManagedPolicies(key, index)
       : access?.kind === 'direct' && specialized ? directBusiness
       : access?.kind === 'direct' && locked && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_${locked.policyName}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
