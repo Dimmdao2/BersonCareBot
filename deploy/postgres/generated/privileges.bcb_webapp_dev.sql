@@ -2025,7 +2025,7 @@ INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression) VALUES
   ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])')
 ;
 DO $bcb$
-DECLARE gate record; routine record; definition text; new_source text; source_at integer;
+DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer;
 BEGIN
   FOR gate IN SELECT * FROM bcb_runtime_definer_gates ORDER BY signature LOOP
     SELECT p.oid, p.prosrc, l.lanname INTO routine
@@ -2036,12 +2036,10 @@ BEGIN
     IF gate.mode='attested' AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;
     IF gate.mode='exact_existing' THEN RAISE EXCEPTION 'multi-capability named root lacks a hand-written exact gate: %',gate.signature; END IF;
     IF gate.mode='attested' AND position('app.require_attested_context_for_roles' IN routine.prosrc)>0 THEN
-      IF routine.lanname='sql' THEN
-        new_source := pg_catalog.regexp_replace(routine.prosrc, '^SELECT[[:space:]]+app\.require_attested_context_for_roles\([^;]+\);', 'SELECT ' || gate.gate_expression || ';', 1, 1, 'in');
-      ELSIF routine.lanname='plpgsql' THEN
-        new_source := pg_catalog.regexp_replace(routine.prosrc, '(^|\n)([[:space:]]*)BEGIN\n[[:space:]]*PERFORM[[:space:]]+app\.require_attested_context_for_roles\([^;]+\);', E'\\1\\2BEGIN\n\\2  PERFORM ' || gate.gate_expression || ';', 1, 1, 'in');
-      ELSE RAISE EXCEPTION 'unsupported runtime definer language %: %',routine.lanname,gate.signature; END IF;
-      IF new_source = routine.prosrc THEN RAISE EXCEPTION 'existing runtime definer gate is not replaceable: %',gate.signature; END IF;
+      guard_at := position('app.require_attested_context_for_roles' IN routine.prosrc);
+      guard_length := position(';' IN pg_catalog.substr(routine.prosrc, guard_at)) - 1;
+      IF guard_at=0 OR guard_length<1 THEN RAISE EXCEPTION 'existing runtime definer gate is not replaceable: %',gate.signature; END IF;
+      new_source := pg_catalog.overlay(routine.prosrc, gate.gate_expression, guard_at, guard_length);
     ELSIF routine.lanname='sql' THEN
       new_source := 'SELECT ' || gate.gate_expression || ';' || E'\n' || routine.prosrc;
     ELSIF routine.lanname='plpgsql' THEN
