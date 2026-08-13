@@ -192,6 +192,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   callsite catalog и target-only post-zero replay проходят на disposable PostgreSQL 16 fixture.
 - [ ] Подключить обязательные function-census/callsite-catalog/post-zero gates в обычный CI после исправления;
   текущий `pnpm run ci` их не запускает и не является доказательством этих инвариантов.
+- [ ] Исправить ordinary DEV migration entrypoint под новую схему: `migrate-dev.sh` не должен требовать
+  удалённый `bcb_webapp_dev_user`/`DATABASE_URL`; мигратор получает повышенные права только на время deploy,
+  затем declaration reconcile и catalog audit возвращают стационарное deny-by-default состояние.
 - [ ] Удалить из активных migrations доступ как источник истины: новые
   `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE` запрещены; legacy migration SQL не переписывается.
 - [x] Generator/audit проверяет обе стороны: relation есть, declaration нет; declaration есть, relation нет;
@@ -213,8 +216,13 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   declaration-generated grants/RLS/seams — строго в этом порядке.
 - [ ] Проверить все cluster logins из `pg_roles`, все SET-able roles, `PUBLIC` и каждую definer-функцию; исключения
   перечислить поимённо. Непрошедший context — no disclosure + SQLSTATE `42501` + PostgreSQL system log.
-- [x] Положительный контроль: реальные webapp patient/staff/global-admin и integrator сценарии работают через
-  свои pools. Стена, которая не пускает приложение, не принимается.
+- [x] Базовый положительный контроль: четыре новых pool/login проходят реальные `/api/me`, representative
+  patient/staff/global-admin pages и integrator health. Стена, которая не пускает приложение, не принимается.
+- [x] Patient render/action slice: `32/32` статических patient routes дали `200`; support mark-read и
+  reminder done/snooze/skip дали `4/4` HTTP `200`, а PostgreSQL state подтвердил все три изменения без новой
+  строки системного журнала (`/tmp/bcb-patient-write-actions-r6.json`, log cursor `394370..394369`).
+- [ ] Пройти полный смысловой live census страниц и действий staff/clinic, global-admin и integrator; для patient
+  ещё создать одноразовую treatment-program fixture и проверить touch/complete без вывода прав из наличия кода.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

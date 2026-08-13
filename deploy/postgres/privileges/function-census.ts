@@ -5450,6 +5450,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
+      "app_integrator_request",
       "app_patient"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
@@ -5946,6 +5947,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
+      "app_integrator_request",
       "app_patient"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
@@ -6034,6 +6036,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         ],
         "operations": [
           "INSERT",
+          "SELECT",
           "UPDATE"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -6067,6 +6070,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
+      "app_integrator_request",
       "app_patient"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
@@ -6165,6 +6169,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         ],
         "operations": [
           "INSERT",
+          "SELECT",
           "UPDATE"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
