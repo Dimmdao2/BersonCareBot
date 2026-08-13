@@ -598,6 +598,13 @@ export function generateEnvironmentVerifierSql(declaration, env, dbName) {
   const names = records.map(([name]) => name);
   const allDeclaredLoginNames = [...new Set(Object.values(declaration.envMapping ?? {})
     .flatMap((mapping) => Object.keys(mapping)))].sort();
+  const declaredRoleNames = Object.keys(declaration.cluster?.roles ?? {}).sort();
+  const legacyRoleNames = [...new Set(declaration.zeroState?.legacyRoles ?? [])].sort();
+  const allowedManagedNames = [...new Set([
+    ...allDeclaredLoginNames,
+    ...declaredRoleNames,
+    ...legacyRoleNames,
+  ])].sort();
   const foreignNames = allDeclaredLoginNames.filter((name) => !names.includes(name));
   const memberships = records.flatMap(([login, record]) => (record.memberships ?? []).map((m) =>
     `(${lit(login)}::name,${lit(m.role)}::name,${m.admin},${m.inherit},${m.set})`));
@@ -607,9 +614,11 @@ export function generateEnvironmentVerifierSql(declaration, env, dbName) {
   const expectedMemberships = memberships.join(', ');
   const expectedNames = names.map(lit).join(', ');
   const allDeclaredNames = allDeclaredLoginNames.map(lit).join(', ');
+  const allowedManaged = allowedManagedNames.map(lit).join(', ');
+  const legacyNames = legacyRoleNames.map(lit).join(', ');
   const foreignDeclaredNames = foreignNames.map(lit).join(', ');
   return [
-    '-- Exact target environment verifier: three SCRAM LOGIN attrs, memberships, CONNECT and schema USAGE.',
+    '-- Exact target environment verifier: four SCRAM LOGIN attrs, memberships, CONNECT and schema USAGE.',
     'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
     `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${expectedNames}]::name[]) AND (NOT rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR rolinherit) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'environment login attributes mismatch: %', bad; END IF;",
@@ -617,6 +626,18 @@ export function generateEnvironmentVerifierSql(declaration, env, dbName) {
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'environment LOGIN lacks SCRAM verifier: %', bad; END IF;",
     `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolcanlogin AND rolname ~ '^(app_|bcb_|saas_|bersoncarebot_)' AND rolname <> ALL(ARRAY[${allDeclaredNames}]::name[]) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared BCB LOGIN survived: %', bad; END IF;",
+    `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname ~ '^(app_|bcb_|saas_|bersoncarebot_)' AND rolname <> ALL(ARRAY[${allowedManaged}]::name[]) LIMIT 1;`,
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared managed BCB role survived: %', bad; END IF;",
+    ...(legacyRoleNames.length ? [
+      `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${legacyNames}]::name[]) AND (rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR rolinherit) LIMIT 1;`,
+      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'retained legacy role is not quarantined NOLOGIN: %', bad; END IF;",
+      `  SELECT member.rolname || '->' || role.rolname INTO bad FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles role ON role.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE member.rolname=ANY(ARRAY[${legacyNames}]::name[]) OR role.rolname=ANY(ARRAY[${legacyNames}]::name[]) LIMIT 1;`,
+      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'retained legacy role still has membership: %', bad; END IF;",
+      `  SELECT rolname INTO bad FROM pg_catalog.pg_roles WHERE rolname=ANY(ARRAY[${legacyNames}]::name[]) AND has_database_privilege(rolname,${lit(dbName)},'CONNECT') LIMIT 1;`,
+      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'retained legacy role can CONNECT target: %', bad; END IF;",
+      `  SELECT role_row.rolname || ':' || schema_row.nspname INTO bad FROM pg_catalog.pg_roles role_row CROSS JOIN pg_catalog.pg_namespace schema_row WHERE role_row.rolname=ANY(ARRAY[${legacyNames}]::name[]) AND schema_row.nspname=ANY(ARRAY['app','app_ext','integrator','public']::name[]) AND has_schema_privilege(role_row.rolname,schema_row.oid,'USAGE') LIMIT 1;`,
+      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'retained legacy role has target schema USAGE: %', bad; END IF;",
+    ] : []),
     `  SELECT expected.login_name::text || '->' || expected.role_name::text INTO bad FROM (VALUES ${expectedMemberships}) AS expected(login_name,role_name,admin_option,inherit_option,set_option) WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles role ON role.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE member.rolname=expected.login_name AND role.rolname=expected.role_name AND membership.admin_option=expected.admin_option AND membership.inherit_option=expected.inherit_option AND membership.set_option=expected.set_option) LIMIT 1;`,
     "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'missing exact login membership: %', bad; END IF;",
     `  SELECT member.rolname || '->' || role.rolname INTO bad FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles role ON role.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE member.rolname=ANY(ARRAY[${expectedNames}]::name[]) AND NOT EXISTS (SELECT 1 FROM (VALUES ${expectedMemberships}) AS expected(login_name,role_name,admin_option,inherit_option,set_option) WHERE expected.login_name=member.rolname AND expected.role_name=role.rolname AND expected.admin_option=membership.admin_option AND expected.inherit_option=membership.inherit_option AND expected.set_option=membership.set_option) LIMIT 1;`,

@@ -4,7 +4,9 @@ import test from 'node:test';
 import { declaration } from './declaration.ts';
 import {
   generateCatalogClosureVerifierSql,
+  generateEnvironmentVerifierSql,
   generatePortContextCapabilitySeedSql,
+  generateZeroStateClusterSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
   resolvePortContextCapabilities,
@@ -158,4 +160,27 @@ test('catalog closure requires one exact owner policy on every private relation'
     assert.match(sql, new RegExp(relation.owner));
   }
   assert.match(sql, /private relation owner policy missing or non-exact/);
+});
+
+test('retired roles are controlled by cluster cleanup and quarantined while dependencies remain', () => {
+  const retired = [
+    'app_identity_bootstrap',
+    'app_migrator',
+    'app_operational_diagnostic',
+    'app_operational_web_push_reminder',
+    'app_phone_bind_completion',
+    'app_web_push_reminder_discovery_definer',
+  ];
+  const cleanup = generateZeroStateClusterSql(declaration, { source: 'test' });
+  const verifier = generateEnvironmentVerifierSql(declaration, 'dev', 'bcb_webapp_dev');
+  for (const role of retired) {
+    assert.ok(declaration.zeroState.legacyRoles.includes(role), role);
+    assert.match(cleanup, new RegExp(role));
+    assert.match(verifier, new RegExp(role));
+  }
+  assert.match(verifier, /undeclared managed BCB role survived/);
+  assert.match(verifier, /retained legacy role is not quarantined NOLOGIN/);
+  assert.match(verifier, /retained legacy role still has membership/);
+  assert.match(verifier, /retained legacy role can CONNECT target/);
+  assert.match(verifier, /retained legacy role has target schema USAGE/);
 });

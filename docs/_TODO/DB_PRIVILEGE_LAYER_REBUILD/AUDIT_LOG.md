@@ -2057,6 +2057,16 @@ empty-TEST-specific обходов — реальный прогресс в пр
   `--catalog-closure-verify`, `--pre-session-gate-verify`, `--port-context-verify`, `--env-verify` подтвердили
   `226` managed relations, `262` routines, `45` exact pre-session roots, `93` capabilities и ровно `4` DEV
   application logins без missing/extra/mutated entries.
+- **LIVE-ROLE-NAMESPACE-001 — ИСПРАВЛЕНО В ГЕНЕРАТОРЕ, LIVE CLEANUP ОТКРЫТ:** exact diff между живыми
+  `pg_roles` с BCB-префиксами и объединением `cluster.roles + envMapping + zeroState.legacyRoles` нашёл шесть
+  бесконтрольных retired identities: `app_identity_bootstrap`, `app_migrator`, `app_operational_diagnostic`,
+  `app_operational_web_push_reminder`, `app_phone_bind_completion`,
+  `app_web_push_reminder_discovery_definer`. Они добавлены не в target role graph, а только в declaration-owned
+  cluster cleanup. Environment verifier теперь отвергает неизвестное имя во всём managed namespace, а retained
+  legacy допускает только как `NOLOGIN/NOSUPERUSER/NOBYPASSRLS/NOINHERIT`, без membership, target CONNECT и
+  schema USAGE. Targeted catalog tests `19/19`, strict declaration typecheck и byte-check всех zero artifacts
+  зелёные. Finding закрывается применением cluster cleanup и повторным live verifier на DEV; зависимые от ещё не
+  cutover TEST/старых баз роли не удаляются преждевременно, а остаются явно карантинированными.
 - **POSTZERO-REPLAY-DEV-SOURCE-001 — ОТКРЫТО, НЕ RUNTIME-БЛОКЕР:** команда
   `POSTZERO_SCHEMA_SOURCE_DB=bcb_webapp_dev pnpm test:db-post-zero-installer` завершилась exit `3` до нового root:
   schema-only dump уже-cutover DEV включает активный relation-birth event trigger; при последовательном replay

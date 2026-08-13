@@ -3287,7 +3287,13 @@ export const declaration: PrivilegeDeclaration = {
     roles: REV10_ROLES,
   },
   zeroState: { legacyRoles: [
+    'app_identity_bootstrap',
+    'app_migrator',
+    'app_operational_diagnostic',
+    'app_operational_web_push_reminder',
     'app_owner',
+    'app_phone_bind_completion',
+    'app_web_push_reminder_discovery_definer',
     'app_bootstrap_base_c1_20260713021531',
     'app_runtime_login_c1_20260713021531',
     'bcb_dev',
