@@ -199,6 +199,29 @@ test('pre-session and secret roots do not receive direct relation grants', () =>
   assert.equal(REV10_CLINICAL_ACCESS['public.phone_messenger_bind_secrets'], undefined);
 });
 
+test('system settings grants follow semantic clinic/global walls', () => {
+  const table = declaration.databases.bersoncarebot_test.tables['public.system_settings'];
+  assert.equal(table.access.kind, 'direct');
+  assert.deepEqual(
+    table.access.grants.filter((grant) => grant.role === 'app_staff')
+      .flatMap((grant) => grant.operations),
+    ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  );
+  assert.deepEqual(
+    table.access.grants.find((grant) =>
+      grant.role === 'app_staff' && grant.operations.includes('UPDATE'))?.columns,
+    ['value_json', 'updated_at', 'updated_by'],
+  );
+  const policies = table.policies.filter((policy) =>
+    policy.name.startsWith('rev10_system_settings_'));
+  assert.deepEqual(policies.map((policy) => policy.cmd), ['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
+  assert.match(policies[0].using, /scope = 'doctor'/);
+  assert.match(policies[0].using, /organization_id = app\.current_org_id\(\)/);
+  assert.match(policies[0].using, /app_platform_settings/);
+  assert.doesNotMatch(policies[1].withCheck, /scope = 'doctor'/);
+  assert.match(policies[1].withCheck, /organization_id = app\.current_org_id\(\)/);
+});
+
 test('tenant service has one command-aware D/M/P policy for every exact relation operation', () => {
   const expectedEdges = new Set();
   for (const [relation, access] of Object.entries(REV10_CLINICAL_ACCESS)) {

@@ -1668,11 +1668,39 @@ function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
     list.push(row);
     roots.set(row.functionIdentity, list);
   }
+  // Direct EXECUTE ACL and accepted transaction contexts are separate facts.
+  // A helper called only through a declared SECURITY DEFINER wrapper must accept
+  // the wrapper's context without becoming directly executable by that role.
+  // Propagate contexts through the explicit delegatesTo graph; grants remain
+  // derived solely from fn.execute below in the function ACL renderer.
+  const acceptedTargets = new Map();
+  for (const [signature, fn] of databaseFunctions) {
+    acceptedTargets.set(
+      signature,
+      new Set(functionExecute(db, fn).filter((role) => targetRoles.has(role))),
+    );
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [callerSignature, caller] of databaseFunctions) {
+      const callerTargets = acceptedTargets.get(callerSignature) ?? new Set();
+      for (const delegatedSignature of caller.delegatesTo ?? []) {
+        const delegatedTargets = acceptedTargets.get(delegatedSignature);
+        if (!delegatedTargets) continue;
+        for (const role of callerTargets) {
+          if (delegatedTargets.has(role)) continue;
+          delegatedTargets.add(role);
+          changed = true;
+        }
+      }
+    }
+  }
   const gates = [];
   for (const [signature, fn] of databaseFunctions) {
     if (fn.security !== 'DEFINER' || (fn.invocation ?? 'runtime') !== 'runtime'
       || fn.execute.length === 0 || fn.owner === 'app_seam_context_owner') continue;
-    const allowedTargets = functionExecute(db, fn).filter((role) => targetRoles.has(role)).sort();
+    const allowedTargets = [...(acceptedTargets.get(signature) ?? [])].sort();
     if (allowedTargets.length === 0) continue;
     const namedRows = roots.get(signature) ?? [];
     if (namedRows.length > 0) {
@@ -1717,9 +1745,16 @@ function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
     '     WHERE p.oid=pg_catalog.to_regprocedure(gate.signature);',
     "    IF routine.oid IS NULL THEN RAISE EXCEPTION 'runtime definer gate target missing: %',gate.signature; END IF;",
     "    IF gate.mode IN ('exact','exact_existing') AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;",
-    "    IF gate.mode='attested' AND (position('app.require_accepted_context' IN routine.prosrc)>0 OR position('app.require_attested_context_for_roles' IN routine.prosrc)>0) THEN CONTINUE; END IF;",
+    "    IF gate.mode='attested' AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;",
     "    IF gate.mode='exact_existing' THEN RAISE EXCEPTION 'multi-capability named root lacks a hand-written exact gate: %',gate.signature; END IF;",
-    "    IF routine.lanname='sql' THEN",
+    "    IF gate.mode='attested' AND position('app.require_attested_context_for_roles' IN routine.prosrc)>0 THEN",
+    "      IF routine.lanname='sql' THEN",
+    "        new_source := pg_catalog.regexp_replace(routine.prosrc, '^SELECT[[:space:]]+app\\.require_attested_context_for_roles\\([^;]+\\);', 'SELECT ' || gate.gate_expression || ';', 1, 1, 'in');",
+    "      ELSIF routine.lanname='plpgsql' THEN",
+    "        new_source := pg_catalog.regexp_replace(routine.prosrc, '(^|\\n)([[:space:]]*)BEGIN\\n[[:space:]]*PERFORM[[:space:]]+app\\.require_attested_context_for_roles\\([^;]+\\);', E'\\\\1\\\\2BEGIN\\n\\\\2  PERFORM ' || gate.gate_expression || ';', 1, 1, 'in');",
+    "      ELSE RAISE EXCEPTION 'unsupported runtime definer language %: %',routine.lanname,gate.signature; END IF;",
+    "      IF new_source = routine.prosrc THEN RAISE EXCEPTION 'existing runtime definer gate is not replaceable: %',gate.signature; END IF;",
+    "    ELSIF routine.lanname='sql' THEN",
     "      new_source := 'SELECT ' || gate.gate_expression || ';' || E'\\n' || routine.prosrc;",
     "    ELSIF routine.lanname='plpgsql' THEN",
     "      new_source := pg_catalog.regexp_replace(routine.prosrc, '(^|\\n)([[:space:]]*)BEGIN', E'\\\\1\\\\2BEGIN\\n\\\\2  PERFORM ' || gate.gate_expression || ';', 1, 1, 'in');",

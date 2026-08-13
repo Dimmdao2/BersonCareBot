@@ -6,6 +6,7 @@ import {
   generateCatalogClosureVerifierSql,
   generateEnvironmentVerifierSql,
   generatePortContextCapabilitySeedSql,
+  generatePrivilegesSql,
   generateZeroStateClusterSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
@@ -150,6 +151,22 @@ test('staff and global-admin login memberships stay disjoint at the platform bou
     assert.equal(globalAdmin.includes(role), false, role);
   }
   assert.deepEqual(globalAdmin, ['app_platform_settings', 'app_platform_admin']);
+});
+
+test('declared definer delegation propagates context without widening direct execute', () => {
+  const sql = generatePrivilegesSql(declaration, 'bersoncarebot_test');
+  assert.match(
+    sql,
+    /app\.saas_billing_effective_tariff\(uuid,uuid\).*require_attested_context_for_roles[^\n]+app_clinic_billing[^\n]+app_patient[^\n]+app_platform_settings[^\n]+app_staff/,
+  );
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION app\.saas_billing_effective_tariff\(uuid,uuid\) TO "app_platform_settings";/,
+  );
+  assert.doesNotMatch(
+    sql,
+    /GRANT EXECUTE ON FUNCTION app\.saas_billing_effective_tariff\(uuid,uuid\) TO [^;]*"app_staff"/,
+  );
 });
 
 test('catalog closure requires one exact owner policy on every private relation', () => {

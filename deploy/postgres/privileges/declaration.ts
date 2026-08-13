@@ -2248,6 +2248,10 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.resolve_organization_cabinet_access(uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_cabinet_access(uuid)'],
+      delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
+    },
     'app.password_login_acquire_impl(text,text,uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
       execute: [], invocation: 'internal' as const,
@@ -2778,6 +2782,27 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
+  'public.system_settings': {
+    kind: 'direct',
+    purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+      'apps/webapp/src/app/app/settings/page.tsx',
+    ],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_staff', operations: ['INSERT'],
+        columns: ['key', 'scope', 'organization_id', 'value_json', 'updated_at', 'updated_by'] },
+      { role: 'app_staff', operations: ['UPDATE'], columns: ['value_json', 'updated_at', 'updated_by'] },
+      { role: 'app_staff', operations: ['DELETE'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['INSERT'],
+        columns: ['key', 'scope', 'organization_id', 'value_json', 'updated_at', 'updated_by'] },
+      { role: 'app_platform_settings', operations: ['UPDATE'],
+        columns: ['value_json', 'updated_at', 'updated_by'] },
+      { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
+    ],
+  },
   'public.operator_health_failure_archive': {
     kind: 'direct', purpose: 'clinic staff handles only its archive rows; platform health route handles only global archive rows',
     codePaths: ['apps/webapp/src/app/api/admin/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
@@ -2816,9 +2841,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.system_settings_audit': {
-    kind: 'direct', purpose: 'only the platform settings role may read or append the global secret-bearing settings ledger',
+    kind: 'direct', purpose: 'platform settings reads the global ledger; clinic staff may only append audit rows for its own organization',
     codePaths: ['apps/webapp/src/infra/repos/pgSystemSettings.ts'],
-    grants: [{ role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' }],
+    grants: [
+      { role: 'app_staff', operations: ['INSERT'], columns: [
+        'key', 'scope', 'organization_id', 'old_value_json', 'new_value_json', 'changed_by', 'source',
+      ] },
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' },
+    ],
   },
 };
 
@@ -3193,12 +3223,32 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = app.current_org_id())";
   if (tableKey === 'public.be_organizations') return "(current_user = 'app_staff'::name AND id = app.current_org_id())";
   if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
-  if (tableKey === 'public.system_settings_audit') return "(current_user = 'app_platform_settings'::name AND organization_id IS NULL)";
+  if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
   if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
     + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active'))`;
   if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = app.current_org_id())`;
   return `(${rolePredicate})`;
+}
+
+function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
+  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = app.current_org_id()) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  return [
+    { name: `rev10_system_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff', 'app_platform_settings'], using: readWall,
+      note: 'staff sees its clinic rows and non-secret doctor defaults; platform settings sees global rows' },
+    { name: `rev10_system_settings_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
+      to: ['app_staff', 'app_platform_settings'], withCheck: writeWall,
+      note: 'staff writes only its clinic rows; platform settings writes only global rows' },
+    { name: `rev10_system_settings_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
+      to: ['app_staff', 'app_platform_settings'], using: writeWall,
+      withCheck: writeWall,
+      note: 'settings rows cannot cross the clinic/global ownership boundary on update' },
+    { name: `rev10_system_settings_delete_${index + 1}`, as: 'PERMISSIVE', cmd: 'DELETE',
+      to: ['app_staff', 'app_platform_settings'], using: writeWall,
+      note: 'staff deletes only its clinic rows; platform settings deletes only global rows' },
+  ];
 }
 
 function revision10SeamOwnerPolicy(tableKey: string, index: number, access: RelationAccess): PolicyDecl[] {
@@ -3237,6 +3287,8 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       note: `exact direct role business wall for ${key}`,
     }] : [];
     const runtimeBusinessBase: PolicyDecl[] = !active ? []
+      : key === 'public.system_settings' && access?.kind === 'direct'
+        ? revision10SystemSettingsPolicies(index)
       : access?.kind === 'direct' && specialized ? directBusiness
       : access?.kind === 'direct' && locked && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_${locked.policyName}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
