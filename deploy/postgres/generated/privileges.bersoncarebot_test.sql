@@ -2140,14 +2140,11 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.apply_paid_saas_billing_tariff(uuid,uuid)', 'public.saas_organization_trials', ARRAY['id', 'organization_id', 'tariff_id', 'status', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'kind', 'payload_json', 'status', 'sent_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'public.specialist_tasks', ARRAY['id', 'reminder_sent_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'organization_id', 'status', 'failure_class', 'kind', 'channel', 'payload_json', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['id']::text[], ARRAY['UPDATE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'organization_id', 'status', 'failure_class', 'kind', 'channel', 'payload_json', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'UPDATE', 'DELETE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.broadcast_audit', ARRAY['id', 'organization_id', 'actor_id', 'message_title']::text[], ARRAY['SELECT']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.platform_users', ARRAY['id', 'display_name', 'first_name', 'last_name', 'phone_normalized']::text[], ARRAY['SELECT']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.integrator_push_outbox', ARRAY['id', 'kind', 'status', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.integrator_push_outbox', ARRAY['id']::text[], ARRAY['UPDATE']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'integrator.projection_outbox', ARRAY['id', 'event_type', 'idempotency_key', 'status', 'attempts_done', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'integrator.projection_outbox', ARRAY['id']::text[], ARRAY['UPDATE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.integrator_push_outbox', ARRAY['id', 'kind', 'status', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'UPDATE', 'DELETE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'integrator.projection_outbox', ARRAY['id', 'event_type', 'idempotency_key', 'status', 'attempts_done', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'UPDATE', 'DELETE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.operator_health_failure_archive', ARRAY['organization_id', 'archived_by_user_id', 'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json', 'raw_error_truncated']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.auth_channel_binding_session(text,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code', 'external_id']::text[], ARRAY['SELECT']::text[]),
   ('app.auth_channel_binding_session(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
@@ -2662,7 +2659,7 @@ BEGIN
     mutation := (pg_catalog.regexp_match(source, '(\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
     IF mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'DELETE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;
   END LOOP;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=517';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=514';
 END
 $bcb$;
 
@@ -7544,6 +7541,7 @@ GRANT UPDATE ("attempts_done", "last_error", "next_try_at", "status", "updated_a
 GRANT SELECT ("attempts_done", "next_try_at", "status", "updated_at") ON TABLE "integrator"."projection_outbox" TO "app_seam_delivery_scope_owner";
 GRANT DELETE ON TABLE "integrator"."projection_outbox" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("attempts_done", "created_at", "event_type", "id", "idempotency_key", "last_error", "status") ON TABLE "integrator"."projection_outbox" TO "app_seam_telemetry_operator_owner";
+GRANT UPDATE ("attempts_done", "created_at", "event_type", "id", "idempotency_key", "last_error", "status") ON TABLE "integrator"."projection_outbox" TO "app_seam_telemetry_operator_owner";
 -- последовательности integrator.projection_outbox: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
@@ -7559,6 +7557,7 @@ BEGIN
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_integrator_request"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_operational_delivery_worker"', s);
+    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_telemetry_operator_owner"', s);
   END LOOP;
 END
 $bcb$;
@@ -10941,6 +10940,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."integrator_push_outbox" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."integrator_push_outbox" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT DELETE ON TABLE "public"."integrator_push_outbox" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("created_at", "id", "kind", "last_error", "status") ON TABLE "public"."integrator_push_outbox" TO "app_seam_telemetry_operator_owner";
+GRANT UPDATE ("created_at", "id", "kind", "last_error", "status") ON TABLE "public"."integrator_push_outbox" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("created_at", "id", "kind", "next_try_at", "status", "updated_at") ON TABLE "public"."integrator_push_outbox" TO "saas_system_health_owner";
 -- последовательности public.integrator_push_outbox: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
@@ -10955,6 +10955,7 @@ BEGIN
             ORDER BY 1 LOOP
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_telemetry_operator_owner"', s);
   END LOOP;
 END
 $bcb$;
@@ -12472,6 +12473,7 @@ GRANT UPDATE ("id", "kind", "last_error", "next_retry_at", "payload_json", "stat
 GRANT DELETE ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("channel", "created_at", "failure_class", "id", "kind", "last_error", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("channel", "event_id", "kind", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
+GRANT UPDATE ("channel", "created_at", "failure_class", "id", "kind", "last_error", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("channel", "created_at", "failure_class", "id", "kind", "next_retry_at", "organization_id", "sent_at", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "saas_system_health_owner";
 GRANT SELECT ("channel", "created_at", "kind", "sent_at", "status") ON TABLE "public"."outgoing_delivery_queue" TO "saas_system_health_owner";
 -- последовательности public.outgoing_delivery_queue: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
@@ -12491,6 +12493,7 @@ BEGIN
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_reminder_appointment_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_reminder_materialization_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_reminder_specialist_owner"', s);
+    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_telemetry_operator_owner"', s);
   END LOOP;
 END
 $bcb$;
