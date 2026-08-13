@@ -2827,3 +2827,15 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   `active patient enrollment required for reminder occurrence projection` для foreign request.
 - Cleanup удалил только probe rows: `deleted_cache=1`, `deleted_history=1`; повторный точный count дал
   `remaining_cache=0`, `remaining_history=0`.
+
+### Независимый аудит commit `105116661` — PASS
+
+- Auditor на `gpt-5.6-sol/xhigh` независимо проверил diff `b3c028daf..105116661`, generated declaration и
+  read-only DEV catalog. Обе idempotency-функции начинают исполнение с exact purpose/typed-args gate;
+  runtime-роли не имеют прямого доступа к `idempotency_keys`.
+- Отдельно проверен главный риск нового slice: staff-login membership в `app_tenant_service` не создаёт обход.
+  Прямой relation path и чужой exact root без контекста дали `42501`; доступные tenant-таблицы закрыты
+  `FORCE RLS`/context gate. Direct INSERT на `reminder_occurrence_history` отсутствует у staff, tenant и PUBLIC.
+- Миграции `0402–0405` совпадают с DEV ledger по SHA-256, journal последовательный, generated artifacts
+  побайтово актуальны. Live own/replay/foreign evidence и fixture cleanup `0/0` подтверждены повторно.
+  Run record: `/home/dev/brain/runs/agent-port/finalized-projection-audit-r3-20260813.json`.
