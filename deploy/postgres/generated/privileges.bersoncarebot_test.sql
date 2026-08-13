@@ -1807,262 +1807,274 @@ END
 $bcb$;
 
 -- Runtime definer body gate: exact named roots; attested target-role gate for relation operations.
-CREATE TEMP TABLE bcb_runtime_definer_gates(signature text PRIMARY KEY, mode text NOT NULL, gate_expression text NOT NULL) ON COMMIT DROP;
-INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression) VALUES
-  ('app.accept_org_invite(text,uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)', 'exact', 'app.require_accepted_context(''app_seam_reminder_appointment_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.appointment-reminder-advance'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg]), ''app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)''::regprocedure)'),
-  ('app.apply_paid_saas_billing_tariff(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.auth_channel_binding_session(text,text)', 'exact', 'app.require_accepted_context(''app_seam_identity_lookup_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel-binding.session'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.auth_channel_binding_session(text,text)''::regprocedure)'),
-  ('app.auth_channel_link_lock_unused_secret(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])'),
-  ('app.auth_channel_link_mark_secret_used_if_unused(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])'),
-  ('app.auth_channel_link_mark_secret_used(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])'),
-  ('app.auth_channel_link_read_secret(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])'),
-  ('app.auth_channel_link_replace_secret(uuid,text,text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])'),
-  ('app.auth_login_token_confirm(text)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.confirm'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.auth_login_token_confirm(text)''::regprocedure)'),
-  ('app.auth_login_token_create(text,uuid,text,timestamp with time zone)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.create'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''uuid@1'', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''timestamptz@1'', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), ''app.auth_login_token_create(text,uuid,text,timestamp with time zone)''::regprocedure)'),
-  ('app.auth_login_token_expire_past()', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.expire'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.auth_login_token_expire_past()''::regprocedure)'),
-  ('app.auth_login_token_mark_session_issued(text)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.session-issued'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.auth_login_token_mark_session_issued(text)''::regprocedure)'),
-  ('app.auth_login_token_read(text)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.auth_login_token_read(text)''::regprocedure)'),
-  ('app.auth_oauth_find_user(text,text)', 'exact', 'app.require_accepted_context(''app_seam_oauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.oauth.callback.find-binding'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.auth_oauth_find_user(text,text)''::regprocedure)'),
-  ('app.auth_oauth_list_user_providers(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_oauth_owner''::name, ARRAY[''app_worker''::name]::name[])'),
-  ('app.auth_oauth_upsert_binding(uuid,text,text,text)', 'exact', 'app.require_accepted_context(''app_seam_oauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.oauth.callback.upsert-binding'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg]), ''app.auth_oauth_upsert_binding(uuid,text,text,text)''::regprocedure)'),
-  ('app.auth_phone_bind_lock_channel_binding(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.auth_phone_bind_upsert_channel_binding(uuid,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.rate-limit.check-record'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($3))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($6))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($7))::app.port_typed_arg]), ''app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)''::regprocedure)'),
-  ('app.begin_staff_login_challenge(text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.bump_platform_user_session_epoch_self()', 'attested', 'app.require_attested_context_for_roles(''app_seam_self_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.cancel_patient_invite_email_proof(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.choose_organization_first_tariff(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.close_active_user_phone_history(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.complete_staff_totp_enrollment(text,jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.confirm_staff_recovery_codes()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.consume_staff_recovery_login(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.consume_staff_totp_login(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.count_active_canonical_appointments()', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''booking.admin-active.count'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.count_active_canonical_appointments()''::regprocedure)'),
-  ('app.create_specialist_signup_intent(uuid,text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.current_patient_has_active_org_enrollment(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_org_projection_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.current_patient_has_password_credentials()', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.current_patient_has_web_oauth_binding()', 'attested', 'app.require_attested_context_for_roles(''app_seam_oauth_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.current_provisioned_owner_organization()', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_platform_settings''::name]::name[])'),
-  ('app.delete_google_calendar_event_id(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.map.delete'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.delete_google_calendar_event_id(uuid)''::regprocedure)'),
-  ('app.email_auth_delete_email_challenge_by_id(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_delete_email_challenges_for_user(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_enqueue_otp_delivery(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_find_email_challenge_for_confirm(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_find_email_challenge_for_consume(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_find_email_otp_lock(uuid)', 'exact', 'app.require_accepted_context(''app_seam_email_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.email-otp.lock.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.email_auth_find_email_otp_lock(uuid)''::regprocedure)'),
-  ('app.email_auth_find_email_owner_conflict(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_find_email_send_cooldown(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_find_latest_email_challenge_for_user(uuid,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_find_latest_pending_email_challenge_for_user(uuid,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_increment_email_challenge_attempts(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_insert_email_challenge(uuid,text,text,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_register_email_otp_lockout(uuid)', 'exact', 'app.require_accepted_context(''app_seam_email_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.email-otp.lock.register'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.email_auth_register_email_otp_lockout(uuid)''::regprocedure)'),
-  ('app.email_auth_reset_email_otp_lockout(uuid)', 'exact', 'app.require_accepted_context(''app_seam_email_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.email-otp.lock.reset'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.email_auth_reset_email_otp_lockout(uuid)''::regprocedure)'),
-  ('app.email_auth_set_email_challenge_delivery_code(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_set_email_challenge_purpose(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_upsert_email_send_cooldown(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_auth_verify_user_email(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_otp_public_consume_latest_challenge(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_otp_public_delete_unverified_registration(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_otp_public_find_email_send_cooldown_by_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_otp_public_find_latest_email_challenge_by_email(text,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_otp_public_find_or_create_user(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_otp_public_find_user_by_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_otp_public_register_patient(text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_password_delete_unverified_registration(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_password_find_login_candidate(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_password_find_user_id_by_email_challenge(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.email_password_register_pending(text,text,text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.ensure_staff_security_profile()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.exchange_patient_invite(text,text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.find_platform_user_ids_by_any_confirmed_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_identity_lookup_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.get_google_calendar_event_id(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.map.get'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.get_google_calendar_event_id(uuid)''::regprocedure)'),
-  ('app.get_latest_specialist_signup_intent_for_user()', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.get_pending_specialist_signup_intent(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.get_preferred_auth_channel_code(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_identity_lookup_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.get_public_config_bool(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_preauth_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.get_public_reference_baseline(text)', 'exact', 'app.require_accepted_context(''app_seam_catalog_public_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''catalog.public-reference.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.get_public_reference_baseline(text)''::regprocedure)'),
-  ('app.get_specialist_signup_intent_by_challenge(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.get_staff_security_profile()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.get_staff_security_session_state()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.get_web_push_vapid_public_key()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_patient''::name, ''patient''::app.port_context_class, ''patient.web-push.vapid-public-key.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.get_web_push_vapid_public_key()''::regprocedure)'),
-  ('app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_media_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.is_current_patient_self_booking_allowed()', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_patient''::name, ''patient''::app.port_context_class, ''booking.self.allowed'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_current_patient_self_booking_allowed()''::regprocedure)'),
-  ('app.is_current_patient_test_account()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_exclusion_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.is_max_bot_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.max.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_max_bot_configured()''::regprocedure)'),
-  ('app.is_organization_slug_available(text)', 'exact', 'app.require_accepted_context(''app_seam_public_slug_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.specialist-signup.slug-availability'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.is_organization_slug_available(text)''::regprocedure)'),
-  ('app.is_platform_registration_analytics_user_excluded(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_exclusion_owner''::name, ARRAY[''app_platform_settings''::name]::name[])'),
-  ('app.is_sms_provider_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.sms.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_sms_provider_configured()''::regprocedure)'),
-  ('app.is_smtp_outbound_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.smtp.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_smtp_outbound_configured()''::regprocedure)'),
-  ('app.is_telegram_login_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.telegram.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_telegram_login_configured()''::regprocedure)'),
-  ('app.list_active_booking_cities()', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_public_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.list_active_canonical_appointments_by_phone(text)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''booking.integrator-active.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.list_active_canonical_appointments_by_phone(text)''::regprocedure)'),
-  ('app.list_clinical_test_measure_kinds()', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_admin_owner''::name, ARRAY[''app_platform_settings''::name, ''app_staff''::name]::name[])'),
-  ('app.list_google_calendar_probe_organization_ids()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.list_platform_organization_members(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_directory_owner''::name, ARRAY[''app_platform_settings''::name]::name[])'),
-  ('app.list_scheduler_reminder_organization_ids()', 'exact', 'app.require_accepted_context(''app_seam_reminder_materialization_owner''::name, ''app_operational_scheduler''::name, ''service''::app.port_context_class, ''scheduler.reminder-organizations'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.list_scheduler_reminder_organization_ids()''::regprocedure)'),
-  ('app.list_web_push_reminder_organization_ids(timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.lookup_patient_invite_continuation(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.lookup_pending_org_invite(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.mark_operator_incident_alert_sent(uuid)', 'exact', 'app.require_accepted_context(''app_seam_telemetry_operator_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.incident-alert-mark'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.mark_operator_incident_alert_sent(uuid)''::regprocedure)'),
-  ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.open_or_touch_operator_incident(text,text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_delivery_worker''::name, ''app_operational_scheduler''::name]::name[])'),
-  ('app.open_or_touch_operator_probe_incident(text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.operator_incident_alert_already_sent(uuid)', 'exact', 'app.require_accepted_context(''app_seam_telemetry_operator_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.incident-alert-status'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.operator_incident_alert_already_sent(uuid)''::regprocedure)'),
-  ('app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)', 'exact', 'app.require_accepted_context(''app_seam_passkey_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.passkey.authentication.complete'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($3))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''boolean@1'', pg_catalog.boolsend($6))::app.port_typed_arg]), ''app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)''::regprocedure)'),
-  ('app.passkey_complete_registration(uuid,uuid,text,text,bigint,jsonb,text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.passkey_delete_current_credential(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.passkey_get_or_create_account(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)', 'exact_existing', ''),
-  ('app.passkey_list_current_credentials()', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.passkey_list_current_exclusions()', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.passkey_read_challenge(uuid,text)', 'exact_existing', ''),
-  ('app.passkey_read_credential(text)', 'exact', 'app.require_accepted_context(''app_seam_passkey_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.passkey.credential.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.passkey_read_credential(text)''::regprocedure)'),
-  ('app.password_credentials_replace_self(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.password_credentials_upsert_self(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.password_login_acquire(text,text,uuid,text)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.acquire'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''uuid@1'', pg_catalog.uuid_send($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg]), ''app.password_login_acquire(text,text,uuid,text)''::regprocedure)'),
-  ('app.password_login_complete(uuid,boolean)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.complete'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''boolean@1'', pg_catalog.boolsend($2))::app.port_typed_arg]), ''app.password_login_complete(uuid,boolean)''::regprocedure)'),
-  ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.altcha-issue'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''uuid@1'', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''timestamptz@1'', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), ''app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)''::regprocedure)'),
-  ('app.password_login_read_altcha_secret()', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.altcha-secret'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.password_login_read_altcha_secret()''::regprocedure)'),
-  ('app.patient_cancel_pending_reminder_occurrences(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.patient_disable_reminder_messenger_topic(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.patient_done_reminder_occurrence(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.patient_reminder_notification_settings(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.patient_set_reminder_mute(integer,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.patient_set_reminder_muted_until(timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.patient_skip_reminder_occurrence(uuid,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.patient_snooze_reminder_occurrence(uuid,text,integer)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.phone_auth_find_latest_challenge_created_at(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.cooldown.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_auth_find_latest_challenge_created_at(text)''::regprocedure)'),
-  ('app.phone_auth_find_otp_lock(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.lock.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_auth_find_otp_lock(text)''::regprocedure)'),
-  ('app.phone_auth_register_otp_lockout(text,bigint)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.lock.register'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($2))::app.port_typed_arg]), ''app.phone_auth_register_otp_lockout(text,bigint)''::regprocedure)'),
-  ('app.phone_auth_reset_otp_lockout(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.lock.reset'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_auth_reset_otp_lockout(text)''::regprocedure)'),
-  ('app.phone_challenge_store_delete_by_phone(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.delete-by-phone'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_challenge_store_delete_by_phone(text)''::regprocedure)'),
-  ('app.phone_challenge_store_delete(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.delete'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_challenge_store_delete(text)''::regprocedure)'),
-  ('app.phone_challenge_store_increment_attempts(text,bigint)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.attempt.increment'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($2))::app.port_typed_arg]), ''app.phone_challenge_store_increment_attempts(text,bigint)''::regprocedure)'),
-  ('app.phone_challenge_store_read(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_challenge_store_read(text)''::regprocedure)'),
-  ('app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.upsert'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($6))::app.port_typed_arg]), ''app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)''::regprocedure)'),
-  ('app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-phone-otp.consume'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($3))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($4))::app.port_typed_arg]), ''app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)''::regprocedure)'),
-  ('app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-phone-otp.issue'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($4))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($5))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($6))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($7))::app.port_typed_arg]), ''app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)''::regprocedure)'),
-  ('app.pre_session_resolve_identity(uuid)', 'exact_existing', ''),
-  ('app.prepare_organization_lifecycle_notification_context(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.provision_specialist_owner(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.read_booking_calendar_latest_staff_comment(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.staff-comment.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.read_booking_calendar_latest_staff_comment(uuid)''::regprocedure)'),
-  ('app.read_booking_calendar_patient_profile(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.patient-profile.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.read_booking_calendar_patient_profile(uuid)''::regprocedure)'),
-  ('app.read_canonical_appointment_by_external_id(text)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''booking.integrator-record.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_canonical_appointment_by_external_id(text)''::regprocedure)'),
-  ('app.read_curated_playback_health_pre_0196()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_curated_playback_health()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_curated_system_health_pre_0196()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_curated_system_health()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_current_org_tariff_transition_usage()', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_clinic_billing''::name, ''app_staff''::name]::name[])'),
-  ('app.read_current_patient_active_organizations()', 'exact', 'app.require_accepted_context(''app_seam_patient_org_projection_owner''::name, ''app_patient''::name, ''patient''::app.port_context_class, ''patient.organization.resolve'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_current_patient_active_organizations()''::regprocedure)'),
-  ('app.read_current_patient_appointment_history()', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_booking_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_booking_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.read_current_patient_organization_entitlements()', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_org_projection_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.read_current_patient_ui_setting(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_runtime_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.read_global_server_runtime_setting(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_runtime_owner''::name, ARRAY[''app_integrator_request''::name]::name[])'),
-  ('app.read_integrator_auth_channel_setting(text)', 'exact', 'app.require_accepted_context(''app_seam_settings_integrator_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''config.integrator-auth-channel.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_integrator_auth_channel_setting(text)''::regprocedure)'),
-  ('app.read_integrator_clinic_delivery_credential(text,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])'),
-  ('app.read_integrator_google_calendar_setting(text,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])'),
-  ('app.read_integrator_migration_ledger()', 'exact', 'app.require_accepted_context(''app_seam_catalog_admin_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''migration.ledger.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_integrator_migration_ledger()''::regprocedure)'),
-  ('app.read_integrator_platform_integration_availability()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.read_integrator_projection_health(integer)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.projection-health.read'', app.hash_port_typed_args(ARRAY[ROW(''integer@1'', pg_catalog.int4send($1))::app.port_typed_arg]), ''app.read_integrator_projection_health(integer)''::regprocedure)'),
-  ('app.read_integrator_provider_runtime_setting(text)', 'exact', 'app.require_accepted_context(''app_seam_settings_integrator_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''config.integrator-provider.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_integrator_provider_runtime_setting(text)''::regprocedure)'),
-  ('app.read_integrator_runtime_setting(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])'),
-  ('app.read_integrator_smtp_outbound_setting()', 'exact', 'app.require_accepted_context(''app_seam_settings_integrator_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''config.integrator-smtp.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_integrator_smtp_outbound_setting()''::regprocedure)'),
-  ('app.read_last_saas_isolation_coverage()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_media_worker_runtime_setting(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_runtime_owner''::name, ARRAY[''app_operational_media_worker''::name]::name[])'),
-  ('app.read_operational_verbose_log_flag()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_delivery_worker''::name, ''app_operational_scheduler''::name]::name[])'),
-  ('app.read_operator_health_probe_config()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.read_operator_outbound_probe_meta()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.read_org_brand_core_context(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_org_projection_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.read_org_enforced_quota_usage(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_platform_settings''::name]::name[])'),
-  ('app.read_outbound_provider_incident_health()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_outgoing_delivery_reclaim_config()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.read_patient_lfk_complex_cover(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.read_patient_lfk_complex_exercise_lines(uuid[])', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.read_patient_telegram_display_handle(uuid)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_staff''::name, ''staff''::app.port_context_class, ''messaging.patient-telegram-handle.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.read_patient_telegram_display_handle(uuid)''::regprocedure)'),
-  ('app.read_platform_lfk_media_entitlement_refs(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.read_platform_media_row(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.read_public_runtime_setting(text,text)', 'exact', 'app.require_accepted_context(''app_seam_settings_runtime_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''config.runtime.public.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.read_public_runtime_setting(text,text)''::regprocedure)'),
-  ('app.read_reminder_transactional_email_cooldown(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_email_cooldown_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.read_saas_billing_payment_provider_clinic()', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_clinic_billing''::name, ''staff''::app.port_context_class, ''billing.clinic.provider.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_saas_billing_payment_provider_clinic()''::regprocedure)'),
-  ('app.read_saas_billing_payment_provider_platform()', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_platform_settings''::name, ''platform''::app.port_context_class, ''billing.platform.provider.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_saas_billing_payment_provider_platform()''::regprocedure)'),
-  ('app.read_saas_billing_payment_provider_preauth()', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''billing.webhook.provider.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_saas_billing_payment_provider_preauth()''::regprocedure)'),
-  ('app.read_saas_isolation_events()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_saas_isolation_test_scenario_fixture_counts()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_saas_isolation_trend()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.read_webapp_preauth_provider_setting(text)', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''config.preauth-provider.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_webapp_preauth_provider_setting(text)''::regprocedure)'),
-  ('app.read_webapp_server_runtime_setting(text,text)', 'exact', 'app.require_accepted_context(''app_seam_settings_runtime_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''config.runtime.server.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.read_webapp_server_runtime_setting(text,text)''::regprocedure)'),
-  ('app.record_current_patient_analytics_event(timestamp with time zone,text,text,text,text,jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_patient_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.record_failed_staff_factor_attempt()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])'),
-  ('app.record_media_playback_resolution_event(uuid,uuid,text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_media_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.record_operator_delivery_attempt(text,text,text,integer,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.record_operator_outbound_probe_run(text,timestamp with time zone,text,jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.record_reminder_transactional_email_cooldown(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_email_cooldown_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.record_saas_isolation_coverage(uuid,text,timestamp with time zone,timestamp with time zone,text[],integer,integer)', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.redeem_patient_invite_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.refresh_specialist_task_reminder_materialization(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.release_integrator_idempotency(text)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.idempotency.release'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.release_integrator_idempotency(text)''::regprocedure)'),
-  ('app.replace_pending_specialist_signup_challenge(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.report_saas_isolation_event(text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name, ''app_worker''::name]::name[])'),
-  ('app.require_staff_security_self_user_id()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.resolve_clinic_dedicated_bot_organization(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_dedicated_bot_owner''::name, ARRAY[''app_integrator_resolver''::name]::name[])'),
-  ('app.resolve_current_patient_treatment_program_organization(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_program_resolver_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.resolve_operator_probe_incidents(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])'),
-  ('app.resolve_organization_cabinet_access(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.resolve_organization_mechanic_access(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.resolve_outgoing_delivery_scope(uuid)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.resolve-scope'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.resolve_outgoing_delivery_scope(uuid)''::regprocedure)'),
-  ('app.resolve_payment_webhook_organization(text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_payment_webhook_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.resolve_public_booking_organization(uuid,uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_public_booking_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.resolve_public_organization_by_slug(text)', 'exact', 'app.require_accepted_context(''app_seam_public_slug_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-organization.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.resolve_public_organization_by_slug(text)''::regprocedure)'),
-  ('app.resolve_public_organization_slug(text)', 'exact', 'app.require_accepted_context(''app_seam_public_slug_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-slug.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.resolve_public_organization_slug(text)''::regprocedure)'),
-  ('app.resolve_saas_billing_invoice_for_webhook(text,text)', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''billing.webhook.invoice.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.resolve_saas_billing_invoice_for_webhook(text,text)''::regprocedure)'),
-  ('app.resolve_saas_billing_refund_for_webhook(text,text)', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''billing.webhook.refund.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.resolve_saas_billing_refund_for_webhook(text,text)''::regprocedure)'),
-  ('app.resolve_staff_workspace_memberships(uuid)', 'exact_existing', ''),
-  ('app.revalidate_appointment_reminder_materialization(uuid)', 'exact', 'app.require_accepted_context(''app_seam_reminder_appointment_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.appointment-reminder-revalidate'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.revalidate_appointment_reminder_materialization(uuid)''::regprocedure)'),
-  ('app.revalidate_patient_reminder_delivery_materialization(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.revalidate_specialist_task_reminder_materialization(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.revoke_staff_sessions()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_clinic_billing''::name, ''app_patient''::name, ''app_staff''::name]::name[])'),
-  ('app.saas_billing_effective_tariff(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_clinic_billing''::name, ''app_patient''::name, ''app_platform_settings''::name, ''app_staff''::name]::name[])'),
-  ('app.save_clinical_test_measure_kinds(jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_admin_owner''::name, ARRAY[''app_platform_settings''::name]::name[])'),
-  ('app.save_pending_staff_totp(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.set_current_patient_calendar_timezone(text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_self_actions_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.set_saas_isolation_test_scenario(text)', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])'),
-  ('app.specialist_task_reminder_materialization_fingerprint(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])'),
-  ('app.staff_user_has_password_credentials(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.staff_user_has_web_oauth_binding(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_oauth_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.start_provisioned_organization_trial()', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_platform_settings''::name]::name[])'),
-  ('app.touch_current_patient_plan_last_opened(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_self_actions_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.touch_current_patient_support_conversation_activity(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_self_actions_owner''::name, ARRAY[''app_patient''::name]::name[])'),
-  ('app.try_acquire_integrator_idempotency(text,integer)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.idempotency.acquire'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($2))::app.port_typed_arg]), ''app.try_acquire_integrator_idempotency(text,integer)''::regprocedure)'),
-  ('app.upsert_clinical_test_measure_kind_by_label(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_admin_owner''::name, ARRAY[''app_platform_settings''::name, ''app_staff''::name]::name[])'),
-  ('app.upsert_google_calendar_event_id(uuid,text)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.map.upsert'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.upsert_google_calendar_event_id(uuid,text)''::regprocedure)'),
-  ('app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.data-quality.upsert'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($6))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($7))::app.port_typed_arg]), ''app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)''::regprocedure)'),
-  ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_staff''::name]::name[])'),
-  ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])')
+CREATE TEMP TABLE bcb_runtime_definer_gates(signature text PRIMARY KEY, mode text NOT NULL, gate_expression text NOT NULL, expected_tokens text[] NOT NULL) ON COMMIT DROP;
+INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression,expected_tokens) VALUES
+  ('app.accept_org_invite(text,uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)', 'exact', 'app.require_accepted_context(''app_seam_reminder_appointment_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.appointment-reminder-advance'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg]), ''app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.apply_paid_saas_billing_tariff(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_channel_binding_session(text,text)', 'exact', 'app.require_accepted_context(''app_seam_identity_lookup_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel-binding.session'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.auth_channel_binding_session(text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_channel_link_lock_unused_secret(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_channel_link_mark_secret_used_if_unused(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_channel_link_mark_secret_used(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_channel_link_read_secret(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_channel_link_replace_secret(uuid,text,text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_login_token_confirm(text)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.confirm'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.auth_login_token_confirm(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_login_token_create(text,uuid,text,timestamp with time zone)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.create'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''uuid@1'', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''timestamptz@1'', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), ''app.auth_login_token_create(text,uuid,text,timestamp with time zone)''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_login_token_expire_past()', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.expire'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.auth_login_token_expire_past()''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_login_token_mark_session_issued(text)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.session-issued'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.auth_login_token_mark_session_issued(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_login_token_read(text)', 'exact', 'app.require_accepted_context(''app_seam_login_token_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.login-token.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.auth_login_token_read(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_oauth_find_user(text,text)', 'exact', 'app.require_accepted_context(''app_seam_oauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.oauth.callback.find-binding'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.auth_oauth_find_user(text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_oauth_list_user_providers(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_oauth_owner''::name, ARRAY[''app_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_oauth_upsert_binding(uuid,text,text,text)', 'exact', 'app.require_accepted_context(''app_seam_oauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.oauth.callback.upsert-binding'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg]), ''app.auth_oauth_upsert_binding(uuid,text,text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.auth_phone_bind_lock_channel_binding(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_phone_bind_upsert_channel_binding(uuid,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.rate-limit.check-record'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($3))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($6))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($7))::app.port_typed_arg]), ''app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)''::regprocedure)', ARRAY[]::text[]),
+  ('app.begin_staff_login_challenge(text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.bump_platform_user_session_epoch_self()', 'attested', 'app.require_attested_context_for_roles(''app_seam_self_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.cancel_patient_invite_email_proof(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.choose_organization_first_tariff(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.close_active_user_phone_history(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_phone_binding_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.complete_staff_totp_enrollment(text,jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.confirm_staff_recovery_codes()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.consume_staff_recovery_login(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.consume_staff_totp_login(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.count_active_canonical_appointments()', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''booking.admin-active.count'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.count_active_canonical_appointments()''::regprocedure)', ARRAY[]::text[]),
+  ('app.create_specialist_signup_intent(uuid,text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.current_patient_has_active_org_enrollment(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_org_projection_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.current_patient_has_password_credentials()', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.current_patient_has_web_oauth_binding()', 'attested', 'app.require_attested_context_for_roles(''app_seam_oauth_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.current_provisioned_owner_organization()', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_platform_settings''::name]::name[])', ARRAY[]::text[]),
+  ('app.delete_google_calendar_event_id(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.map.delete'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.delete_google_calendar_event_id(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.email_auth_delete_email_challenge_by_id(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_delete_email_challenges_for_user(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_enqueue_otp_delivery(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_find_email_challenge_for_confirm(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_find_email_challenge_for_consume(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_find_email_otp_lock(uuid)', 'exact', 'app.require_accepted_context(''app_seam_email_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.email-otp.lock.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.email_auth_find_email_otp_lock(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.email_auth_find_email_owner_conflict(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_find_email_send_cooldown(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_find_latest_email_challenge_for_user(uuid,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_find_latest_pending_email_challenge_for_user(uuid,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_increment_email_challenge_attempts(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_insert_email_challenge(uuid,text,text,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_register_email_otp_lockout(uuid)', 'exact', 'app.require_accepted_context(''app_seam_email_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.email-otp.lock.register'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.email_auth_register_email_otp_lockout(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.email_auth_reset_email_otp_lockout(uuid)', 'exact', 'app.require_accepted_context(''app_seam_email_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.email-otp.lock.reset'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.email_auth_reset_email_otp_lockout(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.email_auth_set_email_challenge_delivery_code(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_set_email_challenge_purpose(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_upsert_email_send_cooldown(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_auth_verify_user_email(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_otp_public_consume_latest_challenge(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_otp_public_delete_unverified_registration(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_otp_public_find_email_send_cooldown_by_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_otp_public_find_latest_email_challenge_by_email(text,bigint)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_otp_public_find_or_create_user(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_otp_public_find_user_by_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_otp_public_register_patient(text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_password_delete_unverified_registration(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_password_find_login_candidate(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_password_find_user_id_by_email_challenge(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_password_register_pending(text,text,text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.ensure_staff_security_profile()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.exchange_patient_invite(text,text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.find_platform_user_ids_by_any_confirmed_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_identity_lookup_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_google_calendar_event_id(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.map.get'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.get_google_calendar_event_id(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.get_latest_specialist_signup_intent_for_user()', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_pending_specialist_signup_intent(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_preferred_auth_channel_code(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_identity_lookup_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_public_config_bool(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_preauth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_public_reference_baseline(text)', 'exact', 'app.require_accepted_context(''app_seam_catalog_public_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''catalog.public-reference.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.get_public_reference_baseline(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.get_specialist_signup_intent_by_challenge(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_staff_security_profile()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_staff_security_session_state()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.get_web_push_vapid_public_key()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_patient''::name, ''patient''::app.port_context_class, ''patient.web-push.vapid-public-key.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.get_web_push_vapid_public_key()''::regprocedure)', ARRAY[]::text[]),
+  ('app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_media_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.is_current_patient_self_booking_allowed()', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_patient''::name, ''patient''::app.port_context_class, ''booking.self.allowed'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_current_patient_self_booking_allowed()''::regprocedure)', ARRAY[]::text[]),
+  ('app.is_current_patient_test_account()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_exclusion_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.is_max_bot_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.max.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_max_bot_configured()''::regprocedure)', ARRAY[]::text[]),
+  ('app.is_organization_slug_available(text)', 'exact', 'app.require_accepted_context(''app_seam_public_slug_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.specialist-signup.slug-availability'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.is_organization_slug_available(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.is_platform_registration_analytics_user_excluded(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_exclusion_owner''::name, ARRAY[''app_platform_settings''::name]::name[])', ARRAY[]::text[]),
+  ('app.is_sms_provider_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.sms.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_sms_provider_configured()''::regprocedure)', ARRAY[]::text[]),
+  ('app.is_smtp_outbound_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.smtp.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_smtp_outbound_configured()''::regprocedure)', ARRAY[]::text[]),
+  ('app.is_telegram_login_configured()', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.channel.telegram.configured'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.is_telegram_login_configured()''::regprocedure)', ARRAY[]::text[]),
+  ('app.list_active_booking_cities()', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_public_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.list_active_canonical_appointments_by_phone(text)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''booking.integrator-active.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.list_active_canonical_appointments_by_phone(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.list_clinical_test_measure_kinds()', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_admin_owner''::name, ARRAY[''app_platform_settings''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.list_google_calendar_probe_organization_ids()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.list_platform_organization_members(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_directory_owner''::name, ARRAY[''app_platform_settings''::name]::name[])', ARRAY[]::text[]),
+  ('app.list_scheduler_reminder_organization_ids()', 'exact', 'app.require_accepted_context(''app_seam_reminder_materialization_owner''::name, ''app_operational_scheduler''::name, ''service''::app.port_context_class, ''scheduler.reminder-organizations'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.list_scheduler_reminder_organization_ids()''::regprocedure)', ARRAY[]::text[]),
+  ('app.list_web_push_reminder_organization_ids(timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.lookup_patient_invite_continuation(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.lookup_pending_org_invite(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.mark_operator_incident_alert_sent(uuid)', 'exact', 'app.require_accepted_context(''app_seam_telemetry_operator_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.incident-alert-mark'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.mark_operator_incident_alert_sent(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.open_or_touch_operator_incident(text,text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_delivery_worker''::name, ''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.open_or_touch_operator_probe_incident(text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.operator_incident_alert_already_sent(uuid)', 'exact', 'app.require_accepted_context(''app_seam_telemetry_operator_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.incident-alert-status'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.operator_incident_alert_already_sent(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)', 'exact', 'app.require_accepted_context(''app_seam_passkey_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.passkey.authentication.complete'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($3))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''boolean@1'', pg_catalog.boolsend($6))::app.port_typed_arg]), ''app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)''::regprocedure)', ARRAY[]::text[]),
+  ('app.passkey_complete_registration(uuid,uuid,text,text,bigint,jsonb,text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.passkey_delete_current_credential(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.passkey_get_or_create_account(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)', 'exact_existing', '', ARRAY['app.hash_port_typed_args', 'app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)', 'app_patient', 'app_pre_session', 'app_seam_passkey_owner', 'auth.passkey.challenge.issue', 'auth.passkey.registration-challenge.issue', 'patient', 'pre_session']::text[]),
+  ('app.passkey_list_current_credentials()', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.passkey_list_current_exclusions()', 'attested', 'app.require_attested_context_for_roles(''app_seam_passkey_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.passkey_read_challenge(uuid,text)', 'exact_existing', '', ARRAY['app.hash_port_typed_args', 'app.passkey_read_challenge(uuid,text)', 'app_patient', 'app_pre_session', 'app_seam_passkey_owner', 'auth.passkey.challenge.read', 'auth.passkey.registration-challenge.read', 'patient', 'pre_session']::text[]),
+  ('app.passkey_read_credential(text)', 'exact', 'app.require_accepted_context(''app_seam_passkey_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.passkey.credential.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.passkey_read_credential(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.password_credentials_replace_self(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.password_credentials_upsert_self(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.password_login_acquire(text,text,uuid,text)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.acquire'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''uuid@1'', pg_catalog.uuid_send($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg]), ''app.password_login_acquire(text,text,uuid,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.password_login_complete(uuid,boolean)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.complete'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''boolean@1'', pg_catalog.boolsend($2))::app.port_typed_arg]), ''app.password_login_complete(uuid,boolean)''::regprocedure)', ARRAY[]::text[]),
+  ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.altcha-issue'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''uuid@1'', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''timestamptz@1'', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), ''app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)''::regprocedure)', ARRAY[]::text[]),
+  ('app.password_login_read_altcha_secret()', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.altcha-secret'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.password_login_read_altcha_secret()''::regprocedure)', ARRAY[]::text[]),
+  ('app.patient_cancel_pending_reminder_occurrences(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_disable_reminder_messenger_topic(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_done_reminder_occurrence(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_reminder_materialization_fingerprint(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_reminder_notification_settings(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_set_reminder_mute(integer,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_set_reminder_muted_until(timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_skip_reminder_occurrence(uuid,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.patient_snooze_reminder_occurrence(uuid,text,integer)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.phone_auth_find_latest_challenge_created_at(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.cooldown.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_auth_find_latest_challenge_created_at(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_auth_find_otp_lock(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.lock.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_auth_find_otp_lock(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_auth_register_otp_lockout(text,bigint)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.lock.register'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($2))::app.port_typed_arg]), ''app.phone_auth_register_otp_lockout(text,bigint)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_auth_reset_otp_lockout(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-otp.lock.reset'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_auth_reset_otp_lockout(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_challenge_store_delete_by_phone(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.delete-by-phone'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_challenge_store_delete_by_phone(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_challenge_store_delete(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.delete'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_challenge_store_delete(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_challenge_store_increment_attempts(text,bigint)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.attempt.increment'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($2))::app.port_typed_arg]), ''app.phone_challenge_store_increment_attempts(text,bigint)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_challenge_store_read(text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.phone_challenge_store_read(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.phone-challenge.upsert'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''bigint@1'', pg_catalog.int8send($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($6))::app.port_typed_arg]), ''app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-phone-otp.consume'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($3))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($4))::app.port_typed_arg]), ''app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)''::regprocedure)', ARRAY[]::text[]),
+  ('app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)', 'exact', 'app.require_accepted_context(''app_seam_phone_otp_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-phone-otp.issue'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($4))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($5))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($6))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($7))::app.port_typed_arg]), ''app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.pre_session_resolve_identity(uuid)', 'exact_existing', '', ARRAY['app.hash_port_typed_args', 'app.pre_session_resolve_identity(uuid)', 'app_platform_admin', 'app_pre_session', 'app_seam_identity_lookup_owner', 'identity.variant-a.resolve', 'pre_session']::text[]),
+  ('app.prepare_organization_lifecycle_notification_context(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.provision_specialist_owner(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_booking_calendar_latest_staff_comment(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.staff-comment.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.read_booking_calendar_latest_staff_comment(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_booking_calendar_patient_profile(uuid)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.patient-profile.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.read_booking_calendar_patient_profile(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_canonical_appointment_by_external_id(text)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''booking.integrator-record.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_canonical_appointment_by_external_id(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_curated_playback_health_pre_0196()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_curated_playback_health()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_curated_system_health_pre_0196()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_curated_system_health()', 'attested', 'app.require_attested_context_for_roles(''saas_system_health_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_current_org_tariff_transition_usage()', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_clinic_billing''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_current_patient_active_organizations()', 'exact', 'app.require_accepted_context(''app_seam_patient_org_projection_owner''::name, ''app_patient''::name, ''patient''::app.port_context_class, ''patient.organization.resolve'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_current_patient_active_organizations()''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_current_patient_appointment_history()', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_booking_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_current_patient_booking_rows(text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_booking_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_current_patient_organization_entitlements()', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_org_projection_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_current_patient_ui_setting(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_runtime_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_global_server_runtime_setting(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_runtime_owner''::name, ARRAY[''app_integrator_request''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_integrator_auth_channel_setting(text)', 'exact', 'app.require_accepted_context(''app_seam_settings_integrator_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''config.integrator-auth-channel.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_integrator_auth_channel_setting(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_integrator_clinic_delivery_credential(text,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_integrator_google_calendar_setting(text,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_integrator_migration_ledger()', 'exact', 'app.require_accepted_context(''app_seam_catalog_admin_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''migration.ledger.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_integrator_migration_ledger()''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_integrator_platform_integration_availability()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_integrator_projection_health(integer)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.projection-health.read'', app.hash_port_typed_args(ARRAY[ROW(''integer@1'', pg_catalog.int4send($1))::app.port_typed_arg]), ''app.read_integrator_projection_health(integer)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_integrator_provider_runtime_setting(text)', 'exact', 'app.require_accepted_context(''app_seam_settings_integrator_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''config.integrator-provider.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_integrator_provider_runtime_setting(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_integrator_runtime_setting(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_integrator_smtp_outbound_setting()', 'exact', 'app.require_accepted_context(''app_seam_settings_integrator_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''config.integrator-smtp.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_integrator_smtp_outbound_setting()''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_last_saas_isolation_coverage()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_media_worker_runtime_setting(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_runtime_owner''::name, ARRAY[''app_operational_media_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_operational_verbose_log_flag()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_delivery_worker''::name, ''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_operator_health_probe_config()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_operator_outbound_probe_meta()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_org_brand_core_context(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_org_projection_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_org_enforced_quota_usage(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_platform_settings''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_outbound_provider_incident_health()', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_outgoing_delivery_reclaim_config()', 'attested', 'app.require_attested_context_for_roles(''app_seam_settings_integrator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_patient_lfk_complex_cover(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_patient_lfk_complex_exercise_lines(uuid[])', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_patient_telegram_display_handle(uuid)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_staff''::name, ''staff''::app.port_context_class, ''messaging.patient-telegram-handle.read'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.read_patient_telegram_display_handle(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_platform_lfk_media_entitlement_refs(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_platform_media_row(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_lfk_media_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_public_runtime_setting(text,text)', 'exact', 'app.require_accepted_context(''app_seam_settings_runtime_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''config.runtime.public.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.read_public_runtime_setting(text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_reminder_transactional_email_cooldown(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_email_cooldown_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_saas_billing_payment_provider_clinic()', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_clinic_billing''::name, ''staff''::app.port_context_class, ''billing.clinic.provider.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_saas_billing_payment_provider_clinic()''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_saas_billing_payment_provider_platform()', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_platform_settings''::name, ''platform''::app.port_context_class, ''billing.platform.provider.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_saas_billing_payment_provider_platform()''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_saas_billing_payment_provider_preauth()', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''billing.webhook.provider.read'', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), ''app.read_saas_billing_payment_provider_preauth()''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_saas_isolation_events()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_saas_isolation_test_scenario_fixture_counts()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_saas_isolation_trend()', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.read_webapp_preauth_provider_setting(text)', 'exact', 'app.require_accepted_context(''app_seam_settings_preauth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''config.preauth-provider.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.read_webapp_preauth_provider_setting(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.read_webapp_server_runtime_setting(text,text)', 'exact', 'app.require_accepted_context(''app_seam_settings_runtime_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''config.runtime.server.read'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.read_webapp_server_runtime_setting(text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.record_current_patient_analytics_event(timestamp with time zone,text,text,text,text,jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_patient_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_failed_staff_factor_attempt()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_integrator_request''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_media_playback_resolution_event(uuid,uuid,text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_media_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_operator_delivery_attempt(text,text,text,integer,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_operator_outbound_probe_run(text,timestamp with time zone,text,jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_reminder_transactional_email_cooldown(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_email_cooldown_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.record_saas_isolation_coverage(uuid,text,timestamp with time zone,timestamp with time zone,text[],integer,integer)', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.redeem_patient_invite_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.refresh_specialist_task_reminder_materialization(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.release_integrator_idempotency(text)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.idempotency.release'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.release_integrator_idempotency(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.replace_pending_specialist_signup_challenge(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.report_saas_isolation_event(text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name, ''app_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.require_staff_security_self_user_id()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_clinic_dedicated_bot_organization(text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_dedicated_bot_owner''::name, ARRAY[''app_integrator_resolver''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_current_patient_treatment_program_organization(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_program_resolver_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_operator_probe_incidents(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_telemetry_operator_owner''::name, ARRAY[''app_operational_scheduler''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_organization_cabinet_access(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_organization_mechanic_access(uuid,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_outgoing_delivery_scope(uuid)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.resolve-scope'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.resolve_outgoing_delivery_scope(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.resolve_payment_webhook_organization(text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_payment_webhook_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_public_booking_organization(uuid,uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_public_booking_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.resolve_public_organization_by_slug(text)', 'exact', 'app.require_accepted_context(''app_seam_public_slug_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-organization.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.resolve_public_organization_by_slug(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.resolve_public_organization_slug(text)', 'exact', 'app.require_accepted_context(''app_seam_public_slug_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''booking.public-slug.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.resolve_public_organization_slug(text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.resolve_saas_billing_invoice_for_webhook(text,text)', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''billing.webhook.invoice.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.resolve_saas_billing_invoice_for_webhook(text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.resolve_saas_billing_refund_for_webhook(text,text)', 'exact', 'app.require_accepted_context(''app_seam_payment_webhook_owner''::name, ''app_worker''::name, ''service''::app.port_context_class, ''billing.webhook.refund.resolve'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.resolve_saas_billing_refund_for_webhook(text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.resolve_staff_workspace_memberships(uuid)', 'exact_existing', '', ARRAY['app.hash_port_typed_args', 'app.resolve_staff_workspace_memberships(uuid)', 'app_pre_session', 'app_seam_org_directory_owner', 'app_staff', 'auth.staff-workspace.resolve', 'pre_session', 'staff']::text[]),
+  ('app.revalidate_appointment_reminder_materialization(uuid)', 'exact', 'app.require_accepted_context(''app_seam_reminder_appointment_owner''::name, ''app_operational_delivery_worker''::name, ''service''::app.port_context_class, ''delivery.appointment-reminder-revalidate'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg]), ''app.revalidate_appointment_reminder_materialization(uuid)''::regprocedure)', ARRAY[]::text[]),
+  ('app.revalidate_patient_reminder_delivery_materialization(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.revalidate_specialist_task_reminder_materialization(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.revoke_staff_sessions()', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_clinic_billing''::name, ''app_patient''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.saas_billing_effective_tariff(uuid,uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_org_commerce_owner''::name, ARRAY[''app_clinic_billing''::name, ''app_patient''::name, ''app_platform_settings''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.save_clinical_test_measure_kinds(jsonb)', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_admin_owner''::name, ARRAY[''app_platform_settings''::name]::name[])', ARRAY[]::text[]),
+  ('app.save_pending_staff_totp(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_staff_security_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.set_current_patient_calendar_timezone(text,boolean)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_self_actions_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.set_saas_isolation_test_scenario(text)', 'attested', 'app.require_attested_context_for_roles(''saas_telemetry_owner''::name, ARRAY[''saas_telemetry_operator''::name]::name[])', ARRAY[]::text[]),
+  ('app.specialist_task_reminder_materialization_fingerprint(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_specialist_owner''::name, ARRAY[''app_operational_delivery_worker''::name]::name[])', ARRAY[]::text[]),
+  ('app.staff_user_has_password_credentials(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.staff_user_has_web_oauth_binding(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_oauth_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.start_provisioned_organization_trial()', 'attested', 'app.require_attested_context_for_roles(''app_seam_specialist_provision_owner''::name, ARRAY[''app_platform_settings''::name]::name[])', ARRAY[]::text[]),
+  ('app.touch_current_patient_plan_last_opened(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_self_actions_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.touch_current_patient_support_conversation_activity(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_self_actions_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
+  ('app.try_acquire_integrator_idempotency(text,integer)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.idempotency.acquire'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''integer@1'', pg_catalog.int4send($2))::app.port_typed_arg]), ''app.try_acquire_integrator_idempotency(text,integer)''::regprocedure)', ARRAY[]::text[]),
+  ('app.upsert_clinical_test_measure_kind_by_label(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_catalog_admin_owner''::name, ARRAY[''app_platform_settings''::name, ''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.upsert_google_calendar_event_id(uuid,text)', 'exact', 'app.require_accepted_context(''app_seam_patient_booking_owner''::name, ''app_tenant_service''::name, ''tenant_service''::app.port_context_class, ''calendar.map.upsert'', app.hash_port_typed_args(ARRAY[ROW(''uuid@1'', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg]), ''app.upsert_google_calendar_event_id(uuid,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)', 'exact', 'app.require_accepted_context(''app_seam_delivery_scope_owner''::name, ''app_service''::name, ''service''::app.port_context_class, ''integrator.data-quality.upsert'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($2))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($3))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($4))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($5))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($6))::app.port_typed_arg, ROW(''text@1'', pg_catalog.textsend($7))::app.port_typed_arg]), ''app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)''::regprocedure)', ARRAY[]::text[]),
+  ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)', 'attested', 'app.require_attested_context_for_roles(''app_seam_reminder_materialization_owner''::name, ARRAY[''app_staff''::name]::name[])', ARRAY[]::text[]),
+  ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[])
 ;
 DO $bcb$
-DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer;
+DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer; guard_source text; missing_token text;
 BEGIN
   FOR gate IN SELECT * FROM bcb_runtime_definer_gates ORDER BY signature LOOP
     SELECT p.oid, p.prosrc, l.lanname INTO routine
       FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_language l ON l.oid=p.prolang
      WHERE p.oid=pg_catalog.to_regprocedure(gate.signature);
     IF routine.oid IS NULL THEN RAISE EXCEPTION 'runtime definer gate target missing: %',gate.signature; END IF;
-    IF gate.mode IN ('exact','exact_existing') AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;
-    IF gate.mode='attested' AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;
-    IF gate.mode='exact_existing' THEN RAISE EXCEPTION 'multi-capability named root lacks a hand-written exact gate: %',gate.signature; END IF;
-    IF gate.mode='attested' AND position('app.require_attested_context_for_roles' IN routine.prosrc)>0 THEN
-      guard_at := position('app.require_attested_context_for_roles' IN routine.prosrc);
+    IF gate.mode='exact_existing' THEN
+      guard_at := position('app.require_accepted_context' IN routine.prosrc);
+      IF guard_at=0 THEN RAISE EXCEPTION 'multi-capability named root lacks a hand-written exact gate: %',gate.signature; END IF;
+      guard_length := position(';' IN pg_catalog.substr(routine.prosrc, guard_at)) - 1;
+      IF guard_length<1 THEN RAISE EXCEPTION 'multi-capability named root lacks a replaceable hand-written exact gate: %',gate.signature; END IF;
+      guard_source := pg_catalog.substr(routine.prosrc, guard_at, guard_length);
+      SELECT token INTO missing_token FROM pg_catalog.unnest(gate.expected_tokens) token WHERE position(token IN guard_source)=0 ORDER BY token LIMIT 1;
+      IF missing_token IS NOT NULL THEN RAISE EXCEPTION 'multi-capability exact gate token mismatch for %: %',gate.signature,missing_token; END IF;
+      CONTINUE;
+    END IF;
+    guard_at := CASE gate.mode
+      WHEN 'exact' THEN position('app.require_accepted_context' IN routine.prosrc)
+      ELSE position('app.require_attested_context_for_roles' IN routine.prosrc) END;
+    IF guard_at=0 THEN guard_at := CASE gate.mode
+      WHEN 'exact' THEN position('app.require_attested_context_for_roles' IN routine.prosrc)
+      ELSE position('app.require_accepted_context' IN routine.prosrc) END; END IF;
+    IF guard_at>0 THEN
       guard_length := position(';' IN pg_catalog.substr(routine.prosrc, guard_at)) - 1;
       IF guard_at=0 OR guard_length<1 THEN RAISE EXCEPTION 'existing runtime definer gate is not replaceable: %',gate.signature; END IF;
       new_source := pg_catalog.overlay(routine.prosrc, gate.gate_expression, guard_at, guard_length);
@@ -6584,6 +6596,22 @@ ALTER TABLE "app"."context_nonce_ledger" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "app"."context_nonce_ledger" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "app"."context_nonce_ledger" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "app"."context_nonce_ledger" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
+-- последовательности app.context_nonce_ledger: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'app.context_nonce_ledger'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -6603,6 +6631,22 @@ ALTER TABLE "app"."context_signing_secrets" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "app"."context_signing_secrets" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "app"."context_signing_secrets" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("id", "secret") ON TABLE "app"."context_signing_secrets" TO "app_seam_patient_invite_owner";
+-- последовательности app.context_signing_secrets: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'app.context_signing_secrets'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -6622,6 +6666,22 @@ ALTER TABLE "app"."principal_context" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "app"."principal_context" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "app"."principal_context" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "app"."principal_context" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
+-- последовательности app.principal_context: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'app.principal_context'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -6640,6 +6700,22 @@ ALTER TABLE "drizzle"."__drizzle_migrations" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "drizzle"."__drizzle_migrations" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "drizzle"."__drizzle_migrations" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "drizzle"."__drizzle_migrations" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
+-- последовательности drizzle.__drizzle_migrations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'drizzle.__drizzle_migrations'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -6727,7 +6803,7 @@ ALTER TABLE "integrator"."delivery_attempt_logs" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "integrator"."delivery_attempt_logs" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "integrator"."delivery_attempt_logs" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT INSERT ("attempt", "channel", "correlation_id", "intent_event_id", "intent_type", "occurred_at", "payload_json", "reason", "status") ON TABLE "integrator"."delivery_attempt_logs" TO "app_seam_telemetry_operator_owner";
--- последовательности integrator.delivery_attempt_logs: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности integrator.delivery_attempt_logs: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -6768,7 +6844,7 @@ GRANT SELECT ("key") ON TABLE "integrator"."idempotency_keys" TO "app_seam_deliv
 GRANT SELECT ("expires_at", "key", "request_hash", "response_body", "status") ON TABLE "integrator"."idempotency_keys" TO "app_seam_delivery_scope_owner";
 GRANT INSERT ("expires_at", "key", "request_hash", "response_body", "status") ON TABLE "integrator"."idempotency_keys" TO "app_seam_delivery_scope_owner";
 GRANT UPDATE ("expires_at", "key", "request_hash", "response_body", "status") ON TABLE "integrator"."idempotency_keys" TO "app_seam_delivery_scope_owner";
--- последовательности integrator.idempotency_keys: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности integrator.idempotency_keys: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -6807,7 +6883,7 @@ REVOKE ALL PRIVILEGES ON TABLE "integrator"."integration_data_quality_incidents"
 GRANT SELECT ("entity", "error_reason", "external_id", "field", "first_seen_at", "integration", "last_seen_at", "occurrences", "raw_value", "status", "timezone_used") ON TABLE "integrator"."integration_data_quality_incidents" TO "app_seam_delivery_scope_owner";
 GRANT INSERT ("entity", "error_reason", "external_id", "field", "first_seen_at", "integration", "last_seen_at", "occurrences", "raw_value", "status", "timezone_used") ON TABLE "integrator"."integration_data_quality_incidents" TO "app_seam_delivery_scope_owner";
 GRANT UPDATE ("entity", "error_reason", "external_id", "field", "first_seen_at", "integration", "last_seen_at", "occurrences", "raw_value", "status", "timezone_used") ON TABLE "integrator"."integration_data_quality_incidents" TO "app_seam_delivery_scope_owner";
--- последовательности integrator.integration_data_quality_incidents: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности integrator.integration_data_quality_incidents: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -6847,7 +6923,7 @@ GRANT INSERT ("event_type", "idempotency_key", "occurred_at", "payload") ON TABL
 GRANT SELECT ON TABLE "integrator"."projection_outbox" TO "app_operational_delivery_worker";
 GRANT UPDATE ("attempts_done", "last_error", "next_try_at", "status", "updated_at") ON TABLE "integrator"."projection_outbox" TO "app_operational_delivery_worker";
 GRANT SELECT ("attempts_done", "next_try_at", "status", "updated_at") ON TABLE "integrator"."projection_outbox" TO "app_seam_delivery_scope_owner";
--- последовательности integrator.projection_outbox: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности integrator.projection_outbox: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -6903,6 +6979,22 @@ ALTER TABLE "integrator"."schema_migrations" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "integrator"."schema_migrations" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "integrator"."schema_migrations" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("applied_at", "version") ON TABLE "integrator"."schema_migrations" TO "app_seam_catalog_admin_owner";
+-- последовательности integrator.schema_migrations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'integrator.schema_migrations'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -6958,7 +7050,7 @@ REVOKE ALL PRIVILEGES ON TABLE "integrator"."user_reminder_delivery_logs" FROM P
 REVOKE ALL PRIVILEGES ON TABLE "integrator"."user_reminder_delivery_logs" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("channel", "created_at", "occurrence_id", "payload_json", "status") ON TABLE "integrator"."user_reminder_delivery_logs" TO "app_integrator_request";
 GRANT INSERT ("channel", "created_at", "error_code", "id", "occurrence_id", "organization_id", "payload_json", "status") ON TABLE "integrator"."user_reminder_delivery_logs" TO "app_integrator_request";
--- последовательности integrator.user_reminder_delivery_logs: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности integrator.user_reminder_delivery_logs: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7012,7 +7104,7 @@ GRANT SELECT ("delivery_channel", "delivery_generation", "delivery_job_id", "err
 GRANT UPDATE ("id", "organization_id", "planned_at", "platform_user_id", "rule_id", "sent_at", "status", "updated_at") ON TABLE "integrator"."user_reminder_occurrences" TO "app_seam_reminder_patient_owner";
 GRANT UPDATE ("delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "id", "organization_id", "planned_at", "platform_user_id", "queued_at", "rule_id", "sent_at", "status", "updated_at") ON TABLE "integrator"."user_reminder_occurrences" TO "app_seam_reminder_patient_owner";
 GRANT SELECT ON TABLE "integrator"."user_reminder_occurrences" TO "app_staff";
--- последовательности integrator.user_reminder_occurrences: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности integrator.user_reminder_occurrences: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7070,7 +7162,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."admin_audit_log" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."admin_audit_log" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("action", "created_at", "details", "id", "organization_id", "status", "target_id") ON TABLE "public"."admin_audit_log" TO "app_seam_org_commerce_owner";
 GRANT INSERT ("action", "actor_id", "details", "id", "organization_id", "status", "target_id") ON TABLE "public"."admin_audit_log" TO "app_seam_specialist_provision_owner";
--- последовательности public.admin_audit_log: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.admin_audit_log: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7110,6 +7202,22 @@ GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"
 GRANT SELECT ("audience", "key", "organization_id", "scope", "value_json") ON TABLE "public"."app_runtime_settings" TO "app_seam_settings_preauth_owner";
 GRANT SELECT ("audience", "key", "organization_id", "scope", "value_json") ON TABLE "public"."app_runtime_settings" TO "app_seam_settings_runtime_owner";
 GRANT SELECT ("key", "organization_id", "scope", "updated_at", "value_json") ON TABLE "public"."app_runtime_settings" TO "saas_system_health_owner";
+-- последовательности public.app_runtime_settings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.app_runtime_settings'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -7130,7 +7238,7 @@ ALTER TABLE "public"."app_runtime_settings_audit" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."app_runtime_settings_audit" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."app_runtime_settings_audit" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, INSERT ON TABLE "public"."app_runtime_settings_audit" TO "app_platform_settings";
--- последовательности public.app_runtime_settings_audit: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.app_runtime_settings_audit: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7168,7 +7276,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."auth_rate_limit_events" FROM "app_clini
 GRANT DELETE ON TABLE "public"."auth_rate_limit_events" TO "app_seam_password_auth_owner";
 GRANT SELECT ("key", "occurred_at", "scope") ON TABLE "public"."auth_rate_limit_events" TO "app_seam_password_auth_owner";
 GRANT INSERT ("key", "occurred_at", "scope") ON TABLE "public"."auth_rate_limit_events" TO "app_seam_password_auth_owner";
--- последовательности public.auth_rate_limit_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.auth_rate_limit_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7207,7 +7315,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_appointment_cancellations" FROM "app
 GRANT SELECT ON TABLE "public"."be_appointment_cancellations" TO "app_staff";
 GRANT INSERT ("actor_id", "actor_type", "applied_policy_id", "applied_policy_snapshot", "appointment_id", "cancellation_type", "created_at", "manual_override", "notifications_sent", "organization_id", "package_session_charged", "prepayment_refunded", "prepayment_retained", "reason", "staff_comment", "was_free", "was_penalized") ON TABLE "public"."be_appointment_cancellations" TO "app_staff";
 GRANT UPDATE ("notifications_sent") ON TABLE "public"."be_appointment_cancellations" TO "app_staff";
--- последовательности public.be_appointment_cancellations: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_appointment_cancellations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7261,7 +7369,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_appointment_history_events" FROM PUB
 REVOKE ALL PRIVILEGES ON TABLE "public"."be_appointment_history_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."be_appointment_history_events" TO "app_staff";
 GRANT INSERT ("actor_id", "appointment_id", "event_type", "occurred_at", "organization_id", "payload") ON TABLE "public"."be_appointment_history_events" TO "app_staff";
--- последовательности public.be_appointment_history_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_appointment_history_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7299,7 +7407,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_appointment_no_shows" FROM "app_clin
 GRANT SELECT ON TABLE "public"."be_appointment_no_shows" TO "app_staff";
 GRANT INSERT ("actor_id", "actor_type", "appointment_id", "created_at", "manual_override", "notifications_sent", "organization_id", "reason", "staff_comment") ON TABLE "public"."be_appointment_no_shows" TO "app_staff";
 GRANT UPDATE ("notifications_sent") ON TABLE "public"."be_appointment_no_shows" TO "app_staff";
--- последовательности public.be_appointment_no_shows: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_appointment_no_shows: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7337,7 +7445,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_appointment_reschedules" FROM "app_c
 GRANT SELECT ON TABLE "public"."be_appointment_reschedules" TO "app_staff";
 GRANT INSERT ("actor_id", "actor_type", "applied_policy_id", "applied_policy_snapshot", "appointment_id", "created_at", "free_cancellation_available_after", "free_cancellation_available_at_reschedule", "from_end_at", "from_start_at", "manual_override", "notifications_sent", "organization_id", "reason", "staff_comment", "to_end_at", "to_start_at", "was_in_free_reschedule_window") ON TABLE "public"."be_appointment_reschedules" TO "app_staff";
 GRANT UPDATE ("notifications_sent") ON TABLE "public"."be_appointment_reschedules" TO "app_staff";
--- последовательности public.be_appointment_reschedules: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_appointment_reschedules: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7376,7 +7484,7 @@ GRANT SELECT ("appointment_id", "body", "created_at", "organization_id") ON TABL
 GRANT SELECT ("appointment_id", "author_id", "body", "created_at", "id", "organization_id", "platform_user_id", "updated_at") ON TABLE "public"."be_appointment_staff_comments" TO "app_staff";
 GRANT INSERT ("appointment_id", "author_id", "body", "created_at", "organization_id", "platform_user_id", "updated_at") ON TABLE "public"."be_appointment_staff_comments" TO "app_staff";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_appointment_staff_comments" TO "app_tenant_service";
--- последовательности public.be_appointment_staff_comments: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_appointment_staff_comments: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7427,7 +7535,7 @@ GRANT INSERT ("appointment_reminder_allowed_preset_ids", "appointment_reminder_p
 GRANT UPDATE ("appointment_reminder_preset_id", "appointment_reminder_selection_source", "branch_id", "deleted_at", "duration_minutes", "end_at", "original_start_at", "package_usage_ref", "payment_ref", "reschedule_count", "room_id", "service_id", "specialist_id", "start_at", "status", "updated_at") ON TABLE "public"."be_appointments" TO "app_staff";
 GRANT SELECT ("id", "package_usage_ref") ON TABLE "public"."be_appointments" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_appointments" TO "app_tenant_service";
--- последовательности public.be_appointments: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_appointments: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7470,7 +7578,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_availability_rules" FROM "app_clinic
 GRANT SELECT ON TABLE "public"."be_availability_rules" TO "app_staff";
 GRANT INSERT ("branch_id", "config", "is_active", "organization_id", "rule_type", "specialist_id") ON TABLE "public"."be_availability_rules" TO "app_staff";
 GRANT UPDATE ("config", "is_active", "updated_at") ON TABLE "public"."be_availability_rules" TO "app_staff";
--- последовательности public.be_availability_rules: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_availability_rules: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7508,7 +7616,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_booking_form_fields" FROM "app_clini
 GRANT SELECT ON TABLE "public"."be_booking_form_fields" TO "app_staff";
 GRANT INSERT ("created_at", "field_key", "field_type", "is_active", "is_required", "label", "organization_id", "placeholder", "sort_order", "updated_at", "visible_to_patient", "visible_to_staff") ON TABLE "public"."be_booking_form_fields" TO "app_staff";
 GRANT UPDATE ("field_key", "field_type", "is_active", "is_required", "label", "placeholder", "sort_order", "updated_at", "visible_to_patient", "visible_to_staff") ON TABLE "public"."be_booking_form_fields" TO "app_staff";
--- последовательности public.be_booking_form_fields: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_booking_form_fields: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7546,7 +7654,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_booking_form_submissions" FROM "app_
 GRANT SELECT ON TABLE "public"."be_booking_form_submissions" TO "app_staff";
 GRANT INSERT ("appointment_id", "field_id", "organization_id", "value_text") ON TABLE "public"."be_booking_form_submissions" TO "app_staff";
 GRANT UPDATE ("value_text") ON TABLE "public"."be_booking_form_submissions" TO "app_staff";
--- последовательности public.be_booking_form_submissions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_booking_form_submissions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7588,7 +7696,7 @@ GRANT SELECT ("id", "is_active", "organization_id") ON TABLE "public"."be_branch
 GRANT SELECT ON TABLE "public"."be_branches" TO "app_staff";
 GRANT INSERT ("address", "city_code", "color", "created_at", "is_active", "organization_id", "short_title", "sort_order", "timezone", "title", "updated_at") ON TABLE "public"."be_branches" TO "app_staff";
 GRANT UPDATE ("address", "city_code", "is_active", "sort_order", "timezone", "title", "updated_at") ON TABLE "public"."be_branches" TO "app_staff";
--- последовательности public.be_branches: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_branches: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7628,7 +7736,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_cancellation_policies" FROM "app_cli
 GRANT SELECT ON TABLE "public"."be_cancellation_policies" TO "app_staff";
 GRANT INSERT ("cancellation_allowed", "charge_package_session_on_late", "created_at", "free_cancel_hours_before", "is_active", "late_cancellation_behavior", "notify_patient", "notify_staff", "organization_id", "refund_prepayment_on_late", "requires_staff_confirmation", "scope_entity_id", "scope_level", "sort_order", "title", "updated_at") ON TABLE "public"."be_cancellation_policies" TO "app_staff";
 GRANT UPDATE ("cancellation_allowed", "charge_package_session_on_late", "free_cancel_hours_before", "is_active", "late_cancellation_behavior", "notify_patient", "notify_staff", "refund_prepayment_on_late", "requires_staff_confirmation", "scope_entity_id", "scope_level", "sort_order", "title", "updated_at") ON TABLE "public"."be_cancellation_policies" TO "app_staff";
--- последовательности public.be_cancellation_policies: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_cancellation_policies: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7669,7 +7777,7 @@ GRANT SELECT ("admin_manual_only", "id", "is_active", "organization_id", "public
 GRANT SELECT, DELETE ON TABLE "public"."be_clinic_services" TO "app_staff";
 GRANT INSERT ("admin_manual_only", "buffer_after_minutes", "created_at", "description", "duration_minutes", "is_active", "online_payment_applicable", "organization_id", "prepayment_applicable", "price_minor", "public_widget_visible", "sort_order", "title", "updated_at", "usable_in_packages") ON TABLE "public"."be_clinic_services" TO "app_staff";
 GRANT UPDATE ("admin_manual_only", "buffer_after_minutes", "description", "duration_minutes", "is_active", "online_payment_applicable", "organization_id", "prepayment_applicable", "price_minor", "public_widget_visible", "sort_order", "title", "updated_at", "usable_in_packages") ON TABLE "public"."be_clinic_services" TO "app_staff";
--- последовательности public.be_clinic_services: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_clinic_services: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7709,6 +7817,22 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_external_entity_mappings" FROM "app_
 GRANT SELECT ("canonical_id", "entity_type", "external_id", "external_system") ON TABLE "public"."be_external_entity_mappings" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("canonical_id", "entity_type", "id", "metadata", "organization_id") ON TABLE "public"."be_external_entity_mappings" TO "app_seam_public_booking_owner";
 GRANT SELECT, DELETE ON TABLE "public"."be_external_entity_mappings" TO "app_staff";
+-- последовательности public.be_external_entity_mappings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.be_external_entity_mappings'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -7742,7 +7866,7 @@ GRANT SELECT ON TABLE "public"."be_organization_members" TO "app_staff";
 GRANT INSERT ("created_at", "organization_id", "platform_user_id", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_staff";
 GRANT UPDATE ("doctor_screens_disabled", "role", "specialist_id", "status", "updated_at") ON TABLE "public"."be_organization_members" TO "app_staff";
 GRANT SELECT ("organization_id", "platform_user_id", "status") ON TABLE "public"."be_organization_members" TO "app_tenant_service";
--- последовательности public.be_organization_members: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_organization_members: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7803,7 +7927,7 @@ GRANT SELECT ON TABLE "public"."be_organizations" TO "app_staff";
 GRANT INSERT ("created_at", "id", "is_active", "sort_order", "title", "updated_at") ON TABLE "public"."be_organizations" TO "app_staff";
 GRANT UPDATE ("is_active", "sort_order", "tariff_id", "title", "updated_at") ON TABLE "public"."be_organizations" TO "app_staff";
 GRANT SELECT ("id", "is_active") ON TABLE "public"."be_organizations" TO "app_tenant_service";
--- последовательности public.be_organizations: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_organizations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7845,7 +7969,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_package_history_events" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."be_package_history_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."be_package_history_events" TO "app_staff";
 GRANT INSERT ("event_type", "occurred_at", "organization_id", "patient_package_id", "payload_json") ON TABLE "public"."be_package_history_events" TO "app_staff";
--- последовательности public.be_package_history_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_package_history_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7882,7 +8006,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_package_items" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."be_package_items" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."be_package_items" TO "app_staff";
 GRANT INSERT ("created_at", "package_id", "quantity", "service_id", "sort_order") ON TABLE "public"."be_package_items" TO "app_staff";
--- последовательности public.be_package_items: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_package_items: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7920,7 +8044,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_package_usages" FROM "app_clinic_bil
 GRANT SELECT ON TABLE "public"."be_package_usages" TO "app_staff";
 GRANT INSERT ("appointment_id", "comment", "created_at", "created_by_platform_user_id", "occurred_at", "organization_id", "patient_package_id", "patient_package_item_id", "quantity", "usage_kind") ON TABLE "public"."be_package_usages" TO "app_staff";
 GRANT SELECT ("id", "occurred_at", "patient_package_id", "usage_kind") ON TABLE "public"."be_package_usages" TO "app_tenant_service";
--- последовательности public.be_package_usages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_package_usages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -7964,7 +8088,7 @@ GRANT UPDATE ("booking_blocked", "is_problematic", "no_show_count", "problematic
 GRANT DELETE ON TABLE "public"."be_patient_booking_profiles" TO "app_tenant_service";
 GRANT INSERT ("booking_blocked", "is_problematic", "organization_id", "platform_user_id", "problematic_note", "updated_at", "updated_by") ON TABLE "public"."be_patient_booking_profiles" TO "app_tenant_service";
 GRANT UPDATE ("booking_blocked", "is_problematic", "problematic_note", "updated_at", "updated_by") ON TABLE "public"."be_patient_booking_profiles" TO "app_tenant_service";
--- последовательности public.be_patient_booking_profiles: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_patient_booking_profiles: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8008,7 +8132,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_patient_package_items" FROM "app_cli
 GRANT SELECT ON TABLE "public"."be_patient_package_items" TO "app_staff";
 GRANT INSERT ("created_at", "patient_package_id", "quantity_initial", "service_id", "sort_order") ON TABLE "public"."be_patient_package_items" TO "app_staff";
 GRANT SELECT ("patient_package_id", "quantity_initial", "sort_order") ON TABLE "public"."be_patient_package_items" TO "app_tenant_service";
--- последовательности public.be_patient_package_items: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_patient_package_items: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8049,7 +8173,7 @@ GRANT INSERT ("assigned_by_platform_user_id", "created_at", "currency", "deducti
 GRANT UPDATE ("notes", "paid_amount_minor", "paid_currency", "payment_intent_id", "payment_ref", "sold_at", "status", "updated_at", "valid_from", "valid_until") ON TABLE "public"."be_patient_packages" TO "app_staff";
 GRANT SELECT ("created_at", "id", "sold_at") ON TABLE "public"."be_patient_packages" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_patient_packages" TO "app_tenant_service";
--- последовательности public.be_patient_packages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_patient_packages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8090,7 +8214,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_patient_timeline_events" FROM "app_c
 GRANT SELECT, DELETE ON TABLE "public"."be_patient_timeline_events" TO "app_staff";
 GRANT INSERT ("domain", "event_type", "linked_object_id", "linked_object_type", "occurred_at", "organization_id", "payload", "platform_user_id") ON TABLE "public"."be_patient_timeline_events" TO "app_staff";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_patient_timeline_events" TO "app_tenant_service";
--- последовательности public.be_patient_timeline_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_patient_timeline_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8130,7 +8254,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_payment_history_events" FROM "app_cl
 GRANT SELECT ON TABLE "public"."be_payment_history_events" TO "app_staff";
 GRANT INSERT ("amount_minor", "appointment_id", "comment", "currency", "event_type", "organization_id", "payload_json", "payment_id", "platform_user_id", "provider_id", "purpose", "refund_id", "status") ON TABLE "public"."be_payment_history_events" TO "app_staff";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_payment_history_events" TO "app_tenant_service";
--- последовательности public.be_payment_history_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_payment_history_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8172,7 +8296,7 @@ GRANT SELECT ON TABLE "public"."be_payment_intents" TO "app_staff";
 GRANT INSERT ("amount_minor", "appointment_id", "checkout_url", "created_at", "currency", "idempotency_key", "metadata_json", "organization_id", "platform_user_id", "product_ref", "provider_id", "provider_intent_ref", "purpose", "status", "updated_at") ON TABLE "public"."be_payment_intents" TO "app_staff";
 GRANT UPDATE ("status", "updated_at") ON TABLE "public"."be_payment_intents" TO "app_staff";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_payment_intents" TO "app_tenant_service";
--- последовательности public.be_payment_intents: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_payment_intents: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8215,7 +8339,7 @@ GRANT SELECT ("event_type", "idempotency_key", "organization_id", "provider_id")
 GRANT SELECT ON TABLE "public"."be_payment_provider_events" TO "app_staff";
 GRANT INSERT ("event_type", "idempotency_key", "intent_ref", "organization_id", "payload_json", "provider_id") ON TABLE "public"."be_payment_provider_events" TO "app_staff";
 GRANT UPDATE ("processed_at") ON TABLE "public"."be_payment_provider_events" TO "app_staff";
--- последовательности public.be_payment_provider_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_payment_provider_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8256,7 +8380,7 @@ GRANT SELECT ON TABLE "public"."be_payments" TO "app_staff";
 GRANT INSERT ("amount_minor", "appointment_id", "captured_at", "created_at", "currency", "organization_id", "payment_intent_id", "platform_user_id", "provider_id", "purpose", "status") ON TABLE "public"."be_payments" TO "app_staff";
 GRANT UPDATE ("status") ON TABLE "public"."be_payments" TO "app_staff";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_payments" TO "app_tenant_service";
--- последовательности public.be_payments: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_payments: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8296,7 +8420,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_prepayment_policies" FROM "app_clini
 GRANT SELECT ON TABLE "public"."be_prepayment_policies" TO "app_staff";
 GRANT INSERT ("amount_minor", "created_at", "currency", "is_active", "mode", "online_category", "organization_id", "percent_bps", "service_id", "updated_at") ON TABLE "public"."be_prepayment_policies" TO "app_staff";
 GRANT UPDATE ("amount_minor", "currency", "is_active", "mode", "percent_bps", "updated_at") ON TABLE "public"."be_prepayment_policies" TO "app_staff";
--- последовательности public.be_prepayment_policies: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_prepayment_policies: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8333,7 +8457,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_refunds" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."be_refunds" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."be_refunds" TO "app_staff";
 GRANT INSERT ("amount_minor", "appointment_id", "currency", "organization_id", "payment_id", "provider_refund_ref", "reason", "status") ON TABLE "public"."be_refunds" TO "app_staff";
--- последовательности public.be_refunds: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_refunds: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8371,7 +8495,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_reschedule_policies" FROM "app_clini
 GRANT SELECT ON TABLE "public"."be_reschedule_policies" TO "app_staff";
 GRANT INSERT ("allow_different_branch", "allow_different_city", "allow_different_service", "allow_different_specialist", "created_at", "is_active", "limit_exceeded_behavior", "max_self_reschedules", "notify_patient", "notify_staff", "organization_id", "requires_staff_confirmation", "scope_entity_id", "scope_level", "self_reschedule_hours_before", "sort_order", "title", "updated_at") ON TABLE "public"."be_reschedule_policies" TO "app_staff";
 GRANT UPDATE ("allow_different_branch", "allow_different_city", "allow_different_service", "allow_different_specialist", "is_active", "limit_exceeded_behavior", "max_self_reschedules", "notify_patient", "notify_staff", "requires_staff_confirmation", "scope_entity_id", "scope_level", "self_reschedule_hours_before", "sort_order", "title", "updated_at") ON TABLE "public"."be_reschedule_policies" TO "app_staff";
--- последовательности public.be_reschedule_policies: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_reschedule_policies: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8410,7 +8534,7 @@ GRANT SELECT ("branch_id", "id", "organization_id", "title") ON TABLE "public"."
 GRANT SELECT ON TABLE "public"."be_rooms" TO "app_staff";
 GRANT INSERT ("branch_id", "created_at", "is_active", "organization_id", "sort_order", "title", "updated_at") ON TABLE "public"."be_rooms" TO "app_staff";
 GRANT UPDATE ("is_active", "sort_order", "title", "updated_at") ON TABLE "public"."be_rooms" TO "app_staff";
--- последовательности public.be_rooms: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_rooms: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8449,7 +8573,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_schedule_blocks" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."be_schedule_blocks" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."be_schedule_blocks" TO "app_staff";
 GRANT INSERT ("block_type", "branch_id", "created_by_actor_id", "end_at", "organization_id", "room_id", "specialist_id", "start_at", "title") ON TABLE "public"."be_schedule_blocks" TO "app_staff";
--- последовательности public.be_schedule_blocks: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_schedule_blocks: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8487,7 +8611,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_schedule_templates" FROM "app_clinic
 GRANT SELECT ON TABLE "public"."be_schedule_templates" TO "app_staff";
 GRANT INSERT ("branch_id", "breaks", "end_minute", "is_active", "name", "organization_id", "sort_order", "start_minute") ON TABLE "public"."be_schedule_templates" TO "app_staff";
 GRANT UPDATE ("is_active", "updated_at") ON TABLE "public"."be_schedule_templates" TO "app_staff";
--- последовательности public.be_schedule_templates: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_schedule_templates: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8525,7 +8649,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_service_location_availability" FROM 
 GRANT SELECT ON TABLE "public"."be_service_location_availability" TO "app_staff";
 GRANT INSERT ("branch_id", "is_active", "organization_id", "service_id") ON TABLE "public"."be_service_location_availability" TO "app_staff";
 GRANT UPDATE ("is_active") ON TABLE "public"."be_service_location_availability" TO "app_staff";
--- последовательности public.be_service_location_availability: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_service_location_availability: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8563,7 +8687,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_specialist_locations" FROM "app_clin
 GRANT SELECT ON TABLE "public"."be_specialist_locations" TO "app_staff";
 GRANT INSERT ("branch_id", "is_active", "organization_id", "specialist_id") ON TABLE "public"."be_specialist_locations" TO "app_staff";
 GRANT UPDATE ("is_active") ON TABLE "public"."be_specialist_locations" TO "app_staff";
--- последовательности public.be_specialist_locations: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_specialist_locations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8601,7 +8725,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_specialist_rooms" FROM "app_clinic_b
 GRANT SELECT ON TABLE "public"."be_specialist_rooms" TO "app_staff";
 GRANT INSERT ("is_active", "organization_id", "room_id", "specialist_id") ON TABLE "public"."be_specialist_rooms" TO "app_staff";
 GRANT UPDATE ("is_active") ON TABLE "public"."be_specialist_rooms" TO "app_staff";
--- последовательности public.be_specialist_rooms: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_specialist_rooms: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8641,7 +8765,7 @@ GRANT SELECT ("branch_id", "id", "is_active", "organization_id", "service_id") O
 GRANT SELECT ON TABLE "public"."be_specialist_service_availability" TO "app_staff";
 GRANT INSERT ("branch_id", "city_code", "created_at", "is_active", "organization_id", "price_minor_override", "room_id", "service_id", "sort_order", "specialist_id", "updated_at") ON TABLE "public"."be_specialist_service_availability" TO "app_staff";
 GRANT UPDATE ("city_code", "is_active", "price_minor_override", "room_id", "sort_order", "updated_at") ON TABLE "public"."be_specialist_service_availability" TO "app_staff";
--- последовательности public.be_specialist_service_availability: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_specialist_service_availability: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8684,7 +8808,7 @@ GRANT INSERT ("created_at", "full_name", "id", "is_active", "organization_id", "
 GRANT SELECT ON TABLE "public"."be_specialists" TO "app_staff";
 GRANT INSERT ("created_at", "description", "full_name", "id", "is_active", "organization_id", "sort_order", "updated_at") ON TABLE "public"."be_specialists" TO "app_staff";
 GRANT UPDATE ("appointment_reminder_allowed_preset_ids", "appointment_reminder_default_preset_id", "description", "full_name", "is_active", "organization_id", "sort_order", "updated_at") ON TABLE "public"."be_specialists" TO "app_staff";
--- последовательности public.be_specialists: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_specialists: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8725,7 +8849,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_subscription_packages" FROM "app_cli
 GRANT SELECT ON TABLE "public"."be_subscription_packages" TO "app_staff";
 GRANT INSERT ("created_at", "currency", "deduction_mode", "description", "is_active", "organization_id", "price_minor", "title", "updated_at", "validity_days") ON TABLE "public"."be_subscription_packages" TO "app_staff";
 GRANT UPDATE ("currency", "deduction_mode", "description", "is_active", "price_minor", "title", "updated_at", "validity_days") ON TABLE "public"."be_subscription_packages" TO "app_staff";
--- последовательности public.be_subscription_packages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_subscription_packages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8763,7 +8887,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_working_days" FROM "app_clinic_billi
 GRANT SELECT, DELETE ON TABLE "public"."be_working_days" TO "app_staff";
 GRANT INSERT ("branch_id", "breaks", "end_minute", "is_closed", "organization_id", "room_id", "specialist_id", "start_minute", "updated_at", "work_date") ON TABLE "public"."be_working_days" TO "app_staff";
 GRANT UPDATE ("branch_id", "breaks", "end_minute", "is_closed", "room_id", "start_minute", "updated_at") ON TABLE "public"."be_working_days" TO "app_staff";
--- последовательности public.be_working_days: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_working_days: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8801,7 +8925,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_working_hours" FROM "app_clinic_bill
 GRANT SELECT, DELETE ON TABLE "public"."be_working_hours" TO "app_staff";
 GRANT INSERT ("branch_id", "end_minute", "is_active", "organization_id", "room_id", "specialist_id", "start_minute", "weekday") ON TABLE "public"."be_working_hours" TO "app_staff";
 GRANT UPDATE ("end_minute", "is_active", "start_minute", "updated_at", "weekday") ON TABLE "public"."be_working_hours" TO "app_staff";
--- последовательности public.be_working_hours: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.be_working_hours: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8841,7 +8965,7 @@ GRANT SELECT ("appointment_key", "gcal_event_id") ON TABLE "public"."booking_cal
 GRANT SELECT ("appointment_key", "gcal_event_id", "updated_at") ON TABLE "public"."booking_calendar_map" TO "app_seam_patient_booking_owner";
 GRANT INSERT ("appointment_key", "gcal_event_id", "updated_at") ON TABLE "public"."booking_calendar_map" TO "app_seam_patient_booking_owner";
 GRANT UPDATE ("appointment_key", "gcal_event_id", "updated_at") ON TABLE "public"."booking_calendar_map" TO "app_seam_patient_booking_owner";
--- последовательности public.booking_calendar_map: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.booking_calendar_map: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8878,6 +9002,22 @@ ALTER TABLE "public"."booking_cities" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."booking_cities" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."booking_cities" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("code", "id", "is_active", "sort_order", "title") ON TABLE "public"."booking_cities" TO "app_seam_catalog_public_owner";
+-- последовательности public.booking_cities: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.booking_cities'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -8902,7 +9042,7 @@ GRANT SELECT ON TABLE "public"."broadcast_audit" TO "app_staff";
 GRANT INSERT ("actor_id", "attach_menu_after_send", "audience_filter", "audience_size", "blocked_recipient_count", "category", "channels", "delivery_jobs_total", "error_count", "id", "message_body", "message_title", "preview_only", "sent_count") ON TABLE "public"."broadcast_audit" TO "app_staff";
 GRANT SELECT ("blocked_recipient_count", "error_count", "id", "sent_count") ON TABLE "public"."broadcast_audit" TO "app_tenant_service";
 GRANT UPDATE ("blocked_recipient_count", "error_count", "sent_count") ON TABLE "public"."broadcast_audit" TO "app_tenant_service";
--- последовательности public.broadcast_audit: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.broadcast_audit: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8947,7 +9087,7 @@ GRANT INSERT ("audit_id", "platform_user_id") ON TABLE "public"."broadcast_audit
 GRANT DELETE ON TABLE "public"."broadcast_audit_recipients" TO "app_tenant_service";
 GRANT SELECT ("audit_id", "platform_user_id") ON TABLE "public"."broadcast_audit_recipients" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."broadcast_audit_recipients" TO "app_tenant_service";
--- последовательности public.broadcast_audit_recipients: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.broadcast_audit_recipients: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -8989,7 +9129,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."broadcast_drafts" FROM "app_clinic_bill
 GRANT SELECT ON TABLE "public"."broadcast_drafts" TO "app_staff";
 GRANT INSERT ("audience", "body", "category", "channels", "doctor_user_id", "media_type", "media_url", "title", "updated_at") ON TABLE "public"."broadcast_drafts" TO "app_staff";
 GRANT UPDATE ("audience", "body", "category", "channels", "media_type", "media_url", "title", "updated_at") ON TABLE "public"."broadcast_drafts" TO "app_staff";
--- последовательности public.broadcast_drafts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.broadcast_drafts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9030,7 +9170,7 @@ GRANT SELECT ("channel_code", "expires_at", "id", "token_hash", "used_at", "user
 GRANT SELECT ("channel_code", "expires_at", "token_hash", "user_id") ON TABLE "public"."channel_link_secrets" TO "app_seam_phone_binding_owner";
 GRANT INSERT ("channel_code", "expires_at", "token_hash", "user_id") ON TABLE "public"."channel_link_secrets" TO "app_seam_phone_binding_owner";
 GRANT UPDATE ("id", "used_at") ON TABLE "public"."channel_link_secrets" TO "app_seam_phone_binding_owner";
--- последовательности public.channel_link_secrets: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.channel_link_secrets: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9070,7 +9210,7 @@ GRANT DELETE ON TABLE "public"."clinic_dedicated_bot_bindings" TO "app_seam_dedi
 GRANT SELECT ("channel", "credential_fingerprint", "is_active", "organization_id") ON TABLE "public"."clinic_dedicated_bot_bindings" TO "app_seam_dedicated_bot_owner";
 GRANT SELECT ("channel", "credential_fingerprint", "is_active", "organization_id", "updated_at") ON TABLE "public"."clinic_dedicated_bot_bindings" TO "app_seam_dedicated_bot_owner";
 GRANT INSERT ("channel", "credential_fingerprint", "is_active", "organization_id", "updated_at") ON TABLE "public"."clinic_dedicated_bot_bindings" TO "app_seam_dedicated_bot_owner";
--- последовательности public.clinic_dedicated_bot_bindings: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinic_dedicated_bot_bindings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9111,7 +9251,7 @@ GRANT INSERT ("created_at", "display_name", "is_published", "organization_id", "
 GRANT SELECT ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
 GRANT INSERT ("display_name", "is_published", "organization_id", "published_at", "slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
 GRANT UPDATE ("slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
--- последовательности public.clinic_public_directory_entries: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinic_public_directory_entries: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9151,7 +9291,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_anamnesis_illness" FROM PUBLIC
 REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_anamnesis_illness" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."clinical_anamnesis_illness" TO "app_staff";
 GRANT INSERT ("comment", "created_by", "organization_id", "patient_user_id", "period", "what") ON TABLE "public"."clinical_anamnesis_illness" TO "app_staff";
--- последовательности public.clinical_anamnesis_illness: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_anamnesis_illness: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9188,7 +9328,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_anamnesis_lifestyle" FROM PUBL
 REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_anamnesis_lifestyle" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."clinical_anamnesis_lifestyle" TO "app_staff";
 GRANT INSERT ("created_by", "organization_id", "patient_user_id", "record_date", "text") ON TABLE "public"."clinical_anamnesis_lifestyle" TO "app_staff";
--- последовательности public.clinical_anamnesis_lifestyle: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_anamnesis_lifestyle: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9225,7 +9365,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_anamnesis_trauma" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_anamnesis_trauma" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."clinical_anamnesis_trauma" TO "app_staff";
 GRANT INSERT ("created_by", "immobilization", "organization_id", "patient_user_id", "type", "what", "year") ON TABLE "public"."clinical_anamnesis_trauma" TO "app_staff";
--- последовательности public.clinical_anamnesis_trauma: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_anamnesis_trauma: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9263,7 +9403,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_complaint" FROM "app_clinic_bi
 GRANT SELECT ON TABLE "public"."clinical_complaint" TO "app_staff";
 GRANT INSERT ("description", "organization_id", "patient_user_id", "priority", "source_visit_id", "status", "text") ON TABLE "public"."clinical_complaint" TO "app_staff";
 GRANT UPDATE ("organization_id", "priority", "resolved_at", "status", "text") ON TABLE "public"."clinical_complaint" TO "app_staff";
--- последовательности public.clinical_complaint: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_complaint: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9300,7 +9440,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_complaint_update" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_complaint_update" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."clinical_complaint_update" TO "app_staff";
 GRANT INSERT ("complaint_id", "note", "organization_id", "resolved", "severity", "visit_id") ON TABLE "public"."clinical_complaint_update" TO "app_staff";
--- последовательности public.clinical_complaint_update: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_complaint_update: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9338,7 +9478,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_diagnosis" FROM "app_clinic_bi
 GRANT SELECT ON TABLE "public"."clinical_diagnosis" TO "app_staff";
 GRANT INSERT ("catalog_id", "comment", "organization_id", "patient_user_id", "priority", "source_visit_id", "status", "text") ON TABLE "public"."clinical_diagnosis" TO "app_staff";
 GRANT UPDATE ("clinical_status", "comment", "organization_id", "priority", "resolved_at", "status", "text") ON TABLE "public"."clinical_diagnosis" TO "app_staff";
--- последовательности public.clinical_diagnosis: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_diagnosis: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9375,7 +9515,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_diagnosis_catalog" FROM PUBLIC
 REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_diagnosis_catalog" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."clinical_diagnosis_catalog" TO "app_staff";
 GRANT INSERT ("created_by", "label", "note", "organization_id") ON TABLE "public"."clinical_diagnosis_catalog" TO "app_staff";
--- последовательности public.clinical_diagnosis_catalog: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_diagnosis_catalog: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9412,7 +9552,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_diagnosis_status_history" FROM
 REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_diagnosis_status_history" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."clinical_diagnosis_status_history" TO "app_staff";
 GRANT INSERT ("changed_by", "diagnosis_id", "new_status", "note", "old_status", "organization_id") ON TABLE "public"."clinical_diagnosis_status_history" TO "app_staff";
--- последовательности public.clinical_diagnosis_status_history: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_diagnosis_status_history: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9449,7 +9589,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_diagnosis_update" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_diagnosis_update" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."clinical_diagnosis_update" TO "app_staff";
 GRANT INSERT ("diagnosis_id", "organization_id", "refinement", "removed", "status", "visit_id") ON TABLE "public"."clinical_diagnosis_update" TO "app_staff";
--- последовательности public.clinical_diagnosis_update: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_diagnosis_update: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9487,7 +9627,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_test_measure_kinds" FROM "app_
 GRANT SELECT ("code", "id", "label", "sort_order") ON TABLE "public"."clinical_test_measure_kinds" TO "app_seam_catalog_admin_owner";
 GRANT INSERT ("code", "id", "label", "sort_order") ON TABLE "public"."clinical_test_measure_kinds" TO "app_seam_catalog_admin_owner";
 GRANT UPDATE ("code", "id", "label", "sort_order") ON TABLE "public"."clinical_test_measure_kinds" TO "app_seam_catalog_admin_owner";
--- последовательности public.clinical_test_measure_kinds: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_test_measure_kinds: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9526,7 +9666,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_test_regions" FROM "app_clinic
 GRANT DELETE ON TABLE "public"."clinical_test_regions" TO "app_staff";
 GRANT SELECT ("body_region_id", "clinical_test_id", "organization_id") ON TABLE "public"."clinical_test_regions" TO "app_staff";
 GRANT INSERT ("body_region_id", "clinical_test_id", "organization_id") ON TABLE "public"."clinical_test_regions" TO "app_staff";
--- последовательности public.clinical_test_regions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_test_regions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9564,7 +9704,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinical_visit" FROM "app_clinic_billin
 GRANT SELECT, DELETE ON TABLE "public"."clinical_visit" TO "app_staff";
 GRANT INSERT ("anamnesis_text", "canonical_appointment_id", "created_by", "duration", "exam", "id", "location", "manipulations", "organization_id", "patient_user_id", "recommendations", "service", "trial_results", "visit_type", "visited_at") ON TABLE "public"."clinical_visit" TO "app_staff";
 GRANT UPDATE ("anamnesis_text", "duration", "exam", "location", "manipulations", "organization_id", "recommendations", "trial_results") ON TABLE "public"."clinical_visit" TO "app_staff";
--- последовательности public.clinical_visit: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.clinical_visit: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9602,7 +9742,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."comments" FROM "app_clinic_billing", "a
 GRANT SELECT, DELETE ON TABLE "public"."comments" TO "app_staff";
 GRANT INSERT ("author_id", "body", "comment_type", "organization_id", "target_id", "target_type") ON TABLE "public"."comments" TO "app_staff";
 GRANT UPDATE ("body", "comment_type", "organization_id", "updated_at") ON TABLE "public"."comments" TO "app_staff";
--- последовательности public.comments: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.comments: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9641,7 +9781,7 @@ GRANT SELECT, DELETE ON TABLE "public"."content_access_grants_webapp" TO "app_st
 GRANT INSERT ("content_id", "created_at", "expires_at", "integrator_grant_id", "integrator_user_id", "meta_json", "platform_user_id", "purpose", "revoked_at", "token_hash") ON TABLE "public"."content_access_grants_webapp" TO "app_staff";
 GRANT UPDATE ("content_id", "expires_at", "integrator_user_id", "meta_json", "platform_user_id", "purpose", "revoked_at", "token_hash") ON TABLE "public"."content_access_grants_webapp" TO "app_staff";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."content_access_grants_webapp" TO "app_tenant_service";
--- последовательности public.content_access_grants_webapp: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.content_access_grants_webapp: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9681,7 +9821,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."content_pages" FROM "app_clinic_billing
 GRANT SELECT, DELETE ON TABLE "public"."content_pages" TO "app_staff";
 GRANT INSERT ("body_html", "body_md", "image_url", "is_published", "linked_course_id", "organization_id", "requires_auth", "section", "slug", "sort_order", "summary", "title", "updated_at", "video_type", "video_url") ON TABLE "public"."content_pages" TO "app_staff";
 GRANT UPDATE ("archived_at", "body_html", "body_md", "deleted_at", "image_url", "is_published", "linked_course_id", "organization_id", "requires_auth", "section", "slug", "sort_order", "summary", "title", "updated_at", "video_type", "video_url") ON TABLE "public"."content_pages" TO "app_staff";
--- последовательности public.content_pages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.content_pages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9718,7 +9858,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."content_section_slug_history" FROM PUBL
 REVOKE ALL PRIVILEGES ON TABLE "public"."content_section_slug_history" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."content_section_slug_history" TO "app_staff";
 GRANT INSERT ("changed_by_user_id", "new_slug", "old_slug", "organization_id") ON TABLE "public"."content_section_slug_history" TO "app_staff";
--- последовательности public.content_section_slug_history: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.content_section_slug_history: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9756,7 +9896,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."content_sections" FROM "app_clinic_bill
 GRANT SELECT, DELETE ON TABLE "public"."content_sections" TO "app_staff";
 GRANT INSERT ("cover_image_url", "description", "icon_image_url", "is_visible", "kind", "organization_id", "requires_auth", "slug", "sort_order", "system_parent_code", "title", "updated_at") ON TABLE "public"."content_sections" TO "app_staff";
 GRANT UPDATE ("cover_image_url", "description", "icon_image_url", "is_visible", "kind", "organization_id", "requires_auth", "slug", "sort_order", "system_parent_code", "title", "updated_at") ON TABLE "public"."content_sections" TO "app_staff";
--- последовательности public.content_sections: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.content_sections: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9794,7 +9934,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."courses" FROM "app_clinic_billing", "ap
 GRANT SELECT, DELETE ON TABLE "public"."courses" TO "app_staff";
 GRANT INSERT ("access_settings", "currency", "description", "intro_lesson_page_id", "organization_id", "price_minor", "program_template_id", "status", "title") ON TABLE "public"."courses" TO "app_staff";
 GRANT UPDATE ("access_settings", "currency", "description", "intro_lesson_page_id", "price_minor", "program_template_id", "status", "title", "updated_at") ON TABLE "public"."courses" TO "app_staff";
--- последовательности public.courses: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.courses: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9834,7 +9974,7 @@ GRANT INSERT ("author_id", "organization_id", "text", "user_id") ON TABLE "publi
 GRANT UPDATE ("author_id") ON TABLE "public"."doctor_notes" TO "app_staff";
 GRANT SELECT ("user_id") ON TABLE "public"."doctor_notes" TO "app_tenant_service";
 GRANT UPDATE ("user_id") ON TABLE "public"."doctor_notes" TO "app_tenant_service";
--- последовательности public.doctor_notes: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.doctor_notes: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9876,7 +10016,7 @@ GRANT SELECT, DELETE ON TABLE "public"."doctor_patient_support" TO "app_staff";
 GRANT INSERT ("comments_enabled", "media_enabled", "on_support", "organization_id", "patient_user_id", "support_started_at", "updated_at", "updated_by") ON TABLE "public"."doctor_patient_support" TO "app_staff";
 GRANT UPDATE ("comments_enabled", "media_enabled", "organization_id", "updated_at", "updated_by") ON TABLE "public"."doctor_patient_support" TO "app_staff";
 GRANT SELECT ("on_support", "patient_user_id") ON TABLE "public"."doctor_patient_support" TO "app_tenant_service";
--- последовательности public.doctor_patient_support: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.doctor_patient_support: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9929,7 +10069,7 @@ GRANT UPDATE ("delivery_claimed_at", "delivery_token", "id", "pending_delivery_c
 GRANT UPDATE ("id", "purpose") ON TABLE "public"."email_challenges" TO "app_seam_email_otp_owner";
 GRANT UPDATE ("attempts", "code_hash", "created_at", "email", "expires_at", "id", "purpose", "user_id") ON TABLE "public"."email_challenges" TO "app_seam_email_otp_owner";
 GRANT SELECT ("id", "user_id") ON TABLE "public"."email_challenges" TO "app_seam_password_auth_owner";
--- последовательности public.email_challenges: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.email_challenges: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -9969,7 +10109,7 @@ GRANT DELETE ON TABLE "public"."email_otp_locks" TO "app_seam_email_otp_owner";
 GRANT SELECT ("locked_until", "user_id") ON TABLE "public"."email_otp_locks" TO "app_seam_email_otp_owner";
 GRANT SELECT ("user_id") ON TABLE "public"."email_otp_locks" TO "app_seam_email_otp_owner";
 GRANT INSERT ("locked_until", "lockout_cycle", "user_id") ON TABLE "public"."email_otp_locks" TO "app_seam_email_otp_owner";
--- последовательности public.email_otp_locks: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.email_otp_locks: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10010,7 +10150,7 @@ GRANT SELECT ("email_normalized", "last_sent_at") ON TABLE "public"."email_send_
 GRANT INSERT ("email_normalized", "last_sent_at", "user_id") ON TABLE "public"."email_send_cooldowns" TO "app_seam_email_otp_owner";
 GRANT SELECT ("email_normalized", "last_sent_at", "user_id") ON TABLE "public"."email_send_cooldowns" TO "app_seam_reminder_email_cooldown_owner";
 GRANT INSERT ("email_normalized", "last_sent_at", "user_id") ON TABLE "public"."email_send_cooldowns" TO "app_seam_reminder_email_cooldown_owner";
--- последовательности public.email_send_cooldowns: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.email_send_cooldowns: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10048,6 +10188,22 @@ ALTER TABLE "public"."idempotency_keys" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."idempotency_keys" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."idempotency_keys" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("expires_at", "key", "status") ON TABLE "public"."idempotency_keys" TO "saas_system_health_owner";
+-- последовательности public.idempotency_keys: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.idempotency_keys'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -10068,7 +10224,7 @@ ALTER TABLE "public"."integration_webhook_error_events" FORCE ROW LEVEL SECURITY
 REVOKE ALL PRIVILEGES ON TABLE "public"."integration_webhook_error_events" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."integration_webhook_error_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, INSERT, DELETE ON TABLE "public"."integration_webhook_error_events" TO "app_worker";
--- последовательности public.integration_webhook_error_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.integration_webhook_error_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10104,6 +10260,22 @@ ALTER TABLE "public"."integration_webhook_last_status" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."integration_webhook_last_status" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."integration_webhook_last_status" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("http_status_returned", "processed_ok", "received_at", "source") ON TABLE "public"."integration_webhook_last_status" TO "saas_system_health_owner";
+-- последовательности public.integration_webhook_last_status: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.integration_webhook_last_status'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -10124,6 +10296,22 @@ ALTER TABLE "public"."integrator_push_outbox" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."integrator_push_outbox" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."integrator_push_outbox" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("created_at", "id", "kind", "next_try_at", "status", "updated_at") ON TABLE "public"."integrator_push_outbox" TO "saas_system_health_owner";
+-- последовательности public.integrator_push_outbox: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.integrator_push_outbox'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -10148,7 +10336,7 @@ GRANT SELECT ("comment", "complex_id", "exercise_id", "id", "local_comment", "or
 GRANT SELECT ON TABLE "public"."lfk_complex_exercises" TO "app_staff";
 GRANT INSERT ("comment", "complex_id", "exercise_id", "local_comment", "max_pain_0_10", "organization_id", "reps", "sets", "side", "sort_order") ON TABLE "public"."lfk_complex_exercises" TO "app_staff";
 GRANT UPDATE ("local_comment") ON TABLE "public"."lfk_complex_exercises" TO "app_staff";
--- последовательности public.lfk_complex_exercises: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_complex_exercises: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10188,7 +10376,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."lfk_complex_template_exercises" FROM "a
 GRANT SELECT ("exercise_id", "id", "organization_id", "owner_kind", "template_id") ON TABLE "public"."lfk_complex_template_exercises" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT, DELETE ON TABLE "public"."lfk_complex_template_exercises" TO "app_staff";
 GRANT INSERT ("comment", "exercise_id", "max_pain_0_10", "organization_id", "owner_kind", "reps", "sets", "side", "sort_order", "template_id") ON TABLE "public"."lfk_complex_template_exercises" TO "app_staff";
--- последовательности public.lfk_complex_template_exercises: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_complex_template_exercises: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10229,7 +10417,7 @@ GRANT SELECT ("id", "organization_id", "owner_kind", "status") ON TABLE "public"
 GRANT SELECT, DELETE ON TABLE "public"."lfk_complex_templates" TO "app_staff";
 GRANT INSERT ("created_by", "description", "organization_id", "owner_kind", "title", "updated_at") ON TABLE "public"."lfk_complex_templates" TO "app_staff";
 GRANT UPDATE ("created_by", "status", "updated_at") ON TABLE "public"."lfk_complex_templates" TO "app_staff";
--- последовательности public.lfk_complex_templates: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_complex_templates: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10273,7 +10461,7 @@ GRANT INSERT ("diagnosis_ref_id", "diagnosis_text", "is_active", "organization_i
 GRANT UPDATE ("is_active", "symptom_tracking_id", "updated_at") ON TABLE "public"."lfk_complexes" TO "app_staff";
 GRANT SELECT ("platform_user_id", "user_id") ON TABLE "public"."lfk_complexes" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id", "user_id") ON TABLE "public"."lfk_complexes" TO "app_tenant_service";
--- последовательности public.lfk_complexes: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_complexes: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10317,7 +10505,7 @@ GRANT SELECT ("created_at", "exercise_id", "id", "media_type", "media_url", "org
 GRANT SELECT ("exercise_id", "id", "media_url", "organization_id", "owner_kind") ON TABLE "public"."lfk_exercise_media" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT, DELETE ON TABLE "public"."lfk_exercise_media" TO "app_staff";
 GRANT INSERT ("exercise_id", "media_type", "media_url", "organization_id", "owner_kind", "sort_order") ON TABLE "public"."lfk_exercise_media" TO "app_staff";
--- последовательности public.lfk_exercise_media: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_exercise_media: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10356,7 +10544,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."lfk_exercise_regions" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."lfk_exercise_regions" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."lfk_exercise_regions" TO "app_staff";
 GRANT INSERT ("exercise_id", "organization_id", "owner_kind", "region_ref_id") ON TABLE "public"."lfk_exercise_regions" TO "app_staff";
--- последовательности public.lfk_exercise_regions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_exercise_regions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10396,7 +10584,7 @@ GRANT SELECT ("id", "organization_id", "owner_kind") ON TABLE "public"."lfk_exer
 GRANT SELECT ON TABLE "public"."lfk_exercises" TO "app_staff";
 GRANT INSERT ("catalog_scope", "contraindications", "created_by", "description", "difficulty_1_10", "load_type", "organization_id", "owner_kind", "region_ref_id", "tags", "title", "updated_at") ON TABLE "public"."lfk_exercises" TO "app_staff";
 GRANT UPDATE ("created_by", "is_archived", "title", "updated_at") ON TABLE "public"."lfk_exercises" TO "app_staff";
--- последовательности public.lfk_exercises: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_exercises: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10437,7 +10625,7 @@ GRANT SELECT, DELETE ON TABLE "public"."lfk_sessions" TO "app_staff";
 GRANT INSERT ("comment", "completed_at", "complex_id", "difficulty_0_10", "duration_minutes", "pain_0_10", "recorded_at", "source", "user_id") ON TABLE "public"."lfk_sessions" TO "app_staff";
 GRANT UPDATE ("comment", "completed_at", "difficulty_0_10", "duration_minutes", "pain_0_10") ON TABLE "public"."lfk_sessions" TO "app_staff";
 GRANT UPDATE ("user_id") ON TABLE "public"."lfk_sessions" TO "app_tenant_service";
--- последовательности public.lfk_sessions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.lfk_sessions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10479,7 +10667,7 @@ GRANT INSERT ("expires_at", "id", "method", "status", "token_hash", "user_id") O
 GRANT UPDATE ("confirmed_at", "expires_at", "status", "token_hash") ON TABLE "public"."login_tokens" TO "app_seam_login_token_owner";
 GRANT UPDATE ("expires_at", "status") ON TABLE "public"."login_tokens" TO "app_seam_login_token_owner";
 GRANT UPDATE ("session_issued_at", "status", "token_hash") ON TABLE "public"."login_tokens" TO "app_seam_login_token_owner";
--- последовательности public.login_tokens: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.login_tokens: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10517,7 +10705,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."manual_patient_commands" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."manual_patient_commands" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."manual_patient_commands" TO "app_staff";
 GRANT INSERT ("command_id", "command_kind", "organization_id", "platform_user_id", "request_fingerprint") ON TABLE "public"."manual_patient_commands" TO "app_staff";
--- последовательности public.manual_patient_commands: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.manual_patient_commands: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10558,7 +10746,7 @@ GRANT UPDATE ("stars", "updated_at") ON TABLE "public"."material_ratings" TO "ap
 GRANT DELETE ON TABLE "public"."material_ratings" TO "app_tenant_service";
 GRANT SELECT ("stars", "target_id", "target_kind", "updated_at", "user_id") ON TABLE "public"."material_ratings" TO "app_tenant_service";
 GRANT UPDATE ("stars", "updated_at") ON TABLE "public"."material_ratings" TO "app_tenant_service";
--- последовательности public.material_ratings: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.material_ratings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10607,7 +10795,7 @@ GRANT UPDATE ("delete_attempts", "display_name", "folder_id", "next_attempt_at",
 GRANT UPDATE ("uploaded_by") ON TABLE "public"."media_files" TO "app_tenant_service";
 GRANT SELECT ("created_at", "hls_master_playlist_s3_key", "id", "mime_type", "organization_id", "s3_key", "size_bytes", "status", "video_processing_status") ON TABLE "public"."media_files" TO "saas_system_health_owner";
 GRANT SELECT ("created_at", "mime_type", "preview_status", "status") ON TABLE "public"."media_files" TO "saas_system_health_owner";
--- последовательности public.media_files: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.media_files: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10649,7 +10837,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."media_folders" FROM "app_clinic_billing
 GRANT SELECT, DELETE ON TABLE "public"."media_folders" TO "app_staff";
 GRANT INSERT ("created_by", "kind", "name", "organization_id", "parent_id", "patient_user_id") ON TABLE "public"."media_folders" TO "app_staff";
 GRANT UPDATE ("kind", "name", "organization_id", "parent_id", "updated_at") ON TABLE "public"."media_folders" TO "app_staff";
--- последовательности public.media_folders: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.media_folders: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10685,6 +10873,22 @@ ALTER TABLE "public"."media_hls_proxy_error_events" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_hls_proxy_error_events" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_hls_proxy_error_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("created_at", "reason_code") ON TABLE "public"."media_hls_proxy_error_events" TO "saas_system_health_owner";
+-- последовательности public.media_hls_proxy_error_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.media_hls_proxy_error_events'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -10705,6 +10909,22 @@ ALTER TABLE "public"."media_playback_client_events" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_client_events" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_client_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("created_at", "delivery", "event_class", "media_id") ON TABLE "public"."media_playback_client_events" TO "saas_system_health_owner";
+-- последовательности public.media_playback_client_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.media_playback_client_events'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -10726,7 +10946,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_resolution_events" FROM 
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_resolution_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT INSERT ("delivery", "fallback_used", "id", "media_id", "organization_id", "user_id") ON TABLE "public"."media_playback_resolution_events" TO "app_seam_telemetry_media_owner";
 GRANT SELECT ("delivery", "fallback_used", "resolved_at") ON TABLE "public"."media_playback_resolution_events" TO "saas_system_health_owner";
--- последовательности public.media_playback_resolution_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.media_playback_resolution_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10764,7 +10984,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_stats_hourly" FROM PUBLI
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_stats_hourly" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT INSERT ("bucket_hour", "delivery", "fallback_count", "resolved_count") ON TABLE "public"."media_playback_stats_hourly" TO "app_seam_telemetry_media_owner";
 GRANT SELECT ("bucket_hour", "delivery", "fallback_count", "resolved_count") ON TABLE "public"."media_playback_stats_hourly" TO "saas_system_health_owner";
--- последовательности public.media_playback_stats_hourly: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.media_playback_stats_hourly: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10803,7 +11023,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_user_video_first_resolve
 GRANT SELECT, DELETE ON TABLE "public"."media_playback_user_video_first_resolve" TO "app_staff";
 GRANT INSERT ("media_id", "user_id") ON TABLE "public"."media_playback_user_video_first_resolve" TO "app_staff";
 GRANT SELECT ("first_resolved_at") ON TABLE "public"."media_playback_user_video_first_resolve" TO "saas_system_health_owner";
--- последовательности public.media_playback_user_video_first_resolve: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.media_playback_user_video_first_resolve: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10841,6 +11061,22 @@ ALTER TABLE "public"."media_transcode_jobs" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_transcode_jobs" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_transcode_jobs" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("created_at", "finished_at", "id", "media_id", "organization_id", "processing_started_at", "status", "updated_at") ON TABLE "public"."media_transcode_jobs" TO "saas_system_health_owner";
+-- последовательности public.media_transcode_jobs: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.media_transcode_jobs'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -10864,7 +11100,7 @@ GRANT SELECT ON TABLE "public"."media_upload_sessions" TO "app_staff";
 GRANT INSERT ("expected_size_bytes", "expires_at", "id", "media_id", "mime_type", "owner_user_id", "part_size_bytes", "s3_key", "status", "upload_id") ON TABLE "public"."media_upload_sessions" TO "app_staff";
 GRANT UPDATE ("completed_at", "last_error", "status", "updated_at") ON TABLE "public"."media_upload_sessions" TO "app_staff";
 GRANT UPDATE ("owner_user_id") ON TABLE "public"."media_upload_sessions" TO "app_tenant_service";
--- последовательности public.media_upload_sessions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.media_upload_sessions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10904,7 +11140,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."message_log" FROM "app_clinic_billing",
 GRANT SELECT, DELETE ON TABLE "public"."message_log" TO "app_staff";
 GRANT INSERT ("category", "channel_bindings_used", "error_message", "outcome", "platform_user_id", "sender_id", "text", "user_id") ON TABLE "public"."message_log" TO "app_staff";
 GRANT UPDATE ("platform_user_id", "user_id") ON TABLE "public"."message_log" TO "app_tenant_service";
--- последовательности public.message_log: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.message_log: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10944,7 +11180,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."motivational_quotes" FROM "app_clinic_b
 GRANT SELECT ON TABLE "public"."motivational_quotes" TO "app_staff";
 GRANT INSERT ("author", "body_text", "is_active", "sort_order") ON TABLE "public"."motivational_quotes" TO "app_staff";
 GRANT UPDATE ("archived_at", "author", "body_text", "is_active", "sort_order") ON TABLE "public"."motivational_quotes" TO "app_staff";
--- последовательности public.motivational_quotes: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.motivational_quotes: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -10987,7 +11223,7 @@ GRANT SELECT ("channel", "error_message", "event_id", "integrator_user_id", "int
 GRANT INSERT ("channel", "error_message", "event_id", "integrator_user_id", "intent_type", "metadata", "occurrence_id", "organization_id", "provider_status_code", "reason", "recipient_ref", "status", "topic_code", "user_id") ON TABLE "public"."notification_delivery_attempts" TO "app_tenant_service";
 GRANT SELECT ("channel", "created_at", "id", "organization_id", "status", "user_id") ON TABLE "public"."notification_delivery_attempts" TO "saas_system_health_owner";
 GRANT SELECT ("channel", "created_at", "error_message", "provider_status_code", "reason", "status") ON TABLE "public"."notification_delivery_attempts" TO "saas_system_health_owner";
--- последовательности public.notification_delivery_attempts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.notification_delivery_attempts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11029,6 +11265,22 @@ ALTER TABLE "public"."online_intake_answers" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."online_intake_answers" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."online_intake_answers" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."online_intake_answers" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
+-- последовательности public.online_intake_answers: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.online_intake_answers'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -11048,6 +11300,22 @@ ALTER TABLE "public"."online_intake_attachments" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."online_intake_attachments" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."online_intake_attachments" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."online_intake_attachments" TO "app_staff";
+-- последовательности public.online_intake_attachments: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.online_intake_attachments'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -11069,7 +11337,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."online_intake_requests" FROM "app_clini
 GRANT SELECT, DELETE ON TABLE "public"."online_intake_requests" TO "app_staff";
 GRANT SELECT ("user_id") ON TABLE "public"."online_intake_requests" TO "app_tenant_service";
 GRANT UPDATE ("user_id") ON TABLE "public"."online_intake_requests" TO "app_tenant_service";
--- последовательности public.online_intake_requests: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.online_intake_requests: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11106,6 +11374,22 @@ ALTER TABLE "public"."online_intake_status_history" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."online_intake_status_history" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."online_intake_status_history" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."online_intake_status_history" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
+-- последовательности public.online_intake_status_history: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.online_intake_status_history'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -11125,6 +11409,22 @@ ALTER TABLE "public"."operator_health_alert_sent" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."operator_health_alert_sent" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."operator_health_alert_sent" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("dedup_key", "id", "sent_at") ON TABLE "public"."operator_health_alert_sent" TO "saas_system_health_owner";
+-- последовательности public.operator_health_alert_sent: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.operator_health_alert_sent'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -11146,7 +11446,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."operator_health_failure_archive" FROM P
 REVOKE ALL PRIVILEGES ON TABLE "public"."operator_health_failure_archive" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."operator_health_failure_archive" TO "app_staff";
 GRANT INSERT ("archived_by_user_id", "doctor_user_id", "health_probe", "raw_error_truncated", "severity_at_archive", "source_id", "source_kind", "summary_json") ON TABLE "public"."operator_health_failure_archive" TO "app_staff";
--- последовательности public.operator_health_failure_archive: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.operator_health_failure_archive: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11188,7 +11488,7 @@ GRANT INSERT ("dedup_key", "direction", "error_class", "error_detail", "id", "in
 GRANT UPDATE ("alert_sent_at", "id") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
 GRANT UPDATE ("dedup_key", "id", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("dedup_key", "id", "last_seen_at", "occurrence_count", "resolved_at") ON TABLE "public"."operator_incidents" TO "saas_system_health_owner";
--- последовательности public.operator_incidents: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.operator_incidents: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11227,7 +11527,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."operator_job_status" FROM "app_clinic_b
 GRANT SELECT ("job_key", "meta_json") ON TABLE "public"."operator_job_status" TO "app_seam_telemetry_operator_owner";
 GRANT INSERT ("job_family", "job_key", "last_duration_ms", "last_error", "last_failure_at", "last_finished_at", "last_started_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("job_family", "job_key", "last_duration_ms", "last_failure_at", "last_finished_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "saas_system_health_owner";
--- последовательности public.operator_job_status: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.operator_job_status: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11266,7 +11566,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."org_brand_revisions" FROM "app_clinic_b
 GRANT SELECT ON TABLE "public"."org_brand_revisions" TO "app_staff";
 GRANT INSERT ("created_by_platform_user_id", "display_name", "logo_media_id", "organization_id", "status") ON TABLE "public"."org_brand_revisions" TO "app_staff";
 GRANT UPDATE ("archived_at", "archived_by_platform_user_id", "display_name", "logo_media_id", "published_at", "published_by_platform_user_id", "status", "updated_at") ON TABLE "public"."org_brand_revisions" TO "app_staff";
--- последовательности public.org_brand_revisions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.org_brand_revisions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11320,7 +11620,7 @@ GRANT SELECT ("id", "organization_id", "platform_user_id", "status") ON TABLE "p
 GRANT SELECT ON TABLE "public"."org_enrollments" TO "app_staff";
 GRANT INSERT ("organization_id", "platform_user_id", "status") ON TABLE "public"."org_enrollments" TO "app_staff";
 GRANT SELECT ("organization_id", "platform_user_id", "status") ON TABLE "public"."org_enrollments" TO "app_tenant_service";
--- последовательности public.org_enrollments: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.org_enrollments: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11366,7 +11666,7 @@ GRANT UPDATE ("accepted_at", "accepted_by_platform_user_id", "accepted_membershi
 GRANT SELECT ON TABLE "public"."organization_member_invites" TO "app_staff";
 GRANT INSERT ("created_by_platform_user_id", "expires_at", "invited_email", "invited_role", "organization_id", "token_hash") ON TABLE "public"."organization_member_invites" TO "app_staff";
 GRANT UPDATE ("status") ON TABLE "public"."organization_member_invites" TO "app_staff";
--- последовательности public.organization_member_invites: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.organization_member_invites: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11410,7 +11710,7 @@ GRANT INSERT ("created_at", "created_by_platform_user_id", "id", "kind", "organi
 GRANT SELECT, DELETE ON TABLE "public"."organization_slug_claims" TO "app_staff";
 GRANT INSERT ("created_by_platform_user_id", "kind", "organization_id", "slug", "updated_at") ON TABLE "public"."organization_slug_claims" TO "app_staff";
 GRANT UPDATE ("created_by_platform_user_id", "kind", "organization_id", "slug", "updated_at") ON TABLE "public"."organization_slug_claims" TO "app_staff";
--- последовательности public.organization_slug_claims: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.organization_slug_claims: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11450,7 +11750,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."organization_slug_rename_events" FROM P
 REVOKE ALL PRIVILEGES ON TABLE "public"."organization_slug_rename_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."organization_slug_rename_events" TO "app_staff";
 GRANT INSERT ("actor_platform_user_id", "next_slug", "organization_id", "previous_slug") ON TABLE "public"."organization_slug_rename_events" TO "app_staff";
--- последовательности public.organization_slug_rename_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.organization_slug_rename_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11504,7 +11804,7 @@ GRANT UPDATE ("id", "kind", "last_error", "next_retry_at", "payload_json", "stat
 GRANT SELECT ("channel", "event_id", "kind", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("channel", "created_at", "failure_class", "id", "kind", "next_retry_at", "organization_id", "sent_at", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "saas_system_health_owner";
 GRANT SELECT ("channel", "created_at", "kind", "sent_at", "status") ON TABLE "public"."outgoing_delivery_queue" TO "saas_system_health_owner";
--- последовательности public.outgoing_delivery_queue: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.outgoing_delivery_queue: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11547,7 +11847,7 @@ GRANT DELETE ON TABLE "public"."password_altcha_challenges" TO "app_seam_passwor
 GRANT SELECT ("challenge_digest", "challenge_id", "consumed_at", "expires_at", "identifier_key", "purpose") ON TABLE "public"."password_altcha_challenges" TO "app_seam_password_auth_owner";
 GRANT INSERT ("challenge_digest", "challenge_id", "consumed_at", "expires_at", "identifier_key", "purpose") ON TABLE "public"."password_altcha_challenges" TO "app_seam_password_auth_owner";
 GRANT UPDATE ("challenge_digest", "challenge_id", "consumed_at", "expires_at", "identifier_key", "purpose") ON TABLE "public"."password_altcha_challenges" TO "app_seam_password_auth_owner";
--- последовательности public.password_altcha_challenges: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.password_altcha_challenges: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11589,7 +11889,7 @@ GRANT SELECT ("failed_attempts", "identifier_key", "locked_until") ON TABLE "pub
 GRANT INSERT ("failed_attempts", "identifier_key", "leased_user_id", "locked_until", "next_allowed_at", "updated_at", "verification_lease_token", "verification_lease_until") ON TABLE "public"."password_login_identifier_protection" TO "app_seam_password_auth_owner";
 GRANT INSERT ("failed_attempts", "identifier_key", "locked_until") ON TABLE "public"."password_login_identifier_protection" TO "app_seam_password_auth_owner";
 GRANT UPDATE ("failed_attempts", "identifier_key", "leased_user_id", "locked_until", "next_allowed_at", "updated_at", "verification_lease_token", "verification_lease_until") ON TABLE "public"."password_login_identifier_protection" TO "app_seam_password_auth_owner";
--- последовательности public.password_login_identifier_protection: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.password_login_identifier_protection: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11632,7 +11932,7 @@ GRANT INSERT ("booking_type", "branch_id", "branch_service_id", "branch_title_sn
 GRANT UPDATE ("cancel_reason", "cancelled_at", "canonical_appointment_id", "slot_end", "slot_start", "status", "updated_at") ON TABLE "public"."patient_bookings" TO "app_staff";
 GRANT SELECT ("id", "platform_user_id", "slot_end", "slot_start", "status") ON TABLE "public"."patient_bookings" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."patient_bookings" TO "app_tenant_service";
--- последовательности public.patient_bookings: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_bookings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11676,7 +11976,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_comorbidity" FROM "app_clinic_b
 GRANT SELECT ON TABLE "public"."patient_comorbidity" TO "app_staff";
 GRANT INSERT ("created_by", "organization_id", "patient_user_id", "since", "status", "text") ON TABLE "public"."patient_comorbidity" TO "app_staff";
 GRANT UPDATE ("organization_id", "removed_at", "since", "status", "text") ON TABLE "public"."patient_comorbidity" TO "app_staff";
--- последовательности public.patient_comorbidity: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_comorbidity: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11714,7 +12014,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_content_rating_feedback" FROM "
 GRANT SELECT ON TABLE "public"."patient_content_rating_feedback" TO "app_staff";
 GRANT INSERT ("comment", "content_page_id", "organization_id", "rating_value", "reason_codes", "user_id") ON TABLE "public"."patient_content_rating_feedback" TO "app_staff";
 GRANT UPDATE ("user_id") ON TABLE "public"."patient_content_rating_feedback" TO "app_tenant_service";
--- последовательности public.patient_content_rating_feedback: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_content_rating_feedback: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11757,7 +12057,7 @@ GRANT UPDATE ("content_page_id", "last_rotation_at", "skip_next_scheduled_rotati
 GRANT DELETE ON TABLE "public"."patient_daily_warmup_presentations" TO "app_tenant_service";
 GRANT SELECT ("content_page_id", "last_rotation_at", "skip_next_scheduled_rotation", "updated_at", "user_id") ON TABLE "public"."patient_daily_warmup_presentations" TO "app_tenant_service";
 GRANT UPDATE ("content_page_id", "last_rotation_at", "skip_next_scheduled_rotation", "updated_at") ON TABLE "public"."patient_daily_warmup_presentations" TO "app_tenant_service";
--- последовательности public.patient_daily_warmup_presentations: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_daily_warmup_presentations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11799,7 +12099,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_daily_warmup_video_views" FROM 
 GRANT SELECT ON TABLE "public"."patient_daily_warmup_video_views" TO "app_staff";
 GRANT INSERT ("content_page_id", "user_id") ON TABLE "public"."patient_daily_warmup_video_views" TO "app_staff";
 GRANT UPDATE ("user_id") ON TABLE "public"."patient_daily_warmup_video_views" TO "app_tenant_service";
--- последовательности public.patient_daily_warmup_video_views: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_daily_warmup_video_views: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11841,7 +12141,7 @@ GRANT INSERT ("captured_at", "iana", "local_date", "organization_id", "plan_done
 GRANT DELETE ON TABLE "public"."patient_diary_day_snapshots" TO "app_tenant_service";
 GRANT SELECT ("local_date", "platform_user_id") ON TABLE "public"."patient_diary_day_snapshots" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."patient_diary_day_snapshots" TO "app_tenant_service";
--- последовательности public.patient_diary_day_snapshots: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_diary_day_snapshots: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11884,7 +12184,7 @@ GRANT SELECT ("id", "organization_id", "size_bytes") ON TABLE "public"."patient_
 GRANT SELECT, DELETE ON TABLE "public"."patient_files" TO "app_staff";
 GRANT INSERT ("category", "file_name", "media_file_id", "mime_type", "organization_id", "patient_user_id", "s3_bucket", "s3_key", "size_bytes", "uploaded_by_user_id") ON TABLE "public"."patient_files" TO "app_staff";
 GRANT UPDATE ("file_name", "organization_id", "size_bytes", "visit_id") ON TABLE "public"."patient_files" TO "app_staff";
--- последовательности public.patient_files: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_files: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11924,7 +12224,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_home_block_items" FROM "app_cli
 GRANT SELECT, DELETE ON TABLE "public"."patient_home_block_items" TO "app_staff";
 GRANT INSERT ("badge_label", "block_code", "image_url_override", "is_visible", "show_title", "sort_order", "subtitle_override", "target_ref", "target_type", "title_override") ON TABLE "public"."patient_home_block_items" TO "app_staff";
 GRANT UPDATE ("badge_label", "image_url_override", "is_visible", "organization_id", "show_title", "sort_order", "subtitle_override", "target_ref", "target_type", "title_override", "updated_at") ON TABLE "public"."patient_home_block_items" TO "app_staff";
--- последовательности public.patient_home_block_items: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_home_block_items: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -11961,7 +12261,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_home_blocks" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."patient_home_blocks" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."patient_home_blocks" TO "app_staff";
 GRANT UPDATE ("icon_image_url", "is_visible", "sort_order", "updated_at") ON TABLE "public"."patient_home_blocks" TO "app_staff";
--- последовательности public.patient_home_blocks: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_home_blocks: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12010,7 +12310,7 @@ GRANT UPDATE ("accepted_by_platform_user_id", "accepted_via", "continuation_expi
 GRANT SELECT ON TABLE "public"."patient_invites" TO "app_staff";
 GRANT INSERT ("created_by_platform_user_id", "enrollment_id", "expires_at", "id", "invited_email_normalized", "organization_id", "patient_user_id", "recipient_binding", "token_hash") ON TABLE "public"."patient_invites" TO "app_staff";
 GRANT UPDATE ("proof_code_hash", "proof_expires_at", "revoked_at", "revoked_by_platform_user_id", "status", "superseded_by_invite_id", "updated_at") ON TABLE "public"."patient_invites" TO "app_staff";
--- последовательности public.patient_invites: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_invites: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12053,7 +12353,7 @@ GRANT INSERT ("assigned_by", "complex_id", "is_active", "organization_id", "pati
 GRANT UPDATE ("assigned_at", "assigned_by", "complex_id", "is_active") ON TABLE "public"."patient_lfk_assignments" TO "app_staff";
 GRANT SELECT ("id", "is_active", "organization_id", "patient_user_id", "template_id") ON TABLE "public"."patient_lfk_assignments" TO "app_tenant_service";
 GRANT UPDATE ("patient_user_id") ON TABLE "public"."patient_lfk_assignments" TO "app_tenant_service";
--- последовательности public.patient_lfk_assignments: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_lfk_assignments: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12095,7 +12395,7 @@ GRANT INSERT ("anchor_user_id", "candidate_user_id", "id", "organization_id", "p
 GRANT SELECT ON TABLE "public"."patient_merge_candidates" TO "app_staff";
 GRANT INSERT ("anchor_user_id", "candidate_user_id", "organization_id", "payload", "reason", "status", "trigger_appointment_id") ON TABLE "public"."patient_merge_candidates" TO "app_staff";
 GRANT UPDATE ("resolved_at", "resolved_by", "status") ON TABLE "public"."patient_merge_candidates" TO "app_staff";
--- последовательности public.patient_merge_candidates: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_merge_candidates: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12136,7 +12436,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_payment" FROM "app_clinic_billi
 GRANT SELECT ON TABLE "public"."patient_payment" TO "app_staff";
 GRANT INSERT ("amount_minor", "comment", "created_by", "currency", "kind", "organization_id", "patient_user_id", "provider", "provider_payment_id", "service", "status", "visit_id") ON TABLE "public"."patient_payment" TO "app_staff";
 GRANT UPDATE ("provider_payment_id", "status") ON TABLE "public"."patient_payment" TO "app_staff";
--- последовательности public.patient_payment: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_payment: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12175,7 +12475,7 @@ GRANT SELECT ON TABLE "public"."patient_practice_completions" TO "app_staff";
 GRANT INSERT ("content_page_id", "feeling", "notes", "source", "user_id") ON TABLE "public"."patient_practice_completions" TO "app_staff";
 GRANT UPDATE ("feeling") ON TABLE "public"."patient_practice_completions" TO "app_staff";
 GRANT UPDATE ("user_id") ON TABLE "public"."patient_practice_completions" TO "app_tenant_service";
--- последовательности public.patient_practice_completions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_practice_completions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12214,7 +12514,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_specialist_links" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."patient_specialist_links" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."patient_specialist_links" TO "app_staff";
 GRANT INSERT ("created_via", "organization_id", "patient_user_id", "specialist_id", "status") ON TABLE "public"."patient_specialist_links" TO "app_staff";
--- последовательности public.patient_specialist_links: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.patient_specialist_links: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12259,7 +12559,7 @@ GRANT INSERT ("challenge_id", "channel_context", "code", "expires_at", "phone", 
 GRANT INSERT ("challenge_id", "channel_context", "code", "created_at", "expires_at", "phone", "verify_attempts") ON TABLE "public"."phone_challenges" TO "app_seam_phone_otp_owner";
 GRANT UPDATE ("challenge_id", "expires_at", "verify_attempts") ON TABLE "public"."phone_challenges" TO "app_seam_phone_otp_owner";
 GRANT UPDATE ("challenge_id", "channel_context", "code", "expires_at", "phone", "verify_attempts") ON TABLE "public"."phone_challenges" TO "app_seam_phone_otp_owner";
--- последовательности public.phone_challenges: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.phone_challenges: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12295,6 +12595,22 @@ ALTER TABLE "public"."phone_messenger_bind_secrets" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."phone_messenger_bind_secrets" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."phone_messenger_bind_secrets" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."phone_messenger_bind_secrets" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
+-- последовательности public.phone_messenger_bind_secrets: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.phone_messenger_bind_secrets'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -12318,7 +12634,7 @@ GRANT SELECT ("locked_until", "phone_normalized") ON TABLE "public"."phone_otp_l
 GRANT SELECT ("phone_normalized") ON TABLE "public"."phone_otp_locks" TO "app_seam_phone_otp_owner";
 GRANT INSERT ("locked_until", "lockout_cycle", "phone_normalized") ON TABLE "public"."phone_otp_locks" TO "app_seam_phone_otp_owner";
 GRANT INSERT ("locked_until", "phone_normalized") ON TABLE "public"."phone_otp_locks" TO "app_seam_phone_otp_owner";
--- последовательности public.phone_otp_locks: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.phone_otp_locks: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12361,7 +12677,7 @@ GRANT DELETE ON TABLE "public"."platform_user_contacts" TO "app_tenant_service";
 GRANT SELECT ("contact_type", "created_at", "id", "platform_user_id", "source", "updated_at", "value", "value_normalized") ON TABLE "public"."platform_user_contacts" TO "app_tenant_service";
 GRANT INSERT ("contact_type", "created_at", "organization_id", "platform_user_id", "source", "updated_at", "value", "value_normalized") ON TABLE "public"."platform_user_contacts" TO "app_tenant_service";
 GRANT UPDATE ("source", "updated_at", "value") ON TABLE "public"."platform_user_contacts" TO "app_tenant_service";
--- последовательности public.platform_user_contacts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.platform_user_contacts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12451,7 +12767,7 @@ GRANT UPDATE ("birth_date", "blocked_at", "blocked_by", "blocked_reason", "calen
 GRANT SELECT ("created_at", "display_name", "email", "email_normalized", "email_verified_at", "first_name", "id", "integrator_user_id", "last_name", "merged_into_id", "patient_phone_trust_at", "patronymic", "phone_normalized", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_tenant_service";
 GRANT INSERT ("display_name", "email", "email_verified_at", "first_name", "id", "integrator_user_id", "last_name", "patient_phone_trust_at", "phone_normalized", "role") ON TABLE "public"."platform_users" TO "app_tenant_service";
 GRANT UPDATE ("display_name", "email", "email_normalized", "first_name", "integrator_user_id", "last_name", "merged_at", "merged_into_id", "patient_phone_trust_at", "phone_normalized", "updated_at") ON TABLE "public"."platform_users" TO "app_tenant_service";
--- последовательности public.platform_users: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.platform_users: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12505,7 +12821,7 @@ GRANT INSERT ("entry_channel", "event_type", "id", "metadata", "occurred_at", "o
 GRANT SELECT, DELETE ON TABLE "public"."product_analytics_events_recent" TO "app_staff";
 GRANT INSERT ("client_session_id", "entry_channel", "event_type", "metadata", "occurred_at", "organization_id", "page_key", "push_kind", "push_tracking_id", "topic_code", "user_id", "warmup_slogan_key") ON TABLE "public"."product_analytics_events_recent" TO "app_staff";
 GRANT UPDATE ("user_id") ON TABLE "public"."product_analytics_events_recent" TO "app_tenant_service";
--- последовательности public.product_analytics_events_recent: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.product_analytics_events_recent: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12549,7 +12865,7 @@ GRANT INSERT ("bucket_hour", "entry_channel", "event_count", "event_type", "orga
 GRANT SELECT, DELETE ON TABLE "public"."product_analytics_hourly" TO "app_staff";
 GRANT INSERT ("bucket_hour", "entry_channel", "event_count", "event_type", "organization_id", "page_key", "push_kind", "topic_code", "updated_at", "warmup_slogan_key") ON TABLE "public"."product_analytics_hourly" TO "app_staff";
 GRANT UPDATE ("event_count", "updated_at") ON TABLE "public"."product_analytics_hourly" TO "app_staff";
--- последовательности public.product_analytics_hourly: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.product_analytics_hourly: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12595,7 +12911,7 @@ GRANT DELETE ON TABLE "public"."product_analytics_user_hourly" TO "app_tenant_se
 GRANT SELECT ("active_minutes", "app_opens", "bucket_hour", "entry_channel", "last_seen_at", "organization_id", "page_key", "page_views", "push_opens", "updated_at", "user_id") ON TABLE "public"."product_analytics_user_hourly" TO "app_tenant_service";
 GRANT INSERT ("active_minutes", "app_opens", "bucket_hour", "entry_channel", "last_seen_at", "organization_id", "page_key", "page_views", "push_opens", "updated_at", "user_id") ON TABLE "public"."product_analytics_user_hourly" TO "app_tenant_service";
 GRANT UPDATE ("active_minutes", "app_opens", "last_seen_at", "page_views", "push_opens", "updated_at") ON TABLE "public"."product_analytics_user_hourly" TO "app_tenant_service";
--- последовательности public.product_analytics_user_hourly: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.product_analytics_user_hourly: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12642,7 +12958,7 @@ GRANT SELECT ("id", "organization_id", "push_kind", "topic_code", "user_id", "wa
 GRANT SELECT, DELETE ON TABLE "public"."product_push_notifications" TO "app_staff";
 GRANT INSERT ("created_at", "id", "intent_type", "occurrence_id", "open_url", "organization_id", "push_kind", "title", "topic_code", "user_id", "warmup_slogan_key", "warmup_slogan_text") ON TABLE "public"."product_push_notifications" TO "app_staff";
 GRANT UPDATE ("user_id") ON TABLE "public"."product_push_notifications" TO "app_tenant_service";
--- последовательности public.product_push_notifications: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.product_push_notifications: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12684,7 +13000,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."program_action_log" FROM "app_clinic_bi
 GRANT SELECT, DELETE ON TABLE "public"."program_action_log" TO "app_staff";
 GRANT INSERT ("action_type", "instance_id", "instance_stage_item_id", "note", "organization_id", "patient_user_id", "payload", "session_id") ON TABLE "public"."program_action_log" TO "app_staff";
 GRANT UPDATE ("instance_id", "instance_stage_item_id", "patient_user_id") ON TABLE "public"."program_action_log" TO "app_tenant_service";
--- последовательности public.program_action_log: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.program_action_log: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12723,7 +13039,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."program_item_discussion_messages" FROM 
 REVOKE ALL PRIVILEGES ON TABLE "public"."program_item_discussion_messages" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."program_item_discussion_messages" TO "app_staff";
 GRANT INSERT ("body", "created_at", "instance_stage_item_id", "media_file_id", "organization_id", "origin", "patient_user_id", "sender_role", "support_message_id") ON TABLE "public"."program_item_discussion_messages" TO "app_staff";
--- последовательности public.program_item_discussion_messages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.program_item_discussion_messages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12761,7 +13077,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."program_item_discussion_reads" FROM "ap
 GRANT SELECT ON TABLE "public"."program_item_discussion_reads" TO "app_staff";
 GRANT INSERT ("instance_stage_item_id", "last_read_at", "organization_id", "patient_user_id") ON TABLE "public"."program_item_discussion_reads" TO "app_staff";
 GRANT UPDATE ("last_read_at") ON TABLE "public"."program_item_discussion_reads" TO "app_staff";
--- последовательности public.program_item_discussion_reads: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.program_item_discussion_reads: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12798,7 +13114,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."recommendation_regions" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."recommendation_regions" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."recommendation_regions" TO "app_staff";
 GRANT INSERT ("body_region_id", "organization_id", "recommendation_id") ON TABLE "public"."recommendation_regions" TO "app_staff";
--- последовательности public.recommendation_regions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.recommendation_regions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12836,7 +13152,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."recommendations" FROM "app_clinic_billi
 GRANT SELECT, DELETE ON TABLE "public"."recommendations" TO "app_staff";
 GRANT INSERT ("body_md", "body_region_id", "created_by", "domain", "duration_text", "frequency_text", "media", "organization_id", "quantity_text", "tags", "title") ON TABLE "public"."recommendations" TO "app_staff";
 GRANT UPDATE ("body_md", "domain", "duration_text", "frequency_text", "is_archived", "media", "organization_id", "quantity_text", "tags", "title", "updated_at") ON TABLE "public"."recommendations" TO "app_staff";
--- последовательности public.recommendations: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.recommendations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12873,6 +13189,22 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."reference_catalog_baselines" FROM PUBLI
 REVOKE ALL PRIVILEGES ON TABLE "public"."reference_catalog_baselines" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("definition_json", "version") ON TABLE "public"."reference_catalog_baselines" TO "app_seam_catalog_public_owner";
 GRANT SELECT ("definition_json", "version") ON TABLE "public"."reference_catalog_baselines" TO "app_seam_specialist_provision_owner";
+-- последовательности public.reference_catalog_baselines: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.reference_catalog_baselines'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -12894,7 +13226,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."reference_catalog_snapshot_receipts" FR
 REVOKE ALL PRIVILEGES ON TABLE "public"."reference_catalog_snapshot_receipts" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("baseline_version", "organization_id") ON TABLE "public"."reference_catalog_snapshot_receipts" TO "app_seam_specialist_provision_owner";
 GRANT INSERT ("baseline_version", "organization_id") ON TABLE "public"."reference_catalog_snapshot_receipts" TO "app_seam_specialist_provision_owner";
--- последовательности public.reference_catalog_snapshot_receipts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.reference_catalog_snapshot_receipts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12933,7 +13265,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."reference_categories" FROM "app_clinic_
 GRANT SELECT ("code", "id", "is_user_extensible", "organization_id", "title") ON TABLE "public"."reference_categories" TO "app_seam_specialist_provision_owner";
 GRANT INSERT ("code", "id", "is_user_extensible", "organization_id", "title") ON TABLE "public"."reference_categories" TO "app_seam_specialist_provision_owner";
 GRANT SELECT, DELETE ON TABLE "public"."reference_categories" TO "app_staff";
--- последовательности public.reference_categories: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.reference_categories: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -12974,7 +13306,7 @@ GRANT INSERT ("category_id", "code", "id", "is_active", "meta_json", "organizati
 GRANT SELECT, DELETE ON TABLE "public"."reference_items" TO "app_staff";
 GRANT INSERT ("category_id", "code", "is_active", "meta_json", "organization_id", "sort_order", "title") ON TABLE "public"."reference_items" TO "app_staff";
 GRANT UPDATE ("code", "deleted_at", "is_active", "organization_id", "sort_order", "title") ON TABLE "public"."reference_items" TO "app_staff";
--- последовательности public.reference_items: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.reference_items: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13016,7 +13348,7 @@ GRANT SELECT, DELETE ON TABLE "public"."reminder_delivery_events" TO "app_staff"
 GRANT INSERT ("channel", "created_at", "error_code", "integrator_delivery_log_id", "integrator_occurrence_id", "integrator_rule_id", "integrator_user_id", "payload_json", "status") ON TABLE "public"."reminder_delivery_events" TO "app_staff";
 GRANT UPDATE ("integrator_user_id") ON TABLE "public"."reminder_delivery_events" TO "app_staff";
 GRANT SELECT ("channel", "created_at", "id", "organization_id", "status") ON TABLE "public"."reminder_delivery_events" TO "saas_system_health_owner";
--- последовательности public.reminder_delivery_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.reminder_delivery_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13061,7 +13393,7 @@ GRANT INSERT ("action", "id", "occurrence_id", "organization_id", "rule_id", "sk
 GRANT INSERT ("action", "id", "occurrence_id", "organization_id", "rule_id", "snooze_until") ON TABLE "public"."reminder_journal" TO "app_seam_reminder_patient_owner";
 GRANT SELECT ON TABLE "public"."reminder_journal" TO "app_staff";
 GRANT INSERT ("action", "occurrence_id", "rule_id", "skip_reason", "snooze_until") ON TABLE "public"."reminder_journal" TO "app_staff";
--- последовательности public.reminder_journal: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.reminder_journal: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13110,7 +13442,7 @@ GRANT SELECT, DELETE ON TABLE "public"."reminder_occurrence_history" TO "app_sta
 GRANT INSERT ("category", "delivery_channel", "error_code", "integrator_occurrence_id", "integrator_rule_id", "integrator_user_id", "occurred_at", "status") ON TABLE "public"."reminder_occurrence_history" TO "app_staff";
 GRANT UPDATE ("integrator_user_id", "seen_at") ON TABLE "public"."reminder_occurrence_history" TO "app_staff";
 GRANT SELECT ("created_at", "id", "occurred_at", "organization_id", "status") ON TABLE "public"."reminder_occurrence_history" TO "saas_system_health_owner";
--- последовательности public.reminder_occurrence_history: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.reminder_occurrence_history: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13165,7 +13497,7 @@ GRANT DELETE ON TABLE "public"."reminder_rules" TO "app_tenant_service";
 GRANT SELECT ("category", "content_mode", "custom_text", "custom_title", "days_mask", "id", "integrator_rule_id", "integrator_user_id", "interval_minutes", "is_enabled", "linked_object_id", "linked_object_type", "notification_topic_code", "organization_id", "platform_user_id", "quiet_hours_end_minute", "quiet_hours_start_minute", "reminder_intent", "schedule_data", "schedule_type", "timezone", "updated_at", "window_end_minute", "window_start_minute") ON TABLE "public"."reminder_rules" TO "app_tenant_service";
 GRANT INSERT ("category", "content_mode", "custom_text", "custom_title", "days_mask", "integrator_rule_id", "integrator_user_id", "interval_minutes", "is_enabled", "linked_object_id", "linked_object_type", "notification_topic_code", "organization_id", "platform_user_id", "quiet_hours_end_minute", "quiet_hours_start_minute", "reminder_intent", "schedule_data", "schedule_type", "timezone", "updated_at", "window_end_minute", "window_start_minute") ON TABLE "public"."reminder_rules" TO "app_tenant_service";
 GRANT UPDATE ("category", "content_mode", "custom_text", "custom_title", "days_mask", "integrator_user_id", "interval_minutes", "is_enabled", "linked_object_id", "linked_object_type", "notification_topic_code", "organization_id", "platform_user_id", "quiet_hours_end_minute", "quiet_hours_start_minute", "reminder_intent", "schedule_data", "schedule_type", "timezone", "updated_at", "window_end_minute", "window_start_minute") ON TABLE "public"."reminder_rules" TO "app_tenant_service";
--- последовательности public.reminder_rules: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.reminder_rules: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13211,7 +13543,7 @@ GRANT INSERT ("id", "organization_id", "updated_at") ON TABLE "public"."saas_bil
 GRANT SELECT ON TABLE "public"."saas_billing_accounts" TO "app_staff";
 GRANT INSERT ("billing_email", "organization_id") ON TABLE "public"."saas_billing_accounts" TO "app_staff";
 GRANT UPDATE ("billing_email", "updated_at") ON TABLE "public"."saas_billing_accounts" TO "app_staff";
--- последовательности public.saas_billing_accounts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_billing_accounts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13254,7 +13586,7 @@ GRANT SELECT ("amount_minor", "currency", "id", "organization_id", "provider_id"
 GRANT SELECT ON TABLE "public"."saas_billing_invoices" TO "app_staff";
 GRANT INSERT ("additional_seat_quantity", "amount_minor", "currency", "description", "expires_at", "invoice_kind", "organization_id", "provider_id", "provider_idempotency_key", "saas_billing_account_id", "saas_billing_subscription_id", "service_period_ends_at", "service_period_starts_at", "status", "tariff_billing_period", "tariff_id", "tariff_name", "tariff_snapshot") ON TABLE "public"."saas_billing_invoices" TO "app_staff";
 GRANT UPDATE ("currency", "paid_at", "provider_checkout_url", "provider_id", "provider_idempotency_key", "provider_invoice_ref", "status", "tariff_billing_period", "tariff_id", "tariff_name", "tariff_snapshot", "updated_at") ON TABLE "public"."saas_billing_invoices" TO "app_staff";
--- последовательности public.saas_billing_invoices: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_billing_invoices: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13293,7 +13625,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."saas_billing_periods" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."saas_billing_periods" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."saas_billing_periods" TO "app_platform_settings";
 GRANT SELECT ON TABLE "public"."saas_billing_periods" TO "app_staff";
--- последовательности public.saas_billing_periods: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_billing_periods: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13331,7 +13663,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."saas_billing_provider_events" FROM "app
 GRANT SELECT ON TABLE "public"."saas_billing_provider_events" TO "app_staff";
 GRANT INSERT ("event_type", "organization_id", "provider_event_id", "provider_id", "raw_payload", "saas_billing_invoice_id") ON TABLE "public"."saas_billing_provider_events" TO "app_staff";
 GRANT UPDATE ("processed_at") ON TABLE "public"."saas_billing_provider_events" TO "app_staff";
--- последовательности public.saas_billing_provider_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_billing_provider_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13370,7 +13702,7 @@ GRANT SELECT ("amount_minor", "confirmed_at", "created_at", "currency", "id", "o
 GRANT SELECT ON TABLE "public"."saas_billing_refunds" TO "app_staff";
 GRANT INSERT ("amount_minor", "currency", "organization_id", "provider_id", "provider_idempotency_key", "saas_billing_invoice_id", "status") ON TABLE "public"."saas_billing_refunds" TO "app_staff";
 GRANT UPDATE ("confirmed_at", "provider_refund_ref", "status", "updated_at") ON TABLE "public"."saas_billing_refunds" TO "app_staff";
--- последовательности public.saas_billing_refunds: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_billing_refunds: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13415,7 +13747,7 @@ GRANT INSERT ("current_period_ends_at", "current_period_starts_at", "id", "lifec
 GRANT SELECT ON TABLE "public"."saas_billing_subscriptions" TO "app_staff";
 GRANT INSERT ("current_period_ends_at", "current_period_starts_at", "lifecycle_state", "organization_id", "pending_tariff_id", "saas_billing_account_id", "source", "status", "tariff_id", "tariff_snapshot") ON TABLE "public"."saas_billing_subscriptions" TO "app_staff";
 GRANT UPDATE ("autopay_consent_text", "autopay_consented_at", "autopay_revoked_at", "cancelled_at", "current_period_ends_at", "current_period_starts_at", "lifecycle_state", "paid_additional_seats", "pending_tariff_id", "saved_payment_method_id", "status", "tariff_id", "tariff_snapshot", "updated_at") ON TABLE "public"."saas_billing_subscriptions" TO "app_staff";
--- последовательности public.saas_billing_subscriptions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_billing_subscriptions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13457,7 +13789,7 @@ GRANT DELETE ON TABLE "public"."saas_isolation_coverage_runs" TO "saas_telemetry
 GRANT SELECT ("checks_count", "finished_at", "id", "services_checked", "started_at", "status", "unexpected_errors_count") ON TABLE "public"."saas_isolation_coverage_runs" TO "saas_telemetry_owner";
 GRANT SELECT ("id") ON TABLE "public"."saas_isolation_coverage_runs" TO "saas_telemetry_owner";
 GRANT INSERT ("checks_count", "finished_at", "id", "services_checked", "started_at", "status", "unexpected_errors_count") ON TABLE "public"."saas_isolation_coverage_runs" TO "saas_telemetry_owner";
--- последовательности public.saas_isolation_coverage_runs: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_isolation_coverage_runs: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13498,7 +13830,7 @@ GRANT SELECT ("event_id") ON TABLE "public"."saas_isolation_event_hourly" TO "sa
 GRANT SELECT ("bucket_start", "occurrence_count") ON TABLE "public"."saas_isolation_event_hourly" TO "saas_telemetry_owner";
 GRANT SELECT ("bucket_start", "event_id", "occurrence_count") ON TABLE "public"."saas_isolation_event_hourly" TO "saas_telemetry_owner";
 GRANT INSERT ("bucket_start", "event_id", "occurrence_count") ON TABLE "public"."saas_isolation_event_hourly" TO "saas_telemetry_owner";
--- последовательности public.saas_isolation_event_hourly: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_isolation_event_hourly: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13541,7 +13873,7 @@ GRANT SELECT ("event_class", "explanation_status", "fingerprint", "first_seen_at
 GRANT INSERT ("event_class", "explanation_status", "fingerprint", "id", "last_seen_at", "lifecycle_status", "occurrence_count", "resolved_at", "source_operation", "source_service") ON TABLE "public"."saas_isolation_events" TO "saas_telemetry_owner";
 GRANT INSERT ("event_class", "explanation_status", "fingerprint", "first_seen_at", "id", "last_seen_at", "lifecycle_status", "occurrence_count", "source_operation", "source_service") ON TABLE "public"."saas_isolation_events" TO "saas_telemetry_owner";
 GRANT UPDATE ("id", "last_seen_at", "lifecycle_status", "resolved_at", "source_service") ON TABLE "public"."saas_isolation_events" TO "saas_telemetry_owner";
--- последовательности public.saas_isolation_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_isolation_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13583,7 +13915,7 @@ GRANT SELECT ("enabled", "expires_at", "id", "mechanic", "organization_id", "quo
 GRANT SELECT, DELETE ON TABLE "public"."saas_org_entitlement_overrides" TO "app_staff";
 GRANT INSERT ("enabled", "expires_at", "mechanic", "organization_id", "quota", "updated_at") ON TABLE "public"."saas_org_entitlement_overrides" TO "app_staff";
 GRANT UPDATE ("enabled", "expires_at", "mechanic", "organization_id", "quota", "updated_at") ON TABLE "public"."saas_org_entitlement_overrides" TO "app_staff";
--- последовательности public.saas_org_entitlement_overrides: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_org_entitlement_overrides: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13629,7 +13961,7 @@ GRANT INSERT ("created_by", "discount_ends_at", "ends_at", "id", "organization_i
 GRANT SELECT ON TABLE "public"."saas_organization_trials" TO "app_staff";
 GRANT INSERT ("created_by", "discount_ends_at", "ends_at", "organization_id", "post_trial_behavior", "post_trial_tariff_id", "started_at", "tariff_id") ON TABLE "public"."saas_organization_trials" TO "app_staff";
 GRANT UPDATE ("status", "updated_at") ON TABLE "public"."saas_organization_trials" TO "app_staff";
--- последовательности public.saas_organization_trials: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.saas_organization_trials: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13669,6 +14001,22 @@ ALTER TABLE "public"."saas_paid_period_policy" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."saas_paid_period_policy" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."saas_paid_period_policy" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("created_at", "is_active", "key", "post_paid_period_behavior", "post_paid_period_tariff_id") ON TABLE "public"."saas_paid_period_policy" TO "app_seam_org_commerce_owner";
+-- последовательности public.saas_paid_period_policy: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.saas_paid_period_policy'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -13689,6 +14037,22 @@ ALTER TABLE "public"."saas_registration_tariff_policy" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."saas_registration_tariff_policy" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."saas_registration_tariff_policy" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("key", "tariff_id", "updated_at") ON TABLE "public"."saas_registration_tariff_policy" TO "app_seam_specialist_provision_owner";
+-- последовательности public.saas_registration_tariff_policy: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.saas_registration_tariff_policy'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -13711,6 +14075,22 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."saas_tariffs" FROM "app_clinic_billing"
 GRANT SELECT ("id") ON TABLE "public"."saas_tariffs" TO "app_seam_org_commerce_owner";
 GRANT SELECT ("created_at", "id", "included_seats", "mechanics", "updated_at") ON TABLE "public"."saas_tariffs" TO "app_seam_org_invite_owner";
 GRANT SELECT ("id", "is_active", "updated_at") ON TABLE "public"."saas_tariffs" TO "app_seam_specialist_provision_owner";
+-- последовательности public.saas_tariffs: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.saas_tariffs'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -13731,6 +14111,22 @@ ALTER TABLE "public"."saas_trial_policy" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."saas_trial_policy" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."saas_trial_policy" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("discount_window_days", "duration_days", "is_active", "key", "post_trial_behavior", "post_trial_tariff_id", "start_event", "updated_at") ON TABLE "public"."saas_trial_policy" TO "app_seam_specialist_provision_owner";
+-- последовательности public.saas_trial_policy: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.saas_trial_policy'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN
@@ -13774,7 +14170,7 @@ GRANT SELECT ("challenge_id", "id", "organization_slug", "status", "user_id") ON
 GRANT INSERT ("challenge_id", "email_normalized", "id", "organization_slug", "organization_title", "specialist_full_name", "user_id") ON TABLE "public"."specialist_signup_intents" TO "app_seam_specialist_provision_owner";
 GRANT UPDATE ("challenge_id", "created_at", "id", "organization_slug", "organization_title", "provisioned_at", "provisioned_membership_id", "provisioned_organization_id", "provisioned_specialist_id", "specialist_full_name", "status", "user_id") ON TABLE "public"."specialist_signup_intents" TO "app_seam_specialist_provision_owner";
 GRANT UPDATE ("challenge_id", "id", "organization_slug", "status", "user_id") ON TABLE "public"."specialist_signup_intents" TO "app_seam_specialist_provision_owner";
--- последовательности public.specialist_signup_intents: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.specialist_signup_intents: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13819,7 +14215,7 @@ GRANT UPDATE ("completed_at", "description", "due_at", "is_important", "organiza
 GRANT SELECT ("id", "organization_id", "owner_user_id", "remind_at", "reminder_sent_at", "title") ON TABLE "public"."specialist_tasks" TO "app_tenant_service";
 GRANT INSERT ("id", "organization_id", "owner_user_id", "remind_at", "title") ON TABLE "public"."specialist_tasks" TO "app_tenant_service";
 GRANT UPDATE ("reminder_sent_at") ON TABLE "public"."specialist_tasks" TO "app_tenant_service";
--- последовательности public.specialist_tasks: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.specialist_tasks: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13873,7 +14269,7 @@ GRANT UPDATE ("failed_attempts", "locked_until", "login_challenge_expires_at", "
 GRANT UPDATE ("failed_attempts", "locked_until", "login_challenge_expires_at", "login_challenge_hash", "updated_at", "user_id") ON TABLE "public"."staff_security_profiles" TO "app_seam_staff_security_owner";
 GRANT UPDATE ("failed_attempts", "locked_until", "updated_at", "user_id") ON TABLE "public"."staff_security_profiles" TO "app_seam_staff_security_owner";
 GRANT UPDATE ("login_challenge_expires_at", "login_challenge_hash", "session_version", "updated_at", "user_id") ON TABLE "public"."staff_security_profiles" TO "app_seam_staff_security_owner";
--- последовательности public.staff_security_profiles: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.staff_security_profiles: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13916,7 +14312,7 @@ GRANT UPDATE ("conversation_id", "read_at") ON TABLE "public"."support_conversat
 GRANT SELECT ("conversation_id", "created_at", "external_chat_id", "external_message_id", "id", "integrator_message_id", "message_type", "organization_id", "sender_role", "source", "text") ON TABLE "public"."support_conversation_messages" TO "app_tenant_service";
 GRANT INSERT ("conversation_id", "created_at", "external_chat_id", "external_message_id", "integrator_message_id", "message_type", "organization_id", "sender_role", "source", "text") ON TABLE "public"."support_conversation_messages" TO "app_tenant_service";
 GRANT UPDATE ("conversation_id") ON TABLE "public"."support_conversation_messages" TO "app_tenant_service";
--- последовательности public.support_conversation_messages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.support_conversation_messages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -13965,7 +14361,7 @@ GRANT DELETE ON TABLE "public"."support_conversations" TO "app_tenant_service";
 GRANT SELECT ("admin_scope", "channel_code", "channel_external_id", "close_reason", "closed_at", "id", "integrator_conversation_id", "last_message_at", "opened_at", "organization_id", "platform_user_id", "source", "status", "updated_at") ON TABLE "public"."support_conversations" TO "app_tenant_service";
 GRANT INSERT ("admin_scope", "channel_code", "channel_external_id", "integrator_conversation_id", "last_message_at", "opened_at", "organization_id", "platform_user_id", "source", "status") ON TABLE "public"."support_conversations" TO "app_tenant_service";
 GRANT UPDATE ("close_reason", "closed_at", "last_message_at", "organization_id", "platform_user_id", "status", "updated_at") ON TABLE "public"."support_conversations" TO "app_tenant_service";
--- последовательности public.support_conversations: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.support_conversations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14012,7 +14408,7 @@ GRANT SELECT ON TABLE "public"."support_delivery_events" TO "app_staff";
 GRANT INSERT ("attempt", "channel_code", "conversation_message_id", "correlation_id", "integrator_intent_event_id", "occurred_at", "organization_id", "payload_json", "reason", "status") ON TABLE "public"."support_delivery_events" TO "app_staff";
 GRANT SELECT ("attempt", "channel_code", "conversation_message_id", "correlation_id", "id", "integrator_intent_event_id", "occurred_at", "organization_id", "payload_json", "reason", "status") ON TABLE "public"."support_delivery_events" TO "app_tenant_service";
 GRANT INSERT ("attempt", "channel_code", "conversation_message_id", "correlation_id", "integrator_intent_event_id", "occurred_at", "organization_id", "payload_json", "reason", "status") ON TABLE "public"."support_delivery_events" TO "app_tenant_service";
--- последовательности public.support_delivery_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.support_delivery_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14054,7 +14450,7 @@ GRANT SELECT, DELETE ON TABLE "public"."support_question_messages" TO "app_staff
 GRANT INSERT ("created_at", "integrator_question_message_id", "organization_id", "question_id", "sender_role", "text") ON TABLE "public"."support_question_messages" TO "app_staff";
 GRANT SELECT ("created_at", "id", "integrator_question_message_id", "organization_id", "question_id", "sender_role", "text") ON TABLE "public"."support_question_messages" TO "app_tenant_service";
 GRANT INSERT ("created_at", "integrator_question_message_id", "organization_id", "question_id", "sender_role", "text") ON TABLE "public"."support_question_messages" TO "app_tenant_service";
--- последовательности public.support_question_messages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.support_question_messages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14098,7 +14494,7 @@ GRANT UPDATE ("answered_at", "conversation_id", "organization_id", "status", "up
 GRANT SELECT ("answered_at", "conversation_id", "created_at", "id", "integrator_question_id", "organization_id", "status", "updated_at") ON TABLE "public"."support_questions" TO "app_tenant_service";
 GRANT INSERT ("answered_at", "conversation_id", "created_at", "integrator_question_id", "organization_id", "status") ON TABLE "public"."support_questions" TO "app_tenant_service";
 GRANT UPDATE ("answered_at", "conversation_id", "organization_id", "status", "updated_at") ON TABLE "public"."support_questions" TO "app_tenant_service";
--- последовательности public.support_questions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.support_questions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14142,7 +14538,7 @@ GRANT INSERT ("entry_type", "notes", "patient_practice_completion_id", "platform
 GRANT UPDATE ("entry_type", "notes", "recorded_at", "value_0_10") ON TABLE "public"."symptom_entries" TO "app_staff";
 GRANT DELETE ON TABLE "public"."symptom_entries" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id", "tracking_id", "user_id") ON TABLE "public"."symptom_entries" TO "app_tenant_service";
--- последовательности public.symptom_entries: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.symptom_entries: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14186,7 +14582,7 @@ GRANT UPDATE ("deleted_at", "is_active", "symptom_title", "updated_at") ON TABLE
 GRANT DELETE ON TABLE "public"."symptom_trackings" TO "app_tenant_service";
 GRANT SELECT ("created_at", "deleted_at", "id", "is_active", "platform_user_id", "symptom_key", "updated_at", "user_id") ON TABLE "public"."symptom_trackings" TO "app_tenant_service";
 GRANT UPDATE ("deleted_at", "is_active", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."symptom_trackings" TO "app_tenant_service";
--- последовательности public.symptom_trackings: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.symptom_trackings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14241,7 +14637,7 @@ GRANT SELECT, DELETE ON TABLE "public"."system_settings" TO "app_staff";
 GRANT INSERT ("key", "organization_id", "scope", "updated_at", "updated_by", "value_json") ON TABLE "public"."system_settings" TO "app_staff";
 GRANT UPDATE ("updated_at", "updated_by", "value_json") ON TABLE "public"."system_settings" TO "app_staff";
 GRANT SELECT ("key", "organization_id", "scope", "updated_at", "value_json") ON TABLE "public"."system_settings" TO "saas_system_health_owner";
--- последовательности public.system_settings: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.system_settings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14284,7 +14680,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."system_settings_audit" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."system_settings_audit" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, INSERT ON TABLE "public"."system_settings_audit" TO "app_platform_settings";
 GRANT INSERT ("changed_by", "key", "new_value_json", "old_value_json", "organization_id", "scope", "source") ON TABLE "public"."system_settings_audit" TO "app_staff";
--- последовательности public.system_settings_audit: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.system_settings_audit: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14325,7 +14721,7 @@ GRANT INSERT ("instance_stage_item_id", "organization_id", "patient_user_id") ON
 GRANT UPDATE ("accepted_at", "accepted_by", "submitted_at") ON TABLE "public"."test_attempts" TO "app_staff";
 GRANT SELECT ("id", "instance_stage_item_id", "patient_user_id", "submitted_at") ON TABLE "public"."test_attempts" TO "app_tenant_service";
 GRANT UPDATE ("patient_user_id") ON TABLE "public"."test_attempts" TO "app_tenant_service";
--- последовательности public.test_attempts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.test_attempts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14366,7 +14762,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."test_results" FROM "app_clinic_billing"
 GRANT SELECT ON TABLE "public"."test_results" TO "app_staff";
 GRANT INSERT ("attempt_id", "decided_by", "normalized_decision", "organization_id", "raw_value", "test_id") ON TABLE "public"."test_results" TO "app_staff";
 GRANT UPDATE ("decided_by", "normalized_decision", "raw_value") ON TABLE "public"."test_results" TO "app_staff";
--- последовательности public.test_results: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.test_results: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14403,7 +14799,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."test_set_items" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."test_set_items" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."test_set_items" TO "app_staff";
 GRANT INSERT ("comment", "organization_id", "sort_order", "test_id", "test_set_id") ON TABLE "public"."test_set_items" TO "app_staff";
--- последовательности public.test_set_items: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.test_set_items: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14441,7 +14837,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."test_sets" FROM "app_clinic_billing", "
 GRANT SELECT ON TABLE "public"."test_sets" TO "app_staff";
 GRANT INSERT ("created_by", "description", "organization_id", "publication_status", "title") ON TABLE "public"."test_sets" TO "app_staff";
 GRANT UPDATE ("description", "is_archived", "organization_id", "publication_status", "title", "updated_at") ON TABLE "public"."test_sets" TO "app_staff";
--- последовательности public.test_sets: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.test_sets: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14479,7 +14875,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."tests" FROM "app_clinic_billing", "app_
 GRANT SELECT, DELETE ON TABLE "public"."tests" TO "app_staff";
 GRANT INSERT ("assessment_kind", "body_region_id", "created_by", "description", "media", "organization_id", "raw_text", "scoring", "tags", "test_type", "title") ON TABLE "public"."tests" TO "app_staff";
 GRANT UPDATE ("assessment_kind", "description", "is_archived", "media", "organization_id", "raw_text", "scoring", "tags", "test_type", "title", "updated_at") ON TABLE "public"."tests" TO "app_staff";
--- последовательности public.tests: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.tests: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14517,7 +14913,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_events" FROM "app_cli
 GRANT SELECT ON TABLE "public"."treatment_program_events" TO "app_staff";
 GRANT INSERT ("actor_id", "event_type", "instance_id", "organization_id", "payload", "reason", "target_id", "target_type") ON TABLE "public"."treatment_program_events" TO "app_staff";
 GRANT INSERT ("actor_id", "event_type", "instance_id", "organization_id", "payload", "reason", "target_id", "target_type") ON TABLE "public"."treatment_program_events" TO "app_tenant_service";
--- последовательности public.treatment_program_events: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_events: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14557,7 +14953,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_instance_stage_groups
 GRANT SELECT, DELETE ON TABLE "public"."treatment_program_instance_stage_groups" TO "app_staff";
 GRANT INSERT ("description", "organization_id", "schedule_text", "sort_order", "source_group_id", "stage_id", "system_kind", "title") ON TABLE "public"."treatment_program_instance_stage_groups" TO "app_staff";
 GRANT UPDATE ("description", "schedule_text", "sort_order") ON TABLE "public"."treatment_program_instance_stage_groups" TO "app_staff";
--- последовательности public.treatment_program_instance_stage_groups: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_instance_stage_groups: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14597,7 +14993,7 @@ GRANT INSERT ("comment", "completed_at", "created_at", "group_id", "is_actionabl
 GRANT UPDATE ("comment", "completed_at", "created_at", "group_id", "is_actionable", "item_ref_id", "item_type", "last_viewed_at", "local_comment", "settings", "snapshot", "sort_order", "status") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_staff";
 GRANT SELECT ("completed_at", "id", "item_ref_id", "item_type", "last_viewed_at", "sort_order", "stage_id", "status") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_tenant_service";
 GRANT UPDATE ("completed_at", "last_viewed_at") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_tenant_service";
--- последовательности public.treatment_program_instance_stage_items: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_instance_stage_items: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14640,7 +15036,7 @@ GRANT INSERT ("description", "expected_duration_days", "expected_duration_text",
 GRANT UPDATE ("description", "goals", "objectives", "skip_reason", "sort_order", "started_at", "status") ON TABLE "public"."treatment_program_instance_stages" TO "app_staff";
 GRANT SELECT ("id", "instance_id", "sort_order", "source_stage_id", "started_at", "status") ON TABLE "public"."treatment_program_instance_stages" TO "app_tenant_service";
 GRANT UPDATE ("started_at", "status") ON TABLE "public"."treatment_program_instance_stages" TO "app_tenant_service";
--- последовательности public.treatment_program_instance_stages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_instance_stages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14685,7 +15081,7 @@ GRANT INSERT ("assigned_by", "assignment_source", "organization_id", "patient_us
 GRANT UPDATE ("status", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_staff";
 GRANT SELECT ("assignment_source", "id", "organization_id", "patient_plan_last_opened_at", "patient_user_id", "status", "template_id", "title", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_tenant_service";
 GRANT UPDATE ("patient_plan_last_opened_at", "patient_user_id", "status", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_tenant_service";
--- последовательности public.treatment_program_instances: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_instances: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14729,7 +15125,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_template_stage_groups
 GRANT SELECT, DELETE ON TABLE "public"."treatment_program_template_stage_groups" TO "app_staff";
 GRANT INSERT ("description", "organization_id", "schedule_text", "sort_order", "stage_id", "system_kind", "title") ON TABLE "public"."treatment_program_template_stage_groups" TO "app_staff";
 GRANT UPDATE ("description", "organization_id", "schedule_text", "sort_order") ON TABLE "public"."treatment_program_template_stage_groups" TO "app_staff";
--- последовательности public.treatment_program_template_stage_groups: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_template_stage_groups: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14767,7 +15163,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_template_stage_items"
 GRANT SELECT, DELETE ON TABLE "public"."treatment_program_template_stage_items" TO "app_staff";
 GRANT INSERT ("comment", "group_id", "item_ref_id", "item_type", "organization_id", "settings", "sort_order", "stage_id") ON TABLE "public"."treatment_program_template_stage_items" TO "app_staff";
 GRANT UPDATE ("comment", "group_id", "item_ref_id", "item_type", "organization_id", "settings", "sort_order") ON TABLE "public"."treatment_program_template_stage_items" TO "app_staff";
--- последовательности public.treatment_program_template_stage_items: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_template_stage_items: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14805,7 +15201,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_template_stages" FROM
 GRANT SELECT, DELETE ON TABLE "public"."treatment_program_template_stages" TO "app_staff";
 GRANT INSERT ("description", "expected_duration_days", "expected_duration_text", "goals", "objectives", "organization_id", "sort_order", "template_id", "title") ON TABLE "public"."treatment_program_template_stages" TO "app_staff";
 GRANT UPDATE ("description", "expected_duration_days", "expected_duration_text", "goals", "objectives", "organization_id", "sort_order", "title") ON TABLE "public"."treatment_program_template_stages" TO "app_staff";
--- последовательности public.treatment_program_template_stages: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_template_stages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14843,7 +15239,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_templates" FROM "app_
 GRANT SELECT, DELETE ON TABLE "public"."treatment_program_templates" TO "app_staff";
 GRANT INSERT ("created_by", "description", "organization_id", "status", "title") ON TABLE "public"."treatment_program_templates" TO "app_staff";
 GRANT UPDATE ("description", "organization_id", "status", "title", "updated_at") ON TABLE "public"."treatment_program_templates" TO "app_staff";
--- последовательности public.treatment_program_templates: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.treatment_program_templates: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14895,7 +15291,7 @@ GRANT DELETE ON TABLE "public"."user_channel_bindings" TO "app_tenant_service";
 GRANT SELECT ("bot_blocked_at", "bot_blocked_reason", "channel_code", "display_handle", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_tenant_service";
 GRANT INSERT ("bot_blocked_at", "bot_blocked_reason", "channel_code", "display_handle", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_tenant_service";
 GRANT UPDATE ("bot_blocked_at", "bot_blocked_reason", "display_handle", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_tenant_service";
--- последовательности public.user_channel_bindings: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_channel_bindings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14951,7 +15347,7 @@ GRANT DELETE ON TABLE "public"."user_channel_preferences" TO "app_tenant_service
 GRANT SELECT ("channel_code", "id", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_tenant_service";
 GRANT INSERT ("channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_tenant_service";
 GRANT UPDATE ("is_enabled_for_messages", "is_enabled_for_notifications", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_tenant_service";
--- последовательности public.user_channel_preferences: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_channel_preferences: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -14999,7 +15395,7 @@ GRANT SELECT, DELETE ON TABLE "public"."user_contacts" TO "app_staff";
 GRANT DELETE ON TABLE "public"."user_contacts" TO "app_tenant_service";
 GRANT SELECT ("confirmed_at", "contact_kind", "created_at", "id", "is_primary", "platform_user_id", "source_origin", "updated_at", "value_normalized") ON TABLE "public"."user_contacts" TO "app_tenant_service";
 GRANT INSERT ("confirmed_at", "contact_kind", "is_primary", "platform_user_id", "source_origin", "updated_at", "value_normalized") ON TABLE "public"."user_contacts" TO "app_tenant_service";
--- последовательности public.user_contacts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_contacts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15061,7 +15457,7 @@ GRANT SELECT ON TABLE "public"."user_identity" TO "app_staff";
 GRANT SELECT ("birth_date", "display_name", "first_name", "last_name", "patronymic", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_tenant_service";
 GRANT INSERT ("birth_date", "display_name", "first_name", "last_name", "patronymic", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_tenant_service";
 GRANT UPDATE ("birth_date", "display_name", "first_name", "last_name", "patronymic", "updated_at") ON TABLE "public"."user_identity" TO "app_tenant_service";
--- последовательности public.user_identity: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_identity: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15114,7 +15510,7 @@ GRANT DELETE ON TABLE "public"."user_notification_topic_channels" TO "app_tenant
 GRANT SELECT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_tenant_service";
 GRANT INSERT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_tenant_service";
 GRANT UPDATE ("is_enabled", "updated_at") ON TABLE "public"."user_notification_topic_channels" TO "app_tenant_service";
--- последовательности public.user_notification_topic_channels: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_notification_topic_channels: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15167,7 +15563,7 @@ GRANT DELETE ON TABLE "public"."user_notification_topics" TO "app_tenant_service
 GRANT SELECT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_tenant_service";
 GRANT INSERT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_tenant_service";
 GRANT UPDATE ("is_enabled", "updated_at") ON TABLE "public"."user_notification_topics" TO "app_tenant_service";
--- последовательности public.user_notification_topics: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_notification_topics: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15213,7 +15609,7 @@ GRANT SELECT ("email", "provider", "provider_user_id", "user_id") ON TABLE "publ
 GRANT SELECT ("id", "provider", "user_id") ON TABLE "public"."user_oauth_bindings" TO "app_seam_oauth_owner";
 GRANT SELECT ("provider", "user_id") ON TABLE "public"."user_oauth_bindings" TO "app_seam_oauth_owner";
 GRANT INSERT ("email", "provider", "provider_user_id", "user_id") ON TABLE "public"."user_oauth_bindings" TO "app_seam_oauth_owner";
--- последовательности public.user_oauth_bindings: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_oauth_bindings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15251,7 +15647,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."user_passkey_accounts" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."user_passkey_accounts" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("user_handle", "user_id") ON TABLE "public"."user_passkey_accounts" TO "app_seam_passkey_owner";
 GRANT INSERT ("user_handle", "user_id") ON TABLE "public"."user_passkey_accounts" TO "app_seam_passkey_owner";
--- последовательности public.user_passkey_accounts: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_passkey_accounts: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15292,7 +15688,7 @@ GRANT SELECT ("challenge", "expected_origin", "expires_at", "id", "purpose", "rp
 GRANT SELECT ("challenge", "consumed_at", "expected_origin", "expires_at", "id", "purpose", "rp_id", "user_id") ON TABLE "public"."user_passkey_challenges" TO "app_seam_passkey_owner";
 GRANT INSERT ("challenge", "expected_origin", "expires_at", "id", "purpose", "rp_id", "user_id") ON TABLE "public"."user_passkey_challenges" TO "app_seam_passkey_owner";
 GRANT UPDATE ("challenge", "consumed_at", "expires_at", "id", "purpose", "user_id") ON TABLE "public"."user_passkey_challenges" TO "app_seam_passkey_owner";
--- последовательности public.user_passkey_challenges: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_passkey_challenges: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15335,7 +15731,7 @@ GRANT SELECT ("credential_id", "transports", "user_id") ON TABLE "public"."user_
 GRANT SELECT ("backed_up", "counter", "credential_id", "device_type", "public_key", "transports", "user_id") ON TABLE "public"."user_passkey_credentials" TO "app_seam_passkey_owner";
 GRANT INSERT ("backed_up", "counter", "credential_id", "device_type", "public_key", "transports", "user_id") ON TABLE "public"."user_passkey_credentials" TO "app_seam_passkey_owner";
 GRANT UPDATE ("backed_up", "counter", "credential_id", "device_type", "last_used_at", "user_id") ON TABLE "public"."user_passkey_credentials" TO "app_seam_passkey_owner";
--- последовательности public.user_passkey_credentials: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_passkey_credentials: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15381,7 +15777,7 @@ GRANT INSERT ("failed_attempts", "locked_until", "next_allowed_at", "password_ha
 GRANT UPDATE ("failed_attempts", "locked_until", "next_allowed_at", "password_hash", "updated_at", "user_id", "verification_lease_token", "verification_lease_until") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
 GRANT UPDATE ("failed_attempts", "locked_until", "next_allowed_at", "updated_at", "user_id", "verification_lease_token", "verification_lease_until") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
 GRANT UPDATE ("failed_attempts", "locked_until", "password_hash", "updated_at", "user_id") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
--- последовательности public.user_password_credentials: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_password_credentials: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15424,7 +15820,7 @@ GRANT UPDATE ("valid_to") ON TABLE "public"."user_phone_history" TO "app_staff";
 GRANT SELECT ("id", "phone_normalized", "platform_user_id", "source", "valid_from", "valid_to") ON TABLE "public"."user_phone_history" TO "app_tenant_service";
 GRANT INSERT ("organization_id", "phone_normalized", "platform_user_id", "source", "valid_from", "valid_to") ON TABLE "public"."user_phone_history" TO "app_tenant_service";
 GRANT UPDATE ("platform_user_id", "valid_to") ON TABLE "public"."user_phone_history" TO "app_tenant_service";
--- последовательности public.user_phone_history: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_phone_history: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15495,7 +15891,7 @@ GRANT DELETE ON TABLE "public"."user_web_push_subscriptions" TO "app_tenant_serv
 GRANT SELECT ("endpoint", "id", "updated_at", "user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_tenant_service";
 GRANT UPDATE ("user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_tenant_service";
 GRANT SELECT ("created_at", "id", "updated_at", "user_id") ON TABLE "public"."user_web_push_subscriptions" TO "saas_system_health_owner";
--- последовательности public.user_web_push_subscriptions: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
+-- последовательности public.user_web_push_subscriptions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
 BEGIN
@@ -15536,6 +15932,22 @@ ALTER TABLE "public"."webapp_schema_migrations" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."webapp_schema_migrations" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."webapp_schema_migrations" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."webapp_schema_migrations" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
+-- последовательности public.webapp_schema_migrations: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
+DO $bcb$
+DECLARE s regclass;
+BEGIN
+  FOR s IN SELECT DISTINCT d.objid::regclass
+             FROM pg_catalog.pg_depend d
+             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'
+            WHERE d.refobjid = 'public.webapp_schema_migrations'::regclass
+              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+              AND d.deptype IN ('a', 'i')
+            ORDER BY 1 LOOP
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_migrator", "bcb_test_integrator", "bcb_test_migrator", "bcb_test_webapp_global_admin", "bcb_test_webapp_patient", "bcb_test_webapp_staff", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
+  END LOOP;
+END
+$bcb$;
 DO $bcb$
 DECLARE p record;
 BEGIN

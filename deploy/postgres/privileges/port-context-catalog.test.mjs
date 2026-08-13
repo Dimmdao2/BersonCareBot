@@ -169,6 +169,44 @@ test('declared definer delegation propagates context without widening direct exe
   );
 });
 
+test('runtime gate reconciliation replaces single gates and validates every multi-context token', () => {
+  const sql = generatePrivilegesSql(declaration, 'bcb_webapp_dev');
+  assert.doesNotMatch(
+    sql,
+    /gate\.mode IN \('exact','exact_existing'\).*THEN CONTINUE/,
+  );
+  assert.match(
+    sql,
+    /guard_at := CASE gate\.mode[\s\S]*pg_catalog\.overlay\(routine\.prosrc, gate\.gate_expression/,
+  );
+  const multiContextRow = sql.match(
+    /\('app\.resolve_staff_workspace_memberships\(uuid\)', 'exact_existing',[^\n]+/,
+  )?.[0] ?? '';
+  for (const token of [
+    'app_seam_org_directory_owner',
+    'app_pre_session',
+    'pre_session',
+    'app_staff',
+    'staff',
+    'auth.staff-workspace.resolve',
+    'app.hash_port_typed_args',
+    'app.resolve_staff_workspace_memberships(uuid)',
+  ]) {
+    assert.ok(multiContextRow.includes(token), token);
+  }
+});
+
+test('dependent sequences are revoked even when the current table grants no writes', () => {
+  const sql = generatePrivilegesSql(declaration, 'bcb_webapp_dev');
+  const start = sql.indexOf('-- ── app.context_nonce_ledger');
+  const end = sql.indexOf('-- ── ', start + 4);
+  assert.ok(start >= 0 && end > start);
+  const section = sql.slice(start, end);
+  assert.match(section, /exact revoke/);
+  assert.match(section, /REVOKE ALL ON SEQUENCE/);
+  assert.doesNotMatch(section, /GRANT USAGE, SELECT ON SEQUENCE/);
+});
+
 test('catalog closure requires one exact owner policy on every private relation', () => {
   const sql = generateCatalogClosureVerifierSql(declaration, 'bersoncarebot_test');
   for (const [identity, relation] of Object.entries(declaration.portContext.privateRelations)) {

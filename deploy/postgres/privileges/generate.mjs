@@ -1708,7 +1708,17 @@ function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
         [row.targetRole, row.contextClass, row.purpose].join('\0'), row,
       ])).values()];
       if (tuples.length > 1) {
-        gates.push({ signature, mode: 'exact_existing', expression: '' });
+        gates.push({
+          signature,
+          mode: 'exact_existing',
+          expression: '',
+          expectedTokens: [...new Set([
+            fn.owner,
+            signature,
+            'app.hash_port_typed_args',
+            ...tuples.flatMap((tuple) => [tuple.targetRole, tuple.contextClass, tuple.purpose]),
+          ])].sort(),
+        });
         continue;
       }
       const row = tuples[0];
@@ -1719,6 +1729,7 @@ function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
         expression: `app.require_accepted_context(${lit(fn.owner)}::name, ${lit(row.targetRole)}::name, `
           + `${lit(row.contextClass)}::app.port_context_class, ${lit(row.purpose)}, ${hash}, `
           + `${lit(signature)}::regprocedure)`,
+        expectedTokens: [],
       });
       continue;
     }
@@ -1727,28 +1738,41 @@ function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
       mode: 'attested',
       expression: `app.require_attested_context_for_roles(${lit(fn.owner)}::name, `
         + `ARRAY[${allowedTargets.map((role) => `${lit(role)}::name`).join(', ')}]::name[])`,
+      expectedTokens: [],
     });
   }
   if (gates.length === 0) return '';
   const values = gates.map((gate) =>
-    `  (${lit(gate.signature)}, ${lit(gate.mode)}, ${lit(gate.expression)})`).join(',\n');
+    `  (${lit(gate.signature)}, ${lit(gate.mode)}, ${lit(gate.expression)}, ARRAY[${gate.expectedTokens.map(lit).join(', ')}]::text[])`).join(',\n');
   return [
     '-- Runtime definer body gate: exact named roots; attested target-role gate for relation operations.',
-    'CREATE TEMP TABLE bcb_runtime_definer_gates(signature text PRIMARY KEY, mode text NOT NULL, gate_expression text NOT NULL) ON COMMIT DROP;',
-    'INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression) VALUES', values, ';',
+    'CREATE TEMP TABLE bcb_runtime_definer_gates(signature text PRIMARY KEY, mode text NOT NULL, gate_expression text NOT NULL, expected_tokens text[] NOT NULL) ON COMMIT DROP;',
+    'INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression,expected_tokens) VALUES', values, ';',
     'DO $bcb$',
-    'DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer;',
+    'DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer; guard_source text; missing_token text;',
     'BEGIN',
     '  FOR gate IN SELECT * FROM bcb_runtime_definer_gates ORDER BY signature LOOP',
     '    SELECT p.oid, p.prosrc, l.lanname INTO routine',
     '      FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_language l ON l.oid=p.prolang',
     '     WHERE p.oid=pg_catalog.to_regprocedure(gate.signature);',
     "    IF routine.oid IS NULL THEN RAISE EXCEPTION 'runtime definer gate target missing: %',gate.signature; END IF;",
-    "    IF gate.mode IN ('exact','exact_existing') AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;",
-    "    IF gate.mode='attested' AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;",
-    "    IF gate.mode='exact_existing' THEN RAISE EXCEPTION 'multi-capability named root lacks a hand-written exact gate: %',gate.signature; END IF;",
-    "    IF gate.mode='attested' AND position('app.require_attested_context_for_roles' IN routine.prosrc)>0 THEN",
-    "      guard_at := position('app.require_attested_context_for_roles' IN routine.prosrc);",
+    "    IF gate.mode='exact_existing' THEN",
+    "      guard_at := position('app.require_accepted_context' IN routine.prosrc);",
+    "      IF guard_at=0 THEN RAISE EXCEPTION 'multi-capability named root lacks a hand-written exact gate: %',gate.signature; END IF;",
+    "      guard_length := position(';' IN pg_catalog.substr(routine.prosrc, guard_at)) - 1;",
+    "      IF guard_length<1 THEN RAISE EXCEPTION 'multi-capability named root lacks a replaceable hand-written exact gate: %',gate.signature; END IF;",
+    "      guard_source := pg_catalog.substr(routine.prosrc, guard_at, guard_length);",
+    "      SELECT token INTO missing_token FROM pg_catalog.unnest(gate.expected_tokens) token WHERE position(token IN guard_source)=0 ORDER BY token LIMIT 1;",
+    "      IF missing_token IS NOT NULL THEN RAISE EXCEPTION 'multi-capability exact gate token mismatch for %: %',gate.signature,missing_token; END IF;",
+    "      CONTINUE;",
+    "    END IF;",
+    "    guard_at := CASE gate.mode",
+    "      WHEN 'exact' THEN position('app.require_accepted_context' IN routine.prosrc)",
+    "      ELSE position('app.require_attested_context_for_roles' IN routine.prosrc) END;",
+    "    IF guard_at=0 THEN guard_at := CASE gate.mode",
+    "      WHEN 'exact' THEN position('app.require_attested_context_for_roles' IN routine.prosrc)",
+    "      ELSE position('app.require_accepted_context' IN routine.prosrc) END; END IF;",
+    "    IF guard_at>0 THEN",
     "      guard_length := position(';' IN pg_catalog.substr(routine.prosrc, guard_at)) - 1;",
     "      IF guard_at=0 OR guard_length<1 THEN RAISE EXCEPTION 'existing runtime definer gate is not replaceable: %',gate.signature; END IF;",
     "      new_source := pg_catalog.overlay(routine.prosrc, gate.gate_expression, guard_at, guard_length);",
@@ -2151,31 +2175,29 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
         ? e === 'INSERT' || e === 'UPDATE'
         : e?.kind === 'columns' && (e.priv === 'INSERT' || e.priv === 'UPDATE')),
     ));
-    if (seqRoles.length > 0) {
-      out.push(
-        `-- последовательности ${tableKey}: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)`,
-        'DO $bcb$',
-        'DECLARE s regclass;',
-        'BEGIN',
-        '  FOR s IN SELECT DISTINCT d.objid::regclass',
-        '             FROM pg_catalog.pg_depend d',
-        "             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'",
-        `            WHERE d.refobjid = ${lit(`${schema}.${name}`)}::regclass`,
-        "              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass",
-        "              AND d.deptype IN ('a', 'i')",
-        '            ORDER BY 1 LOOP',
-        "    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);",
-        ...(tableRevoke.length > 0
-          ? [`    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM ${nestedLit(revokeList(tableRevoke))}', s);`]
-          : []),
-        ...seqRoles.map(
-          (r) => `    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO ${nestedLit(q(r))}', s);`,
-        ),
-        '  END LOOP;',
-        'END',
-        '$bcb$;',
-      );
-    }
+    out.push(
+      `-- последовательности ${tableKey}: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях`,
+      'DO $bcb$',
+      'DECLARE s regclass;',
+      'BEGIN',
+      '  FOR s IN SELECT DISTINCT d.objid::regclass',
+      '             FROM pg_catalog.pg_depend d',
+      "             JOIN pg_catalog.pg_class c ON c.oid = d.objid AND c.relkind = 'S'",
+      `            WHERE d.refobjid = ${lit(`${schema}.${name}`)}::regclass`,
+      "              AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass",
+      "              AND d.deptype IN ('a', 'i')",
+      '            ORDER BY 1 LOOP',
+      "    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);",
+      ...(tableRevoke.length > 0
+        ? [`    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM ${nestedLit(revokeList(tableRevoke))}', s);`]
+        : []),
+      ...seqRoles.map(
+        (r) => `    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO ${nestedLit(q(r))}', s);`,
+      ),
+      '  END LOOP;',
+      'END',
+      '$bcb$;',
+    );
 
     // политики: полное переприменение — снять ВСЕ, поставить объявленные
     out.push(
