@@ -2956,7 +2956,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     purpose: 'patient reads only its own messenger binding channel and creation time for account authentication settings',
     codePaths: ['apps/webapp/src/infra/repos/pgChannelPreferences.ts#getDefaultAuthOtpChannel'],
     grants: [
-      { role: 'app_patient', operations: ['SELECT'], columns: ['channel_code', 'created_at', 'user_id'] },
+      { role: 'app_patient', operations: ['SELECT'],
+        columns: ['channel_code', 'created_at', 'external_id', 'user_id'] },
     ],
   },
   'public.user_web_push_subscriptions': {
@@ -3490,6 +3491,7 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.content_pages') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_published = true AND archived_at IS NULL AND deleted_at IS NULL ELSE false END)";
   if (tableKey === 'public.content_sections') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_visible = true ELSE false END)";
   if (tableKey === 'public.content_section_slug_history') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = app.current_org_id())";
+  if (tableKey === 'public.support_conversations') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() AND (organization_id IS NULL OR organization_id = app.current_org_id()) ELSE false END)";
   if (tableKey === 'public.be_organizations') return "(current_user IN ('app_staff'::name, 'app_clinic_billing'::name) AND id = app.current_org_id())";
   if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
   if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
@@ -3618,7 +3620,7 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       .replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()', '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
       'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
-      'public.content_section_slug_history']).has(key);
+      'public.content_section_slug_history', 'public.support_conversations']).has(key);
     const directRoles = access?.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
     const ordinaryDirectRoles = directRoles.filter((role) =>
       !['app_tenant_service'].includes(role));

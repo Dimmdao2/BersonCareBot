@@ -423,6 +423,17 @@ test('patient page relations have exact self/current-clinic access and published
   );
   assert.equal(patientMessages.some((grant) => grant.operations.includes('DELETE')), false);
 
+  assert.deepEqual(
+    tables['public.user_channel_bindings'].access.grants.find((grant) =>
+      grant.role === 'app_patient' && grant.operations.includes('SELECT'))?.columns,
+    ['channel_code', 'created_at', 'external_id', 'user_id'],
+  );
+
+  const supportPolicy = tables['public.support_conversations'].policies.find((policy) =>
+    policy.name.startsWith('rev10_direct_business_'));
+  assert.match(supportPolicy?.using ?? '', /platform_user_id = app\.current_patient_user_id\(\)/);
+  assert.match(supportPolicy?.using ?? '', /organization_id IS NULL OR organization_id = app\.current_org_id\(\)/);
+
   const programs = tables['public.treatment_program_instances'].access.grants
     .filter((grant) => grant.role === 'app_patient');
   assert.deepEqual(programs.flatMap((grant) => grant.operations), ['SELECT']);
