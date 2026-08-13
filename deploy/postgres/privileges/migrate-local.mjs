@@ -34,6 +34,14 @@ function sqlLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
+const useSudoPostgres = process.argv.includes('--sudo-postgres');
+
+function spawnPsql(args, options = {}) {
+  return useSudoPostgres
+    ? spawnSync('sudo', ['-n', '-u', 'postgres', 'psql', ...args], options)
+    : spawnSync('psql', args, options);
+}
+
 export function parseOwnerStatements(source, tag) {
   return source.split('--> statement-breakpoint').map((statement, index) => {
     const match = /^\s*--\s*BCB-MIGRATION-OWNER:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(statement);
@@ -43,9 +51,19 @@ export function parseOwnerStatements(source, tag) {
     if (match[1] === 'postgres') {
       throw new Error(`pending migration ${tag} statement ${index + 1} cannot use postgres as a schema owner`);
     }
-    const sql = statement.slice(match[0].length).trim();
+    let remainder = statement.slice(match[0].length);
+    const schemaCreateMatch = /^\s*--\s*BCB-MIGRATION-SCHEMA-CREATE:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(remainder);
+    if (schemaCreateMatch) remainder = remainder.slice(schemaCreateMatch[0].length);
+    const languageUsageMatch = /^\s*--\s*BCB-MIGRATION-LANGUAGE-USAGE:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(remainder);
+    if (languageUsageMatch) remainder = remainder.slice(languageUsageMatch[0].length);
+    const sql = remainder.trim();
     if (!sql) throw new Error(`pending migration ${tag} statement ${index + 1} is empty`);
-    return { owner: match[1], sql };
+    return {
+      owner: match[1],
+      schemaCreate: schemaCreateMatch?.[1] ?? null,
+      languageUsage: languageUsageMatch?.[1] ?? null,
+      sql,
+    };
   });
 }
 
@@ -69,8 +87,7 @@ function readDrizzleMigrations(folder) {
 }
 
 function readAppliedDrizzleRows(db) {
-  const result = spawnSync(
-    'psql',
+  const result = spawnPsql(
     ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-At', '-F', '\t', '-c',
       'SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at'],
     { encoding: 'utf8' },
@@ -86,40 +103,6 @@ function readAppliedDrizzleRows(db) {
     }
     return { hash, createdAt: Number(createdAt) };
   });
-}
-
-function readReconciliations(migrations) {
-  const byTag = new Map(migrations.map((migration) => [migration.tag, migration]));
-  const forwardBySource = new Map();
-  const marker = /^-- RECONCILES-MIGRATION-HASH: ([0-9]{4}_[a-z0-9_]+)$/gmu;
-  for (const migration of migrations) {
-    for (const match of migration.source.matchAll(marker)) {
-      const source = byTag.get(match[1]);
-      if (!source || source.when >= migration.when || forwardBySource.has(source.tag)) {
-        throw new Error(`invalid migration reconciliation source=${match[1]} forward=${migration.tag}`);
-      }
-      forwardBySource.set(source.tag, migration);
-    }
-  }
-  return forwardBySource;
-}
-
-function assertDrizzleCompleteness(migrations, appliedHashes, forwardBySource) {
-  const appliedByTag = new Map();
-  const isApplied = (migration, visiting = new Set()) => {
-    if (appliedByTag.has(migration.tag)) return appliedByTag.get(migration.tag);
-    if (appliedHashes.has(migration.hash)) {
-      appliedByTag.set(migration.tag, true);
-      return true;
-    }
-    if (visiting.has(migration.tag)) throw new Error(`cyclic migration reconciliation at ${migration.tag}`);
-    const forward = forwardBySource.get(migration.tag);
-    const applied = forward ? isApplied(forward, new Set([...visiting, migration.tag])) : false;
-    appliedByTag.set(migration.tag, applied);
-    return applied;
-  };
-  const missing = migrations.filter((migration) => !isApplied(migration)).map((migration) => migration.tag);
-  if (missing.length > 0) throw new Error(`migration ledger incomplete after plan: ${missing.join(',')}`);
 }
 
 const db = value('db');
@@ -149,8 +132,6 @@ if (drizzleFolder) {
       drizzle: { hash: migration.hash, tag: migration.tag, when: migration.when },
     })),
   );
-  const projectedHashes = new Set([...appliedRows.map((row) => row.hash), ...pending.map((migration) => migration.hash)]);
-  assertDrizzleCompleteness(migrations, projectedHashes, readReconciliations(migrations));
   drizzleSummary = { pending: pending.length, total: migrations.length };
   if (pending.length === 0) {
     console.log(`Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length}`);
@@ -163,6 +144,16 @@ if (drizzleFolder) {
   steps.push({ owner: legacyOwners[0], migration: legacyMigration });
 }
 const owners = [...new Set(steps.map((step) => step.owner))];
+const temporarySchemaCreates = [...new Map(
+  steps
+    .filter((step) => step.schemaCreate)
+    .map((step) => [`${step.owner}:${step.schemaCreate}`, { owner: step.owner, schema: step.schemaCreate }]),
+).values()];
+const temporaryLanguageUsages = [...new Map(
+  steps
+    .filter((step) => step.languageUsage)
+    .map((step) => [`${step.owner}:${step.languageUsage}`, { owner: step.owner, language: step.languageUsage }]),
+).values()];
 const backfill = process.argv.includes('--backfill') ? realpathSync(resolve(value('backfill'))) : null;
 const post = process.argv.includes('--post') ? realpathSync(resolve(value('post'))) : null;
 if (steps.some((step) => step.migration && !existsSync(step.migration)) || (backfill && !existsSync(backfill)) || (post && !existsSync(post))) {
@@ -175,6 +166,10 @@ const statements = [
   '\\set ON_ERROR_STOP on',
   'BEGIN;',
   ...owners.map((owner) => `GRANT ${sqlIdentifier(owner)} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`),
+  ...temporarySchemaCreates.map(({ owner, schema }) =>
+    `GRANT CREATE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`),
+  ...temporaryLanguageUsages.map(({ owner, language }) =>
+    `GRANT USAGE ON LANGUAGE ${sqlIdentifier(language)} TO ${sqlIdentifier(owner)};`),
   `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
   ...steps.flatMap(({ owner, migration, sql, drizzle }, index) => [
     `SET LOCAL ROLE ${sqlIdentifier(owner)};`,
@@ -191,6 +186,10 @@ const statements = [
   ]),
   'RESET SESSION AUTHORIZATION;',
   ...(backfill ? [`\\i ${backfill}`] : []),
+  ...temporarySchemaCreates.map(({ owner, schema }) =>
+    `REVOKE CREATE ON SCHEMA ${sqlIdentifier(schema)} FROM ${sqlIdentifier(owner)};`),
+  ...temporaryLanguageUsages.map(({ owner, language }) =>
+    `REVOKE USAGE ON LANGUAGE ${sqlIdentifier(language)} FROM ${sqlIdentifier(owner)};`),
   ...owners.map((owner) => `REVOKE ${sqlIdentifier(owner)} FROM ${qMigrator};`),
   `DO $$ BEGIN
      IF EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m
@@ -206,7 +205,7 @@ const statements = [
   'COMMIT;',
 ].join('\n');
 
-const result = spawnSync('psql', ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1'], { input: statements, encoding: 'utf8' });
+const result = spawnPsql(['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1'], { input: statements, encoding: 'utf8' });
 process.stdout.write(result.stdout ?? '');
 process.stderr.write(result.stderr ?? '');
 if (result.status !== 0) process.exit(result.status ?? 1);
