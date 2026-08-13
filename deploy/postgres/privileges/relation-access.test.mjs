@@ -222,6 +222,34 @@ test('system settings grants follow semantic clinic/global walls', () => {
   assert.match(policies[1].withCheck, /organization_id = app\.current_org_id\(\)/);
 });
 
+test('runtime settings and account email use semantic row walls without broad patient identity access', () => {
+  const tables = declaration.databases.bersoncarebot_test.tables;
+  const runtime = tables['public.app_runtime_settings'];
+  assert.equal(runtime.access.kind, 'direct');
+  assert.deepEqual(
+    runtime.access.grants.find((grant) => grant.role === 'app_patient')?.operations,
+    ['SELECT'],
+  );
+  const runtimeSelect = runtime.policies.find((policy) =>
+    policy.name.startsWith('rev10_app_runtime_settings_select_'));
+  assert.match(runtimeSelect?.using ?? '', /audience IN \('public','authenticated_client'\)/);
+  assert.match(runtimeSelect?.using ?? '', /CASE WHEN organization_id IS NULL THEN true/);
+  assert.match(runtimeSelect?.using ?? '', /organization_id = app\.current_org_id\(\)/);
+
+  const users = tables['public.platform_users'];
+  assert.equal(users.access.kind, 'direct');
+  assert.deepEqual(
+    users.access.grants.find((grant) =>
+      grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
+    ['id', 'email', 'email_verified_at'],
+  );
+  const usersSelect = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_select_'));
+  assert.match(usersSelect?.using ?? '', /id = app\.current_patient_user_id\(\)/);
+  assert.match(usersSelect?.using ?? '', /be_organization_members/);
+  assert.match(usersSelect?.using ?? '', /app_platform_settings/);
+});
+
 test('tenant service has one command-aware D/M/P policy for every exact relation operation', () => {
   const expectedEdges = new Set();
   for (const [relation, access] of Object.entries(REV10_CLINICAL_ACCESS)) {

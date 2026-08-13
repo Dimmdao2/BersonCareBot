@@ -284,6 +284,7 @@ export function webappPortContextPrincipal(
       if (
         principal.kind !== 'patient' ||
         (!principal.organizationId &&
+          descriptor.purpose !== 'relation' &&
           descriptor.functionIdentity !== 'app.read_current_patient_active_organizations()')
       )
         throw new Error('Patient port context requires an organization-scoped patient principal');

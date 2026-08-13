@@ -2782,6 +2782,40 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
+  'public.app_runtime_settings': {
+    kind: 'direct',
+    purpose: 'patients read safe global/current-clinic runtime values; clinic staff manages current-clinic rows; platform settings manages global rows',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts',
+      'apps/webapp/src/modules/system-settings/service.ts',
+    ],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_staff', operations: ['INSERT'],
+        columns: ['key', 'scope', 'organization_id', 'audience', 'value_json', 'updated_at', 'updated_by'] },
+      { role: 'app_staff', operations: ['UPDATE'],
+        columns: ['audience', 'value_json', 'updated_at', 'updated_by'] },
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['INSERT'],
+        columns: ['key', 'scope', 'organization_id', 'audience', 'value_json', 'updated_at', 'updated_by'] },
+      { role: 'app_platform_settings', operations: ['UPDATE'],
+        columns: ['audience', 'value_json', 'updated_at', 'updated_by'] },
+    ],
+  },
+  'public.platform_users': {
+    kind: 'direct',
+    purpose: 'patient reads only own account email; clinic staff reads those fields only for current-clinic members; platform settings reads them for global administration',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgUserProjection.ts#getProfileEmailFields',
+      'apps/webapp/src/app/app/account/page.tsx',
+    ],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
+      { role: 'app_staff', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
+    ],
+  },
   'public.system_settings': {
     kind: 'direct',
     purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows',
@@ -2894,9 +2928,16 @@ function revision10RelationSeams(tableKey: string, dbName: string): NamedSeamAcc
 function revision10RelationAccess(tableKey: string, dbName: string): RelationAccess {
   const seams = revision10RelationSeams(tableKey, dbName);
   const clinical = REV10_CLINICAL_ACCESS[tableKey];
+  const systemDirect = REV10_SYSTEM_DIRECT_ACCESS[tableKey];
+  if (clinical?.kind === 'direct' && systemDirect) return {
+    kind: 'direct',
+    purpose: `${clinical.purpose}; ${systemDirect.purpose}`,
+    codePaths: [...new Set([...clinical.codePaths, ...systemDirect.codePaths])],
+    grants: [...clinical.grants, ...systemDirect.grants],
+    seams,
+  };
   if (clinical?.kind === 'direct') return { ...clinical, seams };
   if (clinical?.kind === 'no-runtime-surface') return clinical;
-  const systemDirect = REV10_SYSTEM_DIRECT_ACCESS[tableKey];
   if (systemDirect) return { ...systemDirect, seams };
   const noRuntime = REV10_NO_RUNTIME_ACCESS[tableKey];
   if (noRuntime) return noRuntime;
@@ -3251,6 +3292,29 @@ function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
   ];
 }
 
+function revision10AppRuntimeSettingsPolicies(index: number): PolicyDecl[] {
+  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN audience IN ('public','authenticated_client') AND CASE WHEN organization_id IS NULL THEN true ELSE organization_id = app.current_org_id() END WHEN current_user = 'app_staff'::name THEN CASE WHEN organization_id IS NULL THEN true ELSE organization_id = app.current_org_id() END WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  return [
+    { name: `rev10_app_runtime_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_patient', 'app_staff', 'app_platform_settings'], using: readWall,
+      note: 'safe runtime values follow patient audience and clinic/global row ownership' },
+    { name: `rev10_app_runtime_settings_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
+      to: ['app_staff', 'app_platform_settings'], withCheck: writeWall,
+      note: 'clinic staff writes current-clinic rows; platform settings writes global rows' },
+    { name: `rev10_app_runtime_settings_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
+      to: ['app_staff', 'app_platform_settings'], using: writeWall, withCheck: writeWall,
+      note: 'runtime settings cannot cross the clinic/global ownership boundary' },
+  ];
+}
+
+function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
+  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN id = app.current_patient_user_id() WHEN current_user = 'app_staff'::name THEN EXISTS (SELECT 1 FROM public.be_organization_members access_member WHERE access_member.platform_user_id = id AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active') WHEN current_user = 'app_platform_settings'::name THEN true ELSE false END)";
+  return [{ name: `rev10_platform_users_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+    to: ['app_patient', 'app_staff', 'app_platform_settings'], using: readWall,
+    note: 'patient self, current-clinic member, or global platform administration only' }];
+}
+
 function revision10SeamOwnerPolicy(tableKey: string, index: number, access: RelationAccess): PolicyDecl[] {
   const seams = access.kind === 'direct' || access.kind === 'named-seams' ? access.seams : [];
   const owners = [...new Set(seams.map((seam) => seam.owner))].sort();
@@ -3289,6 +3353,10 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const runtimeBusinessBase: PolicyDecl[] = !active ? []
       : key === 'public.system_settings' && access?.kind === 'direct'
         ? revision10SystemSettingsPolicies(index)
+      : key === 'public.app_runtime_settings' && access?.kind === 'direct'
+        ? revision10AppRuntimeSettingsPolicies(index)
+      : key === 'public.platform_users' && access?.kind === 'direct'
+        ? revision10PlatformUsersPolicies(index)
       : access?.kind === 'direct' && specialized ? directBusiness
       : access?.kind === 'direct' && locked && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_${locked.policyName}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,

@@ -298,8 +298,9 @@ function assertPrincipal(principal: PortContextPrincipal): void {
         !principal.subjectRef ||
         (!principal.organizationId &&
           !(
-            principal.purpose === 'patient.organization.resolve' &&
-            principal.functionIdentity === 'app.read_current_patient_active_organizations()'
+            principal.purpose === 'relation' ||
+            (principal.purpose === 'patient.organization.resolve' &&
+              principal.functionIdentity === 'app.read_current_patient_active_organizations()')
           )) ||
         principal.integratorUserId !== undefined ||
         principal.requestId

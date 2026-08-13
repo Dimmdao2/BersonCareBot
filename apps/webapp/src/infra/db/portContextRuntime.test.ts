@@ -258,7 +258,7 @@ describe('webapp port-context runtime', () => {
     });
   });
 
-  it('allows only the exact patient organization resolver before organization selection', () => {
+  it('allows patient self/global relation context and the exact organization resolver before organization selection', () => {
     const selected = runWithWebappPortOperation(
       {
         functionIdentity: patientOrganizationResolveCapability.functionIdentity!,
@@ -281,8 +281,7 @@ describe('webapp port-context runtime', () => {
       },
     });
     expect(selected.principal).not.toHaveProperty('organizationId');
-    expect(() =>
-      webappPortContextPrincipal(
+    const relation = webappPortContextPrincipal(
         { kind: 'patient', platformUserId: USER },
         {
           patient: {
@@ -292,11 +291,16 @@ describe('webapp port-context runtime', () => {
           },
         },
         OPAQUE_USER,
-      ),
-    ).toThrow('organization-scoped patient principal');
+      );
+    expect(relation.principal).toMatchObject({
+      targetRole: 'app_patient',
+      actorRef: OPAQUE_USER,
+      subjectRef: OPAQUE_USER,
+    });
+    expect(relation.principal).not.toHaveProperty('organizationId');
   });
 
-  it('destroys a checkout when patient principal projection rejects before transaction start', async () => {
+  it('installs a no-organization patient relation context for DB-enforced self/global policies', async () => {
     const log: string[] = [];
     const releases: Error[] = [];
     const pool = createWebappPoolProvider({
@@ -320,10 +324,9 @@ describe('webapp port-context runtime', () => {
       runWithDbPatientPrincipal({ platformUserId: USER }, () =>
         runPgPoolPgText(pool, 'SELECT must_not_run'),
       ),
-    ).rejects.toThrow('organization-scoped patient principal');
-    expect(log).not.toContain('SELECT must_not_run');
-    expect(releases).toHaveLength(1);
-    expect(releases[0]?.message).toContain('organization-scoped patient principal');
+    ).resolves.toBeDefined();
+    expect(log).toContain('SELECT must_not_run');
+    expect(releases).toHaveLength(0);
   });
 
   it('installs the explicit named descriptor and argument hash before a pool query', async () => {

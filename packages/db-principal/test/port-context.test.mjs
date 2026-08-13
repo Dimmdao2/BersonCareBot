@@ -137,7 +137,7 @@ test('accepts an exact named root for a staff context and installs its canonical
   );
 });
 
-test('allows only the exact patient organization resolver before organization selection', async () => {
+test('allows patient relation context and the exact organization resolver before organization selection', async () => {
   const { client, queries } = recordingClient();
   await withPortContextTransaction(
     client,
@@ -154,10 +154,9 @@ test('allows only the exact patient organization resolver before organization se
   );
   assert.ok(queries.some(([sql]) => sql.includes('app.install_port_context')));
 
-  const rejected = recordingClient();
-  await assert.rejects(
-    withPortContextTransaction(
-      rejected.client,
+  const relation = recordingClient();
+  await withPortContextTransaction(
+      relation.client,
       {
         capabilityId: '00000000-0000-0000-0000-000000000105',
         contextClass: 'patient',
@@ -167,10 +166,8 @@ test('allows only the exact patient organization resolver before organization se
         subjectRef: '00000000-0000-0000-0000-000000000010',
       },
       async () => undefined,
-    ),
-    /patient has an invalid claims matrix/,
   );
-  assert.deepEqual(rejected.queries, []);
+  assert.ok(relation.queries.some(([sql]) => sql.includes('app.install_port_context')));
 });
 
 test('destroys a checked-out client when principal validation fails before BEGIN', async () => {
