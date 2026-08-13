@@ -2738,6 +2738,13 @@
       "when": 1793539230137,
       "tag": "0394_measure_kinds_org_reference_catalog_local",
       "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1793539230138,
+      "tag": "0395_integrator_delivery_audit_capability_local",
+      "breakpoints": true
     }
   ]
 }

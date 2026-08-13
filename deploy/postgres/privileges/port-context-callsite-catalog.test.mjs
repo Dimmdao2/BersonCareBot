@@ -324,6 +324,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'config.integrator-provider.read', argCount: 1,
     source: 'apps/integrator/src/infra/db/publicSystemSettings.ts',
   },
+  'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)': {
+    port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+    purpose: 'delivery.attempt-audit', argCount: 9,
+    source: 'apps/integrator/src/infra/db/repos/messageLogs.ts',
+  },
   'app.read_integrator_auth_channel_setting(text)': {
     port: 'integrator', targetRole: 'app_service', contextClass: 'service',
     purpose: 'config.integrator-auth-channel.read', argCount: 1,

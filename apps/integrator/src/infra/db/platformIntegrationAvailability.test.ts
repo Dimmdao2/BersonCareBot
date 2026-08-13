@@ -3,6 +3,16 @@ import type { DbPort, DeliveryAdapter, OutgoingIntent } from '../../kernel/contr
 import { createDefaultDispatchPort } from '../adapters/dispatchPort.js';
 import { isPlatformIntegrationAvailable } from './platformIntegrationAvailability.js';
 
+const principalFakes = vi.hoisted(() => ({
+  runWithInfraPrincipal: vi.fn(
+    (_input: { source: string }, fn: () => unknown): unknown => fn(),
+  ),
+}));
+
+vi.mock('../principal/organizationPrincipal.js', () => ({
+  runWithInfraPrincipal: principalFakes.runWithInfraPrincipal,
+}));
+
 vi.mock('../../shared/devDeliveryRedirect.js', () => ({
   isDevRedirectActive: () => false,
 }));
@@ -57,6 +67,19 @@ function messageSendIntent(): OutgoingIntent {
 }
 
 describe('isPlatformIntegrationAvailable', () => {
+  it('always uses the delivery capability, including when called inside an organization flow', async () => {
+    principalFakes.runWithInfraPrincipal.mockClear();
+
+    await expect(
+      isPlatformIntegrationAvailable(availabilityDb(enabledAvailability), 'telegram'),
+    ).resolves.toBe(true);
+
+    expect(principalFakes.runWithInfraPrincipal).toHaveBeenCalledWith(
+      { source: 'delivery-handler' },
+      expect.any(Function),
+    );
+  });
+
   it('returns the canonical enabled and disabled values, including a valid false row', async () => {
     await expect(
       isPlatformIntegrationAvailable(availabilityDb(enabledAvailability), 'telegram'),

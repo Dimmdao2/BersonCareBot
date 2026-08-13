@@ -76,9 +76,12 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 - [x] Новый доступ на DEV применён; четыре независимых DEV-login проходят `/api/me`, patient/doctor/clinic-admin/
   global-admin representative pages завершаются `200`, включая тариф/биллинг клиники после
   `dd2d3dff3`; integrator `/health` и `/health/projection` возвращают `200`. После `bed5c1323` все 32 статических
-  patient route из живого census возвращают `200` без нового `ERROR/FATAL/PANIC` в PostgreSQL journal.
-  Исчерпывающая role/definer negative matrix, действия на страницах, полный проход staff/global-admin/integrator
-  и ручная проверка владельцем остаются открыты ниже.
+  patient route из живого census возвращают `200` без нового `ERROR/FATAL/PANIC` в PostgreSQL journal. Staff
+  render проверен на `260` role/path сочетаниях и `28/28` живых dynamic URL; global-admin — на `13` прямых
+  страницах, трёх ожидаемых redirect и живой dynamic clinic page. Signed integrator relay уже доказывает
+  `400` без headers, `401` с чужой подписью, `200 accepted`, durable `200 duplicate` и exact delivery audit
+  без внешней отправки. Исчерпывающая role/definer negative matrix, оставшиеся действия всех ролей, остальные
+  integrator routes и ручная проверка владельцем остаются открыты ниже.
 
 ### Исправление ошибочного ухода в пустую TEST
 
@@ -221,10 +224,12 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 - [x] Patient render/action slice: `32/32` статических patient routes дали `200`; support mark-read и
   reminder done/snooze/skip дали `4/4` HTTP `200`, а PostgreSQL state подтвердил все три изменения без новой
   строки системного журнала (`/tmp/bcb-patient-write-actions-r6.json`, log cursor `394370..394369`).
-- [ ] Пройти полный смысловой live census страниц и действий staff/clinic, global-admin и integrator; для patient
-  ещё создать одноразовую treatment-program fixture и проверить touch/complete без вывода прав из наличия кода.
-  Статический staff render-срез завершён: все `52` doctor/settings path проверены для doctor и clinic-admin,
-  `4xx/5xx` нет, PostgreSQL journal не получил ошибок. Живые staff mutations и `15` dynamic paths ещё открыты.
+- [ ] Пройти полный смысловой live census действий staff/clinic, global-admin и integrator; для patient ещё
+  создать одноразовую treatment-program fixture и проверить touch/complete без вывода прав из наличия кода.
+  Staff render закрыт: `260` role/path сочетаний без `4xx/5xx` и `28/28` живых dynamic URL дали `200`.
+  Global-admin render закрыт: `13` прямых страниц дали `200`, три product redirect соответствуют маршрутам,
+  dynamic clinic page дала `200`. Integrator signed relay auth/dedup/audit slice закрыт; ещё открыты staff/global
+  mutations и остальные incoming/outgoing/scheduler/worker integrator-сценарии.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

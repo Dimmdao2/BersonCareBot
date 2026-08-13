@@ -1,9 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
-import {
-  getCurrentDatabasePrincipal,
-  runWithInfraPrincipal,
-} from '../principal/organizationPrincipal.js';
+import { runWithInfraPrincipal } from '../principal/organizationPrincipal.js';
 import { extractSystemSettingInnerValue } from './publicSystemSettings.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
 
@@ -66,15 +63,13 @@ async function fetchPlatformIntegrationAvailabilityValueJson(db: DbPort): Promis
 }
 
 /**
- * Background/M2M delivery (queue worker, signed webhook auth-code sends) runs with no
- * request-scoped principal. The registry is a global admin setting (`organization_id IS
- * NULL`), so resolve that legitimate no-principal case through the same allowlisted infra
- * source `logDeliveryAttempt` already uses, instead of letting it fall through to the
- * locked-mode "principal required" error below.
+ * The registry is global platform configuration (`organization_id IS NULL`) used by every
+ * delivery path. Read it through the delivery capability even when the caller currently has an
+ * organization principal: a tenant-service transaction cannot execute this operational seam,
+ * and the global read must not inherit tenant access merely from its caller.
  */
 function readAvailabilityValueJson(db: DbPort): Promise<unknown> {
   const fetch = () => fetchPlatformIntegrationAvailabilityValueJson(db);
-  if (getCurrentDatabasePrincipal()) return fetch();
   return runWithInfraPrincipal({ source: 'delivery-handler' }, fetch);
 }
 

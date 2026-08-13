@@ -15,9 +15,7 @@ import {
 import { logger } from '../observability/logger.js';
 import { classifyRecipientBlockedBotError } from '../delivery/recipientBotBlocked.js';
 import {
-  getCurrentDatabasePrincipal,
   getCurrentOrganizationPrincipalId,
-  runWithInfraPrincipal,
 } from '../principal/organizationPrincipal.js';
 import { readChannel } from './channelRouting.js';
 import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
@@ -148,15 +146,7 @@ async function logDeliveryAttempt(
       },
     });
 
-  // Signed M2M auth-code sends have no tenant principal. In locked mode an unclassified DB access
-  // is rejected before pool.connect(), which used to make the post-send audit look like pool
-  // exhaustion. Preserve every existing tenant/worker principal; classify only the truly global
-  // no-principal delivery audit as the already allowlisted delivery-handler infrastructure scope.
-  if (getCurrentDatabasePrincipal()) {
-    await writeAttempt();
-    return;
-  }
-  await runWithInfraPrincipal({ source: 'delivery-handler' }, writeAttempt);
+  await writeAttempt();
 }
 
 function reportDeliveryAttemptAuditPersistFailure(

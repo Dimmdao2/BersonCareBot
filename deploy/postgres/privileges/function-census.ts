@@ -8113,41 +8113,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.read_operational_verbose_log_flag()": {
-    "owner": "app_seam_settings_integrator_owner",
-    "security": "DEFINER",
-    "returns": "boolean",
-    "volatility": "STABLE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_operational_delivery_worker",
-      "app_operational_scheduler"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
-    "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.system_settings",
-        "columns": [
-          "key",
-          "scope",
-          "value_json",
-          "organization_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
   "app.read_operator_health_probe_config()": {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
@@ -9288,56 +9253,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)": {
-    "owner": "app_seam_telemetry_operator_owner",
-    "security": "DEFINER",
-    "returns": "void",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_integrator_request"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
-    "typedArgs": [
-      "text",
-      "text",
-      "text",
-      "text",
-      "text",
-      "integer",
-      "text",
-      "jsonb",
-      "timestamp with time zone"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "integrator.delivery_attempt_logs",
-        "columns": [
-          "intent_type",
-          "intent_event_id",
-          "correlation_id",
-          "channel",
-          "status",
-          "attempt",
-          "reason",
-          "payload_json",
-          "occurred_at"
-        ],
-        "operations": [
-          "INSERT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
   "app.record_media_playback_resolution_event(uuid,uuid,text,boolean)": {
     "owner": "app_seam_telemetry_media_owner",
     "security": "DEFINER",
@@ -9391,7 +9306,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)": {
+  "app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "void",
@@ -9412,11 +9327,12 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "integer",
       "text",
-      "jsonb",
+      "text",
       "timestamp with time zone"
     ],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {

@@ -1,11 +1,8 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
-import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { logger } from '../../observability/logger.js';
-import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
-import { deliveryAttemptLogs } from '../schema/integratorPublicProduct.js';
-import { getCurrentIntegratorTechnicalRuntimeRole } from '../withClient.js';
+import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 import { getOperationalVerboseLogEnabled } from './operationalVerboseLog.js';
 
 type DeliveryAttemptLogParams = {
@@ -56,7 +53,7 @@ export async function insertDeliveryAttemptLog(
     );
     throw error;
   }
-  if (status !== 'success' && status !== 'failed') {
+  if (status !== 'success' && status !== 'failed' && status !== 'skipped') {
     const error = new Error('DELIVERY_ATTEMPT_LOG_INVALID_STATUS');
     logger.error(
       { code: 'DELIVERY_ATTEMPT_LOG_INVALID_STATUS', ...safeAttemptFields(params) },
@@ -74,44 +71,27 @@ export async function insertDeliveryAttemptLog(
         ? (params.payload as Record<string, unknown>)
         : {};
     const occurredAt = asString(params.occurredAt) ?? new Date().toISOString();
-    const principal = getCurrentDbPrincipal();
-
-    if (principal?.kind === 'infra' && principal.source === 'delivery-handler') {
-      await runIntegratorSql(
+    const payloadText = JSON.stringify(payloadJson);
+    await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
+      runIntegratorNamedRoot(
         db,
-        sql`SELECT app.record_global_email_delivery_attempt(
-          ${intentType}, ${intentEventId}, ${correlationId}, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadJson}::jsonb, ${occurredAt}::timestamptz
-        )`,
-      );
-    } else if (getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_delivery_worker') {
-      // A worker-drained send keeps its own `worker:*` principal all the way through the audit, so
-      // it never took the delivery-handler branch above -- and that branch would reject it anyway,
-      // because app.record_global_email_delivery_attempt hard-pins p_channel = 'email'. The direct
-      // insert below then died with `42P01 relation "delivery_attempt_logs" does not exist`. The
-      // cause is NAME RESOLUTION, not schema access: the Drizzle table is declared UNQUALIFIED
-      // (schema/integratorPublicProduct.ts `pgTable('delivery_attempt_logs')`) while the row lives
-      // in schema `integrator`, and the operational login's search_path is only "$user", public.
-      // USAGE on `integrator` is in fact granted -- the schema was never the missing piece.
-      await runIntegratorSql(
-        db,
+        'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)',
+        [
+          intentType,
+          intentEventId,
+          correlationId,
+          channel,
+          status,
+          attempt,
+          reason,
+          payloadText,
+          occurredAt,
+        ],
         sql`SELECT app.record_operational_delivery_attempt_audit(
-          ${intentType}, ${intentEventId}, ${correlationId}, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadJson}::jsonb, ${occurredAt}::timestamptz
+          ${intentType}, ${intentEventId}, ${correlationId}, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadText}, ${occurredAt}::timestamptz
         )`,
-      );
-    } else {
-      const d = getIntegratorDrizzleSession(db);
-      await d.insert(deliveryAttemptLogs).values({
-        intentType,
-        intentEventId,
-        correlationId,
-        channel,
-        status,
-        attempt,
-        reason,
-        payloadJson,
-        occurredAt,
-      });
-    }
+      ),
+    );
   } catch (err) {
     logger.error(
       { err, code: 'DELIVERY_ATTEMPT_LOG_INSERT_FAILED', ...safeAttemptFields(params) },

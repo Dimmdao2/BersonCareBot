@@ -73,7 +73,7 @@ export const deliveryAttemptLogs = pgTable(
     check('delivery_attempt_logs_attempt_check', sql`attempt > 0`),
     check(
       'delivery_attempt_logs_status_check',
-      sql`status = ANY (ARRAY['success'::text, 'failed'::text])`,
+      sql`status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])`,
     ),
   ],
 );

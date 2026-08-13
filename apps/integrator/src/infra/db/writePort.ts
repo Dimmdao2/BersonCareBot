@@ -774,9 +774,10 @@ export function createDbWritePort(
               ? (dalParams.payload as Record<string, unknown>)
               : {};
           const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
-          await db.tx(async (txDb) => {
-            await insertDeliveryAttemptLog(txDb, dalParams);
-          });
+          // The audit write is an exact named-root capability. Its attested transaction must begin
+          // before a physical client is checked out; wrapping it in a generic relation transaction
+          // makes the port reject the call before PostgreSQL can verify the named function.
+          await insertDeliveryAttemptLog(db, dalParams);
           // D4: replaces the `support.delivery.attempt.logged` HTTP projection fanout. Own transaction
           // after the integrator-local audit-log write above; see writeSupportQuestionsDirect.ts header
           // ("DURABILITY"). A missing `organizationId` is a genuine fail-closed (no write, no fallback,

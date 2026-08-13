@@ -2211,3 +2211,46 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   --out-json=/tmp/bcb-staff-page-walk-r2.json --out-csv=/tmp/bcb-staff-page-walk-r2.csv` проверила `260`
   role/path сочетаний. Для doctor: `38` прямых `OK` и `14` ожидаемых redirect; clinic-admin: `39` `OK` и `13`
   redirect; `4xx/5xx` у обеих staff-ролей нет. PostgreSQL cursor `394393..394394` содержит только checkpoint.
+
+## Audit/live pass DEV-integrator-signed-relay-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | рабочее дерево после `cd42a9ffb`, `feat/doctor-ui-rebuild` |
+| Метод | Живой integrator startup + signed relay negative/positive/dedup + фактические audit/dedup rows + PostgreSQL journal cursor |
+| Вердикт | **PASS ДЛЯ SIGNED RELAY AUTH/DEDUP/DELIVERY-AUDIT; остальные integrator routes и worker/scheduler остаются открыты в Ф7** |
+
+- **LIVE-INTEGRATOR-PLATFORM-CONFIG-CONTEXT-001 — ИСПРАВЛЕНО ГРОМКО:** первый корректно подписанный MAX relay
+  завершился `502`, а PostgreSQL записал `42501 permission denied for function
+  read_integrator_platform_integration_availability`. Глобальная доступность интеграции ошибочно читалась под
+  ambient organization principal. Чтение переведено на существующий exact no-tenant `delivery-handler`
+  capability; organization identity при этом не расширяется и table grant runtime-роли не выдаётся.
+- **LIVE-INTEGRATOR-DELIVERY-AUDIT-OVERLAY-001 — ИСПРАВЛЕНО ГРОМКО:** следующий проход раскрыл два старых обхода:
+  отсутствующую в обычном migration ledger функцию `app.read_operational_verbose_log_flag()` (`42883`) и прямой
+  неqualified INSERT в `delivery_attempt_logs` (`42P01`). Migration `0395` удаляет эти overlay-only roots,
+  добавляет `debug_forward_to_admin` в существующий exact provider-setting reader и создаёт один общий
+  `app.record_operational_delivery_attempt_audit(..., payload_text text, timestamptz)` для Telegram/MAX/SMSC/
+  email/web-push. Все каналы идут через одну declared capability; `PUBLIC` и прямой runtime table access не
+  открыты. JSON payload передаётся как точный `text` transcript и приводится к `jsonb` только внутри функции:
+  генератор громко отверг неподдерживаемый exact hash для `jsonb`, ослабление проверки не применялось.
+- **LIVE-INTEGRATOR-NAMED-ROOT-TX-001 — ИСПРАВЛЕНО ГРОМКО:** первая версия вызывала exact audit root внутри уже
+  открытой generic relation transaction; порт штатно отверг upgrade контекста до обращения к PostgreSQL, из-за
+  чего safe DEV suppression превращался в `502`. Named-root теперь начинает собственную attested transaction до
+  checkout physical client. Behavioral regression test проверяет отсутствие generic `db.tx` на этом пути.
+- **DEV-DECLARATION-ENV-LAYER-001 — ОТКРЫТО В ОБЫЧНОМ DEPLOY ENTRYPOINT, DEV ВОССТАНОВЛЕН:** ручное повторное
+  применение только `generated/privileges.bcb_webapp_dev.sql` закономерно отозвало `CONNECT` и schema `USAGE` у
+  login shells: exact env-слой обязан выполняться последним. Integrator громко упал сначала `permission denied
+  for database`, затем `permission denied for schema app`. Полный env render восстановил четыре login без смены
+  паролей; integrator снова стартовал. Канонический post-zero installer уже применяет этот порядок атомарно, но
+  обычный DEV migration/deploy entrypoint всё ещё открыт в Ф6 и не должен заменяться ручной сборкой частей.
+- Финальный живой запрос дал: `missing 400 {"error":"missing_headers"}`, `invalid 401
+  {"error":"invalid_signature"}`, `valid 200 {"status":"accepted"}`, `duplicate 200
+  {"status":"duplicate"}`. Central DEV guard записал `PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS` с причиной
+  `no_max_binding`, то есть provider не вызывался. Точный DB-контроль показал `audit|1|max|success|
+  dev_redirect_suppressed` и одну durable idempotency row; обе probe-строки затем удалены, контроль вернул
+  `audit_remaining=0` и `dedup_remaining=0`. Команда `sudo -n tail -n +$((start+1))
+  /var/log/postgresql/postgresql-16-main.log` после финального probe не вернула строк.
+- Проверки: targeted Vitest `13/13`; integrator и webapp typecheck — exit `0`; function census `6/6`;
+  port-context catalog `12/12`; independent production callsite oracle `5/5`; relation access `20/20`;
+  `generate-cli.mjs --check` — четыре generated artifacts совпадают побайтно. Каталог содержит `95` exact
+  capabilities (`68` webapp + `27` integrator), из них `81` function-bound root.
