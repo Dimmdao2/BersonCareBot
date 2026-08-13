@@ -1074,15 +1074,21 @@ const TABLE_ROWS: TableRow[] = [
     + 'клиники A правит комментарии клиники B', defect: ['D10-comments'] },
   { t: 'public.content_access_grants_webapp', cls: 'P', org: true, why: 'Выданные пациенту доступы к контенту — '
     + 'пациент теряет доступ к выданным ему материалам' },
-  { t: 'public.content_pages', cls: 'C', org: true, why: 'Страницы CMS — контент, который читает пациент',
+  { t: 'public.content_pages', cls: 'C', org: true, wall: 'clinic+patient',
+    wallWhy: 'Сотрудник управляет CMS своей клиники; пациент читает только опубликованные страницы своей клиники',
+    why: 'Страницы CMS — контент, который читает пациент',
     pol: 'I5/C18: политика c4_web_push_reminder_catalog читает org сырым current_setting, остальные — '
     + 'app.current_org_id(). Свести к одному аксессору, иначе D6 обходится', defect: ['I5-two-org-accessors'],
     code: ['C18'] },
-  { t: 'public.content_section_slug_history', cls: 'C', org: true, why: 'История переименований разделов — старые '
+  { t: 'public.content_section_slug_history', cls: 'C', org: true, wall: 'clinic+patient',
+    wallWhy: 'Сотрудник ведёт историю slug своей клиники; пациент использует её только для перехода внутри своей клиники',
+    why: 'История переименований разделов — старые '
     + 'ссылки пациента не ломаются после переименования', pol: 'плюс пациентское чтение. I6: политика '
     + 'patient_current_org_select выдана роли public вместо app_patient — привести к app_patient',
     defect: ['I6-policy-to-public'] },
-  { t: 'public.content_sections', cls: 'C', org: true, why: 'Разделы CMS — навигация пациентского контента',
+  { t: 'public.content_sections', cls: 'C', org: true, wall: 'clinic+patient',
+    wallWhy: 'Сотрудник управляет разделами своей клиники; пациент читает только видимые разделы своей клиники',
+    why: 'Разделы CMS — навигация пациентского контента',
     pol: 'то же, что content_pages (I5 / C18)', defect: ['I5-two-org-accessors'], code: ['C18'] },
   { t: 'public.courses', cls: 'C', org: true, why: 'Курсы клиники — платный/бесплатный курс как продукт клиники' },
   { t: 'public.doctor_notes', cls: 'P', org: true, why: 'Заметки врача о пациенте — личные пометки врача по клиенту' },
@@ -2797,6 +2803,115 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
+  'public.content_pages': {
+    kind: 'direct', purpose: 'patient reads published non-archived CMS pages of the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgContentPages.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.content_section_slug_history': {
+    kind: 'direct', purpose: 'patient resolves renamed section links inside the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgContentSections.ts#getRedirectNewSlugForOldSlug'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: ['new_slug', 'old_slug', 'organization_id'] }],
+  },
+  'public.content_sections': {
+    kind: 'direct', purpose: 'patient reads visible CMS navigation sections of the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgContentSections.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.lfk_complexes': {
+    kind: 'direct', purpose: 'patient reads only its own assigned exercise complexes in the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgLfkDiary.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.reminder_rules': {
+    kind: 'direct', purpose: 'patient reads and manages only its own reminder rules in the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgReminderRules.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'category', 'content_mode', 'custom_text', 'custom_title', 'days_mask', 'display_description',
+        'display_title', 'integrator_rule_id', 'integrator_user_id', 'interval_minutes', 'is_enabled',
+        'linked_object_id', 'linked_object_type', 'notification_topic_code', 'organization_id',
+        'platform_user_id', 'quiet_hours_end_minute', 'quiet_hours_start_minute', 'reminder_intent',
+        'schedule_data', 'schedule_type', 'timezone', 'updated_at', 'window_end_minute', 'window_start_minute',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: [
+        'category', 'content_mode', 'custom_text', 'custom_title', 'days_mask', 'display_description',
+        'display_title', 'integrator_user_id', 'interval_minutes', 'is_enabled', 'linked_object_id',
+        'linked_object_type', 'notification_topic_code', 'organization_id', 'platform_user_id',
+        'quiet_hours_end_minute', 'quiet_hours_start_minute', 'reminder_intent', 'schedule_data',
+        'schedule_type', 'timezone', 'updated_at', 'window_end_minute', 'window_start_minute',
+      ] },
+      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
+    ],
+  },
+  'public.reminder_journal': {
+    kind: 'direct', purpose: 'patient reads and records actions only for its own reminder rules',
+    codePaths: ['apps/webapp/src/infra/repos/pgReminderJournal.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['action', 'occurrence_id', 'rule_id', 'skip_reason', 'snooze_until'] },
+    ],
+  },
+  'public.support_conversation_messages': {
+    kind: 'direct', purpose: 'patient reads its own support thread, sends messages and marks only those messages read',
+    codePaths: ['apps/webapp/src/infra/repos/pgSupportCommunication.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'conversation_id', 'created_at', 'delivered_at', 'delivery_status', 'external_chat_id',
+        'external_message_id', 'integrator_message_id', 'media_type', 'media_url', 'message_type',
+        'organization_id', 'sender_role', 'source', 'text',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['read_at'] },
+    ],
+  },
+  'public.support_conversations': {
+    kind: 'direct', purpose: 'patient reads and creates only its own current-clinic support conversation',
+    codePaths: ['apps/webapp/src/infra/repos/pgSupportCommunication.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'admin_scope', 'integrator_conversation_id', 'integrator_user_id', 'last_message_at', 'opened_at',
+        'organization_id', 'platform_user_id', 'source', 'status',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['organization_id', 'platform_user_id', 'updated_at'] },
+    ],
+  },
+  'public.symptom_trackings': {
+    kind: 'direct', purpose: 'patient reads and manages only its own symptom trackers in the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgSymptomDiary.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'diagnosis_ref_id', 'diagnosis_text', 'is_active', 'organization_id', 'platform_user_id',
+        'region_ref_id', 'side', 'stage_ref_id', 'symptom_key', 'symptom_title', 'symptom_type_ref_id',
+        'updated_at', 'user_id',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: [
+        'deleted_at', 'diagnosis_ref_id', 'diagnosis_text', 'is_active', 'region_ref_id', 'side',
+        'stage_ref_id', 'symptom_title', 'symptom_type_ref_id', 'updated_at',
+      ] },
+      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
+    ],
+  },
+  'public.treatment_program_instances': {
+    kind: 'direct', purpose: 'patient reads only its own assigned treatment programs in the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.user_contacts': {
+    kind: 'direct', purpose: 'patient reads only its own normalized primary contact used by account support flows',
+    codePaths: ['apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'],
+      columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'] }],
+  },
+  'public.user_identity': {
+    kind: 'direct', purpose: 'patient reads only its own display name used by canonical account resolution',
+    codePaths: ['apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: ['platform_user_id', 'display_name'] }],
+  },
   'public.app_runtime_settings': {
     kind: 'direct',
     purpose: 'patients read safe global/current-clinic runtime values; clinic staff manages current-clinic rows; platform settings manages global rows',
@@ -2828,7 +2943,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'],
-        columns: ['id', 'email', 'email_verified_at', 'calendar_timezone'] },
+        columns: ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
+          'merged_into_id', 'display_name', 'role', 'reminder_muted_until'] },
       { role: 'app_patient', operations: ['UPDATE'], columns: ['calendar_timezone', 'updated_at'] },
       { role: 'app_platform_settings', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone'] },
@@ -3371,6 +3487,9 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
     + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = app.current_org_id()))';
   if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = app.current_org_id())";
+  if (tableKey === 'public.content_pages') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_published = true AND archived_at IS NULL AND deleted_at IS NULL ELSE false END)";
+  if (tableKey === 'public.content_sections') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_visible = true ELSE false END)";
+  if (tableKey === 'public.content_section_slug_history') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = app.current_org_id())";
   if (tableKey === 'public.be_organizations') return "(current_user IN ('app_staff'::name, 'app_clinic_billing'::name) AND id = app.current_org_id())";
   if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
   if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
@@ -3445,6 +3564,8 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
 const REV10_PATIENT_SELF_MANAGED_COLUMN: Record<string, string> = {
   'public.user_channel_bindings': 'user_id',
   'public.user_channel_preferences': 'platform_user_id',
+  'public.user_contacts': 'platform_user_id',
+  'public.user_identity': 'platform_user_id',
   'public.user_notification_topic_channels': 'user_id',
   'public.user_notification_topics': 'user_id',
   'public.user_phone_history': 'platform_user_id',
@@ -3496,7 +3617,8 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       .replaceAll('app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()', 'app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND "platform_user_id" = app.current_patient_user_id()')
       .replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()', '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
-      'public.be_patient_booking_profiles']).has(key);
+      'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
+      'public.content_section_slug_history']).has(key);
     const directRoles = access?.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
     const ordinaryDirectRoles = directRoles.filter((role) =>
       !['app_tenant_service'].includes(role));

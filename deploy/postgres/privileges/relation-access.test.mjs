@@ -337,7 +337,8 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.deepEqual(
     users.access.grants.find((grant) =>
       grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
-    ['id', 'email', 'email_verified_at', 'calendar_timezone'],
+    ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
+      'merged_into_id', 'display_name', 'role', 'reminder_muted_until'],
   );
   assert.deepEqual(
     users.access.grants.find((grant) =>
@@ -372,6 +373,59 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.deepEqual(timezoneUpdate?.to, ['app_patient', 'app_staff', 'app_platform_settings']);
   assert.equal(timezoneUpdate?.using, '(id = app.current_actor_user_id())');
   assert.equal(timezoneUpdate?.withCheck, '(id = app.current_actor_user_id())');
+});
+
+test('patient page relations have exact self/current-clinic access and published content walls', () => {
+  const tables = declaration.databases.bersoncarebot_test.tables;
+  const patientReadRelations = [
+    'public.content_pages',
+    'public.content_section_slug_history',
+    'public.content_sections',
+    'public.lfk_complexes',
+    'public.reminder_journal',
+    'public.reminder_rules',
+    'public.support_conversation_messages',
+    'public.support_conversations',
+    'public.symptom_trackings',
+    'public.treatment_program_instances',
+    'public.user_contacts',
+    'public.user_identity',
+  ];
+  for (const relation of patientReadRelations) {
+    const table = tables[relation];
+    assert.equal(table.access.kind, 'direct', relation);
+    assert.equal(
+      table.access.grants.some((grant) =>
+        grant.role === 'app_patient' && grant.operations.includes('SELECT')),
+      true,
+      relation,
+    );
+    const gate = table.policies.find((policy) => policy.name.startsWith('rev10_context_gate_'));
+    assert.equal(gate?.to.includes('app_patient'), true, relation);
+  }
+
+  const pages = tables['public.content_pages'];
+  const pagePolicy = pages.policies.find((policy) => policy.name.startsWith('rev10_direct_business_'));
+  assert.match(pagePolicy?.using ?? '', /organization_id = app\.current_org_id\(\)/);
+  assert.match(pagePolicy?.using ?? '', /is_published = true/);
+  assert.match(pagePolicy?.using ?? '', /archived_at IS NULL/);
+  assert.match(pagePolicy?.using ?? '', /deleted_at IS NULL/);
+
+  const sections = tables['public.content_sections'];
+  const sectionPolicy = sections.policies.find((policy) => policy.name.startsWith('rev10_direct_business_'));
+  assert.match(sectionPolicy?.using ?? '', /is_visible = true/);
+
+  const patientMessages = tables['public.support_conversation_messages'].access.grants
+    .filter((grant) => grant.role === 'app_patient');
+  assert.deepEqual(
+    patientMessages.find((grant) => grant.operations.includes('UPDATE'))?.columns,
+    ['read_at'],
+  );
+  assert.equal(patientMessages.some((grant) => grant.operations.includes('DELETE')), false);
+
+  const programs = tables['public.treatment_program_instances'].access.grants
+    .filter((grant) => grant.role === 'app_patient');
+  assert.deepEqual(programs.flatMap((grant) => grant.operations), ['SELECT']);
 });
 
 test('patient notification preferences are product-complete and remain self-only', () => {
