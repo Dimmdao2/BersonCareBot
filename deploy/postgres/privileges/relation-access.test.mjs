@@ -256,6 +256,21 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.match(staffSelect?.using ?? '', /access_member\.platform_user_id = platform_users\.id/);
   assert.deepEqual(platformSelect?.to, ['app_platform_settings']);
   assert.equal(platformSelect?.using, "(current_user = 'app_platform_settings'::name)");
+  const staffUpdate = users.access.grants.find((grant) =>
+    grant.role === 'app_staff' && grant.operations.includes('UPDATE'));
+  assert.ok(Array.isArray(staffUpdate?.columns));
+  assert.ok(staffUpdate.columns.includes('calendar_timezone'));
+  assert.ok(staffUpdate.columns.includes('updated_at'));
+  assert.deepEqual(
+    users.access.grants.find((grant) =>
+      grant.role === 'app_platform_settings' && grant.operations.includes('UPDATE'))?.columns,
+    ['calendar_timezone', 'updated_at'],
+  );
+  const timezoneUpdate = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_account_timezone_update_'));
+  assert.deepEqual(timezoneUpdate?.to, ['app_staff', 'app_platform_settings']);
+  assert.equal(timezoneUpdate?.using, '(id = app.current_actor_user_id())');
+  assert.equal(timezoneUpdate?.withCheck, '(id = app.current_actor_user_id())');
 });
 
 test('patient notification preferences are product-complete and remain self-only', () => {

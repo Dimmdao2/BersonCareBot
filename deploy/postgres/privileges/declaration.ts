@@ -2812,8 +2812,9 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
-      { role: 'app_staff', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
-      { role: 'app_platform_settings', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
+      { role: 'app_platform_settings', operations: ['SELECT'],
+        columns: ['id', 'email', 'email_verified_at', 'calendar_timezone'] },
+      { role: 'app_platform_settings', operations: ['UPDATE'], columns: ['calendar_timezone', 'updated_at'] },
     ],
   },
   'public.user_channel_bindings': {
@@ -3394,6 +3395,10 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
     { name: `rev10_platform_users_platform_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_platform_settings'], using: "(current_user = 'app_platform_settings'::name)",
       note: 'platform administration may read explicitly granted non-clinical directory columns' },
+    { name: `rev10_platform_users_account_timezone_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
+      to: ['app_staff', 'app_platform_settings'], using: '(id = app.current_actor_user_id())',
+      withCheck: '(id = app.current_actor_user_id())',
+      note: 'staff and platform administration may update only their own account timezone' },
   ];
 }
 
