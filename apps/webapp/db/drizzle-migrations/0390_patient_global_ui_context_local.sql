@@ -1,3 +1,4 @@
+-- BCB-MIGRATION-OWNER: app_seam_context_owner
 -- A valid patient relation context may intentionally have no selected organization.
 -- Missing context still raises; only the accepted no-organization patient case returns NULL.
 CREATE OR REPLACE FUNCTION app.current_org_id()
@@ -26,6 +27,9 @@ BEGIN
 END
 $function$;
 
+--> statement-breakpoint
+
+-- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
 CREATE OR REPLACE FUNCTION app.read_current_patient_ui_setting(
   p_key text,
   p_scope text
@@ -91,5 +95,3 @@ BEGIN
   LIMIT 1;
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.read_current_patient_ui_setting(text,text) FROM PUBLIC;
