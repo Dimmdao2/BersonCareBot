@@ -116,7 +116,7 @@ exec 9>"/tmp/bcb-dev-migrate.$(id -u).lock"
 flock -n 9 || fatal "another DEV migration wrapper is already running"
 
 NODE_BIN_DIR="$(dirname "$(command -v node)")"
-SANITIZED_PATH="$NODE_BIN_DIR:/usr/local/bin:/usr/bin:/bin"
+SANITIZED_PATH="$NODE_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 CREDENTIAL_DIR="$(mktemp -d /tmp/bcb-dev-migrate-credentials.XXXXXX)" ||
   fatal "cannot create private DEV credential directory"
