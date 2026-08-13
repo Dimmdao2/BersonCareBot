@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
-import { runIntegratorSql } from './runIntegratorSql.js';
+import { runIntegratorNamedRoot } from './runIntegratorSql.js';
 
 export type DedicatedClinicBotChannel = 'telegram' | 'max';
 
@@ -15,8 +15,10 @@ export async function resolveDedicatedClinicBotOrganization(
   credentialFingerprint: string,
 ): Promise<string | null> {
   if (!/^[a-f0-9]{64}$/.test(credentialFingerprint)) return null;
-  const result = await runIntegratorSql<{ organization_id: string | null }>(
+  const result = await runIntegratorNamedRoot<{ organization_id: string | null }>(
     db,
+    'app.resolve_clinic_dedicated_bot_organization(text,text)',
+    [channel, credentialFingerprint],
     sql`
       SELECT app.resolve_clinic_dedicated_bot_organization(
         ${channel},

@@ -1151,6 +1151,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "pending_tariff_id"
         ],
         "operations": [
+          "SELECT",
           "INSERT",
           "UPDATE"
         ],
@@ -2428,6 +2429,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "last_sent_at"
         ],
         "operations": [
+          "SELECT",
           "INSERT",
           "UPDATE"
         ],
@@ -4971,6 +4973,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "verification_lease_until"
         ],
         "operations": [
+          "SELECT",
           "INSERT",
           "UPDATE"
         ],
@@ -6586,6 +6589,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "locked_until"
         ],
         "operations": [
+          "SELECT",
           "INSERT",
           "UPDATE"
         ],
@@ -9422,6 +9426,62 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.record_integrator_webhook_outcome(text,boolean,integer,text,text)": {
+    "owner": "app_seam_telemetry_operator_owner",
+    "security": "DEFINER",
+    "returns": "void",
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_service"
+    ],
+    "purpose": "exact integrator webhook health seam owned by app_seam_telemetry_operator_owner",
+    "typedArgs": [
+      "text",
+      "boolean",
+      "integer",
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.integration_webhook_last_status",
+        "columns": [
+          "source",
+          "received_at",
+          "processed_ok",
+          "error_class",
+          "http_status_returned",
+          "detail"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.integration_webhook_error_events",
+        "columns": [
+          "source",
+          "error_class"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.record_operator_delivery_attempt(text,text,text,integer,text)": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
@@ -9562,6 +9622,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "last_sent_at"
         ],
         "operations": [
+          "SELECT",
           "INSERT",
           "UPDATE"
         ],
@@ -11142,6 +11203,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "updated_at"
         ],
         "operations": [
+          "SELECT",
           "INSERT",
           "UPDATE"
         ],

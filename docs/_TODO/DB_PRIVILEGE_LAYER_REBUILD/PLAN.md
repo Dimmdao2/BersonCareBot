@@ -235,8 +235,11 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   operator-alert прошёл auth/dedup/no-send/audit, а operator-health прошёл portable scheduler seams и запись
   `health.outbound_probe.run` на живой DEV без ошибки приложения/PostgreSQL. Signed request-contact теперь
   доказан как global pre-login handshake: без угадывания deployment organization, identity write и внешней
-  отправки, с accepted/duplicate и exact audit. Ещё открыты staff/global mutations, patient treatment-program и
-  остальные incoming/outgoing/scheduler/worker integrator-сценарии.
+  отправки, с accepted/duplicate и exact audit. Dedicated Telegram/MAX webhook pre-routing теперь использует
+  exact named resolver без identity/org claims; неизвестный fingerprint закрывается как `Unknown bot`, а
+  одноразовая положительная DEV-привязка вернула ровно объявленную организацию для обоих каналов. Webhook status
+  и error event записываются одной атомарной exact-функцией без direct table grants. Ещё открыты staff/global
+  mutations, patient treatment-program и остальные incoming/outgoing/scheduler/worker integrator-сценарии.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

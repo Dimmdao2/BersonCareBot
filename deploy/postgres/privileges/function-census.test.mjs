@@ -49,15 +49,15 @@ const functionsFor = (database) => Object.entries(declaration.portContext.functi
 test('legacy 244/42 census is restored without obsolete context and overlaid by rev10', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 222,
+    functions: 223,
     owners: 40,
-    test: 222,
-    dev: 220,
+    test: 223,
+    dev: 221,
     triggers: 3,
-    relationEdges: 454,
+    relationEdges: 456,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 222);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 222);
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 223);
+  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 223);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -72,10 +72,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 256);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 254);
-  assert.equal(testFunctions.length, 271);
-  assert.equal(devFunctions.length, 269);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 257);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 255);
+  assert.equal(testFunctions.length, 272);
+  assert.equal(devFunctions.length, 270);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 43);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -83,7 +83,7 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
   assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 216);
+    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 217);
   assert.deepEqual(proconfigExceptions, [
     ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],
@@ -175,6 +175,7 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /REVOKE ALL ON FUNCTION app\.resolve_clinic_dedicated_bot_organization\(text,text\) FROM PUBLIC/);
     assert.match(first, /BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=/);
     assert.match(first, /ON CONFLICT DO UPDATE requires undeclared UPDATE/);
+    assert.match(first, /ON CONFLICT DO UPDATE requires undeclared SELECT for conflict\/update row/);
     assert.match(first, /UPDATE predicate\/RETURNING requires undeclared SELECT/);
     assert.match(first, /app\.record_operator_outbound_probe_run\(text,timestamp with time zone,text,jsonb\)/);
     assert.doesNotMatch(first, /install_signed_context|release_principal_context|reset_principal_context/);

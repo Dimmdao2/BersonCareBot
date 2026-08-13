@@ -216,8 +216,10 @@ export function integratorPortContextPrincipal(
               ? descriptor.contextClass === 'tenant_service'
               : principal.kind === 'infra'
                 ? descriptor.contextClass === 'service'
-                : principal.kind === 'bootstrap'
+              : principal.kind === 'bootstrap'
                   ? descriptor.contextClass === 'pre_session'
+                    || (descriptor.contextClass === 'integrator'
+                      && descriptor.targetRole === 'app_integrator_resolver')
                   : false),
       )
     : [];

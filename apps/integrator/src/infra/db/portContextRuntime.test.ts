@@ -159,6 +159,31 @@ describe('integrator port-context runtime', () => {
     });
   });
 
+  it('allows a bootstrap principal to invoke only an exact resolver named root', () => {
+    const named: IntegratorPortCapabilityDescriptor = {
+      ...request,
+      targetRole: 'app_integrator_resolver',
+      functionIdentity: 'app.resolve_clinic_dedicated_bot_organization(text,text)',
+      purpose: 'integrator.dedicated-bot.resolve',
+    };
+    const selected = runWithIntegratorPortOperation(
+      {
+        functionIdentity: named.functionIdentity!,
+        typedArgs: [portTypedArg('text', 'telegram'), portTypedArg('text', 'a'.repeat(64))],
+      },
+      () =>
+        integratorPortContextPrincipal(
+          { kind: 'bootstrap', source: 'telegram-dedicated-webhook:pre-routing' },
+          { dedicated_bot_organization_resolve: named },
+        ),
+    );
+    expect(selected).toMatchObject({
+      targetRole: 'app_integrator_resolver',
+      contextClass: 'integrator',
+      functionIdentity: named.functionIdentity,
+    });
+  });
+
   it('installs the explicit named descriptor and argument hash before a connect-client query', async () => {
     const installs: unknown[][] = [];
     const service: IntegratorPortCapabilityDescriptor = {

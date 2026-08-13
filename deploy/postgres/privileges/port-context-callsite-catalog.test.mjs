@@ -329,6 +329,16 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'delivery.attempt-audit', argCount: 9,
     source: 'apps/integrator/src/infra/db/repos/messageLogs.ts',
   },
+  'app.record_integrator_webhook_outcome(text,boolean,integer,text,text)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'integrator.webhook-outcome.record', argCount: 5,
+    source: 'apps/integrator/src/infra/db/repos/integrationWebhookStatusDrizzle.ts',
+  },
+  'app.resolve_clinic_dedicated_bot_organization(text,text)': {
+    port: 'integrator', targetRole: 'app_integrator_resolver', contextClass: 'integrator',
+    purpose: 'integrator.dedicated-bot.resolve', argCount: 2,
+    source: 'apps/integrator/src/infra/db/clinicDedicatedBotBindings.ts',
+  },
   'app.read_integrator_auth_channel_setting(text)': {
     port: 'integrator', targetRole: 'app_service', contextClass: 'service',
     purpose: 'config.integrator-auth-channel.read', argCount: 1,

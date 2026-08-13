@@ -7,13 +7,15 @@ import {
   index,
   integer,
   jsonb,
-  pgTable,
+  pgSchema,
   text,
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export const projectionOutbox = pgTable(
+const integratorSchema = pgSchema('integrator');
+
+export const projectionOutbox = integratorSchema.table(
   'projection_outbox',
   {
     id: bigserial({ mode: 'number' }).primaryKey().notNull(),

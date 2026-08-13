@@ -170,6 +170,27 @@ test('allows patient relation context and the exact organization resolver before
   assert.ok(relation.queries.some(([sql]) => sql.includes('app.install_port_context')));
 });
 
+test('allows the narrow integrator resolver without a routed user or organization', async () => {
+  const { client, queries } = recordingClient();
+  await withPortContextTransaction(
+    client,
+    {
+      capabilityId: '00000000-0000-0000-0000-000000000106',
+      contextClass: 'integrator',
+      targetRole: 'app_integrator_resolver',
+      purpose: 'integrator.dedicated-bot.resolve',
+      functionIdentity: 'app.resolve_clinic_dedicated_bot_organization(text,text)',
+      typedArgs: [portTypedArg('text', 'telegram'), portTypedArg('text', '0'.repeat(64))],
+    },
+    async () => undefined,
+  );
+  const install = queries.find(([sql]) => sql.includes('app.install_port_context'));
+  assert.ok(install);
+  assert.equal(install[1][2], 'app_integrator_resolver');
+  assert.equal(install[1][7], null);
+  assert.equal(install[1][8], null);
+});
+
 test('destroys a checked-out client when principal validation fails before BEGIN', async () => {
   const failure = recordingClient();
   await assert.rejects(

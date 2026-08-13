@@ -1,10 +1,7 @@
 import type { IntegrationWebhookSource } from '@bersoncare/operator-db-schema';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { logger } from '../observability/logger.js';
-import {
-  insertIntegrationWebhookErrorEvent,
-  upsertIntegrationWebhookLastStatus,
-} from '../db/repos/integrationWebhookStatusDrizzle.js';
+import { recordIntegrationWebhookOutcomeDb } from '../db/repos/integrationWebhookStatusDrizzle.js';
 import { reportOperatorFailure } from './reportOperatorFailure.js';
 
 export type IntegrationWebhookErrorClass =
@@ -29,7 +26,7 @@ export async function recordIntegrationWebhookOutcome(
   input: RecordIntegrationWebhookOutcomeInput,
 ): Promise<void> {
   try {
-    await upsertIntegrationWebhookLastStatus({
+    await recordIntegrationWebhookOutcomeDb({
       source: input.source,
       processedOk: input.processedOk,
       errorClass: input.errorClass ?? null,
@@ -37,19 +34,10 @@ export async function recordIntegrationWebhookOutcome(
       detail: input.detail ?? null,
     });
   } catch (err) {
-    logger.warn({ err, source: input.source }, 'integration_webhook_last_status_failed');
+    logger.warn({ err, source: input.source }, 'integration_webhook_outcome_record_failed');
   }
 
   if (input.processedOk || !input.errorClass) return;
-
-  try {
-    await insertIntegrationWebhookErrorEvent({
-      source: input.source,
-      errorClass: input.errorClass,
-    });
-  } catch (err) {
-    logger.warn({ err, source: input.source }, 'integration_webhook_error_event_failed');
-  }
 
   try {
     await reportOperatorFailure({

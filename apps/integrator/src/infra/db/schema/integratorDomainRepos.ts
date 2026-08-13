@@ -8,6 +8,7 @@ import {
   index,
   integer,
   jsonb,
+  pgSchema,
   pgTable,
   text,
   timestamp,
@@ -15,7 +16,9 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-export const userReminderOccurrences = pgTable(
+const integratorSchema = pgSchema('integrator');
+
+export const userReminderOccurrences = integratorSchema.table(
   'user_reminder_occurrences',
   {
     id: text().primaryKey().notNull(),
@@ -49,7 +52,7 @@ export const userReminderOccurrences = pgTable(
   ],
 );
 
-export const userReminderDeliveryLogs = pgTable(
+export const userReminderDeliveryLogs = integratorSchema.table(
   'user_reminder_delivery_logs',
   {
     id: text().primaryKey().notNull(),

@@ -2365,3 +2365,40 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   git diff --check` дала `2 files / 8 tests`, typecheck и diff-check exit `0`.
 - SQL cleanup с exact predicates `id IN (7085,7086)` и двумя именованными probe keys удалил только созданные
   этим проходом строки; два последующих `count(*)` вернули `audit_remaining=0`, `dedup_remaining=0`.
+
+## Audit/live pass DEV-integrator-dedicated-webhook-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | рабочее дерево после `9b69294db`, `feat/doctor-ui-rebuild` |
+| Метод | Full declared function-body operation scan + живой unknown/known dedicated-bot resolver для Telegram/MAX + DB/журнал-контроль |
+| Вердикт | **PASS ДЛЯ DEDICATED-BOT PRE-ROUTING И WEBHOOK OUTCOME; остальные integrator routes остаются открыты в Ф7** |
+
+- **LIVE-WEBHOOK-OUTCOME-DIRECT-DRIZZLE-001 — ИСПРАВЛЕНО ГРОМКО:** webhook health/error раньше писал две
+  таблицы прямым Drizzle-кодом и двумя независимыми запросами. Migration `0397` создаёт одну атомарную
+  `app.record_integrator_webhook_outcome(text,boolean,integer,text,text)`: она обновляет last status и при отказе
+  добавляет error event. Runtime получает только exact `EXECUTE`; у `bcb_dev_integrator`,
+  `app_integrator_request` и `app_service` direct table grants нет.
+- **FUNCTION-BODY-UPSERT-SELECT-002 — ИСПРАВЛЕНО СИСТЕМНО:** живой вызов показал, что PostgreSQL 16 для
+  `INSERT ... ON CONFLICT DO UPDATE` требует также `SELECT` строки конфликта. Generator теперь fail-closed
+  требует `SELECT` для каждого такого body. Полный запрос по всем declared `pg_proc.prosrc` нашёл тот же класс
+  ещё в password/OTP/cooldown/tariff seams; исправлен весь класс, а не один webhook.
+- **LIVE-DEDICATED-BOT-GENERIC-CONTEXT-001 — ИСПРАВЛЕНО ГРОМКО:** dedicated resolver вызывался через generic
+  relation context, затем первая версия named root упиралась в рассинхрон JS claims matrix и уже правильного
+  PostgreSQL contract. Теперь `app_integrator_resolver` допускает ровно resolver-контекст без заранее известного
+  человека/организации, только с exact function/purpose/typed-args hash; обычный `app_integrator_request`
+  по-прежнему обязан иметь integrator user + organization.
+- Негативный HTTP-прогон дал Telegram/MAX `200 {"ok":false,"error":"Unknown bot"}`; last status обеих строк —
+  `processed_ok=0`, `webhook_auth_failed`, HTTP `200`. В application log нет `[db][query] error`; команда
+  `journalctl --since '2026-08-13T10:35:52+03:00' --no-pager -q | rg
+  "port context|permission denied|42501|bcb_webapp_dev"` нашла только собственную read-only `sudo psql` запись,
+  PostgreSQL error отсутствует.
+- Положительный probe вставил по одной заведомо одноразовой binding-строке с fingerprint `ff…ff`; exact resolver
+  вернул `a0000000-0000-4000-8000-000000000001` для Telegram и MAX (`pass=true`). Cleanup удалил fixture;
+  `SELECT count(*) ... WHERE credential_fingerprint='ff…ff'` вернул `0`.
+- `pnpm --dir packages/db-principal test` дал `27/27` unit tests и `port-context cutover sequence self-test:
+  PASS`; targeted integrator tests и typecheck прошли. Function/access/callsite suite после regeneration —
+  `43/43`; generated DEV/TEST artifacts совпадают с declaration.
+- **ORDINARY-DEV-MIGRATOR-001 — ОСТАЁТСЯ ОТКРЫТО:** 0397 применена на DEV административно одной транзакцией с
+  exact ledger row, потому что ordinary `migrate-dev.sh` всё ещё требует удалённый generic `DATABASE_URL`.
+  Постоянный legacy login не возвращать; переносимый deploy-only migrator закрывается отдельным пунктом Ф6.

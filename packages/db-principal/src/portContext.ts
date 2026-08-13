@@ -319,11 +319,20 @@ function assertPrincipal(principal: PortContextPrincipal): void {
       return;
     case 'integrator':
       if (
-        principal.integratorUserId === undefined ||
-        !principal.organizationId ||
-        principal.actorRef ||
-        principal.subjectRef ||
-        principal.requestId
+        !(
+          (principal.targetRole === 'app_integrator_request' &&
+            principal.integratorUserId !== undefined &&
+            principal.organizationId !== undefined &&
+            !principal.actorRef &&
+            !principal.subjectRef &&
+            !principal.requestId) ||
+          (principal.targetRole === 'app_integrator_resolver' &&
+            principal.integratorUserId === undefined &&
+            principal.organizationId === undefined &&
+            !principal.actorRef &&
+            !principal.subjectRef &&
+            !principal.requestId)
+        )
       )
         throw new Error('integrator has an invalid claims matrix');
       return;

@@ -14,12 +14,15 @@ import {
   index,
   integer,
   jsonb,
+  pgSchema,
   pgTable,
   text,
   timestamp,
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+
+const integratorSchema = pgSchema('integrator');
 
 export const bookingCalendarMap = pgTable(
   'booking_calendar_map',
@@ -37,7 +40,7 @@ export const bookingCalendarMap = pgTable(
   (table) => [unique('booking_calendar_map_appointment_key_key').on(table.appointmentKey)],
 );
 
-export const deliveryAttemptLogs = pgTable(
+export const deliveryAttemptLogs = integratorSchema.table(
   'delivery_attempt_logs',
   {
     id: bigserial({ mode: 'number' }).primaryKey().notNull(),
