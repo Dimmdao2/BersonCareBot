@@ -12,16 +12,7 @@ import { collectGaps, generateFunctionCensusSql } from './generate.mjs';
 
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
 const TEST_ONLY = [
-  'app.list_google_calendar_probe_organization_ids()',
-  'app.open_or_touch_operator_probe_incident(text,text,text)',
-  'app.read_integrator_clinic_delivery_credential(text,uuid)',
-  'app.read_integrator_google_calendar_setting(text,uuid)',
-  'app.read_integrator_runtime_setting(text)',
-  'app.read_operator_health_probe_config()',
-  'app.read_operator_outbound_probe_meta()',
   'app.read_saas_isolation_test_scenario_fixture_counts()',
-  'app.record_operator_outbound_probe_run(text,timestamp with time zone,text,jsonb)',
-  'app.resolve_operator_probe_incidents(text)',
   'app.set_saas_isolation_test_scenario(text)',
 ].sort();
 const GENUINE_PRE_SESSION_FUNCTIONS = `
@@ -61,7 +52,7 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
     functions: 222,
     owners: 40,
     test: 222,
-    dev: 211,
+    dev: 220,
     triggers: 3,
     relationEdges: 454,
   });
@@ -82,9 +73,9 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
   assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 256);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 245);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 254);
   assert.equal(testFunctions.length, 271);
-  assert.equal(devFunctions.length, 260);
+  assert.equal(devFunctions.length, 269);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 43);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);

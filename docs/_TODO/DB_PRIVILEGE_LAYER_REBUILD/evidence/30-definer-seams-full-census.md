@@ -42,6 +42,12 @@ Q2 сравнил identity signature (`schema + proname + pg_get_function_identi
 
 ### 1.1 Тринадцать функций только на TEST
 
+> **ЗАМЕНЕНО live-реальностью 13.08.2026:** это исторический Q2-снимок до DEV cutover. Overlay-only
+> `read_operational_verbose_log_flag` и старый delivery-audit root удалены migration `0395`; остальные девять
+> runtime-функций ниже перенесены в общий migration ledger migration `0396` и теперь присутствуют на DEV и TEST.
+> Намеренно TEST-only остаются только две fixture-функции следующего абзаца. Табличный census ниже сохранён как
+> доказательство исходного drift, а не как описание текущего каталога.
+
 Одиннадцать функций установлены штатными TEST overlay `integrator-server-runtime-config.sql` /
 `c4-operational-runtime.sql`, имеют живых callers в integrator и отсутствуют на DEV. Это **deployment gap DEV**,
 а не основание выбросить их из схемы: `list_google_calendar_probe_organization_ids`,

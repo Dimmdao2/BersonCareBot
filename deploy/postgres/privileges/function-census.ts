@@ -3851,7 +3851,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
     "typedArgs": [],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
@@ -4336,7 +4337,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text"
     ],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [],
     "delegatesTo": [
@@ -7838,7 +7840,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid"
     ],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
@@ -7875,7 +7878,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid"
     ],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
@@ -7983,7 +7987,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text"
     ],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
@@ -8128,7 +8133,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
     "typedArgs": [],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
@@ -8162,7 +8168,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
     "typedArgs": [],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
@@ -9439,7 +9446,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "jsonb"
     ],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
@@ -9457,7 +9465,9 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "meta_json"
         ],
         "operations": [
-          "INSERT"
+          "INSERT",
+          "SELECT",
+          "UPDATE"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
@@ -9957,7 +9967,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text"
     ],
     "databases": [
-      "bersoncarebot_test"
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
     ],
     "relationSurfaces": [
       {
