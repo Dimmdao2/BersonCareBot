@@ -241,7 +241,12 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.deepEqual(
     users.access.grants.find((grant) =>
       grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
-    ['id', 'email', 'email_verified_at'],
+    ['id', 'email', 'email_verified_at', 'calendar_timezone'],
+  );
+  assert.deepEqual(
+    users.access.grants.find((grant) =>
+      grant.role === 'app_patient' && grant.operations.includes('UPDATE'))?.columns,
+    ['calendar_timezone', 'updated_at'],
   );
   const patientSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_patient_select_'));
@@ -268,7 +273,7 @@ test('runtime settings and account email use semantic row walls without broad pa
   );
   const timezoneUpdate = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_account_timezone_update_'));
-  assert.deepEqual(timezoneUpdate?.to, ['app_staff', 'app_platform_settings']);
+  assert.deepEqual(timezoneUpdate?.to, ['app_patient', 'app_staff', 'app_platform_settings']);
   assert.equal(timezoneUpdate?.using, '(id = app.current_actor_user_id())');
   assert.equal(timezoneUpdate?.withCheck, '(id = app.current_actor_user_id())');
 });

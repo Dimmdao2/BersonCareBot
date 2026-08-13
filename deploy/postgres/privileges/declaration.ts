@@ -2805,13 +2805,16 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.platform_users': {
     kind: 'direct',
-    purpose: 'patient reads only own account email; clinic staff reads those fields only for current-clinic members; platform settings reads them for global administration',
+    purpose: 'identity-self reads own account email and timezone; clinic staff reads current-clinic members; platform settings reads them for global administration',
     codePaths: [
       'apps/webapp/src/infra/repos/pgUserProjection.ts#getProfileEmailFields',
+      'apps/webapp/src/infra/repos/pgPlatformUserCalendarTimezone.ts',
       'apps/webapp/src/app/app/account/page.tsx',
     ],
     grants: [
-      { role: 'app_patient', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
+      { role: 'app_patient', operations: ['SELECT'],
+        columns: ['id', 'email', 'email_verified_at', 'calendar_timezone'] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['calendar_timezone', 'updated_at'] },
       { role: 'app_platform_settings', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone'] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: ['calendar_timezone', 'updated_at'] },
@@ -3396,9 +3399,9 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       to: ['app_platform_settings'], using: "(current_user = 'app_platform_settings'::name)",
       note: 'platform administration may read explicitly granted non-clinical directory columns' },
     { name: `rev10_platform_users_account_timezone_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
-      to: ['app_staff', 'app_platform_settings'], using: '(id = app.current_actor_user_id())',
+      to: ['app_patient', 'app_staff', 'app_platform_settings'], using: '(id = app.current_actor_user_id())',
       withCheck: '(id = app.current_actor_user_id())',
-      note: 'staff and platform administration may update only their own account timezone' },
+      note: 'identity-self, staff and platform administration may update only their own account timezone' },
   ];
 }
 
