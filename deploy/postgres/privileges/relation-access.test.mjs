@@ -243,11 +243,19 @@ test('runtime settings and account email use semantic row walls without broad pa
       grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
     ['id', 'email', 'email_verified_at'],
   );
-  const usersSelect = users.policies.find((policy) =>
-    policy.name.startsWith('rev10_platform_users_select_'));
-  assert.match(usersSelect?.using ?? '', /id = app\.current_patient_user_id\(\)/);
-  assert.match(usersSelect?.using ?? '', /be_organization_members/);
-  assert.match(usersSelect?.using ?? '', /app_platform_settings/);
+  const patientSelect = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_patient_select_'));
+  const staffSelect = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_staff_select_'));
+  const platformSelect = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_platform_select_'));
+  assert.deepEqual(patientSelect?.to, ['app_patient']);
+  assert.match(patientSelect?.using ?? '', /id = app\.current_patient_user_id\(\)/);
+  assert.doesNotMatch(patientSelect?.using ?? '', /be_organization_members/);
+  assert.deepEqual(staffSelect?.to, ['app_staff']);
+  assert.match(staffSelect?.using ?? '', /access_member\.platform_user_id = platform_users\.id/);
+  assert.deepEqual(platformSelect?.to, ['app_platform_settings']);
+  assert.equal(platformSelect?.using, "(current_user = 'app_platform_settings'::name)");
 });
 
 test('tenant service has one command-aware D/M/P policy for every exact relation operation', () => {

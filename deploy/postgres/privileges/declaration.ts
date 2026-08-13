@@ -3309,10 +3309,21 @@ function revision10AppRuntimeSettingsPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN id = app.current_patient_user_id() WHEN current_user = 'app_staff'::name THEN EXISTS (SELECT 1 FROM public.be_organization_members access_member WHERE access_member.platform_user_id = id AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active') WHEN current_user = 'app_platform_settings'::name THEN true ELSE false END)";
-  return [{ name: `rev10_platform_users_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
-    to: ['app_patient', 'app_staff', 'app_platform_settings'], using: readWall,
-    note: 'patient self, current-clinic member, or global platform administration only' }];
+  return [
+    { name: `rev10_platform_users_patient_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_patient'], using: '(id = app.current_patient_user_id())',
+      note: 'patient may read only its own explicitly granted profile columns' },
+    { name: `rev10_platform_users_staff_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff'],
+      using: '(EXISTS (SELECT 1 FROM public.be_organization_members access_member'
+        + ' WHERE access_member.platform_user_id = platform_users.id'
+        + ' AND access_member.organization_id = app.current_org_id()'
+        + " AND access_member.status = 'active'))",
+      note: 'staff may read explicitly granted profile columns of current-clinic members' },
+    { name: `rev10_platform_users_platform_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_platform_settings'], using: "(current_user = 'app_platform_settings'::name)",
+      note: 'platform administration may read explicitly granted non-clinical directory columns' },
+  ];
 }
 
 function revision10SeamOwnerPolicy(tableKey: string, index: number, access: RelationAccess): PolicyDecl[] {
