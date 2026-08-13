@@ -2816,6 +2816,23 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['SELECT'], columns: ['id', 'email', 'email_verified_at'] },
     ],
   },
+  'public.user_web_push_subscriptions': {
+    kind: 'direct',
+    purpose: 'patient manages only its own browser push subscriptions',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts',
+      'apps/webapp/src/app/api/patient/web-push/subscribe/route.ts',
+      'apps/webapp/src/app/api/patient/web-push/unsubscribe/route.ts',
+    ],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['auth', 'endpoint', 'p256dh', 'updated_at', 'user_agent', 'user_id'] },
+      { role: 'app_patient', operations: ['UPDATE'],
+        columns: ['auth', 'p256dh', 'updated_at', 'user_agent', 'user_id'] },
+      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
+    ],
+  },
   'public.system_settings': {
     kind: 'direct',
     purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows',
@@ -3326,6 +3343,22 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
   ];
 }
 
+function revision10UserWebPushPolicies(index: number): PolicyDecl[] {
+  const patientWall = '(user_id = app.current_patient_user_id())';
+  const staffWall = '(EXISTS (SELECT 1 FROM public.be_organization_members access_member'
+    + ' WHERE access_member.platform_user_id = user_web_push_subscriptions.user_id'
+    + ' AND access_member.organization_id = app.current_org_id()'
+    + " AND access_member.status = 'active'))";
+  return [
+    { name: `rev10_user_web_push_patient_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+      to: ['app_patient'], using: patientWall, withCheck: patientWall,
+      note: 'patient manages only its own browser push subscriptions' },
+    { name: `rev10_user_web_push_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+      to: ['app_staff'], using: staffWall, withCheck: staffWall,
+      note: 'staff manages push subscriptions only for current-clinic members' },
+  ];
+}
+
 function revision10SeamOwnerPolicy(tableKey: string, index: number, access: RelationAccess): PolicyDecl[] {
   const seams = access.kind === 'direct' || access.kind === 'named-seams' ? access.seams : [];
   const owners = [...new Set(seams.map((seam) => seam.owner))].sort();
@@ -3368,6 +3401,8 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         ? revision10AppRuntimeSettingsPolicies(index)
       : key === 'public.platform_users' && access?.kind === 'direct'
         ? revision10PlatformUsersPolicies(index)
+      : key === 'public.user_web_push_subscriptions' && access?.kind === 'direct'
+        ? revision10UserWebPushPolicies(index)
       : access?.kind === 'direct' && specialized ? directBusiness
       : access?.kind === 'direct' && locked && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_${locked.policyName}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,

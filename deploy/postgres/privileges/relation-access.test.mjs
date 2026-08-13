@@ -258,6 +258,27 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.equal(platformSelect?.using, "(current_user = 'app_platform_settings'::name)");
 });
 
+test('patient web push access is complete for the product path and remains self-only', () => {
+  const table = declaration.databases.bersoncarebot_test.tables['public.user_web_push_subscriptions'];
+  assert.equal(table.access.kind, 'direct');
+  const patientGrants = table.access.grants.filter((grant) => grant.role === 'app_patient');
+  assert.deepEqual(
+    patientGrants.flatMap((grant) => grant.operations).sort(),
+    ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+  );
+  const patientPolicy = table.policies.find((policy) =>
+    policy.name.startsWith('rev10_user_web_push_patient_'));
+  const staffPolicy = table.policies.find((policy) =>
+    policy.name.startsWith('rev10_user_web_push_staff_'));
+  assert.deepEqual(patientPolicy?.to, ['app_patient']);
+  assert.equal(patientPolicy?.using, '(user_id = app.current_patient_user_id())');
+  assert.equal(patientPolicy?.withCheck, '(user_id = app.current_patient_user_id())');
+  assert.doesNotMatch(patientPolicy?.using ?? '', /be_organization_members/);
+  assert.deepEqual(staffPolicy?.to, ['app_staff']);
+  assert.match(staffPolicy?.using ?? '',
+    /access_member\.platform_user_id = user_web_push_subscriptions\.user_id/);
+});
+
 test('tenant service has one command-aware D/M/P policy for every exact relation operation', () => {
   const expectedEdges = new Set();
   for (const [relation, access] of Object.entries(REV10_CLINICAL_ACCESS)) {
