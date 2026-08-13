@@ -749,10 +749,20 @@ export async function handleIntegratorEvent(
     const integratorOccurrenceId = coerceToString(p.integratorOccurrenceId);
     const integratorRuleId = coerceToString(p.integratorRuleId);
     const integratorUserId = coerceToString(p.integratorUserId);
+    const platformUserId = coerceToString(p.platformUserId);
+    const organizationId = coerceToString(p.organizationId);
     const category = typeof p.category === 'string' ? p.category : '';
     const status = p.status === 'sent' || p.status === 'failed' ? p.status : null;
     const occurredAt = typeof p.occurredAt === 'string' ? p.occurredAt : new Date().toISOString();
-    if (!integratorOccurrenceId || !integratorRuleId || !integratorUserId || !category || !status) {
+    if (
+      !integratorOccurrenceId ||
+      !integratorRuleId ||
+      !integratorUserId ||
+      !platformUserId ||
+      !organizationId ||
+      !category ||
+      !status
+    ) {
       return {
         accepted: false,
         reason: 'reminder.occurrence.finalized: required payload fields missing',
@@ -763,6 +773,8 @@ export async function handleIntegratorEvent(
         integratorOccurrenceId,
         integratorRuleId,
         integratorUserId,
+        platformUserId,
+        organizationId,
         category,
         status,
         deliveryChannel: typeof p.deliveryChannel === 'string' ? p.deliveryChannel : null,

@@ -6887,7 +6887,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "integrator_occurrence_id",
           "integrator_rule_id",
           "integrator_user_id",
+          "organization_id",
           "occurred_at",
+          "platform_user_id",
           "status"
         ]
       },

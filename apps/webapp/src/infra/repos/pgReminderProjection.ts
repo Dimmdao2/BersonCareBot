@@ -67,11 +67,13 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         getWebappSqlDb(),
         sql`
         INSERT INTO reminder_occurrence_history (
-          integrator_occurrence_id, integrator_rule_id, integrator_user_id, category,
+          integrator_occurrence_id, integrator_rule_id, integrator_user_id, platform_user_id,
+          organization_id, category,
           status, delivery_channel, error_code, occurred_at
         ) VALUES (
           ${params.integratorOccurrenceId}, ${params.integratorRuleId}, ${params.integratorUserId}::bigint,
-          ${params.category}, ${params.status}, ${params.deliveryChannel ?? null},
+          ${params.platformUserId}::uuid, ${params.organizationId}::uuid, ${params.category}, ${params.status},
+          ${params.deliveryChannel ?? null},
           ${params.errorCode ?? null}, ${params.occurredAt}::timestamptz
         )
         ON CONFLICT (integrator_occurrence_id) DO NOTHING`,

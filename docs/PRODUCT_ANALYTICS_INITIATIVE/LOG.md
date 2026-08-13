@@ -101,7 +101,9 @@
 - `createTrackedWebPushPayload` — факт в `product_push_notifications` + hourly `push_sent` перед отправкой.
 - Трекинг в: `integratorNotifyChannels`, `platformUserReminderWebPushNotify`, `patientWebPushNotify` (news/appointments); metadata в `notification_delivery_attempts`.
 - `sendWebPushToSubscriptions` / `sw.js`: `trackingId`, topic/kind/slogan в payload и `notification.data`.
-- `POST /api/patient/analytics/push-open` — dedupe, сессия опциональна (`user_id` null без cookie).
+- **УСТАРЕЛО/ЗАМЕНЕНО 2026-08-13:** первоначально `POST /api/patient/analytics/push-open` допускал отсутствие
+  сессии (`user_id` null). После закрытия DB-портов endpoint требует authenticated patient context и пишет через
+  current-patient seam; до логина analytics mutation не разрешена.
 
 ### Проверка (post-review)
 

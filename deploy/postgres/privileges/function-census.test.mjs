@@ -72,10 +72,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 259);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 257);
-  assert.equal(testFunctions.length, 274);
-  assert.equal(devFunctions.length, 272);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 265);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 263);
+  assert.equal(testFunctions.length, 280);
+  assert.equal(devFunctions.length, 278);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 43);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -176,6 +176,7 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=/);
     assert.match(first, /ON CONFLICT DO UPDATE requires undeclared UPDATE/);
     assert.match(first, /ON CONFLICT DO UPDATE requires undeclared SELECT for conflict\/update row/);
+    assert.match(first, /ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row/);
     assert.match(first, /UPDATE predicate\/RETURNING requires undeclared SELECT/);
     assert.match(first, /app\.record_operator_outbound_probe_run\(text,timestamp with time zone,text,jsonb\)/);
     assert.doesNotMatch(first, /install_signed_context|release_principal_context|reset_principal_context/);

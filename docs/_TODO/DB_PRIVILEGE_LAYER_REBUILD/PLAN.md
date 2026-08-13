@@ -274,6 +274,15 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   и today/week дали `200`, а hash `617` чужих symptom entries остался неизменным. В декларацию возвращены
   потерянные при rebuild смысловые patient-права на current-clinic reference catalog и собственные symptom
   entries; старый reminder query больше не зависит от выбранной клиники и не глотает DB-отказ как ноль.
+  Reminders read-page без выбранной клиники больше не пытается читать/материализовать clinic promo до проверки
+  `canMaterialize`: повторный live render `200` без `ensure_default_promo_failed` и без нового DB grant.
+  Независимый аудит затем нашёл, что настоящий integrator producer терял `platform_user_id` и `organization_id`
+  finalized occurrence, поэтому ручной fixture не доказывал весь путь. Разрыв закрыт по цепочке occurrence →
+  projection event → webapp INSERT; отсутствие ownership теперь громкая ошибка, оба targeted tests требуют поля.
+  Patient analytics page-view и push-open прошли live: первый push-open записан, повтор дедуплицирован, агрегаты
+  выросли ровно на один. Route теперь устанавливает authenticated patient context; прежний pre-login mutation
+  удалён. Найденный класс PostgreSQL `ON CONFLICT DO NOTHING` теперь проверяется generator body verifier для всех
+  definer seams; восемь неполных relation-surfaces исправлены, повторный DEV reconcile/catalog audit прошёл.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

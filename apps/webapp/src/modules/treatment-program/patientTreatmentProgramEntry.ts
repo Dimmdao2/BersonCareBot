@@ -36,11 +36,11 @@ async function tryEnsureDefaultPromoInstanceId(
 ): Promise<{ instanceId: string | null; refused: boolean }> {
   const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
   if (!promoTplId?.trim()) return { instanceId: null, refused: false };
+  if (!promoAccess.canMaterialize) return { instanceId: null, refused: true };
 
   try {
     const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
     if (!tpl || tpl.status !== 'published') return { instanceId: null, refused: false };
-    if (!promoAccess.canMaterialize) return { instanceId: null, refused: true };
     const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
       patientUserId,
     });

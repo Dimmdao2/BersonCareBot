@@ -297,6 +297,8 @@ export type FinalizedReminderOccurrenceProjectionContext = {
   occurrenceId: string;
   ruleId: string;
   userId: string;
+  platformUserId: string;
+  organizationId: string;
   category: string;
   status: string;
   occurredAt: string;
@@ -464,20 +466,14 @@ export async function insertReminderDeliveryLog(
 export async function getReminderOccurrenceContextForProjection(
   db: DbPort,
   occurrenceId: string,
-): Promise<{
-  ruleId: string;
-  userId: string;
-  category: string;
-  status: string;
-  occurredAt: string;
-  deliveryChannel: string | null;
-  errorCode: string | null;
-} | null> {
+): Promise<Omit<FinalizedReminderOccurrenceProjectionContext, 'occurrenceId'> | null> {
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select({
       rule_id: userReminderOccurrences.ruleId,
       user_id: sql<string>`${reminderRules.integratorUserId}::text`,
+      platform_user_id: userReminderOccurrences.platformUserId,
+      organization_id: sql<string>`COALESCE(${userReminderOccurrences.organizationId}, ${reminderRules.organizationId})::text`,
       category: reminderRules.category,
       status: userReminderOccurrences.status,
       sent_at: userReminderOccurrences.sentAt,
@@ -491,10 +487,15 @@ export async function getReminderOccurrenceContextForProjection(
     .limit(1);
   const row = rows[0];
   if (!row) return null;
+  if (!row.platform_user_id || !row.organization_id) {
+    throw new Error(`reminder occurrence ${occurrenceId} has no canonical ownership`);
+  }
   const occurredAt = row.sent_at ?? row.failed_at ?? new Date().toISOString();
   return {
     ruleId: row.rule_id,
     userId: String(row.user_id),
+    platformUserId: row.platform_user_id,
+    organizationId: row.organization_id,
     category: row.category,
     status: row.status,
     occurredAt,

@@ -19,7 +19,8 @@
 - **`auth_login`** — после успешного входа в перечисленных auth routes (`recordAuthLogin`).
 - **`auth_register_*`** — воронка регистрации из auth routes (`recordAuthRegistration`): attempt / success / failure; metadata без сырого PII; см. [`auth.md`](../../apps/webapp/src/modules/auth/auth.md) §«Журнал воронки регистрации», admin list API в [`api.md`](../../apps/webapp/src/app/api/api.md).
 - **`POST /api/patient/pwa/launch`** — только **`heartbeat`** + metadata `pwa_launch_snapshot` (не `app_open`).
-- **Push:** `product_push_notifications` при отправке; **`push_open`** из SW → `POST /api/patient/analytics/push-open` (dedupe по `trackingId`).
+- **Push:** `product_push_notifications` при отправке; **`push_open`** из SW → authenticated patient
+  `POST /api/patient/analytics/push-open` (dedupe по `trackingId`, запись только через current-patient DB seam).
 
 ## Исключение тестовых аккаунтов
 

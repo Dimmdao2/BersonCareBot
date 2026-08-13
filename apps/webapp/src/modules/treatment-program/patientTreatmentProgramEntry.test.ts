@@ -48,6 +48,8 @@ describe('promo materialization entitlement', () => {
 
     expect(entry).toMatchObject({ kind: 'list', promoEnsureFailed: false });
     expect(activeId).toBeNull();
+    expect(treatment.deps.treatmentProgram.getTemplate).not.toHaveBeenCalled();
+    expect(active.deps.treatmentProgram.getTemplate).not.toHaveBeenCalled();
     expect(treatment.ensureDefaultPromoProgramForPatient).not.toHaveBeenCalled();
     expect(active.ensureDefaultPromoProgramForPatient).not.toHaveBeenCalled();
   });

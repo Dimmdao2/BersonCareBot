@@ -88,6 +88,8 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
       integratorOccurrenceId: 'occ-1',
       integratorRuleId: 'rule-1',
       integratorUserId: '99',
+      platformUserId: '9f000001-0000-4000-8000-000000000001',
+      organizationId: 'a0000000-0000-4000-8000-000000000001',
       category: 'lfk',
       status: 'sent',
       deliveryChannel: null,
@@ -96,6 +98,10 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
     });
     const sql = lastApproxSql();
     expect(sql).toContain('reminder_occurrence_history');
+    expect(sql).toContain('platform_user_id');
+    expect(sql).toContain('organization_id');
+    expect(sql).toContain('9f000001-0000-4000-8000-000000000001');
+    expect(sql).toContain('a0000000-0000-4000-8000-000000000001');
     expect(sql).toContain('ON CONFLICT (integrator_occurrence_id) DO NOTHING');
   });
 

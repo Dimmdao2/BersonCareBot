@@ -17,6 +17,8 @@ export type ReminderProjectionPort = {
     integratorOccurrenceId: string;
     integratorRuleId: string;
     integratorUserId: string;
+    platformUserId: string;
+    organizationId: string;
     category: string;
     status: 'sent' | 'failed';
     deliveryChannel: string | null;

@@ -1102,6 +1102,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -1314,6 +1315,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "payload"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -1891,6 +1893,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "priority"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -2951,6 +2954,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "updated_at"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -2983,6 +2987,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "user_id"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -6025,6 +6030,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -9222,6 +9228,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -9783,6 +9790,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "payload"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"

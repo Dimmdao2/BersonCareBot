@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getCurrentSession } from '@/modules/auth/service';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { logger } from '@/infra/logging/logger';
 import { PRODUCT_ANALYTICS_ENTRY_CHANNELS } from '@/modules/product-analytics/types';
-import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 const bodySchema = z.object({
   pushTrackingId: z.string().uuid(),
@@ -12,6 +13,9 @@ const bodySchema = z.object({
 
 /** POST /api/patient/analytics/push-open — idempotent push click (SW / PWA). */
 export async function POST(request: Request) {
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
+  if (!gate.ok) return gate.response;
+
   let json: unknown;
   try {
     json = await request.json();
@@ -24,19 +28,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
-  const session = await getCurrentSession();
-  const sessionUserId = session?.user.userId;
-  const userId = sessionUserId && isPlatformUserUuid(sessionUserId) ? sessionUserId : null;
-
   try {
     const deps = buildAppDeps();
     const result = await deps.productAnalytics.recordPushOpen({
       pushTrackingId: parsed.data.pushTrackingId,
-      userId,
+      userId: gate.session.user.userId,
       entryChannel: parsed.data.entryChannel ?? 'pwa',
     });
     return NextResponse.json({ ok: true, deduped: result.deduped });
-  } catch {
+  } catch (err) {
+    logger.error(
+      { err, event: 'patient_push_open_ingest_failed', userId: gate.session.user.userId },
+      'patient push-open analytics ingest failed',
+    );
     return NextResponse.json({ ok: false, error: 'ingest_failed' }, { status: 500 });
   }
 }

@@ -2743,5 +2743,36 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   Возвращён полный смысловой self action set: `SELECT`, exact-column `INSERT/UPDATE`, `DELETE`, под существующей
   patient ownership policy. Live POST создал score `3`, повторный POST изменил ту же строку на `4`, today/week
   вернули `200`; hash `617` чужих entries до/после одинаков: `88586d226a979db1da7ebfcc4546f66d`.
+- **PATIENT-PROMO-READ-MUTATION-009 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** reminders read-page при отсутствии
+  выбранной клиники правильно не имела права материализовать promo, но до проверки этого решения всё равно
+  читала clinic template, ловила ошибку и продолжала с `ensure_default_promo_failed`. Проверка
+  `canMaterialize` перенесена перед DB-read: новый grant не добавлялся. Повторный живой render дал `200` и
+  `0` новых строк в webapp runtime log; behavior test также требует, чтобы `getTemplate` не вызывался.
 - Все одноразовые fixtures удалены: own symptom entries `0`, own trackings `0`, reminder history fixture `0`,
   reminder rule fixture `0`; organization preference возвращена в исходное невыбранное состояние.
+
+### Независимый аудит commit `27964f430` — MUST FIX найден и закрыт
+
+- **REMINDER-FINALIZED-OWNERSHIP-010 — НАЙДЕНО АУДИТОРОМ И ИСПРАВЛЕНО ГРОМКО:** предыдущий live fixture
+  вручную содержал `platform_user_id`/`organization_id`, но настоящий producer
+  `reminder.occurrence.finalized` терял оба уже известных ownership-поля. Поэтому прежняя формулировка
+  «reminder slice зелёный» была преждевременной: новая реальная строка могла исчезнуть из patient history.
+- Integrator теперь берёт canonical `platform_user_id` и organization непосредственно из своей operational
+  occurrence/rule, громко падает при отсутствии ownership и передаёт оба поля через projection event. Webapp
+  требует их в payload и INSERT. Exact staff INSERT grant расширен только этими двумя колонками; patient ACL
+  не расширен. Targeted fanout/repository tests требуют сохранения обоих полей.
+
+### Live/fix pass patient-analytics-2026-08-13
+
+- **PATIENT-PUSH-OPEN-CONTEXT-011 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** push-open route получал обычную сессию,
+  но не ставил patient DB principal; repository уходил в запрещённый direct path. Endpoint теперь требует
+  authenticated patient business context и пишет только через exact current-patient seam. Старое описание
+  optional pre-login analytics явно помечено `УСТАРЕЛО/ЗАМЕНЕНО`; до логина остаются только auth/session paths.
+- **DEFINER-ON-CONFLICT-SELECT-012 — НАЙДЕНО LIVE И ИСПРАВЛЕНО КЛАССОМ:** PostgreSQL 16 требует `SELECT` на
+  conflict-key/predicate columns даже для `INSERT ... ON CONFLICT DO NOTHING`. Старый verifier проверял это
+  только для `DO UPDATE`, поэтому push-open громко падал `42501` на `product_analytics_events_recent`.
+  Проверка распространена на `DO NOTHING`; полный DEV body census нашёл и закрыл все восемь таких seam
+  relation-surfaces. Повторный reconcile теперь прерывается при любом новом необъявленном случае.
+- Живой результат: первый push-open → `200 {deduped:false}`, повтор → `200 {deduped:true}`; recent/hourly/
+  user-hourly содержали ровно `1/1/1`. Обычный patient page-view также дал `200 accepted=1`. Все analytics
+  fixtures и выбранная organization затем удалены: `recent=0`, `hourly=0`, push fixture `=0`.
