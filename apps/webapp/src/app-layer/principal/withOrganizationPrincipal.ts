@@ -1,6 +1,8 @@
 import {
+  getCurrentDbPrincipal,
   runWithDbOrganizationPrincipal,
   runWithDbPatientPrincipal,
+  runWithDbStaffPrincipal,
 } from '@bersoncare/db-principal';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 
@@ -44,15 +46,21 @@ export async function withPatientOrganizationPrincipal<T>(
   );
 }
 
-export async function withDoctorWorkspacePrincipal<T>(
+export function withDoctorWorkspacePrincipal<T>(
   workspace: Pick<DoctorWorkspaceAccessContext, 'organizationId'>,
   source: string,
-  fn: () => Promise<T>,
-): Promise<T> {
-  return withExplicitOrganizationPrincipal(
+  fn: () => T,
+): T {
+  const normalizedSource = normalizePrincipalSource(source);
+  const current = getCurrentDbPrincipal();
+  if (current?.kind !== 'staff') {
+    throw new Error('doctor_workspace_staff_principal_required');
+  }
+  return runWithDbStaffPrincipal(
     {
       organizationId: workspace.organizationId,
-      source,
+      platformUserId: current.platformUserId,
+      source: normalizedSource,
     },
     fn,
   );

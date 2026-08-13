@@ -1,4 +1,3 @@
-import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal as withSourcedDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
@@ -19,7 +18,7 @@ export function withDoctorWorkspacePrincipal<T>(
   maybeFn?: () => Promise<T>,
 ): T | Promise<T> {
   if (typeof sourceOrFn === 'function') {
-    return runWithDbOrganizationPrincipal(ctx.organizationId, sourceOrFn);
+    return withSourcedDoctorWorkspacePrincipal(ctx, 'doctor.workspace', sourceOrFn);
   }
   if (!maybeFn) throw new Error('principal_callback_required');
   return withSourcedDoctorWorkspacePrincipal(ctx, sourceOrFn, maybeFn);
