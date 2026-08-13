@@ -646,6 +646,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "city_code",
           "color",
           "created_at",
+          "id",
           "is_active",
           "organization_id",
           "short_title",
@@ -663,7 +664,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "address",
           "city_code",
+          "color",
           "is_active",
+          "short_title",
           "sort_order",
           "timezone",
           "title",
@@ -766,6 +769,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "created_at",
           "description",
           "duration_minutes",
+          "id",
           "is_active",
           "online_payment_applicable",
           "organization_id",
@@ -1741,6 +1745,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "branch_id",
           "created_at",
+          "id",
           "is_active",
           "organization_id",
           "sort_order",
@@ -1860,6 +1865,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "branch_id",
+          "created_at",
+          "id",
           "is_active",
           "organization_id",
           "service_id"
@@ -1897,6 +1904,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "branch_id",
+          "created_at",
+          "id",
           "is_active",
           "organization_id",
           "specialist_id"
@@ -1933,6 +1942,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
+          "id",
           "is_active",
           "organization_id",
           "room_id",
@@ -1976,6 +1987,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "branch_id",
           "city_code",
           "created_at",
+          "id",
           "is_active",
           "organization_id",
           "price_minor_override",

@@ -290,6 +290,45 @@ test('staff matrix omits unsupported mutations and scopes retained writes', () =
   }
 });
 
+test('clinic topology grants cover the exact columns emitted by Drizzle inserts', () => {
+  const expected = {
+    'public.be_branches': [
+      'address', 'city_code', 'color', 'created_at', 'id', 'is_active', 'organization_id',
+      'short_title', 'sort_order', 'timezone', 'title', 'updated_at',
+    ],
+    'public.be_clinic_services': [
+      'admin_manual_only', 'buffer_after_minutes', 'created_at', 'description', 'duration_minutes',
+      'id', 'is_active', 'online_payment_applicable', 'organization_id', 'prepayment_applicable',
+      'price_minor', 'public_widget_visible', 'sort_order', 'title', 'updated_at',
+      'usable_in_packages',
+    ],
+    'public.be_rooms': [
+      'branch_id', 'created_at', 'id', 'is_active', 'organization_id', 'sort_order', 'title',
+      'updated_at',
+    ],
+    'public.be_service_location_availability': [
+      'branch_id', 'created_at', 'id', 'is_active', 'organization_id', 'service_id',
+    ],
+    'public.be_specialist_locations': [
+      'branch_id', 'created_at', 'id', 'is_active', 'organization_id', 'specialist_id',
+    ],
+    'public.be_specialist_rooms': [
+      'created_at', 'id', 'is_active', 'organization_id', 'room_id', 'specialist_id',
+    ],
+    'public.be_specialist_service_availability': [
+      'branch_id', 'city_code', 'created_at', 'id', 'is_active', 'organization_id',
+      'price_minor_override', 'room_id', 'service_id', 'sort_order', 'specialist_id', 'updated_at',
+    ],
+  };
+  for (const [relation, columns] of Object.entries(expected)) {
+    exactColumns(relation, 'app_staff', 'INSERT', columns);
+  }
+  exactColumns('public.be_branches', 'app_staff', 'UPDATE', [
+    'address', 'city_code', 'color', 'is_active', 'short_title', 'sort_order', 'timezone', 'title',
+    'updated_at',
+  ]);
+});
+
 test('no direct INSERT or UPDATE grant is table-wide', () => {
   for (const [relation, access] of Object.entries(REV10_CLINICAL_ACCESS)) {
     if (access.kind !== 'direct') continue;
