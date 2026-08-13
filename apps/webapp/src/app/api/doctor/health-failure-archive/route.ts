@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       : 50;
 
   const { items, nextCursor } = await buildAppDeps().healthFailureArchive.listForDoctor({
-    doctorUserId: gate.session.user.userId,
+    doctorUserId: gate.ctx.session.user.userId,
     limit,
     cursor,
   });

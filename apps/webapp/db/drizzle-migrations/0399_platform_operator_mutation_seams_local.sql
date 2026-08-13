@@ -1,3 +1,47 @@
+-- BCB-MIGRATION-OWNER: app_seam_context_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- Platform mutations run as app_platform_admin, while ordinary platform reads run as
+-- app_platform_settings. Both are human webapp contexts and carry the same attested actor.
+CREATE OR REPLACE FUNCTION app.current_actor_user_id()
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+VOLATILE
+PARALLEL UNSAFE
+SET search_path = pg_catalog, app, app_ext, pg_temp
+AS $function$
+DECLARE
+  opaque_ref uuid;
+  physical_id uuid;
+BEGIN
+  SELECT actor_ref
+    INTO opaque_ref
+    FROM app_ext.accepted_port_contexts
+   WHERE database_oid = (SELECT oid FROM pg_database WHERE datname = current_database())
+     AND backend_pid = pg_backend_pid()
+     AND transaction_id = pg_current_xact_id()
+     AND cleared_at IS NULL
+     AND target_role IN (
+       'app_staff',
+       'app_clinic_billing',
+       'app_patient',
+       'app_platform_settings',
+       'app_platform_admin'
+     );
+  IF opaque_ref IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'accepted actor context required';
+  END IF;
+  SELECT app_ext.resolve_variant_a_physical(opaque_ref) INTO physical_id;
+  RETURN physical_id;
+END
+$function$;
+
+GRANT EXECUTE ON FUNCTION app.current_actor_user_id()
+TO app_clinic_billing;
+
+--> statement-breakpoint
+
 -- BCB-MIGRATION-OWNER: app_seam_telemetry_operator_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
@@ -224,8 +268,8 @@ $function$;
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- Moves one locked batch into the archive and deletes only rows that were inserted there.
--- Queue payloads stay inside PostgreSQL; the caller receives counts only. Tenant rows keep their
--- organization_id, so platform archive reads cannot turn clinic failures into global rows.
+-- Clinical diagnostics are preserved inside the tenant-walled archive; the platform caller receives
+-- counts only, and the separate platform list seam exposes only its sanitized projection.
 CREATE OR REPLACE FUNCTION app.archive_operator_health_failures(
   p_probe text,
   p_limit integer,
@@ -259,11 +303,30 @@ BEGIN
     WITH candidates AS MATERIALIZED (
       SELECT
         queue.id,
+        queue.organization_id,
         queue.kind,
         queue.channel,
+        queue.payload_json,
         queue.last_error,
-        queue.created_at
+        queue.created_at,
+        audit.organization_id AS broadcast_organization_id,
+        audit.actor_id AS broadcast_actor_id,
+        audit.message_title AS broadcast_message_title,
+        recipient.display_name AS recipient_display_name,
+        recipient.first_name AS recipient_first_name,
+        recipient.last_name AS recipient_last_name,
+        recipient.phone_normalized AS recipient_phone_normalized
       FROM public.outgoing_delivery_queue AS queue
+      LEFT JOIN public.broadcast_audit AS audit
+        ON queue.kind = 'doctor_broadcast_intent'
+       AND (queue.payload_json ->> 'broadcastAuditId')
+           ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+       AND audit.id = (queue.payload_json ->> 'broadcastAuditId')::uuid
+      LEFT JOIN public.platform_users AS recipient
+        ON queue.kind = 'doctor_broadcast_intent'
+       AND (queue.payload_json ->> 'clientUserId')
+           ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+       AND recipient.id = (queue.payload_json ->> 'clientUserId')::uuid
       WHERE queue.status = 'dead'
         AND (queue.failure_class IS NULL OR queue.failure_class <> 'recipient_blocked_bot')
         AND CASE
@@ -272,7 +335,7 @@ BEGIN
         END
       ORDER BY queue.created_at, queue.id
       LIMIT p_limit
-      FOR UPDATE SKIP LOCKED
+      FOR UPDATE OF queue SKIP LOCKED
     ), archived AS (
       INSERT INTO public.operator_health_failure_archive (
         organization_id,
@@ -282,16 +345,22 @@ BEGIN
         source_id,
         severity_at_archive,
         doctor_user_id,
-        summary_json
+        summary_json,
+        raw_error_truncated
       )
       SELECT
-        NULL,
+        pg_catalog.coalesce(candidate.organization_id, candidate.broadcast_organization_id),
         p_archived_by_user_id,
         p_probe,
         'outgoing_delivery_queue_row',
         candidate.id::text,
         'dead',
-        NULL,
+        CASE
+          WHEN candidate.broadcast_actor_id
+               ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          THEN candidate.broadcast_actor_id::uuid
+          ELSE NULL
+        END,
         pg_catalog.jsonb_strip_nulls(pg_catalog.jsonb_build_object(
           'reason_code', CASE
             WHEN candidate.last_error IS NULL OR pg_catalog.btrim(candidate.last_error) = '' THEN 'unknown_delivery_error'
@@ -319,8 +388,32 @@ BEGIN
           END,
           'channel', candidate.channel,
           'queue_kind', candidate.kind,
+          'broadcast_audit_id', candidate.payload_json ->> 'broadcastAuditId',
+          'client_user_id', candidate.payload_json ->> 'clientUserId',
+          'doctor_user_id', candidate.broadcast_actor_id,
+          'broadcast_title_short', CASE
+            WHEN candidate.broadcast_message_title IS NULL THEN NULL
+            WHEN pg_catalog.length(pg_catalog.btrim(candidate.broadcast_message_title)) <= 100
+              THEN pg_catalog.btrim(candidate.broadcast_message_title)
+            ELSE pg_catalog.left(pg_catalog.btrim(candidate.broadcast_message_title), 100) || '…'
+          END,
+          'recipient_short_name', CASE
+            WHEN pg_catalog.btrim(pg_catalog.coalesce(candidate.recipient_display_name, '')) <> ''
+              THEN pg_catalog.left(pg_catalog.btrim(candidate.recipient_display_name), 80)
+            WHEN pg_catalog.btrim(pg_catalog.concat_ws(' ', candidate.recipient_first_name, candidate.recipient_last_name)) <> ''
+              THEN pg_catalog.left(pg_catalog.btrim(pg_catalog.concat_ws(' ', candidate.recipient_first_name, candidate.recipient_last_name)), 80)
+            ELSE NULL
+          END,
+          'recipient_phone_masked', CASE
+            WHEN candidate.recipient_phone_normalized IS NULL THEN NULL
+            WHEN pg_catalog.length(candidate.recipient_phone_normalized) <= 4 THEN '***'
+            ELSE pg_catalog.left(candidate.recipient_phone_normalized, 2)
+              || pg_catalog.repeat('*', pg_catalog.greatest(pg_catalog.length(candidate.recipient_phone_normalized) - 4, 3))
+              || pg_catalog.right(candidate.recipient_phone_normalized, 2)
+          END,
           'health_scope', 'platform'
-        ))
+        )),
+        pg_catalog.left(candidate.last_error, 512)
       FROM candidates AS candidate
       RETURNING source_id
     ), deleted AS (
@@ -347,7 +440,7 @@ BEGIN
     ), archived AS (
       INSERT INTO public.operator_health_failure_archive (
         organization_id, archived_by_user_id, health_probe, source_kind, source_id,
-        severity_at_archive, doctor_user_id, summary_json
+        severity_at_archive, doctor_user_id, summary_json, raw_error_truncated
       )
       SELECT
         NULL, p_archived_by_user_id, p_probe, 'integrator_push_outbox_row', candidate.id::text,
@@ -366,7 +459,8 @@ BEGIN
             ELSE 'Сбой синка в integrator (см. усечённый текст)'
           END,
           'queue_kind', candidate.kind
-        )
+        ),
+        pg_catalog.left(candidate.last_error, 512)
       FROM candidates AS candidate
       RETURNING source_id
     ), deleted AS (
@@ -398,7 +492,7 @@ BEGIN
   ), archived AS (
     INSERT INTO public.operator_health_failure_archive (
       organization_id, archived_by_user_id, health_probe, source_kind, source_id,
-      severity_at_archive, doctor_user_id, summary_json
+      severity_at_archive, doctor_user_id, summary_json, raw_error_truncated
     )
     SELECT
       NULL, p_archived_by_user_id, p_probe, 'projection_outbox_row', candidate.id::text,
@@ -407,7 +501,8 @@ BEGIN
         'event_type', candidate.event_type,
         'idempotency_key', candidate.idempotency_key,
         'attempts_done', candidate.attempts_done
-      )
+      ),
+      pg_catalog.left(candidate.last_error, 512)
     FROM candidates AS candidate
     RETURNING source_id
   ), deleted AS (
