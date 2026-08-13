@@ -22,6 +22,7 @@ CANONICAL_SQL_READER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 OWNER_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs"
 INTEGRATOR_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs"
 RECONCILER="$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs"
+PORT_CONTEXT_ENV_UPDATER="$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs"
 DRIZZLE_FOLDER="$REPO_ROOT/apps/webapp/db/drizzle-migrations"
 D30_ONLINE_INDEX="$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql"
 CREDENTIAL_DIR=""
@@ -105,6 +106,7 @@ assert_canonical_file "$CANONICAL_SQL_READER" "$REPO_ROOT/deploy/host/stream-can
 assert_canonical_file "$OWNER_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" "owner-ordered migrator"
 assert_canonical_file "$INTEGRATOR_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs" "integrator migrator"
 assert_canonical_file "$RECONCILER" "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" "access reconciler"
+assert_canonical_file "$PORT_CONTEXT_ENV_UPDATER" "$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs" "DEV port-context env updater"
 assert_canonical_file "$D30_ONLINE_INDEX" "$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql" "D30 online index artifact"
 [[ ! -L "$DRIZZLE_FOLDER" && -d "$DRIZZLE_FOLDER" ]] || fatal "Drizzle migrations path guard failed"
 
@@ -201,6 +203,10 @@ run_tracked sudo -n env -i \
     exec node "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" \
       --env dev --db "$TARGET_DB" --admin-socket "$ADMIN_SOCKET" --admin-port "$ADMIN_PORT"
   '
+
+# Runtime descriptors are a generated projection of the same declaration as the DB catalog. Keep
+# both software ports synchronized before either process is allowed to restart.
+run_tracked node --experimental-strip-types "$PORT_CONTEXT_ENV_UPDATER"
 
 # Reconcile verifies this too, but keep a wrapper-local stationary-state assertion so the migration
 # entrypoint itself fails loudly if its deploy-only identity ever gains a persistent capability.

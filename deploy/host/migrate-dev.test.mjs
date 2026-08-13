@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { renderDevReconcileEnv } from './parse-dev-database-url.mjs';
+import { upsertExactEnvValue } from './update-dev-port-context-env.mjs';
 
 const parserPath = fileURLToPath(new URL('./parse-dev-database-url.mjs', import.meta.url));
 const migratePath = fileURLToPath(new URL('./migrate-dev.sh', import.meta.url));
@@ -52,6 +53,7 @@ function createRuntime({ migratorState } = {}) {
     join(root, 'deploy/postgres/privileges/migrate-integrator-local.mjs'),
   );
   writeFileSync(join(root, 'deploy/postgres/privileges/reconcile-access.mjs'), '');
+  writeFileSync(join(root, 'deploy/host/update-dev-port-context-env.mjs'), '');
   writeFileSync(
     join(
       root,
@@ -182,6 +184,20 @@ test('reconcile env shell-quotes a password without executing or corrupting it',
   assert.equal(result.stdout, "int'secret");
 });
 
+test('runtime capability env replacement is exact and rejects duplicate keys', () => {
+  assert.equal(
+    upsertExactEnvValue("A='kept'\nWEBAPP_PORT_CONTEXT_CAPABILITIES_JSON='old'\n", 'WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON', '{"new":true}'),
+    "A='kept'\nWEBAPP_PORT_CONTEXT_CAPABILITIES_JSON='{\"new\":true}'\n",
+  );
+  assert.throws(() =>
+    upsertExactEnvValue(
+      'INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON=one\nINTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON=two\n',
+      'INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON',
+      '{}',
+    ),
+  );
+});
+
 test('migrate-dev preflight accepts only the stationary post-cutover migrator', () => {
   const runtime = createRuntime();
   const result = runWrapper(runtime, '--preflight');
@@ -216,8 +232,10 @@ test('migrate-dev executes owner-scoped migrations before mandatory reconcile', 
   const secondIntegrator = calls.indexOf('migrate-integrator-local.mjs', firstIntegrator + 1);
   const onlineIndex = calls.indexOf('d30-outgoing-delivery-queue');
   const reconcile = calls.indexOf('RECONCILE_ENV');
+  const runtimeEnv = calls.indexOf('update-dev-port-context-env.mjs');
   assert.ok(firstIntegrator >= 0 && webapp > firstIntegrator && secondIntegrator > webapp);
   assert.ok(onlineIndex > secondIntegrator && reconcile > onlineIndex);
+  assert.ok(runtimeEnv > reconcile);
   assert.match(calls, /--migrator> <bcb_dev_migrator>.*--drizzle-folder>.*--sudo-postgres>/su);
   assert.match(calls, /--owner> <app_object_owner>/u);
   assert.doesNotMatch(calls, /bcb_webapp_dev_user|pnpm run migrate/u);
