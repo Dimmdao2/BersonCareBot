@@ -2710,3 +2710,38 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
 - Audit rows подтвердили `operator_incidents_resolve_all|ok|2` и два
   `health_failure_archive_clear_dead|ok|3/12`. Прямые platform grants на рабочие queue/archive tables не
   добавлялись; изменение прошло через exact SECURITY DEFINER root и отдельный global-admin pool.
+
+### Независимый аудит commit `4fd09d2e3` — PASS
+
+- Независимый read-only auditor повторно проверил порядок journal `0399 → 0400 → 0401`, exact replacement-counts
+  (`2` для `coalesce`, `1` для `greatest`), ledger hashes, owner и отзыв временных migration-привилегий.
+- D30 gate сохраняет owner-migrator → streamed artifact → `psql` порядок; backup читается, SHA-256 совпадает.
+  Прямых platform grants на queue/archive relations — `0`. Новых MUST FIX нет.
+
+## Live/fix pass patient-reminder-diary-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `4fd09d2e3`, `feat/doctor-ui-rebuild` |
+| Метод | Реальный patient session на DEV, две активные клиники, own+foreign fixtures, DB state/hash и fail-loud log |
+| Вердикт | **ЧЕТЫРЕ ПРОПУЩЕННЫХ ДОСТУПА И ТИХИЙ НОЛЬ ИСПРАВЛЕНЫ ГРОМКО; PATIENT REMINDER/MOOD SLICE ЗЕЛЁНЫЙ** |
+
+- **PATIENT-REMINDER-HISTORY-005 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** `mark-seen` сначала дал PostgreSQL `42501`.
+  После exact `SELECT` + column-only `UPDATE(seen_at)` старый запрос всё равно возвращал HTTP `200`, но менял
+  `0` строк: ownership проверялся через `reminder_rules`, чья policy требует выбранную клинику. Запрос теперь
+  использует канонический `reminder_occurrence_history.platform_user_id`; старые `catch { return 0 }` для count/
+  stats удалены. Live specific/all обновили две свои строки, подмешанная чужая осталась `seen=false`.
+- **PATIENT-REMINDER-MUTE-006 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** patient self policy уже ограничивала
+  `platform_users.id`, но новая декларация потеряла column grant `reminder_muted_until`. Возвращён только этот
+  столбец вместе с уже нужным `updated_at`. Mute и unmute дали `200`; чужой patient row остался `NULL`.
+- **PATIENT-REFERENCE-CATALOG-007 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** новая декларация потеряла D3-доступ пациента
+  к полной current-clinic копии `reference_categories/reference_items`, поэтому mood падал на
+  `reference_items 42501`. Возвращён current-org `SELECT` для patient; существующий staff management сохранён.
+  Одновременно удалены не подтверждённые production-кодом широкие staff `DELETE` на обеих reference-таблицах.
+- **PATIENT-SYMPTOM-ENTRIES-008 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** `symptom_trackings` уже разрешал self CRUD, а
+  собственные `symptom_entries` не имели patient ACL, поэтому дневник создавал tracking и падал на первом чтении.
+  Возвращён полный смысловой self action set: `SELECT`, exact-column `INSERT/UPDATE`, `DELETE`, под существующей
+  patient ownership policy. Live POST создал score `3`, повторный POST изменил ту же строку на `4`, today/week
+  вернули `200`; hash `617` чужих entries до/после одинаков: `88586d226a979db1da7ebfcc4546f66d`.
+- Все одноразовые fixtures удалены: own symptom entries `0`, own trackings `0`, reminder history fixture `0`,
+  reminder rule fixture `0`; organization preference возвращена в исходное невыбранное состояние.

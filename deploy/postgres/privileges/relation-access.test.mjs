@@ -42,6 +42,73 @@ test('patient runtime has no direct appointment table grant', () => {
   );
 });
 
+test('patient reminder history is readable and only its seen cursor is mutable', () => {
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const table = declaration.databases[dbName].tables['public.reminder_occurrence_history'];
+    assert.equal(table.access.kind, 'direct');
+    const patientGrants = table.access.grants.filter((grant) => grant.role === 'app_patient');
+    assert.deepEqual(patientGrants, [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['seen_at'] },
+    ]);
+    const policy = table.policies.find((candidate) =>
+      candidate.name.startsWith('rev10_direct_business_'));
+    assert.deepEqual(policy?.to, ['app_patient', 'app_staff']);
+    assert.match(policy?.using ?? '', /platform_user_id = app\.current_patient_user_id\(\)/u);
+    assert.match(policy?.using ?? '', /organization_id = app\.current_org_id\(\)/u);
+  }
+});
+
+test('reference catalogs are complete within the current clinic and only staff mutates items', () => {
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const tables = declaration.databases[dbName].tables;
+    const categories = tables['public.reference_categories'];
+    const items = tables['public.reference_items'];
+    assert.equal(categories.access.kind, 'direct');
+    assert.equal(items.access.kind, 'direct');
+    assert.deepEqual(categories.access.grants, [
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+    ]);
+    assert.deepEqual(items.access.grants, [
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_staff', operations: ['INSERT'],
+        columns: ['category_id', 'code', 'is_active', 'meta_json', 'organization_id', 'sort_order', 'title'] },
+      { role: 'app_staff', operations: ['UPDATE'],
+        columns: ['code', 'deleted_at', 'is_active', 'organization_id', 'sort_order', 'title'] },
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+    ]);
+    for (const table of [categories, items]) {
+      const policy = table.policies.find((candidate) =>
+        candidate.name.startsWith('rev10_direct_business_'));
+      assert.deepEqual(policy?.to, ['app_patient', 'app_staff']);
+      assert.match(policy?.using ?? '', /organization_id = app\.current_org_id\(\)/u);
+    }
+  }
+});
+
+test('patient symptom entries are self-owned and expose the full diary action set', () => {
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const table = declaration.databases[dbName].tables['public.symptom_entries'];
+    assert.equal(table.access.kind, 'direct');
+    const patientGrants = table.access.grants.filter((grant) => grant.role === 'app_patient');
+    assert.deepEqual(patientGrants, [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'entry_type', 'notes', 'patient_practice_completion_id', 'platform_user_id', 'recorded_at',
+        'source', 'tracking_id', 'user_id', 'value_0_10',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'],
+        columns: ['entry_type', 'notes', 'recorded_at', 'value_0_10'] },
+      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
+    ]);
+    const policy = table.policies.find((candidate) =>
+      candidate.name.startsWith('rev10_saas_org_dormant_'));
+    assert.match(policy?.using ?? '', /"platform_user_id" = app\.current_patient_user_id\(\)/u);
+    assert.deepEqual(policy?.to, ['app_patient', 'app_staff']);
+  }
+});
+
 test('clinical visit insert uses only the canonical appointment link', () => {
   const grant = grantFor('public.clinical_visit', 'app_staff', 'INSERT');
   assert.notEqual(grant.columns, 'table');
@@ -357,7 +424,7 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.deepEqual(
     users.access.grants.find((grant) =>
       grant.role === 'app_patient' && grant.operations.includes('UPDATE'))?.columns,
-    ['calendar_timezone', 'updated_at'],
+    ['calendar_timezone', 'reminder_muted_until', 'updated_at'],
   );
   const patientSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_patient_select_'));

@@ -269,6 +269,11 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   Integrator census свёл остаток к `6` HTTP route-группам, `5` projection event types, `8` outgoing kinds и
   `4` scheduler paths. Action/worker-пробы запускаются только отдельным one-shot process с отключёнными default
   redirect targets и пустым passthrough: обычный DEV redirect перенаправляет, а не гарантирует no-send.
+  Patient reminder/mood block закрыт живым own+foreign прогоном: mark-specific и mark-all обновили только две
+  собственные history-строки, mute/unmute изменили только собственный `reminder_muted_until`, mood create/update
+  и today/week дали `200`, а hash `617` чужих symptom entries остался неизменным. В декларацию возвращены
+  потерянные при rebuild смысловые patient-права на current-clinic reference catalog и собственные symptom
+  entries; старый reminder query больше не зависит от выбранной клиники и не глотает DB-отказ как ноль.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

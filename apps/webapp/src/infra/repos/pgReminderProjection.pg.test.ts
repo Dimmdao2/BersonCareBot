@@ -147,5 +147,19 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
     expect(sql).toContain('seen_at');
     expect(sql).toContain('ANY');
     expect(sql).toContain('platform-u');
+    expect(sql).toContain('platform_user_id');
+    expect(sql).not.toContain('reminder_rules');
+  });
+
+  it('does not turn an unseen-count database denial into a false zero', async () => {
+    runWebappSqlMock.mockRejectedValueOnce(new Error('permission denied'));
+    const port = createPgReminderProjectionPort();
+    await expect(port.getUnseenCount('platform-u')).rejects.toThrow('permission denied');
+  });
+
+  it('does not turn a reminder-stats database denial into false empty stats', async () => {
+    runWebappSqlMock.mockRejectedValueOnce(new Error('permission denied'));
+    const port = createPgReminderProjectionPort();
+    await expect(port.getStats('platform-u', 30)).rejects.toThrow('permission denied');
   });
 });

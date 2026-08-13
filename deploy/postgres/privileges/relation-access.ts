@@ -6702,8 +6702,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_staff",
         "operations": [
-          "SELECT",
-          "DELETE"
+          "SELECT"
         ],
         "columns": "table"
       }
@@ -6765,13 +6764,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "sort_order",
           "title"
         ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "DELETE"
-        ],
-        "columns": "table"
       }
     ]
   },

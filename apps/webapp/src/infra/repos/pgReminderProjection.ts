@@ -308,53 +308,42 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
     },
 
     async getUnseenCount(platformUserId: string) {
-      try {
-        const r = await runWebappSql<{ cnt: string }>(
-          getWebappSqlDb(),
-          sql`
+      const r = await runWebappSql<{ cnt: string }>(
+        getWebappSqlDb(),
+        sql`
           SELECT COUNT(*)::text AS cnt
-           FROM reminder_occurrence_history roh
-           JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-           WHERE rr.platform_user_id = ${platformUserId}::uuid
-             AND roh.seen_at IS NULL`,
-        );
-        return parseInt(r.rows[0]?.cnt ?? '0', 10);
-      } catch {
-        // seen_at column doesn't exist yet (migration 032 pending)
-        return 0;
-      }
+           FROM reminder_occurrence_history
+           WHERE platform_user_id = ${platformUserId}::uuid
+             AND seen_at IS NULL`,
+      );
+      return parseInt(r.rows[0]?.cnt ?? '0', 10);
     },
 
     async getStats(platformUserId: string, days: number) {
-      try {
-        const r = await runWebappSql<{
-          total: string;
-          seen: string;
-          unseen: string;
-          failed: string;
-        }>(
-          getWebappSqlDb(),
-          sql`
+      const r = await runWebappSql<{
+        total: string;
+        seen: string;
+        unseen: string;
+        failed: string;
+      }>(
+        getWebappSqlDb(),
+        sql`
           SELECT
-             COUNT(*)::text AS total,
-             COUNT(*) FILTER (WHERE roh.seen_at IS NOT NULL)::text AS seen,
-             COUNT(*) FILTER (WHERE roh.seen_at IS NULL)::text AS unseen,
-             COUNT(*) FILTER (WHERE roh.status = 'failed')::text AS failed
-           FROM reminder_occurrence_history roh
-           JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-           WHERE rr.platform_user_id = ${platformUserId}::uuid
-             AND roh.occurred_at >= now() - make_interval(days => ${days})`,
-        );
-        const row = r.rows[0];
-        return {
-          total: parseInt(row?.total ?? '0', 10),
-          seen: parseInt(row?.seen ?? '0', 10),
-          unseen: parseInt(row?.unseen ?? '0', 10),
-          failed: parseInt(row?.failed ?? '0', 10),
-        };
-      } catch {
-        return { total: 0, seen: 0, unseen: 0, failed: 0 };
-      }
+            COUNT(*)::text AS total,
+            COUNT(*) FILTER (WHERE seen_at IS NOT NULL)::text AS seen,
+            COUNT(*) FILTER (WHERE seen_at IS NULL)::text AS unseen,
+            COUNT(*) FILTER (WHERE status = 'failed')::text AS failed
+          FROM reminder_occurrence_history
+          WHERE platform_user_id = ${platformUserId}::uuid
+            AND occurred_at >= now() - make_interval(days => ${days})`,
+      );
+      const row = r.rows[0];
+      return {
+        total: parseInt(row?.total ?? '0', 10),
+        seen: parseInt(row?.seen ?? '0', 10),
+        unseen: parseInt(row?.unseen ?? '0', 10),
+        failed: parseInt(row?.failed ?? '0', 10),
+      };
     },
 
     async markSeen(platformUserId: string, occurrenceIds: string[]) {
@@ -365,11 +354,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         UPDATE reminder_occurrence_history
          SET seen_at = now()
          WHERE integrator_occurrence_id = ANY(${sql.param(occurrenceIds)}::text[])
-           AND integrator_rule_id IN (
-             SELECT integrator_rule_id
-             FROM reminder_rules
-             WHERE platform_user_id = ${platformUserId}::uuid
-           )`,
+           AND platform_user_id = ${platformUserId}::uuid`,
       );
     },
 
@@ -380,11 +365,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         UPDATE reminder_occurrence_history
          SET seen_at = now()
          WHERE seen_at IS NULL
-           AND integrator_rule_id IN (
-             SELECT integrator_rule_id
-             FROM reminder_rules
-             WHERE platform_user_id = ${platformUserId}::uuid
-           )`,
+           AND platform_user_id = ${platformUserId}::uuid`,
       );
     },
   };
