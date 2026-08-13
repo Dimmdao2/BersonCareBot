@@ -2697,6 +2697,22 @@ const REV10_CONTEXT = {
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.require_attested_context_for_roles(name,name[])': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_SEAM_OWNERS],
+      purpose: 'verify one current transaction-bound port context before an ordinary definer body',
+      typedArgs: ['name', 'name[]'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], invocation: 'internal' as const,
+      relationSurfaces: [
+        { relation: 'app_ext.accepted_port_contexts', columns: [
+          'database_oid', 'backend_pid', 'transaction_id', 'capability_id', 'session_login', 'port',
+          'target_role', 'context_class', 'purpose', 'function_identity', 'cleared_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'app_ext.port_context_capabilities', columns: [
+          'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose',
+          'function_identity', 'active_from', 'active_until',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.require_platform_principal()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean',
       execute: ['app_platform_settings', 'saas_telemetry_operator', ...REV10_SEAM_OWNERS], purpose: 'platform', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),

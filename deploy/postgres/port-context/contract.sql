@@ -364,6 +364,52 @@ BEGIN
   RETURN true;
 END $$;
 
+-- Runtime SECURITY DEFINER functions that are ordinary relation operations do
+-- not have their own named capability.  They still must prove that the exact
+-- port installed a transaction-bound context for one of their declared target
+-- roles before any function body can take a no-row/early-return branch.
+CREATE OR REPLACE FUNCTION app.require_attested_context_for_roles(
+  p_effective_role name,
+  p_allowed_target_roles name[]
+)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, app_ext, pg_temp
+AS $$
+DECLARE database_id oid;
+BEGIN
+  IF p_effective_role IS NULL
+    OR p_allowed_target_roles IS NULL
+    OR cardinality(p_allowed_target_roles) = 0
+    OR array_position(p_allowed_target_roles, NULL::name) IS NOT NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'accepted port context required';
+  END IF;
+  SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
+  IF NOT EXISTS (
+    SELECT 1
+    FROM app_ext.accepted_port_contexts accepted
+    JOIN app_ext.port_context_capabilities capability
+      ON capability.capability_id = accepted.capability_id
+     AND capability.port = accepted.port
+     AND capability.session_login = accepted.session_login
+     AND capability.target_role = accepted.target_role
+     AND capability.context_class = accepted.context_class
+     AND capability.purpose = accepted.purpose
+     AND capability.function_identity IS NOT DISTINCT FROM accepted.function_identity
+     AND capability.active_from <= clock_timestamp()
+     AND (capability.active_until IS NULL OR capability.active_until > clock_timestamp())
+    WHERE accepted.database_oid = database_id
+      AND accepted.backend_pid = pg_backend_pid()
+      AND accepted.transaction_id = pg_current_xact_id()
+      AND accepted.cleared_at IS NULL
+      AND accepted.session_login = session_user
+      AND accepted.target_role = ANY(p_allowed_target_roles)
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'accepted port context required';
+  END IF;
+  RETURN true;
+END $$;
+
 CREATE OR REPLACE FUNCTION app.require_platform_principal()
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 BEGIN
@@ -457,6 +503,7 @@ END $$;
 ALTER FUNCTION app.install_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.clear_port_context() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.require_attested_context_for_roles(name,name[]) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_platform_principal() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_org_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_actor_user_id() OWNER TO app_seam_context_owner;
@@ -471,6 +518,8 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_ext FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.install_port_context(uuid,app.port_context_claims), app.clear_port_context() TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
 GRANT EXECUTE ON FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) TO app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
 GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_staff_security_owner, app_seam_patient_self_actions_owner, app_seam_settings_runtime_owner, app_seam_org_commerce_owner, app_seam_delivery_scope_owner, app_seam_phone_binding_owner;
+REVOKE ALL ON FUNCTION app.require_attested_context_for_roles(name,name[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.require_attested_context_for_roles(name,name[]) TO app_seam_context_owner;
 GRANT EXECUTE ON FUNCTION app.require_platform_principal() TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_patient, app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_patient, app_integrator_request, app_tenant_service;

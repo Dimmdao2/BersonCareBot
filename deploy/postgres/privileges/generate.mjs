@@ -1626,6 +1626,126 @@ function emitTableGrants(out, targetSql, grants, granteeFilter) {
   }
 }
 
+const EXACT_ARG_SEND = {
+  uuid: ['uuid@1', 'uuid_send'],
+  oid: ['oid@1', 'oidsend'],
+  integer: ['integer@1', 'int4send'],
+  bigint: ['bigint@1', 'int8send'],
+  xid8: ['xid8@1', 'xid8send'],
+  boolean: ['boolean@1', 'boolsend'],
+  text: ['text@1', 'textsend'],
+  name: ['name@1', 'namesend'],
+  bytea: ['bytea@1', 'byteasend'],
+  timestamptz: ['timestamptz@1', 'timestamptz_send'],
+  'timestamp with time zone': ['timestamptz@1', 'timestamptz_send'],
+};
+
+function exactTypedArgsHashSql(signature, typedArgs) {
+  if (typedArgs.length === 0) return 'app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[])';
+  const rows = typedArgs.map((type, index) => {
+    const recipe = EXACT_ARG_SEND[type];
+    if (!recipe) throw new DeclarationGapError([{ site: `portContext.functions.${signature}.typedArgs`,
+      reason: `named runtime root cannot render exact gate for '${type}'` }]);
+    return `ROW(${lit(recipe[0])}, pg_catalog.${recipe[1]}($${index + 1}))::app.port_typed_arg`;
+  });
+  return `app.hash_port_typed_args(ARRAY[${rows.join(', ')}])`;
+}
+
+/**
+ * Every callable runtime SECURITY DEFINER must reject before its original body
+ * can take a no-row/early-return branch. Named roots keep the exact
+ * function/purpose/typed-args contract. Ordinary relation operations require
+ * any current port-attested context for one of their declared target roles.
+ * Context primitives themselves keep their hand-written stronger checks.
+ */
+function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
+  const db = declaration.databases[dbName];
+  const capabilities = resolvePortContextCapabilities(declaration, dbName);
+  const targetRoles = new Set(capabilities.map((row) => row.targetRole));
+  const roots = new Map();
+  for (const row of capabilities.filter((candidate) => candidate.functionIdentity)) {
+    const list = roots.get(row.functionIdentity) ?? [];
+    list.push(row);
+    roots.set(row.functionIdentity, list);
+  }
+  const gates = [];
+  for (const [signature, fn] of databaseFunctions) {
+    if (fn.security !== 'DEFINER' || (fn.invocation ?? 'runtime') !== 'runtime'
+      || fn.execute.length === 0 || fn.owner === 'app_seam_context_owner') continue;
+    const allowedTargets = functionExecute(db, fn).filter((role) => targetRoles.has(role)).sort();
+    if (allowedTargets.length === 0) continue;
+    const namedRows = roots.get(signature) ?? [];
+    if (namedRows.length > 0) {
+      const tuples = [...new Map(namedRows.map((row) => [
+        [row.targetRole, row.contextClass, row.purpose].join('\0'), row,
+      ])).values()];
+      if (tuples.length > 1) {
+        gates.push({ signature, mode: 'exact_existing', expression: '' });
+        continue;
+      }
+      const row = tuples[0];
+      const hash = exactTypedArgsHashSql(signature, fn.typedArgs);
+      gates.push({
+        signature,
+        mode: 'exact',
+        expression: `app.require_accepted_context(${lit(fn.owner)}::name, ${lit(row.targetRole)}::name, `
+          + `${lit(row.contextClass)}::app.port_context_class, ${lit(row.purpose)}, ${hash}, `
+          + `${lit(signature)}::regprocedure)`,
+      });
+      continue;
+    }
+    gates.push({
+      signature,
+      mode: 'attested',
+      expression: `app.require_attested_context_for_roles(${lit(fn.owner)}::name, `
+        + `ARRAY[${allowedTargets.map((role) => `${lit(role)}::name`).join(', ')}]::name[])`,
+    });
+  }
+  if (gates.length === 0) return '';
+  const values = gates.map((gate) =>
+    `  (${lit(gate.signature)}, ${lit(gate.mode)}, ${lit(gate.expression)})`).join(',\n');
+  return [
+    '-- Runtime definer body gate: exact named roots; attested target-role gate for relation operations.',
+    'CREATE TEMP TABLE bcb_runtime_definer_gates(signature text PRIMARY KEY, mode text NOT NULL, gate_expression text NOT NULL) ON COMMIT DROP;',
+    'INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression) VALUES', values, ';',
+    'DO $bcb$',
+    'DECLARE gate record; routine record; definition text; new_source text; source_at integer;',
+    'BEGIN',
+    '  FOR gate IN SELECT * FROM bcb_runtime_definer_gates ORDER BY signature LOOP',
+    '    SELECT p.oid, p.prosrc, l.lanname INTO routine',
+    '      FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_language l ON l.oid=p.prolang',
+    '     WHERE p.oid=pg_catalog.to_regprocedure(gate.signature);',
+    "    IF routine.oid IS NULL THEN RAISE EXCEPTION 'runtime definer gate target missing: %',gate.signature; END IF;",
+    "    IF gate.mode IN ('exact','exact_existing') AND position('app.require_accepted_context' IN routine.prosrc)>0 THEN CONTINUE; END IF;",
+    "    IF gate.mode='attested' AND (position('app.require_accepted_context' IN routine.prosrc)>0 OR position('app.require_attested_context_for_roles' IN routine.prosrc)>0) THEN CONTINUE; END IF;",
+    "    IF gate.mode='exact_existing' THEN RAISE EXCEPTION 'multi-capability named root lacks a hand-written exact gate: %',gate.signature; END IF;",
+    "    IF routine.lanname='sql' THEN",
+    "      new_source := 'SELECT ' || gate.gate_expression || ';' || E'\\n' || routine.prosrc;",
+    "    ELSIF routine.lanname='plpgsql' THEN",
+    "      new_source := pg_catalog.regexp_replace(routine.prosrc, '(^|\\n)([[:space:]]*)BEGIN', E'\\\\1\\\\2BEGIN\\n\\\\2  PERFORM ' || gate.gate_expression || ';', 1, 1, 'in');",
+    "      IF new_source = routine.prosrc THEN RAISE EXCEPTION 'PL/pgSQL runtime definer has no injectable BEGIN: %',gate.signature; END IF;",
+    "    ELSE RAISE EXCEPTION 'unsupported runtime definer language %: %',routine.lanname,gate.signature; END IF;",
+    '    definition := pg_catalog.pg_get_functiondef(routine.oid);',
+    '    source_at := position(routine.prosrc IN definition);',
+    "    IF source_at=0 THEN RAISE EXCEPTION 'runtime definer source not found in canonical definition: %',gate.signature; END IF;",
+    '    definition := pg_catalog.overlay(definition PLACING new_source FROM source_at FOR char_length(routine.prosrc));',
+    '    EXECUTE definition;',
+    '  END LOOP;',
+    'END',
+    '$bcb$;',
+    'DO $bcb$ DECLARE bad text; BEGIN',
+    '  SELECT gate.signature INTO bad FROM bcb_runtime_definer_gates gate',
+    '    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(gate.signature)',
+    "   WHERE (gate.mode IN ('exact','exact_existing') AND position('app.require_accepted_context' IN p.prosrc)=0)",
+    "      OR (gate.mode='attested' AND position('app.require_accepted_context' IN p.prosrc)=0 AND position('app.require_attested_context_for_roles' IN p.prosrc)=0)",
+    '   ORDER BY gate.signature LIMIT 1;',
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'runtime definer body is not context gated: %',bad; END IF;",
+    `  RAISE NOTICE 'BCB_RUNTIME_DEFINER_GATES_VERIFIED database=${dbName} functions=${gates.length}';`,
+    'END $bcb$;',
+    '',
+  ].join('\n');
+}
+
 /* ─────────────────────────── генерация SQL ─────────────────────────── */
 
 /**
@@ -1672,6 +1792,7 @@ export function generateFunctionCensusSql(declaration, dbName) {
   ];
   for (const owner of seamOwners) emitMembershipRevokeToEmpty(out, owner, true);
   if (seamOwners.length > 0) out.push('');
+  out.push(generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions));
   for (const [signature, fn] of databaseFunctions) {
     out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
     out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
