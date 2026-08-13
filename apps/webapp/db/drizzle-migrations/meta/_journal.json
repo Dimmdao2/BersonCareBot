@@ -2801,6 +2801,13 @@
       "when": 1793539230146,
       "tag": "0403_integrator_event_idempotency_read_gate_local",
       "breakpoints": true
+    },
+    {
+      "idx": 400,
+      "version": "7",
+      "when": 1793539230147,
+      "tag": "0404_integrator_event_idempotency_status_cast_local",
+      "breakpoints": true
     }
   ]
 }
