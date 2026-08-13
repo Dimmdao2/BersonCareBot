@@ -2791,3 +2791,39 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   Route теперь требует signed payload `organizationId` и ставит tenant-service principal, INSERT перенесён на
   exact `app_tenant_service` columns с current-org + active-patient-enrollment wall; staff INSERT удалён.
   До живого signed producer→HTTP→DB прогона этот пункт не объявляется закрытым.
+
+## Live/fix pass DEV-finalized-reminder-projection-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `b3c028daf..551eccd72`, `feat/doctor-ui-rebuild` |
+| Метод | Штатный DEV migration/reconcile → signed own/replay/foreign HTTP → DB rows/ACL → PostgreSQL journal |
+| Вердикт | **REMINDER-FINALIZED-PRINCIPAL-013 ЗАКРЫТ LIVE; ТРИ LIVE-ONLY ДЕФЕКТА ИСПРАВЛЕНЫ ГРОМКО** |
+
+- **INTEGRATOR-EVENT-IDEMPOTENCY-014 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** при port-context агрегатный
+  `DATABASE_URL` намеренно отсутствует, поэтому старый выбор store пытался загрузить obsolete `.next` file
+  fallback и signed events падали до DB. Durable `public.idempotency_keys` осталась без runtime table grant;
+  webapp pre-session port получил две exact read/store-функции с полным purpose/typed-args transcript.
+- **PRESESSION-SQL-GATE-015 — НАЙДЕНО FAIL-CLOSED И ИСПРАВЛЕНО FORWARD:** 0402 сначала корректно остановилась на
+  отсутствующем временном `USAGE` языка `sql`; после явного owner-ordered marker миграция прошла, но reconcile
+  отверг SQL body, потому что pre-session contract требует проверяемый `BEGIN → PERFORM exact gate`. Уже
+  применённая 0402 не переписывалась: 0403 переводит read root в PL/pgSQL, после чего generator ставит gate первой
+  командой. 0404 forward-миграцией добавляет обязательный `smallint::integer`, обнаруженный первым live read.
+- **REMINDER-FINALIZED-BROAD-RELATION-016 — НАЙДЕНО LIVE И ИСПРАВЛЕНО АРХИТЕКТУРНО:** organization principal
+  правильно требовал tenant-service context, но у webapp нет и не должно быть broad tenant relation capability.
+  Ошибочный direct INSERT `app_tenant_service` на `reminder_occurrence_history` удалён. Единственный write path —
+  `app.record_reminder_occurrence_finalized_projection(...)`; функция до INSERT проверяет active
+  `org_enrollments(platform_user_id, organization_id)` и получает только exact relation columns.
+- Команда `bash deploy/host/migrate-dev.sh --execute` после 0405 завершилась `pending=1`,
+  `access reconcile committed`, `migrate-dev: PASS`. Security suite дала `52/52`, route/projection Vitest —
+  `11/11`, оба typecheck — exit `0`, `generate-cli.mjs --check` подтвердил побайтовое совпадение четырёх
+  generated artifacts.
+- Живой signed HTTP: own first/replay → `202/202`; foreign organization без active enrollment → `503`.
+  Запрос к DEV показал ровно одну own history row, ровно одну cache row со status `202`, foreign rows `0`;
+  `rg -c "event received reminder.occurrence.finalized live-finalized-551eccd72-own"
+  /home/dev/brain/host-orch/main-dev-5200.log` вернул `1`, то есть replay не запускал handler повторно.
+  `information_schema.role_table_grants` вернул `tenant_direct_insert=0`; function privilege —
+  `app_tenant_service=true`, `app_staff=false`, `PUBLIC=false`. PostgreSQL journal записал
+  `active patient enrollment required for reminder occurrence projection` для foreign request.
+- Cleanup удалил только probe rows: `deleted_cache=1`, `deleted_history=1`; повторный точный count дал
+  `remaining_cache=0`, `remaining_history=0`.

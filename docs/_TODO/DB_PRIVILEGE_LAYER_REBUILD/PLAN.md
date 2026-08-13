@@ -279,15 +279,19 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   Независимый аудит затем нашёл, что настоящий integrator producer терял `platform_user_id` и `organization_id`
   finalized occurrence, поэтому ручной fixture не доказывал весь путь. Поля теперь проходят occurrence → event →
   consumer, но повторный аудит поймал второй разрыв до ложного закрытия: signed HTTP route оставлял finalized
-  event в bootstrap context, а INSERT ошибочно принадлежал staff. Код исправлен на обязательный signed
-  organization principal + exact tenant-service INSERT/current-org/active-enrollment wall; полный живой
-  producer→HTTP→DB proof ещё требуется.
+  event в bootstrap context, а INSERT ошибочно принадлежал staff. Финальное решение не оставляет direct INSERT
+  ни staff, ни tenant relation-role: signed route ставит organization principal, а запись выполняет одна exact
+  SECURITY DEFINER-функция, которая сама требует active patient enrollment именно в payload organization.
+  Живой DEV proof закрыт: свой event принят и записан, replay обслужен durable idempotency без повторного handler,
+  чужая organization дала громкий PostgreSQL-отказ и ноль строк; fixtures очищены.
   Patient analytics page-view и push-open прошли live: первый push-open записан, повтор дедуплицирован, агрегаты
   выросли ровно на один. Route теперь устанавливает authenticated patient context; прежний pre-login mutation
   удалён. Найденный класс PostgreSQL `ON CONFLICT DO NOTHING` проверяется generator body verifier. Повторный аудит
   исправил завышенную первую реализацию: targetless/plain INSERT больше не требуют SELECT, а targeted variants
-  получают operation-specific доступ только к arbiter/predicate columns. Новый reconcile и live proof после
-  этой correction ещё не выполнены.
+  получают operation-specific доступ только к arbiter/predicate columns. Новый reconcile после correction
+  выполнен штатным `migrate-dev.sh --execute`; targetless finalized projection также прошла положительный и
+  отрицательный live. Повтор отдельного push-open остаётся частью общего незакрытого action census, а не условием
+  готовности finalized projection.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.
