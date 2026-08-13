@@ -73,9 +73,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 - [x] Target declaration/contract обновлены под отдельный global-admin login и универсальную birth wall;
   `pnpm test:db-initial-cutover` доказал target-only zero/install, неизменность соседней БД, late-fault возврат в
   zero и неизменность OID обеих БД.
-- [ ] Новый доступ на DEV применён; webapp (`/`, `/api/me`) и integrator (`/health`, `/health/projection`) уже
-  прошли startup/smoke. Полная patient/staff/global-admin/integrator live matrix и ручная проверка владельцем
-  ещё не завершены.
+- [x] Новый доступ на DEV применён; четыре независимых DEV-login проходят `/api/me`, patient/doctor/clinic-admin/
+  global-admin representative pages завершаются `200`, integrator `/health` и `/health/projection` возвращают
+  `200`. Исчерпывающая role/definer negative matrix и ручная проверка владельцем остаются открыты ниже.
 
 ### Исправление ошибочного ухода в пустую TEST
 
@@ -210,9 +210,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   declaration-generated grants/RLS/seams — строго в этом порядке.
 - [ ] Проверить все cluster logins из `pg_roles`, все SET-able roles, `PUBLIC` и каждую definer-функцию; исключения
   перечислить поимённо. Непрошедший context — no disclosure + SQLSTATE `42501` + PostgreSQL system log.
-- [ ] Положительный контроль: реальные webapp patient/staff/global-admin и integrator сценарии работают через
+- [x] Положительный контроль: реальные webapp patient/staff/global-admin и integrator сценарии работают через
   свои pools. Стена, которая не пускает приложение, не принимается.
-- [ ] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
+- [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.
 
