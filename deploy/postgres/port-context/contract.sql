@@ -301,8 +301,13 @@ BEGIN
       AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL
       AND (p_claims.organization_id IS NOT NULL OR (
         p_claims.organization_id IS NULL
-        AND cap.purpose = 'patient.organization.resolve'
-        AND cap.function_identity = pg_catalog.to_regprocedure('app.read_current_patient_active_organizations()')
+        AND (
+          (cap.purpose = 'relation' AND cap.function_identity IS NULL)
+          OR (
+            cap.purpose = 'patient.organization.resolve'
+            AND cap.function_identity = pg_catalog.to_regprocedure('app.read_current_patient_active_organizations()')
+          )
+        )
       ))
     ))
     OR (p_claims.context_class = 'platform' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL))
