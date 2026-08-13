@@ -2123,3 +2123,29 @@ empty-TEST-specific обходов — реальный прогресс в пр
 src/app/api/payments/saasWebhook.route.test.ts src/infra/db/portContextRuntime.test.ts
 src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp run typecheck` → exit `0` после
 удаления повреждённого generated cache-файла `.next/dev/types/validator.ts`; `git diff --check` → exit `0`.
+
+## Audit/live pass DEV-patient-pages-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `bed5c1323`, `feat/doctor-ui-rebuild` |
+| Метод | Последовательный живой render patient routes с отдельным срезом PostgreSQL journal после каждого запроса |
+| Вердикт | **PASS ДЛЯ ЗАГРУЗКИ PATIENT-СТРАНИЦ; действия и остальные роли остаются открыты в Ф7** |
+
+- **LIVE-PATIENT-RELATION-CAPABILITIES-001 — ИСПРАВЛЕНО `bed5c1323`:** первый валидный page census дал `32/32`
+  HTTP `200`, но PostgreSQL громко показал недостающие relation capabilities для собственного лечения,
+  дневников, напоминаний, поддержки и patient CMS. Права добавлены по смыслу: пациент видит только свои строки
+  через существующие patient-self/current-org RLS; CMS — только опубликованные неархивные страницы и видимые
+  разделы своей клиники. Внутренние данные других пациентов и служебные clinic tables не открывались.
+- **LIVE-PATIENT-CASCADE-001 — ИСПРАВЛЕНО И LIVE-ПОДТВЕРЖДЕНО:** последовательные повторные проходы раскрыли
+  каскадные недостающие чтения `platform_users.reminder_muted_until`, self-only `user_identity`/`user_contacts`
+  и собственного `reminder_journal`. Они добавлены в ту же декларацию; прямых ручных `GRANT` нет.
+- Финальная команда обхода сохранила `/tmp/bcb-patient-path-db-errors-r5.tsv`: `awk -F '\t'
+  '{count[$1]++} END {for (status in count) print status, count[status]}'` вернула `200 32`; фильтр
+  `awk -F '\t' '$1 !~ /^2|^3/ || $3 != "" {print}'` не вернул строк. Каждый `$3` строился только из новых
+  `ERROR:|FATAL:|PANIC:` строк `/var/log/postgresql/postgresql-16-main.log` данного запроса.
+- `node --test deploy/postgres/privileges/port-context-catalog.test.mjs
+  deploy/postgres/privileges/function-census.test.mjs deploy/postgres/privileges/relation-access.test.mjs
+  deploy/postgres/privileges/port-context-callsite-catalog.test.mjs` → `43/43`; после последнего grant delta
+  `node --test deploy/postgres/privileges/relation-access.test.mjs` → `20/20`; `generate-cli.mjs --all --check`
+  подтвердил побайтовое совпадение четырёх generated artifacts; env verifier подтвердил ровно `4` DEV login.

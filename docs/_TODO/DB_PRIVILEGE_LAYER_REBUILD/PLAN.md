@@ -75,8 +75,10 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   zero и неизменность OID обеих БД.
 - [x] Новый доступ на DEV применён; четыре независимых DEV-login проходят `/api/me`, patient/doctor/clinic-admin/
   global-admin representative pages завершаются `200`, включая тариф/биллинг клиники после
-  `dd2d3dff3`; integrator `/health` и `/health/projection` возвращают `200`. Исчерпывающая role/definer negative
-  matrix, полный проход всех страниц/действий и ручная проверка владельцем остаются открыты ниже.
+  `dd2d3dff3`; integrator `/health` и `/health/projection` возвращают `200`. После `bed5c1323` все 32 статических
+  patient route из живого census возвращают `200` без нового `ERROR/FATAL/PANIC` в PostgreSQL journal.
+  Исчерпывающая role/definer negative matrix, действия на страницах, полный проход staff/global-admin/integrator
+  и ручная проверка владельцем остаются открыты ниже.
 
 ### Исправление ошибочного ухода в пустую TEST
 
