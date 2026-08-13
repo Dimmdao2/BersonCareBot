@@ -2839,3 +2839,32 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
 - Миграции `0402–0405` совпадают с DEV ledger по SHA-256, journal последовательный, generated artifacts
   побайтово актуальны. Live own/replay/foreign evidence и fixture cleanup `0/0` подтверждены повторно.
   Run record: `/home/dev/brain/runs/agent-port/finalized-projection-audit-r3-20260813.json`.
+
+## Live/fix pass DEV-clinic-topology-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `9df1fd509..2ca4fc191`, `feat/doctor-ui-rebuild` |
+| Метод | Backup шести DEV-таблиц → clinic-admin HTTP create/update/cross-org/delete → DB state → exact cleanup |
+| Вердикт | **ДВА LIVE-ONLY ДЕФЕКТА ИСПРАВЛЕНЫ ГРОМКО; CLINIC TOPOLOGY SLICE ЗЕЛЁНЫЙ** |
+
+- До mutation создан data-only custom dump шести topology-таблиц:
+  `/tmp/bcb-dev-clinic-topology-before-20260813T1703.dump`, SHA-256
+  `d27ef97c31ac8cb02107cc4714ed2ca7dc560c095ac6ffc4809176c35cb1f15c`; listing содержит `6` TABLE DATA.
+- **CLINIC-TOPOLOGY-DRIZZLE-DEFAULTS-017 — НАЙДЕНО И ИСПРАВЛЕНО КЛАССОМ:** clinic service и затем specialist
+  громко падали `42501`, потому что column-scoped INSERT не включал default-колонки, которые Drizzle всё равно
+  явно помещает в SQL (`id`, timestamps и specialist reminder defaults). Исправлены exact INSERT surfaces семи
+  связанных topology relations; branch UPDATE также получил уже существующие API-поля `color/short_title`.
+  Table-wide writes не добавлены. PostgreSQL log строки `399605/399609` содержит оба отказа под
+  `bcb_dev_webapp_staff`.
+- **ONLINE-PHYSICAL-BRANCH-QUOTA-018 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** built-in Online выключалась, но повторное
+  включение ошибочно считалось реактивацией физического филиала и падало `saas_quota_reached:branches`. Online
+  исключена из reactivation quota и обоих physical stock counts. После фикса toggle off/on вернул `200/200`.
+- Живой результат: service, specialist, specialist-location, service-location и specialist-service availability
+  созданы и обновлены в organization `a000…0001`; PATCH и availability с foreign specialist `d000…0005` дали
+  `404`, foreign name остался `Demo Clinic Admin`. Создание ещё одного физического филиала корректно остановил
+  product entitlement (`403`), поэтому лишний grant не выдавался. DELETE деактивировал свои service/specialist.
+- Cleanup удалил по exact UUID `1+1+1+1+1` synthetic rows; marker counts во всех шести relations равны `0`.
+  Built-in Online возвращена в исходные `active=true`, `#D58400`, `updated_at=2026-07-27 12:13:38.741+03`.
+  Declaration security suite дала `53/53`; Online quota behavior test `2/2`, webapp typecheck и два штатных
+  `migrate-dev.sh --execute` завершились PASS.

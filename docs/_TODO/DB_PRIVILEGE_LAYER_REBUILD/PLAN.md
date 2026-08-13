@@ -266,6 +266,14 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   рабочей очереди; platform list вернул `59` строк без единого clinical value. Два последовательно найденных
   live-only дефекта `pg_catalog.coalesce/greatest` исправлены forward migrations `0400/0401`; обычный
   `migrate-dev.sh --execute` применил их и повторно прошёл declaration reconcile/catalog audit.
+  Clinic-topology mutation block закрыт живым DEV-прогоном после нового clinic-management guard. Текущий тариф
+  осмысленно отверг создание лишнего физического филиала (`403 entitlement_required`), поэтому DB grant не
+  расширялся. Synthetic service/specialist/location/availability созданы и обновлены в своей организации;
+  чужой specialist дал `404` и не изменился; DELETE-пути деактивировали свои строки. Live нашёл один класс
+  потерянных column grants: Drizzle явно испускает default-колонки в INSERT, поэтому семь topology relations
+  получили exact перечисление этих колонок без table-wide write. Built-in Online отдельно перестала потреблять
+  stock физических филиалов: toggle off/on прошёл `200/200`, исходные state/color/timestamp восстановлены.
+  Все fixture-строки удалены точечно; оба исходных `42501` присутствуют в PostgreSQL system log.
   Integrator census свёл остаток к `6` HTTP route-группам, `5` projection event types, `8` outgoing kinds и
   `4` scheduler paths. Action/worker-пробы запускаются только отдельным one-shot process с отключёнными default
   redirect targets и пустым passthrough: обычный DEV redirect перенаправляет, а не гарантирует no-send.
