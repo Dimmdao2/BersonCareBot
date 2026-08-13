@@ -315,6 +315,11 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
     'public.be_specialist_rooms': [
       'created_at', 'id', 'is_active', 'organization_id', 'room_id', 'specialist_id',
     ],
+    'public.be_specialists': [
+      'appointment_reminder_allowed_preset_ids', 'appointment_reminder_default_preset_id',
+      'created_at', 'description', 'full_name', 'id', 'is_active', 'organization_id', 'sort_order',
+      'updated_at',
+    ],
     'public.be_specialist_service_availability': [
       'branch_id', 'city_code', 'created_at', 'id', 'is_active', 'organization_id',
       'price_minor_override', 'room_id', 'service_id', 'sort_order', 'specialist_id', 'updated_at',

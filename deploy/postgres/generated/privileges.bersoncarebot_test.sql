@@ -9501,7 +9501,7 @@ GRANT SELECT ("created_at", "id", "is_active", "organization_id", "updated_at") 
 GRANT SELECT ("created_at", "full_name", "id", "is_active", "organization_id", "sort_order", "updated_at") ON TABLE "public"."be_specialists" TO "app_seam_specialist_provision_owner";
 GRANT INSERT ("created_at", "full_name", "id", "is_active", "organization_id", "sort_order", "updated_at") ON TABLE "public"."be_specialists" TO "app_seam_specialist_provision_owner";
 GRANT SELECT ON TABLE "public"."be_specialists" TO "app_staff";
-GRANT INSERT ("created_at", "description", "full_name", "id", "is_active", "organization_id", "sort_order", "updated_at") ON TABLE "public"."be_specialists" TO "app_staff";
+GRANT INSERT ("appointment_reminder_allowed_preset_ids", "appointment_reminder_default_preset_id", "created_at", "description", "full_name", "id", "is_active", "organization_id", "sort_order", "updated_at") ON TABLE "public"."be_specialists" TO "app_staff";
 GRANT UPDATE ("appointment_reminder_allowed_preset_ids", "appointment_reminder_default_preset_id", "description", "full_name", "is_active", "organization_id", "sort_order", "updated_at") ON TABLE "public"."be_specialists" TO "app_staff";
 -- последовательности public.be_specialists: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$

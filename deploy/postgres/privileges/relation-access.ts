@@ -2041,6 +2041,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "appointment_reminder_allowed_preset_ids",
+          "appointment_reminder_default_preset_id",
           "created_at",
           "description",
           "full_name",
