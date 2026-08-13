@@ -279,6 +279,16 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'billing.platform.provider.read', argCount: 0,
     source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
   },
+  'app.list_integration_webhook_burst_signals(integer,integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.webhook-errors.aggregate', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts',
+  },
+  'app.prune_integration_webhook_error_events(integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.webhook-errors.prune', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
   'app.resolve_outgoing_delivery_scope(uuid)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
     purpose: 'delivery.resolve-scope', argCount: 1,

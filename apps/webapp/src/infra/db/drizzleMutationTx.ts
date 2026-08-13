@@ -12,6 +12,7 @@ export function getDrizzleOrMutationTx(): DrizzleDb {
 
 /** PG: one outer transaction for editor batch apply (AsyncLocalStorage-scoped tx). */
 export async function runInDrizzleMutationTransaction<T>(fn: () => Promise<T>): Promise<T> {
+  if (mutationTxStore.getStore()) return fn();
   const db = getDrizzle();
   return db.transaction(async (tx) => {
     await applyCurrentDrizzlePrincipalToTransaction(tx as Pick<DrizzleDb, 'execute'>);
@@ -22,7 +23,9 @@ export async function runInDrizzleMutationTransaction<T>(fn: () => Promise<T>): 
 export async function runDrizzleMutationTransaction<T>(
   fn: (tx: DrizzleDb) => Promise<T>,
 ): Promise<T> {
-  const db = getDrizzleOrMutationTx();
+  const activeTransaction = mutationTxStore.getStore();
+  if (activeTransaction) return fn(activeTransaction);
+  const db = getDrizzle();
   return db.transaction(async (tx) => {
     const mutationTx = tx as DrizzleDb;
     await applyCurrentDrizzlePrincipalToTransaction(mutationTx);

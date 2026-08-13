@@ -15,9 +15,9 @@ import {
   sql,
 } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { integratorPushOutbox } from '../../../db/schema/schema';
 import {
-  integrationWebhookErrorEvents,
   integrationWebhookLastStatus,
   operatorIncidents,
   operatorJobStatus,
@@ -140,28 +140,23 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     windowMinutes: number,
     minCount: number,
   ): Promise<WebhookBurstRow[]> {
-    const db = getDrizzle();
     const window = Math.max(1, Math.trunc(windowMinutes));
     const threshold = Math.max(1, Math.trunc(minCount));
-    const rows = await db
-      .select({
-        source: integrationWebhookErrorEvents.source,
-        errorClass: integrationWebhookErrorEvents.errorClass,
-        count: count(),
-      })
-      .from(integrationWebhookErrorEvents)
-      .where(
-        gte(
-          integrationWebhookErrorEvents.occurredAt,
-          sql`now() - (${window}::int * interval '1 minute')`,
-        ),
-      )
-      .groupBy(integrationWebhookErrorEvents.source, integrationWebhookErrorEvents.errorClass)
-      .having(sql`count(*) >= ${threshold}`);
-    return rows.map((r) => ({
+    const result = await runWebappNamedRoot<{
+      source: string;
+      error_class: string;
+      event_count: number | string;
+    }>(
+      getWebappSqlDb(),
+      'app.list_integration_webhook_burst_signals(integer,integer)',
+      [window, threshold],
+      sql`SELECT source, error_class, event_count
+          FROM app.list_integration_webhook_burst_signals(${window}, ${threshold})`,
+    );
+    return result.rows.map((r) => ({
       source: r.source,
-      errorClass: r.errorClass,
-      count: Number(r.count ?? 0),
+      errorClass: r.error_class,
+      count: Number(r.event_count ?? 0),
     }));
   },
 

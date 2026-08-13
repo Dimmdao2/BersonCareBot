@@ -135,7 +135,14 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'reminder_delivery_events'),
   ('public', 'reminder_journal'),
   ('public', 'reminder_occurrence_history'),
-  ('public', 'reminder_rules')
+  ('public', 'reminder_rules'),
+  ('public', 'test_attempts'),
+  ('public', 'test_results'),
+  ('public', 'treatment_program_events'),
+  ('public', 'treatment_program_instance_stage_groups'),
+  ('public', 'treatment_program_instance_stage_items'),
+  ('public', 'treatment_program_instance_stages'),
+  ('public', 'treatment_program_instances')
 ),
 inserted AS (
   INSERT INTO app_control.org_table_allowlist (schema_name, table_name)

@@ -267,7 +267,7 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       stageItemId: string;
     }): Promise<TreatmentProgramInstanceDetail> {
-      return patientTouchStageItemInner(input);
+      return instances.runInMutationTransaction(() => patientTouchStageItemInner(input));
     },
 
     async patientCompleteSimpleItem(input: {
@@ -281,72 +281,74 @@ export function createTreatmentProgramProgressService(deps: {
         weightKg?: number;
       };
     }): Promise<TreatmentProgramInstanceDetail> {
-      assertUuid(input.patientUserId);
-      assertUuid(input.instanceId);
-      assertUuid(input.stageItemId);
-      await patientTouchStageItemInner(input);
-      const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
-      assertStageAccessibleForPatient(stage);
-      if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error('Элемент отключён');
-      }
-      if (isPersistentRecommendation(item)) {
-        throw new Error('Постоянная рекомендация не отмечается выполненной');
-      }
-      if (item.itemType === 'clinical_test') {
-        throw new Error('Для клинического теста используйте отправку результатов');
-      }
-      const hadCompleted = item.completedAt != null;
-      const ts = nowIso();
-      const row = await instances.setStageItemCompletedAt(input.instanceId, item.id, ts);
-      if (!row) throw new Error('Не удалось сохранить');
-      const completionPayload: Record<string, unknown> = {
-        source: 'simple_item_complete',
-        itemType: item.itemType,
-      };
-      if (
-        input.completion?.perceivedDifficulty === 'easy' ||
-        input.completion?.perceivedDifficulty === 'medium' ||
-        input.completion?.perceivedDifficulty === 'hard'
-      ) {
-        completionPayload.perceivedDifficulty = input.completion.perceivedDifficulty;
-      }
-      if (typeof input.completion?.reps === 'number' && Number.isFinite(input.completion.reps)) {
-        completionPayload.reps = input.completion.reps;
-      }
-      if (typeof input.completion?.sets === 'number' && Number.isFinite(input.completion.sets)) {
-        completionPayload.sets = input.completion.sets;
-      }
-      if (
-        typeof input.completion?.weightKg === 'number' &&
-        Number.isFinite(input.completion.weightKg)
-      ) {
-        completionPayload.weightKg = input.completion.weightKg;
-      }
-      await actionLog.insertAction({
-        instanceId: input.instanceId,
-        instanceStageItemId: item.id,
-        patientUserId: input.patientUserId,
-        actionType: 'done',
-        sessionId: null,
-        payload: completionPayload,
-        note: null,
-      });
-      if (!hadCompleted) {
-        await appendEv({
+      return instances.runInMutationTransaction(async () => {
+        assertUuid(input.patientUserId);
+        assertUuid(input.instanceId);
+        assertUuid(input.stageItemId);
+        await patientTouchStageItemInner(input);
+        const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+        if (!detail) throw new Error('Программа не найдена');
+        const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
+        assertStageAccessibleForPatient(stage);
+        if (!isInstanceStageItemActiveForPatient(item)) {
+          throw new Error('Элемент отключён');
+        }
+        if (isPersistentRecommendation(item)) {
+          throw new Error('Постоянная рекомендация не отмечается выполненной');
+        }
+        if (item.itemType === 'clinical_test') {
+          throw new Error('Для клинического теста используйте отправку результатов');
+        }
+        const hadCompleted = item.completedAt != null;
+        const ts = nowIso();
+        const row = await instances.setStageItemCompletedAt(input.instanceId, item.id, ts);
+        if (!row) throw new Error('Не удалось сохранить');
+        const completionPayload: Record<string, unknown> = {
+          source: 'simple_item_complete',
+          itemType: item.itemType,
+        };
+        if (
+          input.completion?.perceivedDifficulty === 'easy' ||
+          input.completion?.perceivedDifficulty === 'medium' ||
+          input.completion?.perceivedDifficulty === 'hard'
+        ) {
+          completionPayload.perceivedDifficulty = input.completion.perceivedDifficulty;
+        }
+        if (typeof input.completion?.reps === 'number' && Number.isFinite(input.completion.reps)) {
+          completionPayload.reps = input.completion.reps;
+        }
+        if (typeof input.completion?.sets === 'number' && Number.isFinite(input.completion.sets)) {
+          completionPayload.sets = input.completion.sets;
+        }
+        if (
+          typeof input.completion?.weightKg === 'number' &&
+          Number.isFinite(input.completion.weightKg)
+        ) {
+          completionPayload.weightKg = input.completion.weightKg;
+        }
+        await actionLog.insertAction({
           instanceId: input.instanceId,
-          actorId: input.patientUserId,
-          eventType: 'status_changed',
-          targetType: 'stage_item',
-          targetId: item.id,
-          payload: { scope: 'stage_item', field: 'completedAt', value: ts, stageId: stage.id },
+          instanceStageItemId: item.id,
+          patientUserId: input.patientUserId,
+          actionType: 'done',
+          sessionId: null,
+          payload: completionPayload,
+          note: null,
         });
-      }
-      const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!out) throw new Error('Программа не найдена');
-      return out;
+        if (!hadCompleted) {
+          await appendEv({
+            instanceId: input.instanceId,
+            actorId: input.patientUserId,
+            eventType: 'status_changed',
+            targetType: 'stage_item',
+            targetId: item.id,
+            payload: { scope: 'stage_item', field: 'completedAt', value: ts, stageId: stage.id },
+          });
+        }
+        const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+        if (!out) throw new Error('Программа не найдена');
+        return out;
+      });
     },
 
     async getLatestSimpleCompletionMetrics(input: {
@@ -379,26 +381,28 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       stageItemId: string;
     }) {
-      assertUuid(input.patientUserId);
-      assertUuid(input.instanceId);
-      assertUuid(input.stageItemId);
-      await patientTouchStageItemInner(input);
-      const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
-      assertStageAccessibleForPatient(stage);
-      if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error('Элемент отключён');
-      }
-      if (item.itemType !== 'clinical_test')
-        throw new Error('Элемент не является клиническим тестом');
-      const open = await tests.findOpenAttempt(item.id, input.patientUserId);
-      if (open) return open;
-      const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 5);
-      if (prior.length === 0) {
-        return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
-      }
-      throw new Error('Сначала начните новую попытку');
+      return instances.runInMutationTransaction(async () => {
+        assertUuid(input.patientUserId);
+        assertUuid(input.instanceId);
+        assertUuid(input.stageItemId);
+        await patientTouchStageItemInner(input);
+        const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+        if (!detail) throw new Error('Программа не найдена');
+        const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
+        assertStageAccessibleForPatient(stage);
+        if (!isInstanceStageItemActiveForPatient(item)) {
+          throw new Error('Элемент отключён');
+        }
+        if (item.itemType !== 'clinical_test')
+          throw new Error('Элемент не является клиническим тестом');
+        const open = await tests.findOpenAttempt(item.id, input.patientUserId);
+        if (open) return open;
+        const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 5);
+        if (prior.length === 0) {
+          return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
+        }
+        throw new Error('Сначала начните новую попытку');
+      });
     },
 
     async patientStartNewTestAttempt(input: {
@@ -406,27 +410,29 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       stageItemId: string;
     }): Promise<TreatmentProgramTestAttemptRow> {
-      assertUuid(input.patientUserId);
-      assertUuid(input.instanceId);
-      assertUuid(input.stageItemId);
-      await patientTouchStageItemInner({
-        patientUserId: input.patientUserId,
-        instanceId: input.instanceId,
-        stageItemId: input.stageItemId,
-      });
-      const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
-      assertStageAccessibleForPatient(stage);
-      if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error('Элемент отключён');
-      }
-      if (item.itemType !== 'clinical_test')
-        throw new Error('Элемент не является клиническим тестом');
-      return tests.startNewAttemptAfterSubmitted({
-        instanceId: input.instanceId,
-        stageItemId: item.id,
-        patientUserId: input.patientUserId,
+      return instances.runInMutationTransaction(async () => {
+        assertUuid(input.patientUserId);
+        assertUuid(input.instanceId);
+        assertUuid(input.stageItemId);
+        await patientTouchStageItemInner({
+          patientUserId: input.patientUserId,
+          instanceId: input.instanceId,
+          stageItemId: input.stageItemId,
+        });
+        const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+        if (!detail) throw new Error('Программа не найдена');
+        const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
+        assertStageAccessibleForPatient(stage);
+        if (!isInstanceStageItemActiveForPatient(item)) {
+          throw new Error('Элемент отключён');
+        }
+        if (item.itemType !== 'clinical_test')
+          throw new Error('Элемент не является клиническим тестом');
+        return tests.startNewAttemptAfterSubmitted({
+          instanceId: input.instanceId,
+          stageItemId: item.id,
+          patientUserId: input.patientUserId,
+        });
       });
     },
 
@@ -438,121 +444,123 @@ export function createTreatmentProgramProgressService(deps: {
       rawValue: Record<string, unknown>;
       normalizedDecision?: NormalizedTestDecision;
     }): Promise<TreatmentProgramInstanceDetail> {
-      assertUuid(input.patientUserId);
-      assertUuid(input.instanceId);
-      assertUuid(input.stageItemId);
-      assertUuid(input.testId);
-      await patientTouchStageItemInner({
-        patientUserId: input.patientUserId,
-        instanceId: input.instanceId,
-        stageItemId: input.stageItemId,
-      });
-      const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error('Программа не найдена');
-      const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
-      assertStageAccessibleForPatient(stage);
-      if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error('Элемент отключён');
-      }
-      if (item.itemType !== 'clinical_test')
-        throw new Error('Элемент не является клиническим тестом');
-
-      const expectedTests = testIdsFromTestSetSnapshot(item.snapshot);
-      if (!expectedTests.includes(input.testId)) {
-        throw new Error('Тест не соответствует пункту программы');
-      }
-
-      let attempt = await tests.findOpenAttempt(item.id, input.patientUserId);
-      if (!attempt) {
-        const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 1);
-        if (prior.length === 0) {
-          attempt = await tests.createAttempt({
-            stageItemId: item.id,
-            patientUserId: input.patientUserId,
-          });
-        } else {
-          throw new Error('Сначала начните попытку');
+      return instances.runInMutationTransaction(async () => {
+        assertUuid(input.patientUserId);
+        assertUuid(input.instanceId);
+        assertUuid(input.stageItemId);
+        assertUuid(input.testId);
+        await patientTouchStageItemInner({
+          patientUserId: input.patientUserId,
+          instanceId: input.instanceId,
+          stageItemId: input.stageItemId,
+        });
+        const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+        if (!detail) throw new Error('Программа не найдена');
+        const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
+        assertStageAccessibleForPatient(stage);
+        if (!isInstanceStageItemActiveForPatient(item)) {
+          throw new Error('Элемент отключён');
         }
-      }
+        if (item.itemType !== 'clinical_test')
+          throw new Error('Элемент не является клиническим тестом');
 
-      const scoring = scoringConfigForTestInSnapshot(item.snapshot, input.testId);
-      const inferred = inferNormalizedDecisionFromScoring(scoring, input.rawValue);
-      let decision = input.normalizedDecision ?? inferred;
-      if (
-        !decision &&
-        typeof input.rawValue.score === 'number' &&
-        !Number.isNaN(input.rawValue.score) &&
-        !scoringConfigIsQualitative(scoring)
-      ) {
-        decision = 'partial';
-      }
-      if (!decision) {
-        throw new Error(
-          'Укажите итог (passed / failed / partial) или числовой score при настроенных порогах',
-        );
-      }
+        const expectedTests = testIdsFromTestSetSnapshot(item.snapshot);
+        if (!expectedTests.includes(input.testId)) {
+          throw new Error('Тест не соответствует пункту программы');
+        }
 
-      const resultRow = await tests.upsertResult({
-        attemptId: attempt.id,
-        testId: input.testId,
-        rawValue: input.rawValue,
-        normalizedDecision: decision,
-        decidedBy: null,
-      });
+        let attempt = await tests.findOpenAttempt(item.id, input.patientUserId);
+        if (!attempt) {
+          const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 1);
+          if (prior.length === 0) {
+            attempt = await tests.createAttempt({
+              stageItemId: item.id,
+              patientUserId: input.patientUserId,
+            });
+          } else {
+            throw new Error('Сначала начните попытку');
+          }
+        }
 
-      await actionLog.insertAction({
-        instanceId: input.instanceId,
-        instanceStageItemId: input.stageItemId,
-        patientUserId: input.patientUserId,
-        actionType: 'done',
-        sessionId: null,
-        payload: {
-          source: 'test_submitted',
-          testResultId: resultRow.id,
-          testId: input.testId,
-        },
-        note: null,
-      });
+        const scoring = scoringConfigForTestInSnapshot(item.snapshot, input.testId);
+        const inferred = inferNormalizedDecisionFromScoring(scoring, input.rawValue);
+        let decision = input.normalizedDecision ?? inferred;
+        if (
+          !decision &&
+          typeof input.rawValue.score === 'number' &&
+          !Number.isNaN(input.rawValue.score) &&
+          !scoringConfigIsQualitative(scoring)
+        ) {
+          decision = 'partial';
+        }
+        if (!decision) {
+          throw new Error(
+            'Укажите итог (passed / failed / partial) или числовой score при настроенных порогах',
+          );
+        }
 
-      await appendEv({
-        instanceId: input.instanceId,
-        actorId: input.patientUserId,
-        eventType: 'test_completed',
-        targetType: 'stage_item',
-        targetId: input.stageItemId,
-        payload: {
-          testResultId: resultRow.id,
-          testId: input.testId,
+        const resultRow = await tests.upsertResult({
           attemptId: attempt.id,
-          normalizedDecision: resultRow.normalizedDecision,
-        },
-      });
+          testId: input.testId,
+          rawValue: input.rawValue,
+          normalizedDecision: decision,
+          decidedBy: null,
+        });
 
-      const existing = await tests.listResultsForAttempt(attempt.id);
-      const have = new Set(existing.map((r) => r.testId));
-      const allDone = expectedTests.length > 0 && expectedTests.every((tid) => have.has(tid));
-      if (allDone) {
-        const { didTransitionToSubmitted } = await tests.markAttemptSubmitted(attempt.id);
-        if (didTransitionToSubmitted) {
-          await appendEv({
-            instanceId: input.instanceId,
-            actorId: input.patientUserId,
-            eventType: 'status_changed',
-            targetType: 'stage_item',
-            targetId: item.id,
-            payload: {
-              scope: 'stage_item',
-              stageId: stage.id,
-              context: 'clinical_test_attempt_submitted',
-              attemptId: attempt.id,
-            },
-          });
+        await actionLog.insertAction({
+          instanceId: input.instanceId,
+          instanceStageItemId: input.stageItemId,
+          patientUserId: input.patientUserId,
+          actionType: 'done',
+          sessionId: null,
+          payload: {
+            source: 'test_submitted',
+            testResultId: resultRow.id,
+            testId: input.testId,
+          },
+          note: null,
+        });
+
+        await appendEv({
+          instanceId: input.instanceId,
+          actorId: input.patientUserId,
+          eventType: 'test_completed',
+          targetType: 'stage_item',
+          targetId: input.stageItemId,
+          payload: {
+            testResultId: resultRow.id,
+            testId: input.testId,
+            attemptId: attempt.id,
+            normalizedDecision: resultRow.normalizedDecision,
+          },
+        });
+
+        const existing = await tests.listResultsForAttempt(attempt.id);
+        const have = new Set(existing.map((r) => r.testId));
+        const allDone = expectedTests.length > 0 && expectedTests.every((tid) => have.has(tid));
+        if (allDone) {
+          const { didTransitionToSubmitted } = await tests.markAttemptSubmitted(attempt.id);
+          if (didTransitionToSubmitted) {
+            await appendEv({
+              instanceId: input.instanceId,
+              actorId: input.patientUserId,
+              eventType: 'status_changed',
+              targetType: 'stage_item',
+              targetId: item.id,
+              payload: {
+                scope: 'stage_item',
+                stageId: stage.id,
+                context: 'clinical_test_attempt_submitted',
+                attemptId: attempt.id,
+              },
+            });
+          }
         }
-      }
 
-      const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!out) throw new Error('Программа не найдена');
-      return out;
+        const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+        if (!out) throw new Error('Программа не найдена');
+        return out;
+      });
     },
 
     async doctorSetStageStatus(input: {
@@ -562,33 +570,35 @@ export function createTreatmentProgramProgressService(deps: {
       reason?: string | null;
       doctorUserId: string | null;
     }): Promise<TreatmentProgramInstanceDetail> {
-      assertUuid(input.instanceId);
-      assertUuid(input.stageId);
-      if (input.doctorUserId) assertUuid(input.doctorUserId);
-      if (input.status === 'skipped') {
-        const r = input.reason?.trim();
-        if (!r) throw new Error('Для пропуска этапа укажите причину');
-      }
-      const detail0 = await instances.getInstanceById(input.instanceId);
-      const st0 = detail0?.stages.find((s) => s.id === input.stageId);
-      if (!st0) throw new Error('Этап не найден');
-      const beforeStatus = st0.status;
-      const row = await instances.updateInstanceStage(input.instanceId, input.stageId, {
-        status: input.status,
-        skipReason: input.status === 'skipped' ? (input.reason?.trim() ?? null) : null,
+      return instances.runInMutationTransaction(async () => {
+        assertUuid(input.instanceId);
+        assertUuid(input.stageId);
+        if (input.doctorUserId) assertUuid(input.doctorUserId);
+        if (input.status === 'skipped') {
+          const r = input.reason?.trim();
+          if (!r) throw new Error('Для пропуска этапа укажите причину');
+        }
+        const detail0 = await instances.getInstanceById(input.instanceId);
+        const st0 = detail0?.stages.find((s) => s.id === input.stageId);
+        if (!st0) throw new Error('Этап не найден');
+        const beforeStatus = st0.status;
+        const row = await instances.updateInstanceStage(input.instanceId, input.stageId, {
+          status: input.status,
+          skipReason: input.status === 'skipped' ? (input.reason?.trim() ?? null) : null,
+        });
+        if (!row) throw new Error('Этап не найден');
+        await recordStageStatusChange({
+          instanceId: input.instanceId,
+          stageId: input.stageId,
+          beforeStatus,
+          afterRow: row,
+          actorId: input.doctorUserId,
+          doctorReason: input.reason,
+        });
+        const out = await instances.getInstanceById(input.instanceId);
+        if (!out) throw new Error('Программа не найдена');
+        return out;
       });
-      if (!row) throw new Error('Этап не найден');
-      await recordStageStatusChange({
-        instanceId: input.instanceId,
-        stageId: input.stageId,
-        beforeStatus,
-        afterRow: row,
-        actorId: input.doctorUserId,
-        doctorReason: input.reason,
-      });
-      const out = await instances.getInstanceById(input.instanceId);
-      if (!out) throw new Error('Программа не найдена');
-      return out;
     },
 
     async doctorOverrideTestResult(input: {

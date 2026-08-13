@@ -72,10 +72,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 257);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 255);
-  assert.equal(testFunctions.length, 272);
-  assert.equal(devFunctions.length, 270);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 259);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 257);
+  assert.equal(testFunctions.length, 274);
+  assert.equal(devFunctions.length, 272);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 43);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);

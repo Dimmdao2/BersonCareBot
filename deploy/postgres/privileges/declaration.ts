@@ -1435,21 +1435,21 @@ const TABLE_ROWS: TableRow[] = [
       + 'vk_id_client_secret открытым), а у app_staff полный CRUD по журналу' },
     pol: 'та же безусловная ветка organization_id IS NULL, что и у system_settings — снять',
     defect: ['D3-system-settings', 'D4-role-escalation'] },
-  { t: 'public.test_attempts', cls: 'P', why: 'попытки прохождения теста — пациент не сможет сдать тест',
+  { t: 'public.test_attempts', cls: 'P', org: true, why: 'попытки прохождения теста — пациент не сможет сдать тест',
     pol: 'РЕШЕНИЕ D2: пациентская ветка обязана резолвиться ЧЕРЕЗ ПРОГРАММУ (instance_stage_item_id → '
     + 'treatment_program_instance_stage_items → instances.patient_user_id), а не по плоской patient_user_id',
     code: ['C14'] },
-  { t: 'public.test_results', cls: 'P', why: 'результат попытки — оценка теста', pol: 'РЕШЕНИЕ D2: пациентская ветка '
+  { t: 'public.test_results', cls: 'P', org: true, why: 'результат попытки — оценка теста', pol: 'РЕШЕНИЕ D2: пациентская ветка '
     + '— только через test_attempts, привязанную к элементу его программы (см. test_attempts).', code: ['C14'] },
   { t: 'public.test_set_items', cls: 'C', why: 'состав набора — наполнение набора' },
   { t: 'public.test_sets', cls: 'C', why: 'наборы тестов — пакетное назначение тестов' },
   { t: 'public.tests', cls: 'C', why: 'каталог клинических тестов клиники — без него врач не назначит тест' },
-  { t: 'public.treatment_program_events', cls: 'P', why: 'журнал изменений программы — аудит «кто что менял в '
+  { t: 'public.treatment_program_events', cls: 'P', org: true, why: 'журнал изменений программы — аудит «кто что менял в '
     + 'лечении»' },
-  { t: 'public.treatment_program_instance_stage_groups', cls: 'P', why: 'группы внутри этапа — группировка заданий' },
-  { t: 'public.treatment_program_instance_stage_items', cls: 'P', why: 'сами задания — что пациент делает каждый день' },
-  { t: 'public.treatment_program_instance_stages', cls: 'P', why: 'этапы программы — шаги лечения' },
-  { t: 'public.treatment_program_instances', cls: 'P', why: 'назначенная пациенту программа — ядро лечения — без неё '
+  { t: 'public.treatment_program_instance_stage_groups', cls: 'P', org: true, why: 'группы внутри этапа — группировка заданий' },
+  { t: 'public.treatment_program_instance_stage_items', cls: 'P', org: true, why: 'сами задания — что пациент делает каждый день' },
+  { t: 'public.treatment_program_instance_stages', cls: 'P', org: true, why: 'этапы программы — шаги лечения' },
+  { t: 'public.treatment_program_instances', cls: 'P', org: true, why: 'назначенная пациенту программа — ядро лечения — без неё '
     + 'нет программы' },
   { t: 'public.treatment_program_template_stage_groups', cls: 'C', why: 'группы в этапе шаблона — группировка в '
     + 'шаблоне' },
@@ -2079,6 +2079,14 @@ const REV10_CONTEXT = {
     webapp_worker_relation: { port: 'webapp', runtimeName: 'worker', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_WORKER_SOURCES },
+    webapp_webhook_burst_signals_list: { port: 'webapp', runtimeName: 'webhook_burst_signals_list',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.webhook-errors.aggregate',
+      functionIdentity: 'app.list_integration_webhook_burst_signals(integer,integer)' },
+    webapp_webhook_error_events_prune: { port: 'webapp', runtimeName: 'webhook_error_events_prune',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.webhook-errors.prune',
+      functionIdentity: 'app.prune_integration_webhook_error_events(integer)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -2588,6 +2596,22 @@ const REV10_CONTEXT = {
         columns: ['status', 'next_try_at', 'attempts_done', 'updated_at'], operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    'app.list_integration_webhook_burst_signals(integer,integer)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      purpose: 'return only aggregated webhook error bursts for operator health', typedArgs: ['integer', 'integer'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.integration_webhook_error_events',
+        columns: ['source', 'error_class', 'occurred_at'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.prune_integration_webhook_error_events(integer)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', execute: ['app_worker'],
+      purpose: 'delete only webhook error events older than the attested retention window', typedArgs: ['integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.integration_webhook_error_events', columns: ['occurred_at'],
+        operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
     'app.read_integrator_provider_runtime_setting(text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_provider_runtime_setting(text)'],
       execute: ['app_service'], purpose: 'return one fixed-allowlist provider setting to the integrator service',
@@ -2913,7 +2937,99 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.treatment_program_instances': {
     kind: 'direct', purpose: 'patient reads only its own assigned treatment programs in the current clinic',
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['updated_at'] },
+    ],
+  },
+  'public.treatment_program_instance_stages': {
+    kind: 'direct', purpose: 'patient reads and advances only stages of its own current-clinic program',
+    codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['skip_reason', 'started_at', 'status'] },
+    ],
+  },
+  'public.treatment_program_instance_stage_items': {
+    kind: 'direct', purpose: 'patient reads and records progress only on items of its own current-clinic program',
+    codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['completed_at', 'last_viewed_at'] },
+    ],
+  },
+  'public.treatment_program_instance_stage_groups': {
+    kind: 'direct', purpose: 'patient reads grouping of items in its own current-clinic program',
+    codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
     grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.treatment_program_events': {
+    kind: 'direct', purpose: 'patient reads and appends audit events only for its own current-clinic program',
+    codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'actor_id', 'created_at', 'event_type', 'id', 'instance_id', 'organization_id', 'payload', 'reason',
+        'target_id', 'target_type',
+      ] },
+    ],
+  },
+  'public.program_action_log': {
+    kind: 'direct', purpose: 'patient reads and records actions only for its own current-clinic program items',
+    codePaths: ['apps/webapp/src/infra/repos/pgProgramActionLog.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'action_type', 'created_at', 'id', 'instance_id', 'instance_stage_item_id', 'note', 'organization_id',
+        'patient_user_id', 'payload', 'session_id',
+      ] },
+      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
+    ],
+  },
+  'public.test_attempts': {
+    kind: 'direct', purpose: 'patient reads and submits test attempts only through items of its own current-clinic program',
+    codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'accepted_at', 'accepted_by', 'id', 'instance_stage_item_id', 'organization_id', 'patient_user_id',
+        'started_at', 'submitted_at',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['submitted_at'] },
+    ],
+  },
+  'public.test_results': {
+    kind: 'direct', purpose: 'patient reads and records results only for attempts in its own current-clinic program',
+    codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'attempt_id', 'created_at', 'decided_by', 'id', 'normalized_decision', 'organization_id', 'raw_value',
+        'test_id',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['decided_by', 'normalized_decision', 'raw_value'] },
+    ],
+  },
+  'public.program_item_discussion_messages': {
+    kind: 'direct', purpose: 'patient reads and sends messages only in discussion of its own current-clinic program item',
+    codePaths: ['apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'body', 'created_at', 'id', 'instance_stage_item_id', 'media_file_id', 'organization_id', 'origin',
+        'patient_user_id', 'sender_role', 'support_message_id',
+      ] },
+    ],
+  },
+  'public.program_item_discussion_reads': {
+    kind: 'direct', purpose: 'patient reads and advances only its own discussion cursor in the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['instance_stage_item_id', 'last_read_at', 'organization_id', 'patient_user_id'] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['last_read_at'] },
+    ],
   },
   'public.user_contacts': {
     kind: 'direct', purpose: 'patient reads only its own normalized primary contact used by account support flows',
@@ -3081,11 +3197,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     kind: 'direct', purpose: 'platform operators inspect the immutable runtime-setting change ledger',
     codePaths: ['apps/webapp/src/infra/repos/pgRuntimeSettings.ts'],
     grants: [{ role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' }],
-  },
-  'public.integration_webhook_error_events': {
-    kind: 'direct', purpose: 'the health worker records and prunes inbound webhook failures',
-    codePaths: ['apps/webapp/src/app-layer/health/runIntegratorPushOutboxHealthGuardTick.ts', 'packages/operator-db-schema/src/integrationWebhook.ts'],
-    grants: [{ role: 'app_worker', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' }],
   },
   'public.saas_billing_periods': {
     kind: 'direct', purpose: 'staff reads the billing-period catalog; platform operations alone maintain it',
@@ -3628,10 +3739,14 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       && policy.to.every((role) => known.has(role) || role === 'PUBLIC'));
     const contextGates = access ? revision10ContextGates(key, index, access) : [];
     const locked = REV10_LOCKED_POLICIES.get(key);
-    const classSafe = (predicate: string) => predicate
-      .replaceAll('app.is_staff()', "current_user = 'app_staff'::name")
-      .replaceAll('app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()', 'app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND "platform_user_id" = app.current_patient_user_id()')
-      .replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()', '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
+    const classSafe = (predicate: string) => {
+      let result = predicate.replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
+      if (table.org === true) result = result.replaceAll(
+        '(app.current_patient_user_id() IS NOT NULL AND ',
+        '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND ');
+      return result.replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()',
+        '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
+    };
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
       'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
       'public.content_section_slug_history', 'public.support_conversations']).has(key);

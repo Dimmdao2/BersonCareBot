@@ -248,6 +248,20 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
   }
 });
 
+test('webhook error events have only exact outcome, aggregate and retention seams', () => {
+  const access = declaration.databases.bcb_webapp_dev.tables[
+    'public.integration_webhook_error_events'
+  ].access;
+  assert.equal(access.kind, 'named-seams');
+  assert.deepEqual(access.seams.map((seam) => seam.regprocedure).sort(), [
+    'app.list_integration_webhook_burst_signals(integer,integer)',
+    'app.prune_integration_webhook_error_events(integer)',
+    'app.record_integrator_webhook_outcome(text,boolean,integer,text,text)',
+  ]);
+  assert.equal(access.seams.some((seam) => seam.callers.includes('app_worker')), true);
+  assert.equal(access.seams.some((seam) => seam.callers.includes('app_service')), true);
+});
+
 test('staff reads only the global paid-period rule needed for its own access calculation', () => {
   const table = declaration.databases.bersoncarebot_test.tables['public.saas_paid_period_policy'];
   assert.equal(table.access.kind, 'direct');
@@ -384,9 +398,18 @@ test('patient page relations have exact self/current-clinic access and published
     'public.lfk_complexes',
     'public.reminder_journal',
     'public.reminder_rules',
+    'public.program_action_log',
+    'public.program_item_discussion_messages',
+    'public.program_item_discussion_reads',
     'public.support_conversation_messages',
     'public.support_conversations',
     'public.symptom_trackings',
+    'public.test_attempts',
+    'public.test_results',
+    'public.treatment_program_events',
+    'public.treatment_program_instance_stage_groups',
+    'public.treatment_program_instance_stage_items',
+    'public.treatment_program_instance_stages',
     'public.treatment_program_instances',
     'public.user_contacts',
     'public.user_identity',
@@ -434,9 +457,58 @@ test('patient page relations have exact self/current-clinic access and published
   assert.match(supportPolicy?.using ?? '', /platform_user_id = app\.current_patient_user_id\(\)/);
   assert.match(supportPolicy?.using ?? '', /organization_id IS NULL OR organization_id = app\.current_org_id\(\)/);
 
-  const programs = tables['public.treatment_program_instances'].access.grants
-    .filter((grant) => grant.role === 'app_patient');
-  assert.deepEqual(programs.flatMap((grant) => grant.operations), ['SELECT']);
+  const patientProgramOperations = {
+    'public.program_action_log': ['DELETE', 'INSERT', 'SELECT'],
+    'public.program_item_discussion_messages': ['INSERT', 'SELECT'],
+    'public.program_item_discussion_reads': ['INSERT', 'SELECT', 'UPDATE'],
+    'public.test_attempts': ['INSERT', 'SELECT', 'UPDATE'],
+    'public.test_results': ['INSERT', 'SELECT', 'UPDATE'],
+    'public.treatment_program_events': ['INSERT', 'SELECT'],
+    'public.treatment_program_instance_stage_groups': ['SELECT'],
+    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stages': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instances': ['SELECT', 'UPDATE'],
+  };
+  for (const [relation, operations] of Object.entries(patientProgramOperations)) {
+    const patientGrants = tables[relation].access.grants.filter((grant) => grant.role === 'app_patient');
+    assert.deepEqual(patientGrants.flatMap((grant) => grant.operations).sort(), operations, relation);
+    const business = tables[relation].policies.find((policy) =>
+      policy.to.includes('app_patient') && !policy.name.startsWith('rev10_context_gate_'));
+    assert.match(business?.using ?? '',
+      /app\.current_patient_user_id\(\) IS NOT NULL AND "organization_id" = app\.current_org_id\(\)/,
+      relation);
+  }
+
+  const patientProgramInsertColumns = {
+    'public.program_action_log': [
+      'action_type', 'created_at', 'id', 'instance_id', 'instance_stage_item_id', 'note', 'organization_id',
+      'patient_user_id', 'payload', 'session_id',
+    ],
+    'public.program_item_discussion_messages': [
+      'body', 'created_at', 'id', 'instance_stage_item_id', 'media_file_id', 'organization_id', 'origin',
+      'patient_user_id', 'sender_role', 'support_message_id',
+    ],
+    'public.program_item_discussion_reads': [
+      'instance_stage_item_id', 'last_read_at', 'organization_id', 'patient_user_id',
+    ],
+    'public.test_attempts': [
+      'accepted_at', 'accepted_by', 'id', 'instance_stage_item_id', 'organization_id', 'patient_user_id',
+      'started_at', 'submitted_at',
+    ],
+    'public.test_results': [
+      'attempt_id', 'created_at', 'decided_by', 'id', 'normalized_decision', 'organization_id', 'raw_value',
+      'test_id',
+    ],
+    'public.treatment_program_events': [
+      'actor_id', 'created_at', 'event_type', 'id', 'instance_id', 'organization_id', 'payload', 'reason',
+      'target_id', 'target_type',
+    ],
+  };
+  for (const [relation, columns] of Object.entries(patientProgramInsertColumns)) {
+    const insert = tables[relation].access.grants.find((grant) =>
+      grant.role === 'app_patient' && grant.operations.includes('INSERT'));
+    assert.deepEqual([...insert.columns].sort(), [...columns].sort(), relation);
+  }
 });
 
 test('patient notification preferences are product-complete and remain self-only', () => {

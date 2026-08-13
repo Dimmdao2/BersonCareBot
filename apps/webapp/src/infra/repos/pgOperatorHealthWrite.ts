@@ -1,11 +1,8 @@
-import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { OutboundProviderAlertClaim } from '@/modules/operator-health/ports';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import {
-  integrationWebhookErrorEvents,
-  operatorIncidents,
-  operatorJobStatus,
-} from '../../../db/schema/operatorHealth';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import { operatorIncidents, operatorJobStatus } from '../../../db/schema/operatorHealth';
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
@@ -439,14 +436,13 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
   },
 
   async purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number) {
-    const db = getDrizzle();
     const h = Math.max(1, Math.trunc(hours));
-    const rows = await db
-      .delete(integrationWebhookErrorEvents)
-      .where(
-        lt(integrationWebhookErrorEvents.occurredAt, sql`now() - (${h}::int * interval '1 hour')`),
-      )
-      .returning({ id: integrationWebhookErrorEvents.id });
-    return { deleted: rows.length };
+    const result = await runWebappNamedRoot<{ deleted_count: number | string }>(
+      getWebappSqlDb(),
+      'app.prune_integration_webhook_error_events(integer)',
+      [h],
+      sql`SELECT app.prune_integration_webhook_error_events(${h}) AS deleted_count`,
+    );
+    return { deleted: Number(result.rows[0]?.deleted_count ?? 0) };
   },
 };

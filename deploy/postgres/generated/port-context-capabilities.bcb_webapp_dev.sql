@@ -97,6 +97,8 @@ SELECT * FROM (VALUES
   ('41c7fd7c-fb07-5c99-bb3f-a09a0cfd7102'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'identity.variant-a.resolve', 'app.pre_session_resolve_identity(uuid)'::regprocedure),
   ('717e67dd-8bb1-501b-a365-1c0a06ebd6af'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_staff'::name, 'staff'::app.port_context_class, 'relation', NULL::regprocedure),
   ('9e7ebb15-1ba4-5e7d-b56f-99c4483da3d0'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'saas_telemetry_operator'::name, 'service'::app.port_context_class, 'relation', NULL::regprocedure),
+  ('c04619d8-2450-51b7-97b5-0aecb910c260'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_worker'::name, 'service'::app.port_context_class, 'health.webhook-errors.aggregate', 'app.list_integration_webhook_burst_signals(integer,integer)'::regprocedure),
+  ('47f2e6cf-6e53-5ef7-8406-893a07f1a6a4'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_worker'::name, 'service'::app.port_context_class, 'health.webhook-errors.prune', 'app.prune_integration_webhook_error_events(integer)'::regprocedure),
   ('64d96f6e-cdd7-5e02-bf02-74d298852f71'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_worker'::name, 'service'::app.port_context_class, 'relation', NULL::regprocedure)
 ) AS v(capability_id, port, session_login, target_role, context_class, purpose, function_identity);
 -- Cutover services are stopped. Transaction-bound accepted contexts must not survive a reseed.

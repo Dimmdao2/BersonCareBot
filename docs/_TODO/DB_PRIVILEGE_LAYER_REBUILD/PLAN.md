@@ -165,7 +165,7 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   transaction/role/class/purpose/typed-args, SQLSTATE `42501`, cleanup и revocation.
 - [x] Webapp и integrator используют общий exact-client transaction wrapper: begin → clear → install context →
   `SET LOCAL ROLE` → queries → cleanup → commit/rollback; cleanup failure уничтожает connection. Отдельный
-  global-admin physical pool и live wiring остаются ниже.
+  global-admin physical pool включён и прошёл базовый live proof в Ф7.
 - [x] Общий `webapp_pre_session_relation` удалён: production callsite oracle и capability catalog оставляют только
   named roots; generic pre-session relation descriptor отсутствует.
 - [x] Все `45` уникальных callable pre-session SECURITY DEFINER roots первым действием требуют accepted exact
@@ -225,9 +225,11 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   patient/staff/global-admin pages и integrator health. Стена, которая не пускает приложение, не принимается.
 - [x] Patient render/action slice: `32/32` статических patient routes дали `200`; support mark-read и
   reminder done/snooze/skip дали `4/4` HTTP `200`, а PostgreSQL state подтвердил все три изменения без новой
-  строки системного журнала (`/tmp/bcb-patient-write-actions-r6.json`, log cursor `394370..394369`).
+  строки системного журнала (`/tmp/bcb-patient-write-actions-r6.json`, log cursor `394370..394369`). Одноразовая
+  treatment-program fixture прошла own list/detail, touch и complete; строка другой организации скрыта (`404`),
+  state подтвердил `in_progress|1|1|2`, cleanup вернул `0` оставшихся probe-строк.
 - [ ] Пройти полный смысловой live census действий staff/clinic, global-admin и integrator; для patient ещё
-  создать одноразовую treatment-program fixture и проверить touch/complete без вывода прав из наличия кода.
+  остаются остальные непроверенные mutation-пути; доступ не выводить из одного наличия вызова в коде.
   Staff render закрыт: `260` role/path сочетаний без `4xx/5xx` и `28/28` живых dynamic URL дали `200`.
   Global-admin render закрыт: `13` прямых страниц дали `200`, три product redirect соответствуют маршрутам,
   dynamic clinic page дала `200`. Integrator signed relay auth/dedup/audit slice закрыт; отдельные signed
@@ -238,8 +240,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   отправки, с accepted/duplicate и exact audit. Dedicated Telegram/MAX webhook pre-routing теперь использует
   exact named resolver без identity/org claims; неизвестный fingerprint закрывается как `Unknown bot`, а
   одноразовая положительная DEV-привязка вернула ровно объявленную организацию для обоих каналов. Webhook status
-  и error event записываются одной атомарной exact-функцией без direct table grants. Ещё открыты staff/global
-  mutations, patient treatment-program и остальные incoming/outgoing/scheduler/worker integrator-сценарии.
+  и error event записываются одной атомарной exact-функцией; health aggregate/retention вынесены в отдельные
+  exact roots, поэтому `app_worker` не имеет direct table grants. Ещё открыты staff/global mutations, оставшиеся
+  patient mutations и остальные incoming/outgoing/scheduler/worker integrator-сценарии.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.
