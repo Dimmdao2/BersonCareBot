@@ -287,9 +287,24 @@ BEGIN
   IF NOT (p_claims.protocol_version IS NOT DISTINCT FROM 1) OR p_claims.purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_claims.typed_args_hash) <> 32 THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'invalid port context claims';
   END IF;
+  SELECT * INTO cap FROM app_ext.port_context_capabilities WHERE capability_id = p_capability_id FOR SHARE;
+  IF NOT FOUND OR cap.session_login <> session_user OR cap.target_role <> p_claims.target_role
+    OR cap.context_class <> p_claims.context_class OR cap.purpose <> p_claims.purpose
+    OR cap.function_identity IS DISTINCT FROM p_claims.function_identity OR cap.active_from > clock_timestamp()
+    OR (cap.active_until IS NOT NULL AND cap.active_until <= clock_timestamp()) THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context capability mismatch';
+  END IF;
   IF (p_claims.context_class = 'pre_session' AND NOT (p_claims.request_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL))
     OR (p_claims.context_class = 'staff' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL))
-    OR (p_claims.context_class = 'patient' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'patient' AND NOT (
+      p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NOT NULL
+      AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL
+      AND (p_claims.organization_id IS NOT NULL OR (
+        p_claims.organization_id IS NULL
+        AND cap.purpose = 'patient.organization.resolve'
+        AND cap.function_identity::text = 'app.read_current_patient_active_organizations()'
+      ))
+    ))
     OR (p_claims.context_class = 'platform' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL))
     OR (p_claims.context_class = 'integrator' AND NOT (
       (p_claims.target_role = 'app_integrator_request' AND p_claims.integrator_user_id IS NOT NULL AND p_claims.organization_id IS NOT NULL
@@ -300,13 +315,6 @@ BEGIN
     OR (p_claims.context_class = 'tenant_service' AND NOT (p_claims.organization_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL))
     OR (p_claims.context_class = 'service' AND NOT (p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL)) THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context class identity mismatch';
-  END IF;
-  SELECT * INTO cap FROM app_ext.port_context_capabilities WHERE capability_id = p_capability_id FOR SHARE;
-  IF NOT FOUND OR cap.session_login <> session_user OR cap.target_role <> p_claims.target_role
-    OR cap.context_class <> p_claims.context_class OR cap.purpose <> p_claims.purpose
-    OR cap.function_identity IS DISTINCT FROM p_claims.function_identity OR cap.active_from > clock_timestamp()
-    OR (cap.active_until IS NOT NULL AND cap.active_until <= clock_timestamp()) THEN
-    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context capability mismatch';
   END IF;
   -- Context capabilities carry only Variant-A opaque references.  The context
   -- seam deliberately does not read the physical map: the identity seam owns

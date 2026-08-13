@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   hashPortTypedArgs,
   portTypedArg,
+  runWithDbPatientPrincipal,
   runWithDbPlatformPrincipal,
   runWithDbStaffPrincipal,
 } from '@bersoncare/db-principal';
@@ -38,6 +39,17 @@ const staffCapabilities = {
   staff: staffCapability,
   staff_identity_resolve: staffIdentityCapability,
 };
+const patientIdentityCapability: PortCapabilityDescriptor = {
+  ...staffIdentityCapability,
+  capabilityId: '00000000-0000-0000-0000-000000000120',
+};
+const patientOrganizationResolveCapability: PortCapabilityDescriptor = {
+  capabilityId: '00000000-0000-0000-0000-000000000121',
+  targetRole: 'app_patient',
+  contextClass: 'patient',
+  purpose: 'patient.organization.resolve',
+  functionIdentity: 'app.read_current_patient_active_organizations()',
+};
 
 type FakeQueryInput = string | { text: string; values?: readonly unknown[] };
 
@@ -51,6 +63,7 @@ function normalizeFakeQuery(
 }
 
 function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool {
+  let released = false;
   const client = {
     async query(input: FakeQueryInput, values?: readonly unknown[]) {
       const { text } = normalizeFakeQuery(input, values);
@@ -68,6 +81,8 @@ function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool 
       return { rows: [{ client }], rowCount: 1 };
     },
     release(error?: Error) {
+      if (released) throw new Error('Release called on client which has already been released');
+      released = true;
       if (error) releases.push(error);
     },
   } as unknown as PoolClient;
@@ -241,6 +256,74 @@ describe('webapp port-context runtime', () => {
       functionIdentity: named.functionIdentity,
       typedArgs: [arg],
     });
+  });
+
+  it('allows only the exact patient organization resolver before organization selection', () => {
+    const selected = runWithWebappPortOperation(
+      {
+        functionIdentity: patientOrganizationResolveCapability.functionIdentity!,
+        typedArgs: [],
+      },
+      () =>
+        webappPortContextPrincipal(
+          { kind: 'patient', platformUserId: USER },
+          { patient_active_organizations_resolve: patientOrganizationResolveCapability },
+          OPAQUE_USER,
+        ),
+    );
+    expect(selected).toMatchObject({
+      pool: 'patient',
+      principal: {
+        targetRole: 'app_patient',
+        functionIdentity: 'app.read_current_patient_active_organizations()',
+        actorRef: OPAQUE_USER,
+        subjectRef: OPAQUE_USER,
+      },
+    });
+    expect(selected.principal).not.toHaveProperty('organizationId');
+    expect(() =>
+      webappPortContextPrincipal(
+        { kind: 'patient', platformUserId: USER },
+        {
+          patient: {
+            ...patientOrganizationResolveCapability,
+            purpose: 'relation',
+            functionIdentity: undefined,
+          },
+        },
+        OPAQUE_USER,
+      ),
+    ).toThrow('organization-scoped patient principal');
+  });
+
+  it('destroys a checkout when patient principal projection rejects before transaction start', async () => {
+    const log: string[] = [];
+    const releases: Error[] = [];
+    const pool = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://staff/app' },
+        patient: { connectionString: 'postgresql://patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
+        capabilities: {
+          patient_identity_resolve: patientIdentityCapability,
+          patient: {
+            capabilityId: '00000000-0000-0000-0000-000000000122',
+            targetRole: 'app_patient',
+            contextClass: 'patient',
+            purpose: 'relation',
+          },
+        },
+      },
+      poolFactory: () => fakePool(log, releases),
+    });
+    await expect(
+      runWithDbPatientPrincipal({ platformUserId: USER }, () =>
+        runPgPoolPgText(pool, 'SELECT must_not_run'),
+      ),
+    ).rejects.toThrow('organization-scoped patient principal');
+    expect(log).not.toContain('SELECT must_not_run');
+    expect(releases).toHaveLength(1);
+    expect(releases[0]?.message).toContain('organization-scoped patient principal');
   });
 
   it('installs the explicit named descriptor and argument hash before a pool query', async () => {

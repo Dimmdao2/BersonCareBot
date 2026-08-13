@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   CreateManualOrganizationClientResult,
@@ -75,11 +75,11 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
   return {
     async listActiveEnrollmentsByPlatformUser(platformUserId) {
       void platformUserId;
-      const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
-        runWebappSql<ActiveOrganizationRow>(
-          getWebappSqlDb(),
-          sql`SELECT * FROM app.read_current_patient_active_organizations()`,
-        ),
+      const result = await runWebappNamedRoot<ActiveOrganizationRow>(
+        getWebappSqlDb(),
+        'app.read_current_patient_active_organizations()',
+        [],
+        sql`SELECT * FROM app.read_current_patient_active_organizations()`,
       );
       return result.rows.map(mapOrgEnrollment);
     },

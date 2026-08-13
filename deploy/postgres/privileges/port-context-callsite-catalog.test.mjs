@@ -24,6 +24,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.channel-binding.session', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgIdentityResolution.ts',
   },
+  'app.read_current_patient_active_organizations()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.organization.resolve', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgPatientOrganization.ts',
+  },
   'app.resolve_staff_workspace_memberships(uuid)': {
     port: 'webapp', argCount: 1, descriptorCount: 2,
     descriptors: [

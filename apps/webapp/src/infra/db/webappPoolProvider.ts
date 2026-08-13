@@ -444,7 +444,8 @@ function createPortContextWebappPool(
     const generation = active;
     const execute = async (): Promise<Awaited<ReturnType<Pool['query']>>> => {
       const principalSnapshot = getCurrentDbPrincipal();
-      const client = await checkout(generation, selectPool(principalSnapshot, generation));
+      const selectedPool = selectPool(principalSnapshot, generation);
+      const client = await checkout(generation, selectedPool);
       let completed = false;
       try {
         const selected = await resolveWebappPortContextPrincipal(
@@ -464,6 +465,14 @@ function createPortContextWebappPool(
         );
         completed = true;
         return result as Awaited<ReturnType<Pool['query']>>;
+      } catch (error) {
+        const failure = error instanceof Error ? error : new Error(String(error));
+        try {
+          client.release(failure);
+        } catch {
+          // The shared transaction lifecycle already destroyed this checkout.
+        }
+        throw failure;
       } finally {
         if (completed) client.release();
       }

@@ -281,7 +281,11 @@ export function webappPortContextPrincipal(
         },
       };
     case 'patient':
-      if (principal.kind !== 'patient' || !principal.organizationId)
+      if (
+        principal.kind !== 'patient' ||
+        (!principal.organizationId &&
+          descriptor.functionIdentity !== 'app.read_current_patient_active_organizations()')
+      )
         throw new Error('Patient port context requires an organization-scoped patient principal');
       return {
         pool: 'patient',
@@ -289,7 +293,7 @@ export function webappPortContextPrincipal(
           ...base,
           actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
           subjectRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
-          organizationId: principal.organizationId,
+          ...(principal.organizationId ? { organizationId: principal.organizationId } : {}),
         },
       };
     case 'platform':

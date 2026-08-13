@@ -49,6 +49,14 @@ async function withPortContextPoolTransaction<T>(
     );
     completed = true;
     return result;
+  } catch (error) {
+    const failure = error instanceof Error ? error : new Error(String(error));
+    try {
+      client.release(failure);
+    } catch {
+      // The shared transaction lifecycle already destroyed this checkout.
+    }
+    throw failure;
   } finally {
     if (completed) client.release();
   }
