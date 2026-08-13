@@ -260,7 +260,6 @@ BEGIN
       SELECT queue.*
       FROM public.outgoing_delivery_queue AS queue
       WHERE queue.status = 'dead'
-        AND queue.organization_id IS NULL
         AND (queue.failure_class IS NULL OR queue.failure_class <> 'recipient_blocked_bot')
         AND CASE
           WHEN p_probe = 'outgoing_reminder_dispatch' THEN queue.kind = 'reminder_dispatch'
@@ -339,12 +338,6 @@ BEGIN
       SELECT outbox.*
       FROM public.integrator_push_outbox AS outbox
       WHERE outbox.status = 'dead'
-        AND NOT (
-          outbox.payload ? 'organizationId'
-          OR outbox.payload ? 'organization_id'
-          OR outbox.payload ? 'platformUserId'
-          OR outbox.payload ? 'platform_user_id'
-        )
       ORDER BY outbox.created_at, outbox.id
       LIMIT p_limit
       FOR UPDATE SKIP LOCKED
@@ -391,12 +384,6 @@ BEGIN
     SELECT outbox.*
     FROM integrator.projection_outbox AS outbox
     WHERE outbox.status = 'dead'
-      AND NOT (
-        outbox.payload ? 'organizationId'
-        OR outbox.payload ? 'organization_id'
-        OR outbox.payload ? 'platformUserId'
-        OR outbox.payload ? 'platform_user_id'
-      )
     ORDER BY outbox.created_at, outbox.id
     LIMIT p_limit
     FOR UPDATE SKIP LOCKED
