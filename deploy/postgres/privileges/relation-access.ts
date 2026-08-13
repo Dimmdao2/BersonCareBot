@@ -960,6 +960,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "id",
           "is_active"
         ]
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "tariff_id"
+        ]
       }
     ]
   },
@@ -7126,14 +7136,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
         "operations": [
           "SELECT"
         ],
         "columns": "table"
       },
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
         "operations": [
           "INSERT"
         ],
@@ -7143,7 +7153,34 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ]
       },
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "billing_email",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "billing_email",
+          "organization_id"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
         "operations": [
           "UPDATE"
         ],
@@ -7165,14 +7202,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
         "operations": [
           "SELECT"
         ],
         "columns": "table"
       },
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
         "operations": [
           "INSERT"
         ],
@@ -7198,7 +7235,83 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ]
       },
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "currency",
+          "paid_at",
+          "provider_checkout_url",
+          "provider_id",
+          "provider_idempotency_key",
+          "provider_invoice_ref",
+          "status",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "currency",
+          "paid_at",
+          "status",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "additional_seat_quantity",
+          "amount_minor",
+          "currency",
+          "description",
+          "expires_at",
+          "invoice_kind",
+          "organization_id",
+          "provider_id",
+          "provider_idempotency_key",
+          "saas_billing_account_id",
+          "saas_billing_subscription_id",
+          "service_period_ends_at",
+          "service_period_starts_at",
+          "status",
+          "tariff_billing_period",
+          "tariff_id",
+          "tariff_name",
+          "tariff_snapshot"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
         "operations": [
           "UPDATE"
         ],
@@ -7227,14 +7340,30 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "id",
+          "organization_id",
+          "saas_billing_invoice_id",
+          "provider_id",
+          "provider_event_id",
+          "event_type",
+          "processed_at",
+          "created_at"
+        ]
+      },
+      {
+        "role": "app_worker",
         "operations": [
           "SELECT"
         ],
         "columns": "table"
       },
       {
-        "role": "app_staff",
+        "role": "app_worker",
         "operations": [
           "INSERT"
         ],
@@ -7248,7 +7377,37 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ]
       },
       {
-        "role": "app_staff",
+        "role": "app_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "processed_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "event_type",
+          "organization_id",
+          "provider_event_id",
+          "provider_id",
+          "raw_payload",
+          "saas_billing_invoice_id"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
         "operations": [
           "UPDATE"
         ],
@@ -7267,14 +7426,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
-        "role": "app_staff",
+        "role": "app_platform_settings",
         "operations": [
           "SELECT"
         ],
         "columns": "table"
       },
       {
-        "role": "app_staff",
+        "role": "app_platform_settings",
         "operations": [
           "INSERT"
         ],
@@ -7289,7 +7448,41 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ]
       },
       {
-        "role": "app_staff",
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "confirmed_at",
+          "provider_refund_ref",
+          "status",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "amount_minor",
+          "currency",
+          "organization_id",
+          "provider_id",
+          "provider_idempotency_key",
+          "saas_billing_invoice_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_worker",
         "operations": [
           "UPDATE"
         ],
@@ -7318,10 +7511,23 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "operations": [
           "SELECT"
         ],
+        "columns": [
+          "organization_id",
+          "status",
+          "current_period_ends_at",
+          "paid_additional_seats",
+          "source"
+        ]
+      },
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
         "columns": "table"
       },
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
         "operations": [
           "INSERT"
         ],
@@ -7339,7 +7545,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ]
       },
       {
-        "role": "app_staff",
+        "role": "app_clinic_billing",
         "operations": [
           "UPDATE"
         ],
@@ -7359,6 +7565,164 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "tariff_snapshot",
           "updated_at"
         ]
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "cancelled_at",
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "lifecycle_state",
+          "paid_additional_seats",
+          "pending_tariff_id",
+          "saved_payment_method_id",
+          "status",
+          "tariff_id",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "lifecycle_state",
+          "organization_id",
+          "pending_tariff_id",
+          "saas_billing_account_id",
+          "source",
+          "status",
+          "tariff_id",
+          "tariff_snapshot"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "autopay_consent_text",
+          "autopay_consented_at",
+          "autopay_revoked_at",
+          "cancelled_at",
+          "current_period_ends_at",
+          "current_period_starts_at",
+          "lifecycle_state",
+          "paid_additional_seats",
+          "pending_tariff_id",
+          "saved_payment_method_id",
+          "status",
+          "tariff_id",
+          "tariff_snapshot",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  "public.saas_tariffs": {
+    "kind": "direct",
+    "purpose": "клиника читает глобальный тарифный каталог для выбора и оплаты; webhook worker читает ценовой снимок; изменяет каталог только платформа",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPlatformEntitlements.ts",
+      "apps/webapp/src/infra/repos/pgSaasBilling.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "additional_seat_price_minor",
+          "billing_period",
+          "currency",
+          "description",
+          "discounted_price_minor",
+          "downgrade_policies",
+          "included_seats",
+          "is_active",
+          "mailing_templates",
+          "mechanic_access_policies",
+          "mechanics",
+          "name",
+          "price_minor",
+          "quotas",
+          "system_access_policy"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "additional_seat_price_minor",
+          "billing_period",
+          "currency",
+          "description",
+          "discounted_price_minor",
+          "downgrade_policies",
+          "included_seats",
+          "is_active",
+          "mailing_templates",
+          "mechanic_access_policies",
+          "mechanics",
+          "name",
+          "price_minor",
+          "quotas",
+          "system_access_policy",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
       }
     ]
   },

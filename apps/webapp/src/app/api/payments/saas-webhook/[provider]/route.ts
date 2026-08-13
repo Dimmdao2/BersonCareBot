@@ -20,7 +20,7 @@
  *    event a no-op (no double payment, no access change).
  */
 
-import { runWithDbInfraPrincipal, runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import {
@@ -90,8 +90,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (resolvedRefund.outcome === 'mismatch') {
       return jsonOk({ acknowledged: true, reason: `${resolvedRefund.field}_mismatch` as const });
     }
-    const refundResult = await runWithDbOrganizationPrincipal(resolvedRefund.organizationId, () =>
-      deps.saasBilling.captureSaasBillingRefundWebhookEvent({
+    const refundResult = await runWithDbInfraPrincipal(
+      {
+        organizationId: resolvedRefund.organizationId,
+        source: 'api/payments/saas-webhook:POST:capture',
+      },
+      () => deps.saasBilling.captureSaasBillingRefundWebhookEvent({
         organizationId: resolvedRefund.organizationId,
         saasBillingInvoiceId: resolvedRefund.saasBillingInvoiceId,
         saasBillingRefundId: resolvedRefund.saasBillingRefundId,
@@ -117,8 +121,12 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonOk({ acknowledged: true, reason: `${resolved.field}_mismatch` as const });
   }
 
-  const result = await runWithDbOrganizationPrincipal(resolved.organizationId, () =>
-    deps.saasBilling.captureSaasBillingProviderWebhookEvent({
+  const result = await runWithDbInfraPrincipal(
+    {
+      organizationId: resolved.organizationId,
+      source: 'api/payments/saas-webhook:POST:capture',
+    },
+    () => deps.saasBilling.captureSaasBillingProviderWebhookEvent({
       organizationId: resolved.organizationId,
       saasBillingInvoiceId: resolved.saasBillingInvoiceId,
       providerId: resolvedProvider.providerId,

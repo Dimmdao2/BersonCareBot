@@ -28,6 +28,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export const GENERATOR_VERSION = 1;
 
@@ -2458,4 +2460,9 @@ export function renderEnvSql(declaration, env, dbName) {
     out.push('');
   }
   return `${out.join('\n')}\n`;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  console.error('generate.mjs is a library; run deploy/postgres/privileges/generate-cli.mjs instead');
+  process.exitCode = 2;
 }

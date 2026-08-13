@@ -180,6 +180,102 @@ test('no direct INSERT or UPDATE grant is table-wide', () => {
   }
 });
 
+test('billing relations use the clinic, platform, and webhook worker roles without ordinary staff mutation', () => {
+  for (const relation of [
+    'public.saas_billing_accounts',
+    'public.saas_billing_invoices',
+    'public.saas_billing_provider_events',
+    'public.saas_billing_refunds',
+    'public.saas_billing_subscriptions',
+  ]) {
+    assertNoOperation(relation, 'app_staff', 'INSERT');
+    assertNoOperation(relation, 'app_staff', 'UPDATE');
+  }
+  for (const relation of [
+    'public.saas_billing_accounts',
+    'public.saas_billing_invoices',
+    'public.saas_billing_subscriptions',
+    'public.saas_tariffs',
+  ]) {
+    grantFor(relation, 'app_clinic_billing', 'SELECT');
+  }
+  exactColumns('public.saas_billing_provider_events', 'app_clinic_billing', 'SELECT', [
+    'id', 'organization_id', 'saas_billing_invoice_id', 'provider_id', 'provider_event_id',
+    'event_type', 'processed_at', 'created_at',
+  ]);
+  assertNoOperation('public.saas_billing_provider_events', 'app_clinic_billing', 'INSERT');
+  assertNoOperation('public.saas_billing_provider_events', 'app_clinic_billing', 'UPDATE');
+  assertNoOperation('public.saas_billing_refunds', 'app_clinic_billing', 'SELECT');
+  exactColumns('public.saas_billing_subscriptions', 'app_staff', 'SELECT', [
+    'organization_id', 'status', 'current_period_ends_at', 'paid_additional_seats', 'source',
+  ]);
+  for (const relation of [
+    'public.saas_billing_invoices',
+    'public.saas_billing_provider_events',
+    'public.saas_billing_refunds',
+    'public.saas_billing_subscriptions',
+    'public.saas_tariffs',
+  ]) {
+    grantFor(relation, 'app_worker', 'SELECT');
+    grantFor(relation, 'app_platform_settings', 'SELECT');
+  }
+  for (const relation of [
+    'public.saas_billing_invoices',
+    'public.saas_billing_provider_events',
+    'public.saas_billing_refunds',
+    'public.saas_billing_subscriptions',
+  ]) {
+    grantFor(relation, 'app_worker', 'UPDATE');
+  }
+  assertNoOperation('public.saas_tariffs', 'app_clinic_billing', 'UPDATE');
+  assertNoOperation('public.saas_tariffs', 'app_worker', 'UPDATE');
+  for (const operation of ['INSERT', 'UPDATE', 'DELETE']) {
+    grantFor('public.saas_tariffs', 'app_platform_settings', operation);
+  }
+
+  const tables = declaration.databases.bersoncarebot_test.tables;
+  for (const relation of [
+    'public.saas_billing_accounts',
+    'public.saas_billing_invoices',
+    'public.saas_billing_provider_events',
+    'public.saas_billing_refunds',
+    'public.saas_billing_subscriptions',
+  ]) {
+    const policy = tables[relation].policies.find((candidate) =>
+      candidate.name.startsWith('rev10_direct_business_'));
+    assert.match(policy?.using ?? '', /app_platform_settings.*THEN true/, relation);
+    assert.match(policy?.using ?? '', /organization_id = app\.current_org_id\(\)/, relation);
+  }
+});
+
+test('staff reads only the global paid-period rule needed for its own access calculation', () => {
+  const table = declaration.databases.bersoncarebot_test.tables['public.saas_paid_period_policy'];
+  assert.equal(table.access.kind, 'direct');
+  const staff = table.access.grants.find((grant) => grant.role === 'app_staff');
+  assert.deepEqual(staff?.operations, ['SELECT']);
+  assert.deepEqual(staff?.columns, [
+    'key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
+  ]);
+  assert.equal(
+    table.access.grants.some((grant) =>
+      grant.role === 'app_staff' && grant.operations.some((operation) => operation !== 'SELECT')),
+    false,
+  );
+});
+
+test('lifecycle notification seam can read the value returned by its organization update', () => {
+  const fn = declaration.portContext.functions[
+    'app.prepare_organization_lifecycle_notification_context(uuid)'
+  ];
+  const organization = fn.relationSurfaces.find(
+    (surface) => surface.relation === 'public.be_organizations',
+  );
+  assert.deepEqual([...organization.operations].sort(), ['SELECT', 'UPDATE']);
+  assert.deepEqual([...organization.columns].sort(), [
+    'cabinet_first_entered_at', 'id', 'updated_at',
+  ]);
+});
+
 test('phone completion is not a database role or direct relation grantee', () => {
   for (const access of Object.values(REV10_CLINICAL_ACCESS)) {
     if (access.kind !== 'direct') continue;

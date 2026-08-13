@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
@@ -17,6 +18,16 @@ const EXPECTED = {
   webapp: 68,
   integrator: 26,
 };
+
+test('the generator library refuses a mistaken direct CLI invocation', () => {
+  const result = spawnSync(process.execPath, [
+    '--experimental-strip-types',
+    new URL('./generate.mjs', import.meta.url).pathname,
+    '--all',
+  ], { encoding: 'utf8' });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /generate-cli\.mjs/);
+});
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
@@ -166,6 +177,18 @@ test('declared definer delegation propagates context without widening direct exe
   assert.doesNotMatch(
     sql,
     /GRANT EXECUTE ON FUNCTION app\.saas_billing_effective_tariff\(uuid,uuid\) TO [^;]*"app_staff"/,
+  );
+  assert.match(
+    sql,
+    /app\.read_org_enforced_quota_usage\(uuid\).*require_attested_context_for_roles[^\n]+app_clinic_billing[^\n]+app_platform_settings/,
+  );
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION app\.read_org_enforced_quota_usage\(uuid\) TO "app_platform_settings";/,
+  );
+  assert.doesNotMatch(
+    sql,
+    /GRANT EXECUTE ON FUNCTION app\.read_org_enforced_quota_usage\(uuid\) TO [^;]*"app_clinic_billing"/,
   );
 });
 

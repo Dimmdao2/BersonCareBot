@@ -311,7 +311,13 @@ export function webappPortContextPrincipal(
     case 'service':
       if (principal.kind !== 'infra')
         throw new Error('Service port context requires an explicit infra principal');
-      return { pool: 'staff', principal: base };
+      return {
+        pool: 'staff',
+        principal: {
+          ...base,
+          ...(principal.organizationId ? { organizationId: principal.organizationId } : {}),
+        },
+      };
     case 'pre_session':
       if (principal.kind !== 'bootstrap')
         throw new Error('Pre-session port context requires a bootstrap principal');

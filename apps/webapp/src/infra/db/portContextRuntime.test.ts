@@ -191,6 +191,33 @@ describe('webapp port-context runtime', () => {
     });
   });
 
+  it('keeps the resolved organization in an org-scoped worker context', () => {
+    const selected = webappPortContextPrincipal(
+      {
+        kind: 'infra',
+        organizationId: ORG,
+        source: 'api/payments/saas-webhook:POST:capture',
+      },
+      {
+        worker: {
+          capabilityId: '00000000-0000-0000-0000-000000000123',
+          targetRole: 'app_worker',
+          contextClass: 'service',
+          purpose: 'relation',
+          runtimeSources: ['api/payments/saas-webhook:POST:capture'],
+        },
+      },
+    );
+    expect(selected).toMatchObject({
+      pool: 'staff',
+      principal: {
+        targetRole: 'app_worker',
+        contextClass: 'service',
+        organizationId: ORG,
+      },
+    });
+  });
+
   it('routes an authenticated platform principal only through the global-admin pool', async () => {
     const selectedUrls: string[] = [];
     const platformCapabilities: Record<string, PortCapabilityDescriptor> = {

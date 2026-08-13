@@ -242,7 +242,9 @@ INSERT INTO app_ext.port_context_capabilities(capability_id,port,session_login,t
  ('00000000-0000-0000-0000-000000000114','integrator','$integrator_login','app_service','service','named.service','app.named_service_root()'::regprocedure),
  ('00000000-0000-0000-0000-000000000115','webapp','$patient_login','app_pre_session','pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure);
 INSERT INTO app_ext.port_context_capabilities(capability_id,port,session_login,target_role,context_class,purpose,function_identity) VALUES
- ('00000000-0000-0000-0000-000000000116','webapp','$global_admin_login','app_platform_admin','pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure);
+ ('00000000-0000-0000-0000-000000000116','webapp','$global_admin_login','app_platform_admin','pre_session','identity.variant-a.resolve','app.pre_session_resolve_identity(uuid)'::regprocedure),
+ ('00000000-0000-0000-0000-000000000117','webapp','$staff_login','app_clinic_billing','staff','relation',NULL),
+ ('00000000-0000-0000-0000-000000000118','webapp','$staff_login','app_worker','service','relation',NULL);
 INSERT INTO app.demo_context_records VALUES ('$org_a','tenant-a'),('$org_b','tenant-b');
 INSERT INTO app.platform_context_records VALUES ('platform-only');
 INSERT INTO app.service_context_records VALUES ('service-only');
@@ -334,6 +336,9 @@ if [[ "$fault" != dropped_restrictive_gate ]]; then
 fi
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c 'BEGIN; SET LOCAL ROLE app_pre_session; SELECT app.pre_session_begin_password_login($$person@example.test$$); COMMIT'
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SET LOCAL ROLE app_pre_session; SELECT app.pre_session_resolve_identity('$actor'::uuid); COMMIT"
+if [[ "$fault" != forbidden_claim ]]; then
+  must_fail_state 42501 psql_as "$integrator_login" "$integrator_password" "$cert_dir/integrator.crt" "$cert_dir/integrator.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000106',ROW(1,'service','app_service','relation',NULL,decode('$h0','hex'),NULL,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims); COMMIT"
+fi
 
 run_direct() {
   local user=$1 password=$2 cert=$3 key=$4 cap=$5 role=$6 class=$7 purpose=$8 fn=$9 hash=${10} actor_sql=${11} subject_sql=${12} org_sql=${13} integrator_sql=${14} request_sql=${15} query=${16} expected=${17}
@@ -503,6 +508,8 @@ fi
 
 # Representative positive contexts: each receives exactly its declared result.
 run_direct "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000101 app_staff staff relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_actor'::uuid" 'NULL::uuid' "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' "SELECT app.current_actor_user_id()::text || ':' || (SELECT string_agg(note, ', ' ORDER BY note) FROM app.demo_context_records);" "$actor:tenant-a"
+run_direct "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000117 app_clinic_billing staff relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_actor'::uuid" 'NULL::uuid' "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' "SELECT app.current_actor_user_id()::text || ':' || app.current_org_id()::text;" "$actor:$org_a"
+run_direct "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" 00000000-0000-0000-0000-000000000118 app_worker service relation 'NULL::regprocedure' "decode('$h0','hex')" 'NULL::uuid' 'NULL::uuid' "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' 'SELECT app.current_org_id()::text;' "$org_a"
 run_direct "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" 00000000-0000-0000-0000-000000000102 app_patient patient relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_actor'::uuid" "'$opaque_subject'::uuid" "'$org_a'::uuid" 'NULL::bigint' 'NULL::uuid' "SELECT app.current_actor_user_id()::text || ':' || app.current_patient_user_id()::text || ':' || (SELECT string_agg(note, ', ' ORDER BY note) FROM app.demo_context_records);" "$actor:$subject:tenant-a"
 run_direct "$patient_login" "$patient_password" "$cert_dir/patient.crt" "$cert_dir/patient.key" 00000000-0000-0000-0000-000000000102 app_patient patient relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_actor'::uuid" "'$opaque_subject'::uuid" 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' "SELECT app.current_actor_user_id()::text || ':' || app.current_patient_user_id()::text || ':' || (app.current_org_id() IS NULL)::text;" "$actor:$subject:true"
 run_direct "$global_admin_login" "$global_admin_password" "$cert_dir/global-admin.crt" "$cert_dir/global-admin.key" 00000000-0000-0000-0000-000000000103 app_platform_settings platform relation 'NULL::regprocedure' "decode('$h0','hex')" "'$opaque_global_actor'::uuid" 'NULL::uuid' 'NULL::uuid' 'NULL::bigint' 'NULL::uuid' 'SELECT note FROM app.platform_context_records;' platform-only
@@ -609,8 +616,8 @@ WITH expected(signature,grantees) AS (VALUES
  ('app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)',ARRAY['app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_worker','app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver','app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service','app_seam_password_auth_owner','app_seam_identity_lookup_owner','app_seam_staff_security_owner','app_seam_patient_self_actions_owner','app_seam_settings_runtime_owner','app_seam_org_commerce_owner','app_seam_delivery_scope_owner','app_seam_phone_binding_owner']::name[]),
  ('app.require_attested_context_for_roles(name,name[])',ARRAY[]::name[]),
  ('app.require_platform_principal()',ARRAY['app_platform_settings']::name[]),
- ('app.current_org_id()',ARRAY['app_staff','app_patient','app_integrator_request','app_tenant_service']::name[]),
- ('app.current_actor_user_id()',ARRAY['app_staff','app_patient','app_platform_settings']::name[]),
+ ('app.current_org_id()',ARRAY['app_staff','app_clinic_billing','app_patient','app_integrator_request','app_tenant_service','app_worker']::name[]),
+ ('app.current_actor_user_id()',ARRAY['app_staff','app_clinic_billing','app_patient','app_platform_settings']::name[]),
  ('app.current_patient_user_id()',ARRAY['app_patient']::name[]),
  ('app.current_integrator_user_id()',ARRAY['app_integrator_request']::name[]),
  ('app_ext.resolve_variant_a_identity(uuid)',ARRAY[]::name[]),

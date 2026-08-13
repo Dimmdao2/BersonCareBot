@@ -2710,6 +2710,13 @@
       "when": 1793539230133,
       "tag": "0390_patient_global_ui_context_local",
       "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1793539230134,
+      "tag": "0391_org_scoped_capability_context_accessors_local",
+      "breakpoints": true
     }
   ]
 }

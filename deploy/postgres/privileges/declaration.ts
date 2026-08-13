@@ -1611,7 +1611,12 @@ const db_bersoncarebot_test: DatabaseDecl = {
     views: { todo: 'TODO(census-gap): views/security_invoker not enumerated for this db' },
   },
 
-  types: {},
+  types: {
+    'app.port_name': { usage: ['app_seam_context_owner'] },
+    'app.port_context_class': { usage: ['app_seam_context_owner'] },
+    'app.port_typed_arg': { usage: ['app_seam_context_owner'] },
+    'app.port_context_claims': { usage: ['app_seam_context_owner'] },
+  },
 
   definerExceptions: {
     defaults: DEFINER_DEFAULTS,
@@ -1731,7 +1736,12 @@ const db_bcb_webapp_dev: DatabaseDecl = {
     views: { todo: 'TODO(census-gap): views/security_invoker not enumerated for dev' },
   },
 
-  types: {},
+  types: {
+    'app.port_name': { usage: ['app_seam_context_owner'] },
+    'app.port_context_class': { usage: ['app_seam_context_owner'] },
+    'app.port_typed_arg': { usage: ['app_seam_context_owner'] },
+    'app.port_context_claims': { usage: ['app_seam_context_owner'] },
+  },
 
   definerExceptions: {
     defaults: DEFINER_DEFAULTS,
@@ -1907,6 +1917,7 @@ const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
   'api/integrator/channel-link/complete:POST:verified',
   'api/payments/saas-webhook:POST:verified-resolver',
+  'api/payments/saas-webhook:POST:capture',
   'api/integrator/operator-health/digest-wake:POST',
   'api/integrator/system-health/guard-wake:POST',
   'api/internal/operator-health-digest/tick:POST',
@@ -2251,6 +2262,10 @@ const REV10_CONTEXT = {
     'app.resolve_organization_cabinet_access(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_cabinet_access(uuid)'],
       delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
+    },
+    'app.read_current_org_tariff_transition_usage()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_current_org_tariff_transition_usage()'],
+      delegatesTo: ['app.read_org_enforced_quota_usage(uuid)'],
     },
     'app.password_login_acquire_impl(text,text,uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
@@ -2949,6 +2964,25 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], columns: 'table' },
     ],
   },
+  'public.saas_paid_period_policy': {
+    kind: 'direct',
+    purpose: 'clinic staff reads the active global post-payment rule needed to calculate its own cabinet access; platform settings alone maintains it',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgOrgEntitlements.ts',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+    ],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT'],
+        columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active'] },
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['INSERT'],
+        columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
+          'updated_by', 'updated_at'] },
+      { role: 'app_platform_settings', operations: ['UPDATE'],
+        columns: ['post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
+          'updated_by', 'updated_at'] },
+    ],
+  },
   'public.system_settings_audit': {
     kind: 'direct', purpose: 'platform settings reads the global ledger; clinic staff may only append audit rows for its own organization',
     codePaths: ['apps/webapp/src/infra/repos/pgSystemSettings.ts'],
@@ -3337,9 +3371,12 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
     + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = app.current_org_id()))';
   if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = app.current_org_id())";
-  if (tableKey === 'public.be_organizations') return "(current_user = 'app_staff'::name AND id = app.current_org_id())";
+  if (tableKey === 'public.be_organizations') return "(current_user IN ('app_staff'::name, 'app_clinic_billing'::name) AND id = app.current_org_id())";
   if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
   if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  if (tableKey.startsWith('public.saas_billing_') && tableKey !== 'public.saas_billing_periods') {
+    return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name, 'app_worker'::name) THEN organization_id = app.current_org_id() ELSE false END)";
+  }
   const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
   if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
     + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active'))`;

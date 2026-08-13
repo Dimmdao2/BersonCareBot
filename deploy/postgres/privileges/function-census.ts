@@ -6665,6 +6665,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "cabinet_first_entered_at"
         ],
         "operations": [
+          "SELECT",
           "UPDATE"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"

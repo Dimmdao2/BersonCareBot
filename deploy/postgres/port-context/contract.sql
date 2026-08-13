@@ -88,6 +88,8 @@ ALTER TYPE app.port_name OWNER TO app_object_owner;
 ALTER TYPE app.port_context_class OWNER TO app_object_owner;
 ALTER TYPE app.port_typed_arg OWNER TO app_object_owner;
 ALTER TYPE app.port_context_claims OWNER TO app_object_owner;
+REVOKE ALL ON TYPE app.port_name, app.port_context_class, app.port_typed_arg, app.port_context_claims FROM PUBLIC;
+GRANT USAGE ON TYPE app.port_name, app.port_context_class, app.port_typed_arg, app.port_context_claims TO app_seam_context_owner;
 
 -- Every application edge is SET-only.  No runtime role is a member of another
 -- runtime role, so this graph has no transitive escalation path.
@@ -318,7 +320,18 @@ BEGIN
         AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL)
     ))
     OR (p_claims.context_class = 'tenant_service' AND NOT (p_claims.organization_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL))
-    OR (p_claims.context_class = 'service' AND NOT (p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL)) THEN
+    OR (p_claims.context_class = 'service' AND NOT (
+      p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL
+      AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL
+      AND (
+        p_claims.organization_id IS NULL
+        OR (
+          p_claims.target_role = 'app_worker'
+          AND cap.purpose = 'relation'
+          AND cap.function_identity IS NULL
+        )
+      )
+    )) THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context class identity mismatch';
   END IF;
   -- Context capabilities carry only Variant-A opaque references.  The context
@@ -436,7 +449,7 @@ DECLARE value uuid;
 BEGIN
   SELECT organization_id INTO value FROM app_ext.accepted_port_contexts
    WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL
-     AND target_role IN ('app_staff','app_patient','app_integrator_request','app_tenant_service');
+     AND target_role IN ('app_staff','app_clinic_billing','app_patient','app_integrator_request','app_tenant_service','app_worker');
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted organization context required'; END IF;
   RETURN value;
 END $$;
@@ -445,7 +458,7 @@ RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET sear
 DECLARE opaque_ref uuid; physical_id uuid;
 BEGIN
   SELECT actor_ref INTO opaque_ref FROM app_ext.accepted_port_contexts
-   WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role IN ('app_staff','app_patient','app_platform_settings');
+   WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role IN ('app_staff','app_clinic_billing','app_patient','app_platform_settings');
   IF opaque_ref IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted actor context required'; END IF;
   SELECT app_ext.resolve_variant_a_physical(opaque_ref) INTO physical_id;
   RETURN physical_id;
@@ -534,8 +547,8 @@ GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_contex
 REVOKE ALL ON FUNCTION app.require_attested_context_for_roles(name,name[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.require_attested_context_for_roles(name,name[]) TO app_seam_context_owner;
 GRANT EXECUTE ON FUNCTION app.require_platform_principal() TO app_platform_settings;
-GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_patient, app_platform_settings;
-GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_patient, app_integrator_request, app_tenant_service;
+GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_clinic_billing, app_patient, app_platform_settings;
+GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_clinic_billing, app_patient, app_integrator_request, app_tenant_service, app_worker;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_request;
 GRANT EXECUTE ON FUNCTION app.pre_session_resolve_identity(uuid) TO app_pre_session, app_platform_admin;

@@ -432,6 +432,7 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/auth/channel-link/start:POST:authenticated',
     'api/integrator/channel-link/complete:POST:verified',
     'api/payments/saas-webhook:POST:verified-resolver',
+    'api/payments/saas-webhook:POST:capture',
     'api/integrator/operator-health/digest-wake:POST',
     'api/integrator/system-health/guard-wake:POST',
     'api/internal/operator-health-digest/tick:POST',
