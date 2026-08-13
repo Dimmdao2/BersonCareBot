@@ -1,7 +1,9 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import {
+  getDrizzleOrMutationTx as getDrizzle,
+  runDrizzleMutationTransaction,
+} from '@/infra/db/drizzleMutationTx';
 import { clinicalTests } from '../../../db/schema/clinicalTests';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';

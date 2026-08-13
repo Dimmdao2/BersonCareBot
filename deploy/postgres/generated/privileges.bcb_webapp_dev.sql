@@ -2043,7 +2043,7 @@ INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression,expected_to
   ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[])
 ;
 DO $bcb$
-DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer; guard_source text; missing_token text;
+DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer; guard_source text; statement_prefix text; statement_at integer; missing_token text;
 BEGIN
   FOR gate IN SELECT * FROM bcb_runtime_definer_gates ORDER BY signature LOOP
     SELECT p.oid, p.prosrc, l.lanname INTO routine
@@ -2058,7 +2058,6 @@ BEGIN
       guard_source := pg_catalog.substr(routine.prosrc, guard_at, guard_length);
       SELECT token INTO missing_token FROM pg_catalog.unnest(gate.expected_tokens) token WHERE position(token IN guard_source)=0 ORDER BY token LIMIT 1;
       IF missing_token IS NOT NULL THEN RAISE EXCEPTION 'multi-capability exact gate token mismatch for %: %',gate.signature,missing_token; END IF;
-      CONTINUE;
     END IF;
     guard_at := CASE gate.mode
       WHEN 'exact' THEN position('app.require_accepted_context' IN routine.prosrc)
@@ -2069,11 +2068,19 @@ BEGIN
     IF guard_at>0 THEN
       guard_length := position(';' IN pg_catalog.substr(routine.prosrc, guard_at)) - 1;
       IF guard_at=0 OR guard_length<1 THEN RAISE EXCEPTION 'existing runtime definer gate is not replaceable: %',gate.signature; END IF;
-      new_source := pg_catalog.overlay(routine.prosrc, gate.gate_expression, guard_at, guard_length);
-    ELSIF routine.lanname='sql' THEN
-      new_source := 'SELECT ' || gate.gate_expression || ';' || E'\n' || routine.prosrc;
+      IF gate.mode<>'exact_existing' THEN guard_source := gate.gate_expression; END IF;
+      statement_prefix := substring(pg_catalog.substr(routine.prosrc, 1, guard_at - 1) FROM '((PERFORM|SELECT)[[:space:]]+)$');
+      IF statement_prefix IS NULL THEN RAISE EXCEPTION 'existing runtime definer gate is not a standalone statement: %',gate.signature; END IF;
+      statement_at := guard_at - char_length(statement_prefix);
+      new_source := pg_catalog.overlay(routine.prosrc, '', statement_at, guard_at + guard_length - statement_at + 1);
+    ELSE
+      guard_source := gate.gate_expression;
+      new_source := routine.prosrc;
+    END IF;
+    IF routine.lanname='sql' THEN
+      new_source := 'SELECT ' || guard_source || ';' || E'\n' || new_source;
     ELSIF routine.lanname='plpgsql' THEN
-      new_source := pg_catalog.regexp_replace(routine.prosrc, '(^|\n)([[:space:]]*)BEGIN', E'\\1\\2BEGIN\n\\2  PERFORM ' || gate.gate_expression || ';', 1, 1, 'in');
+      new_source := pg_catalog.regexp_replace(new_source, '(^|\n)([[:space:]]*)BEGIN', E'\\1\\2BEGIN\n\\2  PERFORM ' || guard_source || ';', 1, 1, 'in');
       IF new_source = routine.prosrc THEN RAISE EXCEPTION 'PL/pgSQL runtime definer has no injectable BEGIN: %',gate.signature; END IF;
     ELSE RAISE EXCEPTION 'unsupported runtime definer language %: %',routine.lanname,gate.signature; END IF;
     definition := pg_catalog.pg_get_functiondef(routine.oid);
@@ -2087,8 +2094,11 @@ $bcb$;
 DO $bcb$ DECLARE bad text; BEGIN
   SELECT gate.signature INTO bad FROM bcb_runtime_definer_gates gate
     JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(gate.signature)
+    JOIN pg_catalog.pg_language l ON l.oid=p.prolang
    WHERE (gate.mode IN ('exact','exact_existing') AND position('app.require_accepted_context' IN p.prosrc)=0)
       OR (gate.mode='attested' AND position('app.require_accepted_context' IN p.prosrc)=0 AND position('app.require_attested_context_for_roles' IN p.prosrc)=0)
+      OR (l.lanname='plpgsql' AND substring(p.prosrc FROM position('BEGIN' IN upper(p.prosrc))) !~* '^BEGIN[[:space:]]+PERFORM[[:space:]]+app[.](require_accepted_context|require_attested_context_for_roles)[[:space:]]*[(]')
+      OR (l.lanname='sql' AND p.prosrc !~* '^[[:space:]]*SELECT[[:space:]]+app[.](require_accepted_context|require_attested_context_for_roles)[[:space:]]*[(]')
    ORDER BY gate.signature LIMIT 1;
   IF bad IS NOT NULL THEN RAISE EXCEPTION 'runtime definer body is not context gated: %',bad; END IF;
   RAISE NOTICE 'BCB_RUNTIME_DEFINER_GATES_VERIFIED database=bcb_webapp_dev functions=236';

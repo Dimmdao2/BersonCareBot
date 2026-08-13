@@ -200,8 +200,10 @@ test('runtime gate reconciliation replaces single gates and validates every mult
   );
   assert.match(
     sql,
-    /guard_at := CASE gate\.mode[\s\S]*pg_catalog\.overlay\(routine\.prosrc, gate\.gate_expression/,
+    /guard_at := CASE gate\.mode[\s\S]*statement_at := guard_at - char_length\(statement_prefix\)[\s\S]*regexp_replace\(new_source/,
   );
+  assert.match(sql, /runtime definer gate is not a standalone statement/);
+  assert.match(sql, /l\.lanname='plpgsql'[\s\S]*\^BEGIN\[\[:space:\]\]\+PERFORM/);
   const multiContextRow = sql.match(
     /\('app\.resolve_staff_workspace_memberships\(uuid\)', 'exact_existing',[^\n]+/,
   )?.[0] ?? '';

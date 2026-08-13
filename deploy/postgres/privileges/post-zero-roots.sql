@@ -1463,15 +1463,15 @@ LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
 BEGIN
-  IF p_external_id IS NULL OR btrim(p_external_id) = '' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'external appointment id required';
-  END IF;
   PERFORM app.require_accepted_context(
     'app_seam_patient_booking_owner', 'app_worker', 'service', 'booking.integrator-record.read',
     app.hash_port_typed_args(ARRAY[
       ROW('text@1', textsend(p_external_id))::app.port_typed_arg
     ]), 'app.read_canonical_appointment_by_external_id(text)'::regprocedure
   );
+  IF p_external_id IS NULL OR btrim(p_external_id) = '' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'external appointment id required';
+  END IF;
   RETURN QUERY
     WITH target AS (
       SELECT direct.canonical_id, 0 AS priority
@@ -1508,15 +1508,15 @@ LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL RESTRICTED
 SET search_path = pg_catalog, app, public, pg_temp
 AS $function$
 BEGIN
-  IF p_phone_normalized IS NULL OR btrim(p_phone_normalized) = '' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'normalized phone required';
-  END IF;
   PERFORM app.require_accepted_context(
     'app_seam_patient_booking_owner', 'app_worker', 'service', 'booking.integrator-active.read',
     app.hash_port_typed_args(ARRAY[
       ROW('text@1', textsend(p_phone_normalized))::app.port_typed_arg
     ]), 'app.list_active_canonical_appointments_by_phone(text)'::regprocedure
   );
+  IF p_phone_normalized IS NULL OR btrim(p_phone_normalized) = '' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'normalized phone required';
+  END IF;
   RETURN QUERY
     SELECT appointment.id, appointment.organization_id, appointment.phone_normalized,
            appointment.start_at, appointment.status, appointment.attribution_json,

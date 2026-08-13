@@ -142,8 +142,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   только в окне миграций.
 - [x] DEV offline: применить legacy migrations → zero; каталогом доказать `PUBLIC` closed, runtime login/roles без
   data ACL/membership, default privileges closed, policies absent, permanent `BYPASSRLS=0`.
-- [ ] Негативный контроль DEV: каждый login/role/definer без port context не раскрывает данные и даёт громкий
-  отказ там, где соединение/вызов достижим.
+- [x] Негативный контроль DEV: все `16` достижимых login→role сочетаний без port context дали `42501`; все
+  `236` runtime definer + `6` context-helper functions дали `42501`, а PostgreSQL journal записал физический
+  login, function и statement. Остальные `12` definer functions runtime-ролям не исполнимы; `PUBLIC` ACL = `0`.
 
 ## Ф4 — минимальная модель logins, roles и seam owners
 
@@ -219,8 +220,13 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   шесть fault points проверены self-test.
 - [x] После доказанного DEV zero применить cluster-baseline, host mTLS readiness, port-context catalog и
   declaration-generated grants/RLS/seams — строго в этом порядке.
-- [ ] Проверить все cluster logins из `pg_roles`, все SET-able roles, `PUBLIC` и каждую definer-функцию; исключения
-  перечислить поимённо. Непрошедший context — no disclosure + SQLSTATE `42501` + PostgreSQL system log.
+- [x] Проверить все cluster logins из `pg_roles`, все SET-able roles, `PUBLIC` и каждую definer-функцию; исключения
+  перечислить поимённо. Из `16` cluster login к DEV подключаются только четыре `bcb_dev_*` и именованный DBA
+  `postgres`; `bcb_test_integrator`, `bcb_test_webapp_patient`, `bcb_test_webapp_staff`, `brain`, `brain_ro`,
+  `code_search_ro`, `storylama_dev`, `storylama_prod`, `tgcarebot`, `pbt_tpl_1785583727857_d29e62` и
+  `pbt_tpl_1785583783003_37ea98` к `bcb_webapp_dev` не подключаются. `16/16` разрешённых login→role,
+  `236/236` runtime definer и `6/6` context-helper negative probes дали `42501`; `12` внутренних definer не имеют
+  runtime EXECUTE; `PUBLIC` relation/routine ACL = `0/0`; отказы присутствуют в PostgreSQL system log.
 - [x] Базовый положительный контроль: четыре новых pool/login проходят реальные `/api/me`, representative
   patient/staff/global-admin pages и integrator health. Стена, которая не пускает приложение, не принимается.
 - [x] Patient render/action slice: `32/32` статических patient routes дали `200`; support mark-read и
