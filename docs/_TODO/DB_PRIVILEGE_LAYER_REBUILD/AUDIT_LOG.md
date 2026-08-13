@@ -2081,3 +2081,45 @@ empty-TEST-specific обходов — реальный прогресс в пр
   trigger срабатывает на ещё не загруженную declaration registry и отвергает `integrator.contacts` как
   undeclared. DEV не изменялась. Этот harness-дефект не заменяется PASS на именованной TEST и не закрывает live
   пункт; текущий candidate проверяется штатным backup → target-neutral zero/install → live DEV matrix.
+
+## Audit/live pass DEV-org-billing-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `dd2d3dff323a8d22d3dc8a44b37472d253a98f59`, `feat/doctor-ui-rebuild` |
+| Метод | Живой clinic-admin billing render + PostgreSQL journal + declaration/function/callsite tests + real PostgreSQL 16 context fault suite |
+| Вердикт | **PASS ДЛЯ ЭТОГО БЛОКА; полный DEV live/negative census остаётся открыт в Ф7** |
+
+- **LIVE-ORG-BILLING-001 — ИСПРАВЛЕНО `dd2d3dff3`:** живой `/app/settings?tab=billing` последовательно выявил
+  недостающий доступ к `saas_tariffs`, затем `accepted port context required` в агрегате квот. Декларация теперь
+  разделяет потребности: клиника читает/меняет только биллинг своей организации через `app_clinic_billing`,
+  webhook capture работает как org-scoped `app_worker`, global-admin управляет глобальной конфигурацией через
+  `app_platform_settings`, а обычный `app_staff` не получил billing mutation. Migration `0391` и canonical
+  contract разрешили organization context только clinic-billing и точному org-scoped worker relation path.
+  После declaration reapply команда `curl -sS -o /tmp/bcb-clinic-billing-page-r4.html -w '%{http_code}' -b
+  /tmp/bcb-live-clinic-r3.cookie 'http://127.0.0.1:5200/app/settings?tab=billing'` вернула `200`; команда
+  `sudo tail -n +393949 /var/log/postgresql/postgresql-16-main.log | rg
+  'ERROR|FATAL|permission denied|accepted port context|required|42501'` не вернула строк для этого запроса.
+- **LIVE-DEFINER-DELEGATION-001 — ИСПРАВЛЕНО `dd2d3dff3`:** внешний безопасный aggregate
+  `app.read_current_org_tariff_transition_usage()` вызывал внутренний platform aggregate, но декларация не
+  описывала `delegatesTo`; поэтому повторное наложение генератора ставило внутренней функции gate только на
+  platform context и ломало законный clinic context. Связь объявлена явно: clinic context теперь принимается
+  при вызове через wrapper, но прямой `EXECUTE` внутренней функции остаётся только у
+  `app_platform_settings`. Команда `node --test deploy/postgres/privileges/port-context-catalog.test.mjs
+  deploy/postgres/privileges/function-census.test.mjs deploy/postgres/privileges/relation-access.test.mjs
+  deploy/postgres/privileges/port-context-callsite-catalog.test.mjs` дала `42/42`.
+- **GENERATOR-ENTRYPOINT-001 — ИСПРАВЛЕНО `dd2d3dff3`:** прямой запуск библиотечного
+  `deploy/postgres/privileges/generate.mjs --all` раньше молча завершался `0` и не обновлял artifacts; именно так
+  первый исправленный tariff grant не попал в применённый SQL. Библиотека теперь громко возвращает exit `2` и
+  указывает на канонический `generate-cli.mjs`; отдельный regression test входит в результат `42/42`. Команда
+  `node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --all --check` подтверждает
+  побайтное совпадение четырёх generated artifacts.
+- **LIVE-LIFECYCLE-RETURNING-001 — ИСПРАВЛЕНО `dd2d3dff3`:** seam подготовки lifecycle notification выполняет
+  `UPDATE ... RETURNING` по `be_organizations`; census ошибочно выдавал owner только `UPDATE`, хотя PostgreSQL
+  проверяет чтение возвращаемых колонок. В surface добавлен точный `SELECT` тех же трёх колонок, без runtime
+  table grant; regression test входит в `42/42`.
+
+Проверки блока: `pnpm --dir apps/webapp exec vitest --run
+src/app/api/payments/saasWebhook.route.test.ts src/infra/db/portContextRuntime.test.ts
+src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp run typecheck` → exit `0` после
+удаления повреждённого generated cache-файла `.next/dev/types/validator.ts`; `git diff --check` → exit `0`.

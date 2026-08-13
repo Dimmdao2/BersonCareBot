@@ -57,7 +57,7 @@ cutover восстановленного dump порядок:
   соседние HBA-блоки и только проверяет готовность своего target. DB roles/grants/RLS сверяются каждый deploy.
 - TEST и PROD проходят offline cutover: сервисы не запускаются между legacy-drop, zero и положительным proof.
 
-## Текущее фактическое положение на 12.08
+## Текущее фактическое положение на 13.08
 
 **DEV находится на шагах 8–9 owner-порядка.** Legacy удалён; target прошёл backup → offline zero/proof →
 cluster baseline → mTLS readiness → declaration install. Webapp и integrator поднялись через новые pools;
@@ -74,8 +74,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   `pnpm test:db-initial-cutover` доказал target-only zero/install, неизменность соседней БД, late-fault возврат в
   zero и неизменность OID обеих БД.
 - [x] Новый доступ на DEV применён; четыре независимых DEV-login проходят `/api/me`, patient/doctor/clinic-admin/
-  global-admin representative pages завершаются `200`, integrator `/health` и `/health/projection` возвращают
-  `200`. Исчерпывающая role/definer negative matrix и ручная проверка владельцем остаются открыты ниже.
+  global-admin representative pages завершаются `200`, включая тариф/биллинг клиники после
+  `dd2d3dff3`; integrator `/health` и `/health/projection` возвращают `200`. Исчерпывающая role/definer negative
+  matrix, полный проход всех страниц/действий и ручная проверка владельцем остаются открыты ниже.
 
 ### Исправление ошибочного ухода в пустую TEST
 
