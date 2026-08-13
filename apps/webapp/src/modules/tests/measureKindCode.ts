@@ -1,4 +1,4 @@
-/** Нормализация подписи вида измерения в уникальный `code` (глобальный пул measure_kinds). */
+/** Нормализация подписи вида измерения в уникальный внутри справочника клиники `code`. */
 export function measureKindLabelToCode(label: string): string {
   const base = label
     .trim()

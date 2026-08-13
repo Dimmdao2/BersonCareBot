@@ -2187,3 +2187,27 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   deploy-only migrator. Поэтому 0392 была применена в DEV административно одной транзакцией вместе с её exact
   Drizzle hash/`created_at`, после чего выполнен declaration reconcile. До финальной DEV-приёмки ordinary wrapper
   должен получить новый временный миграционный механизм; возвращать постоянный legacy-login запрещено.
+
+## Audit/live pass DEV-staff-static-and-measure-kinds-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | рабочее дерево после `0ce5876a7`, `feat/doctor-ui-rebuild` |
+| Метод | GET-only walk всех статических doctor/settings routes + живые create/read/rename с DB-контролем трех организаций |
+| Вердикт | **PASS ДЛЯ СТАТИЧЕСКОГО STAFF RENDER И ORG-ISOLATED MEASURE KINDS; dynamic paths/actions ещё открыты** |
+
+- **LIVE-STAFF-MEASURE-KINDS-READ-001 — ИСПРАВЛЕНО:** первый staff walk громко дал `permission denied for table
+  clinical_test_measure_kinds`. Прямой вызов закрытой таблицы сначала переведён на существующий seam, после чего
+  живой POST раскрыл старый SQL-дефект `column reference "code" is ambiguous`. Migration 0393 исправляет exact
+  historical chain, чтобы последовательность миграций остаётся исполнимой.
+- **LIVE-STAFF-MEASURE-KINDS-SCOPE-001 — ИСПРАВЛЕНО ПО OWNER-РЕШЕНИЮ:** выдавать staff запись в глобальный пул
+  было бы неверно. Migration 0394 добавляет `clinical_test_measure_kind` в baseline `2`, создаёт organization-owned
+  category всем существующим клиникам, копирует туда возможные legacy-строки и удаляет глобальную таблицу и три
+  capability-функции. Код переиспользует существующий `reference_categories/reference_items` port и RLS; global
+  admin не получает clinical capability. Live create/read/rename вернули HTTP `200`; DB показала строку ровно в
+  одной организации (`1/0/0`), после удаления fixture остаток `0`.
+- Команда `node docs/_TODO/SAAS_FOUNDATION/scripts/walk-app-pages-no-redirect.mjs --base-url=http://127.0.0.1:5200
+  --auth=dev-bypass --include='^/app/(doctor|settings)' --concurrency=1 --timeout-ms=120000
+  --out-json=/tmp/bcb-staff-page-walk-r2.json --out-csv=/tmp/bcb-staff-page-walk-r2.csv` проверила `260`
+  role/path сочетаний. Для doctor: `38` прямых `OK` и `14` ожидаемых redirect; clinic-admin: `39` `OK` и `13`
+  redirect; `4xx/5xx` у обеих staff-ролей нет. PostgreSQL cursor `394393..394394` содержит только checkpoint.

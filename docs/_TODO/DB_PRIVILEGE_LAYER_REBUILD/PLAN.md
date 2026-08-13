@@ -223,6 +223,8 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   строки системного журнала (`/tmp/bcb-patient-write-actions-r6.json`, log cursor `394370..394369`).
 - [ ] Пройти полный смысловой live census страниц и действий staff/clinic, global-admin и integrator; для patient
   ещё создать одноразовую treatment-program fixture и проверить touch/complete без вывода прав из наличия кода.
+  Статический staff render-срез завершён: все `52` doctor/settings path проверены для doctor и clinic-admin,
+  `4xx/5xx` нет, PostgreSQL journal не получил ошибок. Живые staff mutations и `15` dynamic paths ещё открыты.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

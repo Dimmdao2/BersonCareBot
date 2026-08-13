@@ -60,15 +60,15 @@ const functionsFor = (database) => Object.entries(declaration.portContext.functi
 test('legacy 244/42 census is restored without obsolete context and overlaid by rev10', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 227,
-    owners: 41,
-    test: 227,
-    dev: 214,
+    functions: 224,
+    owners: 40,
+    test: 224,
+    dev: 211,
     triggers: 3,
-    relationEdges: 459,
+    relationEdges: 456,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 227);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 227);
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 224);
+  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 224);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -83,10 +83,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 261);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 248);
-  assert.equal(testFunctions.length, 276);
-  assert.equal(devFunctions.length, 263);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 258);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 245);
+  assert.equal(testFunctions.length, 273);
+  assert.equal(devFunctions.length, 260);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 43);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -94,7 +94,7 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
   assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 221);
+    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 218);
   assert.deepEqual(proconfigExceptions, [
     ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],

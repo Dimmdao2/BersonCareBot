@@ -2724,6 +2724,20 @@
       "when": 1793539230135,
       "tag": "0392_reminder_callback_port_context_dispatch_local",
       "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1793539230136,
+      "tag": "0393_measure_kind_upsert_conflict_constraint_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1793539230137,
+      "tag": "0394_measure_kinds_org_reference_catalog_local",
+      "breakpoints": true
     }
   ]
 }

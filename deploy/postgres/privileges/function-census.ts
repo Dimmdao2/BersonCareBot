@@ -3836,42 +3836,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.list_clinical_test_measure_kinds()": {
-    "owner": "app_seam_catalog_admin_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "volatility": "STABLE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_platform_settings",
-      "app_staff"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_catalog_admin_owner",
-    "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.clinical_test_measure_kinds",
-        "columns": [
-          "id",
-          "code",
-          "label",
-          "sort_order"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
   "app.list_google_calendar_probe_organization_ids()": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
@@ -11154,44 +11118,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.save_clinical_test_measure_kinds(jsonb)": {
-    "owner": "app_seam_catalog_admin_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_platform_settings"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_catalog_admin_owner",
-    "typedArgs": [
-      "jsonb"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.clinical_test_measure_kinds",
-        "columns": [
-          "id",
-          "code",
-          "label",
-          "sort_order"
-        ],
-        "operations": [
-          "SELECT",
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
   "app.save_pending_staff_totp(text)": {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
@@ -12038,45 +11964,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         ],
         "operations": [
           "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.upsert_clinical_test_measure_kind_by_label(text)": {
-    "owner": "app_seam_catalog_admin_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_platform_settings",
-      "app_staff"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_catalog_admin_owner",
-    "typedArgs": [
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.clinical_test_measure_kinds",
-        "columns": [
-          "id",
-          "code",
-          "label",
-          "sort_order"
-        ],
-        "operations": [
-          "SELECT",
-          "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
       }

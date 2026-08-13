@@ -10,32 +10,10 @@ import {
   index,
   foreignKey,
   check,
-  unique,
   primaryKey,
 } from 'drizzle-orm/pg-core';
 import { beOrganizations } from './bookingEngine';
 import { platformUsers, referenceItems } from './schema';
-
-/** Глобальный пул подписей измерений для клинических тестов (B2). */
-export const clinicalTestMeasureKinds = pgTable(
-  'clinical_test_measure_kinds',
-  {
-    id: uuid('id').defaultRandom().primaryKey().notNull(),
-    code: text('code').notNull(),
-    label: text('label').notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    unique('clinical_test_measure_kinds_code_key').on(table.code),
-    index('idx_clinical_test_measure_kinds_sort').using(
-      'btree',
-      table.sortOrder.asc().nullsLast().op('int4_ops'),
-    ),
-  ],
-);
 
 /** Клинические тесты (таблица БД `tests`). */
 export const clinicalTests = pgTable(

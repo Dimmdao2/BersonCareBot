@@ -232,8 +232,8 @@ export const CODE_MUST_CHANGE: CodeChange[] = [
     where: ['apps/webapp/src/infra/repos/pgClientHistory.ts',
       'deploy/postgres (пациентские ветки saas_org_dormant_* на трёх таблицах)'] },
   { id: 'C15', becauseOf: 'D3-reference-org-copy',
-    what: 'у app_staff сегодня INSERT на clinical_test_measure_kinds (пул, который сам код называет глобальным) и '
-      + 'полный CRUD на booking_cities — запись арендатора в шаблон запрещена',
+    what: 'ЗАКРЫТО 0394 для clinical_test_measure_kinds: отдельный глобальный пул удалён, значения живут в '
+      + 'organization-scoped reference_items; оставшаяся часть C15 — запрет tenant CRUD глобального booking_cities',
     where: ['apps/webapp/src/modules/tests/measureKindCode.ts:1',
       'apps/webapp/src/app/api/api.md:100', 'FINDINGS Д21'] },
   { id: 'C16', becauseOf: 'D1-platform-scope',
@@ -299,8 +299,8 @@ export const PATIENT_VISIBILITY: PatientVisibility = {
     'public.be_appointment_staff_comments — внутренние комментарии персонала о нём (revoke SELECT)',
     'public.be_patient_booking_profiles — is_problematic / problematic_note / booking_blocked / no_show_count '
       + '(revoke SELECT)',
-    'клинические тесты с приёма: public.clinical_test_regions, public.clinical_test_measure_kinds — гранта нет '
-      + 'и не будет; это объявленное КОНЕЧНОЕ состояние, а не пробел',
+    'клинические тесты с приёма: public.clinical_test_regions и clinic-owned reference category '
+      + '`clinical_test_measure_kind` — пациентского гранта нет и не будет; это КОНЕЧНОЕ состояние, а не пробел',
     'каталог тестов клиники: public.tests / test_sets / test_set_items (пациент видит только снимок задания в '
       + 'своей программе)',
     'служебные и платформенные таблицы любого рода',
@@ -1058,10 +1058,10 @@ const TABLE_ROWS: TableRow[] = [
     + 'кто и когда снял/поставил диагноз' },
   { t: 'public.clinical_diagnosis_update', cls: 'P', org: true, why: 'Уточнения диагноза по визитам — без неё '
     + 'диагноз не уточняется от визита к визиту' },
-  { t: 'public.clinical_test_measure_kinds', cls: 'R', org: false, wall: 'reference-org-copy', why: 'Виды измерений '
-    + 'для клинических тестов — единые подписи измерений в тестах', wallWhy: W_REF_COPY,
-    revoke: { app_staff: 'D3+D21: арендная роль имеет INSERT в пул, который сам код называет глобальным '
-      + '(measureKindCode.ts:1) — тенанту принадлежит его КОПИЯ, не шаблон' },
+  { t: 'public.clinical_test_measure_kinds', cls: 'R', org: false, wall: 'pending-removal', rls: 'n/a',
+    disp: 'REMOVED', why: 'УДАЛЕНО миграцией 0394: виды измерений перенесены в organization-scoped '
+      + 'reference_categories/reference_items; возможные legacy-строки скопированы каждой существующей клинике',
+    wallWhy: 'Физически удалённая глобальная legacy-таблица остаётся именованной для двусторонней проверки каталога',
     defect: ['D21-reference-write'], code: ['C15'] },
   { t: 'public.clinical_test_regions', cls: 'C', org: true, why: 'Связка «клинический тест ↔ регион тела» — фильтр '
     + 'тестов по региону тела', pol: 'РЕШЕНИЕ D2: пациенту гранта НЕТ и не будет — клинические тесты с приёма ему не '
