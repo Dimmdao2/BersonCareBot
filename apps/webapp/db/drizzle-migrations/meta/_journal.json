@@ -2773,6 +2773,20 @@
       "when": 1793539230142,
       "tag": "0399_platform_operator_mutation_seams_local",
       "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1793539230143,
+      "tag": "0400_fix_platform_archive_coalesce_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1793539230144,
+      "tag": "0401_fix_platform_archive_greatest_local",
+      "breakpoints": true
     }
   ]
 }

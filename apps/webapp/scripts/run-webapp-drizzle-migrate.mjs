@@ -82,12 +82,16 @@ export function assertD30OnlineIndexAfterMigration(wrapper) {
   if (migrationAt === -1) {
     throw new Error(`d30_online_index_wrapper_migration_missing wrapper=${wrapper.name}`);
   }
-  const referenceAt = wrapper.source.indexOf(D30_ONLINE_INDEX_VARIABLE, migrationAt);
+  const artifactReference = wrapper.artifactReference ?? D30_ONLINE_INDEX_VARIABLE;
+  const referenceAt = wrapper.source.indexOf(artifactReference, migrationAt);
   if (referenceAt === -1) {
     throw new Error(`d30_online_index_wrapper_reference_missing wrapper=${wrapper.name}`);
   }
-  const applyWindow = wrapper.source.slice(referenceAt - 320, referenceAt + 320);
-  if (!/psql[\s\S]*-f[\s\S]*D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX/.test(applyWindow)) {
+  const applyWindow = wrapper.source.slice(referenceAt - 720, referenceAt + 720);
+  const applyPattern =
+    wrapper.applyPattern ??
+    /psql[\s\S]*-f[\s\S]*D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX/;
+  if (!applyPattern.test(applyWindow)) {
     throw new Error(`d30_online_index_wrapper_apply_missing wrapper=${wrapper.name}`);
   }
 }
@@ -103,7 +107,10 @@ function validateCurrentD30OnlineIndexDeployment() {
     {
       name: 'migrate-dev',
       path: path.join(repositoryRoot, 'deploy', 'host', 'migrate-dev.sh'),
-      migrationCommand: '  pnpm run migrate',
+      migrationCommand: 'run_tracked node "$OWNER_MIGRATOR"',
+      artifactReference: 'D30_ONLINE_INDEX',
+      applyPattern:
+        /(?=[\s\S]*CANONICAL_SQL_READER)(?=[\s\S]*D30_ONLINE_INDEX)(?=[\s\S]*psql)/,
     },
     {
       name: 'deploy-test',
@@ -451,6 +458,16 @@ if (process.argv.includes('--self-test')) {
       '"',
   };
   assertD30OnlineIndexAfterMigration(wrapperFixture);
+  assertD30OnlineIndexAfterMigration({
+    name: 'streamed-fixture',
+    migrationCommand: 'run owner migrator',
+    applyPattern:
+      /(?=[\s\S]*CANONICAL_SQL_READER)(?=[\s\S]*D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX)(?=[\s\S]*psql)/,
+    source:
+      'run owner migrator\nCANONICAL_SQL_READER ' +
+      D30_ONLINE_INDEX_VARIABLE +
+      ' | psql',
+  });
   try {
     assertD30OnlineIndexAfterMigration({
       ...wrapperFixture,

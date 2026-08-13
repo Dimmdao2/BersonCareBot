@@ -2677,3 +2677,36 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   `app_platform_admin` в actor accessor; полный архив сохраняет tenant/doctor diagnostics, platform list остаётся
   sanitised. Прямых grants platform-ролям на четыре queue/archive relation — `0`; exact seam EXECUTE доступен
   только через объявленный `app_platform_admin` context.
+
+## Live/fix pass nonempty-platform-mutations-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `feat/doctor-ui-rebuild`, следующий diff после `1f0bd91bb` |
+| Метод | Backup затрагиваемых DEV-таблиц → реальные global-admin HTTP actions → DB state/audit/sanitised read → штатный migration/reconcile replay |
+| Вердикт | **ДВА LIVE-ONLY ДЕФЕКТА ИСПРАВЛЕНЫ ГРОМКО; НЕПУСТОЙ PLATFORM SLICE ЗЕЛЁНЫЙ** |
+
+- До destructive actions создан data-only custom dump шести затрагиваемых DEV-таблиц:
+  `/tmp/bcb-dev-platform-live-before-20260813T143814.dump`, SHA-256
+  `e9c74108b44817f90abaee269dec683199eb4d434d5a91da02f08d60be68ecc6`.
+- **PLATFORM-ARCHIVE-SPECIAL-SYNTAX-003 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** непустой outgoing archive падал,
+  потому что миграция `0399` квалифицировала специальные SQL-конструкции как функции
+  `pg_catalog.coalesce(...)` и `pg_catalog.greatest(...)`. Пустые batch этого не исполняли и дали ложное
+  ощущение готовности. Уже применённую migration не переписывали: fail-loud forward migrations `0400/0401`
+  проверяют exact число ошибочных конструкций в установленном body и заменяют только их.
+- **DEV-MIGRATION-D30-GATE-004 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** после перевода `migrate-dev.sh` на
+  owner-ordered migrator старый online-index gate продолжал искать буквальный `pnpm run migrate` и отвергал
+  актуальный безопасный wrapper. Gate теперь узнаёт канонический owner-migrator → streamed D30 artifact → psql
+  порядок; старый и новый варианты покрыты self-test.
+- Штатная команда `bash deploy/host/migrate-dev.sh --execute` применила `0400`, затем `0401`; оба запуска после
+  forward migration завершились `access reconcile committed` и `migrate-dev: PASS`. Временные `CREATE ON SCHEMA
+  app` и `USAGE ON LANGUAGE plpgsql` были выданы seam owner только внутри migration transaction и отозваны до
+  commit/reconcile.
+- Живой результат: `POST /api/admin/operator-incidents/resolve-all` → `200`, `resolved=2`;
+  `POST /api/admin/health-failure-archive/clear` для `outgoing_delivery` → `200`, `inserted=3/deleted=3`, для
+  `outgoing_reminder_dispatch` → `200`, `inserted=12/deleted=12`. После этого open incidents и обе dead-группы
+  равны `0`, архив вырос с `44` до `59`; у новых строк `15` непустых raw diagnostics и `2` tenant ownership.
+  `GET` platform/doctor archive → `200`; platform response на `59` строках содержит `0` clinical values.
+- Audit rows подтвердили `operator_incidents_resolve_all|ok|2` и два
+  `health_failure_archive_clear_dead|ok|3/12`. Прямые platform grants на рабочие queue/archive tables не
+  добавлялись; изменение прошло через exact SECURITY DEFINER root и отдельный global-admin pool.

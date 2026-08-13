@@ -261,8 +261,11 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   entitlement registry coverage `8/8` и webapp typecheck зелёные. После owner-ordered migration + declaration
   reconcile четыре login дали `/api/me=200`; global-admin audit/archive и doctor archive дали `200`, platform
   archive не вернул clinical-поля. Exact resolve-missing дал `404`, acknowledge и два пустых archive batch дали
-  `200` с обязательными строками platform audit. Destructive resolve-all и непустой outgoing archive остаются
-  в открытом census и не выдаются за проверенные.
+  `200` с обязательными строками platform audit. Непустой live slice тоже закрыт: resolve-all закрыл ровно `2`
+  открытых incident, а outgoing/reminder archive перенёс `3+12` dead-строк в tenant-walled архив и удалил их из
+  рабочей очереди; platform list вернул `59` строк без единого clinical value. Два последовательно найденных
+  live-only дефекта `pg_catalog.coalesce/greatest` исправлены forward migrations `0400/0401`; обычный
+  `migrate-dev.sh --execute` применил их и повторно прошёл declaration reconcile/catalog audit.
   Integrator census свёл остаток к `6` HTTP route-группам, `5` projection event types, `8` outgoing kinds и
   `4` scheduler paths. Action/worker-пробы запускаются только отдельным one-shot process с отключёнными default
   redirect targets и пустым passthrough: обычный DEV redirect перенаправляет, а не гарантирует no-send.
