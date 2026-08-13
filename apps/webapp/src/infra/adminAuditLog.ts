@@ -126,14 +126,14 @@ export async function writeAuditLog(_pool: Pool, entry: AuditLogWriteEntry): Pro
 /** Platform-global audit is an exact capability and fails loudly if the journal cannot be written. */
 export async function writePlatformAuditLog(entry: AuditLogWriteEntry): Promise<void> {
   const status: AuditLogStatus = entry.status ?? 'ok';
-  const args = [entry.action, JSON.stringify(entry.details ?? {}), status] as const;
+  const detailsJson = JSON.stringify(entry.details ?? {});
   await runWebappNamedRoot(
     getWebappSqlDb(),
     'app.append_platform_audit_event(text,text,text)',
-    args,
+    [entry.action, detailsJson, status],
     webappSqlFromPgText(
       'SELECT app.append_platform_audit_event($1::text,$2::text,$3::text)',
-      args,
+      [entry.action, detailsJson, status],
     ),
   );
 }

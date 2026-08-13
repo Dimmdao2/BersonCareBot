@@ -95,7 +95,6 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
   }): Promise<HealthFailureArchiveListResult> {
     const limit = Math.min(100, Math.max(1, input.limit));
     const cur = decodeArchiveCursor(input.cursor);
-    const functionArgs = [input.probe, limit + 1, cur?.a ?? null, cur?.i ?? null] as const;
     const result = await runWebappNamedRoot<{
       id: string;
       archived_at: string;
@@ -108,7 +107,7 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     }>(
       getWebappSqlDb(),
       'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)',
-      functionArgs,
+      [input.probe, limit + 1, cur?.a ?? null, cur?.i ?? null],
       sql`SELECT * FROM app.list_platform_health_failure_archive(
         ${input.probe}, ${limit + 1}, ${cur?.a ?? null}::timestamptz, ${cur?.i ?? null}::uuid
       )`,

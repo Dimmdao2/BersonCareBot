@@ -30,6 +30,8 @@ get_public_reference_baseline
 read_saas_billing_payment_provider_preauth
 is_organization_slug_available
 is_smtp_outbound_configured
+integrator_event_idempotency_read
+integrator_event_idempotency_store
 phone_auth_find_latest_challenge_created_at
 phone_auth_find_otp_lock
 phone_auth_register_otp_lockout
@@ -49,15 +51,15 @@ const functionsFor = (database) => Object.entries(declaration.portContext.functi
 test('legacy 244/42 census is restored without obsolete context and overlaid by rev10', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 223,
+    functions: 225,
     owners: 40,
-    test: 223,
-    dev: 221,
+    test: 225,
+    dev: 223,
     triggers: 3,
-    relationEdges: 456,
+    relationEdges: 458,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 223);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 223);
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 225);
+  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 225);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -72,10 +74,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 265);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 263);
-  assert.equal(testFunctions.length, 280);
-  assert.equal(devFunctions.length, 278);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 267);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 265);
+  assert.equal(testFunctions.length, 282);
+  assert.equal(devFunctions.length, 280);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 43);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -83,7 +85,7 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
   assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 217);
+    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 219);
   assert.deepEqual(proconfigExceptions, [
     ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],
@@ -122,8 +124,8 @@ test('all 42 application seam owners and function callers have the closed role s
   }
 });
 
-test('all 25 genuine pre-session roots have app_pre_session as their only caller', () => {
-  assert.equal(GENUINE_PRE_SESSION_FUNCTIONS.length, 25);
+test('all 27 genuine pre-session roots have app_pre_session as their only caller', () => {
+  assert.equal(GENUINE_PRE_SESSION_FUNCTIONS.length, 27);
   for (const functionName of GENUINE_PRE_SESSION_FUNCTIONS) {
     const matches = Object.entries(BUSINESS_SEAM_FUNCTIONS)
       .filter(([signature]) => signature.startsWith(`app.${functionName}(`));

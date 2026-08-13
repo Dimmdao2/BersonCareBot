@@ -374,6 +374,46 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'integrator.idempotency.release', argCount: 1,
     source: 'apps/integrator/src/infra/db/repos/idempotencyKeys.ts',
   },
+  'app.append_platform_audit_event(text,text,text)': {
+    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
+    purpose: 'platform.audit-event.append', argCount: 3,
+    source: 'apps/webapp/src/infra/adminAuditLog.ts',
+  },
+  'app.resolve_platform_audit_conflict(uuid)': {
+    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
+    purpose: 'platform.audit-conflict.resolve', argCount: 1,
+    source: 'apps/webapp/src/infra/adminAuditLog.ts',
+  },
+  'app.acknowledge_open_outbound_provider_incidents()': {
+    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
+    purpose: 'platform.operator-incidents.acknowledge', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
+  'app.resolve_all_open_operator_incidents()': {
+    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
+    purpose: 'platform.operator-incidents.resolve', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
+  'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)': {
+    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
+    purpose: 'platform.health-archive.list', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts',
+  },
+  'app.archive_operator_health_failures(text,integer,uuid)': {
+    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
+    purpose: 'platform.health-archive.clear', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts',
+  },
+  'app.integrator_event_idempotency_read(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'integrator.event-idempotency.read', argCount: 1,
+    source: 'apps/webapp/src/infra/idempotency/pgStore.ts',
+  },
+  'app.integrator_event_idempotency_store(text,text,integer,text,integer)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'integrator.event-idempotency.store', argCount: 5,
+    source: 'apps/webapp/src/infra/idempotency/pgStore.ts',
+  },
   'app.read_patient_telegram_display_handle(uuid)': {
     port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
     purpose: 'messaging.patient-telegram-handle.read', argCount: 1,
@@ -551,7 +591,6 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
   assert.equal(dynamicWrappers[0].port, 'integrator', 'generic named-root wrapper belongs to integrator');
   assert.equal(dynamicWrappers[0].path, 'apps/integrator/src/infra/db/operationalPoolReadiness.ts',
     'generic named-root wrapper moved from the reviewed production source');
-  assert.equal(callsites.length, EXPECTED_ROOTS.size, 'named-root callsite census changed');
   assert.equal(new Set(callsites.map((row) => row.identity)).size, callsites.length,
     'each production named root must have one exact callsite');
 
@@ -559,7 +598,6 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
     .filter((descriptor) => descriptor.functionIdentity);
   const expectedDescriptorCount = [...EXPECTED_ROOTS.values()]
     .reduce((count, descriptor) => count + (descriptor.descriptorCount ?? 1), 0);
-  assert.equal(roots.length, expectedDescriptorCount, 'function-bound catalog size changed');
   const byIdentity = Map.groupBy(roots, (descriptor) => descriptor.functionIdentity);
 
   for (const callsite of callsites) {
@@ -612,6 +650,8 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
       );
     }
   }
+  assert.equal(callsites.length, EXPECTED_ROOTS.size, 'named-root callsite census changed');
+  assert.equal(roots.length, expectedDescriptorCount, 'function-bound catalog size changed');
   assert.deepEqual([...byIdentity.keys()].sort(), [...EXPECTED_ROOTS.keys()].sort(),
     'catalog contains a function-bound root without a production callsite');
 }

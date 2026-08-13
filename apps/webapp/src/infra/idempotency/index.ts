@@ -1,6 +1,6 @@
 /**
- * Idempotency for integrator webhooks. Uses Postgres when DATABASE_URL is set (and
- * not in test), else a file store.
+ * Idempotency for integrator webhooks. Uses Postgres in every non-test database mode,
+ * including port-context where the old aggregate DATABASE_URL is intentionally absent.
  *
  * The file store is a dev/test-only fallback (used when there is no DATABASE_URL).
  * It is imported LAZILY with `turbopackIgnore` so its `node:fs` operations are never
@@ -13,8 +13,9 @@ import * as pgStore from './pgStore';
 
 const useDb =
   env.NODE_ENV !== 'test' &&
-  typeof env.DATABASE_URL === 'string' &&
-  env.DATABASE_URL.trim().length > 0;
+  (env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' || (
+    typeof env.DATABASE_URL === 'string' && env.DATABASE_URL.trim().length > 0
+  ));
 
 /** Dev/test fallback only — never reached in production (DATABASE_URL is always set there). */
 function loadFileStore(): Promise<typeof import('./store')> {

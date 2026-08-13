@@ -3,7 +3,12 @@
  * Atomic get/set; safe for multiple instances and restarts.
  */
 import { z } from 'zod';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  webappSqlFromPgText,
+} from '@/infra/db/runWebappSql';
 
 const TTL_SEC = 24 * 60 * 60; // 24 hours
 const MAX_KEY_LENGTH = 256;
@@ -28,15 +33,21 @@ export async function getCachedResponse(
   key: string,
   requestHash: string,
 ): Promise<CachedResponseHit> {
-  const res = await runWebappPgText<{
+  const res = await runWithDbBootstrapPrincipal(
+    { source: 'integrator-event-idempotency-read' },
+    () => runWebappNamedRoot<{
     request_hash: string;
     status: number;
     response_body: unknown;
-  }>(
-    `SELECT request_hash, status, response_body
-     FROM idempotency_keys
-     WHERE key = $1 AND expires_at > now()`,
-    [key],
+    }>(
+      getWebappSqlDb(),
+      'app.integrator_event_idempotency_read(text)',
+      [key],
+      webappSqlFromPgText(
+        'SELECT * FROM app.integrator_event_idempotency_read($1::text)',
+        [key],
+      ),
+    ),
   );
   const row = res.rows[0];
   if (!row) return { hit: false };
@@ -61,17 +72,18 @@ export async function setCachedResponse(
   status: number,
   responseBody: Record<string, unknown>,
 ): Promise<boolean> {
-  const res = await runWebappPgText<{ key: string }>(
-    `INSERT INTO idempotency_keys (key, request_hash, status, response_body, expires_at)
-     VALUES ($1, $2, $3, $4, now() + $5 * interval '1 second')
-     ON CONFLICT (key) DO UPDATE SET
-       request_hash = EXCLUDED.request_hash,
-       status = EXCLUDED.status,
-       response_body = EXCLUDED.response_body,
-       expires_at = EXCLUDED.expires_at
-     WHERE idempotency_keys.expires_at < now() OR idempotency_keys.request_hash = EXCLUDED.request_hash
-     RETURNING key`,
-    [key, requestHash, status, JSON.stringify(responseBody), TTL_SEC],
+  const bodyJson = JSON.stringify(responseBody);
+  const res = await runWithDbBootstrapPrincipal(
+    { source: 'integrator-event-idempotency-store' },
+    () => runWebappNamedRoot<{ stored: boolean }>(
+      getWebappSqlDb(),
+      'app.integrator_event_idempotency_store(text,text,integer,text,integer)',
+      [key, requestHash, status, bodyJson, TTL_SEC],
+      webappSqlFromPgText(
+        'SELECT app.integrator_event_idempotency_store($1::text,$2::text,$3::integer,$4::text,$5::integer) AS stored',
+        [key, requestHash, status, bodyJson, TTL_SEC],
+      ),
+    ),
   );
-  return (res.rowCount ?? 0) > 0;
+  return res.rows[0]?.stored === true;
 }

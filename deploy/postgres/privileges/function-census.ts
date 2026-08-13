@@ -3498,6 +3498,108 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.integrator_event_idempotency_read(text)": {
+    "owner": "app_seam_delivery_scope_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "integrator.event-idempotency.read",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.idempotency_keys",
+        "columns": [
+          "key",
+          "request_hash",
+          "status",
+          "response_body",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.integrator_event_idempotency_store(text,text,integer,text,integer)": {
+    "owner": "app_seam_delivery_scope_owner",
+    "security": "DEFINER",
+    "returns": "boolean",
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "integrator.event-idempotency.store",
+    "typedArgs": [
+      "text",
+      "text",
+      "integer",
+      "text",
+      "integer"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.idempotency_keys",
+        "columns": [
+          "key",
+          "request_hash",
+          "status",
+          "response_body",
+          "expires_at"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "operationColumns": {
+          "SELECT": [
+            "key",
+            "request_hash",
+            "expires_at"
+          ],
+          "INSERT": [
+            "key",
+            "request_hash",
+            "status",
+            "response_body",
+            "expires_at"
+          ],
+          "UPDATE": [
+            "request_hash",
+            "status",
+            "response_body",
+            "expires_at"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)": {
     "owner": "app_seam_telemetry_media_owner",
     "security": "DEFINER",

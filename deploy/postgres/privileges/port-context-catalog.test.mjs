@@ -18,7 +18,7 @@ import {
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 70,
+  webapp: 78,
   integrator: 29,
 };
 
@@ -34,8 +34,8 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 99);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 99);
+  assert.equal(rows.length, 107);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 107);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -86,7 +86,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 85);
+  assert.equal(roots.length, 93);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
