@@ -2052,7 +2052,11 @@ empty-TEST-specific обходов — реальный прогресс в пр
   завершились `psql rc=1` и не раскрыли строки: staff — `accepted port context required`; patient — `permission
   denied for schema public`; global-admin — `permission denied for table system_settings`; integrator —
   `permission denied for table reminder_rules`. Все statements присутствуют в PostgreSQL system log. Открыт
-  полный census каждого cluster login, SET-able role и definer, а также expired/revoked certificate probes.
+  полный fault census каждого SET-able role и direct definer, а также expired/revoked certificate probes.
+  Read-only catalog часть уже пройдена на этой же DEV одной транзакцией с rollback: declaration-owned
+  `--catalog-closure-verify`, `--pre-session-gate-verify`, `--port-context-verify`, `--env-verify` подтвердили
+  `226` managed relations, `262` routines, `45` exact pre-session roots, `93` capabilities и ровно `4` DEV
+  application logins без missing/extra/mutated entries.
 - **POSTZERO-REPLAY-DEV-SOURCE-001 — ОТКРЫТО, НЕ RUNTIME-БЛОКЕР:** команда
   `POSTZERO_SCHEMA_SOURCE_DB=bcb_webapp_dev pnpm test:db-post-zero-installer` завершилась exit `3` до нового root:
   schema-only dump уже-cutover DEV включает активный relation-birth event trigger; при последовательном replay
