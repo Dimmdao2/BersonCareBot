@@ -1,5 +1,7 @@
--- SCHEME revision 11 disposable SQL contract.  It deliberately contains no
--- environment credentials: psql supplies the four application LOGIN names.
+-- SCHEME revision 11 database-local SQL contract.  Shared cluster roles must
+-- already exist through the declaration-owned shared-role baseline.  This file
+-- deliberately contains no environment credentials: psql supplies the four
+-- application LOGIN names.
 -- Required psql variables: app_staff_login, app_patient_login,
 -- app_global_admin_login, integrator_login.
 
@@ -44,44 +46,6 @@ DO $$ BEGIN
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- All runtime and owner roles are NOLOGIN, non-inheriting and cannot bypass RLS.
--- The full owner list is intentionally present here: a seam owner is never a
--- generic fallback owner.
-DO $$
-DECLARE role_name text;
-BEGIN
-  FOREACH role_name IN ARRAY ARRAY[
-    'app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_platform_admin','app_worker',
-    'app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver',
-    'app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service',
-    'app_object_owner','app_migrator','app_seam_context_owner','app_seam_password_auth_owner',
-    'app_seam_email_otp_owner','app_seam_passkey_owner','app_seam_phone_binding_owner','app_seam_self_security_owner',
-    'app_seam_identity_lookup_owner','app_seam_patient_invite_owner','app_seam_org_invite_owner',
-    'app_seam_specialist_provision_owner','app_seam_public_slug_owner','app_seam_public_booking_owner',
-    'app_seam_dedicated_bot_owner','app_seam_payment_webhook_owner','app_seam_delivery_scope_owner',
-    'app_seam_patient_program_resolver_owner','app_seam_settings_preauth_owner','app_seam_settings_integrator_owner',
-    'app_seam_settings_runtime_owner','app_seam_org_commerce_owner','app_seam_patient_org_projection_owner',
-    'app_seam_patient_booking_owner','app_seam_patient_self_actions_owner','app_seam_reminder_patient_owner',
-    'app_seam_reminder_materialization_owner','app_seam_reminder_specialist_owner',
-    'app_seam_reminder_appointment_owner','app_seam_reminder_email_cooldown_owner',
-    'app_seam_telemetry_patient_owner','app_seam_telemetry_media_owner','app_seam_telemetry_operator_owner',
-    'app_seam_catalog_public_owner','app_seam_catalog_admin_owner','app_seam_org_directory_owner',
-    'app_seam_telemetry_exclusion_owner','saas_telemetry_owner','saas_system_health_owner',
-    'app_seam_login_token_owner','app_seam_oauth_owner','app_seam_phone_otp_owner',
-    'app_seam_staff_security_owner','app_seam_patient_lfk_media_owner'
-  ] LOOP
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
-      EXECUTE format('CREATE ROLE %I NOLOGIN', role_name);
-    END IF;
-    EXECUTE format('ALTER ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
-  END LOOP;
-END $$;
-
-ALTER ROLE :"app_staff_login" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
-ALTER ROLE :"app_patient_login" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
-ALTER ROLE :"app_global_admin_login" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
-ALTER ROLE :"integrator_login" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
-
 -- The application type and invoker-helper owner is deliberately separate from
 -- the four login principals and from every SECURITY DEFINER seam.
 ALTER TYPE app.port_name OWNER TO app_object_owner;
@@ -90,13 +54,6 @@ ALTER TYPE app.port_typed_arg OWNER TO app_object_owner;
 ALTER TYPE app.port_context_claims OWNER TO app_object_owner;
 REVOKE ALL ON TYPE app.port_name, app.port_context_class, app.port_typed_arg, app.port_context_claims FROM PUBLIC;
 GRANT USAGE ON TYPE app.port_name, app.port_context_class, app.port_typed_arg, app.port_context_claims TO app_seam_context_owner;
-
--- Every application edge is SET-only.  No runtime role is a member of another
--- runtime role, so this graph has no transitive escalation path.
-GRANT app_pre_session, app_staff, app_clinic_billing, app_worker, app_operational_media_worker, saas_telemetry_operator TO :"app_staff_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
-GRANT app_pre_session, app_patient TO :"app_patient_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
-GRANT app_platform_settings, app_platform_admin TO :"app_global_admin_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
-GRANT app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service TO :"integrator_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
 
 REVOKE ALL ON DATABASE :"DBNAME" FROM PUBLIC;
 GRANT CONNECT ON DATABASE :"DBNAME" TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";

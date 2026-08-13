@@ -570,12 +570,72 @@ export function generateRelationWallRegistrySeedSql(declaration, dbName) {
 }
 
 /** Safe declaration-derived shells created before contract/object DDL. */
-export function generateEnvLoginShellSql(declaration, env, dbName) {
+export function generateEnvLoginVariableSql(declaration, env, dbName) {
   const records = environmentLoginRecords(declaration, env, dbName);
   const contractVariables = new Map([
     ['app_staff', 'app_staff_login'], ['app_patient', 'app_patient_login'],
     ['app_platform_settings', 'app_global_admin_login'], ['app_integrator_request', 'integrator_login'],
   ]);
+  return [
+    '-- Exact declaration-derived psql variables for contract/object DDL.',
+    ...records.map(([loginName, record]) => {
+      const variable = contractVariables.get(record.canonicalRole);
+      if (!variable) throw new DeclarationGapError([{ site: `envMapping.${env}.${loginName}`, reason: 'LOGIN lacks a contract canonical role' }]);
+      return `\\set ${variable} ${loginName}`;
+    }),
+    '',
+  ].join('\n');
+}
+
+/** Read-only guard for the shared cluster-role baseline used by a per-target
+ * reconcile. Shared drift is repaired only by the separate host baseline. */
+export function generateSharedRoleVerifierSql(declaration) {
+  const expectedRoles = managedRoleNames(declaration).map((roleName) => {
+    const role = declaration.cluster.roles[roleName];
+    return `(${lit(roleName)}::name,${role.login},${role.superuser},false,${role.bypassrls},${role.inherit},${role.createrole},false)`;
+  }).join(',\n');
+  const expectedEdges = [];
+  for (const [roleName, role] of Object.entries(declaration.cluster.roles)) {
+    if (role.kind === 'superuser') continue;
+    for (const membership of role.grantedTo ?? []) {
+      expectedEdges.push([roleName, membership.role, membership.admin, membership.inherit, membership.set, true]);
+    }
+  }
+  for (const records of Object.values(declaration.envMapping ?? {})) {
+    for (const [loginName, record] of Object.entries(records)) {
+      for (const membership of record.memberships ?? []) {
+        expectedEdges.push([
+          membership.role, loginName, membership.admin, membership.inherit, membership.set, false,
+        ]);
+      }
+    }
+  }
+  const expectedEdgeSql = expectedEdges.length > 0
+    ? expectedEdges.sort(([aRole, aMember], [bRole, bMember]) => `${aRole}:${aMember}`.localeCompare(`${bRole}:${bMember}`))
+      .map(([role, member, admin, inherit, set, required]) => `(${lit(role)}::name,${lit(member)}::name,${admin},${inherit},${set},${required})`).join(',\n')
+    : "(''::name,''::name,false,false,false,false)";
+  return [
+    '-- Read-only shared-role baseline verifier for per-target reconcile.',
+    'CREATE TEMP TABLE bcb_expected_shared_roles(role_name name PRIMARY KEY, can_login boolean, is_super boolean, can_createdb boolean, can_bypassrls boolean, does_inherit boolean, can_createrole boolean, can_replicate boolean) ON COMMIT DROP;',
+    `INSERT INTO bcb_expected_shared_roles VALUES ${expectedRoles};`,
+    'CREATE TEMP TABLE bcb_expected_shared_role_edges(role_name name, member_name name, admin_option boolean, inherit_option boolean, set_option boolean, required boolean) ON COMMIT DROP;',
+    `INSERT INTO bcb_expected_shared_role_edges VALUES ${expectedEdgeSql};`,
+    'DO $bcb$ DECLARE bad text; BEGIN',
+    "  SELECT expected.role_name::text INTO bad FROM bcb_expected_shared_roles expected LEFT JOIN pg_catalog.pg_roles actual ON actual.rolname=expected.role_name WHERE actual.oid IS NULL OR actual.rolcanlogin<>expected.can_login OR actual.rolsuper<>expected.is_super OR actual.rolcreatedb<>expected.can_createdb OR actual.rolbypassrls<>expected.can_bypassrls OR actual.rolinherit<>expected.does_inherit OR actual.rolcreaterole<>expected.can_createrole OR actual.rolreplication<>expected.can_replicate LIMIT 1;",
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'shared role baseline drift: %; run the separate cluster baseline',bad; END IF;",
+    "  SELECT granted.rolname || '->' || member.rolname INTO bad FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE (granted.rolname IN (SELECT role_name FROM bcb_expected_shared_roles) OR member.rolname IN (SELECT role_name FROM bcb_expected_shared_roles)) AND NOT EXISTS (SELECT 1 FROM bcb_expected_shared_role_edges expected WHERE expected.role_name=granted.rolname AND expected.member_name=member.rolname AND expected.admin_option=membership.admin_option AND expected.inherit_option=membership.inherit_option AND expected.set_option=membership.set_option) LIMIT 1;",
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared shared role membership: %; run the separate cluster baseline',bad; END IF;",
+    "  SELECT expected.role_name || '->' || expected.member_name INTO bad FROM bcb_expected_shared_role_edges expected WHERE expected.required AND expected.role_name<>''::name AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members membership JOIN pg_catalog.pg_roles granted ON granted.oid=membership.roleid JOIN pg_catalog.pg_roles member ON member.oid=membership.member WHERE granted.rolname=expected.role_name AND member.rolname=expected.member_name AND membership.admin_option=expected.admin_option AND membership.inherit_option=expected.inherit_option AND membership.set_option=expected.set_option) LIMIT 1;",
+    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'missing shared role membership: %; run the separate cluster baseline',bad; END IF;",
+    "  RAISE NOTICE 'BCB_SHARED_ROLE_BASELINE_VERIFIED';",
+    'END $bcb$;',
+    '',
+  ].join('\n');
+}
+
+/** Safe declaration-derived shells created before initial-cutover contract/object DDL. */
+export function generateEnvLoginShellSql(declaration, env, dbName) {
+  const records = environmentLoginRecords(declaration, env, dbName);
   return [
     '-- Exact declaration-derived LOGIN shells; credentials/grants render last.',
     ...records.flatMap(([loginName]) => [
@@ -583,12 +643,7 @@ export function generateEnvLoginShellSql(declaration, env, dbName) {
       `ALTER ROLE ${q(loginName)} RESET ALL;`,
       `ALTER ROLE ${q(loginName)} IN DATABASE ${q(dbName)} RESET ALL;`,
     ]),
-    ...records.map(([loginName, record]) => {
-      const variable = contractVariables.get(record.canonicalRole);
-      if (!variable) throw new DeclarationGapError([{ site: `envMapping.${env}.${loginName}`, reason: 'LOGIN shell lacks a contract canonical role' }]);
-      return `\\set ${variable} ${loginName}`;
-    }),
-    '',
+    generateEnvLoginVariableSql(declaration, env, dbName),
   ].join('\n');
 }
 
@@ -1861,7 +1916,7 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
  * catalog can prove the census even while unrelated relation-access gaps keep the full artifact
  * fail-closed.
  */
-export function generateFunctionCensusSql(declaration, dbName) {
+export function generateFunctionCensusSql(declaration, dbName, options = {}) {
   const db = declaration.databases?.[dbName];
   const context = declaration.portContext;
   if (!db || !context) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database or port context is absent' }]);
@@ -1878,17 +1933,21 @@ export function generateFunctionCensusSql(declaration, dbName) {
   const declaredFunctionValues = databaseFunctions.map(([signature]) => `(${lit(signature)})`).join(',\n');
   const out = [
     '-- Exact per-database function census: revoke first, then restore only declared identities.',
-    '-- Retired SECURITY DEFINER routines are a second door; remove them before the exact census.',
-    'DO $bcb$', 'DECLARE f record;', 'BEGIN',
-    '  FOR f IN WITH expected(sig) AS (VALUES', declaredFunctionValues,
-    '    ) SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args',
-    '        FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace',
-    `       WHERE p.prosecdef AND n.nspname IN (${managedSchemasSql})`,
-    "         AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid='pg_proc'::pg_catalog.regclass AND d.objid=p.oid AND d.deptype='e')",
-    '         AND NOT EXISTS (SELECT 1 FROM expected e WHERE p.oid=pg_catalog.to_regprocedure(e.sig))',
-    '       ORDER BY 1,2,3 LOOP',
-    "    EXECUTE pg_catalog.format('DROP ROUTINE %I.%I(%s)',f.nspname,f.proname,f.args);",
-    '  END LOOP;', 'END', '$bcb$;', '',
+    ...(options.removeUndeclaredDefiners === false ? [
+      '-- Target-only reconcile: undeclared SECURITY DEFINER routines fail the bilateral audit; schema objects are not deleted.',
+    ] : [
+      '-- Retired SECURITY DEFINER routines are a second door; remove them before the exact census.',
+      'DO $bcb$', 'DECLARE f record;', 'BEGIN',
+      '  FOR f IN WITH expected(sig) AS (VALUES', declaredFunctionValues,
+      '    ) SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args',
+      '        FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace',
+      `       WHERE p.prosecdef AND n.nspname IN (${managedSchemasSql})`,
+      "         AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid='pg_proc'::pg_catalog.regclass AND d.objid=p.oid AND d.deptype='e')",
+      '         AND NOT EXISTS (SELECT 1 FROM expected e WHERE p.oid=pg_catalog.to_regprocedure(e.sig))',
+      '       ORDER BY 1,2,3 LOOP',
+      "    EXECUTE pg_catalog.format('DROP ROUTINE %I.%I(%s)',f.nspname,f.proname,f.args);",
+      '  END LOOP;', 'END', '$bcb$;', '',
+    ]),
     'DO $bcb$', 'DECLARE f record; r record;', 'BEGIN',
     "  FOR f IN SELECT n.nspname, p.proname, p.proowner, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
     `            WHERE n.nspname IN (${managedSchemasSql})`,
@@ -1898,8 +1957,12 @@ export function generateFunctionCensusSql(declaration, dbName) {
     "      EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM %I', f.nspname, f.proname, f.args, r.rolname);",
     '    END LOOP;', '  END LOOP;', 'END', '$bcb$;', '',
   ];
-  for (const owner of seamOwners) emitMembershipRevokeToEmpty(out, owner, true);
-  if (seamOwners.length > 0) out.push('');
+  if (options.includeClusterState !== false) {
+    for (const owner of seamOwners) emitMembershipRevokeToEmpty(out, owner, true);
+    if (seamOwners.length > 0) out.push('');
+  } else {
+    out.push('-- Target-only reconcile: shared seam-owner memberships are verified, not mutated.', '');
+  }
   out.push(generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions));
   out.push(generateFunctionBodySurfaceVerifySql(databaseFunctions));
   for (const [signature, fn] of databaseFunctions) {
@@ -1955,6 +2018,7 @@ export function generateFunctionCensusSql(declaration, dbName) {
  */
 export function generatePrivilegesSql(declaration, dbName, options = {}) {
   const source = options.source ?? 'deploy/postgres/privileges/declaration.ts';
+  const includeClusterState = options.includeClusterState !== false;
   const gaps = collectGaps(declaration, dbName);
   if (gaps.length > 0) throw new DeclarationGapError(gaps);
 
@@ -2013,24 +2077,28 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
 
   /* — 1. канонические роли — */
   out.push('-- ─────────── 1. КАНОНИЧЕСКИЕ РОЛИ (SCHEME §A.1, кластерный уровень) ───────────', '');
-  for (const roleName of sortedKeys(declaration.cluster.roles)) {
-    const role = declaration.cluster.roles[roleName];
-    if (role.kind === 'superuser') {
-      out.push(`-- роль ${roleName}: kind=superuser — объявлена для сверки §F, декларацией НЕ управляется.`, '');
-      continue;
+  if (!includeClusterState) {
+    out.push('-- Target-only reconcile: cluster-role baseline is a separate host operation.', '');
+  } else {
+    for (const roleName of sortedKeys(declaration.cluster.roles)) {
+      const role = declaration.cluster.roles[roleName];
+      if (role.kind === 'superuser') {
+        out.push(`-- роль ${roleName}: kind=superuser — объявлена для сверки §F, декларацией НЕ управляется.`, '');
+        continue;
+      }
+      out.push(
+        'DO $bcb$',
+        'BEGIN',
+        `  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = ${lit(roleName)}) THEN`,
+        `    CREATE ROLE ${q(roleName)} NOLOGIN;`,
+        '  END IF;',
+        'END',
+        '$bcb$;',
+        `ALTER ROLE ${q(roleName)} ${roleAttributeClause(role)};`,
+      );
+      emitRolconfig(out, roleName, role.rolconfig, `cluster.roles.${roleName}.rolconfig`);
+      out.push('');
     }
-    out.push(
-      'DO $bcb$',
-      'BEGIN',
-      `  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = ${lit(roleName)}) THEN`,
-      `    CREATE ROLE ${q(roleName)} NOLOGIN;`,
-      '  END IF;',
-      'END',
-      '$bcb$;',
-      `ALTER ROLE ${q(roleName)} ${roleAttributeClause(role)};`,
-    );
-    emitRolconfig(out, roleName, role.rolconfig, `cluster.roles.${roleName}.rolconfig`);
-    out.push('');
   }
 
   /* — 1a. ordinary ownership baseline — */
@@ -2061,7 +2129,10 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   const portContext = declaration.portContext;
   if (portContext) {
     out.push('-- ─────────── 1b. REVISION-10 PRIVATE PORT CONTEXT ───────────', '');
-    out.push(generateFunctionCensusSql(declaration, dbName));
+    out.push(generateFunctionCensusSql(declaration, dbName, {
+      includeClusterState,
+      removeUndeclaredDefiners: includeClusterState,
+    }));
     for (const [identity, relation] of Object.entries(portContext.privateRelations).sort(([a], [b]) => a.localeCompare(b))) {
       const { schema, name, qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
       const policyName = `bcb_private_owner_${schema}_${name}`;
@@ -2086,22 +2157,26 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     '-- Членств ЛОГИНОВ здесь нет: их рендерит roles-install из env-маппинга (§A.1).',
     '',
   );
-  for (const roleName of sortedKeys(declaration.cluster.roles)) {
-    const role = declaration.cluster.roles[roleName];
-    if (role.kind === 'superuser') continue;
-    if (Array.isArray(role.members) && role.members.length === 0) {
-      out.push(`-- ${roleName}: members: [] — ноль членов в стационаре (SCHEME §C/§E).`);
-      emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName), allDeclaredLoginNames);
-    }
-    for (const m of [...(role.grantedTo ?? [])].sort((a, b) => a.role.localeCompare(b.role))) {
-      if (isLogin(m.role)) {
-        out.push(`-- ${roleName} → ${m.role}: грантополучатель — ЛОГИН, статья в env-рендере (§A.1).`);
-        continue;
+  if (!includeClusterState) {
+    out.push('-- Target-only reconcile: role-to-role memberships are verified, not mutated.');
+  } else {
+    for (const roleName of sortedKeys(declaration.cluster.roles)) {
+      const role = declaration.cluster.roles[roleName];
+      if (role.kind === 'superuser') continue;
+      if (Array.isArray(role.members) && role.members.length === 0) {
+        out.push(`-- ${roleName}: members: [] — ноль членов в стационаре (SCHEME §C/§E).`);
+        emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName), allDeclaredLoginNames);
       }
-      out.push(
-        `GRANT ${q(roleName)} TO ${q(m.role)} WITH ADMIN ${m.admin ? 'TRUE' : 'FALSE'}, `
-        + `INHERIT ${m.inherit ? 'TRUE' : 'FALSE'}, SET ${m.set ? 'TRUE' : 'FALSE'};`,
-      );
+      for (const m of [...(role.grantedTo ?? [])].sort((a, b) => a.role.localeCompare(b.role))) {
+        if (isLogin(m.role)) {
+          out.push(`-- ${roleName} → ${m.role}: грантополучатель — ЛОГИН, статья в env-рендере (§A.1).`);
+          continue;
+        }
+        out.push(
+          `GRANT ${q(roleName)} TO ${q(m.role)} WITH ADMIN ${m.admin ? 'TRUE' : 'FALSE'}, `
+          + `INHERIT ${m.inherit ? 'TRUE' : 'FALSE'}, SET ${m.set ? 'TRUE' : 'FALSE'};`,
+        );
+      }
     }
   }
   out.push('');

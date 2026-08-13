@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
 import {
   generateCatalogClosureVerifierSql,
+  generateEnvLoginVariableSql,
   generateEnvironmentVerifierSql,
   generatePortContextCapabilitySeedSql,
   generatePrivilegesSql,
+  generateSharedRoleVerifierSql,
   generateZeroStateClusterSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
@@ -152,6 +155,57 @@ test('env login render restores app schema usage after the deny-by-default artif
     assert.match(sql, new RegExp(`GRANT USAGE ON SCHEMA "app" TO "${login}";`));
   }
   assert.doesNotMatch(sql, /GRANT USAGE ON SCHEMA "app_ext" TO "bcb_test_/);
+});
+
+test('repeatable reconcile receives exactly four declaration-owned contract login variables', () => {
+  const sql = generateEnvLoginVariableSql(declaration, 'dev', 'bcb_webapp_dev');
+  assert.deepEqual(
+    sql.split('\n').filter((line) => line.startsWith('\\set ')),
+    [
+      '\\set integrator_login bcb_dev_integrator',
+      '\\set app_global_admin_login bcb_dev_webapp_global_admin',
+      '\\set app_patient_login bcb_dev_webapp_patient',
+      '\\set app_staff_login bcb_dev_webapp_staff',
+    ],
+  );
+  assert.doesNotMatch(sql, /CREATE ROLE|PASSWORD|secret/iu);
+});
+
+test('target-only access reconcile contains no cluster role or shared membership mutation', () => {
+  const sql = generatePrivilegesSql(declaration, 'bcb_webapp_dev', {
+    source: 'deploy/postgres/privileges/declaration.ts',
+    includeClusterState: false,
+  });
+  assert.doesNotMatch(sql, /^CREATE ROLE /mu);
+  assert.doesNotMatch(sql, /^ALTER ROLE /mu);
+  assert.doesNotMatch(sql, /^GRANT "[^"]+" TO "[^"]+" WITH ADMIN /mu);
+  assert.doesNotMatch(sql, /^REVOKE "[^"]+" FROM /mu);
+  assert.doesNotMatch(sql, /DROP ROUTINE/u);
+  assert.match(sql, /Target-only reconcile: cluster-role baseline is a separate host operation/u);
+  assert.match(sql, /Target-only reconcile: shared seam-owner memberships are verified, not mutated/u);
+  assert.match(sql, /undeclared SECURITY DEFINER routines fail the bilateral audit/u);
+});
+
+test('database-local port-context contract contains no cluster role baseline', () => {
+  const contract = readFileSync(
+    new URL('../port-context/contract.sql', import.meta.url),
+    'utf8',
+  );
+  assert.doesNotMatch(contract, /\bCREATE ROLE\b/u);
+  assert.doesNotMatch(contract, /\bALTER ROLE\b/u);
+  assert.doesNotMatch(contract, /^GRANT\s+.+\s+TO\s+:"[^"]+"\s+WITH\s+(?:ADMIN|INHERIT|SET)/mu);
+  assert.match(contract, /Shared cluster roles must\n-- already exist through the declaration-owned shared-role baseline/u);
+});
+
+test('per-target reconcile can verify shared roles without mutating them', () => {
+  const sql = generateSharedRoleVerifierSql(declaration);
+  assert.doesNotMatch(sql, /\b(?:CREATE|ALTER|DROP|GRANT|REVOKE) ROLE\b/u);
+  assert.doesNotMatch(sql, /\b(?:GRANT|REVOKE)\s+[^;]+\s+(?:TO|FROM)\s+/u);
+  assert.match(sql, /shared role baseline drift/u);
+  assert.match(sql, /granted\.rolname IN \(SELECT role_name FROM bcb_expected_shared_roles\) OR member\.rolname IN/u);
+  assert.match(sql, /app_staff'::name,'bcb_dev_webapp_staff'::name,false,false,true,false/u);
+  assert.match(sql, /WHERE expected\.required/u);
+  assert.match(sql, /BCB_SHARED_ROLE_BASELINE_VERIFIED/u);
 });
 
 test('staff and global-admin login memberships stay disjoint at the platform boundary', () => {

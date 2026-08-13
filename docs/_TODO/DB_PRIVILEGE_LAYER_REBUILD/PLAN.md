@@ -80,8 +80,8 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   render проверен на `260` role/path сочетаниях и `28/28` живых dynamic URL; global-admin — на `13` прямых
   страницах, трёх ожидаемых redirect и живой dynamic clinic page. Signed integrator relay уже доказывает
   `400` без headers, `401` с чужой подписью, `200 accepted`, durable `200 duplicate` и exact delivery audit
-  без внешней отправки. Исчерпывающая role/definer negative matrix, оставшиеся действия всех ролей, остальные
-  integrator routes и ручная проверка владельцем остаются открыты ниже.
+  без внешней отправки. Исчерпывающая role/definer negative matrix закрыта; оставшиеся действия всех ролей,
+  остальные integrator routes и ручная проверка владельцем остаются открыты ниже.
 
 ### Исправление ошибочного ухода в пустую TEST
 
@@ -96,12 +96,12 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 ## Ф0–Ф1 — исследование и схема
 
 - [x] PostgreSQL-примитивы проверены исполнением на PostgreSQL 16; первичные факты сведены в `FACTS.md`.
-- [x] Схема revision 10 была пересобрана от owner-решений, а не от живого каталога; её прежний трёх-login
-  target теперь частично заменён поздним решением об отдельном global-admin login и требует синхронизации ниже.
+- [x] Схема revision 10 была пересобрана от owner-решений, а revision 11 синхронизировала её с поздним решением
+  об отдельном global-admin login, одним target за запуск и универсальной стеной рождения.
 - [x] Вариант A выбран для текущего pre-session; вариант I оставлен будущим privacy-этапом; port proof и human
   identity proof разделены.
-- [ ] Синхронизировать `SCHEME.md`, declaration и generated artifacts с поздним решением об отдельном
-  global-admin login и универсальной стене рождения; затем один независимый audit pass.
+- [x] `SCHEME.md`, declaration и generated artifacts синхронизированы с отдельным global-admin login и
+  универсальной стеной рождения; independent audit и live catalog negative matrix пройдены.
 
 ## Шаги 1–2 owner-порядка — журналы и сохранение находок
 
@@ -199,6 +199,10 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 - [ ] Исправить ordinary DEV migration entrypoint под новую схему: `migrate-dev.sh` не должен требовать
   удалённый `bcb_webapp_dev_user`/`DATABASE_URL`; мигратор получает повышенные права только на время deploy,
   затем declaration reconcile и catalog audit возвращают стационарное deny-by-default состояние.
+  - [x] Отдельный повторяемый reconcile уже выполняет declaration apply + environment/catalog audit одной
+    транзакцией без legacy/zero/login cleanup; два живых повтора DEV и disposable drift-repair сохранили данные.
+  - [ ] Перевести на deploy-only `bcb_dev_migrator` сам schema/data migration шаг и вызвать reconcile из
+    `migrate-dev.sh`; до этого весь пункт остаётся открытым.
 - [ ] Удалить из активных migrations доступ как источник истины: новые
   `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE` запрещены; legacy migration SQL не переписывается.
 - [x] Generator/audit проверяет обе стороны: relation есть, declaration нет; declaration есть, relation нет;
@@ -248,7 +252,13 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   одноразовая положительная DEV-привязка вернула ровно объявленную организацию для обоих каналов. Webhook status
   и error event записываются одной атомарной exact-функцией; health aggregate/retention вынесены в отдельные
   exact roots, поэтому `app_worker` не имеет direct table grants. Ещё открыты staff/global mutations, оставшиеся
-  patient mutations и остальные incoming/outgoing/scheduler/worker integrator-сценарии.
+  patient mutations и остальные incoming/outgoing/scheduler/worker integrator-сценарии. Staff/clinic census
+  уже выявил системный blocker: `28` mutation exports под `requireAdminBookingEngine` требуют одновременно
+  legacy `session.role=admin` и clinical workspace, поэтому настоящий clinic-admin ими пользоваться не может;
+  этот класс надо разделить по смыслу на doctor/clinic/platform/dead, не выдавая global-admin clinical grants.
+  Integrator census свёл остаток к `6` HTTP route-группам, `5` projection event types, `8` outgoing kinds и
+  `4` scheduler paths. Action/worker-пробы запускаются только отдельным one-shot process с отключёнными default
+  redirect targets и пустым passthrough: обычный DEV redirect перенаправляет, а не гарантирует no-send.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

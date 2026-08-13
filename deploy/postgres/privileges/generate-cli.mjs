@@ -30,6 +30,7 @@ import {
   collectGaps,
   generateOrgAllowlistSql,
   generateEnvLoginShellSql,
+  generateEnvLoginVariableSql,
   generateEnvironmentVerifierSql,
   generateCatalogClosureVerifierSql,
   generatePreSessionGateVerifierSql,
@@ -38,6 +39,7 @@ import {
   generatePortContextCapabilityVerifierSql,
   generatePrivilegesSql,
   generateSharedRoleBaselineSql,
+  generateSharedRoleVerifierSql,
   generateTargetLoginCleanupSql,
   generateZeroStateClusterSql,
   generateZeroStateSql,
@@ -57,8 +59,8 @@ function parseArgs(argv) {
   const knownFlags = new Set([
     'all', 'check', 'gaps', 'census', 'stdout', 'no-allowlist', 'port-context-only',
     'port-context-verify', 'zero-state', 'zero-state-cluster', 'zero-state-verify',
-    'env-login-shells', 'env-verify', 'shared-role-baseline', 'target-login-cleanup',
-    'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry',
+    'env-login-shells', 'env-login-variables', 'env-verify', 'shared-role-baseline', 'shared-role-verify', 'target-login-cleanup',
+    'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry', 'target-access-only',
   ]);
   const knownValues = new Set(['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env']);
   for (let i = 0; i < argv.length; i += 1) {
@@ -159,11 +161,30 @@ async function main() {
   const allDbs = Object.keys(declaration.databases).sort();
   const dbNames = args.values.has('db') ? [args.values.get('db')] : allDbs;
 
+  if (args.flags.has('target-access-only')) {
+    if (dbNames.length !== 1 || !args.values.has('db')) {
+      throw new Error('--target-access-only requires exactly one --db');
+    }
+    process.stdout.write(generatePrivilegesSql(declaration, dbNames[0], {
+      source: path.relative(repoRoot, path.resolve(declarationPath)),
+      includeClusterState: false,
+    }));
+    return;
+  }
+
   if (args.flags.has('shared-role-baseline')) {
     if (args.values.has('db') || args.values.has('env')) {
       throw new Error('--shared-role-baseline is cluster-wide and rejects --db/--env');
     }
     process.stdout.write(generateSharedRoleBaselineSql(declaration));
+    return;
+  }
+
+  if (args.flags.has('shared-role-verify')) {
+    if (args.values.has('db') || args.values.has('env')) {
+      throw new Error('--shared-role-verify is cluster-wide and rejects --db/--env');
+    }
+    process.stdout.write(generateSharedRoleVerifierSql(declaration));
     return;
   }
 
@@ -235,6 +256,10 @@ async function main() {
     if (!args.values.has('db')) throw new Error('--env требует --db');
     if (args.flags.has('env-login-shells')) {
       process.stdout.write(generateEnvLoginShellSql(declaration, env, args.values.get('db')));
+      return;
+    }
+    if (args.flags.has('env-login-variables')) {
+      process.stdout.write(generateEnvLoginVariableSql(declaration, env, args.values.get('db')));
       return;
     }
     if (args.flags.has('target-login-cleanup')) {

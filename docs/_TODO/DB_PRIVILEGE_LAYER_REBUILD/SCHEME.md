@@ -1,12 +1,13 @@
 # SCHEME revision 11 — целевой слой прав БД BersonCareBot
 
-Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md). Это target-contract до Ф4: не миграция и не описание текущего каталога.
+Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md).
+Это целевой исполняемый контракт; фактическое состояние и незакрытые проверки перечислены только в `PLAN.md`.
 
-> **REVISION 11 ЕЩЁ НЕ РАЗРЕШЕНА К НАКАТЫВАНИЮ.** Она заменяет старый трёх-login target отдельным
-> `<env>_webapp_global_admin` login/certificate/pool при прежних двух software ports, требует один target для
-> любого deploy/cutover и универсальную birth wall для каждой managed table. До синхронизации declaration,
-> generator, generated artifacts и live proof это исполняемый контракт следующей реализации, а не готовое
-> состояние базы. Exact mTLS/context/typed-args/A→I части revision 10 сохранены без изменения.
+> **REVISION 11 ПРИМЕНЕНА НА DEV.** Declaration, generator и generated artifacts синхронизированы с отдельным
+> `<env>_webapp_global_admin` login/certificate/pool при прежних двух software ports, одним target за запуск и
+> универсальной birth wall каждой managed table. DEV прошла initial cutover и базовые positive/полные catalog
+> negative controls; полная смысловая live matrix ещё открыта в `PLAN.md`. На TEST/PROD revision 11 не применялась.
+> Exact mTLS/context/typed-args/A→I части revision 10 сохранены без изменения.
 
 ## 1. Две двери: mTLS до SQL
 

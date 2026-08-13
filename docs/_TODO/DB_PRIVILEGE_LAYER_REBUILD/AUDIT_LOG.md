@@ -2508,6 +2508,100 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   завершился одной transaction: `99` capabilities, `236` gates, `497` function surfaces, `4` env login.
   Обычный deploy entrypoint должен явно отделить initial cutover от повторяемого declaration reconcile.
 
+## Audit/fix pass repeatable-access-reconcile-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `4eeaafa06`, `feat/doctor-ui-rebuild` |
+| Метод | Real DEV replay + disposable PostgreSQL 16 drift repair/idempotence/data-preservation acceptance |
+| Вердикт | **PASS: повторяемый target reconcile и cluster-isolation доказаны; migration wrapper открыт** |
+
+- `reconcile-access.mjs` отделяет обычный post-cutover reconcile от initial installer: не выполняет legacy,
+  zero-state, target-login cleanup или restore; один target принимает явно и в одной транзакции применяет
+  DB-local contract, relation wall registry, allowlist, privileges, четыре env-login и context catalog, затем
+  запускает environment/port-context/bidirectional catalog verifier до `COMMIT`.
+- **RECONCILE-REPLAYED-POST-ZERO-001 — НАЙДЕНО АУДИТОРОМ И ИСПРАВЛЕНО ГРОМКО:** первая версия повторно
+  подключала `post-zero-roots.sql`, где кроме function bodies есть legacy drops и перенос `telegram_state`.
+  Обычный reconcile больше не читает этот разовый artifact; существующие function bodies обновляет только
+  declaration-owned gate/census, а новые/изменённые bodies обязана принести schema migration.
+- **RECONCILE-MUTATED-SIBLING-ROLES-002 — НАЙДЕНО АУДИТОРОМ; ПЕРВАЯ ПРАВКА БЫЛА НЕПОЛНОЙ:** первая версия
+  применяла полный privileges artifact с cluster-role baseline и могла менять TEST/shared roles из DEV-запуска.
+  `--target-access-only` убрал мутации из privilege artifact, но повторный аудит доказал, что подключаемый
+  `contract.sql` всё ещё создавал/менял shared roles. Запись «исправлено» выше была преждевременной. Контракт
+  разделён на DB-local часть и отдельный declaration-owned shared-role baseline.
+- **RECONCILE-ROGUE-MEMBERSHIP-003 — НАЙДЕНО ПОВТОРНЫМ АУДИТОРОМ:** первая read-only проверка exact membership
+  ошибочно смотрела только связи, где обе стороны managed; произвольный login мог получить `app_staff` и
+  `SET ROLE`. Исправлено до любой фиксации PASS: verifier проверяет любую связь с managed endpoint против
+  полного declaration-графа shared roles и всех DEV/TEST login memberships. Disposable acceptance создаёт
+  реальный rogue LOGIN с CONNECT и `app_staff`, требует громкий отказ без тихого ремонта и затем удаляет fixture.
+  Объявленные login-edges другой, ещё не cutover среды являются допустимыми, но не обязательными: обязательность
+  четырёх memberships доказывает environment verifier только выбранного target, поэтому DEV не активирует TEST.
+- **RECONCILE-MUTATED-SIBLING-ROLES-002 И RECONCILE-ROGUE-MEMBERSHIP-003 — ИСПРАВЛЕНО ГРОМКО:** финальный
+  независимый аудит повторно запустил disposable PostgreSQL 16 acceptance и получил PASS; новых блокирующих
+  findings нет. Shared attribute drift и rogue LOGIN→runtime-role дают rollback без тихого ремонта, target drift
+  восстанавливается, контрольные данные сохраняются, отсутствующие TEST memberships из DEV не создаются.
+- Окончательная реализация добавила read-only shared-role verifier. Disposable PostgreSQL 16 намеренно изменил
+  `app_staff` на `INHERIT`: target reconcile громко отказал и оставил drift нетронутым; отдельный
+  `--shared-role-baseline` затем вернул `NOINHERIT`. Тот же acceptance доказал repair точного function grant и
+  capability, сохранение контрольной строки, второй idempotent reconcile и rollback с сохранением неизвестной
+  SECURITY DEFINER-функции. Команда
+  `bash deploy/postgres/privileges/post-zero-installer.acceptance.sh` завершилась `PASS`.
+- Окончательный запуск на живой `bcb_webapp_dev` завершился сообщением
+  `access reconcile committed: env=dev database=bcb_webapp_dev`; все read-only verifiers исполнились до COMMIT.
+- Два последовательных запуска на живой `bcb_webapp_dev` дали `PASS`. Disposable acceptance после initial
+  zero/install вручную отозвала нужный function grant и сделала capability неактивной; reconcile восстановил
+  оба состояния, сохранил контрольную строку `public.system_settings`, а второй reconcile не создал дубль.
+  Команда `bash deploy/postgres/privileges/post-zero-installer.acceptance.sh` завершилась
+  `post-zero installer acceptance: PASS`.
+- После исправлений ещё два живых DEV-прогона дали `reconcile_run_3=PASS` и `reconcile_run_4=PASS`; hash-снимок
+  атрибутов shared roles и memberships, не относящихся к четырём DEV-login, дал
+  `shared_cluster_snapshot=UNCHANGED`.
+- Остаток не скрыт: `migrate-dev.sh` по-прежнему требует удалённый `bcb_webapp_dev_user` и ещё не вызывает этот
+  reconcile после schema/data migrations. Поэтому ordinary deploy целиком не объявлен готовым.
+
+## Audit/live-matrix census staff-clinic-global-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `4eeaafa06`, read-only production-callsite census |
+| Метод | Guard/caller census от потребности doctor, clinic-admin и global-admin; без выдачи прав из наличия кода |
+| Вердикт | **FAIL: два legacy hybrid-guard класса блокируют корректную live matrix** |
+
+- **ADMIN-BOOKING-HYBRID-GUARD-001 — НАЙДЕНО:** `requireAdminBookingEngine` сначала требует legacy
+  `session.user.role === 'admin'`, затем clinical workspace membership. Команда
+  `while ... rg -c 'export (async )?function (POST|PUT|PATCH|DELETE)' ...` по `29` exact caller-файлам получила
+  `28` mutation exports. Clinic owner/admin отсекается первым условием, отдельный global-admin не должен проходить
+  второе. Лечить это DB-grant нельзя: каждый caller надо отнести к doctor-own, clinic-management, auditable
+  platform action или мёртвому дублю.
+- **ADMIN-PLATFORM-CLINICAL-HYBRID-002 — НАЙДЕНО:** точный поиск файлов, одновременно вызывающих
+  `requireAdminApiContext` и `requireDoctorWorkspaceApiContext`, вернул `7` routes: audit-log resolve,
+  audit-log read, health-failure clear, operator-incidents acknowledge/resolve, reference archive и user-profile
+  update. Platform operations должны получать platform principal, а clinical/reference/support действия —
+  отдельное смысловое решение; global-admin clinical membership запрещено owner-решением.
+- Положительная live matrix этих групп не запускается до разделения guard/caller-классов. Остальные staff,
+  clinic-admin и global-admin mutation families перечислены исполнителем и проверяются блоками с synthetic
+  cross-org fixture, reversible state и central no-send.
+
+## Audit/live-matrix census integrator-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `4eeaafa06`, read-only production-callsite census |
+| Метод | HTTP/event/worker/scheduler caller census + external-delivery safety path inspection |
+| Вердикт | **PASS ДЛЯ ПЛАНА ПРОГОНА; LIVE ОСТАЁТСЯ ОТКРЫТ** |
+
+- Команда `rg -n '\bapp\.(get|post|put|delete|patch)...' apps/integrator/src/app
+  apps/integrator/src/integrations --glob '*.ts' --glob '!*.test.ts'` получила `15` production HTTP routes;
+  `9` уже имеют положительный evidence, остаток сгруппирован в `6` route-сценариев. Отдельно остаются `5`
+  реально производимых projection event types, `8` outgoing delivery kinds и `4` scheduler paths.
+- **LIVE-NO-SEND-GATE-001 — УСЛОВИЕ ПРОГОНА:** non-production redirect по умолчанию перенаправляет сообщения
+  на настроенные тестовые контакты; это не нулевой внешний трафик. Worker/incoming action matrix поэтому
+  запускается только отдельным one-shot process с `DEV_REDIRECT_DISABLE_DEFAULTS=1`, без explicit redirect
+  targets и passthrough. Сначала должен быть доказан `PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS` до адаптера.
+- Legacy worker/scheduler exports отделены от production main loops. `createPostgresJobQueue` не удаляется как
+  legacy: его живой compatibility producer пишет canonical `public.outgoing_delivery_queue`, которую читает
+  новый worker.
+
 ## Audit/independent view current-runtime-definer-fix-20260813
 
 | Поле | Значение |

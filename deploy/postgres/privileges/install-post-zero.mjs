@@ -45,6 +45,7 @@ function generator(...args) {
 // These calls validate db↔env identity by declaration. No caller supplied login
 // identifier can influence the cutover authority.
 const zeroVerifier = generator('--db', db, '--zero-state-verify');
+const sharedRoleBaseline = generator('--shared-role-baseline');
 const shells = generator('--env', env, '--db', db, '--env-login-shells');
 const envRender = generator('--env', env, '--db', db);
 const envVerifier = generator('--env', env, '--db', db, '--env-verify');
@@ -55,6 +56,7 @@ const sql = [
   `\\set DBNAME ${db}`,
   'BEGIN;',
   zeroVerifier,
+  sharedRoleBaseline,
   shells,
   `\\i ${resolve(root, files[0])}`,
   relationWallRegistry,

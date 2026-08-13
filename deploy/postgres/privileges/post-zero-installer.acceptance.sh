@@ -5,7 +5,7 @@ set -euo pipefail
 
 pg_bin=/usr/lib/postgresql/16/bin
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
-source_db=${POSTZERO_SCHEMA_SOURCE_DB:-bersoncarebot_test}
+source_db=${POSTZERO_SCHEMA_SOURCE_DB:-bcb_webapp_dev}
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/bcb-postzero-installer.XXXXXX")
 data_dir="$work_dir/data"
 log_file="$work_dir/postgres.log"
@@ -40,16 +40,12 @@ printf '%s\n' "port = $port" "unix_socket_directories = '$data_dir'" "log_min_me
 "$pg_bin/psql" -X -v ON_ERROR_STOP=1 -h "$data_dir" -p "$port" -U dev -d "$db_name" -c 'CREATE ROLE postgres SUPERUSER LOGIN' >/dev/null
 "$pg_bin/psql" -X -v ON_ERROR_STOP=1 -h "$data_dir" -p "$port" -U dev -d "$db_name" -f "$work_dir/source-roles.sql" >/dev/null
 admin -f "$work_dir/source.sql" >/dev/null
-# The captured TEST schema may already have removed a declared compatibility
-# relation. Add only missing declaration-owned relation shells; no live schema
-# is altered and the real source remains the production-shaped baseline.
-node --experimental-strip-types "$repo_root/deploy/postgres/privileges/fixtures/production-catalog.mjs" "$db_name" \
-  | awk '/^CREATE SCHEMA IF NOT EXISTS / { print; next } /^CREATE TABLE / { if ($3 ~ /^"app_control"\./ || $3 ~ /^"app_ext"\."(accepted_port_contexts|port_context_capabilities|variant_a_identity_refs)"/) next; sub(/^CREATE TABLE /, "CREATE TABLE IF NOT EXISTS "); print }' \
-  | admin >/dev/null
 {
   printf '\\set DBNAME %s\n' "$db_name"
   node --experimental-strip-types "$repo_root/deploy/postgres/privileges/generate-cli.mjs" \
     --env test --db "$db_name" --env-login-shells
+  node --experimental-strip-types "$repo_root/deploy/postgres/privileges/generate-cli.mjs" \
+    --db "$db_name" --relation-wall-registry
   printf '\\i %s\n' "$repo_root/deploy/postgres/port-context/contract.sql"
 } | admin >/dev/null
 node --experimental-strip-types "$repo_root/deploy/postgres/privileges/fixtures/function-shells.mjs" "$db_name" \
@@ -68,6 +64,14 @@ install() {
   BCB_TEST_INTEGRATOR_PASSWORD=disposable-integrator \
     node "$repo_root/deploy/postgres/privileges/install-post-zero.mjs" --db "$db_name" --env test --admin-socket "$data_dir" --admin-port "$port"
 }
+reconcile() {
+  BCB_TEST_WEBAPP_STAFF_PASSWORD=disposable-staff \
+  BCB_TEST_WEBAPP_PATIENT_PASSWORD=disposable-patient \
+  BCB_TEST_WEBAPP_GLOBAL_ADMIN_PASSWORD=disposable-global-admin \
+  BCB_TEST_INTEGRATOR_PASSWORD=disposable-integrator \
+    node "$repo_root/deploy/postgres/privileges/reconcile-access.mjs" \
+      --db "$db_name" --env test --admin-socket "$data_dir" --admin-port "$port"
+}
 
 zero
 install >"$work_dir/first-install.out" 2>&1 || { cat "$work_dir/first-install.out" >&2; fail 'first actual installer run'; }
@@ -76,6 +80,57 @@ grep -q 'BCB_ENVIRONMENT_VERIFIED' "$work_dir/first-install.out" || fail 'instal
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolcanlogin AND rolname ~ '^(app_|bcb_|saas_|bersoncarebot_)'")" 4
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolname IN ('bcb_test_webapp_staff','bcb_test_webapp_patient','bcb_test_webapp_global_admin','bcb_test_integrator') AND rolcanlogin")" 4
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_auth_members WHERE member IN ('bcb_test_webapp_staff'::regrole,'bcb_test_webapp_patient'::regrole,'bcb_test_webapp_global_admin'::regrole,'bcb_test_integrator'::regrole) AND set_option")" 16
+
+# Ordinary deploy maintenance must repair declaration drift without replaying zero or losing data.
+admin <<'SQL' >/dev/null
+INSERT INTO public.system_settings(key,scope,organization_id,value_json)
+VALUES ('access_reconcile_fixture','admin',NULL,'{"preserved":true}'::jsonb);
+REVOKE EXECUTE ON FUNCTION app.read_integrator_migration_ledger() FROM app_service;
+UPDATE app_ext.port_context_capabilities SET active_from = clock_timestamp() + interval '1 day'
+ WHERE capability_id = (SELECT capability_id FROM app_ext.port_context_capabilities ORDER BY capability_id LIMIT 1);
+SQL
+reconcile >"$work_dir/first-reconcile.out" 2>&1 \
+  || { cat "$work_dir/first-reconcile.out" >&2; fail 'first repeatable reconcile'; }
+grep -q 'access reconcile committed' "$work_dir/first-reconcile.out" \
+  || fail 'repeatable reconcile did not report commit'
+assert_eq "$(admin -Atc "SELECT has_function_privilege('app_service','app.read_integrator_migration_ledger()','EXECUTE')")" t
+assert_eq "$(admin -Atc "SELECT count(*) FROM app_ext.port_context_capabilities WHERE active_from > clock_timestamp() OR active_until IS NOT NULL")" 0
+assert_eq "$(admin -Atc "SELECT count(*) FROM public.system_settings WHERE key='access_reconcile_fixture' AND value_json->>'preserved'='true'")" 1
+reconcile >"$work_dir/second-reconcile.out" 2>&1 \
+  || { cat "$work_dir/second-reconcile.out" >&2; fail 'second repeatable reconcile'; }
+assert_eq "$(admin -Atc "SELECT count(*) FROM public.system_settings WHERE key='access_reconcile_fixture'")" 1
+
+# Per-target reconcile must refuse shared cluster-role drift, not repair it as a
+# side effect of deploying one database/environment.
+cluster_admin -c 'ALTER ROLE app_staff INHERIT' >/dev/null
+if reconcile >"$work_dir/shared-role-drift-reconcile.out" 2>&1; then
+  fail 'repeatable reconcile silently repaired shared cluster-role drift'
+fi
+grep -q 'shared role baseline drift' "$work_dir/shared-role-drift-reconcile.out" \
+  || { cat "$work_dir/shared-role-drift-reconcile.out" >&2; fail 'shared role drift refusal was not explicit'; }
+assert_eq "$(cluster_admin -Atc "SELECT rolinherit FROM pg_roles WHERE rolname='app_staff'")" t
+node --experimental-strip-types "$repo_root/deploy/postgres/privileges/generate-cli.mjs" \
+  --shared-role-baseline | cluster_admin -1 >/dev/null
+assert_eq "$(cluster_admin -Atc "SELECT rolinherit FROM pg_roles WHERE rolname='app_staff'")" f
+
+cluster_admin -c "CREATE ROLE rogue_port_bypass LOGIN; GRANT app_staff TO rogue_port_bypass WITH INHERIT FALSE, SET TRUE, ADMIN FALSE; GRANT CONNECT ON DATABASE $db_name TO rogue_port_bypass;" >/dev/null
+if reconcile >"$work_dir/rogue-membership-reconcile.out" 2>&1; then
+  fail 'repeatable reconcile accepted a rogue login-to-runtime-role edge'
+fi
+grep -q 'undeclared shared role membership' "$work_dir/rogue-membership-reconcile.out" \
+  || { cat "$work_dir/rogue-membership-reconcile.out" >&2; fail 'rogue membership refusal was not explicit'; }
+assert_eq "$(cluster_admin -Atc "SELECT count(*) FROM pg_auth_members membership JOIN pg_roles granted ON granted.oid=membership.roleid JOIN pg_roles member ON member.oid=membership.member WHERE granted.rolname='app_staff' AND member.rolname='rogue_port_bypass'")" 1
+cluster_admin -c "REVOKE app_staff FROM rogue_port_bypass; REVOKE CONNECT ON DATABASE $db_name FROM rogue_port_bypass; DROP ROLE rogue_port_bypass;" >/dev/null
+
+# Ordinary reconcile audits undeclared schema instead of silently deleting it.
+admin -c "CREATE FUNCTION app.reconcile_rogue_definer() RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';" >/dev/null
+if reconcile >"$work_dir/rogue-definer-reconcile.out" 2>&1; then
+  fail 'repeatable reconcile accepted an undeclared SECURITY DEFINER routine'
+fi
+grep -q 'undeclared SECURITY DEFINER function' "$work_dir/rogue-definer-reconcile.out" \
+  || { cat "$work_dir/rogue-definer-reconcile.out" >&2; fail 'undeclared definer refusal was not explicit'; }
+assert_eq "$(admin -Atc "SELECT to_regprocedure('app.reconcile_rogue_definer()') IS NOT NULL")" t
+admin -c 'DROP FUNCTION app.reconcile_rogue_definer()' >/dev/null
 
 # FORCE RLS must not blind the exact SECURITY DEFINER owner that installs the
 # transaction context. This is the real startup path, not a source-text check.
