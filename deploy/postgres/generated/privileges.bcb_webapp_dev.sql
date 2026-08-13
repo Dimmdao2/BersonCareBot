@@ -2137,10 +2137,13 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'kind', 'payload_json', 'status', 'sent_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'public.specialist_tasks', ARRAY['id', 'reminder_sent_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'organization_id', 'status', 'failure_class', 'kind', 'channel', 'payload_json', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['id']::text[], ARRAY['UPDATE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.broadcast_audit', ARRAY['id', 'organization_id', 'actor_id', 'message_title']::text[], ARRAY['SELECT']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.platform_users', ARRAY['id', 'display_name', 'first_name', 'last_name', 'phone_normalized']::text[], ARRAY['SELECT']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.integrator_push_outbox', ARRAY['id', 'kind', 'status', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.integrator_push_outbox', ARRAY['id']::text[], ARRAY['UPDATE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'integrator.projection_outbox', ARRAY['id', 'event_type', 'idempotency_key', 'status', 'attempts_done', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'integrator.projection_outbox', ARRAY['id']::text[], ARRAY['UPDATE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.operator_health_failure_archive', ARRAY['organization_id', 'archived_by_user_id', 'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json', 'raw_error_truncated']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.auth_channel_binding_session(text,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code', 'external_id']::text[], ARRAY['SELECT']::text[]),
   ('app.auth_channel_binding_session(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
@@ -2649,7 +2652,7 @@ BEGIN
     mutation := (pg_catalog.regexp_match(source, '(\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
     IF mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'DELETE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;
   END LOOP;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=508';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=511';
 END
 $bcb$;
 

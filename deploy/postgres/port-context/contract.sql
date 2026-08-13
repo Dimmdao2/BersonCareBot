@@ -415,7 +415,7 @@ RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET sear
 DECLARE opaque_ref uuid; physical_id uuid;
 BEGIN
   SELECT actor_ref INTO opaque_ref FROM app_ext.accepted_port_contexts
-   WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role IN ('app_staff','app_clinic_billing','app_patient','app_platform_settings');
+   WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role IN ('app_staff','app_clinic_billing','app_patient','app_platform_settings','app_platform_admin');
   IF opaque_ref IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted actor context required'; END IF;
   SELECT app_ext.resolve_variant_a_physical(opaque_ref) INTO physical_id;
   RETURN physical_id;
