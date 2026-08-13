@@ -30,15 +30,6 @@ const putBodySchema = z.object({
   programStageItemId: z.string().uuid().optional(),
 });
 
-function settingBoolean(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === 'object' &&
-    !Array.isArray(valueJson) &&
-    (valueJson as { value?: unknown }).value === true
-  );
-}
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const parsed = getQuerySchema.safeParse(Object.fromEntries(searchParams));
@@ -117,9 +108,7 @@ export async function PUT(req: Request) {
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(gate.session);
 
   const deps = buildAppDeps();
-  const ratingsEnabled = settingBoolean(
-    (await deps.systemSettings.getSetting('material_ratings_enabled', 'admin'))?.valueJson ?? null,
-  );
+  const ratingsEnabled = await deps.runtimeConfig.getServerBoolean('material_ratings_enabled');
   if (!ratingsEnabled) {
     return NextResponse.json({ ok: false, error: 'material_ratings_disabled' }, { status: 403 });
   }

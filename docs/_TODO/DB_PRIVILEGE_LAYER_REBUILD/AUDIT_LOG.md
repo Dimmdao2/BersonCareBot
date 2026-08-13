@@ -2886,3 +2886,220 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
 - Targeted evidence аудитора: relation-access `26/26`, booking tests `9/9`, generated `--all --check` byte-identical;
   backup listing/hash, cleanup `0`, exact Online restore, foreign specialist unchanged и PostgreSQL log
   `399605/399609` подтверждены повторно.
+
+## Live/fix pass DEV-patient-material-ratings-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `e09478468`, `feat/doctor-ui-rebuild` |
+| Метод | Backup DEV → patient/global-admin HTTP → own/foreign DB state+hash → штатный migration/reconcile → exact cleanup |
+| Вердикт | **PASS ПОСЛЕ НЕЗАВИСИМОГО RE-AUDIT; MATERIAL-RATING SLICE К LAND** |
+
+- До миграции команда `sudo -n -u postgres pg_dump -Fc -d bcb_webapp_dev -f
+  /tmp/bcb-dev-before-material-rating-access-20260813.dump` создала backup с SHA-256
+  `86d3b99cb684fa3ce10d3676bafc38b14ccaf72ca98d3d970356de7f2d15ac27`.
+- **PATIENT-MATERIAL-RUNTIME-019 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** rating и feedback route напрямую читали
+  закрытую `system_settings`, поэтому feedback падал `42501`. Оба используют один
+  `runtimeConfig.getServerBoolean('material_ratings_enabled')`; ключ добавлен в существующий exact server
+  accessor и global-admin settings surface. Миграция `0406` создаёт runtime default `false` и переносит legacy
+  значение, если оно есть.
+- **OWNER-MIGRATOR-BACKFILL-020 — НАЙДЕНО ПРИ РЕАЛЬНОЙ МИГРАЦИИ:** owner-role не может seed-ить FORCE-RLS
+  runtime row, а platform runtime требует accepted request context. Общий owner-ordered migrator теперь понимает
+  явный `BCB-MIGRATION-BACKFILL`: только этот segment исполняется локальным `postgres` внутри той же transaction,
+  после чего ledger и временные owner grants закрываются обычным путём. Два ошибочных варианта откатились до
+  commit; финальная команда `bash deploy/host/migrate-dev.sh --execute` дала `pending=1`, затем reconcile/catalog
+  audit и `PASS`. Parser regression test: `node --test
+  deploy/postgres/privileges/migrate-local-parse.test.mjs` → `2/2`.
+- **PATIENT-MATERIAL-DRIZZLE-DEFAULTS-021 — НАЙДЕНО LIVE И ИСПРАВЛЕНО EXACT ACL:** Drizzle включает default
+  `id/created_at` в INSERT и требует SELECT для `RETURNING`; rating upsert и feedback insert поэтому дали
+  `42501`. Декларация добавляет только фактически испускаемые default-колонки, а feedback patient читает только
+  `id` собственной строки. Table-wide patient writes не добавлены; relation-access suite → `27/27`, generated
+  `--check` побайтово зелёный.
+- Живой DEV после reconcile: organization select `200`; rating PUT `200`, feedback POST `200`, rating GET `200`
+  (`count=7`, `myStars=5`). После переключения в organization `d000…0004` тот же target дал GET/PUT `404/404`;
+  команды MD5 по `material_ratings` и `patient_content_rating_feedback` дали до, после и после cleanup одинаково
+  `d41d8cd98f00b204e9800998ecf8427e`. Global-admin выключил флаг через PATCH `200`, следующий PUT пациента дал
+  `403 material_ratings_disabled`.
+- Exact cleanup удалил rating `1`, feedback `1`, две пары admin audit и отсутствовавшую до проверки legacy
+  setting; контрольные `count(*)` дали `0/0/0`, runtime row осталась `server|false|updated_by NULL`, а её исходный
+  migration audit остался ровно один.
+
+### Independent audit correction pass
+
+- **PATIENT-MATERIAL-ROW-DISCLOSURE-022 — MUST FIX ЗАКРЫТ:** первый вариант давал `app_patient` SELECT
+  current-clinic строк и тем самым раскрывал пары patient UUID → stars. Direct policy теперь self-only;
+  aggregate, distribution и собственную оценку возвращает одна
+  `app.read_current_patient_material_rating_snapshot(text,uuid)` с exact accepted-context gate. Capability,
+  function surface и runtime env — проекции той же declaration. Живой GET после controlled restart дал
+  `count=6/myStars=null`, после собственной записи — `count=7/myStars=4`; тот же relation-запрос через
+  `runWithDbPatientPrincipal` вернул `directRelationRowCount=1` и только user
+  `00000000-0000-0000-0000-000000000001`. Это доказывает, что чужие строки доступны только в агрегате.
+- **OWNER-MIGRATOR-PURE-BACKFILL-023 — MUST FIX ЗАКРЫТ:** для data-only migration `owners=[]` больше не
+  рендерится `ANY (ARRAY[])`. Общая pure-function `renderTemporaryMembershipAssertion` возвращает `null`, а
+  `node --test deploy/postgres/privileges/migrate-local-parse.test.mjs` дал `3/3`, включая literal-assertion,
+  что SQL не содержит пустого массива. Mixed backfill `0406` ранее реально применён тем же production path;
+  отдельного migrator не создано.
+- **RUNTIME-AUDIT-FORGERY-024 — MUST FIX ЗАКРЫТ:** у `app_staff` и `app_platform_settings` удалён direct
+  INSERT в `app_runtime_settings_audit`; единственный writer — существующий trigger, переведённый в
+  `SECURITY DEFINER` с locked search_path и exact INSERT surface у `app_object_owner`. Каталог-команда
+  `has_table_privilege(..., 'INSERT')` дала `false/false`, а реальная попытка INSERT внутри принятого
+  `runWithDbPlatformPrincipal` завершилась `42501 permission denied for table app_runtime_settings_audit` и
+  `count(*) WHERE key='bcb_forgery_probe'` остался `0`. Положительный control: обычный global-admin PATCH `200`
+  создал trigger-аудит.
+- **PATIENT-NAMED-ROOT-CAPABILITY-025 — LIVE DEFECT ЗАКРЫТ:** функция и EXECUTE существовали, но первый GET
+  после correction дал `404`, потому что named root отсутствовал в runtime capability registry. Запись добавлена
+  в `declaration.portContext.capabilities`, generated SQL/env пересобраны, `bash deploy/host/migrate-dev.sh
+  --execute` дал `pending=0` и `PASS`; после cgroup restart GET дал `200`. Regression assertion проверяет весь
+  exact capability descriptor в relation-access suite.
+- Финальный live-pass: own PUT `200`, feedback POST `200`, aggregate GET `200`; foreign organization
+  GET/PUT `404/404`, а обе команды MD5 до/после дали
+  `d41d8cd98f00b204e9800998ecf8427e`. После PATCH `false` mutation дал
+  `403 material_ratings_disabled`. Exact cleanup удалил `1` own rating и `2` feedback строки, созданные двумя
+  POST (первый завершился на сервере после client timeout); `system_settings`, её `3` audit rows и все новые
+  runtime audit rows удалены. Контрольные `count(*)` дали own rating/feedback/legacy/legacy-audit/forgery
+  `0/0/0/0/0`; исходная runtime row восстановлена в `false`, исходный audit id
+  `dd17e55b-a60e-4114-b8ec-c58840b37b83` остался ровно один. Финальные GET/disabled PUT дали `200/403`, оба
+  процесса `/health` зелёные.
+- Целевой mutex-run: `node --test ...migrate-local-parse.test.mjs` → `3/3`;
+  `node --experimental-strip-types --test ...relation-access.test.mjs` → `27/27`;
+  `generate-cli.mjs --all --zero-state --check` → byte-identical; `vitest --run
+  src/app/api/tariffMechanics.route.test.ts` → `42/42`; `pnpm --dir apps/webapp typecheck` → exit `0`.
+
+### Independent re-audit result
+
+- Независимый аудитор повторно проверил исправления `022–025`, declaration/generated/runtime-состояние и
+  live evidence. Вердикт: **PASS**, новых findings нет; расширять material-rating slice не требуется.
+
+## Live/fix pass DEV-integrator-reminder-rules-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `e09478468`, `feat/doctor-ui-rebuild` |
+| Метод | Signed HTTP route → exact identity/tenant resolver → atomic direct write/cancel → DB state/log/cleanup |
+| Вердикт | **PASS ДЛЯ REMINDER-RULE ROUTE; ОСТАЛЬНОЙ INTEGRATOR CENSUS ОТКРЫТ** |
+
+- **INTEGRATOR-REMINDER-PRE-ROUTING-026 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** signed route начинал write без
+  organization context, а старый direct writer повторно и широко читал identity relations. Один exact named root
+  `app.resolve_active_organization_for_integrator_user_id(bigint)` теперь возвращает доказанную пару
+  `platform_user_id + organization_id`; route переиспользует её и для principal, и для direct mutation.
+  Миграции `0408/0409` меняют тот же root, отдельного второго resolver не создано.
+- **INTEGRATOR-REMINDER-CANCEL-ATOMICITY-027 — НАЙДЕНО LIVE И ИСПРАВЛЕНО:** upsert commit происходил до
+  отдельного удаления `planned/queued` occurrences; при `42501` route отвечал `502`, но rule уже оставалась в БД.
+  Cancellation перенесён в ту же `db.tx`, что и upsert. `app_tenant_service` получил ровно `DELETE` и
+  column-level `SELECT(rule_id,status)` — минимум, который PostgreSQL требует для `DELETE ... WHERE`; policy
+  ограничивает обе операции `organization_id = app.current_org_id()`.
+- Штатный `bash deploy/host/migrate-dev.sh --execute` дважды выполнил declaration reconcile/catalog audit и
+  завершился `PASS`; после обязательного restart integrator загрузил новый capability descriptor. Целевые gates:
+  relation-access `29/29`, named-root unit `1/1`, integrator/privilege typecheck и generated byte-check — PASS.
+- Живой signed `POST /api/integrator/reminders/rules` после исправления дал `HTTP 200`. DB-команда показала
+  `rule=1|a000…0001|b002…32d4|true`, `projection=0`. После административного DEV seed одной disabled synthetic
+  `planned` occurrence повторный signed request снова дал `200`, а `occurrences=0`, доказывая cancel через
+  runtime port-context. После успешных запросов PostgreSQL journal не содержит новых ошибок этого route.
+- Exact cleanup: rule/occurrence/projection = `0/0/0`; правило всё время было `is_enabled=false`, внешняя доставка
+  не запускалась.
+- **INTEGRATOR-REMINDER-FALLBACK-CONTEXT-028 — НАЙДЕНО LIVE И ИСПРАВЛЕНО:** при ошибке direct write durable
+  outbox запускался под ambient tenant principal и сам падал `42501` на `integrator.projection_outbox`.
+  Fallback теперь повторно входит в уже существующий `app_integrator_request` с той же доказанной organization и
+  integrator user; новый grant не добавлен. Regression test принудительно роняет direct writer и проверяет, что
+  outbox вызывается только внутри exact integrator principal.
+
+## Live/fix pass DEV-integrator-booking-lifecycle-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `e09478468`, `feat/doctor-ui-rebuild` |
+| Метод | Signed negative/positive/replay для context-free и tenant events + durable key/DQ/log cursor/cleanup |
+| Вердикт | **PASS ДЛЯ BOOKING LIFECYCLE ROUTE; ОСТАЛЬНОЙ INTEGRATOR CENSUS ОТКРЫТ** |
+
+- **BOOKING-LIFECYCLE-PRINCIPAL-029 — НАЙДЕНО LIVE И ИСПРАВЛЕНО:** первый signed `booking.deleted` дал
+  `502 An integrator principal is required in port-context mode`; durable key при этом был занят, поэтому replay
+  ложно отвечал `200`. Context-free event types больше не читают timezone, которой не используют. Tenant payload
+  с `organizationId` устанавливает organization principal до handler.
+- **BOOKING-RUNTIME-SETTING-CAPABILITY-030 — НАЙДЕНО LIVE И ИСПРАВЛЕНО:** tenant
+  `booking.reminder_updated` не мог вызвать старый `read_integrator_runtime_setting` и создавал ложный
+  data-quality incident, после чего alert-recipient lookup падал на `platform_users`. Существующая fixed-allowlist
+  функция теперь является `app_service` named capability; общий accessor использует тот же
+  `runWithDbInfraPrincipal + runIntegratorNamedRoot` шаблон, что provider settings. Ни новой функции, ни прямого
+  table grant нет.
+- После declaration regeneration/reconcile: relation-access `29/29`, callsite oracle `5/5`, booking/runtime
+  targeted `5` файлов / `31` тест, integrator и webapp typecheck, generated byte-check — PASS. Дополнительный
+  fallback/runtime mutex дал `3` файла / `4` теста PASS.
+- Live: missing headers → `400`; context-free delete first/replay → `200/200`; tenant reminder update
+  first/replay → `200/200`. В обоих случаях durable key был ровно один; финальные synthetic keys и DQ incidents
+  `0/0`. Tenant success не материализовал reminder из-за намеренно отсутствующего canonical appointment и не
+  вызывал delivery. Финальный PostgreSQL cursor не сдвинулся: `399822 → 399822`.
+
+## Live/fix pass DEV-integrator-incoming-webhooks-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `e09478468`, `feat/doctor-ui-rebuild` |
+| Метод | Production composition без provider setup → четыре Fastify webhook route → real DEV DB → central no-send audit |
+| Вердикт | **4/4 HTTP ROUTE PASS; GENERIC/DEDICATED TELEGRAM/MAX ROUTE-ОСТАТОК ЗАКРЫТ** |
+
+- **INTEGRATOR-PUBLIC-SEARCH-PATH-031 — НАЙДЕНО LIVE И ИСПРАВЛЕНО КЛАССОМ:** Drizzle `pgTable(...)` полагался
+  на implicit `public`, которого намеренно нет в locked runtime `search_path`; webhook поэтому получал `42P01`
+  для существующих `public.user_channel_bindings`. Все public product relations в общей integrator schema map
+  переведены на явный `new PgSchema('public').table(...)`. Три platform-merge write-query также явно
+  квалифицируют `public.*`. Name-only messenger identity refresh больше не перестраивает contact index, когда
+  событие не несёт phone/email, и не требует чужого oauth surface.
+- **INTEGRATOR-REPLY-EGRESS-032 — НАЙДЕНО LIVE И ИСПРАВЛЕНО В ОДНОМ МЕСТЕ:** transport-neutral обычные
+  `message.send` не имели egress capability и отвергались до DEV safety gate. Accepted-event pipeline — единый
+  trusted constructor этих ответов — добавляет `routine_product/essential_delivery` только когда обе метки
+  отсутствуют. Явные и частично явные метки остаются авторитетными, поэтому malformed state не маскируется.
+- **INTEGRATOR-INBOUND-RETRY-033 — НАЙДЕНО LIVE И ИСПРАВЛЕНО УЗКИМ ШВОМ:** после dispatch failure прямой
+  `INSERT public.outgoing_delivery_queue` под request principal падал `42501`. Миграция `0410` добавляет одну
+  exact-gated `app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)` с фиксированными
+  `kind/status/attempt/next_retry`, allowlist каналов и bounded attempts. Через root идёт только producer
+  accepted-event pipeline: retired compatibility API с тем же worker-kind, но отдельной семантикой future
+  `nextRetryAt`, остаётся на своём generic producer. Это разделение было найдено фазовым integration test,
+  который сначала дал `4` failure, после исправления — `9/9` в затронутых трёх файлах. Независимый callsite
+  oracle + relation matrix:
+  `node --test ...port-context-callsite-catalog.test.mjs ...relation-access.test.mjs` → `34/34`; targeted
+  retry/dispatch tests → `4` файла / `17` тестов; integrator lint/typecheck — exit `0`.
+- `node deploy/postgres/privileges/generate-cli.mjs --all --check` подтвердил побайтовое совпадение четырёх
+  generated artifacts; Drizzle journal sync и migrator self-test — PASS. `bash deploy/host/migrate-dev.sh
+  --preflight` → PASS без изменений; `--execute` применил ровно одну migration (`total=407`), затем declaration
+  reconcile/catalog audit и runtime env sync завершились `migrate-dev: PASS`.
+- Главная live-команда `bash /home/dev/brain/host-orch/run-tests.sh pnpm --dir apps/integrator exec tsx
+  src/infra/scripts/check-live-incoming-no-send.ts` вернула generic/dedicated Telegram/MAX
+  `status=200, ok=true`, `preForkSuppressed.count=4`, channels `max/telegram`, durable keys `4` с cleanup в
+  самом one-shot. Внешние provider setup/redirect/passthrough отключены. После начала пробы в
+  `/var/log/postgresql/postgresql-16-main.log` нет нового runtime `ERROR/FATAL/PANIC`; последние ожидаемые
+  диагностические queue-denial были до исправления, в `20:08:37`.
+- Финальный phase-gate интегратора: точная команда
+  `bash /home/dev/brain/host-orch/run-tests.sh pnpm --dir apps/integrator test && pnpm --dir
+  apps/integrator lint && pnpm --dir apps/integrator typecheck` дала `77` test files PASS, `390` tests PASS,
+  `2` expected fail, `15` skipped; queue boundary и no-legacy-producer gate — PASS; TypeScript — exit `0`.
+
+## Audit/fix pass DEV-final-registry-convergence-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | текущий diff после `e09478468`, `feat/doctor-ui-rebuild` |
+| Метод | Root lint/typecheck/tests/build + generated-registry audit + disposable PostgreSQL port-context acceptance |
+| Вердикт | **PASS ПОСЛЕ СИСТЕМНОЙ СИНХРОНИЗАЦИИ ACTIVE REGISTRY И FINAL FULL CI** |
+
+- Первый root gate нашёл не runtime-дефекты, а четыре класса системной рассинхронизации: stale test mocks после
+  principal boundary, cwd-зависимый disposable acceptance, stale active tier registry после удаления таблиц и
+  несинхронизированные generated RLS/grant artifacts. Исправлены источники, а не отдельные симптомы.
+- Port-context acceptance теперь запускает privilege generator из `repo_root`, поэтому результат не зависит от
+  package cwd. Точная команда `bash /home/dev/brain/host-orch/run-tests.sh pnpm run test:db-principal` дала
+  `27/27` unit tests и полный PostgreSQL 16 acceptance со всеми fault injections — PASS.
+- Из active `tiers-218.tsv` и зависящих active projections удалены ровно пять уже отсутствующих relations:
+  `public.be_appointment_events`, `public.clinical_test_measure_kinds`, `public.schema_migrations`,
+  `public.user_email_setup_tokens`, `public.user_pins`. Основание — их DROP в migrations `0387`, `0388`, `0389`,
+  `0394` и отсутствие живых schema definitions. Исторические derivation artifacts и self-contained synthetic
+  fixtures не переписывались.
+- От того же реестра синхронизированы `p0-5-role-split.sql`, `p0-5b-grants.sql`, Phase 4 FORCE target list и
+  locked-policy artifact. Точная команда `bash /home/dev/brain/host-orch/run-tests.sh pnpm run audit` завершилась
+  exit `0`: regression registry, hard-migration protocol, product-smoke contract и dependency audit — PASS.
+- Webapp stale tests приведены к фактическому principal contract и explicit `public.*` SQL. Точный targeted
+  прогон шести файлов дал `26/26`; полный webapp test дал `263` files / `1216` tests PASS, `6` skipped; media
+  worker — `5` files / `16` tests PASS; production Next build — PASS, `406` static pages.
+- Финальная обязательная команда `pnpm install --frozen-lockfile && bash
+  /home/dev/brain/host-orch/run-tests.sh pnpm run ci` завершилась exit `0` за `680s`. В одном locked-прогоне
+  повторно прошли lint, strict typecheck, все unit/integration suites, disposable PostgreSQL principal/zero-state
+  acceptance, integrator и webapp production build и полный audit. После неё живые `GET 5200/api/health` и
+  `GET 4200/health` вернули `{"ok":true,"db":"up"}`, а `GET 4200/health/projection` —
+  `pendingCount=0`, `deadCount=0`, `processingCount=0`.

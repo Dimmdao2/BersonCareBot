@@ -8,11 +8,14 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { listActiveByPlatformUser } = vi.hoisted(() => ({ listActiveByPlatformUser: vi.fn() }));
+const { listActiveForWorkspaceResolution } = vi.hoisted(() => ({
+  listActiveForWorkspaceResolution: vi.fn(),
+}));
 
 vi.mock('@/infra/repos/pgOrganizationMembership', () => ({
   createPgOrganizationMembershipPort: () => ({
-    listActiveByPlatformUser,
+    listActiveForWorkspaceResolution,
+    listActiveByPlatformUser: vi.fn(),
     listByPlatformUser: vi.fn(),
     listByOrganization: vi.fn(),
     listPlatformDirectoryByOrganization: vi.fn(),
@@ -58,7 +61,7 @@ beforeEach(() => {
 
 describe('stampDbPrincipalFromSession — doctor-class session with no organization membership', () => {
   it('falls back to the identity-self wall instead of stamping no principal', async () => {
-    listActiveByPlatformUser.mockResolvedValue([]);
+    listActiveForWorkspaceResolution.mockResolvedValue([]);
 
     await stampDbPrincipalFromSession(session(ADMIN_USER_ID, 'admin'), 'test-source');
 
@@ -70,7 +73,7 @@ describe('stampDbPrincipalFromSession — doctor-class session with no organizat
   });
 
   it('still stamps the staff wall when the doctor-class session DOES resolve an organization', async () => {
-    listActiveByPlatformUser.mockResolvedValue([
+    listActiveForWorkspaceResolution.mockResolvedValue([
       {
         id: 'm1',
         organizationId: ORG_ID,

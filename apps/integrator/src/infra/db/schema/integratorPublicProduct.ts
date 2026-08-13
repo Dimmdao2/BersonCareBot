@@ -14,8 +14,8 @@ import {
   index,
   integer,
   jsonb,
+  PgSchema,
   pgSchema,
-  pgTable,
   text,
   timestamp,
   unique,
@@ -23,8 +23,12 @@ import {
 } from 'drizzle-orm/pg-core';
 
 const integratorSchema = pgSchema('integrator');
+// `pgSchema('public')` intentionally throws in Drizzle because the library assumes the default
+// search_path always contains `public`. Our port-context runtime deliberately removes that implicit
+// path, so construct the exported schema object directly and keep every generated relation explicit.
+const publicSchema = new PgSchema('public');
 
-export const bookingCalendarMap = pgTable(
+export const bookingCalendarMap = publicSchema.table(
   'booking_calendar_map',
   {
     id: bigserial({ mode: 'number' }).primaryKey().notNull(),
@@ -82,7 +86,7 @@ export const deliveryAttemptLogs = integratorSchema.table(
 );
 
 /** Narrow `public.platform_users` slice for integrator delivery/lookup repos (D18b). */
-export const platformUsers = pgTable('platform_users', {
+export const platformUsers = publicSchema.table('platform_users', {
   id: uuid().primaryKey().notNull(),
   phoneNormalized: text('phone_normalized'),
   integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
@@ -90,7 +94,7 @@ export const platformUsers = pgTable('platform_users', {
 });
 
 /** Narrow `public.user_channel_bindings` slice for integrator delivery lookup (D18b). */
-export const userChannelBindings = pgTable('user_channel_bindings', {
+export const userChannelBindings = publicSchema.table('user_channel_bindings', {
   userId: uuid('user_id').notNull(),
   channelCode: text('channel_code').notNull(),
   externalId: text('external_id').notNull(),
@@ -98,7 +102,7 @@ export const userChannelBindings = pgTable('user_channel_bindings', {
 });
 
 /** Existing public enrollment table, mapped narrowly for shared direct-writer actor resolution. */
-export const orgEnrollments = pgTable('org_enrollments', {
+export const orgEnrollments = publicSchema.table('org_enrollments', {
   platformUserId: uuid('platform_user_id').notNull(),
   organizationId: uuid('organization_id').notNull(),
   status: text().notNull(),
@@ -108,7 +112,7 @@ export const orgEnrollments = pgTable('org_enrollments', {
  * Canonical reminder business rules owned by webapp. Integrator owns only occurrence/delivery
  * mechanics, keyed by this table's stable `integrator_rule_id`.
  */
-export const reminderRules = pgTable('reminder_rules', {
+export const reminderRules = publicSchema.table('reminder_rules', {
   integratorRuleId: text('integrator_rule_id').primaryKey().notNull(),
   organizationId: uuid('organization_id'),
   platformUserId: uuid('platform_user_id'),

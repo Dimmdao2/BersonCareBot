@@ -35,6 +35,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireOrganizationManagementContext: vi.fn(),
   requirePatientAccessWithPhone: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
+  requirePlatformOperationsApiContext: vi.fn(),
 }));
 vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: vi.fn(),
@@ -74,6 +75,7 @@ import {
   requireOrganizationManagementContext,
   requirePatientAccessWithPhone,
   requirePatientApiBusinessAccess,
+  requirePlatformOperationsApiContext,
 } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
@@ -166,6 +168,10 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(null);
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
+  vi.mocked(requirePlatformOperationsApiContext).mockResolvedValue({
+    ok: true,
+    session: workspace.session,
+  } as never);
   vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
@@ -182,7 +188,7 @@ beforeEach(() => {
       saveManagedTemplate: vi.fn(),
       saveManagedPresentation: vi.fn(),
     },
-    systemSettings: { getSetting: vi.fn().mockResolvedValue({ valueJson: { value: false } }) },
+    runtimeConfig: { getServerBoolean: vi.fn().mockResolvedValue(false) },
     contentSections: { getBySlug: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
     doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
     patientFiles: { createFile: vi.fn() },
@@ -847,6 +853,42 @@ describe('tariff and platform mutation gates', () => {
     await expect(feedbackResponse.json()).resolves.toMatchObject({
       error: 'material_ratings_disabled',
     });
+  });
+
+  it('lets platform operations toggle the shared material-rating switch through settings', async () => {
+    const platformSession = { user: { userId: USER_ID, role: 'admin' } };
+    vi.mocked(getCurrentSession).mockResolvedValue(platformSession as never);
+    vi.mocked(requirePlatformOperationsApiContext).mockResolvedValue({
+      ok: true,
+      session: platformSession,
+    } as never);
+    const updateSetting = vi.fn().mockResolvedValue({
+      key: 'material_ratings_enabled',
+      scope: 'admin',
+      organizationId: null,
+      valueJson: { value: true },
+      updatedAt: '2026-08-13T00:00:00.000Z',
+      updatedBy: USER_ID,
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { getSetting: vi.fn().mockResolvedValue(null), updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'material_ratings_enabled',
+        value: true,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateSetting).toHaveBeenCalledWith(
+      'material_ratings_enabled',
+      'admin',
+      { value: true },
+      USER_ID,
+      { organizationId: null },
+    );
   });
 
   it('refuses file metadata creation visibly when the assigned tariff has no file limit', async () => {

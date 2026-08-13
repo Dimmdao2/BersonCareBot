@@ -2815,6 +2815,41 @@
       "when": 1793539230148,
       "tag": "0405_reminder_occurrence_projection_seam_local",
       "breakpoints": true
+    },
+    {
+      "idx": 402,
+      "version": "7",
+      "when": 1793539230149,
+      "tag": "0406_material_rating_patient_runtime_access_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 403,
+      "version": "7",
+      "when": 1793539230150,
+      "tag": "0407_material_rating_snapshot_and_runtime_audit_owner_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 404,
+      "version": "7",
+      "when": 1793539230151,
+      "tag": "0408_integrator_user_organization_resolver_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 405,
+      "version": "7",
+      "when": 1793539230152,
+      "tag": "0409_integrator_user_tenant_resolver_result_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 406,
+      "version": "7",
+      "when": 1793539230153,
+      "tag": "0410_integrator_inbound_reply_enqueue_local",
+      "breakpoints": true
     }
   ]
 }

@@ -112,6 +112,23 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": "table"
       },
       {
+        "role": "app_tenant_service",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "rule_id",
+          "status"
+        ]
+      },
+      {
+        "role": "app_tenant_service",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -6070,6 +6087,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "id",
+          "birth_date",
           "phone_normalized",
           "patient_phone_trust_at",
           "integrator_user_id",

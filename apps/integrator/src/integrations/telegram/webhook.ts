@@ -142,6 +142,10 @@ async function buildTelegramFacts(
 
 export type TelegramWebhookDeps = {
   eventGateway: EventGateway;
+  /** Keep provider bootstrap enabled in production; controlled one-shot checks disable external setup calls. */
+  setupProviderSurface?: boolean;
+  /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
+  getRuntimeConfig?: typeof getTelegramRuntimeConfig;
   /** Best-effort integrator `users.id` for webapp-entry token (Phase B); injected from app layer (DB). */
   resolveIntegratorUserIdForMessenger?: (
     externalId: string,
@@ -410,7 +414,8 @@ export async function registerTelegramWebhookRoutes(
 ): Promise<void> {
   // Best-effort, NON-blocking: Telegram API calls here must not stall plugin
   // registration (without egress they used to hang -> Fastify plugin timeout crash).
-  void setupTelegramMenuButton();
+  if (deps.setupProviderSurface !== false) void setupTelegramMenuButton();
+  const readRuntimeConfig = deps.getRuntimeConfig ?? getTelegramRuntimeConfig;
 
   app.post('/webhook/telegram', async (request, reply) => {
     const correlationId = request.id;
@@ -418,7 +423,7 @@ export async function registerTelegramWebhookRoutes(
     const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     try {
-      const config = await getTelegramRuntimeConfig();
+      const config = await readRuntimeConfig();
       if (!config.enabled) {
         return reply.code(503).send({ ok: false, error: 'Unavailable' });
       }

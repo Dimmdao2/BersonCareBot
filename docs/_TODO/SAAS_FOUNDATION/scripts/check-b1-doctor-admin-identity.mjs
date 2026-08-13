@@ -187,7 +187,6 @@ legacy_email_admin AS (
     AND NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)
-    AND NOT EXISTS (SELECT 1 FROM public.user_pins p WHERE p.user_id = pu.id)
     AND NOT EXISTS (SELECT 1 FROM public.login_tokens t WHERE t.user_id = pu.id)
 ),
 doctor_memberships AS (

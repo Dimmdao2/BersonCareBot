@@ -10,6 +10,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import {
+  parseOwnerStatements,
+  renderTemporaryMembershipAssertion,
+} from './migrate-local-parse.mjs';
 
 function value(name) {
   const at = process.argv.indexOf(`--${name}`);
@@ -40,31 +44,6 @@ function spawnPsql(args, options = {}) {
   return useSudoPostgres
     ? spawnSync('sudo', ['-n', '-u', 'postgres', 'psql', ...args], options)
     : spawnSync('psql', args, options);
-}
-
-export function parseOwnerStatements(source, tag) {
-  return source.split('--> statement-breakpoint').map((statement, index) => {
-    const match = /^\s*--\s*BCB-MIGRATION-OWNER:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(statement);
-    if (!match?.[1]) {
-      throw new Error(`pending migration ${tag} statement ${index + 1} has no BCB-MIGRATION-OWNER`);
-    }
-    if (match[1] === 'postgres') {
-      throw new Error(`pending migration ${tag} statement ${index + 1} cannot use postgres as a schema owner`);
-    }
-    let remainder = statement.slice(match[0].length);
-    const schemaCreateMatch = /^\s*--\s*BCB-MIGRATION-SCHEMA-CREATE:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(remainder);
-    if (schemaCreateMatch) remainder = remainder.slice(schemaCreateMatch[0].length);
-    const languageUsageMatch = /^\s*--\s*BCB-MIGRATION-LANGUAGE-USAGE:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(remainder);
-    if (languageUsageMatch) remainder = remainder.slice(languageUsageMatch[0].length);
-    const sql = remainder.trim();
-    if (!sql) throw new Error(`pending migration ${tag} statement ${index + 1} is empty`);
-    return {
-      owner: match[1],
-      schemaCreate: schemaCreateMatch?.[1] ?? null,
-      languageUsage: languageUsageMatch?.[1] ?? null,
-      sql,
-    };
-  });
 }
 
 function readDrizzleMigrations(folder) {
@@ -143,7 +122,7 @@ if (drizzleFolder) {
   }
   steps.push({ owner: legacyOwners[0], migration: legacyMigration });
 }
-const owners = [...new Set(steps.map((step) => step.owner))];
+const owners = [...new Set(steps.filter((step) => !step.backfill).map((step) => step.owner))];
 const temporarySchemaCreates = [...new Map(
   steps
     .filter((step) => step.schemaCreate)
@@ -162,6 +141,7 @@ if (steps.some((step) => step.migration && !existsSync(step.migration)) || (back
 
 const qDb = sqlIdentifier(db);
 const qMigrator = sqlIdentifier(migrator);
+const temporaryMembershipAssertion = renderTemporaryMembershipAssertion(migrator, owners);
 const statements = [
   '\\set ON_ERROR_STOP on',
   'BEGIN;',
@@ -171,19 +151,33 @@ const statements = [
   ...temporaryLanguageUsages.map(({ owner, language }) =>
     `GRANT USAGE ON LANGUAGE ${sqlIdentifier(language)} TO ${sqlIdentifier(owner)};`),
   `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
-  ...steps.flatMap(({ owner, migration, sql, drizzle }, index) => [
-    `SET LOCAL ROLE ${sqlIdentifier(owner)};`,
-    "SELECT session_user, current_user, has_schema_privilege(current_user, 'public', 'CREATE') AS can_create_public;",
-    migration ? `\\i ${migration}` : sql,
-    'RESET ROLE;',
-    ...(drizzle && (index === steps.length - 1 || steps[index + 1]?.drizzle?.tag !== drizzle.tag)
+  ...steps.flatMap(({ owner, migration, sql, drizzle, backfill }, index) => {
+    const closesDrizzleMigration = drizzle
+      && (index === steps.length - 1 || steps[index + 1]?.drizzle?.tag !== drizzle.tag);
+    const execution = backfill
       ? [
+          'RESET ROLE;',
           'RESET SESSION AUTHORIZATION;',
-          `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${sqlLiteral(drizzle.hash)}, ${drizzle.when});`,
-          `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
+          sql,
+          ...(!closesDrizzleMigration ? [`SET LOCAL SESSION AUTHORIZATION ${qMigrator};`] : []),
         ]
-      : []),
-  ]),
+      : [
+          `SET LOCAL ROLE ${sqlIdentifier(owner)};`,
+          "SELECT session_user, current_user, has_schema_privilege(current_user, 'public', 'CREATE') AS can_create_public;",
+          migration ? `\\i ${migration}` : sql,
+          'RESET ROLE;',
+        ];
+    return [
+      ...execution,
+      ...(closesDrizzleMigration
+        ? [
+            'RESET SESSION AUTHORIZATION;',
+            `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${sqlLiteral(drizzle.hash)}, ${drizzle.when});`,
+            `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
+          ]
+        : []),
+    ];
+  }),
   'RESET SESSION AUTHORIZATION;',
   ...(backfill ? [`\\i ${backfill}`] : []),
   ...temporarySchemaCreates.map(({ owner, schema }) =>
@@ -192,11 +186,7 @@ const statements = [
     `REVOKE USAGE ON LANGUAGE ${sqlIdentifier(language)} FROM ${sqlIdentifier(owner)};`),
   ...owners.map((owner) => `REVOKE ${sqlIdentifier(owner)} FROM ${qMigrator};`),
   `DO $$ BEGIN
-     IF EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m
-                WHERE m.member = '${migrator}'::regrole
-                  AND m.roleid = ANY (ARRAY[${owners.map((owner) => `'${owner}'::regrole`).join(', ')}])) THEN
-       RAISE EXCEPTION 'temporary migration membership survived';
-     END IF;
+     ${temporaryMembershipAssertion ?? ''}
      IF (SELECT rolcanlogin OR rolinherit OR rolbypassrls FROM pg_catalog.pg_roles WHERE rolname = '${migrator}') THEN
        RAISE EXCEPTION 'migrator post-state is not NOLOGIN/NOINHERIT/NOBYPASSRLS';
      END IF;

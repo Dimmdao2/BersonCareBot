@@ -1998,6 +1998,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
       functionIdentity: 'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)' },
+    integrator_inbound_reply_enqueue: { port: 'integrator', runtimeName: 'inbound_reply_enqueue',
+      sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
+      contextClass: 'service', purpose: 'delivery.inbound-reply.enqueue',
+      functionIdentity: 'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)' },
     integrator_webhook_outcome_record: { port: 'integrator', runtimeName: 'webhook_outcome_record',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'integrator.webhook-outcome.record',
@@ -2007,10 +2011,19 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_resolver', contextClass: 'integrator',
       purpose: 'integrator.dedicated-bot.resolve',
       functionIdentity: 'app.resolve_clinic_dedicated_bot_organization(text,text)' },
+    integrator_user_organization_resolve: { port: 'integrator',
+      runtimeName: 'integrator_user_organization_resolve', sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_resolver', contextClass: 'integrator',
+      purpose: 'integrator.user-organization.resolve',
+      functionIdentity: 'app.resolve_active_organization_for_integrator_user_id(bigint)' },
     integrator_auth_channel_setting_read: { port: 'integrator', runtimeName: 'auth_channel_setting',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'config.integrator-auth-channel.read',
       functionIdentity: 'app.read_integrator_auth_channel_setting(text)' },
+    integrator_runtime_setting_read: { port: 'integrator', runtimeName: 'runtime_setting',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
+      purpose: 'config.integrator-runtime.read',
+      functionIdentity: 'app.read_integrator_runtime_setting(text)' },
     integrator_smtp_outbound_setting_read: { port: 'integrator', runtimeName: 'smtp_outbound_setting',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'config.integrator-smtp.read',
@@ -2069,6 +2082,10 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.organization.resolve',
       functionIdentity: 'app.read_current_patient_active_organizations()' },
+    patient_material_rating_snapshot: { port: 'webapp', runtimeName: 'patient_material_rating_snapshot',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.material-rating.snapshot.read',
+      functionIdentity: 'app.read_current_patient_material_rating_snapshot(text,uuid)' },
     webapp_clinic_billing_relation: { port: 'webapp', runtimeName: 'clinicBilling', sessionRole: 'app_staff',
       targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'relation' },
     webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_platform_settings',
@@ -2318,6 +2335,30 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.resolve_organization_mechanic_access(uuid,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_mechanic_access(uuid,text)'],
+      execute: [
+        ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_mechanic_access(uuid,text)'].execute,
+        'app_tenant_service',
+      ],
+    },
+    'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_operational_delivery_worker'], purpose: 'enqueue one failed accepted-event messenger reply',
+      typedArgs: ['text', 'text', 'text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
+        columns: ['event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts',
+          'next_retry_at', 'organization_id'], operations: ['SELECT' as const, 'INSERT' as const],
+        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0410' as const }],
+    }),
+    'app.saas_billing_effective_tariff(uuid,uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.saas_billing_effective_tariff(uuid,uuid)'],
+      execute: [
+        ...BUSINESS_SEAM_FUNCTIONS['app.saas_billing_effective_tariff(uuid,uuid)'].execute,
+        'app_tenant_service',
+      ],
+    },
     'app.resolve_organization_cabinet_access(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_cabinet_access(uuid)'],
       delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
@@ -2404,9 +2445,13 @@ const REV10_CONTEXT = {
       invocation: 'trigger' as const,
     }),
     'public.audit_app_runtime_settings_change()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'DEFINER', returns: 'trigger', execute: [],
       purpose: 'application runtime-settings audit trigger', typedArgs: [],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, public, pg_temp'], invocation: 'trigger' as const,
+      relationSurfaces: [{ relation: 'public.app_runtime_settings_audit',
+        columns: ['audience', 'key', 'new_value_json', 'old_value_json', 'organization_id', 'scope', 'source',
+          'updated_by'], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'public.media_folders_enforce_depth()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
@@ -2647,6 +2692,10 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_provider_runtime_setting(text)'],
       execute: ['app_service'], purpose: 'return one fixed-allowlist provider setting to the integrator service',
     }),
+    'app.read_integrator_runtime_setting(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_runtime_setting(text)'],
+      execute: ['app_service'], purpose: 'return one fixed-allowlist non-secret setting to the integrator service',
+    }),
     'app.read_integrator_auth_channel_setting(text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_auth_channel_setting(text)'],
       execute: ['app_service'], purpose: 'return one fixed-allowlist auth-channel flag to the integrator service',
@@ -2784,6 +2833,29 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'public.be_patient_booking_profiles',
         columns: ['organization_id', 'platform_user_id', 'booking_blocked'], operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.read_current_patient_material_rating_snapshot(text,uuid)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_patient'], purpose: 'patient.material-rating.snapshot.read', typedArgs: ['text', 'uuid'],
+      volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.material_ratings',
+        columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'],
+        operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.resolve_active_organization_for_integrator_user_id(bigint)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_integrator_resolver'], purpose: 'integrator.user-organization.resolve',
+      typedArgs: ['bigint'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'integrator_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
       execute: [], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'],
@@ -2970,6 +3042,37 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.lfk_complexes': {
     kind: 'direct', purpose: 'patient reads only its own assigned exercise complexes in the current clinic',
     codePaths: ['apps/webapp/src/infra/repos/pgLfkDiary.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.material_ratings': {
+    kind: 'direct', purpose: 'patient manages only its own row; current-clinic aggregates use one named root',
+    codePaths: ['apps/webapp/src/infra/repos/pgMaterialRating.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'],
+        columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'] },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['id', 'organization_id', 'stars', 'target_id', 'target_kind', 'updated_at', 'user_id'] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: ['stars', 'updated_at'] },
+    ],
+  },
+  'public.patient_content_rating_feedback': {
+    kind: 'direct', purpose: 'patient writes feedback only for itself inside the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: ['id'] },
+      { role: 'app_patient', operations: ['INSERT'],
+        columns: ['comment', 'content_page_id', 'created_at', 'id', 'organization_id', 'rating_value',
+          'reason_codes', 'user_id'] },
+    ],
+  },
+  'public.patient_home_block_items': {
+    kind: 'direct', purpose: 'patient reads only visible home items of the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.patient_home_blocks': {
+    kind: 'direct', purpose: 'patient reads only visible home blocks of the current clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts'],
     grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
   },
   'public.reminder_rules': {
@@ -3346,8 +3449,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.app_runtime_settings_audit': {
     kind: 'direct', purpose: 'platform operators inspect the immutable runtime-setting change ledger',
-    codePaths: ['apps/webapp/src/infra/repos/pgRuntimeSettings.ts'],
-    grants: [{ role: 'app_platform_settings', operations: ['SELECT', 'INSERT'], columns: 'table' }],
+    codePaths: ['apps/webapp/src/infra/repos/pgRuntimeSettings.ts',
+      'apps/webapp/db/drizzle-migrations/0407_material_rating_snapshot_and_runtime_audit_owner_local.sql'],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+    ],
   },
   'public.saas_billing_periods': {
     kind: 'direct', purpose: 'staff reads the billing-period catalog; platform operations alone maintain it',
@@ -3525,6 +3631,7 @@ const REV10_PLATFORM_USER_COLUMN: Record<string, string> = {
  * (active staff OR patient enrollment), or P (an exact current-org parent).
  */
 const REV10_TENANT_DIRECT_ORG = new Set([
+  'integrator.user_reminder_occurrences',
   'public.be_appointment_staff_comments', 'public.be_appointments', 'public.be_organization_members',
   'public.be_organizations', 'public.be_package_usages', 'public.be_patient_booking_profiles',
   'public.be_patient_packages', 'public.be_patient_timeline_events', 'public.be_payment_history_events',
@@ -3792,6 +3899,69 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   return `(${rolePredicate})`;
 }
 
+function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const patientOrg = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()";
+  const patientOwn = `${patientOrg} AND user_id = app.current_patient_user_id()`;
+  return [
+    { name: `rev10_material_ratings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff', 'app_patient'], using: `((${staffOrg}) OR (${patientOwn}))`,
+      note: 'staff reads clinic rows; patient direct reads remain self-only' },
+    { name: `rev10_material_ratings_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
+      to: ['app_staff', 'app_patient'], withCheck: `((${staffOrg}) OR (${patientOwn}))`,
+      note: 'patient inserts only its own current-clinic rating' },
+    { name: `rev10_material_ratings_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
+      to: ['app_staff', 'app_patient'], using: `((${staffOrg}) OR (${patientOwn}))`,
+      withCheck: `((${staffOrg}) OR (${patientOwn}))`,
+      note: 'patient updates only its own current-clinic rating' },
+    { name: `rev10_material_ratings_delete_${index + 1}`, as: 'PERMISSIVE', cmd: 'DELETE',
+      to: ['app_staff'], using: `(${staffOrg})`, note: 'only clinic staff deletes clinic ratings' },
+  ];
+}
+
+function revision10PatientRatingFeedbackPolicies(index: number): PolicyDecl[] {
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const patientOwn = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+    + ' AND user_id = app.current_patient_user_id()';
+  return [
+    { name: `rev10_patient_rating_feedback_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff', 'app_patient'], using: `((${staffOrg}) OR (${patientOwn}))`,
+      note: 'clinic staff reads clinic feedback; patient can return only its own inserted row id' },
+    { name: `rev10_patient_rating_feedback_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
+      to: ['app_staff', 'app_patient'], withCheck: `((${staffOrg}) OR (${patientOwn}))`,
+      note: 'patient inserts feedback only for itself inside the accepted clinic context' },
+  ];
+}
+
+function revision10RuntimeSettingsAuditPolicies(index: number): PolicyDecl[] {
+  const platformGlobal = "current_user = 'app_platform_settings'::name AND organization_id IS NULL";
+  return [
+    { name: `rev10_runtime_settings_audit_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_platform_settings'], using: `(${platformGlobal})`,
+      note: 'platform settings reads only the global immutable runtime-setting ledger' },
+  ];
+}
+
+function revision10PatientHomeCatalogPolicies(
+  tableKey: 'public.patient_home_blocks' | 'public.patient_home_block_items',
+  index: number,
+): PolicyDecl[] {
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const patientVisible = tableKey === 'public.patient_home_blocks'
+    ? "current_user = 'app_patient'::name AND organization_id = app.current_org_id() AND is_visible = true"
+    : "current_user = 'app_patient'::name AND organization_id = app.current_org_id() AND is_visible = true"
+      + ' AND EXISTS (SELECT 1 FROM public.patient_home_blocks parent_block'
+      + ' WHERE parent_block.code = block_code AND parent_block.organization_id = app.current_org_id()'
+      + ' AND parent_block.is_visible = true)';
+  return [{
+    name: `rev10_patient_home_catalog_${index + 1}`,
+    as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff', 'app_patient'],
+    using: `((${staffOrg}) OR (${patientVisible}))`,
+    withCheck: `(${staffOrg})`,
+    note: `staff manages and patient only reads visible current-clinic rows of ${tableKey}`,
+  }];
+}
+
 function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
   const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = app.current_org_id()) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
@@ -3942,6 +4112,15 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         ? revision10PlatformUsersPolicies(index)
       : key === 'public.admin_audit_log' && access?.kind === 'direct'
         ? revision10AdminAuditLogPolicies(index)
+      : key === 'public.material_ratings' && access?.kind === 'direct'
+        ? revision10MaterialRatingsPolicies(index)
+      : key === 'public.patient_content_rating_feedback' && access?.kind === 'direct'
+        ? revision10PatientRatingFeedbackPolicies(index)
+      : key === 'public.app_runtime_settings_audit' && access?.kind === 'direct'
+        ? revision10RuntimeSettingsAuditPolicies(index)
+      : (key === 'public.patient_home_blocks' || key === 'public.patient_home_block_items')
+          && access?.kind === 'direct'
+        ? revision10PatientHomeCatalogPolicies(key, index)
       : REV10_PATIENT_SELF_MANAGED_COLUMN[key] && access?.kind === 'direct'
         ? revision10PatientSelfManagedPolicies(key, index)
       : access?.kind === 'direct' && specialized ? directBusiness

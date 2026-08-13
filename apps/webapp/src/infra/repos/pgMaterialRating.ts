@@ -1,6 +1,10 @@
 /** Wave 3 phase 15C — doctor detail TZ aggregates via `runWebappPgText`. */
 import { and, avg, count, desc, eq, inArray, sql } from 'drizzle-orm';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { resolveMaterialRatingTargetVideoMediaIds } from '@/infra/repos/materialRatingTargetVideoMediaIds';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
@@ -53,7 +57,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
           },
           where: eq(materialRatings.organizationId, input.organizationId),
         })
-        .returning({ id: materialRatings.id });
+        .returning({ userId: materialRatings.userId });
       if (!row) throw new Error('material_rating organization mismatch');
     },
 
@@ -72,6 +76,44 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         )
         .limit(1);
       return rows[0]?.stars ?? null;
+    },
+
+    async getPatientSnapshot(input) {
+      const result = await runWebappNamedRoot<{
+        rating_count: number | string;
+        avg_stars: number | string | null;
+        c1: number | string;
+        c2: number | string;
+        c3: number | string;
+        c4: number | string;
+        c5: number | string;
+        my_stars: number | null;
+      }>(
+        getWebappSqlDb(),
+        'app.read_current_patient_material_rating_snapshot(text,uuid)',
+        [input.targetKind, input.targetId],
+        sql`SELECT * FROM app.read_current_patient_material_rating_snapshot(
+          ${input.targetKind}::text,
+          ${input.targetId}::uuid
+        )`,
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('patient material-rating snapshot returned no row');
+      const countValue = Number(row.rating_count);
+      return {
+        aggregate: {
+          count: countValue,
+          avg: row.avg_stars == null ? null : Number(row.avg_stars),
+          distribution: {
+            1: Number(row.c1),
+            2: Number(row.c2),
+            3: Number(row.c3),
+            4: Number(row.c4),
+            5: Number(row.c5),
+          },
+        },
+        myStars: row.my_stars,
+      };
     },
 
     async getAggregate(input) {

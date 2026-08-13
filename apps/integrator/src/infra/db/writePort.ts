@@ -27,7 +27,6 @@ import {
   expireOrphanedPendingReminderOccurrences,
   markReminderOccurrenceSkippedLocal,
   rescheduleReminderOccurrencePlanned,
-  cancelPendingReminderOccurrencesForRule,
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
@@ -56,7 +55,10 @@ import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQue
 import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
-import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
+import {
+  runWithIntegratorPrincipal,
+  runWithOrganizationPrincipal,
+} from '../principal/organizationPrincipal.js';
 import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
 
@@ -439,10 +441,16 @@ export function createDbWritePort(
           const notificationTopicCodeRaw = notificationTopicCodeProvided
             ? asNullableString(mutation.params.notificationTopicCode)
             : undefined;
+          const resolvedPlatformUserId = asNonEmptyString(
+            mutation.params.resolvedPlatformUserId,
+          );
+          const resolvedOrganizationId = asNonEmptyString(
+            mutation.params.resolvedOrganizationId,
+          );
           const canonicalUserId = userId;
-          // D5 canonical write: the scheduler reads this same public row. Pending occurrences are
-          // cancelled only after the canonical update commits, so an outbox fallback never removes
-          // an existing schedule before its replacement is durable.
+          // D5 canonical write: the scheduler reads this same public row. The direct repository writes
+          // the replacement and cancels pending occurrences in one transaction; on failure the old
+          // schedule remains intact until the durable projection is consumed.
           const fallbackKeyPayload = buildReminderRuleUpsertKeyPayload({
             integratorRuleId: id,
             integratorUserId: canonicalUserId,
@@ -479,21 +487,33 @@ export function createDbWritePort(
                 quietHoursStartMinute,
                 quietHoursEndMinute,
                 notificationTopicCode: notificationTopicCodeRaw,
+                resolvedPlatformUserId,
+                resolvedOrganizationId,
               }),
             );
-            await cancelPendingReminderOccurrencesForRule(db, id);
           } catch (err) {
             const fallbackUpdatedAt = new Date().toISOString();
-            await enqueueProjectionEvent(db, {
-              eventType: REMINDER_RULE_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(
-                REMINDER_RULE_UPSERTED,
-                id,
-                hashPayload(fallbackKeyPayload),
-              ),
-              occurredAt: fallbackUpdatedAt,
-              payload: { ...fallbackKeyPayload, updatedAt: fallbackUpdatedAt },
-            });
+            const fallbackOrganizationId =
+              resolvedOrganizationId ?? getCurrentDbPrincipalOrganizationId();
+            if (!fallbackOrganizationId) throw err;
+            await runWithIntegratorPrincipal(
+              {
+                organizationId: fallbackOrganizationId,
+                integratorUserId: canonicalUserId,
+                source: 'reminder-rule-outbox-fallback',
+              },
+              () =>
+                enqueueProjectionEvent(db, {
+                  eventType: REMINDER_RULE_UPSERTED,
+                  idempotencyKey: projectionIdempotencyKey(
+                    REMINDER_RULE_UPSERTED,
+                    id,
+                    hashPayload(fallbackKeyPayload),
+                  ),
+                  occurredAt: fallbackUpdatedAt,
+                  payload: { ...fallbackKeyPayload, updatedAt: fallbackUpdatedAt },
+                }),
+            );
             logger.warn(
               { err, mutationType: mutation.type, id, userId: canonicalUserId },
               'reminders.rule.upsert: direct public write failed, fell back to durable outbox',

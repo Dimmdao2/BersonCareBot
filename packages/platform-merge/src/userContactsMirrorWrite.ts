@@ -12,43 +12,43 @@ export async function syncUserContactsMirror(
 ): Promise<void> {
   await runMergeSql(
     db,
-    sql`DELETE FROM user_contacts WHERE platform_user_id = ${platformUserId}::uuid`,
+    sql`DELETE FROM public.user_contacts WHERE platform_user_id = ${platformUserId}::uuid`,
   );
 
   await runMergeSql(
     db,
-    sql`INSERT INTO user_contacts (
+    sql`INSERT INTO public.user_contacts (
        platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
      SELECT pu.id, 'phone', pu.phone_normalized,
             true, pu.patient_phone_trust_at, 'platform_users', now()
-     FROM platform_users pu
+     FROM public.platform_users pu
      WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL AND pu.phone_normalized IS NOT NULL`,
   );
 
   await runMergeSql(
     db,
-    sql`INSERT INTO user_contacts (
+    sql`INSERT INTO public.user_contacts (
        platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
      SELECT pu.id, 'email', pu.email_normalized,
             true, pu.email_verified_at, 'platform_users', now()
-     FROM platform_users pu
+     FROM public.platform_users pu
      WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL AND pu.email_normalized IS NOT NULL`,
   );
 
   await runMergeSql(
     db,
-    sql`INSERT INTO user_contacts (
+    sql`INSERT INTO public.user_contacts (
        platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
      SELECT ob.user_id, 'email', lower(btrim(ob.email)),
             false, ob.created_at, 'oauth_binding', now()
-     FROM user_oauth_bindings ob
-     INNER JOIN platform_users pu ON pu.id = ob.user_id
+     FROM public.user_oauth_bindings ob
+     INNER JOIN public.platform_users pu ON pu.id = ob.user_id
      WHERE ob.user_id = ${platformUserId}::uuid
        AND pu.merged_into_id IS NULL
        AND ob.email IS NOT NULL
@@ -57,14 +57,14 @@ export async function syncUserContactsMirror(
 
   await runMergeSql(
     db,
-    sql`INSERT INTO user_contacts (
+    sql`INSERT INTO public.user_contacts (
        platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
      SELECT uph.platform_user_id, 'phone', uph.phone_normalized,
             false, uph.valid_from, 'phone_history', now()
-     FROM user_phone_history uph
-     INNER JOIN platform_users pu ON pu.id = uph.platform_user_id
+     FROM public.user_phone_history uph
+     INNER JOIN public.platform_users pu ON pu.id = uph.platform_user_id
      WHERE uph.platform_user_id = ${platformUserId}::uuid
        AND uph.valid_to IS NULL
        AND pu.merged_into_id IS NULL`,
@@ -82,6 +82,6 @@ export async function clearDuplicateUserContactsBeforeTargetMirror(
 ): Promise<void> {
   await runMergeSql(
     db,
-    sql`DELETE FROM user_contacts WHERE platform_user_id = ${duplicateId}::uuid`,
+    sql`DELETE FROM public.user_contacts WHERE platform_user_id = ${duplicateId}::uuid`,
   );
 }

@@ -8,7 +8,6 @@ export const p083PolicyName = 'saas_org_dormant_p0_8_3';
 export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.admin_audit_log',
   'public.be_appointment_cancellations',
-  'public.be_appointment_events',
   'public.be_appointment_history_events',
   'public.be_appointment_no_shows',
   'public.be_appointment_reschedules',

@@ -23,6 +23,7 @@ describe('dedicated Telegram inbound ownership', () => {
     apps.push(app);
     await registerTelegramWebhookRoutes(app, {
       eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
       resolveOrganizationIdForMessengerIdentity: async () =>
         '99999999-9999-4999-8999-999999999999',
       resolveDedicatedClinicBotOrganization: async (fingerprint) =>

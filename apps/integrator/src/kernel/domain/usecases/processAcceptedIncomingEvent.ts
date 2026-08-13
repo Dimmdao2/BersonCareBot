@@ -11,11 +11,8 @@ import type {
 } from '../../contracts/index.js';
 import { handleIncomingEvent } from '../handleIncomingEvent.js';
 import { logger } from '../../../infra/observability/logger.js';
-import { enqueueOutgoingDeliveryIfAbsent } from '../../../infra/db/repos/outgoingDeliveryQueue.js';
-import {
-  INBOUND_REPLY_DELIVERY_MAX_ATTEMPTS,
-  INBOUND_REPLY_QUEUE_KIND,
-} from '../../../infra/delivery/deliveryContract.js';
+import { enqueueAcceptedIncomingReplyIfAbsent } from '../../../infra/db/repos/outgoingDeliveryQueue.js';
+import { INBOUND_REPLY_DELIVERY_MAX_ATTEMPTS } from '../../../infra/delivery/deliveryContract.js';
 
 type ProcessAcceptedIncomingEventDeps = {
   readPort: DbReadPort;
@@ -36,6 +33,30 @@ type ProcessAcceptedIncomingEventDeps = {
  */
 const ACK_INTENT_TYPES: ReadonlySet<OutgoingIntent['type']> = new Set(['callback.answer']);
 
+/**
+ * The accepted incoming-event pipeline is the single trusted constructor for ordinary messenger
+ * replies. Older action handlers intentionally emit transport-neutral intents, so attach their
+ * egress capability once here instead of duplicating the same marker across every reply action.
+ * Explicit markers (for example a contact handshake) remain authoritative and are never rewritten.
+ */
+function authorizeAcceptedIncomingReply(intent: OutgoingIntent): OutgoingIntent {
+  if (
+    intent.type !== 'message.send' ||
+    intent.meta.outboundMessageClass !== undefined ||
+    intent.meta.outboundCapability !== undefined
+  ) {
+    return intent;
+  }
+  return {
+    ...intent,
+    meta: {
+      ...intent.meta,
+      outboundMessageClass: 'routine_product',
+      outboundCapability: 'essential_delivery',
+    },
+  };
+}
+
 /** D35: очередь понимает только каналы-мессенджеры (см. `handleDispatchFailure`'s bot-blocked gate). */
 function isQueueableReplyChannel(source: string): source is 'telegram' | 'max' {
   return source === 'telegram' || source === 'max';
@@ -46,18 +67,18 @@ function isQueueableReplyChannel(source: string): source is 'telegram' | 'max' {
  * сейчас, — ставится в durable-очередь на короткой лестнице (`INBOUND_REPLY_QUEUE_KIND`) вместо
  * того, чтобы остаться только строкой в логе. Дальше судьбу строки решает воркер
  * (`outgoingDeliveryWorker.ts`): постоянный отказ (бот заблокирован) — без ретрая и без инцидента;
- * временный, исчерпавший короткую лестницу, — инцидент оператора. `enqueueOutgoingDeliveryIfAbsent`
+ * временный, исчерпавший короткую лестницу, — инцидент оператора. Exact enqueue boundary
  * идемпотентен по `eventId`, повторная постановка того же провала дубля не создаст.
  */
 async function enqueueFailedReplyForRetry(
   db: DbPort,
   intent: OutgoingIntent,
   intentIndex: number,
+  channel: 'telegram' | 'max',
 ): Promise<boolean> {
-  return enqueueOutgoingDeliveryIfAbsent(db, {
+  return enqueueAcceptedIncomingReplyIfAbsent(db, {
     eventId: `${intent.meta.eventId}:queued:${intentIndex}`,
-    kind: INBOUND_REPLY_QUEUE_KIND,
-    channel: intent.meta.source,
+    channel,
     payloadJson: { intent },
     maxAttempts: INBOUND_REPLY_DELIVERY_MAX_ATTEMPTS,
   });
@@ -88,8 +109,9 @@ export async function processAcceptedIncomingEvent(
   const failedIntentTypes: string[] = [];
 
   for (let i = 0; i < domainResult.intents.length; i++) {
-    const intent = domainResult.intents[i];
-    if (intent === undefined) continue;
+    const rawIntent = domainResult.intents[i];
+    if (rawIntent === undefined) continue;
+    const intent = authorizeAcceptedIncomingReply(rawIntent);
     try {
       await deps.dispatchIntent(intent);
     } catch (caught) {
@@ -102,7 +124,7 @@ export async function processAcceptedIncomingEvent(
       let queuedForRetry = false;
       if (deps.db && !ACK_INTENT_TYPES.has(intent.type) && isQueueableReplyChannel(meta.source)) {
         try {
-          queuedForRetry = await enqueueFailedReplyForRetry(deps.db, intent, i);
+          queuedForRetry = await enqueueFailedReplyForRetry(deps.db, intent, i, meta.source);
         } catch (queueErr) {
           logger.error(
             {

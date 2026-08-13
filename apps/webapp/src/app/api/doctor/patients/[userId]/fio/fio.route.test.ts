@@ -23,7 +23,14 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspace,
 }));
 vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentDbPrincipal: () => ({
+    kind: 'staff',
+    organizationId: '00000000-0000-4000-8000-0000000d0029',
+    platformUserId: '00000000-0000-4000-8000-0000000d0129',
+    source: 'fio-route-test',
+  }),
   runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T => callback(),
+  runWithDbStaffPrincipal: <T>(_ctx: unknown, callback: () => T): T => callback(),
 }));
 
 import { FIO_LATIN_REJECTED_TEXT } from '@/shared/lib/fio';

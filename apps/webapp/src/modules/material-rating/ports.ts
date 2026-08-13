@@ -22,6 +22,14 @@ export type MaterialRatingPort = {
     targetId: string;
   }): Promise<number | null>;
 
+  /** Patient-safe aggregate plus own value; never exposes another patient's rating row. */
+  getPatientSnapshot(input: {
+    organizationId: string;
+    userId: string | null;
+    targetKind: MaterialRatingTargetKind;
+    targetId: string;
+  }): Promise<{ aggregate: MaterialRatingAggregate; myStars: number | null }>;
+
   getAggregate(input: {
     organizationId: string;
     targetKind: MaterialRatingTargetKind;

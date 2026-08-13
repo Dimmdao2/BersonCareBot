@@ -150,10 +150,11 @@ export async function fetchIntegratorRuntimeSettingValueJson(
   db: DbPort,
   key: IntegratorRuntimeSettingKey,
 ): Promise<unknown | null> {
-  const result = await runIntegratorSql<{ value_json: unknown }>(
-    db,
-    sql`SELECT app.read_integrator_runtime_setting(${key}) AS value_json`,
-  );
+  const result = await runWithDbInfraPrincipal({ source: 'integrator-server-runtime-config' }, () =>
+    runIntegratorNamedRoot<{ value_json: unknown }>(
+      db, 'app.read_integrator_runtime_setting(text)', [key],
+      sql`SELECT app.read_integrator_runtime_setting(${key}) AS value_json`,
+    ));
   return result.rows[0]?.value_json ?? null;
 }
 

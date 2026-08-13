@@ -553,6 +553,7 @@ BEGIN
      AND setting.audience = 'server'
      AND setting.key IN (
        'debug_forward_to_admin', 'video_presign_ttl_seconds',
+       'material_ratings_enabled',
        'admin_telegram_ids', 'admin_max_ids', 'admin_phones', 'admin_emails',
        'doctor_telegram_ids', 'doctor_max_ids', 'doctor_phones', 'auth_2fa_enabled'
      )

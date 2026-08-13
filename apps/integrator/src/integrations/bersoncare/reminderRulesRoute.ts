@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { DbWriteDbResult, DbWritePort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
+import type { ResolvedIntegratorUserTenant } from '../../infra/db/repos/channelUsers.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -62,14 +63,16 @@ function verifySignature(
 export type BersoncareReminderRulesDeps = {
   writePort: DbWritePort;
   sharedSecret: string;
-  resolveOrganizationIdForIntegratorUserId?: (integratorUserId: string) => Promise<string | null>;
+  resolveTenantForIntegratorUserId?: (
+    integratorUserId: string,
+  ) => Promise<ResolvedIntegratorUserTenant | null>;
 };
 
 export async function registerBersoncareReminderRulesRoute(
   app: FastifyInstance,
   deps: BersoncareReminderRulesDeps,
 ): Promise<void> {
-  const { writePort, sharedSecret, resolveOrganizationIdForIntegratorUserId } = deps;
+  const { writePort, sharedSecret, resolveTenantForIntegratorUserId } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -116,52 +119,63 @@ export async function registerBersoncareReminderRulesRoute(
       }
 
       try {
-        const writeRule = (): Promise<void | DbWriteDbResult> =>
+        const ruleParams = {
+          id: payload.integratorRuleId,
+          userId: payload.integratorUserId,
+          category: payload.category,
+          isEnabled: payload.isEnabled,
+          scheduleType: payload.scheduleType,
+          timezone: payload.timezone,
+          intervalMinutes: payload.intervalMinutes,
+          windowStartMinute: payload.windowStartMinute,
+          windowEndMinute: payload.windowEndMinute,
+          daysMask: payload.daysMask,
+          contentMode: payload.contentMode,
+          linkedObjectType: payload.linkedObjectType ?? null,
+          linkedObjectId: payload.linkedObjectId ?? null,
+          customTitle: payload.customTitle ?? null,
+          customText: payload.customText ?? null,
+          deepLink: payload.deepLink ?? null,
+          scheduleData: payload.scheduleData,
+          reminderIntent: payload.reminderIntent ?? null,
+          quietHoursStartMinute: payload.quietHoursStartMinute ?? null,
+          quietHoursEndMinute: payload.quietHoursEndMinute ?? null,
+          ...(payload.notificationTopicCode !== undefined
+            ? {
+                notificationTopicCode:
+                  typeof payload.notificationTopicCode === 'string'
+                    ? payload.notificationTopicCode.trim() || null
+                    : payload.notificationTopicCode,
+              }
+            : {}),
+        };
+        const writeRule = (
+          resolvedTenant?: ResolvedIntegratorUserTenant,
+        ): Promise<void | DbWriteDbResult> =>
           writePort.writeDb({
             type: 'reminders.rule.upsert',
             params: {
-              id: payload.integratorRuleId,
-              userId: payload.integratorUserId,
-              category: payload.category,
-              isEnabled: payload.isEnabled,
-              scheduleType: payload.scheduleType,
-              timezone: payload.timezone,
-              intervalMinutes: payload.intervalMinutes,
-              windowStartMinute: payload.windowStartMinute,
-              windowEndMinute: payload.windowEndMinute,
-              daysMask: payload.daysMask,
-              contentMode: payload.contentMode,
-              linkedObjectType: payload.linkedObjectType ?? null,
-              linkedObjectId: payload.linkedObjectId ?? null,
-              customTitle: payload.customTitle ?? null,
-              customText: payload.customText ?? null,
-              deepLink: payload.deepLink ?? null,
-              scheduleData: payload.scheduleData,
-              reminderIntent: payload.reminderIntent ?? null,
-              quietHoursStartMinute: payload.quietHoursStartMinute ?? null,
-              quietHoursEndMinute: payload.quietHoursEndMinute ?? null,
-              ...(payload.notificationTopicCode !== undefined
+              ...ruleParams,
+              ...(resolvedTenant
                 ? {
-                    notificationTopicCode:
-                      typeof payload.notificationTopicCode === 'string'
-                        ? payload.notificationTopicCode.trim() || null
-                        : payload.notificationTopicCode,
+                    resolvedPlatformUserId: resolvedTenant.platformUserId,
+                    resolvedOrganizationId: resolvedTenant.organizationId,
                   }
                 : {}),
             },
           });
-        let organizationId: string | null = null;
-        if (resolveOrganizationIdForIntegratorUserId) {
+        let tenant: ResolvedIntegratorUserTenant | null = null;
+        if (resolveTenantForIntegratorUserId) {
           try {
-            organizationId = await resolveOrganizationIdForIntegratorUserId(
+            tenant = await resolveTenantForIntegratorUserId(
               payload.integratorUserId,
             );
           } catch {
-            organizationId = null;
+            tenant = null;
           }
         }
-        if (organizationId) {
-          await runWithOrganizationPrincipal(organizationId, writeRule);
+        if (tenant) {
+          await runWithOrganizationPrincipal(tenant.organizationId, () => writeRule(tenant));
         } else {
           await writeRule();
         }

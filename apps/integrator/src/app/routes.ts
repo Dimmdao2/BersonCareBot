@@ -11,8 +11,9 @@ import { registerBersoncareBookingLifecycleRoute } from '../integrations/bersonc
 import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
 import {
-  resolveActiveOrganizationIdForIntegratorUserId,
+  resolveActiveTenantForIntegratorUserId,
 } from '../infra/db/repos/channelUsers.js';
+import type { ResolvedIntegratorUserTenant } from '../infra/db/repos/channelUsers.js';
 import { resolveActiveOrganizationIdForChannel } from '../infra/db/repos/platformUserByChannel.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
@@ -55,14 +56,14 @@ function createResolveOrganizationIdForMessengerIdentity(): (
   };
 }
 
-function createResolveOrganizationIdForIntegratorUserId(): (
+function createResolveTenantForIntegratorUserId(): (
   integratorUserId: string,
-) => Promise<string | null> {
+) => Promise<ResolvedIntegratorUserTenant | null> {
   return async (integratorUserId) => {
     try {
       const db = createDbPort();
       return await runWithBootstrapPrincipal({ source: 'integrator-user-org-resolution' }, () =>
-        resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId),
+        resolveActiveTenantForIntegratorUserId(db, integratorUserId),
       );
     } catch (error) {
       reportIntegratorIsolationFailure(error);
@@ -107,7 +108,7 @@ function createResolveDedicatedClinicMaxApiKey(): (
 export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promise<void> {
   const resolveOrganizationIdForMessengerIdentity =
     createResolveOrganizationIdForMessengerIdentity();
-  const resolveOrganizationIdForIntegratorUserId = createResolveOrganizationIdForIntegratorUserId();
+  const resolveTenantForIntegratorUserId = createResolveTenantForIntegratorUserId();
   const resolveDedicatedTelegramBotOrganization =
     createResolveDedicatedClinicBotOrganization('telegram');
   const resolveDedicatedMaxBotOrganization = createResolveDedicatedClinicBotOrganization('max');
@@ -195,7 +196,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareReminderRulesRoute(app, {
     writePort: deps.dbWritePort,
     sharedSecret: integratorWebhookSecret(),
-    resolveOrganizationIdForIntegratorUserId,
+    resolveTenantForIntegratorUserId,
   });
 
   await registerOperatorHealthProbeRoute(app, {

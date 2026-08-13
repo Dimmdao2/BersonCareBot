@@ -41,11 +41,11 @@ describe('userContactsSql — D15b/6 source-of-truth contract', () => {
     await syncUserContactsMirror({ query }, userId);
 
     expect(query).toHaveBeenCalledTimes(5);
-    expect(query.mock.calls[0]![0]).toContain('DELETE FROM user_contacts');
+    expect(query.mock.calls[0]![0]).toContain('DELETE FROM public.user_contacts');
     const insertSql = query.mock.calls.slice(1).map((c) => c[0] as string).join('\n');
-    expect(insertSql).toContain('platform_users');
-    expect(insertSql).toContain('user_oauth_bindings');
-    expect(insertSql).toContain('user_phone_history');
+    expect(insertSql).toContain('public.platform_users');
+    expect(insertSql).toContain('public.user_oauth_bindings');
+    expect(insertSql).toContain('public.user_phone_history');
     // Messenger links stay in `user_channel_bindings`; mirroring them here duplicated both the
     // rows and that table's uniqueness (evidence/18-duplication-sweep.md §2а).
     expect(insertSql).not.toContain('user_channel_bindings');

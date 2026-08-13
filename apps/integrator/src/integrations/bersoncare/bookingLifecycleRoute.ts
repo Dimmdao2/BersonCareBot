@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
 import { env } from '../../config/env.js';
 import { createDbPort } from '../../infra/db/client.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import { loadAdminMessengerIdLists } from '../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
@@ -492,6 +493,21 @@ export async function handleBookingLifecycleEvent(
   const webappEventsPort = options.webappEventsPort;
 
   try {
+    if (eventType === 'booking.reschedule_requested') {
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
+
+    if (eventType === 'booking.deleted') {
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
+
+    if (eventType === 'booking.package_linked' || eventType === 'booking.package_unlinked') {
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
+
     const dbPort = createDbPort();
     const timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
 
@@ -682,21 +698,6 @@ export async function handleBookingLifecycleEvent(
       return;
     }
 
-    if (eventType === 'booking.reschedule_requested') {
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    if (eventType === 'booking.deleted') {
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    if (eventType === 'booking.package_linked' || eventType === 'booking.package_unlinked') {
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
     throw new Error('unsupported_booking_event_type');
   } catch (err) {
     await releaseBookingLifecycleKey(acquiredKey, options.idempotencyPort);
@@ -722,10 +723,17 @@ export async function handleBookingEventRequest(
     return reply.code(400).send({ ok: false, error: 'invalid_booking_event' });
   }
   try {
-    await handleBookingLifecycleEvent(parsed.data, dispatchPort, {
-      idempotencyPort: deps.idempotencyPort,
-      ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
-    });
+    const handleEvent = () =>
+      handleBookingLifecycleEvent(parsed.data, dispatchPort, {
+        idempotencyPort: deps.idempotencyPort,
+        ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
+      });
+    const organizationId = parsed.data.payload.organizationId;
+    if (organizationId) {
+      await runWithOrganizationPrincipal(organizationId, handleEvent);
+    } else {
+      await handleEvent();
+    }
     return reply.code(200).send({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

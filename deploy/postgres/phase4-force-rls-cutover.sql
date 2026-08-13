@@ -95,7 +95,6 @@ VALUES
   ('"public"."app_runtime_settings"'),
   ('"public"."app_runtime_settings_audit"'),
   ('"public"."be_appointment_cancellations"'),
-  ('"public"."be_appointment_events"'),
   ('"public"."be_appointment_history_events"'),
   ('"public"."be_appointment_no_shows"'),
   ('"public"."be_appointment_reschedules"'),

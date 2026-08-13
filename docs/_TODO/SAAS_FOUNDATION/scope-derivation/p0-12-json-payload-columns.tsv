@@ -16,7 +16,6 @@ public.treatment_program_template_stage_items	settings	SCOPED	treatment_template
 public.treatment_program_instance_stage_items	settings,snapshot,local_comment	SCOPED	treatment_instance_item_snapshot	yes	SCOPED	organization_id copied from instance stage parent; keep scoped; no samples	patient program item snapshot/comment
 public.test_results	raw_value	SCOPED	clinical_test_raw_value	yes	SCOPED	organization_id copied from test_attempts; keep scoped; no samples	clinical test answer/result value
 public.be_booking_form_submissions	attribution_json	SCOPED	booking_form_attribution	yes	SCOPED	direct organization_id NOT NULL; booking form attribution stays scoped; no samples	booking form submission attribution
-public.be_appointment_events	payload	SCOPED	booking_appointment_event	yes	SCOPED	direct organization_id NOT NULL; appointment event payload stays scoped; no samples	booking appointment audit/event payload
 public.be_patient_timeline_events	payload	SCOPED	booking_patient_timeline	yes	SCOPED	direct organization_id NOT NULL and platform_user_id FK; timeline payload stays scoped; no samples	patient timeline payload
 public.be_appointment_history_events	payload	SCOPED	booking_appointment_history	yes	SCOPED	direct organization_id NOT NULL; appointment history payload stays scoped; no samples	booking appointment history payload
 public.be_external_entity_mappings	metadata	SCOPED	booking_external_mapping_metadata	yes	SCOPED	direct organization_id NOT NULL; external mapping metadata stays scoped; no samples	external id mapping metadata

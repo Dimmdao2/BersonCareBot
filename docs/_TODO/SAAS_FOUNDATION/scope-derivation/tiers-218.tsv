@@ -18,7 +18,6 @@ BOOTSTRAP|public.system_settings_audit
 BOOTSTRAP|public.user_channel_bindings
 BOOTSTRAP|public.user_channel_preferences
 BOOTSTRAP|public.user_contacts
-BOOTSTRAP|public.user_email_setup_tokens
 BOOTSTRAP|public.user_identity
 BOOTSTRAP|public.user_notification_topic_channels
 BOOTSTRAP|public.user_notification_topics
@@ -28,7 +27,6 @@ BOOTSTRAP|public.user_passkey_challenges
 BOOTSTRAP|public.user_passkey_credentials
 BOOTSTRAP|public.user_password_credentials
 BOOTSTRAP|public.user_phone_history
-BOOTSTRAP|public.user_pins
 BOOTSTRAP|public.user_web_push_subscriptions
 INFRA|drizzle.__drizzle_migrations
 INFRA|integrator.booking_calendar_map
@@ -39,7 +37,6 @@ INFRA|integrator.projection_outbox
 INFRA|integrator.schema_migrations
 INFRA|public.auth_rate_limit_events
 INFRA|public.clinic_dedicated_bot_bindings
-INFRA|public.clinical_test_measure_kinds
 INFRA|public.email_otp_locks
 INFRA|public.idempotency_keys
 INFRA|public.integration_webhook_error_events
@@ -52,7 +49,6 @@ INFRA|public.outgoing_delivery_queue
 INFRA|public.phone_otp_locks
 INFRA|public.reference_catalog_baselines
 INFRA|public.reference_catalog_snapshot_receipts
-INFRA|public.schema_migrations
 INFRA|public.saas_tariffs
 INFRA|public.saas_billing_periods
 INFRA|public.saas_trial_policy
@@ -65,7 +61,6 @@ SCOPED|integrator.user_reminder_delivery_logs
 SCOPED|integrator.user_reminder_occurrences
 SCOPED|public.admin_audit_log
 SCOPED|public.be_appointment_cancellations
-SCOPED|public.be_appointment_events
 SCOPED|public.be_appointment_history_events
 SCOPED|public.be_appointment_no_shows
 SCOPED|public.be_appointment_reschedules

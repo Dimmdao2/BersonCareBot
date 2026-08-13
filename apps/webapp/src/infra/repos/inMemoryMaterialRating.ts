@@ -85,6 +85,18 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
       return row?.organizationId === input.organizationId ? row.stars : null;
     },
 
+    async getPatientSnapshot(input) {
+      const aggregate = aggregateFor(input.targetKind, input.targetId, input.organizationId);
+      const own = input.userId == null ? undefined : [...rows.values()].find(
+        (row) =>
+          row.organizationId === input.organizationId &&
+          row.userId === input.userId &&
+          row.targetKind === input.targetKind &&
+          row.targetId === input.targetId,
+      );
+      return { aggregate, myStars: own?.stars ?? null };
+    },
+
     async getAggregate(input) {
       return aggregateFor(
         input.targetKind,

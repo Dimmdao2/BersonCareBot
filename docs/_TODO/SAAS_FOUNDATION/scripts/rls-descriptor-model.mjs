@@ -745,21 +745,6 @@ const patientChainOwnedTables = new Map([
     },
   ],
   [
-    'public.be_appointment_events',
-    {
-      hops: [
-        {
-          table: 'public.be_appointments',
-          alias: 'b4f_appt',
-          parentPk: 'id',
-          localFk: 'appointment_id',
-        },
-      ],
-      terminalColumn: 'platform_user_id',
-      castType: 'uuid',
-    },
-  ],
-  [
     'public.be_appointment_history_events',
     {
       hops: [

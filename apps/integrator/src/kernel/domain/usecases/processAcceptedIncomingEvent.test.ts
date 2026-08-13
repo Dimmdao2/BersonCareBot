@@ -113,7 +113,16 @@ describe('processAcceptedIncomingEvent — доставка intents best-effort 
       }),
     ).resolves.toBeUndefined();
 
-    expect(dispatched).toEqual([failingIntent]);
+    expect(dispatched).toEqual([
+      {
+        ...failingIntent,
+        meta: {
+          ...failingIntent.meta,
+          outboundMessageClass: 'routine_product',
+          outboundCapability: 'essential_delivery',
+        },
+      },
+    ]);
     expect(loggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
         err: expect.objectContaining({ message: 'provider unreachable' }),

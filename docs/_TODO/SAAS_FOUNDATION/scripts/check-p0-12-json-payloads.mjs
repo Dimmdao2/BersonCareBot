@@ -24,7 +24,6 @@ const expectedRows = new Map([
   ['public.treatment_program_instance_stage_items', 'settings,snapshot,local_comment'],
   ['public.test_results', 'raw_value'],
   ['public.be_booking_form_submissions', 'attribution_json'],
-  ['public.be_appointment_events', 'payload'],
   ['public.be_patient_timeline_events', 'payload'],
   ['public.be_appointment_history_events', 'payload'],
   ['public.be_external_entity_mappings', 'metadata'],

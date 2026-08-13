@@ -30,7 +30,7 @@ describe('userIdentityFioSql — D15b/5 source-of-truth contract', () => {
     expect(query).toHaveBeenCalledOnce();
     const [sql, params] = query.mock.calls[0]!;
     expect(params).toEqual([userId]);
-    expect(sql).toContain('INSERT INTO user_identity');
+    expect(sql).toContain('INSERT INTO public.user_identity');
     expect(sql).toContain('ON CONFLICT (platform_user_id) DO UPDATE SET');
     for (const col of ['first_name', 'last_name', 'patronymic', 'display_name', 'birth_date']) {
       expect(sql).toContain(col);

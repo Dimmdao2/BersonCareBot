@@ -26,7 +26,7 @@ vi.mock('../../../infra/observability/logger.js', async (importOriginal) => {
 
 const enqueueMock = vi.hoisted(() => vi.fn(async () => true));
 vi.mock('../../../infra/db/repos/outgoingDeliveryQueue.js', () => ({
-  enqueueOutgoingDeliveryIfAbsent: enqueueMock,
+  enqueueAcceptedIncomingReplyIfAbsent: enqueueMock,
 }));
 
 import type {
@@ -89,7 +89,7 @@ const alwaysFailingDispatch = async () => {
 };
 
 describe('processAcceptedIncomingEvent — D35: провал ответа ставится в очередь, провал ack — нет', () => {
-  it('дано: провалился message.send (служебный ответ человеку) на канале max и db передан → когда обработка → тогда enqueueOutgoingDeliveryIfAbsent вызван с kind=inbound_reply, коротким maxAttempts, РЕАЛЬНЫМ каналомintent (не хардкод) и ТЕМ ЖЕ intent в payloadJson', async () => {
+  it('дано: провалился message.send на канале max и db передан → когда обработка → тогда exact retry enqueue вызван с коротким maxAttempts, реальным каналом и тем же intent', async () => {
     // АРБИТР 1: обернуть вызов enqueueFailedReplyForRetry() условием `intent.type === '__never__'`
     // (эффективно отключить постановку в очередь для message.send) — enqueueMock перестанет
     // вызываться, тест покраснеет.
@@ -117,10 +117,17 @@ describe('processAcceptedIncomingEvent — D35: провал ответа ста
       fakeDb,
       expect.objectContaining({
         eventId: 'evt-d35-1:queued:0',
-        kind: 'inbound_reply',
         channel: 'max',
         maxAttempts: 4,
-        payloadJson: { intent: failing },
+        payloadJson: {
+          intent: expect.objectContaining({
+            ...failing,
+            meta: expect.objectContaining({
+              outboundMessageClass: 'routine_product',
+              outboundCapability: 'essential_delivery',
+            }),
+          }),
+        },
       }),
     );
   });
@@ -151,12 +158,20 @@ describe('processAcceptedIncomingEvent — D35: провал ответа ста
       expect.objectContaining({
         eventId: 'evt-d35-4:queued:1',
         channel: 'max',
-        payloadJson: { intent: failing },
+        payloadJson: {
+          intent: expect.objectContaining({
+            ...failing,
+            meta: expect.objectContaining({
+              outboundMessageClass: 'routine_product',
+              outboundCapability: 'essential_delivery',
+            }),
+          }),
+        },
       }),
     );
   });
 
-  it('дано: провалился callback.answer (подтверждение нажатия) → когда обработка → тогда enqueueOutgoingDeliveryIfAbsent НЕ вызывается вовсе', async () => {
+  it('дано: провалился callback.answer (подтверждение нажатия) → когда обработка → тогда exact retry enqueue НЕ вызывается вовсе', async () => {
     // Ровно бриф п.4: дедлайн истёк в момент отказа, ставить в очередь нечего.
     // АРБИТР: убрать `!ACK_INTENT_TYPES.has(intent.type)` из условия постановки в очередь —
     // callback.answer начнёт ставиться в очередь, enqueueMock окажется вызван, тест покраснеет.
@@ -174,7 +189,7 @@ describe('processAcceptedIncomingEvent — D35: провал ответа ста
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 
-  it('дано: провалился message.send, но db в зависимостях НЕ передан → когда обработка → тогда enqueueOutgoingDeliveryIfAbsent не вызывается и обработка не падает (обратная совместимость)', async () => {
+  it('дано: провалился message.send, но db в зависимостях НЕ передан → когда обработка → тогда exact retry enqueue не вызывается и обработка не падает (обратная совместимость)', async () => {
     // Без db постановка в очередь тихо пропускается — как раньше D35 (только log). Это защищает
     // существующие вызовы/тесты, которые ещё не научены передавать db.
     enqueueMock.mockClear();

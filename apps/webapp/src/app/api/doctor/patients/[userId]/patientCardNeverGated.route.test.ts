@@ -44,8 +44,15 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspace,
 }));
 vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentDbPrincipal: () => ({
+    kind: 'staff',
+    organizationId: '00000000-0000-4000-8000-000000001069',
+    platformUserId: '00000000-0000-4000-8000-000000002069',
+    source: 'patient-card-test',
+  }),
   runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T => callback(),
   runWithDbPatientPrincipal: <T>(_ctx: unknown, callback: () => T): T => callback(),
+  runWithDbStaffPrincipal: <T>(_ctx: unknown, callback: () => T): T => callback(),
 }));
 
 import { POST as createVisitRoute } from './visits/route';

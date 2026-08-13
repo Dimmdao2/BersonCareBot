@@ -9,6 +9,13 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: async (_workspace: unknown, callback: () => Promise<unknown>) =>
     callback(),
 }));
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
+  withDoctorWorkspacePrincipal: async (
+    _workspace: unknown,
+    _source: string,
+    callback: () => Promise<unknown>,
+  ) => callback(),
+}));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';

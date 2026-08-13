@@ -30,6 +30,10 @@ function recordMaxWebhookOutcome(input: WebhookOutcomeInput): void {
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
+  /** Keep provider bootstrap enabled in production; controlled one-shot checks disable external setup calls. */
+  setupProviderSurface?: boolean;
+  /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
+  getRuntimeConfig?: typeof getMaxRuntimeConfig;
   resolveIntegratorUserIdForMessenger?: (
     externalId: string,
     resource: 'telegram' | 'max',
@@ -184,7 +188,8 @@ export async function registerMaxWebhookRoutes(
   app: FastifyInstance,
   deps: MaxWebhookDeps,
 ): Promise<void> {
-  await setupMaxCommands();
+  if (deps.setupProviderSurface !== false) await setupMaxCommands();
+  const readRuntimeConfig = deps.getRuntimeConfig ?? getMaxRuntimeConfig;
   const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
   const getAppBaseUrl = deps.getAppBaseUrl;
   const resolveMessengerStaffAdmin = deps.resolveMessengerStaffAdmin;
@@ -195,7 +200,7 @@ export async function registerMaxWebhookRoutes(
     const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     try {
-      const config = await getMaxRuntimeConfig();
+      const config = await readRuntimeConfig();
       if (!config.enabled) return reply.code(503).send({ ok: false, error: 'Unavailable' });
       const headerSecret = request.headers['x-max-bot-api-secret'];
       if (!isWebhookSecretValid(headerSecret, config.webhookSecret)) {

@@ -182,33 +182,28 @@ export function createMaterialRatingService(deps: {
         }
       }
 
-      const aggregate = await deps.ratings.getAggregate({
-        organizationId: input.organizationId,
-        targetKind: input.targetKind,
-        targetId: input.targetId,
-      });
-
-      if (!input.userId) {
-        return { aggregate, myStars: null };
-      }
-      if (
-        input.targetKind !== 'content_page' &&
-        (!input.programInstanceId || !input.programStageItemId)
-      ) {
-        return { aggregate, myStars: null };
-      }
-      if (input.targetKind !== 'content_page') {
-        if (!assignedProgramTarget) {
-          return { aggregate, myStars: null };
-        }
-      }
-      const myStars = await deps.ratings.getMyRating({
+      const snapshot = await deps.ratings.getPatientSnapshot({
         organizationId: input.organizationId,
         userId: input.userId,
         targetKind: input.targetKind,
         targetId: input.targetId,
       });
-      return { aggregate, myStars };
+
+      if (!input.userId) {
+        return { aggregate: snapshot.aggregate, myStars: null };
+      }
+      if (
+        input.targetKind !== 'content_page' &&
+        (!input.programInstanceId || !input.programStageItemId)
+      ) {
+        return { aggregate: snapshot.aggregate, myStars: null };
+      }
+      if (input.targetKind !== 'content_page') {
+        if (!assignedProgramTarget) {
+          return { aggregate: snapshot.aggregate, myStars: null };
+        }
+      }
+      return snapshot;
     },
 
     async putForPatient(input: {
@@ -228,18 +223,12 @@ export function createMaterialRatingService(deps: {
         aggregate: MaterialRatingAggregate;
         myStars: number | null;
       }> {
-        const aggregate = await deps.ratings.getAggregate({
-          organizationId: input.organizationId,
-          targetKind: input.targetKind,
-          targetId: input.targetId,
-        });
-        const myStars = await deps.ratings.getMyRating({
+        return deps.ratings.getPatientSnapshot({
           organizationId: input.organizationId,
           userId: input.userId,
           targetKind: input.targetKind,
           targetId: input.targetId,
         });
-        return { aggregate, myStars };
       }
 
       if (input.targetKind === 'content_page') {

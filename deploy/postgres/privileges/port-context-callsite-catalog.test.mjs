@@ -29,6 +29,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'patient.organization.resolve', argCount: 0,
     source: 'apps/webapp/src/infra/repos/pgPatientOrganization.ts',
   },
+  'app.read_current_patient_material_rating_snapshot(text,uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.material-rating.snapshot.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgMaterialRating.ts',
+  },
   'app.resolve_staff_workspace_memberships(uuid)': {
     port: 'webapp', argCount: 1, descriptorCount: 2,
     descriptors: [
@@ -334,10 +339,20 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'config.integrator-provider.read', argCount: 1,
     source: 'apps/integrator/src/infra/db/publicSystemSettings.ts',
   },
+  'app.read_integrator_runtime_setting(text)': {
+    port: 'integrator', targetRole: 'app_service', contextClass: 'service',
+    purpose: 'config.integrator-runtime.read', argCount: 1,
+    source: 'apps/integrator/src/infra/db/publicSystemSettings.ts',
+  },
   'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
     purpose: 'delivery.attempt-audit', argCount: 9,
     source: 'apps/integrator/src/infra/db/repos/messageLogs.ts',
+  },
+  'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)': {
+    port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+    purpose: 'delivery.inbound-reply.enqueue', argCount: 5,
+    source: 'apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts',
   },
   'app.record_integrator_webhook_outcome(text,boolean,integer,text,text)': {
     port: 'integrator', targetRole: 'app_service', contextClass: 'service',
@@ -348,6 +363,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'integrator', targetRole: 'app_integrator_resolver', contextClass: 'integrator',
     purpose: 'integrator.dedicated-bot.resolve', argCount: 2,
     source: 'apps/integrator/src/infra/db/clinicDedicatedBotBindings.ts',
+  },
+  'app.resolve_active_organization_for_integrator_user_id(bigint)': {
+    port: 'integrator', targetRole: 'app_integrator_resolver', contextClass: 'integrator',
+    purpose: 'integrator.user-organization.resolve', argCount: 1,
+    source: 'apps/integrator/src/infra/db/repos/channelUsers.ts',
   },
   'app.read_integrator_auth_channel_setting(text)': {
     port: 'integrator', targetRole: 'app_service', contextClass: 'service',

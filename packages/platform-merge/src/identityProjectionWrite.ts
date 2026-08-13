@@ -73,7 +73,7 @@ async function loadCandidateForMerge(
   const r = await runMergeSql<IdentityMergeRow>(
     db,
     sql`SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, created_at
-     FROM platform_users WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
+     FROM public.platform_users WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
   );
   const row = r.rows[0];
   if (!row) return null;
@@ -141,7 +141,7 @@ export async function collectIdentityProjectionCandidates(
   if (integratorUserId) {
     const byInt = await runMergeSql<{ id: string }>(
       db,
-      sql`SELECT id::text AS id FROM platform_users
+      sql`SELECT id::text AS id FROM public.platform_users
        WHERE integrator_user_id = ${integratorUserId}::bigint AND merged_into_id IS NULL
        LIMIT 3`,
     );
@@ -161,7 +161,7 @@ export async function collectIdentityProjectionCandidates(
   if (phoneNormalized) {
     const byPhone = await runMergeSql<{ id: string }>(
       db,
-      sql`SELECT id::text AS id FROM platform_users
+      sql`SELECT id::text AS id FROM public.platform_users
        WHERE phone_normalized = ${phoneNormalized} AND merged_into_id IS NULL
        LIMIT 3`,
     );
@@ -183,8 +183,8 @@ export async function collectIdentityProjectionCandidates(
     const byChannel = await runMergeSql<{ user_id: string; integrator_user_id: string | null }>(
       db,
       sql`SELECT pu.id::text AS user_id, pu.integrator_user_id::text AS integrator_user_id
-       FROM user_channel_bindings ucb
-       INNER JOIN platform_users pu ON pu.id = ucb.user_id
+       FROM public.user_channel_bindings ucb
+       INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
        WHERE ucb.channel_code = ${channelCode} AND ucb.external_id = ${externalId} AND pu.merged_into_id IS NULL
        LIMIT 1`,
     );
@@ -230,7 +230,7 @@ export async function insertIdentityProjection(
   const integratorUserId = trimmedOrNull(input.integratorUserId);
   const res = await runMergeSql<{ id: string }>(
     db,
-    sql`INSERT INTO platform_users (
+    sql`INSERT INTO public.platform_users (
        integrator_user_id, phone_normalized, display_name, first_name, last_name, email,
        patient_phone_trust_at
      )
@@ -249,12 +249,16 @@ export async function insertIdentityProjection(
     // `user_phone_history` spell (no prior row to close, unlike `enrichIdentityProjection`).
     await runMergeSql(
       db,
-      sql`INSERT INTO user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
+      sql`INSERT INTO public.user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
        VALUES (${id}::uuid, ${phoneNormalized}::text, now(), NULL, 'projection')`,
     );
   }
   await syncUserIdentityFioMirror(db, id);
-  await syncUserContactsMirror(db, id);
+  // A name-only messenger event does not change the assembled contact index. Rebuilding all contact
+  // sources here would make an unrelated profile refresh depend on the definer-only OAuth table.
+  if (phoneNormalized || trimmedOrNull(input.email)) {
+    await syncUserContactsMirror(db, id);
+  }
   return id;
 }
 
@@ -291,7 +295,7 @@ export async function enrichIdentityProjection(
   }
   const upd = await runMergeSql(
     db,
-    sql`UPDATE platform_users SET
+    sql`UPDATE public.platform_users SET
        display_name = CASE
          WHEN ${input.displayName}::text IS NOT NULL AND trim(${input.displayName}::text) <> ''
           AND ${input.firstName}::text IS NOT NULL AND trim(${input.firstName}::text) <> ''
@@ -326,7 +330,9 @@ export async function enrichIdentityProjection(
     ]);
   }
   await syncUserIdentityFioMirror(db, platformUserId);
-  await syncUserContactsMirror(db, platformUserId);
+  if (phoneNormalized || trimmedOrNull(input.email)) {
+    await syncUserContactsMirror(db, platformUserId);
+  }
 }
 
 /** Low-level channel-binding upsert — see {@link insertIdentityProjection} for why this is exported. */
@@ -340,7 +346,7 @@ export async function upsertChannelBindingForProjection(
   const normalizedDisplayHandle = normalizeChannelDisplayHandle(displayHandle);
   const res = await runMergeSql<{ user_id: string }>(
     db,
-    sql`INSERT INTO user_channel_bindings (user_id, channel_code, external_id, display_handle)
+    sql`INSERT INTO public.user_channel_bindings (user_id, channel_code, external_id, display_handle)
      VALUES (${platformUserId}::uuid, ${channelCode}, ${externalId}, ${normalizedDisplayHandle})
      ON CONFLICT (channel_code, external_id) DO NOTHING
      RETURNING user_id::text AS user_id`,
@@ -349,7 +355,7 @@ export async function upsertChannelBindingForProjection(
   if (!inserted && normalizedDisplayHandle) {
     await runMergeSql(
       db,
-      sql`UPDATE user_channel_bindings
+      sql`UPDATE public.user_channel_bindings
        SET display_handle = ${normalizedDisplayHandle}
        WHERE user_id = ${platformUserId}::uuid
          AND channel_code = ${channelCode}
@@ -370,12 +376,12 @@ export async function seedChannelPreferencesDefaultsForProjection(
   if (!CHANNEL_PREFERENCES_SEED_CHANNELS.has(channelCode)) return;
   await runMergeSql(
     db,
-    sql`INSERT INTO user_channel_preferences (
+    sql`INSERT INTO public.user_channel_preferences AS preferences (
        user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
      )
      VALUES (${platformUserId}::text, ${platformUserId}::uuid, ${channelCode}, true, true, ${now})
      ON CONFLICT (user_id, channel_code) DO UPDATE SET
-       platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
+       platform_user_id = COALESCE(preferences.platform_user_id, EXCLUDED.platform_user_id),
        is_enabled_for_messages = true,
        is_enabled_for_notifications = true,
        updated_at = EXCLUDED.updated_at`,

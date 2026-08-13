@@ -1,8 +1,9 @@
 import { sql } from 'drizzle-orm';
-import { getCurrentCorrelationId } from '@bersoncare/db-principal';
+import { getCurrentCorrelationId, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { OutgoingDeliveryKind } from '../../delivery/deliveryContract.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot, runIntegratorSql } from '../runIntegratorSql.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 import { getOutgoingDeliveryReclaimConfig } from './outgoingDeliveryReclaimSettings.js';
 
 export type OutgoingDeliveryQueueRow = {
@@ -31,6 +32,13 @@ export type EnqueueOutgoingDeliveryInput = {
   maxAttempts?: number;
   /** Absolute first-attempt time. Omitted means the row is due immediately. */
   nextRetryAt?: string;
+};
+
+export type EnqueueAcceptedIncomingReplyInput = {
+  eventId: string;
+  channel: 'telegram' | 'max';
+  payloadJson: Record<string, unknown>;
+  maxAttempts?: number;
 };
 
 /** Copies only the bounded ambient correlation UUID into the queue's existing intent metadata. */
@@ -96,6 +104,35 @@ export async function enqueueOutgoingDeliveryIfAbsent(
   const retention = await getOutgoingDeliveryReclaimConfig(db);
   await deleteExpiredSentOutgoingDeliveries(db, retention.doneRetentionDays);
   return Boolean(res.rows[0]?.inserted);
+}
+
+/**
+ * Exact producer for a failed reply from the accepted incoming-event pipeline. Keep this separate
+ * from the generic queue producer: the retired compatibility API also maps to `inbound_reply`, but
+ * has a different contract (notably an absolute future `nextRetryAt`) and must not be conflated with
+ * an immediate reply retry merely because both rows share the same worker kind.
+ */
+export async function enqueueAcceptedIncomingReplyIfAbsent(
+  db: DbPort,
+  input: EnqueueAcceptedIncomingReplyInput,
+): Promise<boolean> {
+  const eventId = input.eventId.trim();
+  const channel = input.channel;
+  const payloadJson = attachCurrentCorrelationToOutgoingPayload(input.payloadJson);
+  const payloadJsonText = JSON.stringify(payloadJson);
+  const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts ?? 6));
+  const organizationId = getCurrentOrganizationPrincipalId();
+  const result = await runWithDbInfraPrincipal({ source: 'delivery-handler' }, () =>
+    runIntegratorNamedRoot<{ inserted: boolean }>(
+      db,
+      'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)',
+      [eventId, channel, payloadJsonText, maxAttempts, organizationId ?? null],
+      sql`SELECT app.enqueue_integrator_inbound_reply(
+        ${eventId}, ${channel}, ${payloadJsonText}, ${maxAttempts}, ${organizationId ?? null}::uuid
+      ) AS inserted`,
+    ),
+  );
+  return result.rows[0]?.inserted === true;
 }
 
 export type ReclaimStaleOutgoingDeliveryProcessingResult = {

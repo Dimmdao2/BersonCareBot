@@ -44,11 +44,13 @@
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo).
  */
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import { collectPlatformUserCandidates } from './writeIdentityAndPreferencesDirect.js';
 import { resolveExactActiveOrganizationId } from './resolveDirectPublicActor.js';
+import { userReminderOccurrences } from '../schema/integratorDomainRepos.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
 
 export type UpsertReminderRuleDirectInput = {
   /** Raw integrator-space id (`identities.user_id`), NOT a `public.platform_users.id`. */
@@ -77,6 +79,9 @@ export type UpsertReminderRuleDirectInput = {
    * `hasOwnProperty` preserve-on-absent semantic — NOT "clear it". `null` means explicitly clear.
    */
   notificationTopicCode: string | null | undefined;
+  /** Exact pre-routing result; both values must be present or the repository resolves them itself. */
+  resolvedPlatformUserId?: string | null;
+  resolvedOrganizationId?: string | null;
 };
 
 export type UpsertReminderRuleDirectResult = {
@@ -123,22 +128,25 @@ export async function upsertReminderRuleDirect(
   return db.tx(async (txDb) => {
     const canonicalIntegratorUserId = input.integratorUserId;
     // Integrator_user_id-only resolution (no channel/phone args) — see file header.
-    const candidates = await collectPlatformUserCandidates(txDb, {
-      integratorUserId: canonicalIntegratorUserId,
-      phoneNormalized: null,
-      channelCode: '',
-      externalId: '',
-    });
-    const platformUserId = candidates[0];
-    if (!platformUserId) {
-      throw new ReminderRuleDirectWriteError('no_platform_user_candidate', {
+    let platformUserId = input.resolvedPlatformUserId ?? null;
+    let organizationId = input.resolvedOrganizationId ?? null;
+    if (!platformUserId || !organizationId) {
+      const candidates = await collectPlatformUserCandidates(txDb, {
         integratorUserId: canonicalIntegratorUserId,
+        phoneNormalized: null,
+        channelCode: '',
+        externalId: '',
       });
+      platformUserId = candidates[0] ?? null;
+      if (!platformUserId) {
+        throw new ReminderRuleDirectWriteError('no_platform_user_candidate', {
+          integratorUserId: canonicalIntegratorUserId,
+        });
+      }
+      // Fail-closed via the exact-org resolver on 0/2+ active enrollments. The caller
+      // treats this as a durable-outbox fallback when no pre-routing result was available.
+      organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
     }
-    // Fail-closed via the exact-org resolver on 0/2+ active enrollments. The caller (writePort.ts)
-    // treats this as a durable-outbox fallback
-    // (see file header: this module has no no-write-ever branch of its own).
-    const organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
     const notificationTopicCodeProvided = input.notificationTopicCode !== undefined;
     const notificationTopicCodeValue = notificationTopicCodeProvided
       ? input.notificationTopicCode
@@ -190,6 +198,14 @@ export async function upsertReminderRuleDirect(
     );
     const updatedAt = res.rows[0]?.updated_at;
     if (!updatedAt) throw new Error('reminder_rules upsert returned no row');
+    await getIntegratorDrizzleSession(txDb)
+      .delete(userReminderOccurrences)
+      .where(
+        and(
+          eq(userReminderOccurrences.ruleId, input.integratorRuleId),
+          inArray(userReminderOccurrences.status, ['planned', 'queued']),
+        ),
+      );
     return { platformUserId, organizationId, updatedAt };
   });
 }

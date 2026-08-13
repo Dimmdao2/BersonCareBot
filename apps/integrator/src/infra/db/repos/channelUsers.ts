@@ -1,37 +1,34 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
-
-function singleOrganizationId(rows: { organization_id: string }[]): string | null {
-  return rows.length === 1 && rows[0]?.organization_id ? rows[0].organization_id : null;
-}
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
 /**
  * Transitional resolver for signed M2M payloads that still carry the old integrator id.
  * Removed together with those payloads before `integrator.users` is dropped.
  */
-export async function resolveActiveOrganizationIdForIntegratorUserId(
+export type ResolvedIntegratorUserTenant = {
+  platformUserId: string;
+  organizationId: string;
+};
+
+export async function resolveActiveTenantForIntegratorUserId(
   db: DbPort,
   integratorUserId: string,
-): Promise<string | null> {
-  const res = await runIntegratorSql<{ organization_id: string }>(
+): Promise<ResolvedIntegratorUserTenant | null> {
+  const res = await runIntegratorNamedRoot<{
+    platform_user_id: string;
+    organization_id: string;
+  }>(
     db,
-    sql`WITH active_user_orgs AS (
-          SELECT platform_user_id, organization_id
-          FROM public.org_enrollments
-          WHERE status = 'active'
-          UNION
-          SELECT platform_user_id, organization_id
-          FROM public.be_organization_members
-          WHERE status = 'active'
-        )
-        SELECT DISTINCT active_user_orgs.organization_id::text AS organization_id
-        FROM public.platform_users platform_user
-        INNER JOIN active_user_orgs
-          ON active_user_orgs.platform_user_id = platform_user.id
-        WHERE platform_user.integrator_user_id = ${integratorUserId}::bigint
-        ORDER BY organization_id
-        LIMIT 2`,
+    'app.resolve_active_organization_for_integrator_user_id(bigint)',
+    [integratorUserId],
+    sql`SELECT platform_user_id::text, organization_id::text
+        FROM app.resolve_active_organization_for_integrator_user_id(
+          ${integratorUserId}::bigint
+        )`,
   );
-  return singleOrganizationId(res.rows);
+  const row = res.rows[0];
+  return row
+    ? { platformUserId: row.platform_user_id, organizationId: row.organization_id }
+    : null;
 }

@@ -59,7 +59,6 @@ import { buildRlsDescriptors, readTierRows } from './rls-descriptor-model.mjs';
 const migrationOnlyTables = new Set([
   'drizzle.__drizzle_migrations',
   'integrator.schema_migrations',
-  'public.schema_migrations',
   'public.webapp_schema_migrations',
 ]);
 
@@ -260,11 +259,6 @@ const appPatientSensitiveBootstrapRevokes = [
     reason:
       'D3.5: OAuth bindings stay table-invisible to app_patient; patient code uses app.current_patient_has_web_oauth_binding() for boolean presence only.',
   },
-  {
-    qualifiedName: 'public.user_pins',
-    reason:
-      'PIN hashes and lockout counters stay table-invisible to app_patient; authenticated access uses identity-self SECURITY DEFINER functions with no target UUID.',
-  },
 ];
 
 function renderAppPatientSensitiveRevokes(revokes) {
@@ -385,11 +379,10 @@ const patientScopedPrivilegeOverrides = new Map([
   // tracked as a B4-fanout pre-flip item, not fixable via GRANT alone.
   ['public.be_appointment_cancellations', 'SELECT, INSERT'],
   ['public.be_appointment_reschedules', 'SELECT, INSERT'],
-  // be_appointment_events / be_appointment_history_events: same actor_id residual as above (actorId is
+  // be_appointment_history_events: same actor_id residual as above (actorId is
   // explicitly set from the shared applyCancellation/applyReschedule/applyBooking call for both the
   // patient and staff paths) -- documented alongside the cancellations/reschedules note, not repeated
   // per-table.
-  ['public.be_appointment_events', 'SELECT, INSERT'],
   ['public.be_appointment_history_events', 'SELECT, INSERT'],
   ['public.be_patient_timeline_events', 'SELECT, INSERT'],
   // be_patient_booking_profiles: SELECT-only. 2026-07-11 gpt-5.6-sol audit rejected INSERT/UPDATE --

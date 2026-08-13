@@ -300,6 +300,52 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   выполнен штатным `migrate-dev.sh --execute`; targetless finalized projection также прошла положительный и
   отрицательный live. Повтор отдельного push-open остаётся частью общего незакрытого action census, а не условием
   готовности finalized projection.
+  Patient material-rating slice также закрыт live. Оба mutation-route больше не читают закрытую
+  `system_settings`, а используют один server-runtime accessor; global-admin может менять тот же флаг через
+  существующий settings service. Drizzle default/`RETURNING` surface описан exact-column grants, собственная
+  rating/feedback запись и повторное чтение дали `200/200/200`, а в другой активной клинике тот же target дал
+  `404/404`; MD5 обеих foreign relation до/после совпал. Флаг возвращён в `false`, synthetic rows и test audit
+  удалены, миграционная runtime-строка сохранена. Owner-ordered migrator теперь поддерживает один общий
+  `BCB-MIGRATION-BACKFILL` marker вместо отдельного ad-hoc пути; parser test и штатный DEV migration/reconcile
+  прошли. Независимый audit-gate не принял первый вариант: direct patient SELECT раскрывал строки других
+  пациентов, data-only migration рендерила нетипизированный `ARRAY[]`, а runtime-роли могли напрямую подделать
+  immutable audit. Все три разрыва закрыты централизованно: patient aggregate+own value возвращает один exact
+  named root при self-only relation policy; data-only path не рендерит пустую membership-проверку; audit пишет
+  только SECURITY DEFINER trigger-owner без direct runtime INSERT. Живой accepted-context proof дал patient
+  relation `1` собственную строку при aggregate `7`, а platform direct audit INSERT — PostgreSQL `42501`;
+  штатный PATCH/trigger при этом остался рабочим. Отдельно live поймал и закрыл пропущенную capability-запись
+  named root в том же declaration/generator; после env projection и контролируемого restart GET дал `200`.
+  Из шести integrator HTTP route-групп отдельно закрыт reminder-rule upsert, поэтому route-остаток теперь `5`.
+  Signed route использует один exact resolver integrator user → platform user + organization и передаёт тот же
+  результат в organization principal и direct writer без повторного identity-query. Rule upsert и отмена
+  `planned/queued` occurrences выполняются в одной transaction; tenant-service имеет только `DELETE` и
+  `SELECT(rule_id,status)` под current-organization RLS. Живой disabled synthetic rule дважды дал `HTTP 200`,
+  второй прогон удалил одну заранее созданную planned occurrence, outbox остался `0`; cleanup вернул
+  rule/occurrence/projection `0/0/0`.
+  Следующая HTTP route-группа booking lifecycle также закрыта, поэтому route-остаток теперь `4`. Route ставит
+  organization principal из signed payload только для tenant-событий; context-free delete/package events не
+  делают неиспользуемый DB timezone read. Общий fixed-allowlist `read_integrator_runtime_setting` переведён на
+  существующий `app_service` named-capability шаблон без прямого table grant. Живые context-free delete и tenant
+  reminder-update дали first/replay `200/200`; synthetic idempotency/DQ cleanup `0/0`, PostgreSQL cursor без новых
+  строк. Отдельно исправлен reminder-rule outbox fallback: он повторно входит в exact integrator request context,
+  иначе наблюдавшийся direct-write error превращался в потерю durable fallback.
+  Последние четыре HTTP route — generic/dedicated Telegram и MAX — закрыты одним provider-free production
+  composition proof. Все public Drizzle relations интегратора теперь явно квалифицированы `public.*`, поэтому
+  locked `search_path` больше не превращает рабочую таблицу в `42P01`. Identity projection не перестраивает
+  contact index при name-only messenger update без phone/email. Обычные ответы получают пару egress-marker один
+  раз на общей границе accepted-event pipeline; явные/частичные marker не переписываются и по-прежнему fail-closed.
+  Провалившийся `inbound_reply` записывается не широким INSERT, а одной exact-функцией
+  `app.enqueue_integrator_inbound_reply(...)` под delivery-worker context. Команда
+  `bash /home/dev/brain/host-orch/run-tests.sh pnpm --dir apps/integrator exec tsx
+  src/infra/scripts/check-live-incoming-no-send.ts` вернула `4/4` HTTP `200/ok=true`, четыре
+  `PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS` и оба канала `telegram/max`; реальной внешней отправки не было.
+  После времени пробы PostgreSQL journal не содержит нового `ERROR/FATAL/PANIC` от runtime login. Route-остаток
+  теперь `0`. Финальный полный `pnpm run ci` под host-lock завершился exit `0`: lint, strict typecheck, все
+  test suites, disposable PostgreSQL principal/zero-state acceptance, обе production build и общий audit прошли.
+  Живые health-check после CI дали webapp/integrator `db=up`, projection `pending=0/dead=0/processing=0`.
+  Отдельный исчерпывающий live action/worker/scheduler census остаётся частью ручного прохода и owner-gated
+  эксплуатационных этапов; внешние delivery/provider действия на DEV намеренно доказываются central no-send,
+  а не реальной отправкой.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.
