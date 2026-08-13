@@ -2853,8 +2853,9 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   `d27ef97c31ac8cb02107cc4714ed2ca7dc560c095ac6ffc4809176c35cb1f15c`; listing содержит `6` TABLE DATA.
 - **CLINIC-TOPOLOGY-DRIZZLE-DEFAULTS-017 — НАЙДЕНО И ИСПРАВЛЕНО КЛАССОМ:** clinic service и затем specialist
   громко падали `42501`, потому что column-scoped INSERT не включал default-колонки, которые Drizzle всё равно
-  явно помещает в SQL (`id`, timestamps и specialist reminder defaults). Исправлены exact INSERT surfaces семи
-  связанных topology relations; branch UPDATE также получил уже существующие API-поля `color/short_title`.
+  явно помещает в SQL (`id`, timestamps и specialist reminder defaults). Исправлены exact INSERT surfaces восьми
+  связанных topology relations: в семи добавлены `id`/timestamps, в `be_specialists` — reminder defaults;
+  branch UPDATE также получил уже существующие API-поля `color/short_title`.
   Table-wide writes не добавлены. PostgreSQL log строки `399605/399609` содержит оба отказа под
   `bcb_dev_webapp_staff`.
 - **ONLINE-PHYSICAL-BRANCH-QUOTA-018 — НАЙДЕНО И ИСПРАВЛЕНО ГРОМКО:** built-in Online выключалась, но повторное
@@ -2868,3 +2869,20 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   Built-in Online возвращена в исходные `active=true`, `#D58400`, `updated_at=2026-07-27 12:13:38.741+03`.
   Declaration security suite дала `53/53`; Online quota behavior test `2/2`, webapp typecheck и два штатных
   `migrate-dev.sh --execute` завершились PASS.
+
+## Audit/independent view DEV-clinic-topology-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | `9df1fd509^..4960deeb8`, `feat/doctor-ui-rebuild` |
+| Метод | Независимый read-only аудит owner/PLAN-контракта, declaration/Drizzle/API, live DEV catalog/log/evidence |
+| Вердикт | **PASS; MUST FIX НЕТ** |
+
+- Восьми topology relations подтверждены `ENABLE/FORCE RLS`, по одному context gate и organization wall;
+  table-wide `INSERT/UPDATE` отсутствуют. У runtime login и `app_staff` нет direct table access или BYPASSRLS.
+- Column grants совпадают с реально испускаемыми Drizzle default-полями; branch `color/short_title` доступны только
+  для UPDATE, `id` менять нельзя. Обычные branch POST/PATCH отвергают reserved Online identity, поэтому quota
+  exception нельзя получить подделкой обычной физической ветки.
+- Targeted evidence аудитора: relation-access `26/26`, booking tests `9/9`, generated `--all --check` byte-identical;
+  backup listing/hash, cleanup `0`, exact Online restore, foreign specialist unchanged и PostgreSQL log
+  `399605/399609` подтверждены повторно.
