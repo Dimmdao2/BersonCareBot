@@ -257,7 +257,12 @@ BEGIN
   IF p_probe IN ('outgoing_delivery', 'outgoing_reminder_dispatch') THEN
     RETURN QUERY
     WITH candidates AS MATERIALIZED (
-      SELECT queue.*
+      SELECT
+        queue.id,
+        queue.kind,
+        queue.channel,
+        queue.last_error,
+        queue.created_at
       FROM public.outgoing_delivery_queue AS queue
       WHERE queue.status = 'dead'
         AND (queue.failure_class IS NULL OR queue.failure_class <> 'recipient_blocked_bot')
@@ -277,8 +282,7 @@ BEGIN
         source_id,
         severity_at_archive,
         doctor_user_id,
-        summary_json,
-        raw_error_truncated
+        summary_json
       )
       SELECT
         NULL,
@@ -316,8 +320,7 @@ BEGIN
           'channel', candidate.channel,
           'queue_kind', candidate.kind,
           'health_scope', 'platform'
-        )),
-        NULLIF(pg_catalog.left(candidate.last_error, 512), '')
+        ))
       FROM candidates AS candidate
       RETURNING source_id
     ), deleted AS (
@@ -335,7 +338,7 @@ BEGIN
   IF p_probe = 'integrator_push_outbox' THEN
     RETURN QUERY
     WITH candidates AS MATERIALIZED (
-      SELECT outbox.*
+      SELECT outbox.id, outbox.kind, outbox.last_error, outbox.created_at
       FROM public.integrator_push_outbox AS outbox
       WHERE outbox.status = 'dead'
       ORDER BY outbox.created_at, outbox.id
@@ -344,7 +347,7 @@ BEGIN
     ), archived AS (
       INSERT INTO public.operator_health_failure_archive (
         organization_id, archived_by_user_id, health_probe, source_kind, source_id,
-        severity_at_archive, doctor_user_id, summary_json, raw_error_truncated
+        severity_at_archive, doctor_user_id, summary_json
       )
       SELECT
         NULL, p_archived_by_user_id, p_probe, 'integrator_push_outbox_row', candidate.id::text,
@@ -363,8 +366,7 @@ BEGIN
             ELSE 'Сбой синка в integrator (см. усечённый текст)'
           END,
           'queue_kind', candidate.kind
-        ),
-        NULLIF(pg_catalog.left(candidate.last_error, 512), '')
+        )
       FROM candidates AS candidate
       RETURNING source_id
     ), deleted AS (
@@ -381,7 +383,13 @@ BEGIN
 
   RETURN QUERY
   WITH candidates AS MATERIALIZED (
-    SELECT outbox.*
+    SELECT
+      outbox.id,
+      outbox.event_type,
+      outbox.idempotency_key,
+      outbox.attempts_done,
+      outbox.last_error,
+      outbox.created_at
     FROM integrator.projection_outbox AS outbox
     WHERE outbox.status = 'dead'
     ORDER BY outbox.created_at, outbox.id
@@ -390,7 +398,7 @@ BEGIN
   ), archived AS (
     INSERT INTO public.operator_health_failure_archive (
       organization_id, archived_by_user_id, health_probe, source_kind, source_id,
-      severity_at_archive, doctor_user_id, summary_json, raw_error_truncated
+      severity_at_archive, doctor_user_id, summary_json
     )
     SELECT
       NULL, p_archived_by_user_id, p_probe, 'projection_outbox_row', candidate.id::text,
@@ -399,8 +407,7 @@ BEGIN
         'event_type', candidate.event_type,
         'idempotency_key', candidate.idempotency_key,
         'attempts_done', candidate.attempts_done
-      ),
-      NULLIF(pg_catalog.left(candidate.last_error, 512), '')
+      )
     FROM candidates AS candidate
     RETURNING source_id
   ), deleted AS (
