@@ -18,6 +18,7 @@ REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 API_ENV="$REPO_ROOT/.env"
 WEBAPP_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
+CANONICAL_SQL_READER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 OWNER_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs"
 INTEGRATOR_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs"
 RECONCILER="$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs"
@@ -100,6 +101,7 @@ fi
 assert_canonical_file "$API_ENV" "$REPO_ROOT/.env" "DEV API env"
 assert_canonical_file "$WEBAPP_ENV" "$REPO_ROOT/apps/webapp/.env.dev" "DEV webapp env"
 assert_canonical_file "$DEV_ENV_PARSER" "$REPO_ROOT/deploy/host/parse-dev-database-url.mjs" "DEV env parser"
+assert_canonical_file "$CANONICAL_SQL_READER" "$REPO_ROOT/deploy/host/stream-canonical-sql.mjs" "canonical SQL reader"
 assert_canonical_file "$OWNER_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" "owner-ordered migrator"
 assert_canonical_file "$INTEGRATOR_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs" "integrator migrator"
 assert_canonical_file "$RECONCILER" "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" "access reconciler"
@@ -171,11 +173,15 @@ run_tracked node "$INTEGRATOR_MIGRATOR" \
   --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
   --root "$REPO_ROOT/apps/integrator" --sudo-postgres
 
-# 0328 commits first; this hot-table index is an idempotent separate autocommit operation.
-run_tracked sudo -n -u postgres env \
-  PGOPTIONS="-c role=$OBJECT_OWNER_ROLE" \
-  psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$TARGET_DB" -v ON_ERROR_STOP=1 \
-  -f "$D30_ONLINE_INDEX"
+# 0328 commits first; this hot-table index is an idempotent separate autocommit operation. The
+# repository owner opens the guarded file and streams it because the postgres OS identity cannot
+# read the private repository tree.
+run_tracked bash -c '
+  set -Eeuo pipefail
+  node "$1" "$2" "$3" | sudo -n -u postgres env PGOPTIONS="-c role=$4" \
+    psql -X -h "$5" -p "$6" -d "$7" -v ON_ERROR_STOP=1
+' bash "$CANONICAL_SQL_READER" "$D30_ONLINE_INDEX" "$(dirname "$D30_ONLINE_INDEX")" \
+  "$OBJECT_OWNER_ROLE" "$ADMIN_SOCKET" "$ADMIN_PORT" "$TARGET_DB"
 
 # Reconcile loads only the four already-configured runtime passwords.  It reapplies the exact
 # declaration and runs its environment/catalog closure verifiers in the same transaction.
