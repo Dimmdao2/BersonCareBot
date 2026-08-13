@@ -2076,6 +2076,27 @@ const REV10_CONTEXT = {
     webapp_platform_admin_relation: { port: 'webapp', runtimeName: 'platform_admin',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin',
       contextClass: 'platform', purpose: 'relation' },
+    webapp_platform_audit_conflict_resolve: { port: 'webapp', runtimeName: 'platform_audit_conflict_resolve',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
+      purpose: 'platform.audit-conflict.resolve', functionIdentity: 'app.resolve_platform_audit_conflict(uuid)' },
+    webapp_platform_audit_event_append: { port: 'webapp', runtimeName: 'platform_audit_event_append',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
+      purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
+    webapp_platform_incidents_acknowledge: { port: 'webapp', runtimeName: 'platform_incidents_acknowledge',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
+      purpose: 'platform.operator-incidents.acknowledge',
+      functionIdentity: 'app.acknowledge_open_outbound_provider_incidents()' },
+    webapp_platform_incidents_resolve: { port: 'webapp', runtimeName: 'platform_incidents_resolve',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
+      purpose: 'platform.operator-incidents.resolve', functionIdentity: 'app.resolve_all_open_operator_incidents()' },
+    webapp_platform_health_archive_list: { port: 'webapp', runtimeName: 'platform_health_archive_list',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
+      purpose: 'platform.health-archive.list',
+      functionIdentity: 'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)' },
+    webapp_platform_health_archive_clear: { port: 'webapp', runtimeName: 'platform_health_archive_clear',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
+      purpose: 'platform.health-archive.clear',
+      functionIdentity: 'app.archive_operator_health_failures(text,integer,uuid)' },
     webapp_worker_relation: { port: 'webapp', runtimeName: 'worker', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_WORKER_SOURCES },
@@ -2783,6 +2804,69 @@ const REV10_CONTEXT = {
     'app.require_platform_principal()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean',
       execute: ['app_platform_settings', 'saas_telemetry_operator', ...REV10_SEAM_OWNERS], purpose: 'platform', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.resolve_platform_audit_conflict(uuid)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'text',
+      execute: ['app_platform_admin'], purpose: 'resolve one whitelisted platform audit conflict', typedArgs: ['uuid'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.admin_audit_log',
+        columns: ['id', 'action', 'resolved_at'], operations: ['SELECT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.append_platform_audit_event(text,text,text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid',
+      execute: ['app_platform_admin'], purpose: 'append one whitelisted platform operator audit event',
+      typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      relationSurfaces: [{ relation: 'public.admin_audit_log',
+        columns: ['organization_id', 'actor_id', 'action', 'details', 'status', 'id'],
+        operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.acknowledge_open_outbound_provider_incidents()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint',
+      execute: ['app_platform_admin'], purpose: 'acknowledge all open outbound-provider incidents', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_incidents',
+        columns: ['resolved_at', 'acknowledged_at', 'direction', 'alert_claim_phase', 'alert_claim_token', 'alert_claimed_at'],
+        operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.resolve_all_open_operator_incidents()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint',
+      execute: ['app_platform_admin'], purpose: 'resolve all open platform operator incidents', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_incidents',
+        columns: ['resolved_at', 'alert_claim_phase', 'alert_claim_token', 'alert_claimed_at'],
+        operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_platform_admin'], purpose: 'list only sanitized platform health archive fields',
+      typedArgs: ['text', 'integer', 'timestamp with time zone', 'uuid'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_health_failure_archive',
+        columns: ['id', 'archived_at', 'archived_by_user_id', 'health_probe', 'source_kind', 'source_id',
+          'severity_at_archive', 'summary_json'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.archive_operator_health_failures(text,integer,uuid)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_platform_admin'], purpose: 'archive and remove one sanitized non-clinical dead queue batch',
+      typedArgs: ['text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.outgoing_delivery_queue', columns: ['id', 'organization_id', 'status', 'failure_class',
+          'kind', 'channel', 'last_error', 'created_at'], operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.integrator_push_outbox', columns: ['id', 'kind', 'payload', 'status', 'last_error',
+          'created_at'], operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'integrator.projection_outbox', columns: ['id', 'event_type', 'idempotency_key', 'payload',
+          'status', 'attempts_done', 'last_error', 'created_at'], operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.operator_health_failure_archive', columns: ['organization_id', 'archived_by_user_id',
+          'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json',
+          'raw_error_truncated'], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
     'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
     'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
@@ -2841,6 +2925,14 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
+  'public.admin_audit_log': {
+    kind: 'direct', purpose: 'platform operations reads the non-clinical administrative event journal',
+    codePaths: ['apps/webapp/src/infra/adminAuditLog.ts#listAdminAuditLog'],
+    grants: [{ role: 'app_platform_settings', operations: ['SELECT'], columns: [
+      'id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status', 'repeat_count',
+      'last_seen_at', 'resolved_at', 'created_at',
+    ] }],
+  },
   'public.content_pages': {
     kind: 'direct', purpose: 'patient reads published non-archived CMS pages of the current clinic',
     codePaths: ['apps/webapp/src/infra/repos/pgContentPages.ts'],
@@ -3175,11 +3267,10 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.operator_health_failure_archive': {
-    kind: 'direct', purpose: 'clinic staff handles only its archive rows; platform health route handles only global archive rows',
-    codePaths: ['apps/webapp/src/app/api/admin/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
+    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; platform access is sanitized through named seams',
+    codePaths: ['apps/webapp/src/app/api/doctor/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
-      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
     ],
   },
   'integrator.projection_outbox': {
@@ -3688,6 +3779,17 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
   ];
 }
 
+function revision10AdminAuditLogPolicies(index: number): PolicyDecl[] {
+  return [{
+    name: `rev10_admin_audit_platform_select_${index + 1}`,
+    as: 'PERMISSIVE',
+    cmd: 'SELECT',
+    to: ['app_platform_settings'],
+    using: "(current_user = 'app_platform_settings'::name)",
+    note: 'platform operations reads the administrative journal; all mutation stays behind named seams',
+  }];
+}
+
 const REV10_PATIENT_SELF_MANAGED_COLUMN: Record<string, string> = {
   'public.user_channel_bindings': 'user_id',
   'public.user_channel_preferences': 'platform_user_id',
@@ -3765,6 +3867,8 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         ? revision10AppRuntimeSettingsPolicies(index)
       : key === 'public.platform_users' && access?.kind === 'direct'
         ? revision10PlatformUsersPolicies(index)
+      : key === 'public.admin_audit_log' && access?.kind === 'direct'
+        ? revision10AdminAuditLogPolicies(index)
       : REV10_PATIENT_SELF_MANAGED_COLUMN[key] && access?.kind === 'direct'
         ? revision10PatientSelfManagedPolicies(key, index)
       : access?.kind === 'direct' && specialized ? directBusiness

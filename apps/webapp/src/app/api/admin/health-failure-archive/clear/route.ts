@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { writeAuditLog } from '@/app-layer/admin/auditLog';
-import { getPool } from '@/app-layer/db/client';
+import { writePlatformAuditLog } from '@/app-layer/admin/auditLog';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { logger } from '@/app-layer/logging/logger';
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
     'health_failure_archive.clear_dead',
   );
 
-  await writeAuditLog(getPool(), {
+  await writePlatformAuditLog({
     actorId: gate.session.user.userId,
     action: 'health_failure_archive_clear_dead',
     details: {

@@ -7,7 +7,7 @@ const fakes = vi.hoisted(() => ({
   listAdminAuditLog: vi.fn(),
   countOpenAutoMergeConflicts: vi.fn(),
   resolveAdminAuditConflictById: vi.fn(),
-  writeAuditLog: vi.fn(),
+  writePlatformAuditLog: vi.fn(),
   buildAppDeps: vi.fn(),
   clearDeadForProbe: vi.fn(),
   acknowledgeOpenOutboundProviderIncidents: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('@/app-layer/admin/auditLog', () => ({
   listAdminAuditLog: fakes.listAdminAuditLog,
   countOpenAutoMergeConflicts: fakes.countOpenAutoMergeConflicts,
   resolveAdminAuditConflictById: fakes.resolveAdminAuditConflictById,
-  writeAuditLog: fakes.writeAuditLog,
+  writePlatformAuditLog: fakes.writePlatformAuditLog,
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/logging/logger', () => ({ logger: { info: fakes.loggerInfo } }));
@@ -47,7 +47,7 @@ beforeEach(() => {
   fakes.listAdminAuditLog.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 });
   fakes.countOpenAutoMergeConflicts.mockResolvedValue(0);
   fakes.resolveAdminAuditConflictById.mockResolvedValue({ ok: true });
-  fakes.writeAuditLog.mockResolvedValue(undefined);
+  fakes.writePlatformAuditLog.mockResolvedValue(undefined);
   fakes.clearDeadForProbe.mockResolvedValue({ inserted: 2, deleted: 2 });
   fakes.acknowledgeOpenOutboundProviderIncidents.mockResolvedValue({ acknowledged: 3 });
   fakes.resolveAllOpenIncidents.mockResolvedValue({ resolved: 4 });
@@ -88,7 +88,7 @@ describe('platform operations routes', () => {
     expect(fakes.requirePlatformOperationsApiContext).toHaveBeenCalledTimes(5);
     expect(fakes.getPool).not.toHaveBeenCalled();
     expect(fakes.buildAppDeps).not.toHaveBeenCalled();
-    expect(fakes.writeAuditLog).not.toHaveBeenCalled();
+    expect(fakes.writePlatformAuditLog).not.toHaveBeenCalled();
   });
 
   it('runs audit reads and conflict resolution under the platform principal', async () => {
@@ -129,9 +129,8 @@ describe('platform operations routes', () => {
     });
     expect(fakes.acknowledgeOpenOutboundProviderIncidents).toHaveBeenCalledTimes(1);
     expect(fakes.resolveAllOpenIncidents).toHaveBeenCalledTimes(1);
-    expect(fakes.writeAuditLog).toHaveBeenCalledTimes(3);
-    expect(fakes.writeAuditLog).toHaveBeenCalledWith(
-      { kind: 'pool' },
+    expect(fakes.writePlatformAuditLog).toHaveBeenCalledTimes(3);
+    expect(fakes.writePlatformAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: PLATFORM_USER_ID }),
     );
   });

@@ -6,7 +6,13 @@ import { createHash } from 'node:crypto';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
 import { ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS } from '@/modules/admin/adminAuditListQuery';
-import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+  runWebappPgText,
+  webappSqlFromPgText,
+} from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { logger } from '@/infra/logging/logger';
@@ -115,6 +121,21 @@ export async function writeAuditLog(_pool: Pool, entry: AuditLogWriteEntry): Pro
   } catch (err) {
     logger.error({ err, action: entry.action }, 'writeAuditLog failed');
   }
+}
+
+/** Platform-global audit is an exact capability and fails loudly if the journal cannot be written. */
+export async function writePlatformAuditLog(entry: AuditLogWriteEntry): Promise<void> {
+  const status: AuditLogStatus = entry.status ?? 'ok';
+  const args = [entry.action, JSON.stringify(entry.details ?? {}), status] as const;
+  await runWebappNamedRoot(
+    getWebappSqlDb(),
+    'app.append_platform_audit_event(text,text,text)',
+    args,
+    webappSqlFromPgText(
+      'SELECT app.append_platform_audit_event($1::text,$2::text,$3::text)',
+      args,
+    ),
+  );
 }
 
 /**
@@ -564,6 +585,27 @@ export async function resolveAdminAuditConflictById(
   const trimmed = id.trim();
   if (!trimmed) return { ok: false, error: 'not_found' };
   const principalOrganizationId = currentPrincipalOrganizationId();
+  if (principalOrganizationId == null) {
+    const result = await runWebappNamedRoot<{ result: string }>(
+      getWebappSqlDb(),
+      'app.resolve_platform_audit_conflict(uuid)',
+      [trimmed],
+      webappSqlFromPgText(
+        'SELECT app.resolve_platform_audit_conflict($1::uuid) AS result',
+        [trimmed],
+      ),
+    );
+    const platformResult = result.rows[0]?.result;
+    if (platformResult === 'updated') return { ok: true, updated: true };
+    if (
+      platformResult === 'not_found' ||
+      platformResult === 'already_resolved' ||
+      platformResult === 'not_closeable'
+    ) {
+      return { ok: false, error: platformResult };
+    }
+    throw new Error('unexpected platform audit conflict result');
+  }
   const orgSql = principalOrganizationId ? ' AND organization_id = $2::uuid' : '';
   const orgValues = principalOrganizationId ? [principalOrganizationId] : [];
 

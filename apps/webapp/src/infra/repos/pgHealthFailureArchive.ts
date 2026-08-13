@@ -1,24 +1,11 @@
-import { and, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import {
-  broadcastAudit,
-  integratorPushOutbox,
-  platformUsers,
-  projectionOutbox,
-} from '../../../db/schema/schema';
 import { operatorHealthFailureArchive } from '../../../db/schema/operatorHealthFailureArchive';
-import { outgoingDeliveryQueue } from '../../../db/schema/outgoingDeliveryQueue';
-import { DOCTOR_BROADCAST_QUEUE_KIND } from '@/modules/doctor-broadcasts/deliveryQueueKind';
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
   HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
-  INTEGRATOR_OUTBOX_ARCHIVE_SOURCE_KIND,
-  OUTGOING_ARCHIVE_SOURCE_KIND,
-  OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND,
-  OUTGOING_REMINDER_QUEUE_KIND,
-  PROJECTION_ARCHIVE_SOURCE_KIND,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
 import type {
   HealthFailureArchiveClearBatchResult,
@@ -27,42 +14,9 @@ import type {
   HealthFailureArchiveRow,
 } from '@/modules/operator-health/healthFailureArchivePort';
 import type { HealthFailureArchiveProbe } from '@/modules/operator-health/healthFailureArchiveConstants';
-import {
-  humanizeIntegratorPushOutboxLastError,
-  humanizeOutgoingDeliveryLastError,
-  maskPhoneForHealthArchive,
-} from '@/modules/operator-health/humanizeOutgoingDeliveryLastError';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function truncateError(s: string | null | undefined, max = 512): string | null {
-  if (s == null || s.length === 0) return null;
-  const t = String(s);
-  return t.length <= max ? t : t.slice(0, max);
-}
-
-function parsePayload(p: unknown): Record<string, unknown> {
-  if (p !== null && typeof p === 'object' && !Array.isArray(p)) return p as Record<string, unknown>;
-  return {};
-}
-
-function shortTitle(title: string, max = 100): string {
-  const t = title.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max)}…`;
-}
-
-function recipientShortName(row: {
-  displayName: string;
-  firstName: string | null;
-  lastName: string | null;
-}): string {
-  const dn = row.displayName?.trim();
-  if (dn) return shortTitle(dn, 80);
-  const parts = [row.firstName?.trim(), row.lastName?.trim()].filter(Boolean);
-  if (parts.length) return shortTitle(parts.join(' '), 80);
-  return '—';
-}
 
 export type CursorPayload = { a: string; i: string };
 
@@ -85,8 +39,24 @@ export function decodeArchiveCursor(raw: string | null | undefined): CursorPaylo
   }
 }
 
-function actorToDoctorUuid(actorId: string): string | null {
-  return UUID_RE.test(actorId) ? actorId : null;
+async function archivePlatformBatch(
+  probe: HealthFailureArchiveProbe,
+  input: { limit: number; archivedByUserId: string },
+): Promise<HealthFailureArchiveClearBatchResult> {
+  const limit = Math.min(500, Math.max(1, input.limit));
+  const result = await runWebappNamedRoot<{
+    inserted_count: number | string;
+    deleted_count: number | string;
+  }>(
+    getWebappSqlDb(),
+    'app.archive_operator_health_failures(text,integer,uuid)',
+    [probe, limit, input.archivedByUserId],
+    sql`SELECT * FROM app.archive_operator_health_failures(${probe}, ${limit}, ${input.archivedByUserId}::uuid)`,
+  );
+  return {
+    inserted: Number(result.rows[0]?.inserted_count ?? 0),
+    deleted: Number(result.rows[0]?.deleted_count ?? 0),
+  };
 }
 
 export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
@@ -94,262 +64,28 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     limit: number;
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult> {
-    const db = getDrizzle();
-    return db.transaction(async (tx) => {
-      const rows = await tx
-        .select()
-        .from(outgoingDeliveryQueue)
-        .where(
-          and(
-            eq(outgoingDeliveryQueue.status, 'dead'),
-            or(
-              isNull(outgoingDeliveryQueue.failureClass),
-              ne(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
-            ),
-          ),
-        )
-        .limit(Math.min(500, Math.max(1, input.limit)));
-
-      if (rows.length === 0) {
-        return { inserted: 0, deleted: 0 };
-      }
-
-      const broadcastRows = rows.filter((r) => r.kind === DOCTOR_BROADCAST_QUEUE_KIND);
-      const auditIds = [
-        ...new Set(
-          broadcastRows
-            .map((r) => {
-              const p = parsePayload(r.payloadJson);
-              return typeof p.broadcastAuditId === 'string' ? p.broadcastAuditId : null;
-            })
-            .filter((x): x is string => x != null && UUID_RE.test(x)),
-        ),
-      ];
-      const clientIds = [
-        ...new Set(
-          broadcastRows
-            .map((r) => {
-              const p = parsePayload(r.payloadJson);
-              return typeof p.clientUserId === 'string' ? p.clientUserId : null;
-            })
-            .filter((x): x is string => x != null && UUID_RE.test(x)),
-        ),
-      ];
-
-      const audits =
-        auditIds.length > 0
-          ? await tx.select().from(broadcastAudit).where(inArray(broadcastAudit.id, auditIds))
-          : [];
-      const auditMap = new Map(audits.map((a) => [a.id, a]));
-
-      const users =
-        clientIds.length > 0
-          ? await tx.select().from(platformUsers).where(inArray(platformUsers.id, clientIds))
-          : [];
-      const userMap = new Map(users.map((u) => [u.id, u]));
-
-      const insertValues = rows.map((row) => {
-        const payload = parsePayload(row.payloadJson);
-        const { reason_code, reason_ru } = humanizeOutgoingDeliveryLastError(row.lastError);
-        const summary: Record<string, unknown> = {
-          reason_code,
-          reason_ru,
-          channel: row.channel,
-          queue_kind: row.kind,
-        };
-
-        let doctorUserId: string | null = null;
-        if (row.kind === DOCTOR_BROADCAST_QUEUE_KIND) {
-          const auditId =
-            typeof payload.broadcastAuditId === 'string' ? payload.broadcastAuditId : null;
-          const clientUserId =
-            typeof payload.clientUserId === 'string' ? payload.clientUserId : null;
-          const audit = auditId && UUID_RE.test(auditId) ? auditMap.get(auditId) : undefined;
-          const client =
-            clientUserId && UUID_RE.test(clientUserId) ? userMap.get(clientUserId) : undefined;
-          if (audit) {
-            const doc = actorToDoctorUuid(audit.actorId);
-            doctorUserId = doc;
-            summary.broadcast_audit_id = auditId;
-            summary.client_user_id = clientUserId;
-            summary.doctor_user_id = audit.actorId;
-            summary.broadcast_title_short = shortTitle(audit.messageTitle, 100);
-          }
-          if (client) {
-            summary.recipient_short_name = recipientShortName(client);
-            summary.recipient_phone_masked = maskPhoneForHealthArchive(client.phoneNormalized);
-          }
-        }
-
-        return {
-          archivedByUserId: input.archivedByUserId,
-          healthProbe: HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
-          sourceKind: OUTGOING_ARCHIVE_SOURCE_KIND,
-          sourceId: row.id,
-          severityAtArchive: 'dead' as const,
-          doctorUserId,
-          summaryJson: summary,
-          rawErrorTruncated: truncateError(row.lastError),
-        };
-      });
-
-      await tx.insert(operatorHealthFailureArchive).values(insertValues);
-      await tx.delete(outgoingDeliveryQueue).where(
-        inArray(
-          outgoingDeliveryQueue.id,
-          rows.map((r) => r.id),
-        ),
-      );
-
-      return { inserted: rows.length, deleted: rows.length };
-    });
+    return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE, input);
   },
 
   async archiveIntegratorPushOutboxDeadBatch(input: {
     limit: number;
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult> {
-    const db = getDrizzle();
-    return db.transaction(async (tx) => {
-      const rows = await tx
-        .select()
-        .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, 'dead'))
-        .limit(Math.min(500, Math.max(1, input.limit)));
-
-      if (rows.length === 0) {
-        return { inserted: 0, deleted: 0 };
-      }
-
-      const insertValues = rows.map((row) => {
-        const { reason_code, reason_ru } = humanizeIntegratorPushOutboxLastError(row.lastError);
-        const summary: Record<string, unknown> = {
-          reason_code,
-          reason_ru,
-          queue_kind: row.kind,
-        };
-        return {
-          archivedByUserId: input.archivedByUserId,
-          healthProbe: HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
-          sourceKind: INTEGRATOR_OUTBOX_ARCHIVE_SOURCE_KIND,
-          sourceId: String(row.id),
-          severityAtArchive: 'dead' as const,
-          doctorUserId: null as string | null,
-          summaryJson: summary,
-          rawErrorTruncated: truncateError(row.lastError),
-        };
-      });
-
-      await tx.insert(operatorHealthFailureArchive).values(insertValues);
-      await tx.delete(integratorPushOutbox).where(
-        inArray(
-          integratorPushOutbox.id,
-          rows.map((r) => r.id),
-        ),
-      );
-
-      return { inserted: rows.length, deleted: rows.length };
-    });
+    return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE, input);
   },
 
   async archiveProjectionDeadBatch(input: {
     limit: number;
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult> {
-    const db = getDrizzle();
-    return db.transaction(async (tx) => {
-      const rows = await tx
-        .select()
-        .from(projectionOutbox)
-        .where(eq(projectionOutbox.status, 'dead'))
-        .limit(Math.min(500, Math.max(1, input.limit)));
-
-      if (rows.length === 0) {
-        return { inserted: 0, deleted: 0 };
-      }
-
-      const insertValues = rows.map((row) => ({
-        archivedByUserId: input.archivedByUserId,
-        healthProbe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
-        sourceKind: PROJECTION_ARCHIVE_SOURCE_KIND,
-        sourceId: String(row.id),
-        severityAtArchive: 'dead' as const,
-        doctorUserId: null as string | null,
-        summaryJson: {
-          event_type: row.eventType,
-          idempotency_key: row.idempotencyKey,
-          attempts_done: row.attemptsDone,
-        },
-        rawErrorTruncated: truncateError(row.lastError),
-      }));
-
-      await tx.insert(operatorHealthFailureArchive).values(insertValues);
-      await tx.delete(projectionOutbox).where(
-        inArray(
-          projectionOutbox.id,
-          rows.map((r) => r.id),
-        ),
-      );
-
-      return { inserted: rows.length, deleted: rows.length };
-    });
+    return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE, input);
   },
 
   async archiveOutgoingReminderDeadBatch(input: {
     limit: number;
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult> {
-    const db = getDrizzle();
-    return db.transaction(async (tx) => {
-      const rows = await tx
-        .select()
-        .from(outgoingDeliveryQueue)
-        .where(
-          and(
-            eq(outgoingDeliveryQueue.status, 'dead'),
-            eq(outgoingDeliveryQueue.kind, OUTGOING_REMINDER_QUEUE_KIND),
-            or(
-              isNull(outgoingDeliveryQueue.failureClass),
-              ne(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
-            ),
-          ),
-        )
-        .limit(Math.min(500, Math.max(1, input.limit)));
-
-      if (rows.length === 0) {
-        return { inserted: 0, deleted: 0 };
-      }
-
-      const insertValues = rows.map((row) => {
-        const { reason_code, reason_ru } = humanizeOutgoingDeliveryLastError(row.lastError);
-        const summary: Record<string, unknown> = {
-          reason_code,
-          reason_ru,
-          queue_kind: row.kind,
-          channel: row.channel,
-        };
-        return {
-          archivedByUserId: input.archivedByUserId,
-          healthProbe: HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
-          sourceKind: OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND,
-          sourceId: row.id,
-          severityAtArchive: 'dead' as const,
-          doctorUserId: null as string | null,
-          summaryJson: summary,
-          rawErrorTruncated: truncateError(row.lastError),
-        };
-      });
-
-      await tx.insert(operatorHealthFailureArchive).values(insertValues);
-      await tx.delete(outgoingDeliveryQueue).where(
-        inArray(
-          outgoingDeliveryQueue.id,
-          rows.map((r) => r.id),
-        ),
-      );
-
-      return { inserted: rows.length, deleted: rows.length };
-    });
+    return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE, input);
   },
 
   async listForAdmin(input: {
@@ -357,53 +93,48 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     limit: number;
     cursor: string | null;
   }): Promise<HealthFailureArchiveListResult> {
-    const db = getDrizzle();
     const limit = Math.min(100, Math.max(1, input.limit));
     const cur = decodeArchiveCursor(input.cursor);
-
-    const wh = [];
-    if (input.probe) {
-      wh.push(eq(operatorHealthFailureArchive.healthProbe, input.probe));
-    }
-    if (cur) {
-      wh.push(
-        or(
-          lt(operatorHealthFailureArchive.archivedAt, cur.a),
-          and(
-            eq(operatorHealthFailureArchive.archivedAt, cur.a),
-            lt(operatorHealthFailureArchive.id, cur.i),
-          ),
-        )!,
-      );
-    }
-
-    const rows = await db
-      .select()
-      .from(operatorHealthFailureArchive)
-      .where(wh.length ? and(...wh) : undefined)
-      .orderBy(desc(operatorHealthFailureArchive.archivedAt), desc(operatorHealthFailureArchive.id))
-      .limit(limit + 1);
+    const functionArgs = [input.probe, limit + 1, cur?.a ?? null, cur?.i ?? null] as const;
+    const result = await runWebappNamedRoot<{
+      id: string;
+      archived_at: string;
+      archived_by_user_id: string | null;
+      health_probe: string;
+      source_kind: string;
+      source_id: string;
+      severity_at_archive: string;
+      summary_json: unknown;
+    }>(
+      getWebappSqlDb(),
+      'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)',
+      functionArgs,
+      sql`SELECT * FROM app.list_platform_health_failure_archive(
+        ${input.probe}, ${limit + 1}, ${cur?.a ?? null}::timestamptz, ${cur?.i ?? null}::uuid
+      )`,
+    );
+    const rows = result.rows;
 
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
     const last = page[page.length - 1];
     const nextCursor =
-      hasMore && last ? encodeArchiveCursor({ a: last.archivedAt, i: last.id }) : null;
+      hasMore && last ? encodeArchiveCursor({ a: last.archived_at, i: last.id }) : null;
 
     const items: HealthFailureArchiveRow[] = page.map((r) => ({
       id: r.id,
-      archivedAt: r.archivedAt,
-      archivedByUserId: r.archivedByUserId ?? null,
-      healthProbe: r.healthProbe,
-      sourceKind: r.sourceKind,
-      sourceId: r.sourceId,
-      severityAtArchive: r.severityAtArchive,
-      doctorUserId: r.doctorUserId ?? null,
+      archivedAt: r.archived_at,
+      archivedByUserId: r.archived_by_user_id,
+      healthProbe: r.health_probe,
+      sourceKind: r.source_kind,
+      sourceId: r.source_id,
+      severityAtArchive: r.severity_at_archive,
+      doctorUserId: null,
       summaryJson:
-        r.summaryJson !== null && typeof r.summaryJson === 'object' && !Array.isArray(r.summaryJson)
-          ? (r.summaryJson as Record<string, unknown>)
+        r.summary_json !== null && typeof r.summary_json === 'object' && !Array.isArray(r.summary_json)
+          ? (r.summary_json as Record<string, unknown>)
           : {},
-      rawErrorTruncated: r.rawErrorTruncated ?? null,
+      rawErrorTruncated: null,
     }));
 
     return { items, nextCursor };

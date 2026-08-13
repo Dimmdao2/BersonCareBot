@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 export async function GET(request: Request) {
-  const gate = await requirePlatformOperationsApiContext();
+  const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);

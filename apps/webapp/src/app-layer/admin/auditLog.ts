@@ -5,6 +5,7 @@ export {
   resolveAdminAuditConflictById,
   upsertOpenConflictLog,
   writeAuditLog,
+  writePlatformAuditLog,
   type AuditLogWriteEntry,
   type ListAdminAuditLogParams,
   type ListAdminAuditLogResult,

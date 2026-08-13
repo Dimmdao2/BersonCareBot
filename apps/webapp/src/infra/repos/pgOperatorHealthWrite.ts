@@ -135,41 +135,23 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
   },
 
   async resolveAllOpenIncidents() {
-    const db = getDrizzle();
-    const finishedIso = new Date().toISOString();
-    const rows = await db
-      .update(operatorIncidents)
-      .set({
-        resolvedAt: finishedIso,
-        alertClaimPhase: null,
-        alertClaimToken: null,
-        alertClaimedAt: null,
-      })
-      .where(isNull(operatorIncidents.resolvedAt))
-      .returning({ id: operatorIncidents.id });
-    return { resolved: rows.length };
+    const result = await runWebappNamedRoot<{ resolved_count: number | string }>(
+      getWebappSqlDb(),
+      'app.resolve_all_open_operator_incidents()',
+      [],
+      sql`SELECT app.resolve_all_open_operator_incidents() AS resolved_count`,
+    );
+    return { resolved: Number(result.rows[0]?.resolved_count ?? 0) };
   },
 
   async acknowledgeOpenOutboundProviderIncidents() {
-    const db = getDrizzle();
-    const acknowledgedAt = new Date().toISOString();
-    const rows = await db
-      .update(operatorIncidents)
-      .set({
-        acknowledgedAt,
-        alertClaimPhase: null,
-        alertClaimToken: null,
-        alertClaimedAt: null,
-      })
-      .where(
-        and(
-          isNull(operatorIncidents.resolvedAt),
-          isNull(operatorIncidents.acknowledgedAt),
-          eq(operatorIncidents.direction, 'outbound_delivery_provider'),
-        ),
-      )
-      .returning({ id: operatorIncidents.id });
-    return { acknowledged: rows.length };
+    const result = await runWebappNamedRoot<{ acknowledged_count: number | string }>(
+      getWebappSqlDb(),
+      'app.acknowledge_open_outbound_provider_incidents()',
+      [],
+      sql`SELECT app.acknowledge_open_outbound_provider_incidents() AS acknowledged_count`,
+    );
+    return { acknowledged: Number(result.rows[0]?.acknowledged_count ?? 0) };
   },
 
   async claimDueOutboundProviderAlert(input) {
