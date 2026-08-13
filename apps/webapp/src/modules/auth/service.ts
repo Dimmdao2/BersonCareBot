@@ -687,7 +687,21 @@ export async function exchangeIntegratorToken(
   }
 
   const built: AppSession = devParsed
-    ? { ...buildSession(user), authSource: 'dev_bypass' }
+    ? {
+        ...buildSession(user),
+        authSource: 'dev_bypass',
+        // The production platform-admin gate remains factor-only. This explicitly enabled
+        // non-production bypass represents the completed factor so DEV can exercise the
+        // dedicated global-admin DB pool instead of redirecting before any platform query.
+        ...(user.role === 'admin'
+          ? {
+              staffSecurity: {
+                assurance: 'factor_verified' as const,
+                verifiedAt: Math.floor(Date.now() / 1000),
+              },
+            }
+          : {}),
+      }
     : buildSession(user);
   const cookieStore = await cookies();
   // The session that is RETURNED is the one that was actually written to the cookie, epoch and all
