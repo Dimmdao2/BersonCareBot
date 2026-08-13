@@ -2044,7 +2044,7 @@ BEGIN
     definition := pg_catalog.pg_get_functiondef(routine.oid);
     source_at := position(routine.prosrc IN definition);
     IF source_at=0 THEN RAISE EXCEPTION 'runtime definer source not found in canonical definition: %',gate.signature; END IF;
-    definition := pg_catalog.overlay(definition PLACING new_source FROM source_at FOR char_length(routine.prosrc));
+    definition := pg_catalog.overlay(definition, new_source, source_at, char_length(routine.prosrc));
     EXECUTE definition;
   END LOOP;
 END
