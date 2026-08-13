@@ -40,7 +40,9 @@ export type DispatchRequestContactParams = {
 };
 
 /**
- * Для Telegram сначала гарантирует канонический channel binding, затем шлёт сообщение с кнопкой.
+ * Во входящем channel-link flow Telegram может сначала создать канонический channel binding через `writePort`.
+ * Подписанный исходящий request-contact не передаёт `writePort`: отправка pre-login handshake сама по себе не
+ * создаёт человека, не угадывает организацию и не меняет channel binding.
  * MAX: inline-кнопка `request_contact` в том же сообщении (см. `max/user/scripts.json`, API — `type: request_contact` в `deliveryAdapter`).
  *
  * Сохранённого диалогового состояния нет: следующий contact event определяется самим типом события.

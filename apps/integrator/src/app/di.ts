@@ -86,12 +86,6 @@ export type MessengerWebappEntryIdentityDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
-  /**
-   * T0.4 channel-binding fallback: deployment's single organization, used when the messenger
-   * identity has no per-user org context yet (first contact / not yet enrolled). See
-   * `resolveDeploymentSingleActiveOrganizationId` in `infra/db/repos/channelUsers.ts`.
-   */
-  resolveDeploymentOrganizationId?: () => Promise<string | null>;
   /** Dedicated webhook path resolves the actual bot instance to one clinic, never a default org. */
   resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
   /** MAX contact verification uses the exact clinic bot credential after organization binding. */

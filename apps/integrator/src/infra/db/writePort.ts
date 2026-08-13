@@ -797,10 +797,9 @@ export function createDbWritePort(
             occurredAt,
           };
           if (!organizationId) {
-            logger.warn(
-              { mutationType: mutation.type, intentEventId, correlationId, channel },
-              'delivery.attempt.log: direct public write fail-closed (no organizationId) — no write, no fallback',
-            );
+            // Global/pre-login delivery has no clinic support timeline by design. The mandatory
+            // operational audit was already persisted above; this optional organization projection
+            // is simply not applicable. Unexpected failures with a known organization stay loud below.
             return;
           }
           const deliveryAttemptId =

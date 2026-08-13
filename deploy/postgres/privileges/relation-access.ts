@@ -900,7 +900,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "purpose": "сама клиника — без неё нет арендатора вообще",
     "codePaths": [
       "apps/integrator/src/infra/db/realPostgresIntegrationTestHarness.ts",
-      "apps/integrator/src/infra/db/repos/channelUsers.ts",
       "apps/webapp/src/infra/repos/pgBookingEngine.ts",
       "apps/webapp/src/infra/repos/pgClinicDirectory.ts",
       "apps/webapp/src/infra/repos/pgDevBypassClinicAdminWorkspace.ts",
@@ -9637,7 +9636,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts",
       "apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts",
       "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
-      "apps/integrator/src/infra/db/repos/channelUsers.ts",
       "apps/integrator/src/infra/db/repos/platformUserByChannel.ts",
       "apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts",
       "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",

@@ -125,18 +125,17 @@ tenant и первого контакта уже определена и не т
 - публичная запись создаёт/разрешает пользователя и запись (`apps/webapp/src/app/api/booking/public/create/route.ts:59`),
   но enrollment не создаёт.
 
-### 3.5 Первый контакт интегратора сейчас одноклиничный
+### 3.5 Первый контакт интегратора не выбирает клинику по deployment
 
-- `resolveDeploymentSingleActiveOrganizationId` выбирает до двух активных строк и возвращает tenant только при
-  одной (`apps/integrator/src/infra/db/repos/channelUsers.ts:101`).
-- Telegram и MAX сначала пытаются вывести клинику из уже известной messenger identity, затем используют этот
-  deployment-wide fallback (`apps/integrator/src/integrations/telegram/webhook.ts:155`,
-  `apps/integrator/src/integrations/max/webhook.ts:57`).
-- fallback подключён не только к webhook, но также к request-contact и user-merge M2M
-  (`apps/integrator/src/app/routes.ts:98`). Все ссылки на него должны исчезнуть одним изменением.
-- `integrator.identities` уникален по `(resource, external_id)`
-  (`apps/integrator/src/infra/db/migrations/core/20260306_0013_create_identities.sql:1`), то есть глобальная identity
-  человека может сохраниться; clinic channel context должен быть отдельной связью, а не дубликатом человека.
+- **ИСПРАВЛЕНО 13.08:** `resolveDeploymentSingleActiveOrganizationId`,
+  `createResolveDeploymentOrganizationId` и их wiring удалены; первый контакт не может выбрать tenant по
+  единственной/первой активной строке `be_organizations`.
+- Signed `request-contact` является global pre-login handshake без tenant-write. Telegram/MAX business event
+  получает клинику только из явного bot/link binding по целевой модели ниже; отсутствие binding не заменяется
+  deployment fallback.
+- Legacy `integrator.identities` удалена; глобальная привязка человека живёт в
+  `public.user_channel_bindings(channel_code,external_id)`. Clinic channel context должен быть отдельной связью,
+  а не дубликатом человека.
 
 ## 4. Целевая модель
 

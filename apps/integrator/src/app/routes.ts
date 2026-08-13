@@ -12,7 +12,6 @@ import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
 import {
   resolveActiveOrganizationIdForIntegratorUserId,
-  resolveDeploymentSingleActiveOrganizationId,
 } from '../infra/db/repos/channelUsers.js';
 import { resolveActiveOrganizationIdForChannel } from '../infra/db/repos/platformUserByChannel.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
@@ -102,26 +101,6 @@ function createResolveDedicatedClinicMaxApiKey(): (
 }
 
 /**
- * T0.4 channel-binding fallback: the deployment's single organization, used when a messenger
- * identity has no per-user org context yet (first contact, not yet enrolled). See
- * {@link resolveDeploymentSingleActiveOrganizationId} for the architecture rationale/limits.
- */
-function createResolveDeploymentOrganizationId(): () => Promise<string | null> {
-  return async () => {
-    try {
-      const db = createDbPort();
-      return await runWithBootstrapPrincipal(
-        { source: 'integrator-deployment-org-resolution' },
-        () => resolveDeploymentSingleActiveOrganizationId(db),
-      );
-    } catch (error) {
-      reportIntegratorIsolationFailure(error);
-      return null;
-    }
-  };
-}
-
-/**
  * Registers all HTTP routes for the app layer.
  * Business routing is delegated to integration registrars + eventGateway.
  */
@@ -132,7 +111,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const resolveDedicatedTelegramBotOrganization =
     createResolveDedicatedClinicBotOrganization('telegram');
   const resolveDedicatedMaxBotOrganization = createResolveDedicatedClinicBotOrganization('max');
-  const resolveDeploymentOrganizationId = createResolveDeploymentOrganizationId();
   const authChannelPolicyDb = createDbPort();
   const authChannelPolicy = (channel: 'email' | 'sms' | 'telegram' | 'max') =>
     isAuthChannelEnabled(authChannelPolicyDb, channel);
@@ -204,10 +182,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareRequestContactRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
-    db: createDbPort(),
     isAuthChannelEnabled: authChannelPolicy,
-    resolveOrganizationIdForMessengerIdentity,
-    resolveDeploymentOrganizationId,
     idempotencyPort: deps.idempotencyPort,
   });
 

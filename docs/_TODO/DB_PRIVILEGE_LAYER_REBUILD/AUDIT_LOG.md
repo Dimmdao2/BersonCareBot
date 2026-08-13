@@ -2337,3 +2337,31 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   deploy/postgres/privileges/function-census.test.mjs deploy/postgres/privileges/relation-access.test.mjs
   deploy/postgres/privileges/port-context-callsite-catalog.test.mjs && pnpm exec tsc -p
   deploy/postgres/privileges/tsconfig.json --noEmit` дала `43/43`, typecheck exit `0`.
+
+## Audit/live pass DEV-request-contact-global-handshake-2026-08-13
+
+| Поле | Значение |
+|---|---|
+| Candidate | рабочее дерево после `9c5789265`, `feat/doctor-ui-rebuild` |
+| Метод | Signed live request-contact + duplicate + central no-send guard + application/PostgreSQL journals |
+| Вердикт | **PASS: GLOBAL PRE-LOGIN HANDSHAKE НЕ УГАДЫВАЕТ КЛИНИКУ И НЕ ПИШЕТ IDENTITY** |
+
+- **LIVE-REQUEST-CONTACT-DEPLOYMENT-ORG-001 — ИСПРАВЛЕНО ГРОМКО:** route до отправки делал два tenant-resolve,
+  затем Telegram `user.upsert`; при новом deny-by-default прямое чтение `public.be_organizations` громко
+  отказывало, но route проглатывал resolver failure и отвечал `200`. Эти операции не являются потребностью
+  глобального contact handshake: route больше не определяет организацию, не создаёт человека/channel binding и
+  не вызывает tenant write. Канонический `user.upsert` сохранён только во входящем channel-link flow, где реально
+  пришло событие человека.
+- Необязательный org-scoped `support_delivery_events` остаётся для клинических отправок с известной организацией;
+  отсутствие организации у global/pre-login delivery больше не маркируется ложным warning. Обязательный
+  operational audit по-прежнему пишется exact named root; неожиданный сбой при известной организации остаётся
+  громким и сохраняет fallback.
+- Live-команда с HMAC, загруженным локально из `.env` без вывода secret, дала `first 200 accepted` и
+  `duplicate 200 duplicate`; central guard записал `PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS`, provider не
+  вызывался. `sudo -n tail -n +$((probe_start+1)) /var/log/postgresql/postgresql-16-main.log` не вернул строк.
+  Команда `pnpm --dir apps/integrator exec vitest run
+  src/integrations/bersoncare/requestContactRoute.route.test.ts
+  src/infra/db/repos/messageLogs.deliveryAttemptAudit.test.ts && pnpm --dir apps/integrator exec tsc --noEmit &&
+  git diff --check` дала `2 files / 8 tests`, typecheck и diff-check exit `0`.
+- SQL cleanup с exact predicates `id IN (7085,7086)` и двумя именованными probe keys удалил только созданные
+  этим проходом строки; два последующих `count(*)` вернули `audit_remaining=0`, `dedup_remaining=0`.

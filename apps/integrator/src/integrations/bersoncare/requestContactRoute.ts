@@ -9,10 +9,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DbPort, DispatchPort, IdempotencyPort } from '../../kernel/contracts/index.js';
+import type { DispatchPort, IdempotencyPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
-import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
-import { createDbWritePort } from '../../infra/db/writePort.js';
 import { dispatchRequestContactToUser } from './dispatchRequestContact.js';
 
 const WINDOW_SECONDS = 300;
@@ -48,14 +46,7 @@ function verifySignature(
 export type BersoncareRequestContactDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
-  db: DbPort;
   isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
-  resolveOrganizationIdForMessengerIdentity?: (
-    externalId: string,
-    resource: 'telegram' | 'max',
-  ) => Promise<string | null>;
-  /** T0.4 channel-binding fallback when the recipient has no per-user org context yet (see routes.ts). */
-  resolveDeploymentOrganizationId?: () => Promise<string | null>;
   /** Durable dedup store (`integrator.idempotency_keys`) — survives process restarts/replicas. */
   idempotencyPort: IdempotencyPort;
 };
@@ -67,10 +58,7 @@ export async function registerBersoncareRequestContactRoute(
   const {
     dispatchPort,
     sharedSecret,
-    db,
     isAuthChannelEnabled,
-    resolveOrganizationIdForMessengerIdentity,
-    resolveDeploymentOrganizationId,
     idempotencyPort,
   } = deps;
 
@@ -117,47 +105,13 @@ export async function registerBersoncareRequestContactRoute(
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
 
-    const writePort = createDbWritePort({ db });
-
     try {
-      const dispatchContact = (): Promise<void> =>
-        dispatchRequestContactToUser({
-          dispatchPort,
-          writePort,
-          channel,
-          recipientId,
-          correlationId: idempotencyKey,
-        });
-      let organizationId: string | null = null;
-      if (resolveOrganizationIdForMessengerIdentity) {
-        try {
-          organizationId = await resolveOrganizationIdForMessengerIdentity(recipientId, channel);
-        } catch {
-          organizationId = null;
-        }
-      }
-      if (!organizationId && resolveDeploymentOrganizationId) {
-        try {
-          organizationId = await resolveDeploymentOrganizationId();
-          if (organizationId) {
-            logger.info(
-              { channel },
-              'request-contact: no per-user org context, using deployment channel-binding fallback',
-            );
-          }
-        } catch {
-          organizationId = null;
-        }
-      }
-      if (organizationId) {
-        await runWithOrganizationPrincipal(organizationId, dispatchContact);
-      } else {
-        logger.warn(
-          { channel },
-          'request-contact: no organization resolvable for channel; dispatching without principal',
-        );
-        await dispatchContact();
-      }
+      await dispatchRequestContactToUser({
+        dispatchPort,
+        channel,
+        recipientId,
+        correlationId: idempotencyKey,
+      });
       logger.info({ channel }, 'request-contact: dispatched');
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (err) {
