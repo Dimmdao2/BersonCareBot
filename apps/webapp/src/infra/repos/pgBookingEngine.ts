@@ -40,6 +40,11 @@ import { isChainFree } from '@/modules/booking-scheduling/computeSlots';
 import { listBookingBusyIntervals } from '@/infra/repos/pgBookingScheduling';
 import type { BookingEngineCorePort } from '@/modules/booking-engine/ports';
 import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
+import {
+  ONLINE_LOCATION_CITY_CODE,
+  ONLINE_LOCATION_TITLE,
+  shouldApplyPhysicalBranchReactivationQuota,
+} from '@/modules/booking-engine/onlineLocation';
 import type {
   AppointmentStatus,
   BeAppointment,
@@ -567,7 +572,11 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           if (!existing) return null;
 
           const nextIsActive = input.isActive ?? existing.isActive;
-          const reactivating = existing.isActive === false && nextIsActive === true;
+          const reactivating = shouldApplyPhysicalBranchReactivationQuota({
+            existingIsActive: existing.isActive,
+            nextIsActive,
+            location: { title: input.title, cityCode: input.cityCode },
+          });
           if (reactivating) {
             await transactionQuotaPort.withinLock(
               tx,
@@ -578,8 +587,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
                     `SELECT count(*)::int AS used_value
                      FROM be_branches
                      WHERE organization_id = $1
-                       AND is_active = true`,
-                    [existing.organizationId],
+                       AND is_active = true
+                       AND lower(city_code) <> $2
+                       AND lower(title) <> $3`,
+                    [
+                      existing.organizationId,
+                      ONLINE_LOCATION_CITY_CODE,
+                      ONLINE_LOCATION_TITLE.toLocaleLowerCase('ru'),
+                    ],
                     tx,
                   );
                   return usage.rows[0]?.used_value ?? 0;
@@ -644,8 +659,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
                 `SELECT count(*)::int AS used_value
                  FROM be_branches
                  WHERE organization_id = $1
-                   AND is_active = true`,
-                [input.organizationId],
+                   AND is_active = true
+                   AND lower(city_code) <> $2
+                   AND lower(title) <> $3`,
+                [
+                  input.organizationId,
+                  ONLINE_LOCATION_CITY_CODE,
+                  ONLINE_LOCATION_TITLE.toLocaleLowerCase('ru'),
+                ],
                 tx,
               );
               return usage.rows[0]?.used_value ?? 0;

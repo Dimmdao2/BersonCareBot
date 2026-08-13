@@ -13,6 +13,18 @@ export function isBuiltInOnlineLocation(location: OnlineLocationIdentity): boole
   return isReservedOnlineLocationIdentity(location);
 }
 
+export function shouldApplyPhysicalBranchReactivationQuota(input: {
+  existingIsActive: boolean;
+  nextIsActive: boolean;
+  location: OnlineLocationIdentity;
+}): boolean {
+  return (
+    input.existingIsActive === false &&
+    input.nextIsActive === true &&
+    !isBuiltInOnlineLocation(input.location)
+  );
+}
+
 export function isBuiltInOnlineLocationCityCode(cityCode: string | null | undefined): boolean {
   return cityCode?.trim().toLowerCase() === ONLINE_LOCATION_CITY_CODE;
 }
