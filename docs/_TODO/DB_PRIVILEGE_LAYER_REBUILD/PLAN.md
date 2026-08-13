@@ -277,12 +277,17 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   Reminders read-page без выбранной клиники больше не пытается читать/материализовать clinic promo до проверки
   `canMaterialize`: повторный live render `200` без `ensure_default_promo_failed` и без нового DB grant.
   Независимый аудит затем нашёл, что настоящий integrator producer терял `platform_user_id` и `organization_id`
-  finalized occurrence, поэтому ручной fixture не доказывал весь путь. Разрыв закрыт по цепочке occurrence →
-  projection event → webapp INSERT; отсутствие ownership теперь громкая ошибка, оба targeted tests требуют поля.
+  finalized occurrence, поэтому ручной fixture не доказывал весь путь. Поля теперь проходят occurrence → event →
+  consumer, но повторный аудит поймал второй разрыв до ложного закрытия: signed HTTP route оставлял finalized
+  event в bootstrap context, а INSERT ошибочно принадлежал staff. Код исправлен на обязательный signed
+  organization principal + exact tenant-service INSERT/current-org/active-enrollment wall; полный живой
+  producer→HTTP→DB proof ещё требуется.
   Patient analytics page-view и push-open прошли live: первый push-open записан, повтор дедуплицирован, агрегаты
   выросли ровно на один. Route теперь устанавливает authenticated patient context; прежний pre-login mutation
-  удалён. Найденный класс PostgreSQL `ON CONFLICT DO NOTHING` теперь проверяется generator body verifier для всех
-  definer seams; восемь неполных relation-surfaces исправлены, повторный DEV reconcile/catalog audit прошёл.
+  удалён. Найденный класс PostgreSQL `ON CONFLICT DO NOTHING` проверяется generator body verifier. Повторный аудит
+  исправил завышенную первую реализацию: targetless/plain INSERT больше не требуют SELECT, а targeted variants
+  получают operation-specific доступ только к arbiter/predicate columns. Новый reconcile и live proof после
+  этой correction ещё не выполнены.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

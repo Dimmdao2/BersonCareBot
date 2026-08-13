@@ -11,6 +11,7 @@ type CachedEntry = {
 const fakes = vi.hoisted(() => ({
   cache: new Map<string, CachedEntry>(),
   handleIntegratorEvent: vi.fn<HandleIntegratorEvent>(),
+  enterVerifiedIntegratorOrganizationPrincipal: vi.fn(() => true),
 }));
 
 vi.mock('@/app-layer/admin/auditLog', () => ({
@@ -36,7 +37,7 @@ vi.mock('@/app-layer/integrator/verifyIntegratorSignature', () => ({
   verifyIntegratorSignature: () => true,
 }));
 vi.mock('@/app-layer/principal/integratorOrganizationPrincipal', () => ({
-  enterVerifiedIntegratorOrganizationPrincipal: () => true,
+  enterVerifiedIntegratorOrganizationPrincipal: fakes.enterVerifiedIntegratorOrganizationPrincipal,
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
@@ -78,6 +79,7 @@ import { POST } from '@/app/api/integrator/events/route';
 function eventRequest(
   idempotencyKey: string,
   payload: Record<string, unknown>,
+  eventType = 'patient.profile.updated',
 ): Request {
   return new Request('https://app.example.test/api/integrator/events', {
     method: 'POST',
@@ -88,7 +90,7 @@ function eventRequest(
       'x-bersoncare-idempotency-key': idempotencyKey,
     },
     body: JSON.stringify({
-      eventType: 'patient.profile.updated',
+      eventType,
       eventId: 'event-1',
       occurredAt: '2026-07-30T00:00:00.000Z',
       payload,
@@ -99,6 +101,8 @@ function eventRequest(
 beforeEach(() => {
   fakes.cache.clear();
   fakes.handleIntegratorEvent.mockReset();
+  fakes.enterVerifiedIntegratorOrganizationPrincipal.mockReset();
+  fakes.enterVerifiedIntegratorOrganizationPrincipal.mockReturnValue(true);
 });
 
 describe('POST /api/integrator/events semantic idempotency', () => {
@@ -152,5 +156,30 @@ describe('POST /api/integrator/events semantic idempotency', () => {
       accepted: true,
       idempotencyKey: key,
     });
+  });
+
+  it('requires and installs the signed organization principal for finalized reminder events', async () => {
+    const organizationId = 'a0000000-0000-4000-8000-000000000001';
+    fakes.handleIntegratorEvent.mockResolvedValue({ accepted: true });
+
+    const missing = await POST(eventRequest(
+      'reminder-finalized-missing-org',
+      { integratorOccurrenceId: 'occurrence-1' },
+      'reminder.occurrence.finalized',
+    ));
+    expect(missing.status).toBe(400);
+    expect(fakes.handleIntegratorEvent).not.toHaveBeenCalled();
+
+    const accepted = await POST(eventRequest(
+      'reminder-finalized-with-org',
+      { organizationId },
+      'reminder.occurrence.finalized',
+    ));
+    expect(accepted.status).toBe(202);
+    expect(fakes.enterVerifiedIntegratorOrganizationPrincipal).toHaveBeenLastCalledWith(
+      organizationId,
+      'integrator-reminder-occurrence-finalized-event',
+    );
+    expect(fakes.handleIntegratorEvent).toHaveBeenCalledOnce();
   });
 });

@@ -6853,7 +6853,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
   },
   "public.reminder_occurrence_history": {
     "kind": "direct",
-    "purpose": "история срабатываний напоминаний — без неё нет истории напоминаний и статистики соблюдения режима",
+    "purpose": "история срабатываний напоминаний: подписанный tenant-scoped integrator event добавляет проекцию, человек только читает или обслуживает её",
     "codePaths": [
       "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
       "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
@@ -6876,7 +6876,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": "table"
       },
       {
-        "role": "app_staff",
+        "role": "app_tenant_service",
         "operations": [
           "INSERT"
         ],

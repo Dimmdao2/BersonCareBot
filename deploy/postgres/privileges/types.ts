@@ -259,6 +259,8 @@ export interface NamedSeamAccess {
   invocation: 'runtime' | 'trigger' | 'internal';
   columns: string[];
   operations: Privilege[];
+  /** Per-operation subset when PostgreSQL needs fewer columns than the union surface. */
+  operationColumns?: Partial<Record<Privilege, string[]>>;
   purpose: string;
 }
 
@@ -280,6 +282,8 @@ export interface FunctionRelationSurface {
   relation: string;
   columns: readonly string[];
   operations: readonly Privilege[];
+  /** Per-operation subset when one statement surface must not inherit the union of all columns. */
+  operationColumns?: Partial<Record<Privilege, readonly string[]>>;
   /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
   evidence: 'pg16-function-body-lexical-upper-bound';
 }

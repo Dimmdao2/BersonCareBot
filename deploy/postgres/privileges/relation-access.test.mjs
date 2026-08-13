@@ -56,6 +56,46 @@ test('patient reminder history is readable and only its seen cursor is mutable',
     assert.deepEqual(policy?.to, ['app_patient', 'app_staff']);
     assert.match(policy?.using ?? '', /platform_user_id = app\.current_patient_user_id\(\)/u);
     assert.match(policy?.using ?? '', /organization_id = app\.current_org_id\(\)/u);
+    exactColumns('public.reminder_occurrence_history', 'app_tenant_service', 'INSERT', [
+      'category', 'delivery_channel', 'error_code', 'integrator_occurrence_id',
+      'integrator_rule_id', 'integrator_user_id', 'organization_id', 'occurred_at',
+      'platform_user_id', 'status',
+    ]);
+    assertNoOperation('public.reminder_occurrence_history', 'app_staff', 'INSERT');
+    const tenantInsert = table.policies.find((candidate) =>
+      candidate.name.startsWith('rev10_tenant_insert_'));
+    assert.deepEqual(tenantInsert?.to, ['app_tenant_service']);
+    assert.match(tenantInsert?.withCheck ?? '', /organization_id = app\.current_org_id\(\)/u);
+    assert.match(tenantInsert?.withCheck ?? '', /tenant_patient\.platform_user_id/u);
+  }
+});
+
+test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () => {
+  const expected = [
+    ['app.choose_organization_first_tariff(uuid,uuid)', 'public.saas_organization_trials', ['organization_id']],
+    ['app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'public.patient_merge_candidates',
+      ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
+    ['app.email_auth_enqueue_otp_delivery(uuid,uuid)', 'public.outgoing_delivery_queue', ['event_id']],
+    ['app.ensure_staff_security_profile()', 'public.staff_security_profiles', ['user_id']],
+    ['app.record_current_patient_push_open(timestamp with time zone,text,uuid)',
+      'public.product_analytics_events_recent', ['push_tracking_id', 'event_type']],
+    ['app.redeem_patient_invite_email(text)', 'public.patient_merge_candidates',
+      ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
+  ];
+  for (const [signature, relation, columns] of expected) {
+    const surface = declaration.portContext.functions[signature].relationSurfaces.find(
+      (candidate) => candidate.relation === relation,
+    );
+    assert.deepEqual(surface?.operationColumns?.SELECT, columns, `${signature}:${relation}`);
+    for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+      const grant = declaration.databases[dbName].tables[relation].grants[
+        declaration.portContext.functions[signature].owner
+      ];
+      assert.equal(grant.privs.some((entry) => typeof entry === 'object'
+        && entry.kind === 'columns' && entry.priv === 'SELECT'
+        && JSON.stringify(entry.columns) === JSON.stringify([...columns].sort())), true,
+      `${dbName}:${signature}:${relation}`);
+    }
   }
 });
 
@@ -639,8 +679,8 @@ test('tenant service has one command-aware D/M/P policy for every exact relation
     }
   }
 
-  assert.equal(expectedEdges.size, 130, 'measured exact tenant operation census changed');
-  assert.equal(tenantRelations.size, 61, 'measured exact tenant relation census changed');
+  assert.equal(expectedEdges.size, 131, 'measured exact tenant operation census changed');
+  assert.equal(tenantRelations.size, 62, 'measured exact tenant relation census changed');
   assert.deepEqual(actualEdges, expectedEdges);
 });
 

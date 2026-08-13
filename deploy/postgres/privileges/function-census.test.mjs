@@ -176,7 +176,10 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=/);
     assert.match(first, /ON CONFLICT DO UPDATE requires undeclared UPDATE/);
     assert.match(first, /ON CONFLICT DO UPDATE requires undeclared SELECT for conflict\/update row/);
-    assert.match(first, /ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row/);
+    assert.match(first, /targeted ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row/);
+    assert.match(first, /targetless ON CONFLICT DO NOTHING was classified as requiring SELECT/);
+    assert.match(first, /indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT/);
+    assert.match(first, /constrained ON CONFLICT DO NOTHING was not classified as requiring SELECT/);
     assert.match(first, /UPDATE predicate\/RETURNING requires undeclared SELECT/);
     assert.match(first, /app\.record_operator_outbound_probe_run\(text,timestamp with time zone,text,jsonb\)/);
     assert.doesNotMatch(first, /install_signed_context|release_principal_context|reset_principal_context/);

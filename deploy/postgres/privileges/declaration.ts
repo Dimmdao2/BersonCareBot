@@ -3411,6 +3411,9 @@ function revision10RelationSeams(tableKey: string, dbName: string): NamedSeamAcc
     seams.push({
       regprocedure, owner: fn.owner, callers: invocation === 'runtime' ? [...fn.execute] : [], invocation,
       columns: [...surface.columns], operations: [...surface.operations],
+      ...(surface.operationColumns ? { operationColumns: Object.fromEntries(
+        Object.entries(surface.operationColumns).map(([operation, columns]) => [operation, [...columns]]),
+      ) } : {}),
       purpose: `${fn.purpose}: ${tableKey}`,
     });
   }
@@ -3456,7 +3459,9 @@ function revision10TableGrants(access: RelationAccess): Record<string, GrantDecl
     for (const grant of access.grants) add(grant.role, grant.operations, grant.columns, access.purpose);
   }
   for (const seam of access.kind === 'direct' ? access.seams : access.seams) {
-    add(seam.owner, seam.operations, seam.columns, seam.purpose);
+    for (const operation of seam.operations) {
+      add(seam.owner, [operation], seam.operationColumns?.[operation] ?? seam.columns, seam.purpose);
+    }
   }
   return Object.fromEntries([...byRole.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([role, row]) => [role, {
     privs: row.privs, why: [...row.reasons].sort().join('; '),
@@ -3522,6 +3527,7 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.patient_daily_warmup_presentations', 'public.patient_daily_warmup_video_views',
   'public.patient_diary_day_snapshots', 'public.patient_lfk_assignments',
   'public.patient_practice_completions', 'public.product_analytics_events_recent',
+  'public.reminder_occurrence_history',
   'public.platform_user_contacts', 'public.product_analytics_user_hourly', 'public.product_push_notifications',
   'public.program_action_log',
   'public.reminder_rules', 'public.specialist_tasks', 'public.support_conversation_messages',
@@ -3556,6 +3562,7 @@ const REV10_TENANT_MEMBERSHIP_WRITE: Record<string, Partial<Record<'INSERT' | 'U
   },
   'public.be_patient_packages': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_patient_timeline_events': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
+  'public.reminder_occurrence_history': { INSERT: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_payment_history_events': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_payment_intents': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
   'public.be_payments': { UPDATE: [{ column: 'platform_user_id', type: 'uuid' }] },
@@ -3718,7 +3725,11 @@ function revision10TenantPolicies(
       ? REV10_TENANT_MEMBERSHIP_WRITE[tableKey]?.[operation]
       : undefined;
     const membershipCheck = membershipRefs
-      ? revision10TenantMembershipPredicate(tableKey, membershipRefs, false)
+      ? revision10TenantMembershipPredicate(
+        tableKey,
+        membershipRefs,
+        tableKey === 'public.reminder_occurrence_history' && operation === 'INSERT',
+      )
       : undefined;
     const parentCheck = operation === 'INSERT' || operation === 'UPDATE'
       ? revision10TenantParentWritePredicate(tableKey, operation)

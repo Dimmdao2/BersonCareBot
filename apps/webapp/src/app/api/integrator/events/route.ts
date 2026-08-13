@@ -84,13 +84,18 @@ export async function POST(request: Request) {
     );
   }
 
-  if (eventBody.eventType === 'support.delivery.attempt.logged') {
+  const organizationPrincipalSource = eventBody.eventType === 'support.delivery.attempt.logged'
+    ? 'integrator-support-delivery-attempt-event'
+    : eventBody.eventType === 'reminder.occurrence.finalized'
+      ? 'integrator-reminder-occurrence-finalized-event'
+      : null;
+  if (organizationPrincipalSource) {
     const organizationId = eventBody.payload?.organizationId;
     if (
       typeof organizationId !== 'string' ||
       !enterVerifiedIntegratorOrganizationPrincipal(
         organizationId,
-        'integrator-support-delivery-attempt-event',
+        organizationPrincipalSource,
       )
     ) {
       return NextResponse.json(

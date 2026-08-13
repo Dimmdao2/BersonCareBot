@@ -2776,3 +2776,18 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
 - Живой результат: первый push-open → `200 {deduped:false}`, повтор → `200 {deduped:true}`; recent/hourly/
   user-hourly содержали ровно `1/1/1`. Обычный patient page-view также дал `200 accepted=1`. Все analytics
   fixtures и выбранная organization затем удалены: `recent=0`, `hourly=0`, push fixture `=0`.
+
+### Независимый аудит commit `621a18a87` — MUST FIX найден, исправление в проверке
+
+- **DEFINER-ON-CONFLICT-SELECT-012-CORRECTION — НАЙДЕНО АУДИТОРОМ И ИСПРАВЛЕНО ГРОМКО:** прежняя запись
+  «все восемь surfaces исправлены» была неточной. Targetless `ON CONFLICT DO NOTHING` вообще не требует
+  `SELECT`; ещё два обычных INSERT получили ложное чтение, а пять настоящих arbiter-path получили чтение всех
+  INSERT-колонок вместо exact conflict-key/predicate. Декларация теперь поддерживает operation-specific columns:
+  targetless/plain INSERT не получают `SELECT`, шесть действительных targeted surfaces читают только свои
+  arbiter/predicate columns. Generator сам проверяет targeted/targetless/constraint fixtures.
+- **REMINDER-FINALIZED-PRINCIPAL-013 — НАЙДЕНО АУДИТОРОМ И ИСПРАВЛЕНО В КОДЕ:** ownership-поля уже доходили до
+  webapp, но signed HTTP route не устанавливал organization principal для `reminder.occurrence.finalized`.
+  Поэтому реальная запись оставалась bootstrap/pre-session; ошибочный INSERT был выдан human `app_staff`.
+  Route теперь требует signed payload `organizationId` и ставит tenant-service principal, INSERT перенесён на
+  exact `app_tenant_service` columns с current-org + active-patient-enrollment wall; staff INSERT удалён.
+  До живого signed producer→HTTP→DB прогона этот пункт не объявляется закрытым.

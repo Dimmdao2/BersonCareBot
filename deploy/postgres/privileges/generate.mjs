@@ -774,6 +774,12 @@ export function collectGaps(declaration, dbName) {
         if (!declaration.databases.bersoncarebot_test?.tables?.[surface.relation]
           && !context.privateRelations?.[surface.relation]) add(ssite, `unknown relation '${surface.relation}'`);
         if (surface.columns.length === 0 || surface.operations.length === 0) add(ssite, 'surface needs named columns and operations');
+        for (const [operation, columns] of Object.entries(surface.operationColumns ?? {})) {
+          if (!surface.operations.includes(operation) || !Array.isArray(columns) || columns.length === 0
+            || columns.some((column) => !surface.columns.includes(column))) {
+            add(ssite, `operation-specific columns are invalid for '${operation}'`);
+          }
+        }
       }
       if (Array.isArray(fn.relationSurfaces) && fn.relationSurfaces.length === 0 && !(fn.delegatesTo?.length > 0)) {
         add(`portContext.functions.${signature}`, 'wrapper without a direct relation surface must name exact delegated roots');
@@ -951,7 +957,11 @@ export function collectGaps(declaration, dbName) {
           } else add(nsite, `unknown invocation '${named.invocation}'`);
           const surface = seam?.relationSurfaces?.find((candidate) => candidate.relation === tableKey);
           if (!surface || named.columns.some((column) => !surface.columns.includes(column))
-            || named.operations.some((operation) => !surface.operations.includes(operation))) {
+            || named.operations.some((operation) => !surface.operations.includes(operation))
+            || Object.entries(named.operationColumns ?? {}).some(([operation, columns]) =>
+              !surface.operationColumns?.[operation]
+              || columns.length !== surface.operationColumns[operation].length
+              || columns.some((column) => !surface.operationColumns[operation].includes(column)))) {
             add(nsite, `relation surface does not match function census for '${tableKey}'`);
           }
         }
@@ -1884,6 +1894,9 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     'DO $bcb$',
     'DECLARE surface record; source text; relation_pattern text; column_pattern text; mutation text;',
     'BEGIN',
+    "  IF 'insert into x(id) values (1) on conflict do nothing' ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M' THEN RAISE EXCEPTION 'targetless ON CONFLICT DO NOTHING was classified as requiring SELECT'; END IF;",
+    "  IF NOT ('insert into x(id) values (1) on conflict (id) do nothing' ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M') THEN RAISE EXCEPTION 'indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;",
+    "  IF NOT ('insert into x(id) values (1) on conflict on constraint x_pkey do nothing' ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M') THEN RAISE EXCEPTION 'constrained ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;",
     '  FOR surface IN SELECT * FROM bcb_function_relation_surfaces ORDER BY signature,relation_name LOOP',
     '    SELECT pg_catalog.lower(p.prosrc) INTO source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(surface.signature);',
     "    IF source IS NULL THEN RAISE EXCEPTION 'function body surface target missing: %',surface.signature; END IF;",
@@ -1896,7 +1909,7 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     "    mutation := (pg_catalog.regexp_match(source, '(\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M[^;]*)'))[1];",
     "    IF mutation ~ '\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M' AND NOT ('UPDATE'=ANY(surface.operations)) THEN RAISE EXCEPTION 'ON CONFLICT DO UPDATE requires undeclared UPDATE: % -> %',surface.signature,surface.relation_name; END IF;",
     "    IF mutation ~ '\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'ON CONFLICT DO UPDATE requires undeclared SELECT for conflict/update row: % -> %',surface.signature,surface.relation_name; END IF;",
-    "    IF mutation ~ '\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+nothing\\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row: % -> %',surface.signature,surface.relation_name; END IF;",
+    "    IF mutation ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'targeted ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row: % -> %',surface.signature,surface.relation_name; END IF;",
     "    IF mutation ~ ('\\mreturning\\M[^;]*\\m('||column_pattern||')\\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'INSERT RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;",
     "    mutation := (pg_catalog.regexp_match(source, '(\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M[^;]*)'))[1];",
     "    IF mutation ~ ('\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'UPDATE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;",

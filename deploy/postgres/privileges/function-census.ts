@@ -1102,7 +1102,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id"
         ],
         "operations": [
-          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -1177,6 +1176,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT",
           "INSERT"
         ],
+        "operationColumns": {
+          "SELECT": [
+            "organization_id"
+          ]
+        },
         "evidence": "pg16-function-body-lexical-upper-bound"
       },
       {
@@ -1318,6 +1322,14 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT",
           "INSERT"
         ],
+        "operationColumns": {
+          "SELECT": [
+            "organization_id",
+            "anchor_user_id",
+            "candidate_user_id",
+            "status"
+          ]
+        },
         "evidence": "pg16-function-body-lexical-upper-bound"
       },
       {
@@ -1896,6 +1908,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT",
           "INSERT"
         ],
+        "operationColumns": {
+          "SELECT": [
+            "event_id"
+          ]
+        },
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
@@ -2954,7 +2971,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "updated_at"
         ],
         "operations": [
-          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -2990,6 +3006,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT",
           "INSERT"
         ],
+        "operationColumns": {
+          "SELECT": [
+            "user_id"
+          ]
+        },
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
@@ -6030,7 +6051,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "organization_id"
         ],
         "operations": [
-          "SELECT",
           "INSERT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
@@ -9231,6 +9251,12 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT",
           "INSERT"
         ],
+        "operationColumns": {
+          "SELECT": [
+            "push_tracking_id",
+            "event_type"
+          ]
+        },
         "evidence": "pg16-function-body-lexical-upper-bound"
       },
       {
@@ -9793,6 +9819,14 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT",
           "INSERT"
         ],
+        "operationColumns": {
+          "SELECT": [
+            "organization_id",
+            "anchor_user_id",
+            "candidate_user_id",
+            "status"
+          ]
+        },
         "evidence": "pg16-function-body-lexical-upper-bound"
       },
       {
