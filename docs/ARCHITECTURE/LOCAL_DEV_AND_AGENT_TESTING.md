@@ -48,7 +48,8 @@ pnpm run migrate  # первичный bootstrap; существующая DEV �
 и не читает `/opt/env`, TEST или PROD. `--execute` применяет integrator-миграции через локальный PostgreSQL admin
 с `SET ROLE app_object_owner`, а webapp Drizzle — через NOLOGIN `bcb_dev_migrator` и exact владельцев, объявленных
 в самих pending statements. После миграций wrapper обязательно выполняет declaration reconcile вместе с catalog
-audit; deploy-only мигратор остаётся без LOGIN, пароля, BYPASSRLS и постоянных membership. Wrapper не управляет
+audit и атомарно синхронизирует declaration-owned capability JSON в `.env`/`apps/webapp/.env.dev`; deploy-only
+мигратор остаётся без LOGIN, пароля, BYPASSRLS и постоянных membership. Wrapper не управляет
 процессами: перед `--execute` оператор отдельно координирует единственный DEV server/writer и не поднимает второй
 Next server.
 

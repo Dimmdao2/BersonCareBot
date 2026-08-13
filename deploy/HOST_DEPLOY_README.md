@@ -684,7 +684,8 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
   `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. Это
   недеструктивный exact-DEV путь: wrapper проверяет локальную post-cutover `bcb_webapp_dev`, применяет integrator
   DDL под `app_object_owner`, а webapp statements — через NOLOGIN `bcb_dev_migrator` и их exact declared owners.
-  Затем тот же wrapper обязательно запускает one-target declaration reconcile + catalog audit. Мигратор не
+  Затем тот же wrapper обязательно запускает one-target declaration reconcile + catalog audit и синхронизирует
+  declaration-owned runtime capability JSON обоих DEV-портов. Мигратор не
   получает LOGIN, пароль, BYPASSRLS или постоянное membership; runtime URL нужны только как защищённый источник
   уже действующих четырёх паролей для повторного reconcile.
 - TEST→DEV refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. DEV не копирует TEST и не

@@ -196,12 +196,12 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   callsite catalog и target-only post-zero replay проходят на disposable PostgreSQL 16 fixture.
 - [ ] Подключить обязательные function-census/callsite-catalog/post-zero gates в обычный CI после исправления;
   текущий `pnpm run ci` их не запускает и не является доказательством этих инвариантов.
-- [ ] Исправить ordinary DEV migration entrypoint под новую схему: `migrate-dev.sh` не должен требовать
+- [x] Исправить ordinary DEV migration entrypoint под новую схему: `migrate-dev.sh` не должен требовать
   удалённый `bcb_webapp_dev_user`/`DATABASE_URL`; мигратор получает повышенные права только на время deploy,
   затем declaration reconcile и catalog audit возвращают стационарное deny-by-default состояние.
   - [x] Отдельный повторяемый reconcile уже выполняет declaration apply + environment/catalog audit одной
     транзакцией без legacy/zero/login cleanup; два живых повтора DEV и disposable drift-repair сохранили данные.
-  - [ ] Перевести на deploy-only `bcb_dev_migrator` сам schema/data migration шаг и вызвать reconcile из
+  - [x] Перевести на deploy-only `bcb_dev_migrator` сам schema/data migration шаг и вызвать reconcile из
     `migrate-dev.sh`; до этого весь пункт остаётся открытым.
 - [ ] Удалить из активных migrations доступ как источник истины: новые
   `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE` запрещены; legacy migration SQL не переписывается.
@@ -258,8 +258,11 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   используют `requireClinicManagementBookingEngine`, doctor schedule/package/appointment paths — doctor routes.
   Пять platform audit/health mutations переведены с невозможного clinical membership на обязательный
   `requirePlatformOperationsApiContext`; два небезопасных orphan routes удалены. Targeted route tests `24/24`,
-  entitlement registry coverage `8/8` и webapp typecheck зелёные; положительный live DEV-прогон этих групп ещё
-  входит в открытый census.
+  entitlement registry coverage `8/8` и webapp typecheck зелёные. После owner-ordered migration + declaration
+  reconcile четыре login дали `/api/me=200`; global-admin audit/archive и doctor archive дали `200`, platform
+  archive не вернул clinical-поля. Exact resolve-missing дал `404`, acknowledge и два пустых archive batch дали
+  `200` с обязательными строками platform audit. Destructive resolve-all и непустой outgoing archive остаются
+  в открытом census и не выдаются за проверенные.
   Integrator census свёл остаток к `6` HTTP route-группам, `5` projection event types, `8` outgoing kinds и
   `4` scheduler paths. Action/worker-пробы запускаются только отдельным one-shot process с отключёнными default
   redirect targets и пустым passthrough: обычный DEV redirect перенаправляет, а не гарантирует no-send.
