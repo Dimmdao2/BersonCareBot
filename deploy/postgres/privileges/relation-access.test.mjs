@@ -263,6 +263,7 @@ test('patient notification preferences are product-complete and remain self-only
     'public.user_channel_preferences': ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
     'public.user_notification_topic_channels': ['INSERT', 'SELECT', 'UPDATE'],
     'public.user_notification_topics': ['INSERT', 'SELECT', 'UPDATE'],
+    'public.user_phone_history': ['SELECT'],
     'public.user_web_push_subscriptions': ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
   };
   for (const [relation, operations] of Object.entries(expected)) {

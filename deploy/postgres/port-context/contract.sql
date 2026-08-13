@@ -437,7 +437,7 @@ BEGIN
   SELECT organization_id INTO value FROM app_ext.accepted_port_contexts
    WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL
      AND target_role IN ('app_staff','app_patient','app_integrator_request','app_tenant_service');
-  IF value IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted organization context required'; END IF;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted organization context required'; END IF;
   RETURN value;
 END $$;
 CREATE OR REPLACE FUNCTION app.current_actor_user_id()

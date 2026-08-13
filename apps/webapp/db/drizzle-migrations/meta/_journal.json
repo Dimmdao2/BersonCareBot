@@ -2703,6 +2703,13 @@
       "when": 1793539230132,
       "tag": "0389_drop_duplicate_appointment_events_and_legacy_ledger_local",
       "breakpoints": true
+    },
+    {
+      "idx": 386,
+      "version": "7",
+      "when": 1793539230133,
+      "tag": "0390_patient_global_ui_context_local",
+      "breakpoints": true
     }
   ]
 }

@@ -2870,6 +2870,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['UPDATE'], columns: ['is_enabled', 'updated_at'] },
     ],
   },
+  'public.user_phone_history': {
+    kind: 'direct',
+    purpose: 'patient reads only its own active phone-confirmation channel for account settings',
+    codePaths: ['apps/webapp/src/infra/repos/pgChannelPreferences.ts#getDefaultAuthOtpChannel'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'],
+        columns: ['confirming_channel', 'platform_user_id', 'valid_to'] },
+    ],
+  },
   'public.system_settings': {
     kind: 'direct',
     purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows',
@@ -3384,6 +3393,7 @@ const REV10_PATIENT_SELF_MANAGED_COLUMN: Record<string, string> = {
   'public.user_channel_preferences': 'platform_user_id',
   'public.user_notification_topic_channels': 'user_id',
   'public.user_notification_topics': 'user_id',
+  'public.user_phone_history': 'platform_user_id',
   'public.user_web_push_subscriptions': 'user_id',
 };
 
