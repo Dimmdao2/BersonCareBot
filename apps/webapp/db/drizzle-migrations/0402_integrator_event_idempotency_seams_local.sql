@@ -1,6 +1,6 @@
 -- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- Signed integrator events need durable response idempotency before a human or tenant principal is known.
 -- Keep the table definer-only: the webapp pre-session port receives two exact functions, never relation ACL.
 CREATE OR REPLACE FUNCTION app.integrator_event_idempotency_read(p_key text)
@@ -15,6 +15,11 @@ AS $function$
   WHERE stored.key = p_key
     AND stored.expires_at > now()
 $function$;
+
+--> statement-breakpoint
+
+-- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 
 CREATE OR REPLACE FUNCTION app.integrator_event_idempotency_store(
   p_key text,
