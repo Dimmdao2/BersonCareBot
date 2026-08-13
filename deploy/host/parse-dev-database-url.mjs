@@ -68,8 +68,87 @@ export function assertExactLocalDevDatabaseUrl(value) {
 
 export function renderExactLocalDevPgpass(value) {
   const parsed = new URL(assertExactLocalDevDatabaseUrl(value));
-  const password = decodeURIComponent(parsed.password).replaceAll('\\', '\\\\').replaceAll(':', '\\:');
+  const password = decodeURIComponent(parsed.password)
+    .replaceAll('\\', '\\\\')
+    .replaceAll(':', '\\:');
   return `*:*:bcb_webapp_dev:bcb_webapp_dev_user:${password}\n`;
+}
+
+function parseDotenv(text) {
+  const values = new Map();
+  for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/u.exec(line);
+    if (!match || values.has(match[1])) fail('invalid_or_duplicate_dotenv_entry');
+    const encoded = match[2].trim();
+    let value = encoded;
+    if (encoded.startsWith('"') || encoded.startsWith("'")) {
+      if (encoded.length < 2 || encoded.at(-1) !== encoded[0]) fail('invalid_dotenv_quoting');
+      value = encoded.slice(1, -1);
+    }
+    values.set(match[1], value);
+  }
+  return values;
+}
+
+function runtimePassword(values, key, expectedLogin) {
+  const raw = values.get(key);
+  if (!raw) fail(`missing_${key.toLowerCase()}`);
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    fail(`invalid_${key.toLowerCase()}`);
+  }
+  if (
+    (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') ||
+    (parsed.hostname !== '127.0.0.1' && parsed.hostname !== 'localhost') ||
+    (parsed.port && parsed.port !== '5432') ||
+    parsed.pathname !== '/bcb_webapp_dev' ||
+    decodeURIComponent(parsed.username) !== expectedLogin ||
+    !parsed.password
+  ) {
+    fail(`${key.toLowerCase()}_identity_mismatch`);
+  }
+  const password = decodeURIComponent(parsed.password);
+  if (
+    [...password].some((character) => {
+      const point = character.codePointAt(0);
+      return point === undefined || point <= 0x1f || point === 0x7f;
+    })
+  ) {
+    fail(`${key.toLowerCase()}_unsafe_password`);
+  }
+  return password;
+}
+
+function shellSingleQuote(value) {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+export function renderDevReconcileEnv(apiText, webappText) {
+  const api = parseDotenv(apiText);
+  const webapp = parseDotenv(webappText);
+  const entries = [
+    [
+      'BCB_DEV_INTEGRATOR_PASSWORD',
+      runtimePassword(api, 'INTEGRATOR_DB_URL', 'bcb_dev_integrator'),
+    ],
+    [
+      'BCB_DEV_WEBAPP_STAFF_PASSWORD',
+      runtimePassword(webapp, 'DATABASE_URL_STAFF', 'bcb_dev_webapp_staff'),
+    ],
+    [
+      'BCB_DEV_WEBAPP_PATIENT_PASSWORD',
+      runtimePassword(webapp, 'DATABASE_URL_PATIENT', 'bcb_dev_webapp_patient'),
+    ],
+    [
+      'BCB_DEV_WEBAPP_GLOBAL_ADMIN_PASSWORD',
+      runtimePassword(webapp, 'DATABASE_URL_GLOBAL_ADMIN', 'bcb_dev_webapp_global_admin'),
+    ],
+  ];
+  return `${entries.map(([key, value]) => `${key}=${shellSingleQuote(value)}`).join('\n')}\n`;
 }
 
 function readCanonicalEnvSnapshot(path) {
@@ -114,6 +193,14 @@ if (process.argv[1]?.endsWith('parse-dev-database-url.mjs')) {
     if (process.argv.length === 3 && process.argv[2] === '--self-test') {
       selfTest();
       console.log('parse-dev-database-url self-test: OK');
+    } else if (process.argv.length === 6 && process.argv[2] === '--write-reconcile-env') {
+      const api = readCanonicalEnvSnapshot(process.argv[3]);
+      const webapp = readCanonicalEnvSnapshot(process.argv[4]);
+      writeFileSync(process.argv[5], renderDevReconcileEnv(api, webapp), {
+        encoding: 'utf8',
+        flag: 'wx',
+        mode: 0o600,
+      });
     } else if (process.argv.length === 5 && process.argv[2] === '--write-pgpass') {
       const databaseUrl = parseDatabaseUrlFromDotenv(readCanonicalEnvSnapshot(process.argv[3]));
       writeFileSync(process.argv[4], renderExactLocalDevPgpass(databaseUrl), {

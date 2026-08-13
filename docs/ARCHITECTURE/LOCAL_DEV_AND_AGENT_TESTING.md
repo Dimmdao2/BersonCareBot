@@ -44,10 +44,13 @@ pnpm run migrate  # первичный bootstrap; существующая DEV �
 | Изменился только код/UI, схема уже актуальна                          | build/restart/dev server; DB-команда не нужна                                                    | Ничего                                                            |
 | В текущей ветке есть pending migrations для уже подготовленной DEV-БД | `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute` | Существующие данные сохраняются; применяются pending migrations   |
 
-`migrate-dev.sh` принимает только exact local `bcb_webapp_dev`/`bcb_webapp_dev_user`, сначала выполняет read-only
-preflight и не читает `/opt/env`, TEST или PROD. `--execute` запускает обычный общий `pnpm run migrate` без
-изменения ролей/ACL, восстановления runtime overlays или специальных repair-шагов. Wrapper не управляет процессами:
-перед `--execute` оператор отдельно координирует единственный DEV server/writer и не поднимает второй Next server.
+`migrate-dev.sh` принимает только exact local post-cutover `bcb_webapp_dev`, сначала выполняет read-only preflight
+и не читает `/opt/env`, TEST или PROD. `--execute` применяет integrator-миграции через локальный PostgreSQL admin
+с `SET ROLE app_object_owner`, а webapp Drizzle — через NOLOGIN `bcb_dev_migrator` и exact владельцев, объявленных
+в самих pending statements. После миграций wrapper обязательно выполняет declaration reconcile вместе с catalog
+audit; deploy-only мигратор остаётся без LOGIN, пароля, BYPASSRLS и постоянных membership. Wrapper не управляет
+процессами: перед `--execute` оператор отдельно координирует единственный DEV server/writer и не поднимает второй
+Next server.
 
 TEST→DEV destructive refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. Обычная разработка
 не копирует TEST, не пересоздаёт DEV и не запускает полный аудит стен. Security/RLS acceptance остаётся в
@@ -503,8 +506,9 @@ bash deploy/host/migrate-dev.sh --execute
 # при необходимости обновить docs/ARCHITECTURE/DB_STRUCTURE.md
 ```
 
-Для канонической `bcb_webapp_dev` используйте wrapper выше: он проверяет точную локальную БД и запускает общие
-pending migrations без reset/restore.
+Для канонической `bcb_webapp_dev` используйте wrapper выше: он проверяет точную локальную post-cutover БД,
+запускает owner-ordered pending migrations и возвращает её к декларативному deny-by-default состоянию без
+reset/restore.
 
 ### 6.6 SaaS diagnostics contour (System Health / isolation telemetry) — legacy/pre-cutover only
 

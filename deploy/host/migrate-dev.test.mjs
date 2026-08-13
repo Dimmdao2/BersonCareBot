@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import {
   chmodSync,
   copyFileSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -11,59 +10,231 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import {
-  assertExactLocalDevDatabaseUrl,
-  parseDatabaseUrlFromDotenv,
-  renderExactLocalDevPgpass,
-} from './parse-dev-database-url.mjs';
+import { renderDevReconcileEnv } from './parse-dev-database-url.mjs';
 
 const parserPath = fileURLToPath(new URL('./parse-dev-database-url.mjs', import.meta.url));
 const migratePath = fileURLToPath(new URL('./migrate-dev.sh', import.meta.url));
-const validUrl = 'postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev';
+const streamPath = fileURLToPath(new URL('./stream-canonical-sql.mjs', import.meta.url));
+const integratorMigratorPath = fileURLToPath(
+  new URL('../postgres/privileges/migrate-integrator-local.mjs', import.meta.url),
+);
+const realNode = process.execPath;
 
-function createMigrationRuntime({
-  grantPause = false,
-  migrationExitCode = 0,
-  migrationPause = false,
-  preexistingBypass = false,
-  preexistingMembership = false,
-} = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-dev-execute-'));
+const urls = {
+  integrator: 'postgresql://bcb_dev_integrator:int-secret@127.0.0.1:5432/bcb_webapp_dev',
+  staff: 'postgresql://bcb_dev_webapp_staff:staff-secret@127.0.0.1:5432/bcb_webapp_dev',
+  patient: 'postgresql://bcb_dev_webapp_patient:patient-secret@127.0.0.1:5432/bcb_webapp_dev',
+  globalAdmin:
+    'postgresql://bcb_dev_webapp_global_admin:global-secret@127.0.0.1:5432/bcb_webapp_dev',
+};
+
+function createRuntime({ migratorState } = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-dev-'));
   const bin = join(root, 'bin');
-  const membership = join(root, 'app-owner-membership');
-  const bypass = join(root, 'migrator-bypass');
-  const grantStarted = join(root, 'grant-started');
-  const migrationStarted = join(root, 'migration-started');
-  const migrationStopped = join(root, 'migration-stopped');
-  const cleanupTooEarly = join(root, 'cleanup-too-early');
-  mkdirSync(bin, { recursive: true });
-  mkdirSync(join(root, 'apps/webapp'), { recursive: true });
-  mkdirSync(join(root, 'deploy/env'), { recursive: true });
-  mkdirSync(join(root, 'deploy/host'), { recursive: true });
-
+  const capture = join(root, 'calls.log');
+  for (const directory of [
+    bin,
+    join(root, 'apps/webapp/db/drizzle-migrations'),
+    join(root, 'deploy/host'),
+    join(root, 'deploy/postgres/privileges'),
+  ]) {
+    mkdirSync(directory, { recursive: true });
+  }
   copyFileSync(migratePath, join(root, 'deploy/host/migrate-dev.sh'));
   copyFileSync(parserPath, join(root, 'deploy/host/parse-dev-database-url.mjs'));
+  copyFileSync(streamPath, join(root, 'deploy/host/stream-canonical-sql.mjs'));
+  writeFileSync(join(root, 'deploy/postgres/privileges/migrate-local.mjs'), '');
   copyFileSync(
-    fileURLToPath(new URL('./stream-canonical-sql.mjs', import.meta.url)),
-    join(root, 'deploy/host/stream-canonical-sql.mjs'),
+    integratorMigratorPath,
+    join(root, 'deploy/postgres/privileges/migrate-integrator-local.mjs'),
   );
-  writeFileSync(join(root, 'deploy/env/empty.local-migration.env'), '# intentionally empty\n');
-  writeFileSync(join(root, 'apps/webapp/.env.dev'), `DATABASE_URL=${validUrl}\n`, {
-    mode: 0o600,
-  });
-  writeFileSync(membership, preexistingMembership ? '1\n' : '0\n');
-  writeFileSync(bypass, preexistingBypass ? '1\n' : '0\n');
-
-  symlinkSync(process.execPath, join(bin, 'node'));
+  writeFileSync(join(root, 'deploy/postgres/privileges/reconcile-access.mjs'), '');
   writeFileSync(
-    join(bin, 'psql'),
+    join(
+      root,
+      'deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql',
+    ),
+    '\\set ON_ERROR_STOP on\nSELECT 1;\n',
+  );
+  writeFileSync(join(root, '.env'), `INTEGRATOR_DB_URL=${urls.integrator}\n`, { mode: 0o600 });
+  writeFileSync(
+    join(root, 'apps/webapp/.env.dev'),
+    [
+      `DATABASE_URL_STAFF=${urls.staff}`,
+      `DATABASE_URL_PATIENT=${urls.patient}`,
+      `DATABASE_URL_GLOBAL_ADMIN=${urls.globalAdmin}`,
+      '',
+    ].join('\n'),
+    { mode: 0o600 },
+  );
+
+  writeFileSync(
+    join(bin, 'node'),
     `#!/usr/bin/env bash
 set -eu
-printf '%s\\n' 'bcb_webapp_dev_user|bcb_webapp_dev|bcb_webapp_dev_user'
+if [[ "\${1:-}" == *'/parse-dev-database-url.mjs' ]]; then exec '${realNode}' "$@"; fi
+printf 'node' >> '${capture}'
+printf ' <%s>' "$@" >> '${capture}'
+printf '\n' >> '${capture}'
 `,
+  );
+  writeFileSync(
+    join(bin, 'sudo'),
+    `#!/usr/bin/env bash
+set -eu
+printf 'sudo' >> '${capture}'
+printf ' <%s>' "$@" >> '${capture}'
+printf '\n' >> '${capture}'
+sql="\${!#}"
+case "$sql" in
+  *"current_database()"*"datdba"*) printf '%s\n' 'bcb_webapp_dev|postgres' ;;
+  *"rolsuper"*"pg_authid"*) printf '%s\n' '${migratorState ?? 'false|false|false|false|false|false|true|0'}' ;;
+  *"rolsuper"*"pg_roles"*) printf '%s\n' 'false|false|false|false|false|false' ;;
+  *"rolcanlogin"*"pg_authid"*) printf '%s\n' 'false|false|false|true|0' ;;
+  *) ;;
+esac
+`,
+  );
+  writeFileSync(join(bin, 'pnpm'), '#!/usr/bin/env bash\nexit 98\n');
+  writeFileSync(join(bin, 'psql'), '#!/usr/bin/env bash\nexit 97\n');
+  for (const command of ['node', 'pnpm', 'psql', 'sudo']) chmodSync(join(bin, command), 0o755);
+
+  return { bin, capture, root };
+}
+
+function runWrapper(runtime, mode) {
+  return spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), mode], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
+  });
+}
+
+test('reconcile env is derived from the exact four post-cutover runtime URLs', () => {
+  const rendered = renderDevReconcileEnv(
+    `INTEGRATOR_DB_URL=${urls.integrator}\n`,
+    [
+      `DATABASE_URL_STAFF=${urls.staff}`,
+      `DATABASE_URL_PATIENT=${urls.patient}`,
+      `DATABASE_URL_GLOBAL_ADMIN=${urls.globalAdmin}`,
+      '',
+    ].join('\n'),
+  );
+  assert.equal(
+    rendered,
+    [
+      "BCB_DEV_INTEGRATOR_PASSWORD='int-secret'",
+      "BCB_DEV_WEBAPP_STAFF_PASSWORD='staff-secret'",
+      "BCB_DEV_WEBAPP_PATIENT_PASSWORD='patient-secret'",
+      "BCB_DEV_WEBAPP_GLOBAL_ADMIN_PASSWORD='global-secret'",
+      '',
+    ].join('\n'),
+  );
+  assert.doesNotMatch(rendered, /postgres(?:ql)?:/u);
+});
+
+test('reconcile env parser rejects a runtime URL for another login or database', () => {
+  assert.throws(() =>
+    renderDevReconcileEnv(
+      `INTEGRATOR_DB_URL=${urls.integrator}\n`,
+      [
+        `DATABASE_URL_STAFF=${urls.patient}`,
+        `DATABASE_URL_PATIENT=${urls.patient}`,
+        `DATABASE_URL_GLOBAL_ADMIN=${urls.globalAdmin}`,
+      ].join('\n'),
+    ),
+  );
+  assert.throws(() =>
+    renderDevReconcileEnv(
+      `INTEGRATOR_DB_URL=${urls.integrator}\nINTEGRATOR_DB_URL=${urls.integrator}\n`,
+      [
+        `DATABASE_URL_STAFF=${urls.staff}`,
+        `DATABASE_URL_PATIENT=${urls.patient}`,
+        `DATABASE_URL_GLOBAL_ADMIN=${urls.globalAdmin}`,
+      ].join('\n'),
+    ),
+  );
+});
+
+test('reconcile env shell-quotes a password without executing or corrupting it', () => {
+  const quoted = urls.integrator.replace('int-secret', 'int%27secret');
+  const rendered = renderDevReconcileEnv(
+    `INTEGRATOR_DB_URL=${quoted}\n`,
+    [
+      `DATABASE_URL_STAFF=${urls.staff}`,
+      `DATABASE_URL_PATIENT=${urls.patient}`,
+      `DATABASE_URL_GLOBAL_ADMIN=${urls.globalAdmin}`,
+    ].join('\n'),
+  );
+  const directory = mkdtempSync(join(tmpdir(), 'bcb-reconcile-env-'));
+  const path = join(directory, 'reconcile.env');
+  writeFileSync(path, rendered, { mode: 0o600 });
+  const result = spawnSync(
+    'bash',
+    ['-c', 'set -a; . "$1"; printf "%s" "$BCB_DEV_INTEGRATOR_PASSWORD"', 'bash', path],
+    {
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "int'secret");
+});
+
+test('migrate-dev preflight accepts only the stationary post-cutover migrator', () => {
+  const runtime = createRuntime();
+  const result = runWrapper(runtime, '--preflight');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /preflight: PASS/u);
+  const calls = readFileSync(runtime.capture, 'utf8');
+  assert.doesNotMatch(calls, /pnpm|migrate-local|reconcile-access/u);
+  assert.doesNotMatch(calls, /int-secret|staff-secret|patient-secret|global-secret/u);
+});
+
+test('migrate-dev rejects a LOGIN/BYPASS/member migrator before any migration', () => {
+  const runtime = createRuntime({
+    migratorState: 'false|false|false|true|true|false|false|1',
+  });
+  const result = runWrapper(runtime, '--preflight');
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /must be NOSUPERUSER.*NOLOGIN.*membership-free/u);
+  assert.doesNotMatch(
+    readFileSync(runtime.capture, 'utf8'),
+    /pnpm|migrate-local|reconcile-access/u,
+  );
+});
+
+test('migrate-dev executes owner-scoped migrations before mandatory reconcile', () => {
+  const runtime = createRuntime();
+  const result = runWrapper(runtime, '--execute');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /declaration reconciled and catalog-audited/u);
+  const calls = readFileSync(runtime.capture, 'utf8');
+  const firstIntegrator = calls.indexOf('migrate-integrator-local.mjs');
+  const webapp = calls.indexOf('migrate-local.mjs');
+  const secondIntegrator = calls.indexOf('migrate-integrator-local.mjs', firstIntegrator + 1);
+  const onlineIndex = calls.indexOf('d30-outgoing-delivery-queue');
+  const reconcile = calls.indexOf('RECONCILE_ENV');
+  assert.ok(firstIntegrator >= 0 && webapp > firstIntegrator && secondIntegrator > webapp);
+  assert.ok(onlineIndex > secondIntegrator && reconcile > onlineIndex);
+  assert.match(calls, /--migrator> <bcb_dev_migrator>.*--drizzle-folder>.*--sudo-postgres>/su);
+  assert.match(calls, /--owner> <app_object_owner>/u);
+  assert.doesNotMatch(calls, /bcb_webapp_dev_user|pnpm run migrate/u);
+  assert.doesNotMatch(calls, /int-secret|staff-secret|patient-secret|global-secret/u);
+});
+
+test('integrator local adapter commits a pending file and ledger row under the exact owner', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'bcb-integrator-local-'));
+  const root = join(directory, 'integrator');
+  const bin = join(directory, 'bin');
+  const capture = join(directory, 'migration.sql');
+  mkdirSync(join(root, 'src/infra/db/migrations/core'), { recursive: true });
+  mkdirSync(join(root, 'src/integrations'), { recursive: true });
+  mkdirSync(bin);
+  writeFileSync(
+    join(root, 'src/infra/db/migrations/core/20260814_0001_fixture.sql'),
+    'CREATE TABLE integrator.fixture (id bigint PRIMARY KEY);\n',
   );
   writeFileSync(
     join(bin, 'sudo'),
@@ -71,302 +242,45 @@ printf '%s\\n' 'bcb_webapp_dev_user|bcb_webapp_dev|bcb_webapp_dev_user'
 set -eu
 sql="\${!#}"
 case "$sql" in
-  *"rolbypassrls"*"bcb_webapp_dev_user"*)
-    if [[ "$(cat '${bypass}')" == "1" ]]; then
-      printf '%s\\n' 'true'
-    else
-      printf '%s\\n' 'false'
-    fi
-    ;;
-  *"FROM pg_roles"*)
-    printf '%s\\n' 'false|false|false|false|true'
-    ;;
-  *"pg_has_role"*)
-    if [[ "$(cat '${membership}')" == "1" ]]; then
-      printf '%s\\n' 't'
-    else
-      printf '%s\\n' 'f'
-    fi
-    ;;
-  *'GRANT "app_owner" TO "bcb_webapp_dev_user"'*)
-    printf '%s\\n' '1' > '${membership}'
-    ${grantPause ? `touch '${grantStarted}'
-    trap 'sleep 0.2; printf "%s\\\\n" "1" > "${membership}"; exit 143' TERM
-    sleep 30` : ''}
-    ;;
-  *'REVOKE "app_owner" FROM "bcb_webapp_dev_user"'*)
-    printf '%s\\n' '0' > '${membership}'
-    ;;
-  *'ALTER ROLE "bcb_webapp_dev_user" BYPASSRLS'*)
-    printf '%s\\n' '1' > '${bypass}'
-    ;;
-  *'ALTER ROLE "bcb_webapp_dev_user" NOBYPASSRLS'*)
-    printf '%s\\n' '0' > '${bypass}'
-    ;;
-  *)
-    printf 'unexpected postgres SQL: %s\\n' "$sql" >&2
-    exit 90
-    ;;
+  *"CASE"*"schema_migrations"*) printf '%s\n' version ;;
+  *"SELECT version FROM integrator.schema_migrations"*) ;;
+  *) cat > '${capture}' ;;
 esac
 `,
   );
-  writeFileSync(
-    join(bin, 'pnpm'),
-    `#!/usr/bin/env bash
-set -eu
-[[ "$(cat '${membership}')" == "1" ]] || exit 91
-[[ "$(cat '${bypass}')" == "1" ]] || exit 92
-${migrationPause ? `touch '${migrationStarted}'
-trap 'if [[ "$(cat "${membership}")" != "1" ]]; then touch "${cleanupTooEarly}"; fi; touch "${migrationStopped}"; exit 143' TERM
-sleep 30` : ''}
-exit ${migrationExitCode}
-`,
+  chmodSync(join(bin, 'sudo'), 0o755);
+  const result = spawnSync(
+    realNode,
+    [
+      integratorMigratorPath,
+      '--db',
+      'bcb_webapp_dev',
+      '--migrator',
+      'bcb_dev_migrator',
+      '--owner',
+      'app_object_owner',
+      '--root',
+      root,
+      '--sudo-postgres',
+    ],
+    { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` } },
   );
-  for (const command of ['pnpm', 'psql', 'sudo']) {
-    chmodSync(join(bin, command), 0o755);
-  }
-
-  return {
-    bin,
-    bypass,
-    cleanupTooEarly,
-    grantStarted,
-    membership,
-    migrationStarted,
-    migrationStopped,
-    root,
-  };
-}
-
-async function waitForFile(path, timeoutMs = 3_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (!existsSync(path)) {
-    if (Date.now() >= deadline) {
-      throw new Error(`timed out waiting for ${path}`);
-    }
-    await new Promise((resolve) => {
-      setTimeout(resolve, 10);
-    });
-  }
-}
-
-function waitForChild(child) {
-  return new Promise((resolve, reject) => {
-    let stderr = '';
-    child.stderr?.setEncoding('utf8');
-    child.stderr?.on('data', (chunk) => {
-      stderr += chunk;
-    });
-    child.once('error', reject);
-    child.once('close', (code, signal) => resolve({ code, signal, stderr }));
-  });
-}
-
-test('DEV env parser accepts only the exact local owner URL without shell evaluation', () => {
-  assert.equal(
-    assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(`DATABASE_URL=${validUrl}\n`)),
-    validUrl,
-  );
-  for (const value of [
-    `DATABASE_URL=${validUrl}\nDATABASE_URL=${validUrl}\n`,
-    'DATABASE_URL=$(cat /opt/env/bersoncarebot/webapp.prod)\n',
-    'DATABASE_URL=postgresql://dev:secret@127.0.0.1:5432/bcb_webapp_prod\n',
-    'DATABASE_URL=postgresql://wrong:secret@127.0.0.1:5432/bcb_webapp_dev\n',
-    `${validUrl}?host=example.test`,
-  ]) {
-    assert.throws(() => assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(value)));
-  }
-});
-
-test('DEV env parser CLI rejects symlinks and does not print a connection URL on failure', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'bcb-dev-env-parser-'));
-  const real = join(dir, 'real.env');
-  const link = join(dir, 'linked.env');
-  writeFileSync(real, `DATABASE_URL=${validUrl}\n`, { mode: 0o600 });
-  symlinkSync(real, link);
-
-  const result = spawnSync(process.execPath, [parserPath, link], { encoding: 'utf8' });
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /canonical input is not a regular file/u);
-  assert.doesNotMatch(result.stderr, /postgresql:/u);
-});
-
-test('migrate-dev preflight gives psql only the exact non-secret DEV connection fields', () => {
-  const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-dev-runtime-'));
-  const bin = join(root, 'bin');
-  const capture = join(root, 'psql-capture');
-  mkdirSync(bin, { recursive: true });
-  mkdirSync(join(root, 'apps/webapp'), { recursive: true });
-  mkdirSync(join(root, 'deploy/env'), { recursive: true });
-  mkdirSync(join(root, 'deploy/host'), { recursive: true });
-
-  copyFileSync(migratePath, join(root, 'deploy/host/migrate-dev.sh'));
-  copyFileSync(parserPath, join(root, 'deploy/host/parse-dev-database-url.mjs'));
-  copyFileSync(
-    fileURLToPath(new URL('./stream-canonical-sql.mjs', import.meta.url)),
-    join(root, 'deploy/host/stream-canonical-sql.mjs'),
-  );
-  writeFileSync(join(root, 'deploy/env/empty.local-migration.env'), '# intentionally empty\n');
-  writeFileSync(join(root, 'apps/webapp/.env.dev'), `DATABASE_URL=${validUrl}\n`, {
-    mode: 0o600,
-  });
-
-  symlinkSync(process.execPath, join(bin, 'node'));
-  writeFileSync(join(bin, 'pnpm'), '#!/usr/bin/env bash\nexit 99\n');
-  writeFileSync(
-    join(bin, 'psql'),
-    `#!/usr/bin/env bash
-set -eu
-printf '%s\\n' "$@" > '${capture}.args'
-printf '%s\\n' "$PGHOST" "$PGPORT" "$PGUSER" "$PGDATABASE" > '${capture}.env'
-cat "$PGPASSFILE" > '${capture}.pgpass'
-printf '%s\\n' 'bcb_webapp_dev_user|bcb_webapp_dev|bcb_webapp_dev_user'
-`,
-  );
-  chmodSync(join(bin, 'pnpm'), 0o755);
-  chmodSync(join(bin, 'psql'), 0o755);
-
-  const result = spawnSync('bash', [join(root, 'deploy/host/migrate-dev.sh'), '--preflight'], {
-    encoding: 'utf8',
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` },
-  });
-
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /preflight: PASS/u);
-  assert.equal(readFileSync(`${capture}.args`, 'utf8'), '-X\n-v\nON_ERROR_STOP=1\n-Atqc\nSELECT current_user || \'|\' || current_database() || \'|\' ||\n        pg_catalog.pg_get_userbyid(datdba)\n       FROM pg_database\n       WHERE datname = current_database();\n');
-  assert.equal(
-    readFileSync(`${capture}.env`, 'utf8'),
-    '127.0.0.1\n5432\nbcb_webapp_dev_user\nbcb_webapp_dev\n',
+  assert.match(result.stdout, /pending=1 eligible=1 total=1/u);
+  const sql = readFileSync(capture, 'utf8');
+  assert.match(sql, /BEGIN;[\s\S]*GRANT "app_object_owner" TO "bcb_dev_migrator"/u);
+  assert.match(sql, /SET LOCAL SESSION AUTHORIZATION "bcb_dev_migrator";/u);
+  assert.match(sql, /SET LOCAL ROLE "app_object_owner";/u);
+  assert.match(sql, /\\i .*20260814_0001_fixture\.sql/u);
+  assert.match(
+    sql,
+    /INSERT INTO integrator\.schema_migrations\(version\) VALUES \('core:20260814_0001_fixture\.sql'\);/u,
   );
-  assert.equal(
-    readFileSync(`${capture}.pgpass`, 'utf8'),
-    '*:*:bcb_webapp_dev:bcb_webapp_dev_user:secret\n',
-  );
-  assert.doesNotMatch(readFileSync(`${capture}.args`, 'utf8'), /postgresql:|secret/u);
-  assert.doesNotMatch(readFileSync(`${capture}.env`, 'utf8'), /postgresql:|secret/u);
+  assert.match(sql, /REVOKE "app_object_owner" FROM "bcb_dev_migrator";[\s\S]*COMMIT;/u);
+  assert.doesNotMatch(sql, /LOGIN|PASSWORD|BYPASSRLS/u);
 });
 
-test('migrate-dev source retains the ordinary migration and destructive-operation guards', () => {
-  const source = readFileSync(migratePath, 'utf8');
-  assert.match(source, /TARGET_DB="bcb_webapp_dev"/u);
-  assert.match(source, /TARGET_ROLE="bcb_webapp_dev_user"/u);
-  assert.match(source, /APP_OWNER_ROLE="app_owner"/u);
-  assert.match(source, /pnpm run migrate/u);
-  assert.match(source, /current_user \|\| '\|' \|\| current_database\(\)/u);
-  assert.match(source, /GRANT \\"\$APP_OWNER_ROLE\\" TO \\"\$TARGET_ROLE\\"/u);
-  assert.match(source, /REVOKE \\"\$APP_OWNER_ROLE\\" FROM \\"\$TARGET_ROLE\\"/u);
-  assert.match(source, /ALTER ROLE \\"\$TARGET_ROLE\\" BYPASSRLS/u);
-  assert.match(source, /ALTER ROLE \\"\$TARGET_ROLE\\" NOBYPASSRLS/u);
-  assert.match(source, /pre-existing \$TARGET_ROLE membership/u);
-  assert.doesNotMatch(
-    source,
-    /refresh-dev-from-test|dev-runtime-overlay-rehydrate|dev-post-refresh-unlock/u,
-  );
-  assert.doesNotMatch(
-    source,
-    /\b(?:DROP|CREATE) DATABASE\b|pg_dump|pg_restore|0247|C4D/u,
-  );
-});
-
-test('migrate-dev grants app_owner only around a successful migration and revokes it', () => {
-  const runtime = createMigrationRuntime();
-  const result = spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), '--execute'], {
-    encoding: 'utf8',
-    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
-  });
-
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /migrate-dev: PASS/u);
-  assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
-  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
-});
-
-test('migrate-dev revokes app_owner when the migration command fails', () => {
-  const runtime = createMigrationRuntime({ migrationExitCode: 42 });
-  const result = spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), '--execute'], {
-    encoding: 'utf8',
-    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
-  });
-
-  assert.equal(result.status, 42, result.stderr);
-  assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
-  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
-});
-
-test('migrate-dev refuses to reuse pre-existing app_owner membership', () => {
-  const runtime = createMigrationRuntime({ preexistingMembership: true });
-  const result = spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), '--execute'], {
-    encoding: 'utf8',
-    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
-  });
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /pre-existing bcb_webapp_dev_user membership in app_owner/u);
-  assert.equal(readFileSync(runtime.membership, 'utf8'), '1\n');
-  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
-});
-
-test('migrate-dev refuses pre-existing migrator BYPASSRLS and removes temporary membership', () => {
-  const runtime = createMigrationRuntime({ preexistingBypass: true });
-  const result = spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), '--execute'], {
-    encoding: 'utf8',
-    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
-  });
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /pre-existing bcb_webapp_dev_user BYPASSRLS/u);
-  assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
-  assert.equal(readFileSync(runtime.bypass, 'utf8'), '1\n');
-});
-
-test('migrate-dev revokes a GRANT that completes while SIGTERM is being handled', async () => {
-  const runtime = createMigrationRuntime({ grantPause: true });
-  const child = spawn('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), '--execute'], {
-    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const completion = waitForChild(child);
-
-  await waitForFile(runtime.grantStarted);
-  assert.equal(child.kill('SIGTERM'), true);
-  const result = await completion;
-
-  assert.equal(result.signal, null, result.stderr);
-  assert.equal(result.code, 143, result.stderr);
-  assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
-  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
-});
-
-test('migrate-dev stops the migration child before revoking app_owner on SIGTERM', async () => {
-  const runtime = createMigrationRuntime({ migrationPause: true });
-  const child = spawn('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), '--execute'], {
-    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const completion = waitForChild(child);
-
-  await waitForFile(runtime.migrationStarted);
-  assert.equal(child.kill('SIGTERM'), true);
-  const result = await completion;
-
-  assert.equal(result.signal, null, result.stderr);
-  assert.equal(result.code, 143, result.stderr);
-  assert.equal(existsSync(runtime.migrationStopped), true);
-  assert.equal(existsSync(runtime.cleanupTooEarly), false);
-  assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
-  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
-});
-
-test('pgpass rendering escapes libpq separators in the decoded password', () => {
-  assert.equal(
-    renderExactLocalDevPgpass(
-      'postgresql://bcb_webapp_dev_user:a%3Ab%5Cc@127.0.0.1:5432/bcb_webapp_dev',
-    ),
-    '*:*:bcb_webapp_dev:bcb_webapp_dev_user:a\\:b\\\\c\n',
-  );
-});
-
-test('migrate-dev without an explicit mode performs no operation', () => {
+test('migrate-dev has no implicit mode', () => {
   const result = spawnSync('bash', [migratePath], { encoding: 'utf8' });
   assert.equal(result.status, 2);
   assert.match(result.stdout, /--preflight\|--execute/u);

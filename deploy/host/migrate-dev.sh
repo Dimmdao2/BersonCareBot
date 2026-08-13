@@ -3,23 +3,26 @@ set -Eeuo pipefail
 { set +x; } 2>/dev/null
 umask 077
 
-# Apply the repository's ordinary pending migrations to the existing local DEV database.
-# This entrypoint never restores, drops, recreates or copies a database. The only role change it
-# may make is a fail-closed temporary bcb_webapp_dev_user -> app_owner membership plus temporary
-# BYPASSRLS around `pnpm migrate`; both are revoked and verified on success and failure.
+# Apply ordinary pending migrations to the existing post-cutover DEV database.
+# This entrypoint never restores, drops, recreates or copies a database.  It uses only the local
+# PostgreSQL administrator channel: integrator DDL runs as app_object_owner, while webapp Drizzle
+# statements run through the declaration-owner-aware NOLOGIN bcb_dev_migrator.  The declaration
+# reconcile is the final mandatory step, so newly-created objects cannot retain migration access.
 
 TARGET_DB="bcb_webapp_dev"
-TARGET_ROLE="bcb_webapp_dev_user"
-APP_OWNER_ROLE="app_owner"
+MIGRATOR_ROLE="bcb_dev_migrator"
+OBJECT_OWNER_ROLE="app_object_owner"
+ADMIN_SOCKET="/var/run/postgresql"
+ADMIN_PORT="5432"
 REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
-DEV_ENV="$REPO_ROOT/apps/webapp/.env.dev"
+API_ENV="$REPO_ROOT/.env"
+WEBAPP_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
-SAFE_MIGRATION_ENV="$REPO_ROOT/deploy/env/empty.local-migration.env"
-D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX="deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql"
-APP_OWNER_MEMBERSHIP_ADDED=0
-APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
-TARGET_ROLE_BYPASS_ENABLED=0
-TARGET_ROLE_BYPASS_CHANGED_THIS_RUN=0
+OWNER_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs"
+INTEGRATOR_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs"
+RECONCILER="$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs"
+DRIZZLE_FOLDER="$REPO_ROOT/apps/webapp/db/drizzle-migrations"
+D30_ONLINE_INDEX="$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql"
 CREDENTIAL_DIR=""
 ACTIVE_CHILD_PID=""
 
@@ -27,20 +30,16 @@ usage() {
   cat <<'EOF'
 Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
 
-Validates the exact existing local bcb_webapp_dev target. --execute then runs the
-repository's ordinary pending integrator and webapp migrations without reset/restore
-or runtime-overlay changes. It temporarily grants the existing app_owner role and
-BYPASSRLS to the DEV migrator only around `pnpm migrate`, then revokes and verifies both.
+Validates the exact existing local bcb_webapp_dev target. --execute applies pending
+integrator migrations through the local app_object_owner identity, pending webapp
+Drizzle statements through the NOLOGIN bcb_dev_migrator and their declared owners,
+then atomically reconciles and audits the declaration-owned access state.
 EOF
 }
 
 fatal() {
   printf 'FATAL: %s\n' "$1" >&2
   exit 1
-}
-
-postgres_scalar() {
-  sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 -Atqc "$1"
 }
 
 run_tracked() {
@@ -66,98 +65,14 @@ handle_signal() {
   exit "$signal_status"
 }
 
-grant_migrator_app_owner_membership() {
-  local attributes membership
-  attributes="$(
-    postgres_scalar \
-      "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' ||
-        rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text
-       FROM pg_roles
-       WHERE rolname = '$APP_OWNER_ROLE';"
-  )" || fatal "cannot inspect DEV app_owner role"
-  [[ "$attributes" == "false|false|false|false|true" ]] ||
-    fatal "$APP_OWNER_ROLE must be NOSUPERUSER NOCREATEROLE NOCREATEDB NOLOGIN BYPASSRLS"
-
-  membership="$(
-    postgres_scalar "SELECT pg_has_role('$TARGET_ROLE', '$APP_OWNER_ROLE', 'member');"
-  )" || fatal "cannot inspect DEV app_owner membership"
-  [[ "$membership" == "f" ]] ||
-    fatal "pre-existing $TARGET_ROLE membership in $APP_OWNER_ROLE"
-
-  # Assume cleanup responsibility before the GRANT starts. If the wrapper is signalled after
-  # PostgreSQL commits but before psql returns, EXIT cleanup must still revoke the membership.
-  APP_OWNER_MEMBERSHIP_ADDED=1
-  APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
-  run_tracked sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
-    -c "GRANT \"$APP_OWNER_ROLE\" TO \"$TARGET_ROLE\";" >/dev/null ||
-    fatal "cannot grant temporary DEV app_owner membership"
-}
-
-enable_migrator_bypass() {
-  local bypass
-  bypass="$(
-    postgres_scalar "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$TARGET_ROLE';"
-  )" || fatal "cannot inspect DEV migrator BYPASSRLS"
-  [[ "$bypass" == "false" ]] || fatal "pre-existing $TARGET_ROLE BYPASSRLS"
-
-  # Assume cleanup responsibility before ALTER ROLE starts for the same commit-before-signal case
-  # covered by the temporary membership cleanup.
-  TARGET_ROLE_BYPASS_ENABLED=1
-  TARGET_ROLE_BYPASS_CHANGED_THIS_RUN=1
-  run_tracked sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
-    -c "ALTER ROLE \"$TARGET_ROLE\" BYPASSRLS;" >/dev/null ||
-    fatal "cannot enable temporary DEV migrator BYPASSRLS"
-}
-
-cleanup_elevation() {
-  local cleanup_status=0 membership bypass
-  if [[ "$TARGET_ROLE_BYPASS_ENABLED" == "1" ]]; then
-    if sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
-      -c "ALTER ROLE \"$TARGET_ROLE\" NOBYPASSRLS;" >/dev/null; then
-      TARGET_ROLE_BYPASS_ENABLED=0
-    else
-      cleanup_status=1
-    fi
-  fi
-
-  if [[ "$APP_OWNER_MEMBERSHIP_ADDED" == "1" ]]; then
-    if sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
-      -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$TARGET_ROLE\";" >/dev/null; then
-      APP_OWNER_MEMBERSHIP_ADDED=0
-    else
-      cleanup_status=1
-    fi
-  fi
-
-  if [[ "$APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN" == "1" ]]; then
-    membership="$(
-      postgres_scalar "SELECT pg_has_role('$TARGET_ROLE', '$APP_OWNER_ROLE', 'member');"
-    )" || cleanup_status=1
-    [[ "$membership" == "f" ]] || cleanup_status=1
-  fi
-  if [[ "$TARGET_ROLE_BYPASS_CHANGED_THIS_RUN" == "1" ]]; then
-    bypass="$(
-      postgres_scalar "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$TARGET_ROLE';"
-    )" || cleanup_status=1
-    [[ "$bypass" == "false" ]] || cleanup_status=1
-  fi
-  return "$cleanup_status"
-}
-
 cleanup_exit() {
-  local original_status=$? cleanup_status=0
+  local original_status=$?
   trap - EXIT
   trap '' INT TERM HUP
-  set +e
-  cleanup_elevation
-  cleanup_status=$?
   if [[ -n "$CREDENTIAL_DIR" ]]; then
     rm -rf -- "$CREDENTIAL_DIR"
   fi
-  if [[ "$original_status" -ne 0 ]]; then
-    exit "$original_status"
-  fi
-  exit "$cleanup_status"
+  exit "$original_status"
 }
 
 assert_canonical_file() {
@@ -168,6 +83,11 @@ assert_canonical_file() {
     fatal "$label path guard failed"
 }
 
+postgres_scalar() {
+  sudo -n -u postgres psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$TARGET_DB" \
+    -v ON_ERROR_STOP=1 -Atqc "$1"
+}
+
 MODE="${1:-}"
 if [[ $# -ne 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; then
   usage
@@ -175,35 +95,26 @@ if [[ $# -ne 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; the
 fi
 
 [[ "$EUID" -ne 0 ]] || fatal "run this wrapper as the non-root repository owner"
+[[ -d "$ADMIN_SOCKET" && ! -L "$ADMIN_SOCKET" ]] || fatal "local PostgreSQL socket guard failed"
 
-assert_canonical_file "$DEV_ENV" "$REPO_ROOT/apps/webapp/.env.dev" "DEV env"
+assert_canonical_file "$API_ENV" "$REPO_ROOT/.env" "DEV API env"
+assert_canonical_file "$WEBAPP_ENV" "$REPO_ROOT/apps/webapp/.env.dev" "DEV webapp env"
 assert_canonical_file "$DEV_ENV_PARSER" "$REPO_ROOT/deploy/host/parse-dev-database-url.mjs" "DEV env parser"
-assert_canonical_file \
-  "$SAFE_MIGRATION_ENV" \
-  "$REPO_ROOT/deploy/env/empty.local-migration.env" \
-  "safe migration env"
-assert_canonical_file \
-  "$REPO_ROOT/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX" \
-  "$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql" \
-  "D30 online index artifact"
+assert_canonical_file "$OWNER_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" "owner-ordered migrator"
+assert_canonical_file "$INTEGRATOR_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs" "integrator migrator"
+assert_canonical_file "$RECONCILER" "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" "access reconciler"
+assert_canonical_file "$D30_ONLINE_INDEX" "$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql" "D30 online index artifact"
+[[ ! -L "$DRIZZLE_FOLDER" && -d "$DRIZZLE_FOLDER" ]] || fatal "Drizzle migrations path guard failed"
 
-if grep -Eqv '^[[:space:]]*(#.*)?$' "$SAFE_MIGRATION_ENV"; then
-  fatal "safe migration env must contain comments/blank lines only"
-fi
-
-for command in flock getent mktemp node pnpm psql realpath setsid sudo; do
+for command in flock mktemp node psql realpath setsid sudo; do
   command -v "$command" >/dev/null 2>&1 || fatal "required command is unavailable: $command"
 done
 
 exec 9>"/tmp/bcb-dev-migrate.$(id -u).lock"
 flock -n 9 || fatal "another DEV migration wrapper is already running"
 
-CALLER_HOME="$(getent passwd "$(id -un)" | cut -d: -f6)"
-[[ -n "$CALLER_HOME" && -d "$CALLER_HOME" ]] || fatal "caller HOME guard failed"
-
 NODE_BIN_DIR="$(dirname "$(command -v node)")"
-PNPM_BIN_DIR="$(dirname "$(command -v pnpm)")"
-SANITIZED_PATH="$NODE_BIN_DIR:$PNPM_BIN_DIR:/usr/local/bin:/usr/bin:/bin"
+SANITIZED_PATH="$NODE_BIN_DIR:/usr/local/bin:/usr/bin:/bin"
 
 CREDENTIAL_DIR="$(mktemp -d /tmp/bcb-dev-migrate-credentials.XXXXXX)" ||
   fatal "cannot create private DEV credential directory"
@@ -212,64 +123,88 @@ trap cleanup_exit EXIT
 trap 'handle_signal INT 130' INT
 trap 'handle_signal TERM 143' TERM
 trap 'handle_signal HUP 129' HUP
-PGPASS_FILE="$CREDENTIAL_DIR/pgpass"
-node "$DEV_ENV_PARSER" --write-pgpass "$DEV_ENV" "$PGPASS_FILE" ||
-  fatal "DEV DATABASE_URL data parser rejected the env file"
+RECONCILE_ENV="$CREDENTIAL_DIR/reconcile.env"
+node "$DEV_ENV_PARSER" --write-reconcile-env "$API_ENV" "$WEBAPP_ENV" "$RECONCILE_ENV" ||
+  fatal "DEV runtime URL parser rejected the canonical env files"
 
-identity="$(
-  env -i \
-    PATH="$SANITIZED_PATH" \
-    PGHOST=127.0.0.1 \
-    PGPORT=5432 \
-    PGUSER="$TARGET_ROLE" \
-    PGDATABASE="$TARGET_DB" \
-    PGPASSFILE="$PGPASS_FILE" \
-    PGCONNECT_TIMEOUT=10 \
-    psql -X -v ON_ERROR_STOP=1 -Atqc \
-      "SELECT current_user || '|' || current_database() || '|' ||
-        pg_catalog.pg_get_userbyid(datdba)
-       FROM pg_database
-       WHERE datname = current_database();"
-)" || fatal "DEV identity probe failed"
-[[ "$identity" == "$TARGET_ROLE|$TARGET_DB|$TARGET_ROLE" ]] ||
-  fatal "DEV identity must be exact owner and database"
+identity="$(postgres_scalar \
+  "SELECT current_database() || '|' || pg_catalog.pg_get_userbyid(datdba)
+   FROM pg_catalog.pg_database WHERE datname = current_database();")" ||
+  fatal "DEV identity probe failed"
+[[ "$identity" == "$TARGET_DB|postgres" ]] || fatal "DEV database must be the exact post-cutover target"
+
+migrator_state="$(postgres_scalar \
+  "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' ||
+          rolcanlogin::text || '|' || rolbypassrls::text || '|' || rolinherit::text || '|' ||
+          (rolpassword IS NULL)::text || '|' ||
+          (SELECT count(*) FROM pg_catalog.pg_auth_members WHERE member = role.oid)::text
+     FROM pg_catalog.pg_authid AS role WHERE rolname = '$MIGRATOR_ROLE';")" ||
+  fatal "cannot inspect DEV migrator"
+[[ "$migrator_state" == "false|false|false|false|false|false|true|0" ]] ||
+  fatal "$MIGRATOR_ROLE must be NOSUPERUSER/NOCREATEROLE/NOCREATEDB/NOLOGIN/NOBYPASSRLS/NOINHERIT, passwordless and membership-free"
+
+owner_state="$(postgres_scalar \
+  "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' ||
+          rolcanlogin::text || '|' || rolbypassrls::text || '|' || rolinherit::text
+     FROM pg_catalog.pg_roles WHERE rolname = '$OBJECT_OWNER_ROLE';")" ||
+  fatal "cannot inspect DEV object owner"
+[[ "$owner_state" == "false|false|false|false|false|false" ]] ||
+  fatal "$OBJECT_OWNER_ROLE must be a stationary NOLOGIN/NOBYPASSRLS/NOINHERIT owner"
 
 if [[ "$MODE" == "--preflight" ]]; then
-  echo "migrate-dev preflight: PASS (exact local DEV; no changes made)"
+  echo "migrate-dev preflight: PASS (post-cutover DEV; no changes made)"
   exit 0
 fi
 
-DEV_DATABASE_URL="$(node "$DEV_ENV_PARSER" "$DEV_ENV")" ||
-  fatal "DEV DATABASE_URL data parser rejected the env file"
-
-grant_migrator_app_owner_membership
-enable_migrator_bypass
-
 cd "$REPO_ROOT"
-run_tracked env -i \
+
+# Preserve the repository's cross-app dependency order without using any runtime login.
+run_tracked node "$INTEGRATOR_MIGRATOR" \
+  --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
+  --root "$REPO_ROOT/apps/integrator" --before-date 20260708 --sudo-postgres
+run_tracked node "$OWNER_MIGRATOR" \
+  --db "$TARGET_DB" \
+  --migrator "$MIGRATOR_ROLE" \
+  --drizzle-folder "$DRIZZLE_FOLDER" \
+  --sudo-postgres
+run_tracked node "$INTEGRATOR_MIGRATOR" \
+  --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
+  --root "$REPO_ROOT/apps/integrator" --sudo-postgres
+
+# 0328 commits first; this hot-table index is an idempotent separate autocommit operation.
+run_tracked sudo -n -u postgres env \
+  PGOPTIONS="-c role=$OBJECT_OWNER_ROLE" \
+  psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$TARGET_DB" -v ON_ERROR_STOP=1 \
+  -f "$D30_ONLINE_INDEX"
+
+# Reconcile loads only the four already-configured runtime passwords.  It reapplies the exact
+# declaration and runs its environment/catalog closure verifiers in the same transaction.
+run_tracked sudo -n env -i \
   PATH="$SANITIZED_PATH" \
-  HOME="$CALLER_HOME" \
-  PNPM_HOME="$PNPM_BIN_DIR" \
-  NODE_ENV=development \
-  CI=1 \
-  DATABASE_URL="$DEV_DATABASE_URL" \
-  API_ENV_FILE="$SAFE_MIGRATION_ENV" \
-  WEBAPP_ENV_FILE="$SAFE_MIGRATION_ENV" \
-  PGCONNECT_TIMEOUT=10 \
-  pnpm run migrate
+  HOME=/root \
+  RECONCILE_ENV="$RECONCILE_ENV" \
+  REPO_ROOT="$REPO_ROOT" \
+  TARGET_DB="$TARGET_DB" \
+  ADMIN_SOCKET="$ADMIN_SOCKET" \
+  ADMIN_PORT="$ADMIN_PORT" \
+  bash -c '
+    set -Eeuo pipefail
+    set -a
+    . "$RECONCILE_ENV"
+    set +a
+    exec node "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" \
+      --env dev --db "$TARGET_DB" --admin-socket "$ADMIN_SOCKET" --admin-port "$ADMIN_PORT"
+  '
 
-# 0328 commits first; this hot-table index must run as a separate autocommit psql operation.
-run_tracked env -i \
-  PATH="$SANITIZED_PATH" \
-  PGHOST=127.0.0.1 \
-  PGPORT=5432 \
-  PGUSER="$TARGET_ROLE" \
-  PGDATABASE="$TARGET_DB" \
-  PGPASSFILE="$PGPASS_FILE" \
-  PGCONNECT_TIMEOUT=10 \
-  psql -X -v ON_ERROR_STOP=1 \
-  -f "$REPO_ROOT/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
+# Reconcile verifies this too, but keep a wrapper-local stationary-state assertion so the migration
+# entrypoint itself fails loudly if its deploy-only identity ever gains a persistent capability.
+migrator_state="$(postgres_scalar \
+  "SELECT rolcanlogin::text || '|' || rolbypassrls::text || '|' || rolinherit::text || '|' ||
+          (rolpassword IS NULL)::text || '|' ||
+          (SELECT count(*) FROM pg_catalog.pg_auth_members WHERE member = role.oid)::text
+     FROM pg_catalog.pg_authid AS role WHERE rolname = '$MIGRATOR_ROLE';")" ||
+  fatal "cannot verify stationary DEV migrator"
+[[ "$migrator_state" == "false|false|false|true|0" ]] ||
+  fatal "$MIGRATOR_ROLE retained a deploy capability after reconcile"
 
-cleanup_elevation || fatal "failed to revoke temporary DEV app_owner membership"
-
-echo "migrate-dev: PASS (ordinary pending migrations applied to existing DEV)"
+echo "migrate-dev: PASS (pending migrations applied; declaration reconciled and catalog-audited)"
