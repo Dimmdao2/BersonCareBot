@@ -137,6 +137,42 @@ test('accepts an exact named root for a staff context and installs its canonical
   );
 });
 
+test('allows only the exact patient organization resolver before organization selection', async () => {
+  const { client, queries } = recordingClient();
+  await withPortContextTransaction(
+    client,
+    {
+      capabilityId: '00000000-0000-0000-0000-000000000104',
+      contextClass: 'patient',
+      targetRole: 'app_patient',
+      purpose: 'patient.organization.resolve',
+      functionIdentity: 'app.read_current_patient_active_organizations()',
+      actorRef: '00000000-0000-0000-0000-000000000010',
+      subjectRef: '00000000-0000-0000-0000-000000000010',
+    },
+    async () => undefined,
+  );
+  assert.ok(queries.some(([sql]) => sql.includes('app.install_port_context')));
+
+  const rejected = recordingClient();
+  await assert.rejects(
+    withPortContextTransaction(
+      rejected.client,
+      {
+        capabilityId: '00000000-0000-0000-0000-000000000105',
+        contextClass: 'patient',
+        targetRole: 'app_patient',
+        purpose: 'relation',
+        actorRef: '00000000-0000-0000-0000-000000000010',
+        subjectRef: '00000000-0000-0000-0000-000000000010',
+      },
+      async () => undefined,
+    ),
+    /patient has an invalid claims matrix/,
+  );
+  assert.deepEqual(rejected.queries, []);
+});
+
 test('destroys a checked-out client when principal validation fails before BEGIN', async () => {
   const failure = recordingClient();
   await assert.rejects(

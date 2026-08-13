@@ -296,7 +296,11 @@ function assertPrincipal(principal: PortContextPrincipal): void {
       if (
         !principal.actorRef ||
         !principal.subjectRef ||
-        !principal.organizationId ||
+        (!principal.organizationId &&
+          !(
+            principal.purpose === 'patient.organization.resolve' &&
+            principal.functionIdentity === 'app.read_current_patient_active_organizations()'
+          )) ||
         principal.integratorUserId !== undefined ||
         principal.requestId
       )
