@@ -2673,3 +2673,7 @@ src/infra/repos/pgOrgEntitlements.test.ts` → `31/31`; `pnpm --dir apps/webapp 
   `200`, а `admin_audit_log` подтвердил обе action-группы со `status=ok`.
 - Не заявлено как выполненное: два существующих open incident не закрывались, `15` существующих dead delivery
   rows не переносились ради теста. Resolve-all и непустой outgoing archive остаются в полном live census Ф7.
+- **НЕЗАВИСИМЫЙ ПОВТОРНЫЙ АУДИТ — PASS:** оба MUST FIX закрыты. Live definition содержит
+  `app_platform_admin` в actor accessor; полный архив сохраняет tenant/doctor diagnostics, platform list остаётся
+  sanitised. Прямых grants platform-ролям на четыре queue/archive relation — `0`; exact seam EXECUTE доступен
+  только через объявленный `app_platform_admin` context.
