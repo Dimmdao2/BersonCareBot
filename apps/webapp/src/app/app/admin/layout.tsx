@@ -19,11 +19,13 @@ import '../../styles/doctor.css';
 import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
 /** URL-preserving platform branch. It never resolves or renders a tenant workspace. */
 export default async function AdminLayout({ children }: { children: ReactNode }) {
+  buildAppDeps();
   const session = await requirePlatformOperationsPage();
   return (
     <DoctorWorkspaceShell
