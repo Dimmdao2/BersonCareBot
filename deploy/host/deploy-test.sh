@@ -73,6 +73,7 @@ LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$D
 UNITS=(api worker scheduler webapp media-worker)
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
+APP_OWNER_BYPASS_ADDED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
@@ -86,6 +87,13 @@ cleanup_elevation(){
   if [ "$DBROLE_APP_OWNER_MEMBERSHIP_ADDED" = "1" ]; then
     if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null; then
       DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
+    else
+      cleanup_status=1
+    fi
+  fi
+  if [ "$APP_OWNER_BYPASS_ADDED" = "1" ]; then
+    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$APP_OWNER_ROLE\" NOBYPASSRLS;" >/dev/null; then
+      APP_OWNER_BYPASS_ADDED=0
     else
       cleanup_status=1
     fi
@@ -286,7 +294,20 @@ fi
 database_name="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc 'SELECT current_database();')"
 [ "$database_name" = "$DB" ] || { echo "FATAL: local TEST migration channel reached $database_name, expected $DB" >&2; exit 1; }
 app_owner_attributes="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$APP_OWNER_ROLE';")"
-[ "$app_owner_attributes" = "false|false|false|false|true" ] || { echo "FATAL: $APP_OWNER_ROLE must be NOSUPERUSER NOCREATEROLE NOCREATEDB NOLOGIN BYPASSRLS" >&2; exit 1; }
+case "$app_owner_attributes" in
+  false\|false\|false\|false\|true) ;;
+  false\|false\|false\|false\|false)
+    # A prior fail-closed/zero attempt may already have removed the legacy owner's stationary
+    # BYPASSRLS.  Re-enable it only inside this tracked migration window; cleanup_elevation restores
+    # NOBYPASSRLS before initial cutover and on every failing exit.
+    sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$APP_OWNER_ROLE\" BYPASSRLS;" >/dev/null
+    APP_OWNER_BYPASS_ADDED=1
+    ;;
+  *)
+    echo "FATAL: $APP_OWNER_ROLE must be a privilege-free NOLOGIN role with only optional legacy BYPASSRLS" >&2
+    exit 1
+    ;;
+esac
 app_owner_membership="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")"
 [ "$app_owner_membership" = "f" ] || { echo "FATAL: pre-existing $DBROLE membership in $APP_OWNER_ROLE" >&2; exit 1; }
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$APP_OWNER_ROLE\" TO \"$DBROLE\";" >/dev/null
