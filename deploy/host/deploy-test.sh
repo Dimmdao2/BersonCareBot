@@ -58,8 +58,6 @@ WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
 MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
-DBROLE=bersoncarebot_test
-APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
 PORT_CONTEXT_ENV_BOOTSTRAP=deploy/host/bootstrap-c4-test-env.mjs
 OWNER_MIGRATOR=deploy/postgres/privileges/migrate-local.mjs
@@ -74,56 +72,10 @@ PORT_CONTEXT_CONTRACT=deploy/postgres/port-context/contract.sql
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$DB"
 UNITS=(api worker scheduler webapp media-worker)
-DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
-DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
-APP_OWNER_BYPASS_ADDED=0
-DBROLE_DATABASE_CREATE_GRANTED=0
 INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
-LEGACY_ELEVATION_CLEANUP_REQUIRED=1
 CREDENTIAL_DIR=""
-
-cleanup_elevation(){
-  if [ "$LEGACY_ELEVATION_CLEANUP_REQUIRED" != "1" ]; then
-    return 0
-  fi
-  local cleanup_status=0
-  if [ "$DBROLE_DATABASE_CREATE_GRANTED" = "1" ]; then
-    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE CREATE ON DATABASE \"$DB\" FROM \"$DBROLE\";" >/dev/null; then
-      DBROLE_DATABASE_CREATE_GRANTED=0
-    else
-      cleanup_status=1
-    fi
-  fi
-  if [ "$DBROLE_APP_OWNER_MEMBERSHIP_ADDED" = "1" ]; then
-    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null; then
-      DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
-    else
-      cleanup_status=1
-    fi
-  fi
-  if [ "$APP_OWNER_BYPASS_ADDED" = "1" ]; then
-    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$APP_OWNER_ROLE\" NOBYPASSRLS;" >/dev/null; then
-      APP_OWNER_BYPASS_ADDED=0
-    else
-      cleanup_status=1
-    fi
-  fi
-  sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" NOBYPASSRLS;" >/dev/null || cleanup_status=1
-  local bypass_state
-  bypass_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';")" || cleanup_status=1
-  [ "$bypass_state" = "false" ] || cleanup_status=1
-  if [ "$DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN" = "1" ]; then
-    local app_owner_membership_state
-    app_owner_membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")" || cleanup_status=1
-    [ "$app_owner_membership_state" = "f" ] || cleanup_status=1
-  fi
-  local database_create_state
-  database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE');")" || cleanup_status=1
-  [ "$database_create_state" = "f" ] || cleanup_status=1
-  return "$cleanup_status"
-}
 
 apply_verified_database_zero(){
   sudo -u postgres psql -X -d "$DB" -1 -v ON_ERROR_STOP=1 \
@@ -136,8 +88,7 @@ apply_verified_database_zero(){
 cleanup_exit(){
   local original_status=$?
   set +e
-  cleanup_elevation
-  local cleanup_status=$?
+  local cleanup_status=0
   if [ "$original_status" -ne 0 ] && [ "$INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE" = "1" ]; then
     apply_verified_database_zero || cleanup_status=1
   fi
@@ -233,16 +184,16 @@ else
   done
 fi
 
-# 4) Stop all TEST writers. A legacy locked target uses the one-time audited elevation below and then
-#    the single-target access cutover. An already port-context target uses only the stationary NOLOGIN
-#    migrator and exact declared owners. Any failure leaves all TEST writers stopped.
+# 4) Stop all TEST writers. A legacy locked target uses the one-time local-postgres bridge below and
+#    then the single-target access cutover; no retired application identity regains authority. An
+#    already port-context target uses only the stationary NOLOGIN migrator and exact declared owners.
+#    Any failure leaves all TEST writers stopped.
 #    This code-only path never restores or recreates TEST; it applies migrations to the named database.
 for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
 WRITERS_STOPPED=1
 trap cleanup_exit EXIT
 
 if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ]; then
-  LEGACY_ELEVATION_CLEANUP_REQUIRED=0
   MIGRATOR_ROLE=bcb_test_migrator
   OBJECT_OWNER_ROLE=app_object_owner
   migrator_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text || '|' || rolinherit::text || '|' || (rolpassword IS NULL)::text || '|' || (SELECT count(*) FROM pg_catalog.pg_auth_members WHERE member=role.oid)::text FROM pg_catalog.pg_authid AS role WHERE rolname='$MIGRATOR_ROLE';")"
@@ -328,52 +279,22 @@ fi
 
 database_name="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc 'SELECT current_database();')"
 [ "$database_name" = "$DB" ] || { echo "FATAL: local TEST migration channel reached $database_name, expected $DB" >&2; exit 1; }
-app_owner_attributes="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$APP_OWNER_ROLE';")"
-case "$app_owner_attributes" in
-  false\|false\|false\|false\|true) ;;
-  false\|false\|false\|false\|false)
-    # A prior fail-closed/zero attempt may already have removed the legacy owner's stationary
-    # BYPASSRLS.  Re-enable it only inside this tracked migration window; cleanup_elevation restores
-    # NOBYPASSRLS before initial cutover and on every failing exit.
-    sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$APP_OWNER_ROLE\" BYPASSRLS;" >/dev/null
-    APP_OWNER_BYPASS_ADDED=1
-    ;;
-  *)
-    echo "FATAL: $APP_OWNER_ROLE must be a privilege-free NOLOGIN role with only optional legacy BYPASSRLS" >&2
-    exit 1
-    ;;
-esac
-app_owner_membership="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")"
-[ "$app_owner_membership" = "f" ] || { echo "FATAL: pre-existing $DBROLE membership in $APP_OWNER_ROLE" >&2; exit 1; }
-sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$APP_OWNER_ROLE\" TO \"$DBROLE\";" >/dev/null
-DBROLE_APP_OWNER_MEMBERSHIP_ADDED=1
-DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
-sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
-database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE');")"
-[ "$database_create_state" = "f" ] || { echo "FATAL: pre-existing $DBROLE CREATE privilege on database $DB" >&2; exit 1; }
-sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT CREATE ON DATABASE \"$DB\" TO \"$DBROLE\";" >/dev/null
-DBROLE_DATABASE_CREATE_GRANTED=1
-# Legacy application logins already have no CONNECT at this point and must not regain it merely
-# to run DDL. Database CREATE is restored because the integrator ledger executes CREATE SCHEMA IF
-# NOT EXISTS. The bounded legacy phase stops before the new port-context contract migrations.
 cd "$DEPLOY_REPO"
+  # The one-time bridge runs only while every TEST writer is stopped. It does not grant authority to
+  # a retired application identity: local postgres advances the bounded legacy ledger, then the
+  # generated zero neutralizes every DB-local owner and ACL before the target contract is installed.
+  INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=1
   sudo -u postgres env \
     NODE_ENV=production \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
     APP_BASE_URL=http://127.0.0.1 \
     BOOKING_URL=http://127.0.0.1 \
-    PGOPTIONS="-c role=$DBROLE -c search_path=integrator,public" \
+    PGOPTIONS="-c search_path=integrator,public" \
     INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 \
     pnpm --dir apps/integrator run migrate
 
-  cleanup_elevation
-  # The legacy role remains in the cluster until the final cluster zero, but all of its temporary
-  # authority has already been verified absent. From here every existing DB-local object must have
-  # a neutral owner before FK/system triggers execute during the port-context migration phase.
-  LEGACY_ELEVATION_CLEANUP_REQUIRED=0
   apply_verified_database_zero
-  INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=1
 
   # Initial locked→port-context bridge. Migration 0391 is the first Drizzle change that consumes
   # the target context types/tables, while the final generated capability catalog depends on the

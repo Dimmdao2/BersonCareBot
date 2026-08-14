@@ -732,7 +732,7 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 
 `deploy-test.sh` — **code-only/no-fresh-restore** путь (build + controlled migrate текущей TEST-БД) и не является
 способом fresh restore. Для ещё не переведённой TEST он выполняет однобазовый переход без разрыва порядка
-миграций: bounded legacy-integrator phase → `zero/proof` старых owners/grants → provisional canonical
+миграций: bounded legacy-integrator phase от локального OS `postgres` без возврата полномочий retired-роли → `zero/proof` старых owners/grants → provisional canonical
 port-context base contract с четырьмя принудительно `NOLOGIN` target shells → оставшиеся schema/data ledgers через
 local PostgreSQL administrator → повторный `zero/proof → exact declaration install → live`. Первый zero сохраняет
 данные и объекты, но даёт FK/system triggers нейтрального владельца вместо уже закрытой legacy-роли. Provisional contract нужен потому, что миграции начиная с 0391
