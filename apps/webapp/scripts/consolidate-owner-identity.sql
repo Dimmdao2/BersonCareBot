@@ -6,14 +6,15 @@
 -- Сухой прогон: те же команды, но заменить последний COMMIT на ROLLBACK.
 --
 -- Что делает:
---   1. Переносит все ссылки с админского надгробия a754c977 на живую врачебную запись b0021a38.
+--   1. Переносит все ссылки с админского надгробия a754c977 на живую основную запись b0021a38.
 --   2. Удаляет надгробие.
 --   3. Удаляет две пустые админские записи 9504c4b8 и 2e5068fe.
 --   4. Удаляет пустой дубль карточки специалиста 518ea988.
 --
--- Чего НЕ делает: не меняет роль выжившей записи (остаётся doctor + владелец клиники, глобальным
--- админом она не становится), не трогает её почту, пароль и данные. Не трогает gmail-запись
--- глобального админа 9c40e322 и живую пациентскую запись 1c312a64. Мёртвое пациентское
+-- Чего НЕ делает: не меняет роль выжившей записи. В свежем PROD-дампе она ещё role=admin с gmail;
+-- следующий обязательный p0-data-fix-doctor-admin-split.sql переводит её в doctor с yandex и создаёт
+-- отдельного глобального администратора. Здесь не трогаются пароль и данные основной записи, живая
+-- пациентская запись 1c312a64. Мёртвое пациентское
 -- надгробие 9475c2a9 удаляется по прямому решению владельца 15.08.2026.
 
 BEGIN;
@@ -22,8 +23,10 @@ BEGIN;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM platform_users WHERE id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
-                   AND role = 'doctor' AND merged_into_id IS NULL) THEN
-    RAISE EXCEPTION 'Выжившая запись b0021a38 не найдена, либо у неё не роль doctor, либо она сама помечена слитой';
+                   AND phone_normalized = '+79643805480'
+                   AND role IN ('admin', 'doctor')
+                   AND merged_into_id IS NULL) THEN
+    RAISE EXCEPTION 'Основная запись b0021a38 не найдена, потеряла телефон владельца, имеет неожиданную роль или сама помечена слитой';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM platform_users WHERE id = 'a754c977-d1cc-46bb-b870-ca499be81884') THEN
     RAISE NOTICE 'Надгробие a754c977 уже удалено — скрипт был выполнен ранее';
@@ -48,9 +51,28 @@ UPDATE online_intake_status_history SET changed_by = 'b0021a38-fb86-45e9-9aec-d8
 -- Журналы и настройки платформы.
 UPDATE admin_audit_log            SET actor_id   = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE actor_id   = 'a754c977-d1cc-46bb-b870-ca499be81884';
 UPDATE system_settings            SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884';
-UPDATE app_runtime_settings       SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884';
-UPDATE app_runtime_settings_audit SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884';
 UPDATE user_email_setup_tokens    SET created_by_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE created_by_user_id = 'a754c977-d1cc-46bb-b870-ca499be81884';
+
+-- Эти две таблицы появились уже после исходной PROD-схемы. На свежем dump их ещё нет и переносить в них
+-- нечего; при идемпотентном повторе на уже мигрированной схеме ссылки всё равно нормализуются.
+DO $$
+BEGIN
+  IF to_regclass('integrator.system_settings') IS NOT NULL THEN
+    EXECUTE $sql$UPDATE integrator.system_settings
+      SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
+      WHERE updated_by::text = 'a754c977-d1cc-46bb-b870-ca499be81884'$sql$;
+  END IF;
+  IF to_regclass('public.app_runtime_settings') IS NOT NULL THEN
+    EXECUTE $sql$UPDATE public.app_runtime_settings
+      SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
+      WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884'$sql$;
+  END IF;
+  IF to_regclass('public.app_runtime_settings_audit') IS NOT NULL THEN
+    EXECUTE $sql$UPDATE public.app_runtime_settings_audit
+      SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
+      WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884'$sql$;
+  END IF;
+END $$;
 
 -- Способы входа, которых у выжившей записи нет: привязка Яндекса, PIN, история телефона.
 UPDATE user_oauth_bindings  SET user_id          = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE user_id          = 'a754c977-d1cc-46bb-b870-ca499be81884';
@@ -93,7 +115,12 @@ DELETE FROM be_specialists WHERE id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b';
 DO $$
 DECLARE staff_rows int; spec_rows int;
 BEGIN
-  SELECT count(*) INTO staff_rows FROM platform_users WHERE lower(email) = 'dimmdao@yandex.ru';
+  SELECT count(*) INTO staff_rows
+  FROM platform_users
+  WHERE id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
+    AND phone_normalized = '+79643805480'
+    AND role IN ('admin', 'doctor')
+    AND merged_into_id IS NULL;
   SELECT count(*) INTO spec_rows FROM be_specialists WHERE full_name = 'Дмитрий Берсон';
   IF staff_rows <> 1 THEN
     RAISE EXCEPTION 'Ожидали одну staff-запись владельца, осталось %', staff_rows;
