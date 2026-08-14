@@ -88,7 +88,8 @@ The override moved from `/tmp/bcb-test-setup/test-settings-override.sql` into th
 and org `UNIQUE (key, scope, organization_id) WHERE organization_id IS NOT NULL`.
 The override inserts GLOBAL rows, so change every `ON CONFLICT (key, scope) DO UPDATE` →
 `ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE` (matches the global partial index). Applied
-cleanly on test. Fold this into `/tmp/bcb-test-setup/test-settings-override.sql` permanently.
+cleanly on test. The permanent canonical file is `deploy/postgres/test-settings-override.sql`; do not recreate
+the former `/tmp/bcb-test-setup` copy.
 
 Current mode contract (2026-07-23): callers must pass `test_settings_overlay_mode=code-only` for an ordinary
 existing-DB deploy or `test_settings_overlay_mode=reset` for a fresh/reset rehearsal. Code-only preserves the

@@ -56,7 +56,7 @@ SAAS_TEST_FIXTURE_ENV=/opt/env/bersoncarebot/saas-test-fixture.env
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
-RESTORE=/tmp/bcb-test-setup/restore-test-db.sh
+RESTORE=deploy/host/restore-test-db-from-dump.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 OWNER_IDENTITY_CONSOLIDATION=apps/webapp/scripts/consolidate-owner-identity.sql
@@ -3293,7 +3293,7 @@ parse_full_reset_args "$@"
 log "DESTRUCTIVE full-reset confirmation + owner input preflight"
 assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_FILE_SHA256"
 assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_SHA256"
-[ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
+[ -r "$SRC_REPO/$RESTORE" ] || { echo "FATAL: missing required file: $SRC_REPO/$RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
 [ -r "$SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER"; exit 1; }
@@ -3400,7 +3400,7 @@ dump_owner_mode="$(stat -Lc '%U:%G:%a' -- "$DUMP")"
   exit 1
 }
 log "restore $DB from $(basename "$DUMP") ($(du -h "$DUMP" | cut -f1))"
-sudo -u postgres bash "$RESTORE" "$DUMP"
+sudo -u postgres bash "$DEPLOY_REPO/$RESTORE" "$DUMP"
 assert_test_db_owner_ready
 
 # 2. Owner-account consolidation is the first data mutation. Every later identity/FIO migration

@@ -151,7 +151,8 @@ the TEST box for this hard rehearsal.
 
 ### 3. Restore to TEST or a disposable DB
 
-TEST restore must go through `/tmp/bcb-test-setup/restore-test-db.sh`. The restored target is
+TEST restore goes through repo-tracked `deploy/host/restore-test-db-from-dump.sh`, invoked only by the
+owner-gated full-reset wrapper. The restored target is
 `bersoncarebot_test`, and the restore path must leave the database and representative tables owned by
 `bersoncarebot_test`.
 

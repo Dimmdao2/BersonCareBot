@@ -867,7 +867,8 @@ membership/BYPASS через обязательный cleanup; application runti
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный
   разрушительный entrypoint — `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`; он владеет fresh dump, restore,
   migrations, overlays/settings, fixture reconciliation, cleanup, restart и health gates. Не запускать
-  `/tmp/bcb-test-setup/restore-test-db.sh`, settings SQL или `deploy-test.sh` как отдельную fresh-restore цепочку.
+  `restore-test-db-from-dump.sh`, settings SQL или `deploy-test.sh` как отдельную fresh-restore цепочку. Restore
+  primitive является внутренней частью owner-gated wrapper и напрямую не запускается.
   `deploy-test-saas.sh` — внутренний shared closure engine; напрямую его не запускают, прямой destructive-вызов
   заблокирован.
 

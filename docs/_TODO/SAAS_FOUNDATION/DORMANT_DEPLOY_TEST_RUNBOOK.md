@@ -1,4 +1,8 @@
-# DORMANT deploy to TEST — runbook (owner-executed)
+# DORMANT deploy to TEST — historical runbook (superseded)
+
+> **SUPERSEDED 2026-08-15.** Do not execute the commands below. The only supported fresh TEST restore is the
+> owner-gated `deploy/host/deploy-test-full-reset.sh`; its internal repo-tracked restore primitive is
+> `deploy/host/restore-test-db-from-dump.sh`. This file remains only as history of the dormant rollout.
 
 **Status: READY.** `feat`=`saas`=`bdff8dfca`, full `pnpm run ci` green, all SaaS isolation is DORMANT.
 
@@ -29,9 +33,8 @@ compatibility mode, and prove locked patient/integrator identity labels.
 
 ## Steps
 
-1. **Refresh test DB from a fresh prod dump.** Your existing flow:
-   `sudo -u postgres bash /tmp/bcb-test-setup/restore-test-db.sh` (recreates `bersoncarebot_test` from
-   the prod hourly dump — pull the newest dump first).
+1. **Historical only:** refresh was formerly a separate step. It is now owned by the guarded full-reset wrapper
+   named above; do not restore or continue this sequence by hand.
 2. **Deploy `feat` (`bdff8dfca`) to test** via your test deploy script (bundles branch → build →
    `pnpm migrate` with test env → restart test units). This applies migrations up to `0175` on the test DB.
 3. **(Dormant, optional-but-recommended) create the roles + grants** on the test DB — validates the SQL
