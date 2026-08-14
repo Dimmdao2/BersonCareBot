@@ -127,6 +127,20 @@ resolve_test_runtime_mode(){
 
 echo "== deploy-test: ${BRANCH}  ->  ${DEPLOY_REPO} =="
 TEST_DB_PRINCIPAL_CONTEXT_MODE="$(resolve_test_runtime_mode)"
+TEST_DB_CONNECTION_LIMIT="$(sudo -u postgres psql -X -d postgres -Atqc \
+  "SELECT datconnlimit FROM pg_catalog.pg_database WHERE datname='$DB';")"
+[[ "$TEST_DB_CONNECTION_LIMIT" =~ ^-?[0-9]+$ ]] || {
+  echo "FATAL: could not resolve TEST database connection limit" >&2
+  exit 1
+}
+RESUME_INITIAL_PORT_CONTEXT_CUTOVER=0
+if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ] && [ "$TEST_DB_CONNECTION_LIMIT" = "0" ]; then
+  # initial cutover renders the target env before it changes database access. Its fail-closed EXIT
+  # path leaves this exact state on any later error. Replay the idempotent stopped-writer bridge
+  # rather than treating a zeroed database as an already stationary port-context deployment.
+  RESUME_INITIAL_PORT_CONTEXT_CUTOVER=1
+  echo "   TEST resume state: port-context env + CONNECTION LIMIT 0 (initial cutover incomplete)"
+fi
 [ -r "$SRC_REPO/$STRICT_CLOSURE" ] || { echo "FATAL: missing $SRC_REPO/$STRICT_CLOSURE" >&2; exit 1; }
 
 # 1) Бандлим ветку из dev-репо (perm-safe перенос; deploy не читает /home/dev).
@@ -193,7 +207,7 @@ for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
 WRITERS_STOPPED=1
 trap cleanup_exit EXIT
 
-if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ]; then
+if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ] && [ "$RESUME_INITIAL_PORT_CONTEXT_CUTOVER" != "1" ]; then
   MIGRATOR_ROLE=bcb_test_migrator
   OBJECT_OWNER_ROLE=app_object_owner
   migrator_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text || '|' || rolinherit::text || '|' || (rolpassword IS NULL)::text || '|' || (SELECT count(*) FROM pg_catalog.pg_auth_members WHERE member=role.oid)::text FROM pg_catalog.pg_authid AS role WHERE rolname='$MIGRATOR_ROLE';")"
@@ -280,9 +294,10 @@ fi
 database_name="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc 'SELECT current_database();')"
 [ "$database_name" = "$DB" ] || { echo "FATAL: local TEST migration channel reached $database_name, expected $DB" >&2; exit 1; }
 cd "$DEPLOY_REPO"
-  # The one-time bridge runs only while every TEST writer is stopped. It does not grant authority to
-  # a retired application identity: local postgres advances the bounded legacy ledger, then the
-  # generated zero neutralizes every DB-local owner and ACL before the target contract is installed.
+  # The one-time bridge, including an interrupted-cutover replay, runs only while every TEST writer
+  # is stopped. It does not grant authority to a retired application identity: local postgres
+  # advances the bounded legacy ledger, then the generated zero neutralizes every DB-local owner and
+  # ACL before the target contract is installed.
   INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=1
   sudo -u postgres env \
     NODE_ENV=production \

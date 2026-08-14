@@ -745,7 +745,9 @@ writers и локальном OS `postgres`; финальный cutover до з�
 TEST-команды распознаёт такое fail-closed состояние и передаёт явный обычный лимит `-1`; он восстанавливается только
 после успешных install/HBA/readiness proof, а любой повторный отказ снова оставляет лимит 0. После принудительного
 закрытия backend может исчезать из `pg_stat_activity` не мгновенно: cutover ждёт это не более 5 секунд и затем
-останавливается, если хотя бы одна сессия действительно сохранилась.
+останавливается, если хотя бы одна сессия действительно сохранилась. Поскольку env projection записывается до
+access install, сочетание `port-context` в обоих env и `CONNECTION LIMIT 0` считается незавершённым первым cutover:
+wrapper повторяет идемпотентный stopped-writer bridge и финальную установку, а не входит в stationary migration path.
 DEV в цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
 NOLOGIN `bcb_test_migrator` и exact declared owners, затем declaration reconcile + catalog audit и обновление
 runtime projection. Если более поздняя webapp-миграция уже удалила объект, на который смотрит отложенная ранняя
