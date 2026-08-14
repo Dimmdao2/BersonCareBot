@@ -5,7 +5,6 @@ import {
   resolveCorrelationId,
   runWithObservabilityContext,
 } from '@bersoncare/db-principal';
-import { env } from '../../config/env.js';
 
 /**
  * Унифицированная форма ошибки для структурированных логов — safe-by-construction,
@@ -63,8 +62,8 @@ export function serializeError(err: unknown): SerializedError {
  * в production/test оставляет JSON-логи.
  */
 function buildTransport(): pino.TransportSingleOptions | undefined {
-  const isDev = env.NODE_ENV === 'development';
-  const isTest = env.NODE_ENV === 'test';
+  const isDev = process.env.NODE_ENV === 'development';
+  const isTest = process.env.NODE_ENV === 'test';
   if (!isDev || isTest) return undefined;
 
   return {
@@ -77,7 +76,7 @@ const transport = buildTransport();
 
 /** Корневой логгер приложения с редактированием чувствительных полей. */
 export const logger = pino({
-  level: env.LOG_LEVEL,
+  level: process.env.LOG_LEVEL?.trim() || 'info',
   ...(transport ? { transport } : {}),
   base: { pid: process.pid },
   mixin: getCurrentObservabilityContext,

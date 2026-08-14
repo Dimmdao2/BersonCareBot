@@ -5,7 +5,6 @@ import { join } from 'path'; // Склейка путей
 import { fileURLToPath } from 'url';
 import { sql } from 'drizzle-orm';
 import { getAppRoot } from '../../config/appRoot.js';
-import { env } from '../../config/env.js'; // Переменные окружения
 import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
 import { createIntegratorMigrationPoolProvider } from './integratorMigrationPoolProvider.js';
 
@@ -520,11 +519,12 @@ function verifyAppliedMigrationVersions(
 
 /** Применяет все неприменённые миграции. Вызывается из deploy/script paths и legacy startup. */
 export async function runMigrations(): Promise<void> {
-  if (!env.DATABASE_URL) {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl) {
     throw new Error('DATABASE_URL is not set');
   }
 
-  const db = createIntegratorMigrationPoolProvider({ connectionString: env.DATABASE_URL });
+  const db = createIntegratorMigrationPoolProvider({ connectionString: databaseUrl });
 
   try {
     await ensureMigrationsTable(db); // Создаём таблицу учёта миграций
@@ -691,6 +691,9 @@ export async function runStartupMigrationGateWithDeps(
 }
 
 export async function runStartupMigrationGate(): Promise<void> {
+  // Runtime startup validates the full application env. The direct migration entrypoint above is
+  // deliberately DB-only and must not require APP_BASE_URL, booking config or provider secrets.
+  const { env } = await import('../../config/env.js');
   await runStartupMigrationGateWithDeps({
     dbPrincipalContextMode: env.DB_PRINCIPAL_CONTEXT_MODE,
     databaseUrl:
