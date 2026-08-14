@@ -748,6 +748,9 @@ TEST-команды распознаёт такое fail-closed состояни
 останавливается, если хотя бы одна сессия действительно сохранилась. Поскольку env projection записывается до
 access install, сочетание `port-context` в обоих env и `CONNECTION LIMIT 0` считается незавершённым первым cutover:
 wrapper повторяет идемпотентный stopped-writer bridge и финальную установку, а не входит в stationary migration path.
+Финальный cluster zero может удалить retired legacy owner раньше, чем сработает EXIT-cleanup старого migration
+wrapper. Для cleanup отсутствие роли является успешным более сильным состоянием; если роль ещё существует, wrapper
+по-прежнему требует `NOBYPASSRLS` и отсутствие временных memberships.
 Старые `app.context_nonce_ledger` и `app.principal_context` в target declaration имеют
 `PENDING_REMOVAL`: новый transaction-bound контекст их не создаёт и не требует. Отдельная
 `app.context_signing_secrets` пока остаётся не как часть DB-principal протокола, а как узкое хранилище HMAC для

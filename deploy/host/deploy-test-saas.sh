@@ -129,6 +129,9 @@ PROD_DB=bersoncarebot
 
 log(){ echo; echo "== [deploy-test-saas] $* =="; }
 revoke_bypass(){
+  if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = '$DBROLE');")" != "t" ]; then
+    return 0
+  fi
   sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" NOBYPASSRLS;"
 }
 # ── Temporary app_owner membership for the migration step (added 2026-07-25) ──────────────────────
@@ -167,6 +170,10 @@ grant_migrator_app_owner_membership(){
 
 revoke_migrator_app_owner_membership(){
   if [ "${MIGRATOR_APP_OWNER_MEMBERSHIP_ADDED:-0}" = "1" ]; then
+    if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = '$DBROLE');")" != "t" ]; then
+      MIGRATOR_APP_OWNER_MEMBERSHIP_ADDED=0
+      return 0
+    fi
     if sudo -u postgres psql -v ON_ERROR_STOP=1 -c "REVOKE \"app_owner\" FROM \"$DBROLE\";"; then
       MIGRATOR_APP_OWNER_MEMBERSHIP_ADDED=0
       return 0
@@ -177,6 +184,10 @@ revoke_migrator_app_owner_membership(){
 
 revoke_migrator_membership(){
   if [ "${MIGRATOR_OWNER_MEMBERSHIP_ADDED:-0}" = "1" ] && [ -n "${MIGRATOR_ROLE:-}" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
+    if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = '$DBROLE');")" != "t" ]; then
+      MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
+      return 0
+    fi
     if sudo -u postgres psql -v ON_ERROR_STOP=1 -c "REVOKE \"$DBROLE\" FROM \"$MIGRATOR_ROLE\";"; then
       MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
       return 0
@@ -187,6 +198,11 @@ revoke_migrator_membership(){
 assert_cleanup_elevation(){
   local bypass_state membership_exists
   bypass_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';")"
+  # The port-context cluster zero may already have removed the retired legacy role. Absence is the
+  # strongest possible cleanup result: no BYPASSRLS bit or membership can survive on a missing role.
+  if [ -z "$bypass_state" ]; then
+    return 0
+  fi
   [ "$bypass_state" = "false" ] || { echo "FATAL: role $DBROLE still has BYPASSRLS after cleanup (rolbypassrls=$bypass_state)" >&2; return 1; }
   if [ "${MIGRATOR_OWNER_MEMBERSHIP_GRANTED_THIS_RUN:-0}" = "1" ] && [ -n "${MIGRATOR_ROLE:-}" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
     membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');")"
