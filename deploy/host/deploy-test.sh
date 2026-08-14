@@ -316,6 +316,13 @@ cd "$DEPLOY_REPO"
           END LOOP;
         END \$bcb\$;" \
     -f "$DEPLOY_REPO/$PORT_CONTEXT_CONTRACT"
+  # The base contract also installs the final fail-closed relation birth wall. Its registry and
+  # expected owners come from the generated declaration, which cannot be installed until the
+  # remaining migrations have created their functions and relations. Keep the wall absent only
+  # inside this stopped-writer, local-postgres bridge; the final cutover zeros the database again,
+  # installs the complete registry/owners and recreates the wall before any writer is released.
+  sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 \
+    -c 'DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall'
   # These statements are still data/schema migrations, not the final access declaration. Run them
   # through the local PostgreSQL administrator because the provisional contract deliberately removed
   # legacy ownership; the final cutover immediately neutralizes every provisional owner/ACL and
