@@ -74,6 +74,7 @@ UNITS=(api worker scheduler webapp media-worker)
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 APP_OWNER_BYPASS_ADDED=0
+DBROLE_DATABASE_CREATE_GRANTED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
@@ -84,6 +85,13 @@ cleanup_elevation(){
     return 0
   fi
   local cleanup_status=0
+  if [ "$DBROLE_DATABASE_CREATE_GRANTED" = "1" ]; then
+    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE CREATE ON DATABASE \"$DB\" FROM \"$DBROLE\";" >/dev/null; then
+      DBROLE_DATABASE_CREATE_GRANTED=0
+    else
+      cleanup_status=1
+    fi
+  fi
   if [ "$DBROLE_APP_OWNER_MEMBERSHIP_ADDED" = "1" ]; then
     if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null; then
       DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
@@ -107,6 +115,9 @@ cleanup_elevation(){
     app_owner_membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")" || cleanup_status=1
     [ "$app_owner_membership_state" = "f" ] || cleanup_status=1
   fi
+  local database_create_state
+  database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE');")" || cleanup_status=1
+  [ "$database_create_state" = "f" ] || cleanup_status=1
   return "$cleanup_status"
 }
 
@@ -314,9 +325,14 @@ sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$APP_OWNER_ROLE\" TO \"$
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=1
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
+database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE');")"
+[ "$database_create_state" = "f" ] || { echo "FATAL: pre-existing $DBROLE CREATE privilege on database $DB" >&2; exit 1; }
+sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT CREATE ON DATABASE \"$DB\" TO \"$DBROLE\";" >/dev/null
+DBROLE_DATABASE_CREATE_GRANTED=1
 # Legacy application logins already have no CONNECT at this point and must not regain it merely
-# to run DDL. Authenticate locally as the PostgreSQL OS administrator, then SET ROLE through
-# PGOPTIONS so every migration executes with the exact historical database-owner privileges.
+# to run DDL. Only database CREATE is restored inside this tracked window because the integrator
+# ledger must execute CREATE SCHEMA IF NOT EXISTS. Authenticate locally as the PostgreSQL OS
+# administrator, then SET ROLE through PGOPTIONS for the remaining historical object privileges.
 (
   cd "$DEPLOY_REPO"
   sudo -u postgres env \
