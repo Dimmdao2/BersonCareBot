@@ -811,7 +811,9 @@ bash deploy/host/deploy-test-full-reset.sh \
 Hard wrapper останавливает writers, восстанавливает dump, первым выполняет owner identity consolidation и
 identity data-fix, затем до migration chain применяет hash-bound reviewed FIO и legacy-appointment transition,
 который требует нулевой остаток живых непринятых legacy-записей. Только после этого migrations удаляют старые
-таблицы и накатывают позднюю схему. В том же stopped-writers окне сохраняется durable FIO rollback,
+таблицы и накатывают позднюю схему. Непосредственно перед migrations wrapper применяет декларативный
+`--shared-role-baseline`: только необходимые `NOLOGIN` имена ролей без runtime-логинов и DB-грантов; точные
+логины и права остаются финальным port-context cutover. В том же stopped-writers окне сохраняется durable FIO rollback,
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он

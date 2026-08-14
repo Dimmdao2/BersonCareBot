@@ -150,13 +150,14 @@ Eight rehearsal runs, each surfacing a distinct defect; all fixed:
 | 5   | `0225` runs `ALTER FUNCTION … OWNER TO app_owner`, which requires MEMBERSHIP in `app_owner` — deliberately zero-member                                                                                                                                                                     | `4f8565647` — temporary membership for the migrate step only, revoked + **unconditionally re-asserted** back to zero members |
 | 6   | same `ALTER … OWNER TO app_owner` also requires the NEW owner to hold **CREATE on the schema**; `app_owner` had neither USAGE nor CREATE on `app` at migration time (USAGE is granted only by the post-chain `e1-webapp-runtime-config.sql:71`) → `42501 permission denied for schema app` | `15d9748be` — `GRANT USAGE, CREATE ON SCHEMA app TO app_owner` in `0175`, role-existence guarded                             |
 
-**HARD PREREQUISITE discovered — runtime roles must exist BEFORE the migration chain.** Migrations
-GRANT to / transfer ownership to `app_owner`, `app_staff`, `app_patient`. On this box those cluster-level
-roles already existed, which masked the dependency; on a **virgin prod host they will not**, and the chain
-will fail with `42704 undefined_object`. Therefore on a new host the role-creation part of §3 (the
-`p0-5b` role split + `app_owner`) must run BEFORE §2's migrate step — the rest of §3's grants still run
-after. The helpers added in 0175 and `deploy-test-saas.sh` warn loudly instead of failing obscurely when
-a role is missing. **This reorders the master checklist for a virgin host: 9(roles only) → 4 → 9(grants).**
+**HARD PREREQUISITE discovered — seam/capability role names must exist BEFORE the migration chain.** Migrations
+GRANT to / transfer ownership to `app_owner`, `app_staff`, `app_patient` and other declared roles. On this box
+those cluster-level roles already existed, which masked the dependency; on a **virgin prod host they will not**,
+and the chain fails with `42704 undefined_object`. The canonical prerequisite is now
+`node deploy/postgres/privileges/generate-cli.mjs --shared-role-baseline`, followed by
+`--shared-role-verify`, applied by `deploy-test-saas.sh` immediately before migrations. It creates only the
+declaration-owned `NOLOGIN` role baseline: no runtime login, password or per-database grant. Exact database ACL
+and the four runtime logins still install after migrations in the single-target port-context cutover.
 
 **Diagnostic recipe (the migrate runner redacts errors on purpose).**
 `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` prints only `reason=… sqlstate=…` and suppresses raw
@@ -468,7 +469,7 @@ owner-reviewed provider-neutral appointment cleanup workstream, and #7 (Track D 
 **Guard-unlock needed:** #3 (and the shared wrapper #4 rides on it); §3.5 remains the walls gate.
 
 **Confirmed current ordering (owner 2026-08-15):** merge identity → identity data-fix → reviewed FIO →
-hash-bound legacy appointment transition → migrations/drop → roles/grants → walls → runtime. The CSV belongs only
+hash-bound legacy appointment transition → shared `NOLOGIN` role baseline → migrations/drop → exact roles/grants → walls → runtime. The CSV belongs only
 to the one-time transition; no archived Rubitime command or runtime integration returns.
 
 ## 8. Blockers to build BEFORE a full clean run (steps 5, 7, 8)

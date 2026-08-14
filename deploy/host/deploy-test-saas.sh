@@ -65,6 +65,7 @@ C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
 P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
+PRIVILEGE_GENERATOR=deploy/postgres/privileges/generate-cli.mjs
 P2_B_CONTEXT=deploy/postgres/p2-b-protected-principal-context.sql
 RUNTIME_OVERLAY_APP_OWNER_HANDOFF=deploy/postgres/runtime-overlay-app-owner-handoff.sql
 ORGANIZATION_MEMBER_INVITES_RLS=deploy/postgres/organization-member-invites-rls.sql
@@ -157,12 +158,8 @@ grant_migrator_app_owner_membership(){
   local role_exists membership_exists
   role_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'app_owner');")"
   if [ "$role_exists" != "t" ]; then
-    # Virgin host: the role-provisioning overlays have not run yet. Migrations that GRANT to or
-    # transfer ownership to app_owner will fail with 42704 (undefined_object). Surface it loudly here
-    # rather than as a confusing mid-chain migration error.
-    echo "WARN: role app_owner does not exist yet — runtime roles must be provisioned BEFORE the" >&2
-    echo "      migration chain on a virgin host (see SAAS_PROD_DEPLOY_PROCESS.md step 9 ordering)." >&2
-    return 0
+    echo "FATAL: declaration-derived pre-migration role baseline did not create app_owner" >&2
+    exit 1
   fi
   membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', 'app_owner', 'member');")"
   if [ "$membership_exists" = "t" ]; then
@@ -173,6 +170,17 @@ grant_migrator_app_owner_membership(){
   sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT \"app_owner\" TO \"$DBROLE\";" >/dev/null
   MIGRATOR_APP_OWNER_MEMBERSHIP_ADDED=1
   MIGRATOR_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
+}
+
+# The fresh PROD cluster has no target seam/capability roles, while pending migrations already name
+# several of them in GRANT and ALTER ... OWNER statements. Install only the cluster-wide NOLOGIN role
+# baseline here. Database ACL, login shells, credentials and port-context grants remain downstream of
+# the completed schema migration and are installed atomically by run_port_context_test_release.
+install_pre_migration_shared_role_baseline(){
+  node --experimental-strip-types "$DEPLOY_REPO/$PRIVILEGE_GENERATOR" --shared-role-baseline |
+    sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+  node --experimental-strip-types "$DEPLOY_REPO/$PRIVILEGE_GENERATOR" --shared-role-verify |
+    sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
 }
 
 revoke_migrator_app_owner_membership(){
@@ -3402,6 +3410,7 @@ assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
 [ -r "$SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER"; exit 1; }
+[ -r "$SRC_REPO/$PRIVILEGE_GENERATOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRIVILEGE_GENERATOR"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
 [ -r "$SRC_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
@@ -3538,7 +3547,12 @@ rubitime_csv_sha_q="$(shell_quote "$RUBITIME_CSV_SHA256")"
 run_postgres_repo_with_test_db_owner_bypass \
   "pnpm --dir apps/webapp run cutover:legacy-appointments -- --commit --csv $rubitime_csv_q --csv-sha256 $rubitime_csv_sha_q --expected-database '$DB' --organization-id '$ORG_ID' --specialist-id '$CANONICAL_SPECIALIST'"
 
-# 6. Migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke.
+# 6. Materialize the declaration-owned NOLOGIN role names required by migration SQL. This is not the
+#    runtime access cutover: no login, credential or per-database grant is installed at this stage.
+log "pre-migration shared NOLOGIN role baseline"
+install_pre_migration_shared_role_baseline
+
+# 7. Migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke.
 #    Destructive legacy-table migrations are now downstream from fail-closed data parity gates.
 log "migrate (temp BYPASSRLS)"
 # Migrations that transfer function ownership to app_owner (0225 and siblings) need membership in it;

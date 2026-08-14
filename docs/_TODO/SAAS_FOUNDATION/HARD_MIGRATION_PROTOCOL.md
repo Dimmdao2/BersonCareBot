@@ -8,7 +8,7 @@ disposable database in this rehearsal. Each deploy/cutover still touches one tar
 TEST wrapper was a point-in-time guard, not a permanent prohibition. The owner explicitly ordered the final
 production-transfer rehearsal on TEST now. The executable order is:
 fresh dump → owner identity consolidation → identity data-fix → reviewed FIO → accepted legacy appointment
-transfer → ordinary migration chain (including legacy drops and all later tariff/billing work) → target
+transfer → declaration-derived shared `NOLOGIN` role baseline → ordinary migration chain (including legacy drops and all later tariff/billing work) → target
 port-context roles/grants → TEST runtime proof.
 
 **ЗАМЕНЕНО 12.08.2026 (runtime topology remains current; the DEV-first scheduling sentence is replaced above):** every later reference in this document to `locked` as the final runtime, to shared
@@ -196,6 +196,8 @@ login through plain `psql "$DATABASE_URL" -f ...` is not an allowed substitute.
 
 Before `pnpm migrate`, the wrapper must:
 
+- apply `generate-cli.mjs --shared-role-baseline` and its read-only verifier. This creates only the
+  declaration-owned cluster roles needed by migration SQL; it creates no runtime login, password or database ACL;
 - use the local OS `postgres` migration channel over the Unix socket and set
   `PGOPTIONS='-c role=bersoncarebot_test'`; it must not borrow one of the four runtime logins or recreate an
   aggregate runtime `DATABASE_URL`;
@@ -229,7 +231,12 @@ Cleanup is not best-effort. The wrapper must fail visibly if cleanup fails, and 
 - required Drizzle migrations are present;
 - required organization columns exist.
 
-Immediately after the migration cleanup/schema assertions and before any TEST service restart, the wrapper must:
+The older `p0-5b-role-split-staff-patient.sql`-first wording below describes the superseded locked-runtime
+closure. In the current port-context rehearsal, the pre-migration role authority is the declaration-derived
+shared baseline above; exact database ACL and four runtime logins are installed only by the final single-target
+port-context cutover.
+
+Immediately after the migration cleanup/schema assertions and before any TEST service restart, the historical locked closure must:
 
 - run the fixed `app_staff` / `app_patient` role split SQL as the TEST superuser for every accepted runtime mode,
   including `legacy-guc` without a signing secret;
