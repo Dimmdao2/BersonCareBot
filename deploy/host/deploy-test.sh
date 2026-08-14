@@ -75,6 +75,7 @@ DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 APP_OWNER_BYPASS_ADDED=0
 DBROLE_DATABASE_CREATE_GRANTED=0
+DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
@@ -85,6 +86,13 @@ cleanup_elevation(){
     return 0
   fi
   local cleanup_status=0
+  if [ "$DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED" = "1" ]; then
+    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "REVOKE USAGE, CREATE ON SCHEMA public FROM \"$DBROLE\";" >/dev/null; then
+      DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=0
+    else
+      cleanup_status=1
+    fi
+  fi
   if [ "$DBROLE_DATABASE_CREATE_GRANTED" = "1" ]; then
     if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE CREATE ON DATABASE \"$DB\" FROM \"$DBROLE\";" >/dev/null; then
       DBROLE_DATABASE_CREATE_GRANTED=0
@@ -118,6 +126,9 @@ cleanup_elevation(){
   local database_create_state
   database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE');")" || cleanup_status=1
   [ "$database_create_state" = "f" ] || cleanup_status=1
+  local public_schema_privilege_state
+  public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")" || cleanup_status=1
+  [ "$public_schema_privilege_state" = "false|false" ] || cleanup_status=1
   return "$cleanup_status"
 }
 
@@ -329,9 +340,14 @@ database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELEC
 [ "$database_create_state" = "f" ] || { echo "FATAL: pre-existing $DBROLE CREATE privilege on database $DB" >&2; exit 1; }
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT CREATE ON DATABASE \"$DB\" TO \"$DBROLE\";" >/dev/null
 DBROLE_DATABASE_CREATE_GRANTED=1
+public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")"
+[ "$public_schema_privilege_state" = "false|false" ] || { echo "FATAL: pre-existing $DBROLE USAGE/CREATE privilege on schema public" >&2; exit 1; }
+sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "GRANT USAGE, CREATE ON SCHEMA public TO \"$DBROLE\";" >/dev/null
+DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=1
 # Legacy application logins already have no CONNECT at this point and must not regain it merely
-# to run DDL. Only database CREATE is restored inside this tracked window because the integrator
-# ledger must execute CREATE SCHEMA IF NOT EXISTS. Authenticate locally as the PostgreSQL OS
+# to run DDL. Database CREATE is restored because the integrator ledger executes CREATE SCHEMA IF
+# NOT EXISTS; public USAGE/CREATE is restored because the role ceased being pg_database_owner before
+# it finished migrating the public objects it still owns. Authenticate locally as the PostgreSQL OS
 # administrator, then SET ROLE through PGOPTIONS for the remaining historical object privileges.
 (
   cd "$DEPLOY_REPO"
