@@ -8,7 +8,7 @@
  * refund, capacity, or invite-create SQL is copied into this smoke.
  *
  * The only extracted SQL is app.accept_org_invite itself: that stored function is copied verbatim
- * from its production overlay and executed as the product accept boundary. Neither process reads
+ * from its journaled webapp migration and executed as the product accept boundary. Neither process reads
  * application env files or connects to DEV/TEST/PROD.
  */
 import { spawnSync } from 'node:child_process';
@@ -34,11 +34,11 @@ function assert(condition, label) {
   if (!condition) fail(label);
 }
 
-function extractAcceptOrgInviteFunctionSql(overlaySource) {
-  const start = overlaySource.indexOf('CREATE OR REPLACE FUNCTION app.accept_org_invite');
-  const end = overlaySource.indexOf('COMMENT ON FUNCTION app.accept_org_invite', start);
-  if (start < 0 || end < 0) fail('could not locate app.accept_org_invite in the overlay source');
-  return overlaySource.slice(start, end);
+function extractAcceptOrgInviteFunctionSql(migrationSource) {
+  const start = migrationSource.indexOf('CREATE OR REPLACE FUNCTION app.accept_org_invite');
+  const end = migrationSource.indexOf('COMMENT ON FUNCTION app.accept_org_invite', start);
+  if (start < 0 || end < 0) fail('could not locate app.accept_org_invite in migration 0419');
+  return migrationSource.slice(start, end);
 }
 
 async function runProductProof() {
@@ -736,11 +736,11 @@ async function runParentProof() {
         AS $$ SELECT * FROM public.saas_tariffs WHERE id = $2 $$;
       `);
 
-      const migrationSource = readFileSync(
+      const billingMigrationSource = readFileSync(
         path.join(root, 'apps/webapp/db/drizzle-migrations/0308_saas_paid_seat_billing_local.sql'),
         'utf8',
       );
-      for (const statement of migrationSource.split('--> statement-breakpoint')) {
+      for (const statement of billingMigrationSource.split('--> statement-breakpoint')) {
         if (statement.trim()) await client.query(statement);
       }
       const migrated = await client.query(`
@@ -761,11 +761,14 @@ async function runParentProof() {
         '0308 legacy paid-seat backfill/default removal did not match the exact prefix contract',
       );
 
-      const overlaySource = readFileSync(
-        path.join(root, 'deploy/postgres/organization-member-invites-rls.sql'),
+      const inviteMigrationSource = readFileSync(
+        path.join(
+          root,
+          'apps/webapp/db/drizzle-migrations/0419_organization_invite_named_roots_local.sql',
+        ),
         'utf8',
       );
-      await client.query(extractAcceptOrgInviteFunctionSql(overlaySource));
+      await client.query(extractAcceptOrgInviteFunctionSql(inviteMigrationSource));
     } finally {
       await client.end();
     }

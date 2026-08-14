@@ -2906,6 +2906,13 @@
       "when": 1793539230161,
       "tag": "0418_integrator_bootstrap_phone_bind_column_resolution_local",
       "breakpoints": true
+    },
+    {
+      "idx": 415,
+      "version": "7",
+      "when": 1793539230162,
+      "tag": "0419_organization_invite_named_roots_local",
+      "breakpoints": true
     }
   ]
 }

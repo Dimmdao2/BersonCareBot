@@ -768,6 +768,9 @@ integrator-миграция, integrator ledger принимает только �
 `20260814_0002_reconcile_booking_calendar_map_location.sql`: каноническая таблица создаётся в `public`, пустая или
 уже канонически ключованная legacy-копия из `integrator` переносится и удаляется. Непереводимые Rubitime keys или
 конфликтующие event mappings останавливают migration без потери данных.
+`0419_organization_invite_named_roots_local.sql` переносит две живые organization-invite функции из старого
+repeatable overlay в штатный webapp migration ledger. Миграция оставляет их закрытыми для `PUBLIC`; финальная
+declaration добавляет transaction-context gate и назначает exact seam owner/EXECUTE ACL.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
 Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим
