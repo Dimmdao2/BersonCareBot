@@ -199,6 +199,8 @@ Before `pnpm migrate`, the wrapper must:
 - use the local OS `postgres` migration channel over the Unix socket and set
   `PGOPTIONS='-c role=bersoncarebot_test'`; it must not borrow one of the four runtime logins or recreate an
   aggregate runtime `DATABASE_URL`;
+- run DB-only Node operations with `NODE_ENV=test` and `USE_REAL_DATABASE=1`, so they use hermetic test defaults
+  for unrelated application secrets while retaining the explicitly selected real TEST database;
 - fail if the runtime owner already has pre-existing `app_owner` membership, then grant that membership only for
   the migration window so pending Drizzle migrations can replace protected functions in schema `app`;
 - set `BYPASSRLS` on the runtime owner only for the migration window;

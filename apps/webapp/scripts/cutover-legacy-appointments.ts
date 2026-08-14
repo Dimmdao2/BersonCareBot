@@ -700,8 +700,26 @@ const isDirectExecution = process.argv[1]
   : false;
 if (isDirectExecution) {
   main().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`cutover legacy appointments failed: ${message}`);
+    const databaseError = error as {
+      code?: unknown;
+      constraint?: unknown;
+      table?: unknown;
+      column?: unknown;
+      cause?: { code?: unknown; constraint?: unknown; table?: unknown; column?: unknown };
+    };
+    const cause = databaseError.cause ?? databaseError;
+    const safeIdentifier = (value: unknown): string | undefined =>
+      typeof value === 'string' && /^[a-z_][a-z0-9_]{0,62}$/u.test(value) ? value : undefined;
+    console.error(JSON.stringify({
+      ok: false,
+      error: 'legacy_appointment_cutover_failed',
+      sqlstate: typeof cause.code === 'string' && /^[0-9A-Z]{5}$/u.test(cause.code)
+        ? cause.code
+        : undefined,
+      constraint: safeIdentifier(cause.constraint),
+      table: safeIdentifier(cause.table),
+      column: safeIdentifier(cause.column),
+    }));
     process.exitCode = 1;
   });
 }

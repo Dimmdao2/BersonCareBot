@@ -1078,6 +1078,7 @@ run_postgres_repo_with_test_db_owner_role(){
     -u DATABASE_URL_STAFF -u DATABASE_URL_PATIENT -u DATABASE_URL_GLOBAL_ADMIN \
     DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
+    NODE_ENV=test USE_REAL_DATABASE=1 \
     PGOPTIONS="-c role=$DBROLE" \
     bash -c "cd '$DEPLOY_REPO' && $deploy_command"
 }
@@ -1095,6 +1096,7 @@ run_postgres_repo_with_test_db_owner_bypass(){
     -u DATABASE_URL_STAFF -u DATABASE_URL_PATIENT -u DATABASE_URL_GLOBAL_ADMIN \
     DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
+    NODE_ENV=test USE_REAL_DATABASE=1 \
     PGOPTIONS="-c role=$DBROLE" \
     bash -c "cd '$DEPLOY_REPO' && $deploy_command"
   command_status=$?
