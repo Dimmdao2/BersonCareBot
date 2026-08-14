@@ -586,25 +586,49 @@ async function main(): Promise<void> {
         }).where(sql`${beAppointments.id} = ${appointmentId}::uuid`);
         summary.recovered += 1;
       } else {
-        const inserted = await tx.insert(beAppointments).values({
-          organizationId: cli.organizationId,
-          branchId,
-          specialistId: cli.specialistId,
-          serviceId,
-          platformUserId: row.platform_user_id,
-          startAt,
-          endAt,
-          durationMinutes,
-          source: 'rubitime_projection',
-          status: mapCanonicalStatus(row.status, row.last_event ?? '', payload),
-          originalStartAt: startAt,
-          rescheduleCount: 0,
-          phoneNormalized: row.phone_normalized,
-          attributionJson: { importedBy: 'owner_reviewed_legacy_cutover', importedAt: now },
-          createdAt: now,
-          updatedAt: now,
-        }).returning({ id: beAppointments.id });
-        appointmentId = inserted[0]?.id;
+        // This operation runs before the ordinary migration chain. The current Drizzle model already
+        // contains chain/reminder columns that do not exist in the fresh PROD schema, and a Drizzle insert
+        // enumerates those columns even when their values are defaults. Keep this one transition insert on
+        // the exact source/target column intersection; later migrations add the new nullable/default fields.
+        const inserted = await tx.execute<{ id: string }>(sql`
+          INSERT INTO public.be_appointments (
+            organization_id,
+            branch_id,
+            specialist_id,
+            service_id,
+            platform_user_id,
+            start_at,
+            end_at,
+            duration_minutes,
+            source,
+            status,
+            original_start_at,
+            reschedule_count,
+            phone_normalized,
+            attribution_json,
+            created_at,
+            updated_at
+          ) VALUES (
+            ${cli.organizationId}::uuid,
+            ${branchId}::uuid,
+            ${cli.specialistId}::uuid,
+            ${serviceId}::uuid,
+            ${row.platform_user_id}::uuid,
+            ${startAt}::timestamptz,
+            ${endAt}::timestamptz,
+            ${durationMinutes}::integer,
+            'rubitime_projection',
+            ${mapCanonicalStatus(row.status, row.last_event ?? '', payload)},
+            ${startAt}::timestamptz,
+            0,
+            ${row.phone_normalized}::text,
+            ${JSON.stringify({ importedBy: 'owner_reviewed_legacy_cutover', importedAt: now })}::jsonb,
+            ${now}::timestamptz,
+            ${now}::timestamptz
+          )
+          RETURNING id::text
+        `);
+        appointmentId = inserted.rows[0]?.id;
         if (!appointmentId) throw new Error('canonical appointment insert returned no id');
         summary.inserted += 1;
       }
