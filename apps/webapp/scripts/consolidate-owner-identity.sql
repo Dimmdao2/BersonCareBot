@@ -111,6 +111,17 @@ DELETE FROM platform_users WHERE id = '9475c2a9-cbef-4d3e-8357-f96503e2e29b';
 -- На неё не ссылается ни одна запись, ни расписание, ни услуга. Живая карточка c9515025 не трогается.
 DELETE FROM be_specialists WHERE id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b';
 
+-- В свежем PROD-дампе часть живых записей той же единственной клиники исторически не имеет
+-- specialist_id (admin_manual/imported/native). Для этой организации существует ровно одна активная
+-- карточка специалиста, проверенная ниже, поэтому принадлежность однозначна. Нормализуем её до
+-- schema-cutover: целевая схема не должна наследовать записи без специалиста.
+UPDATE be_appointments
+SET specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503',
+    updated_at = now()
+WHERE organization_id = 'a0000000-0000-4000-8000-000000000001'
+  AND deleted_at IS NULL
+  AND specialist_id IS NULL;
+
 -- ── Проверка: после слияния у владельца должна остаться одна врачебная запись и один специалист ──
 DO $$
 DECLARE staff_rows int; spec_rows int;

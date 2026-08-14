@@ -41,6 +41,7 @@ SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="feat/doctor-ui-rebuild"
 CONFIRM_FULL_RESET=0
+PREPARE_CUTOVER_SOURCE_ONLY=0
 FIO_MANIFEST=""
 FIO_MANIFEST_FILE_SHA256=""
 FIO_MANIFEST_SHA256=""
@@ -61,6 +62,7 @@ OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp);
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 OWNER_IDENTITY_CONSOLIDATION=apps/webapp/scripts/consolidate-owner-identity.sql
 LEGACY_APPOINTMENT_CUTOVER=apps/webapp/scripts/cutover-legacy-appointments.ts
+PRE_CUTOVER_DATA_ASSERTIONS=deploy/postgres/pre-cutover-data-stage-assertions.sql
 C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
@@ -3251,6 +3253,7 @@ Usage:
     --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
     --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
     --rubitime-csv=/secure/records.csv --rubitime-csv-sha256=<sha256> \
+    [--prepare-cutover-source-only] \
     [branch]
 
 This command destroys and recreates bersoncarebot_test from a fresh production dump. It is only for an
@@ -3261,6 +3264,9 @@ Protected FIO inputs must be regular, non-symlink files owned by deploy with mod
 run to the exact owner-reviewed inputs. The owner-reviewed Rubitime CSV follows the same protected-input
 contract. It is consumed only by the pre-migration legacy appointment transition and is never copied into
 the repository or printed. No patient data is printed by this wrapper.
+
+--prepare-cutover-source-only runs the complete hash-bound data stage and aggregate assertions, leaves
+TEST writers stopped, and exits before schema migration. It never starts the historical migration runners.
 EOF
 }
 
@@ -3269,6 +3275,7 @@ parse_full_reset_args(){
   for arg in "$@"; do
     case "$arg" in
       --confirm-full-reset) CONFIRM_FULL_RESET=1 ;;
+      --prepare-cutover-source-only) PREPARE_CUTOVER_SOURCE_ONLY=1 ;;
       --fio-manifest=*) FIO_MANIFEST="${arg#*=}" ;;
       --fio-manifest-file-sha256=*) FIO_MANIFEST_FILE_SHA256="${arg#*=}" ;;
       --fio-manifest-sha256=*) FIO_MANIFEST_SHA256="${arg#*=}" ;;
@@ -3420,6 +3427,7 @@ assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
 [ -r "$SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER"; exit 1; }
+[ -r "$SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS"; exit 1; }
 [ -r "$SRC_REPO/$PRIVILEGE_GENERATOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRIVILEGE_GENERATOR"; exit 1; }
 [ -r "$SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
@@ -3557,6 +3565,18 @@ rubitime_csv_q="$(shell_quote "$POSTGRES_RUBITIME_CSV")"
 rubitime_csv_sha_q="$(shell_quote "$RUBITIME_CSV_SHA256")"
 run_postgres_repo_with_test_db_owner_bypass \
   "pnpm --dir apps/webapp run cutover:legacy-appointments -- --commit --csv $rubitime_csv_q --csv-sha256 $rubitime_csv_sha_q --expected-database '$DB' --organization-id '$ORG_ID' --specialist-id '$CANONICAL_SPECIALIST'"
+
+log "pre-cutover data-stage assertions"
+sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+  -v expected_database="$DB" \
+  -v canonical_organization_id="$ORG_ID" \
+  -v canonical_specialist_id="$CANONICAL_SPECIALIST" \
+  -f "$DEPLOY_REPO/$PRE_CUTOVER_DATA_ASSERTIONS"
+
+if [ "$PREPARE_CUTOVER_SOURCE_ONLY" = "1" ]; then
+  log "DATA STAGE READY — clean PROD schema A preserved; historical migration runners were not started"
+  exit 0
+fi
 
 # 6. Materialize the declaration-owned NOLOGIN role names required by migration SQL. This is not the
 #    runtime access cutover: no login, credential or per-database grant is installed at this stage.
