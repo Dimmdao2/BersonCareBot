@@ -32,27 +32,28 @@
 > This is THE instruction. Each step links to its detail section below. Status legend:
 > ✅SCRIPT (one command, proven) · ✍️MANUAL (exact commands here) · ⛔BLOCKED (needs a build first — see §8 Blockers).
 > **Hard ordering (not preference):** owner-account consolidation first → identity-fix → reviewed migrations →
-> provider-neutral cleanup; roles/grants → walls; ФИО after identity normalization. Rubitime CSV/R1–R7 is retired
-> and is not an input to this sequence.
+> provider-neutral cleanup; roles/grants → walls. **Owner correction 2026-08-15:** the retired runtime/provider
+> integration stays deleted, but the reviewed CSV is again an input to the one-time data transition. Accepted
+> legacy history must be canonicalized before migrations drop its source tables. Reviewed FIO also runs before
+> migrations 0377/0381 create and start reading `user_identity`.
 >
 > - [ ] **1. GO-gates** (owner/legal, must be green) — §1. ✍️MANUAL
 > - [ ] **2. Fresh prod dump → disposable copy** (rehearse first; then new prod host in the window) — §2. ✅SCRIPT (`deploy/host/deploy-test-full-reset.sh`, engine `deploy-test-saas.sh`)
 > - [ ] **2a. Consolidate the owner's staff identity — FIRST DATA MUTATION** — §2.0. ✅SCRIPT (`apps/webapp/scripts/consolidate-owner-identity.sql`); PROD not yet executed
 > - [ ] **3. Identity data-fix** (doctor=yandex canonical; tezka email stripped; **gmail=HARD `role='admin'`**) — runs automatically as the DATAFIX step BEFORE migrations. §7 #1/#2. ✅SCRIPT (`p0-data-fix-doctor-admin-split.sql`)
-> - [ ] **4. SaaS schema migrations** (incl. `0233_global_admin_hard_role`, membership seed 0143) — part of §2 engine. ✅SCRIPT
-> - [ ] **5. Test-record cleanup + dedup** (remove test bookings, merge clone clients) — §2.5 + §8. ⛔BLOCKED (safety module refuses prod-named DB; needs reviewed guard-unlock like §3.5's flag)
-> - [-] ~~**6. Rubitime CSV → canonical backfill**~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-07-29: «Rubitime у нас больше нет». Архивные CSV one-shot не запускать.
-> - [x] **7. Retired provider mirror migration.** Rubitime выведено 2026-07-27; удаление старых mirror tables идёт только обычной migration chain (`0237`). Provider-neutral `appointment_records` cleanup — отдельный workstream.
-> - [ ] **8. Fix ФИО by reviewed table** (after history normalization) — §8. ✅SCRIPT (B-8 done 2026-07-25, `818f51570`): gated cutover apply — `--allow-authorized-prod-target` + exact `--authorized-prod-database` + environment-matching manifest
+> - [ ] **4. Fix ФИО by reviewed table — PRE-MIGRATION** — hash-bound manifest apply while `platform_users` is still the sole identity source. ✅SCRIPT
+> - [ ] **5. Legacy appointments → canonical — PRE-MIGRATION** — hash-bound owner CSV; test/non-confirmed/stale classifications plus accepted-history transfer; zero live unresolved rows is the destructive-drop gate. ✅SCRIPT (`cutover-legacy-appointments.ts`)
+> - [ ] **6. SaaS schema migrations and legacy drops** (including 0262/0386, tariffs, billing and all later work) — only after steps 4–5 pass. ✅SCRIPT
+> - [ ] **7. Test-record cleanup + dedup not already covered by the explicit owner/legacy transitions** — inspect post-migration facts; do not block on retired generic scripts.
+> - [x] **Historical 29.07 cancellation is superseded for data transition only.** Runtime Rubitime remains removed; archive R1 scripts remain inert. The current cutover script is the sole executable path.
 > - [ ] **9. Runtime roles + grants** (create TEST-style split login roles; run overlays in order) — §3. ✍️MANUAL (overlays are scripts; no `deploy-prod-saas.sh` yet = taskdb #994)
 > - [ ] **10. Install walls** (strict RLS + FORCE, owner-gated flag) — §3.5. ✍️MANUAL (`test-strict-rls-finalizer.sql -v allow_authorized_prod_target=1`)
 > - [ ] **11. Service deploy + assert gates + product smoke** (fail-closed BEFORE traffic) — §4. ✅SCRIPT
 > - [ ] **12. Cutover + rollback** (owner GO → flip traffic; keep old host for rollback horizon) — §5. ✍️MANUAL
 > - [ ] **13. Post-cutover verification** (delivery/alerting live; decommission old only after owner GO) — §6. ✍️MANUAL
 >
-> **Runnable end-to-end on a fresh dump TODAY:** steps 2→3→4→9→10→11 (migrate + identity + roles + walls + boot).
-> **Still BLOCKED (must build before a full clean run):** provider-neutral cleanup and FIO production apply. The
-> current TEST full-reset wrapper still exposes retired Rubitime input flags and must be modernized before reuse.
+> **Authorized rehearsal order 2026-08-15:** 2→2a→3→4→5→6→9→10→11. The TEST wrapper is being used only after
+> synchronizing this exact order and binding both owner-reviewed inputs by hash.
 
 ## 0. When this runs
 
@@ -113,8 +114,8 @@ Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new pr
   `apps/webapp/scripts/consolidate-owner-identity.sql` by the table owner; compare the dry-run counts with TEST,
   stop on material drift, then apply it transactionally. PROD has not been changed. The executable authority is
   [`docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md`](../../OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md), and its
-  place in the sequence is fixed by [`PRE_PRODUCTION_TODO.md` §0](../PRE_PRODUCTION_TODO.md). This step is blocked
-  until the runbook's open `9475c2a9` contradiction is resolved by the owner.
+  place in the sequence is fixed by [`PRE_PRODUCTION_TODO.md` §0](../PRE_PRODUCTION_TODO.md). The former
+  `9475c2a9` contradiction was resolved by the owner on 2026-08-15: the dead patient tombstone is deleted.
 
 Owner, 2026-07-28: «Смержим до конца и оставим одну каноническую запись. причем сделаем скриптом и теперь уже
 не потеряем его. Впишем в последовательность миграции в самом начале - первым шагом» + «и чисти пустышки».
@@ -451,14 +452,14 @@ Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation scrip
 | 1   | Specialist/doctor merge + identity data-fix                    | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (identity roles; runs BEFORE migrations via `deploy-test-saas.sh` DATAFIX) + `apps/webapp/scripts/consolidate-specialist-identity.ts` (specialist-row dup merge, dry-run default, `--commit`)                                                                                                                                                                        | READY (identity data-fix) — anchors: DOCTOR = phone `+79643805480` + `dimmdao@yandex.ru` (role doctor), CLIENT tezka `+79189000782` = no email. **consolidate-specialist-identity** still PARTIAL (canonical UUID is a TEST constant; needs real-data re-derivation). Idempotent; STOPS loudly on un-merged dup.                                                         |
 | 2   | Global-admin account (**HARD role, owner 2026-07-25**)         | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (hard-sets `dimmdao@gmail.com` → `platform_users.role='admin'`) + migration `0233_global_admin_hard_role.sql` (asserts the same in the migration chain)                                                                                                                                                                                                              | READY — **CORRECTED**: the global admin is a real persisted `role='admin'` (a dedicated account, separate from the doctor), NOT the old session-only `admin_emails` elevation. `service.ts:102` maps `role='admin'`→adminMode. Membership seed 0143 is doctor-only, so a persisted admin is never seeded into an org. `admin_emails` stays as a harmless redundant belt. |
 | 3   | Delete old test records                                        | `purge-placeholder-bookings.ts` + `backfill-...--cleanup-only --delete-test ...` (`purge-placeholder-bookings-safety.ts`)                                                                                                                                                                                                                                                                                                 | PARTIAL/BLOCKED — safety module unconditionally refuses prod-named DB; needs reviewed override before cutover                                                                                                                                                                                                                                                            |
-| 4   | Historical Rubitime CSV import                                 | Retired 2026-07-27; old CSV tools live only in `docs/archive/2026-07-rubitime-retirement/`.                                                                                                                                                                                                 | NOT A CURRENT STEP                                                                                                                                                                                                                                                                                         |
-| 5   | Retired provider mirror tables                                 | Removed only by reviewed normal migrations (`20260724_0002`, `0237`) during the ordinary migration chain.                                                                                                                                                                           | Verify schema inventory; do not run archived R7 scripts.                                                                                                                                                                                                                                                  |
-| 6   | Provider-neutral legacy cleanup                                | `appointment_records`, generic retries, calendar mappings and canonical booking data are separate from provider retirement.                                                                                                                                                          | Separate owner-reviewed workstream; no Rubitime runbook dependency.                                                                                                                                                                                                                                       |
+| 4   | Historical appointment transition                              | `apps/webapp/scripts/cutover-legacy-appointments.ts`; owner CSV is hash-bound and used only for accepted ids/date range. Archive R1 tools remain inert.                                                                                                                                 | CURRENT PRE-MIGRATION STEP (owner 2026-08-15); zero live unresolved is mandatory before drops.                                                                                                                                                                                                             |
+| 5   | Retired provider mirror tables                                 | Removed only by reviewed normal migrations (`0262`, integrator retirement migration) after step 4.                                                                                                                                                                                    | Current migration-chain step; post-migrate inventory must be zero.                                                                                                                                                                                                                                         |
+| 6   | Provider-neutral legacy cleanup                                | `0386` removes `appointment_records` after canonical-link proof. The cutover script closes all other live legacy rows before 0386.                                                                                                                                                    | CURRENT; no separate runtime Rubitime workstream.                                                                                                                                                                                                                                                          |
 | 7   | Track D — integrator writes public directly, no HTTP transport | D0/D1/D2 merged (`directPublic/*`); D3–D10 unstarted; doc says "PROD out of scope" now                                                                                                                                                                                                                                                                                                                                    | PARTIAL (3/11); prod-cutover implication undocumented                                                                                                                                                                                                                                                                                                                    |
 | 8   | Roles + grants                                                 | overlays exist + proven on TEST (§3 above); **no `deploy-prod-saas.sh`** (deploy-prod.sh has ZERO grants)                                                                                                                                                                                                                                                                                                                 | PARTIAL — manual-by-choice; script = taskdb #994, not built                                                                                                                                                                                                                                                                                                              |
 | 9   | Install walls (strict RLS + FORCE)                             | policy `\ir` includes reusable (verified no hardcoded TEST DB name); finalizer `test-strict-rls-finalizer.sql` now supports an explicit-flag prod unlock (`-v allow_authorized_prod_target=1` + exact `test_expected_database` match) — see §3.5                                                                                                                                                                          | EXISTS — invocation documented in §3.5; no separate `prod-strict-rls-finalizer.sql` needed                                                                                                                                                                                                                                                                               |
 | 10  | Post-cutover verification                                      | `assert-c4-operational-runtime-ready.sh` + `assert_*` gates + `smoke-saas-product.mjs --mode=locked --base-url=…` (env-parameterized, no prod lockout)                                                                                                                                                                                                                                                                    | COMPLETE — genuinely prod-ready as-is                                                                                                                                                                                                                                                                                                                                    |
-| 11  | Fix ФИО by reviewed table                                      | `apps/webapp/scripts/fio-backfill/*` — hardcoded `targetDatabase="bersoncarebot_test"`, throws if env≠TEST                                                                                                                                                                                                                                                                                                                | GAP for prod — TEST-only by design; prod "Phase 9" (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857) unimplemented                                                                                                                                                                                                                                             |
+| 11  | Fix ФИО by reviewed table                                      | `apps/webapp/scripts/fio-backfill/*`; TEST and explicit authorized-PROD target gates exist.                                                                                                                                                                                                                                                           | CURRENT PRE-MIGRATION STEP; TEST uses the reviewed TEST manifest, PROD later requires the environment-matching PROD seal.                                                                                                                                                                                   |
 
 **Ready for a future owner-approved PROD window:** #1/#2 identity data-fix (doctor merge + **hard global admin**,
 corrected 2026-07-25), #9 (walls finalizer, gated flag — §3.5), and #10. The retired Rubitime
@@ -466,9 +467,9 @@ archive/mirror-drop tooling is not an entrypoint. **Real authoring gaps:** #11 (
 owner-reviewed provider-neutral appointment cleanup workstream, and #7 (Track D D3–D10).
 **Guard-unlock needed:** #3 (and the shared wrapper #4 rides on it); §3.5 remains the walls gate.
 
-**Confirmed current ordering:** merge identity fixes → provider-neutral cleanup → roles/grants → walls → FIO after
-identity normalization. Provider-neutral cleanup needs its own reviewed inventory and Track D D9/D10 evidence.
-No Rubitime CSV/backfill/archive command belongs to this order.
+**Confirmed current ordering (owner 2026-08-15):** merge identity → identity data-fix → reviewed FIO →
+hash-bound legacy appointment transition → migrations/drop → roles/grants → walls → runtime. The CSV belongs only
+to the one-time transition; no archived Rubitime command or runtime integration returns.
 
 ## 8. Blockers to build BEFORE a full clean run (steps 5, 7, 8)
 
@@ -479,16 +480,17 @@ No Rubitime CSV/backfill/archive command belongs to this order.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-These are the reasons a fresh-dump run cannot yet do "everything" in one pass. Each is a discrete build task with an
-independent audit. Until they land, a clean run covers only steps 2→3→4→9→10→11 (migrate + identity + roles + walls + boot).
+This section is historical gap provenance. Items whose state changed are marked below; the authorized 2026-08-15
+TEST rehearsal is now intended to run the complete ordered transition in one pass.
 
 - **B-5 (checklist step 5) — Test-record cleanup + dedup guard-unlock.** `purge-placeholder-bookings.ts` +
   `backfill-...--cleanup-only --delete-test` exist, but `purge-placeholder-bookings-safety.ts` unconditionally refuses
   any prod-named DB with no override. **Build:** add the same explicit-flag gate §3.5 uses for the walls finalizer
   (`allow_authorized_prod_target=1` + exact expected-DB match), not a blanket removal. Then rehearse on a disposable copy.
-- **B-6 — retired.** Rubitime CSV backfill is archived and is not an input to the current production process.
-- **B-7 — retired.** The old archive/drop packet is historical. Legacy mirror removal travels only through reviewed
-  normal migrations; remaining provider-neutral appointment cleanup is a separate workstream.
+- **B-6 — ЗАМЕНЕНО 2026-08-15.** Archived Rubitime tools stay retired, but the owner-reviewed CSV is an input to
+  `cutover-legacy-appointments.ts`, the current pre-migration canonical transfer.
+- **B-7 — CLOSED BY CURRENT ORDER.** Legacy mirror removal travels through reviewed normal migrations only after
+  the cutover script proves zero live unresolved legacy appointments.
 - **B-8 (step 8) — Prod ФИО apply. DONE 2026-07-25 (commit `818f51570`).** Was TEST-only by construction
   (`targetDatabase="bersoncarebot_test"` hardcoded). Now: manifest `environment` widened to `TEST | PROD` with a strict
   environment↔approval-decision pairing **inside the hashed payload**, and a new `assertFioApplyTarget()` gate mirroring

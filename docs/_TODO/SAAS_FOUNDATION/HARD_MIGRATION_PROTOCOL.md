@@ -1,11 +1,17 @@
 # SaaS hard migration protocol - fresh dump to TEST rehearsal
 
-Status: **BLOCKED AS EXECUTABLE UNTIL SYNCHRONIZED WITH DB PLAN v10.** The retired Rubitime CLI contract has been
-removed, but the old TEST-first/shared DEV+TEST sequence below is superseded. The next target is DEV:
-`legacy → zero/proof → minimal target → live readiness`. Each deploy/cutover touches one target DB only. A restored
-production dump in named TEST remains a later, separately owner-gated final rehearsal after all earlier stages.
+Status: **ACTIVE OWNER-GATED TEST REHEARSAL (owner 2026-08-15).** The target is the named
+`bersoncarebot_test` database restored directly from the fresh current PROD dump. There is no intermediate or
+disposable database in this rehearsal. Each deploy/cutover still touches one target DB only.
 
-**ЗАМЕНЕНО 12.08.2026:** every later reference in this document to `locked` as the final runtime, to shared
+**ЗАМЕНЕНО 15.08.2026:** the 12.08 instruction below that made DEV the mandatory next target and blocked the
+TEST wrapper was a point-in-time guard, not a permanent prohibition. The owner explicitly ordered the final
+production-transfer rehearsal on TEST now. The executable order is:
+fresh dump → owner identity consolidation → identity data-fix → reviewed FIO → accepted legacy appointment
+transfer → ordinary migration chain (including legacy drops and all later tariff/billing work) → target
+port-context roles/grants → TEST runtime proof.
+
+**ЗАМЕНЕНО 12.08.2026 (runtime topology remains current; the DEV-first scheduling sentence is replaced above):** every later reference in this document to `locked` as the final runtime, to shared
 DEV+TEST/bilateral cutover, to exact six cluster-global application logins, to global-admin via staff, to the old
 diagnostic/delivery/scheduler/operator login closure, or to Rubitime inputs is historical data-migration context.
 The final runtime is `port-context`, four runtime logins per target (staff/patient/global-admin/integrator), PostgreSQL mTLS plus
@@ -22,7 +28,9 @@ allowed sequence once a fresh production dump is obtained.
 - `deploy/host/deploy-test-full-reset.sh` - единственный публичный owner-gated TEST from-zero entrypoint.
 - `deploy/host/deploy-test-saas.sh` - внутренний shared closure/full-reset engine; прямой destructive-вызов запрещён.
 - `deploy/host/deploy-test.sh` - ordinary code-only TEST deploy; it never restores or recreates the database.
-- `docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - archive-only normalization of legacy Rubitime history; applicable only to an explicitly identified old dump, never to current runtime.
+- `apps/webapp/scripts/cutover-legacy-appointments.ts` - current one-time, hash-bound pre-migration transfer from
+  `appointment_records` into canonical appointments. It is cutover tooling, never a runtime provider integration.
+- `docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - historical provenance only; do not execute it.
 - `apps/webapp/scripts/fio-backfill/README.md` - reviewed-manifest FIO apply/rollback contract.
 - `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` - idempotent TEST-only A/B walkthrough fixture.
 - `deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.
@@ -41,9 +49,9 @@ wrapper is blocked and must be fixed; его нельзя объявить ка�
 1. Before a live TEST port-context PASS, production is not touched. A later fresh-dump rehearsal may use only the documented
    `pg_dump -Fc --no-owner --no-acl` path. No production writes, no production migrations, no production
    env edits, no service restarts, and no manual production SQL.
-2. **ЗАМЕНЕНО 12.08:** следующий initial cutover target — DEV, одна БД за запуск. Routine TEST deploy не
-   восстанавливает и не пересоздаёт TEST. Restored-production-dump rehearsal в именованной TEST — финальный
-   one-off этап только по прямой owner-команде после полной готовности DEV; shared bilateral cutover запрещён.
+2. **ЗАМЕНЕНО 15.08:** current initial cutover target is the named TEST database, one DB per run, under the
+   owner's direct command. Routine TEST deploy still never restores or recreates TEST; this is the one-off
+   fresh-production-dump rehearsal. Shared bilateral cutover remains forbidden.
    Ordinary migration deploy остаётся fail-closed и не может возвращаться к owner-login/BYPASS path.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
@@ -52,11 +60,10 @@ wrapper is blocked and must be fixed; его нельзя объявить ка�
    window. Both must be cleaned up fail-visibly; neither privilege window is application runtime.
 6. Reports and evidence must be aggregate-only: no patient names, phone numbers, emails, raw payloads,
    credential-bearing URLs, or secrets.
-7. The TEST wrapper owns the migration window. For the one-time transition both TEST env files start in
-   `DB_PRINCIPAL_CONTEXT_MODE=locked`; DDL/backfill work happens only inside the documented temporary
-   owner-authority migration step. The shared cutover then atomically renders `port-context` env and removes the
-   owner `DATABASE_URL`; target runtime restart must use exact staff/patient/global-admin/integrator URLs after
-   the four-login implementation is complete. Current three-URL wrapper is blocked, not a compatibility fallback.
+7. The TEST wrapper owns the migration window. DDL/backfill work happens only inside the documented temporary
+   owner-authority migration step while all TEST writers are stopped. The cutover then atomically renders
+   `port-context` env and removes the owner `DATABASE_URL`; target runtime restart uses the exact
+   staff/patient/global-admin/integrator URLs. The four-login target is mandatory.
 8. Integrator API startup is not a migration runner in `shadow|locked`. `apps/integrator/src/main.ts` must call the
    startup migration gate, and that gate must skip DDL migrations in `shadow|locked`, performing only non-DDL
    migration-state verification against `integrator.schema_migrations`. The gate must prove the ledger exists,
@@ -90,13 +97,12 @@ wrapper is blocked and must be fixed; его нельзя объявить ка�
 | Integrator login | `bcb_test_integrator` | Exact mTLS/SCRAM physical entry for the integrator port | No direct table grants; only declared role membership and context installer |
 | Runtime and seam roles | `app_staff`, `app_patient`, `app_integrator_request`, named seam owners | Meaning-based grants, native RLS and narrow definer power | `NOLOGIN`, `NOBYPASSRLS`, least privilege |
 
-## Allowed sequence after synchronization
+## Allowed sequence for the authorized TEST rehearsal
 
-There is currently no allowed live TEST port-context command: existing shared wrappers are blocked. First complete
-the target-neutral implementation and run the full initial cutover on DEV. Only after all code/disposable/DEV stages
-are green, audited, committed and pushed may a separately owner-gated final rehearsal restore a production dump into
-the named TEST and run the same single-target chain under direct owner control. `deploy-test-full-reset.sh` is not
-authorized until synchronized with that order and explicitly approved for the exact run.
+The only destructive entrypoint is `deploy/host/deploy-test-full-reset.sh --confirm-full-reset` with both the
+reviewed FIO manifest and reviewed legacy-appointment CSV bound by SHA-256. It restores only
+`bersoncarebot_test`, runs the ordered transition below, replaces the runtime role/grant surface with the target
+port-context declaration, starts TEST and runs the closure/runtime gates. It remains forbidden for ordinary deploys.
 
 ### 1. Assert TEST runtime mode
 

@@ -45,6 +45,8 @@ FIO_MANIFEST=""
 FIO_MANIFEST_FILE_SHA256=""
 FIO_MANIFEST_SHA256=""
 FIO_REVIEW_SOURCE_SHA256=""
+RUBITIME_CSV=""
+RUBITIME_CSV_SHA256=""
 API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
 MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
@@ -57,6 +59,8 @@ DBROLE=bersoncarebot_test
 RESTORE=/tmp/bcb-test-setup/restore-test-db.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
+OWNER_IDENTITY_CONSOLIDATION=apps/webapp/scripts/consolidate-owner-identity.sql
+LEGACY_APPOINTMENT_CUTOVER=apps/webapp/scripts/cutover-legacy-appointments.ts
 C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
@@ -3123,6 +3127,7 @@ Usage:
   bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
     --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
     --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
+    --rubitime-csv=/secure/records.csv --rubitime-csv-sha256=<sha256> \
     [branch]
 
 This command destroys and recreates bersoncarebot_test from a fresh production dump. It is only for an
@@ -3130,7 +3135,9 @@ owner-authorized full migration rehearsal. For ordinary code deploys use:
   bash deploy/host/deploy-test.sh [branch]
 
 Protected FIO inputs must be regular, non-symlink files owned by deploy with mode 0600. Their hashes bind this
-run to the exact owner-reviewed inputs. No patient data is printed by this wrapper.
+run to the exact owner-reviewed inputs. The owner-reviewed Rubitime CSV follows the same protected-input
+contract. It is consumed only by the pre-migration legacy appointment transition and is never copied into
+the repository or printed. No patient data is printed by this wrapper.
 EOF
 }
 
@@ -3143,6 +3150,8 @@ parse_full_reset_args(){
       --fio-manifest-file-sha256=*) FIO_MANIFEST_FILE_SHA256="${arg#*=}" ;;
       --fio-manifest-sha256=*) FIO_MANIFEST_SHA256="${arg#*=}" ;;
       --fio-review-source-sha256=*) FIO_REVIEW_SOURCE_SHA256="${arg#*=}" ;;
+      --rubitime-csv=*) RUBITIME_CSV="${arg#*=}" ;;
+      --rubitime-csv-sha256=*) RUBITIME_CSV_SHA256="${arg#*=}" ;;
       --help|-h)
         full_reset_usage
         exit 0
@@ -3168,10 +3177,14 @@ parse_full_reset_args(){
   [ -n "$FIO_MANIFEST_FILE_SHA256" ] || { echo "FATAL: --fio-manifest-file-sha256 is required" >&2; exit 2; }
   [ -n "$FIO_MANIFEST_SHA256" ] || { echo "FATAL: --fio-manifest-sha256 is required" >&2; exit 2; }
   [ -n "$FIO_REVIEW_SOURCE_SHA256" ] || { echo "FATAL: --fio-review-source-sha256 is required" >&2; exit 2; }
+  [ -n "$RUBITIME_CSV" ] || { echo "FATAL: --rubitime-csv is required for a data-complete reset" >&2; exit 2; }
+  [ -n "$RUBITIME_CSV_SHA256" ] || { echo "FATAL: --rubitime-csv-sha256 is required" >&2; exit 2; }
   [[ "$FIO_MANIFEST_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-manifest-sha256 must be 64 hex characters" >&2; exit 2; }
   [[ "$FIO_REVIEW_SOURCE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-review-source-sha256 must be 64 hex characters" >&2; exit 2; }
+  [[ "$RUBITIME_CSV_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --rubitime-csv-sha256 must be 64 hex characters" >&2; exit 2; }
   FIO_MANIFEST_SHA256="${FIO_MANIFEST_SHA256,,}"
   FIO_REVIEW_SOURCE_SHA256="${FIO_REVIEW_SOURCE_SHA256,,}"
+  RUBITIME_CSV_SHA256="${RUBITIME_CSV_SHA256,,}"
 }
 
 assert_hash_bound_protected_input(){
@@ -3279,8 +3292,11 @@ esac
 parse_full_reset_args "$@"
 log "DESTRUCTIVE full-reset confirmation + owner input preflight"
 assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_FILE_SHA256"
+assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_SHA256"
 [ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
+[ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
+[ -r "$SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
 [ -r "$SRC_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
@@ -3387,11 +3403,37 @@ log "restore $DB from $(basename "$DUMP") ($(du -h "$DUMP" | cut -f1))"
 sudo -u postgres bash "$RESTORE" "$DUMP"
 assert_test_db_owner_ready
 
-# 2. DATA-FIX first (the missing step — deploy-saas-667.sh Step 2)
+# 2. Owner-account consolidation is the first data mutation. Every later identity/FIO migration
+#    therefore sees one canonical staff row and no approved dead stubs.
+log "owner identity consolidation (first data mutation)"
+run_test_db_owner_sql_file "$DEPLOY_REPO/$OWNER_IDENTITY_CONSOLIDATION"
+
+# 3. Normalize the doctor/global-admin split before membership-seeding migrations.
 log "data-fix (doctor/admin split)"
 run_test_db_owner_sql_file "$DEPLOY_REPO/$DATAFIX"
 
-# 3. migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke
+# 4. Apply owner-reviewed FIO while platform_users is still the only identity source. Migrations
+#    0377/0381 create and start reading user_identity, so applying FIO after the chain loses the
+#    reviewed correction from the new read model.
+log "owner-reviewed FIO manifest apply (pre-migration)"
+fio_manifest_q="$(shell_quote "$FIO_MANIFEST")"
+fio_manifest_sha_q="$(shell_quote "$FIO_MANIFEST_SHA256")"
+fio_review_source_sha_q="$(shell_quote "$FIO_REVIEW_SOURCE_SHA256")"
+fio_rollback_dir_q="$(shell_quote "$DEPLOY_REPO/.tmp/fio-owner-review-rollback")"
+run_deploy_repo_with_test_db_owner_bypass \
+  "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
+
+# 5. Transfer accepted legacy appointment history before migration 0262 drops the provider tables
+#    and 0386 drops appointment_records. The script is one transaction and refuses a non-zero live
+#    unresolved remainder; the protected source dump remains the raw audit/rollback archive.
+log "legacy appointment transfer (pre-migration, owner-reviewed CSV)"
+rubitime_csv_q="$(shell_quote "$RUBITIME_CSV")"
+rubitime_csv_sha_q="$(shell_quote "$RUBITIME_CSV_SHA256")"
+run_deploy_repo_with_test_db_owner_bypass \
+  "pnpm --dir apps/webapp run cutover:legacy-appointments -- --commit --csv $rubitime_csv_q --csv-sha256 $rubitime_csv_sha_q --expected-database '$DB' --organization-id '$ORG_ID' --specialist-id '$CANONICAL_SPECIALIST'"
+
+# 6. Migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke.
+#    Destructive legacy-table migrations are now downstream from fail-closed data parity gates.
 log "migrate (temp BYPASSRLS)"
 MIGRATOR_ROLE="$(discover_webapp_migrator_role)"
 grant_migrator_owner_membership "$MIGRATOR_ROLE"
@@ -3428,7 +3470,7 @@ log "C4D media owner index (online, transaction-free)"
 sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
   -f "$DEPLOY_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"
 
-# 4. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
+# 7. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy
 #    checkout so it is version-matched to the branch.
 log "test settings override"
@@ -3436,20 +3478,21 @@ sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 \
   -v test_settings_overlay_mode=reset \
   -f "$DEPLOY_REPO/$OVERRIDE"
 
-# 5. Apply the exact owner-reviewed FIO decisions. The manifest and original review are separately hash-bound;
-#    the script re-attests the exact loopback TEST DB, locks rows, fails on unlisted drift, persists a private
-#    rollback artifact before mutation, and performs one conditional transaction. Temporary BYPASS is limited to
-#    this stopped-writers data-migration window and is revoked/asserted by the shared helper.
-log "owner-reviewed FIO manifest apply"
-fio_manifest_q="$(shell_quote "$FIO_MANIFEST")"
-fio_manifest_sha_q="$(shell_quote "$FIO_MANIFEST_SHA256")"
-fio_review_source_sha_q="$(shell_quote "$FIO_REVIEW_SOURCE_SHA256")"
-fio_rollback_dir_q="$(shell_quote "$DEPLOY_REPO/.tmp/fio-owner-review-rollback")"
-run_deploy_repo_with_test_db_owner_bypass \
-  "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
-
-# 6. end-state self-check (reproducibility gate — same asserted state every run, from zero)
+# 8. end-state self-check (reproducibility gate — same asserted state every run, from zero)
 log "verify end-state"
+for retired_relation in \
+  public.appointment_records \
+  integrator.rubitime_records \
+  integrator.rubitime_events \
+  integrator.rubitime_booking_profiles \
+  integrator.rubitime_branches \
+  integrator.rubitime_services \
+  integrator.rubitime_cooperators; do
+  relation_state="$(sudo -u postgres psql -d "$DB" -X -tAc "SELECT to_regclass('$retired_relation') IS NULL;")"
+  [ "$relation_state" = "t" ] || { echo "FATAL: retired relation still exists after migrate: $retired_relation" >&2; exit 1; }
+done
+OLD_SOURCE="$(sudo -u postgres psql -d "$DB" -X -tAc "SELECT count(*) FROM public.be_appointments WHERE source='rubitime_projection';")"
+[ "${OLD_SOURCE:-1}" = "0" ] || { echo "FATAL: $OLD_SOURCE appointments still carry retired rubitime_projection source" >&2; exit 1; }
 ACTIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_specialists WHERE is_active=true;")"
 [ "${ACTIVE:-0}" = "1" ] || { echo "FATAL: expected exactly 1 active specialist, got ${ACTIVE:-0}"; exit 1; }
 ORPHAN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id IS NULL OR specialist_id IN (SELECT id FROM be_specialists WHERE is_active=false);")"

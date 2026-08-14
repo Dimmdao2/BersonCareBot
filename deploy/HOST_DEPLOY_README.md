@@ -784,9 +784,9 @@ Settings-запись через `updateSetting` может менять его;
 существующую DB-backed platform setting в TEST clinic/global context тем же путём, без чтения PROD/env и без вывода
 секрета. Если этот путь недоступен, one-off TEST write требует отдельного owner authorization и backup/rollback;
 обычный deploy не должен изобретать такой bootstrap.
-**УСТАРЕЛО/ЗАПРЕЩЕНО 12.08.2026:** прежний wrapper останавливал TEST writers, затем совместно менял TEST+DEV,
-обнулял обе базы и устанавливал шесть cluster-global login. Этот bilateral маршрут не исполнять. Target-neutral
-initial cutover меняет одну явно названную БД: `legacy → zero/proof → install → live`; следующий target — DEV.
+**ЗАМЕНЕНО 15.08.2026:** bilateral TEST+DEV route and six-login install remain forbidden. The owner authorized
+the single-target TEST rehearsal now: the wrapper changes only `bersoncarebot_test`, then installs the exact
+four-login port-context target. This is not permission for routine TEST resets.
 После принятого cutover ordinary deploy выполняет только birth-closed migrations → declaration reconcile →
 bidirectional catalog audit → smoke. Откат к owner-login/BYPASS запрещён.
 Состояние `awg-quick@awg0` не является TEST deploy-гейтом: это отдельный PROD-relay dependency на том же хосте,
@@ -802,12 +802,16 @@ bash deploy/host/deploy-test-full-reset.sh \
   --fio-manifest-file-sha256=<approved-file-sha256> \
   --fio-manifest-sha256=<approved-sha256> \
   --fio-review-source-sha256=<approved-review-sha256> \
+  --rubitime-csv=/secure/records.csv \
+  --rubitime-csv-sha256=<approved-csv-sha256> \
   feat/doctor-ui-rebuild
 ```
 
 Обычные UI/code обновления всегда идут через `deploy-test.sh`; повторное создание БД для них запрещено и не нужно.
-Hard wrapper останавливает writers, восстанавливает dump, выполняет owner-authority migration/overlay/settings chain,
-затем в том же stopped-writers окне выполняет hash-bound owner-reviewed FIO apply с durable conditional rollback,
+Hard wrapper останавливает writers, восстанавливает dump, первым выполняет owner identity consolidation и
+identity data-fix, затем до migration chain применяет hash-bound reviewed FIO и legacy-appointment transition,
+который требует нулевой остаток живых непринятых legacy-записей. Только после этого migrations удаляют старые
+таблицы и накатывают позднюю схему. В том же stopped-writers окне сохраняется durable FIO rollback,
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
