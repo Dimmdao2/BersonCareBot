@@ -130,62 +130,17 @@ PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
 
 Результат: утверждённые входные данные для consent, DSAR, договоров и модели угроз.
 
-### SEC-01 — Security CI
+### INFRA-SEC — инфраструктура и эксплуатационная безопасность
 
-Исполняется по существующему [`../SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md), taskdb `#881`.
-Новая инициатива не копирует его checklist. Закрытие требует не только зелёных jobs, но и первого triage с
-назначенными владельцами и сроками исправления.
+Единственный исполняемый checklist:
+[`../INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md).
 
-### SEC-02 — Host hardening и secret lifecycle
+Он объединяет прежние `SEC-01`, `SEC-02`, `DR-01/02`, `CRYPTO-01`, `INFRA-01` и инфраструктурную часть `SEC-04`:
+host/LUKS/S3/backups/secrets/TLS/logs/incident response/security CI/vulnerability scanning/cutover. Исторические
+stage-планы сохранены в архиве и больше не являются параллельными источниками работы.
 
-Подробно: [`stages/SEC-02_HOST_AND_SECRETS.md`](stages/SEC-02_HOST_AND_SECRETS.md).
-
-Что: Selectel SG + host firewall, SSH/fail2ban, deploy boundary, service users, systemd sandbox, env permissions,
-инвентарь/ротация/отзыв секретов и отдельный runtime EDR/HIDS decision `G-06B`.
-
-Как: idempotent scripts, dry-run/preflight, отдельный TEST/disposable proof, rollback и только затем owner-approved
-production window. S5 storage split переиспользуется и не переделывается.
-
-Результат: минимальный внешний периметр и процессы без лишних root/deploy прав; каждый секрет имеет owner и
-проверенный rotation path.
-
-### DR-01/DR-02 — Backup, S3 и disaster recovery
-
-Подробно: [`stages/DR-01_BACKUP_AND_RECOVERY.md`](stages/DR-01_BACKUP_AND_RECOVERY.md).
-
-Что: permissions/umask, encryption, checksum, российская offsite copy, S3 actual capability/version inventory,
-application-managed retention, backup immutability, PITR decision и восстановление при потере VPS/БД/S3.
-
-Как: не считать наличие dump успехом; закрывать этап только восстановлением в disposable environment и сверкой
-tenant/critical invariants.
-
-Результат: измеренные RPO/RTO и доказанный полный restore без обращения к production данным в dev.
-
-### CRYPTO-01 — Data-at-rest и key lifecycle
-
-Подробно: [`stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md).
-
-Что: threat/key architecture, versioned envelope, client-side S3 encryption, multipart/HLS migration,
-version-aware deletion, selected DB fields и restricted settings после S5.
-
-Как: сначала ADR + внешний decision по сертифицированным controls; затем typed ports, backward-compatible dual
-reader/migration, tamper/tenant-negative/performance tests и independent adversarial audit.
-
-Результат: потеря bucket/dump не раскрывает защищённые данные без отдельного ключевого контура; ключи можно
-rotate/recover/revoke, legacy plaintext write-path выключен.
-
-### INFRA-01 — Новый encrypted PROD и cutover
-
-Подробно: [`stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md).
-
-Что: новый параллельный Selectel VPS, LUKS/encrypted data boundary, encrypted/no swap, PG checksums, non-root
-services, firewall/audit, restore rehearsal, phased cutover/rollback и controlled decommission старого host/copies.
-
-Как: repo-managed idempotent scripts → disposable reboot/recovery proof → dark target → full rehearsal → owner GO →
-write freeze/final encrypted sync → phased activation → soak → rotation/deletion evidence. In-place LUKS conversion
-живого root не является default path.
-
-Результат: production работает на принятой encrypted topology, старый plaintext VPS не остаётся скрытым вторым PROD.
+DB logins/roles/grants/RLS и DB-port contract остаются только в отдельном каноническом
+[`DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`](../DB_PRIVILEGE_LAYER_REBUILD/PLAN.md) и здесь не дублируются.
 
 ### NTF-01 — App push и messenger auth-only
 
@@ -246,13 +201,9 @@ subject request и org offboarding проходят end-to-end с отчётом
 
 ### SEC-04 — Access governance и incident response
 
-Подробно: [`stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md`](stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md).
-
-Что: security logs/sink, access review/JML, break-glass, vulnerability SLA, evidence preservation и 24/72 timers.
-
-Как: отдельный access review и tabletop/technical drill без реальной рассылки или production ПДн.
-
-Результат: контролируемые доступы и воспроизводимый incident workflow.
+Инфраструктурная часть перенесена в
+[`INFRASTRUCTURE_SECURITY_PLAN.md` §I4 и §I6](../INFRASTRUCTURE_SECURITY_PLAN.md#i4--секреты-и-инфраструктурные-доступы).
+Clinical access events остаются в `SEC-03`; правовая квалификация инцидента и release evidence — в `PR-04`.
 
 ### PR-04 — ISPDn evidence и release gate
 

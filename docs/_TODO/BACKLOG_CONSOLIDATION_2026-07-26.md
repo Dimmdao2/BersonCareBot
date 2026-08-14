@@ -128,7 +128,8 @@ cannot proceed without him, so they belong on a decision list, not a work list.
 - **Design lock / role model** — `PHASE0_MULTITENANT_DESIGN_LOCK.md` (3 open: cluster-role-naming decision is
   genuinely open). **Needs owner: no** — repo canon says DB-role granularity is an engineering call (owner's own
   words, ruling §16), so this is a self-resolvable engineering decision, not a question for him.
-- **CI security stack** — `SECURITY_CI_STACK_PLAN.md` (4 open). **Needs owner: 2 of 4** — prod ZAP baseline scope
+- **CI security stack — ЗАМЕНЕНО 2026-08-13:** текущий checklist находится в
+  `INFRASTRUCTURE_SECURITY_PLAN.md` §I5. Исторически здесь было 4 open; **needs owner** сохраняется для prod ZAP baseline scope
   and shared-runner IP-range sign-off are explicit human-authorization gates, not code.
 
 ### Product — tariffs, store, billing

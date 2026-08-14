@@ -1,5 +1,11 @@
 # E1 — реестр гигиены планов · 2026-07-29
 
+> **ИСТОРИЧЕСКИЙ CENSUS, НЕ ТЕКУЩАЯ AUTHORITY.** Строки, где `CRYPTO_INFRA_SEC_WORK_SPLIT`,
+> `SECURITY_CI_STACK_PLAN`, `TOOLING_AND_HOST_PACKAGES`, `INFRA-01`, `CRYPTO-01`, `DR-01`, `SEC-02` или `SEC-04`
+> названы `ЖИВОЙ/оставить на месте`, заменены консолидацией 2026-08-13. Карта переноса:
+> [`docs/archive/2026-08-infrastructure-security-consolidation/README.md`](../archive/2026-08-infrastructure-security-consolidation/README.md);
+> текущий канон: [`INFRASTRUCTURE_SECURITY_PLAN.md`](INFRASTRUCTURE_SECURITY_PLAN.md).
+
 > Канон классификации: `DOCS_PLAN_HYGIENE_2026-07-29.md` (E1), `BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 и `docs/_TODO/README.md`. Для спорного вердикта применена обязательная процедура владельца: сначала ссылка на преемника внутри файла, затем поиск преемника по репозиторию, затем сверка с кодом; если подтверждения нет — `ЖИВОЙ` с явной пометкой.
 
 Снимок: **315** `.md` под `docs/_TODO/**` (фактическое число, не 291), включая этот реестр. `open` = `- [ ]`, `closed` = `- [x]`; `- [-]` показаны в отдельной колонке «мёртвых» как контекст и не входят ни в один счёт.
