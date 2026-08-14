@@ -367,6 +367,14 @@ cd "$DEPLOY_REPO"
     INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 \
     pnpm --dir apps/integrator run migrate
 
+  cleanup_elevation
+  # The legacy role remains in the cluster until the final cluster zero, but all of its temporary
+  # authority has already been verified absent. From here every existing DB-local object must have
+  # a neutral owner before FK/system triggers execute during the port-context migration phase.
+  LEGACY_ELEVATION_CLEANUP_REQUIRED=0
+  apply_verified_database_zero
+  INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=1
+
   # Initial locked→port-context bridge. Migration 0391 is the first Drizzle change that consumes
   # the target context types/tables, while the final generated capability catalog depends on the
   # functions created by 0391+. Install only the canonical base contract now, with all four target
@@ -387,8 +395,6 @@ cd "$DEPLOY_REPO"
           END LOOP;
         END \$bcb\$;" \
     -f "$DEPLOY_REPO/$PORT_CONTEXT_CONTRACT"
-  INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=1
-
   # These statements are still data/schema migrations, not the final access declaration. Run them
   # through the local PostgreSQL administrator because the provisional contract deliberately removed
   # legacy ownership; the final cutover immediately neutralizes every provisional owner/ACL and
@@ -406,11 +412,6 @@ cd "$DEPLOY_REPO"
     pnpm --dir apps/integrator run migrate
   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" \
     -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
-cleanup_elevation
-# The legacy role still exists here and its temporary powers were just verified absent. The shared
-# cluster cutover deliberately drops it, so the EXIT trap must keep only its writer-stop duty from
-# this point onward and must not try to ALTER the intentionally removed role after a successful zero.
-LEGACY_ELEVATION_CLEANUP_REQUIRED=0
 
 # 5) One-time locked→port-context transition on the current TEST data. The retired strict closure
 #    is forbidden here: it recreates diagnostic/delivery/scheduler/operator logins immediately before
