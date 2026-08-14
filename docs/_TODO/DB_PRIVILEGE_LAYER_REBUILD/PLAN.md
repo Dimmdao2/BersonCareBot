@@ -409,11 +409,14 @@ OWNER-REPLACED 14.08.2026: прежний маршрут через restored pro
 
 - [ ] Все Ф0–Ф7, относящиеся к рабочему DEV, завершены; branch committed/pushed, проверки зелёные.
 - [ ] До удаления показать владельцу измеренный список database и cluster login/role с точной командой; удалить
-  что-либо из этого списка только после его утверждения.
+  что-либо из этого списка только после его утверждения. Владелец утвердил список 14.08; удалены три базы и
+  `14/18` независимых ролей, ещё четыре снимаются только после устранения их точных object dependencies.
 - [ ] Сохранить Brain/TaskDB, StoryLama DEV+PROD и BersonCareBot DEV+TEST вместе с нужными им ролями/логинами;
   локальной BersonCareBot PROD и иных старых/backup/copy баз после утверждённой очистки быть не должно.
 - [ ] Именованную TEST обнулить, применить штатные migrations и сгенерированную privilege/role/login projection;
-  не собирать отдельную A0-базу и не восстанавливать production dump.
+  не собирать отдельную A0-базу и не восстанавливать production dump. Перед запуском исправлен обнаруженный
+  generator gap: zero-state теперь переносит extension ownership через dependency-guarded `REASSIGN OWNED` и
+  проверяет `pg_extension.extowner`; legacy-владелец живого DEV `pgcrypto` перенесён на `postgres`.
 - [ ] Доказать migration ledger, отсутствие legacy/лишних grants и positive/negative controls обоих портов;
   затем поднять services на TEST для ручной проверки владельцем через доменный адрес.
 

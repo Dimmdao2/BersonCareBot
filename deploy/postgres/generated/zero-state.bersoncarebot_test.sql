@@ -102,6 +102,18 @@ DO $bcb$ DECLARE object record; BEGIN
   FOR object IN SELECT lanname FROM pg_catalog.pg_language WHERE lanname <> 'internal' ORDER BY lanname LOOP
     EXECUTE pg_catalog.format('ALTER LANGUAGE %I OWNER TO postgres', object.lanname);
   END LOOP;
+  FOR object IN SELECT DISTINCT owner_role.rolname
+                  FROM pg_catalog.pg_extension extension_object
+                  JOIN pg_catalog.pg_roles owner_role ON owner_role.oid = extension_object.extowner
+                 WHERE owner_role.rolname <> 'postgres' ORDER BY owner_role.rolname LOOP
+    IF EXISTS (SELECT 1 FROM pg_catalog.pg_shdepend dependency
+                WHERE dependency.refclassid = 'pg_authid'::pg_catalog.regclass
+                  AND dependency.refobjid = object.rolname::pg_catalog.regrole
+                  AND dependency.dbid <> (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())) THEN
+      RAISE EXCEPTION 'extension owner % has a dependency outside current database', object.rolname;
+    END IF;
+    EXECUTE pg_catalog.format('REASSIGN OWNED BY %I TO postgres', object.rolname);
+  END LOOP;
 END $bcb$;
 
 -- Remove every old grant, including unknown non-application grantees; roles themselves are not inferred or dropped.
@@ -257,6 +269,7 @@ DO $bcb$ DECLARE bad text; BEGIN
     UNION ALL SELECT object.fdwowner, 'fdw:' || object.fdwname FROM pg_catalog.pg_foreign_data_wrapper object
     UNION ALL SELECT object.srvowner, 'server:' || object.srvname FROM pg_catalog.pg_foreign_server object
     UNION ALL SELECT object.lanowner, 'language:' || object.lanname FROM pg_catalog.pg_language object WHERE object.lanname <> 'internal'
+    UNION ALL SELECT object.extowner, 'extension:' || object.extname FROM pg_catalog.pg_extension object
   ) SELECT object_name INTO bad FROM owner_ref JOIN pg_catalog.pg_roles owner_role ON owner_role.oid = owner_ref.owner_oid
      WHERE owner_role.rolname <> 'postgres' LIMIT 1;
   IF bad IS NOT NULL THEN RAISE EXCEPTION 'zero-state non-DBA owner survived: %', bad; END IF;

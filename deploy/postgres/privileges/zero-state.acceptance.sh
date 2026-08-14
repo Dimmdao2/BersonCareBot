@@ -74,6 +74,19 @@ SELECT lo_create(9001);
 ALTER LARGE OBJECT 9001 OWNER TO app_owner;
 GRANT SELECT ON LARGE OBJECT 9001 TO PUBLIC;
 SQL
+  if [[ "$zero_db" == bersoncarebot_test ]]; then
+    extension_owner=bersoncarebot_test
+  else
+    extension_owner=bcb_webapp_dev_user
+  fi
+  psql_admin -d postgres -c "GRANT CREATE ON DATABASE \"$zero_db\" TO \"$extension_owner\";" >/dev/null
+  psql_admin -d "$zero_db" -v extension_owner="$extension_owner" <<'SQL'
+GRANT CREATE ON SCHEMA public TO :"extension_owner";
+SET ROLE :"extension_owner";
+CREATE EXTENSION pgcrypto;
+RESET ROLE;
+SQL
+  psql_admin -d postgres -c "REVOKE CREATE ON DATABASE \"$zero_db\" FROM \"$extension_owner\";" >/dev/null
 done
 
 # The defect is reachable before zero state: an application login reads the row directly.
@@ -103,13 +116,14 @@ for zero_db in bersoncarebot_test bcb_webapp_dev; do
   psql_admin -d "$zero_db" -Atc \
     "SELECT pg_get_userbyid(type.typowner) || ':' ||
             (NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(type.typacl, acldefault('T', type.typowner))) acl WHERE acl.grantee=0)) || ':' ||
-            pg_get_userbyid(object_collation.collowner)
+            pg_get_userbyid(object_collation.collowner) || ':' ||
+            (SELECT pg_get_userbyid(extowner) FROM pg_extension WHERE extname='pgcrypto')
        FROM pg_type type
        JOIN pg_namespace namespace ON namespace.oid=type.typnamespace
        JOIN pg_collation object_collation ON object_collation.collnamespace=namespace.oid
       WHERE namespace.nspname='legacy_extra'
         AND type.typname='unknown_payload'
-        AND object_collation.collname='unknown_collation';" | grep -qx 'postgres:true:postgres'
+        AND object_collation.collname='unknown_collation';" | grep -qx 'postgres:true:postgres:postgres'
 done
 
 # Target-local zero revokes CONNECT before the cluster finalizer deletes shared
@@ -135,6 +149,13 @@ GRANT app_owner TO harmless_admin;
 ALTER TYPE legacy_extra.unknown_payload OWNER TO harmless_admin;
 GRANT USAGE ON TYPE legacy_extra.unknown_payload TO PUBLIC;
 ALTER COLLATION legacy_extra.unknown_collation OWNER TO harmless_admin;
+DROP EXTENSION pgcrypto;
+GRANT CREATE ON DATABASE bcb_webapp_dev TO bcb_webapp_dev_user;
+GRANT CREATE ON SCHEMA public TO bcb_webapp_dev_user;
+SET ROLE bcb_webapp_dev_user;
+CREATE EXTENSION pgcrypto WITH SCHEMA public;
+RESET ROLE;
+REVOKE CREATE ON DATABASE bcb_webapp_dev FROM bcb_webapp_dev_user;
 SQL
 psql_admin -d bcb_webapp_dev -1 -f "$GENERATED/zero-state.bcb_webapp_dev.sql" >/dev/null
 psql_admin -d bcb_webapp_dev -Atc \
@@ -148,13 +169,14 @@ psql_admin -d postgres -Atc \
 psql_admin -d bcb_webapp_dev -Atc \
   "SELECT pg_get_userbyid(type.typowner) || ':' ||
           (NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(type.typacl, acldefault('T', type.typowner))) acl WHERE acl.grantee=0)) || ':' ||
-          pg_get_userbyid(object_collation.collowner)
+          pg_get_userbyid(object_collation.collowner) || ':' ||
+          (SELECT pg_get_userbyid(extowner) FROM pg_extension WHERE extname='pgcrypto')
      FROM pg_type type
      JOIN pg_namespace namespace ON namespace.oid=type.typnamespace
      JOIN pg_collation object_collation ON object_collation.collnamespace=namespace.oid
     WHERE namespace.nspname='legacy_extra'
       AND type.typname='unknown_payload'
-      AND object_collation.collname='unknown_collation';" | grep -qx 'postgres:true:postgres'
+      AND object_collation.collname='unknown_collation';" | grep -qx 'postgres:true:postgres:postgres'
 
 # A statement appended after the zero verifier must roll the whole psql -1 application back.
 cp "$GENERATED/zero-state.bcb_webapp_dev.sql" "$ZERO_WORK/atomic.sql"

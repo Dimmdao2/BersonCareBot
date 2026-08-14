@@ -731,10 +731,10 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 ```
 
 `deploy-test.sh` — **code-only/no-fresh-restore** путь (build + controlled migrate текущей TEST-БД) и не является
-способом fresh restore. Его текущий общий DEV+TEST/bilateral port-context cutover **УСТАРЕЛ/ЗАПРЕЩЁН**: каждый
-запуск должен менять одну target-БД, а следующий initial cutover выполняется сначала на DEV. До target-neutral
-замены wrapper не является допустимым способом перехода `locked -> port-context`. Старую strict closure после
-миграций тоже не возвращать: она восстанавливала удаляемые operational logins.
+способом fresh restore. Для ещё не переведённой TEST он выполняет однобазовый `locked → zero/proof → install → live`
+cutover; DEV в этой цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
+NOLOGIN `bcb_test_migrator` и exact declared owners, затем declaration reconcile + catalog audit и обновление
+runtime projection. Постоянный owner-login/BYPASS путь в port-context режиме не используется.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
 Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим
@@ -821,7 +821,7 @@ membership/BYPASS через обязательный cleanup; application runti
 
 - **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
 - **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
-- **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` (включая временное membership runtime-owner в `app_owner` для DDL защищённой схемы) → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions с обязательным отзывом обоих временных membership и BYPASSRLS → restart locked units → health/nginx/runtime gates. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
+- **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → stop 5 writers. Для первого legacy/locked запуска он открывает только временное migration elevation, затем выполняет однобазовый access cutover и cluster legacy-role finalizer. Для уже переведённой TEST он запускает owner-aware migrations через NOLOGIN-мигратор, declaration reconcile и catalog audit без application owner/BYPASS. В обоих режимах конец — restart пяти units и health gates. Скрипт не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
 - **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный
