@@ -741,6 +741,11 @@ local PostgreSQL administrator → повторный `zero/proof → exact decl
 и expected owners появляются только с итоговой generated declaration. Окно существует только при остановленных
 writers и локальном OS `postgres`; финальный cutover до запуска сервисов повторно делает zero, ставит полный registry
 и восстанавливает wall. Любая ошибка после provisional install автоматически возвращает эту БД в проверенный zero;
+ошибка уже начатого access cutover дополнительно оставляет `CONNECTION LIMIT 0`. Повторный запуск этой же публичной
+TEST-команды распознаёт такое fail-closed состояние и передаёт явный обычный лимит `-1`; он восстанавливается только
+после успешных install/HBA/readiness proof, а любой повторный отказ снова оставляет лимит 0. После принудительного
+закрытия backend может исчезать из `pg_stat_activity` не мгновенно: cutover ждёт это не более 5 секунд и затем
+останавливается, если хотя бы одна сессия действительно сохранилась.
 DEV в цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
 NOLOGIN `bcb_test_migrator` и exact declared owners, затем declaration reconcile + catalog audit и обновление
 runtime projection. Если более поздняя webapp-миграция уже удалила объект, на который смотрит отложенная ранняя

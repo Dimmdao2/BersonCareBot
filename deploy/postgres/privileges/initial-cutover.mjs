@@ -125,11 +125,19 @@ function assertArtifactsCurrent() {
 }
 
 function assertTargetQuiescent() {
-  const count = psql(
-    'postgres',
-    `SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname='${dbName}' AND pid<>pg_backend_pid();`,
-  ).trim();
-  if (count !== '0') throw new Error(`target database is not quiescent: ${count} non-admin session(s)`);
+  let count = '';
+  // pg_terminate_backend() reports signal delivery, not that the backend row has already vanished.
+  // The cutover closes and terminates the target immediately before this assertion, so allow that
+  // bounded shutdown latency without accepting a genuinely persistent session.
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    count = psql(
+      'postgres',
+      `SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname='${dbName}' AND pid<>pg_backend_pid();`,
+    ).trim();
+    if (count === '0') return;
+    if (attempt < 49) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+  }
+  throw new Error(`target database is not quiescent after 5 seconds: ${count} session(s)`);
 }
 
 function createVerifiedBackup() {

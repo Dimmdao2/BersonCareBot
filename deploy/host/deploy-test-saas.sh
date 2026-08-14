@@ -3190,9 +3190,20 @@ run_port_context_test_release(){
   LEGACY_ELEVATION_CLEANUP_REQUIRED=0
   log "single-target TEST mTLS → zero/proof → minimal target roles/grants"
   local access_backup="/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-access-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  local current_connection_limit
+  local -a cutover_retry_args=()
   sudo install -d -o postgres -g postgres -m 0700 "$(dirname "$access_backup")"
+  current_connection_limit="$(sudo -u postgres psql -X -d postgres -Atqc \
+    "SELECT datconnlimit FROM pg_catalog.pg_database WHERE datname='bersoncarebot_test';")"
+  if [ "$current_connection_limit" = "0" ]; then
+    # A failed cutover deliberately leaves TEST closed. The public TEST deploy wrapper owns the
+    # retry and explicitly restores the normal unlimited database limit only after every cutover
+    # proof succeeds; the cutover EXIT guard returns it to zero on any later failure.
+    cutover_retry_args=(--operational-connection-limit -1)
+  fi
   sudo bash "$DEPLOY_REPO/deploy/host/cutover-postgres-port-context.sh" \
-    --execute --environment test --database bersoncarebot_test --backup-file "$access_backup"
+    --execute --environment test --database bersoncarebot_test --backup-file "$access_backup" \
+    "${cutover_retry_args[@]}"
 
   log "restart TEST on exact port-context runtime"
   install_and_assert_media_worker_test_unit
