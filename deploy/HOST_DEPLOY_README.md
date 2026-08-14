@@ -743,7 +743,11 @@ writers и локальном OS `postgres`; финальный cutover до з�
 и восстанавливает wall. Любая ошибка после provisional install автоматически возвращает эту БД в проверенный zero;
 DEV в цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
 NOLOGIN `bcb_test_migrator` и exact declared owners, затем declaration reconcile + catalog audit и обновление
-runtime projection. Постоянный owner-login/BYPASS путь в port-context режиме не используется.
+runtime projection. Если более поздняя webapp-миграция уже удалила объект, на который смотрит отложенная ранняя
+integrator-миграция, integrator ledger принимает только явный forward reconciliation marker: более новая миграция
+обязана проверить/довести актуальное конечное состояние, а неизвестный, обратный или двойной marker останавливает
+прогон. Удалённые legacy-таблицы для прохождения истории не восстанавливаются. Постоянный owner-login/BYPASS путь
+в port-context режиме не используется.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
 Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим

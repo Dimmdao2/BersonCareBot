@@ -37,6 +37,14 @@ type MigrationLedgerShape = {
   writeColumn: 'version' | 'filename';
 };
 
+export type IntegratorMigrationReconciliation = {
+  sourceVersion: string;
+  forwardVersion: string;
+};
+
+const RECONCILIATION_MARKER =
+  /^-- RECONCILES-INTEGRATOR-MIGRATION: ([a-z][a-z0-9_-]*:\d{8}_[a-z0-9_]+\.sql)$/gmu;
+
 export type StartupMigrationMode = 'run-ddl-migrations' | 'verify-ledger-only';
 
 export function resolveStartupMigrationMode(
@@ -136,6 +144,7 @@ async function getAppliedVersions(
   db: MigrationDbClient,
   ledgerShape: MigrationLedgerShape,
   migrations: MigrationFile[],
+  reconciliations: readonly IntegratorMigrationReconciliation[] = [],
 ): Promise<Set<string>> {
   const readIntoSet = async (shape: MigrationLedgerShape): Promise<Set<string>> => {
     const res = await db.query<{ value: string }>(
@@ -149,7 +158,7 @@ async function getAppliedVersions(
         applied.add(normalized);
       }
     }
-    return applied;
+    return expandAppliedMigrationVersions(applied, reconciliations);
   };
 
   try {
@@ -168,6 +177,72 @@ async function getAppliedVersions(
     }
     throw err;
   }
+}
+
+export function inspectMigrationReconciliations(
+  migrations: readonly MigrationFile[],
+  sqlByVersion: ReadonlyMap<string, string>,
+): IntegratorMigrationReconciliation[] {
+  const indexByVersion = new Map(migrations.map((migration, index) => [migration.version, index]));
+  const forwardBySource = new Map<string, string>();
+  const reconciliations: IntegratorMigrationReconciliation[] = [];
+
+  for (const forward of migrations) {
+    const sql = sqlByVersion.get(forward.version) ?? '';
+    for (const match of sql.matchAll(RECONCILIATION_MARKER)) {
+      const sourceVersion = match[1];
+      if (!sourceVersion) continue;
+      const sourceIndex = indexByVersion.get(sourceVersion);
+      const forwardIndex = indexByVersion.get(forward.version);
+      if (sourceIndex === undefined) {
+        throw new Error(
+          `integrator_migration_reconciliation_unknown_source source=${sourceVersion} forward=${forward.version}`,
+        );
+      }
+      if (forwardIndex === undefined || sourceIndex >= forwardIndex) {
+        throw new Error(
+          `integrator_migration_reconciliation_not_forward source=${sourceVersion} forward=${forward.version}`,
+        );
+      }
+      const existingForward = forwardBySource.get(sourceVersion);
+      if (existingForward) {
+        throw new Error(
+          `integrator_migration_reconciliation_ambiguous source=${sourceVersion} forwards=${existingForward},${forward.version}`,
+        );
+      }
+      forwardBySource.set(sourceVersion, forward.version);
+      reconciliations.push({ sourceVersion, forwardVersion: forward.version });
+    }
+  }
+
+  return reconciliations;
+}
+
+export function expandAppliedMigrationVersions(
+  appliedVersions: ReadonlySet<string>,
+  reconciliations: readonly IntegratorMigrationReconciliation[],
+): Set<string> {
+  const applied = new Set(appliedVersions);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const reconciliation of reconciliations) {
+      if (applied.has(reconciliation.forwardVersion) && !applied.has(reconciliation.sourceVersion)) {
+        applied.add(reconciliation.sourceVersion);
+        changed = true;
+      }
+    }
+  }
+  return applied;
+}
+
+async function discoverMigrationReconciliations(
+  migrations: readonly MigrationFile[],
+): Promise<IntegratorMigrationReconciliation[]> {
+  const entries = await Promise.all(
+    migrations.map(async (migration) => [migration.version, await readFile(migration.filePath, 'utf8')] as const),
+  );
+  return inspectMigrationReconciliations(migrations, new Map(entries));
 }
 
 // Проверяет, является ли файл миграцией (sql и не example)
@@ -396,10 +471,11 @@ async function applyMigration(
 export async function verifyStartupMigrationState(
   db: MigrationDbClient,
   migrations: MigrationFile[],
+  reconciliations: readonly IntegratorMigrationReconciliation[] = [],
 ): Promise<void> {
   await verifyMigrationLedgerExists(db);
   const ledgerShape = await resolveMigrationLedgerShape(db);
-  const applied = await getAppliedVersions(db, ledgerShape, migrations);
+  const applied = await getAppliedVersions(db, ledgerShape, migrations, reconciliations);
   const missing = migrations.filter((migration) => !applied.has(migration.version));
 
   if (missing.length > 0) {
@@ -425,13 +501,15 @@ export async function verifyStartupMigrationState(
 function verifyAppliedMigrationVersions(
   appliedValues: readonly string[],
   migrations: MigrationFile[],
+  reconciliations: readonly IntegratorMigrationReconciliation[] = [],
 ): void {
   const applied = new Set<string>();
   for (const value of appliedValues) {
     if (!value) continue;
     for (const normalized of normalizeAppliedVersion(value, migrations)) applied.add(normalized);
   }
-  const missing = migrations.filter((migration) => !applied.has(migration.version));
+  const effectiveApplied = expandAppliedMigrationVersions(applied, reconciliations);
+  const missing = migrations.filter((migration) => !effectiveApplied.has(migration.version));
   if (missing.length === 0) return;
   const listed = missing.slice(0, 20).map((migration) => migration.version);
   const suffix = missing.length > listed.length ? `; plus ${missing.length - listed.length} more` : '';
@@ -452,8 +530,15 @@ export async function runMigrations(): Promise<void> {
     await ensureMigrationsTable(db); // Создаём таблицу учёта миграций
 
     const migrations = await discoverMigrations(); // Находим все доступные
+    const reconciliations = await discoverMigrationReconciliations(migrations);
     const ledgerShape = await resolveMigrationLedgerShape(db);
-    const applied = await getAppliedVersions(db, ledgerShape, migrations); // Получаем уже применённые
+    const applied = await getAppliedVersions(db, ledgerShape, migrations, reconciliations); // Получаем уже применённые
+    const reconciliationForwardBySource = new Map(
+      reconciliations.map((reconciliation) => [
+        reconciliation.sourceVersion,
+        reconciliation.forwardVersion,
+      ]),
+    );
 
     logger.info(
       {
@@ -493,6 +578,18 @@ export async function runMigrations(): Promise<void> {
         continue;
       }
 
+      const reconciliationForward = reconciliationForwardBySource.get(migration.version);
+      if (reconciliationForward) {
+        logger.info(
+          {
+            migration: migration.version,
+            reconciliationForward,
+          },
+          'Deferring superseded migration to its forward reconciliation',
+        );
+        continue;
+      }
+
       logger.info(
         {
           scope: migration.scope,
@@ -505,6 +602,7 @@ export async function runMigrations(): Promise<void> {
 
       const sql = await readFile(migration.filePath, 'utf8'); // Читаем SQL
       await applyMigration(db, migration, sql, ledgerShape); // Применяем миграцию
+      applied.add(migration.version);
     }
   } finally {
     await db.end(); // Закрываем соединение
@@ -544,6 +642,7 @@ export async function runStartupMigrationGateWithDeps(
       import('./runIntegratorSql.js'),
     ]);
     const migrations = await (deps.discoverMigrationsFn ?? discoverMigrations)();
+    const reconciliations = await discoverMigrationReconciliations(migrations);
     const result = await runWithDbInfraPrincipal(
       { source: 'integrator-startup-migration-ledger' },
       () => runIntegratorNamedRoot<{ version: string }>(
@@ -551,7 +650,11 @@ export async function runStartupMigrationGateWithDeps(
         sql`SELECT version FROM app.read_integrator_migration_ledger()`,
       ),
     );
-    verifyAppliedMigrationVersions(result.rows.map((row) => row.version), migrations);
+    verifyAppliedMigrationVersions(
+      result.rows.map((row) => row.version),
+      migrations,
+      reconciliations,
+    );
     logger.info(
       {
         dbPrincipalContextMode: deps.dbPrincipalContextMode,
@@ -573,7 +676,8 @@ export async function runStartupMigrationGateWithDeps(
   const db = createDb(deps.databaseUrl);
   try {
     const migrations = await (deps.discoverMigrationsFn ?? discoverMigrations)();
-    await verifyStartupMigrationState(db, migrations);
+    const reconciliations = await discoverMigrationReconciliations(migrations);
+    await verifyStartupMigrationState(db, migrations, reconciliations);
     logger.info(
       {
         dbPrincipalContextMode: deps.dbPrincipalContextMode,
