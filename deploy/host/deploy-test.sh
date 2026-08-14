@@ -157,10 +157,15 @@ echo "   HEAD: $(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD)"
   echo "FATAL: missing $PORT_CONTEXT_ENV_BOOTSTRAP" >&2
   exit 1
 }
-# This one-time transition starts from a legacy locked env whose media worker may still carry the
-# DB credential that the target intentionally removes. Validate the complete target rendering
-# read-only; the old C2 preflight would reject the source state before its approved removal.
-sudo node --experimental-strip-types "$DEPLOY_REPO/$PORT_CONTEXT_ENV_BOOTSTRAP" --port-context-check
+# A locked source does not have all four target mTLS client certificates yet; the single-target
+# cutover provisions and verifies them before rendering the port-context env.  Requiring those
+# future files here creates a circular preflight and blocks before build.  An already converted
+# target must, conversely, prove its complete stationary projection before build.
+if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "locked" ]; then
+  sudo node --experimental-strip-types "$DEPLOY_REPO/$PORT_CONTEXT_ENV_BOOTSTRAP" --check
+else
+  sudo node --experimental-strip-types "$DEPLOY_REPO/$PORT_CONTEXT_ENV_BOOTSTRAP" --port-context-check
+fi
 
 # 3) Сборка (тот же порядок, что в deploy-prod.sh) — от имени deploy.
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
