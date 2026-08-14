@@ -109,6 +109,9 @@ P2_B_CONTEXT_INSTALLED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
+POSTGRES_CUTOVER_INPUT_DIR=""
+POSTGRES_FIO_MANIFEST=""
+POSTGRES_RUBITIME_CSV=""
 # Post-health gate failures collected instead of aborting. See run_closure_gate + CLOSURE_GATE_RED_EXIT.
 CLOSURE_GATE_FAILURES=()
 # Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
@@ -230,12 +233,35 @@ cleanup_elevation(){
   assert_cleanup_elevation || cleanup_status=1
   return "$cleanup_status"
 }
+cleanup_postgres_cutover_inputs(){
+  if [ -z "${POSTGRES_CUTOVER_INPUT_DIR:-}" ]; then
+    return 0
+  fi
+  case "$POSTGRES_CUTOVER_INPUT_DIR" in
+    /tmp/bcb-test-cutover-inputs.*) ;;
+    *)
+      echo "FATAL: refusing unsafe cutover input cleanup path: $POSTGRES_CUTOVER_INPUT_DIR" >&2
+      return 1
+      ;;
+  esac
+  if [ -L "$POSTGRES_CUTOVER_INPUT_DIR" ]; then
+    echo "FATAL: refusing symlink cutover input cleanup path: $POSTGRES_CUTOVER_INPUT_DIR" >&2
+    return 1
+  fi
+  if [ -d "$POSTGRES_CUTOVER_INPUT_DIR" ]; then
+    sudo -u postgres rm -rf -- "$POSTGRES_CUTOVER_INPUT_DIR" || return 1
+  fi
+  POSTGRES_CUTOVER_INPUT_DIR=""
+  POSTGRES_FIO_MANIFEST=""
+  POSTGRES_RUBITIME_CSV=""
+}
 cleanup_exit(){
   local original_status=$?
   local cleanup_status
   set +e
   cleanup_elevation
   cleanup_status=$?
+  cleanup_postgres_cutover_inputs || cleanup_status=1
   if [ "$original_status" -ne 0 ] && [ "${WRITERS_STOPPED:-0}" = "1" ] && [ "${SERVICES_RELEASED:-0}" != "1" ]; then
     for unit_name in "${UNITS[@]}"; do
       sudo systemctl stop "bersoncarebot-$unit_name-test" >/dev/null 2>&1 || cleanup_status=1
@@ -343,6 +369,26 @@ assert_test_runtime_mode_ready(){
     }
     printf "   %-10s DB_PRINCIPAL_CONTEXT_MODE=%s (strict TEST runtime)\n" "$label:" "$mode"
   done
+}
+
+bootstrap_test_env_preflight(){
+  local repository_root="$1"
+  local mode
+  mode="$(read_deploy_env_value "$API_ENV" DB_PRINCIPAL_CONTEXT_MODE)"
+  case "${mode:-legacy-guc}" in
+    port-context)
+      sudo node --experimental-strip-types \
+        "$repository_root/deploy/host/bootstrap-c4-test-env.mjs" --port-context-check
+      ;;
+    locked|shadow)
+      sudo node --experimental-strip-types \
+        "$repository_root/deploy/host/bootstrap-c4-test-env.mjs" --check
+      ;;
+    *)
+      echo "FATAL: unsupported TEST DB_PRINCIPAL_CONTEXT_MODE for bootstrap preflight: ${mode:-missing}" >&2
+      return 1
+      ;;
+  esac
 }
 
 assert_saas_test_fixture_packet_ready(){
@@ -1000,6 +1046,63 @@ run_test_db_owner_sql_file(){
     sudo -u deploy cat "$sql_file"
     printf '\nRESET ROLE;\n'
   } | sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1
+}
+
+stage_cutover_inputs_for_postgres(){
+  [ -z "${POSTGRES_CUTOVER_INPUT_DIR:-}" ] || {
+    echo "FATAL: PostgreSQL cutover inputs were already staged" >&2
+    return 1
+  }
+  POSTGRES_CUTOVER_INPUT_DIR="$(sudo -u postgres mktemp -d /tmp/bcb-test-cutover-inputs.XXXXXX)"
+  POSTGRES_FIO_MANIFEST="$POSTGRES_CUTOVER_INPUT_DIR/fio-owner-reviewed.manifest.json"
+  POSTGRES_RUBITIME_CSV="$POSTGRES_CUTOVER_INPUT_DIR/rubitime-records.csv"
+  sudo install -o postgres -g postgres -m 0600 -- "$FIO_MANIFEST" "$POSTGRES_FIO_MANIFEST"
+  sudo install -o postgres -g postgres -m 0600 -- "$RUBITIME_CSV" "$POSTGRES_RUBITIME_CSV"
+  [ "$(sudo -u postgres sha256sum -- "$POSTGRES_FIO_MANIFEST" | awk '{print $1}')" = "$FIO_MANIFEST_FILE_SHA256" ] || {
+    echo "FATAL: staged FIO manifest SHA-256 mismatch" >&2
+    return 1
+  }
+  [ "$(sudo -u postgres sha256sum -- "$POSTGRES_RUBITIME_CSV" | awk '{print $1}')" = "$RUBITIME_CSV_SHA256" ] || {
+    echo "FATAL: staged Rubitime CSV SHA-256 mismatch" >&2
+    return 1
+  }
+  echo "   protected cutover inputs: staged for local PostgreSQL migration executor"
+}
+
+run_postgres_repo_with_test_db_owner_role(){
+  local deploy_command="$1"
+  validate_pg_identifier "DB role" "$DBROLE"
+  sudo -u postgres env \
+    -u API_ENV_FILE -u WEBAPP_ENV_FILE \
+    -u INTEGRATOR_DB_URL \
+    -u DATABASE_URL_STAFF -u DATABASE_URL_PATIENT -u DATABASE_URL_GLOBAL_ADMIN \
+    DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
+    DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
+    PGOPTIONS="-c role=$DBROLE" \
+    bash -c "cd '$DEPLOY_REPO' && $deploy_command"
+}
+
+run_postgres_repo_with_test_db_owner_bypass(){
+  local deploy_command="$1"
+  local command_status cleanup_status
+  validate_pg_identifier "DB role" "$DBROLE"
+  sudo -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
+    -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
+  set +e
+  sudo -u postgres env \
+    -u API_ENV_FILE -u WEBAPP_ENV_FILE \
+    -u INTEGRATOR_DB_URL \
+    -u DATABASE_URL_STAFF -u DATABASE_URL_PATIENT -u DATABASE_URL_GLOBAL_ADMIN \
+    DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
+    DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
+    PGOPTIONS="-c role=$DBROLE" \
+    bash -c "cd '$DEPLOY_REPO' && $deploy_command"
+  command_status=$?
+  cleanup_elevation
+  cleanup_status=$?
+  set -e
+  [ "$cleanup_status" -eq 0 ] || return "$cleanup_status"
+  return "$command_status"
 }
 
 run_deploy_repo_with_test_db_owner_role(){
@@ -2699,7 +2802,7 @@ run_b1_doctor_admin_identity_assertion(){
     return 0
   fi
 
-  run_deploy_repo_with_test_db_owner_role \
+  run_postgres_repo_with_test_db_owner_role \
     "node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs \
       --execute \
       --allow-test-target \
@@ -3024,7 +3127,7 @@ assert_strict_closure_deploy_checkout_ready(){
       exit 1
     }
   done
-  sudo node "$DEPLOY_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check
+  bootstrap_test_env_preflight "$DEPLOY_REPO"
   for env_file in "$API_ENV" "$WEBAPP_ENV"; do
     sudo -u deploy test -r "$env_file" || { echo "FATAL: deploy cannot read required env file: $env_file" >&2; exit 1; }
   done
@@ -3332,7 +3435,7 @@ assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_
 [ -r "$SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
-sudo node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check
+bootstrap_test_env_preflight "$SRC_REPO"
 for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
@@ -3373,6 +3476,7 @@ log "stop TEST writers before restore/migration"
 for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
 WRITERS_STOPPED=1
 assert_test_writers_stopped
+stage_cutover_inputs_for_postgres
 
 # 1. fresh test DB = FRESH dump streamed from LIVE prod (read-only pg_dump over ssh; no file left on prod).
 #    Override with DUMP=/path env to reuse a pre-pulled dump. Do NOT fall back to /opt/backups here —
@@ -3416,35 +3520,32 @@ run_test_db_owner_sql_file "$DEPLOY_REPO/$DATAFIX"
 #    0377/0381 create and start reading user_identity, so applying FIO after the chain loses the
 #    reviewed correction from the new read model.
 log "owner-reviewed FIO manifest apply (pre-migration)"
-fio_manifest_q="$(shell_quote "$FIO_MANIFEST")"
+fio_manifest_q="$(shell_quote "$POSTGRES_FIO_MANIFEST")"
 fio_manifest_sha_q="$(shell_quote "$FIO_MANIFEST_SHA256")"
 fio_review_source_sha_q="$(shell_quote "$FIO_REVIEW_SOURCE_SHA256")"
-fio_rollback_dir_q="$(shell_quote "$DEPLOY_REPO/.tmp/fio-owner-review-rollback")"
-run_deploy_repo_with_test_db_owner_bypass \
+fio_rollback_dir_q="$(shell_quote "$POSTGRES_CUTOVER_INPUT_DIR/fio-rollback")"
+run_postgres_repo_with_test_db_owner_bypass \
   "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
 
 # 5. Transfer accepted legacy appointment history before migration 0262 drops the provider tables
 #    and 0386 drops appointment_records. The script is one transaction and refuses a non-zero live
 #    unresolved remainder; the protected source dump remains the raw audit/rollback archive.
 log "legacy appointment transfer (pre-migration, owner-reviewed CSV)"
-rubitime_csv_q="$(shell_quote "$RUBITIME_CSV")"
+rubitime_csv_q="$(shell_quote "$POSTGRES_RUBITIME_CSV")"
 rubitime_csv_sha_q="$(shell_quote "$RUBITIME_CSV_SHA256")"
-run_deploy_repo_with_test_db_owner_bypass \
+run_postgres_repo_with_test_db_owner_bypass \
   "pnpm --dir apps/webapp run cutover:legacy-appointments -- --commit --csv $rubitime_csv_q --csv-sha256 $rubitime_csv_sha_q --expected-database '$DB' --organization-id '$ORG_ID' --specialist-id '$CANONICAL_SPECIALIST'"
 
 # 6. Migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke.
 #    Destructive legacy-table migrations are now downstream from fail-closed data parity gates.
 log "migrate (temp BYPASSRLS)"
-MIGRATOR_ROLE="$(discover_webapp_migrator_role)"
-grant_migrator_owner_membership "$MIGRATOR_ROLE"
 # Migrations that transfer function ownership to app_owner (0225 and siblings) need membership in it;
 # granted for this step only and revoked + asserted back to zero members by cleanup_elevation.
 grant_migrator_app_owner_membership
-sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $DBROLE BYPASSRLS;"
-sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
-  export PGOPTIONS='-c role=$DBROLE' && \
-  API_ENV_FILE='$API_ENV' WEBAPP_ENV_FILE='$WEBAPP_ENV' pnpm migrate"
-cleanup_elevation
+run_postgres_repo_with_test_db_owner_bypass \
+  "INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 pnpm --dir apps/integrator run migrate && \
+   pnpm --dir apps/webapp run migrate && \
+   pnpm --dir apps/integrator run migrate"
 
 # 0328 commits first; this hot-table index must run as a separate autocommit psql operation.
 log "D30 outgoing delivery queue index (online, transaction-free)"

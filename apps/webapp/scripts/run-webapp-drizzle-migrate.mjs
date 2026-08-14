@@ -120,7 +120,7 @@ function validateCurrentD30OnlineIndexDeployment() {
     {
       name: 'deploy-test-saas',
       path: path.join(repositoryRoot, 'deploy', 'host', 'deploy-test-saas.sh'),
-      migrationCommand: "WEBAPP_ENV_FILE='$WEBAPP_ENV' pnpm migrate",
+      migrationCommand: 'pnpm --dir apps/webapp run migrate',
     },
     {
       name: 'deploy-prod',

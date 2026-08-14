@@ -172,7 +172,8 @@ Before the doctor/admin data-fix, the wrapper must assert:
 
 - database owner is the expected runtime owner;
 - `public.platform_users` owner is the expected runtime owner;
-- the webapp env `DATABASE_URL` points to the TEST DB, not another database.
+- protected runtime env is either the complete four-login `port-context` projection or the supported legacy
+  locked projection. `port-context` intentionally has no aggregate `DATABASE_URL`.
 
 Failing these assertions stops the protocol. Do not repair by manual `ALTER OWNER`; fix the restore script
 or rerun from a fresh restore.
@@ -195,9 +196,9 @@ login through plain `psql "$DATABASE_URL" -f ...` is not an allowed substitute.
 
 Before `pnpm migrate`, the wrapper must:
 
-- discover the webapp migrator role from `webapp.test` `DATABASE_URL`;
-- fail if that role already has pre-existing owner membership residue;
-- grant runtime-owner membership to the migrator only when needed;
+- use the local OS `postgres` migration channel over the Unix socket and set
+  `PGOPTIONS='-c role=bersoncarebot_test'`; it must not borrow one of the four runtime logins or recreate an
+  aggregate runtime `DATABASE_URL`;
 - fail if the runtime owner already has pre-existing `app_owner` membership, then grant that membership only for
   the migration window so pending Drizzle migrations can replace protected functions in schema `app`;
 - set `BYPASSRLS` on the runtime owner only for the migration window;
@@ -401,18 +402,17 @@ failure rolls the entire overlay back and preserves the previously installed loc
 
 ### 9. Canonical identity and FIO normalization
 
-The former Rubitime one-pass/CSV sequence is retired and archived. It must not run on a new TEST restore. Any
-remaining placeholder booking or provider-neutral identity cleanup needs a new reviewed plan over the current
-canonical schema; it must not resurrect the retired wrapper.
+The former runtime Rubitime integration and its mirror tables remain retired. The owner-authorized 2026-08-15
+cutover is different: before migrations drop those legacy tables, the hash-bound reviewed CSV is used once to
+transfer accepted legacy appointments into the canonical booking tables. The transfer must finish with zero live
+unresolved rows and does not recreate any runtime mirror or provider-specific read/write path.
 
-Specialist consolidation is a write-path over owner-owned booking tables and must not run as the raw runtime
-`DATABASE_URL` role. A future reviewed TEST wrapper must run the consolidation step under the same controlled
-temporary owner-role context as owner-only migration work:
+Specialist consolidation is a write-path over owner-owned booking tables and must not run as any runtime login.
+The full-reset wrapper runs it through the same local OS `postgres` → `SET ROLE bersoncarebot_test` channel as
+owner-only migration work:
 
-- discover or reuse the webapp migrator role from `webapp.test` `DATABASE_URL`;
-- grant runtime-owner membership to that login only when the login is not already the runtime owner;
-- run the deploy checkout command with `PGOPTIONS='-c role=bersoncarebot_test'`;
-- revoke the temporary membership immediately after the consolidation step;
+- run the version-matched deploy checkout with `PGOPTIONS='-c role=bersoncarebot_test'`;
+- never write an aggregate URL into `api.test` or `webapp.test`;
 - keep the `EXIT` trap active so failure paths still assert cleanup;
 - fail visibly if cleanup leaves `BYPASSRLS` or owner membership behind.
 
@@ -442,19 +442,17 @@ The end-state assertions must include:
 ### 10. B1, A2, and product smoke gates
 
 The wrapper must run the B1 doctor/admin identity assertion after the end-state checks. B1 reads owner-owned
-identity tables and must use the same controlled temporary owner-role context as specialist consolidation:
+identity tables and uses the same local OS `postgres` → `SET ROLE bersoncarebot_test` channel as specialist
+consolidation:
 
-- discover or reuse the webapp migrator role from `webapp.test` `DATABASE_URL`;
-- grant runtime-owner membership to that login only when the login is not already the runtime owner;
 - run the deploy checkout command with `PGOPTIONS='-c role=bersoncarebot_test'`;
-- pass `--allow-test-target`, explicit `--database-url "$DATABASE_URL"`, and
+- pass `--allow-test-target`, the process-local Unix-socket migration URL, and
   `--required-current-user=bersoncarebot_test` to the B1 checker;
-- revoke the temporary membership immediately after the B1 assertion;
 - keep the `EXIT` trap active so failure paths still assert cleanup;
 - fail visibly if cleanup leaves `BYPASSRLS` or owner membership behind.
 
-B1 must not run as the raw TEST runtime `DATABASE_URL` role. The checker must verify `current_user` before
-reading `public.platform_users`, and the database URL must remain explicit and unprinted. B1 does not require
+B1 must not run as a TEST runtime login. The checker must verify `current_user` before reading
+`public.platform_users`, and the process-local database URL must remain unprinted. B1 does not require
 `BYPASSRLS`; if it is ever added for this step, that must be documented and checked as a separate protocol
 change.
 

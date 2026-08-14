@@ -869,6 +869,9 @@ membership/BYPASS через обязательный cleanup; application runti
   migrations, overlays/settings, fixture reconciliation, cleanup, restart и health gates. Не запускать
   `restore-test-db-from-dump.sh`, settings SQL или `deploy-test.sh` как отдельную fresh-restore цепочку. Restore
   primitive является внутренней частью owner-gated wrapper и напрямую не запускается.
+  Backfill и миграции в этом окне идут локально через OS `postgres` с `SET ROLE bersoncarebot_test`; общий
+  `DATABASE_URL` в runtime env для этого не нужен и не создаётся. Runtime остаётся на четырёх контурных URL:
+  `INTEGRATOR_DB_URL` и `DATABASE_URL_{STAFF,PATIENT,GLOBAL_ADMIN}`.
   `deploy-test-saas.sh` — внутренний shared closure engine; напрямую его не запускают, прямой destructive-вызов
   заблокирован.
 
