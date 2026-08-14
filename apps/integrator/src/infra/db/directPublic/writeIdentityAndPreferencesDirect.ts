@@ -29,7 +29,7 @@ import {
   type PlatformMergeDbClient,
 } from '@bersoncare/platform-merge';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot, runIntegratorSql } from '../runIntegratorSql.js';
 
 export type DirectPublicChannelCode = 'telegram' | 'max';
 
@@ -65,6 +65,34 @@ export type WriteIdentityAndPreferencesResult = {
   channelBindingInserted: boolean;
   topicsWritten: number;
 };
+
+export async function upsertBootstrapChannelIdentity(
+  db: DbPort,
+  input: Pick<DirectPublicIdentityInput, 'channelCode' | 'externalId' | 'displayHandle'>,
+): Promise<WriteIdentityAndPreferencesResult> {
+  const displayHandle = normalizeChannelDisplayHandle(input.displayHandle);
+  const result = await runIntegratorNamedRoot<{
+    platform_user_id: string;
+    account_created: boolean;
+    channel_binding_inserted: boolean;
+  }>(
+    db,
+    'app.integrator_upsert_channel_identity(text,text,text)',
+    [input.channelCode, input.externalId, displayHandle],
+    sql`SELECT * FROM app.integrator_upsert_channel_identity(
+      ${input.channelCode}::text,
+      ${input.externalId}::text,
+      ${displayHandle}::text
+    )`,
+  );
+  const row = result.rows[0];
+  if (!row) throw new DirectPublicWriteError('platform_user_write_failed');
+  return {
+    platformUserId: row.platform_user_id,
+    channelBindingInserted: row.channel_binding_inserted,
+    topicsWritten: 0,
+  };
+}
 
 export type DirectPublicWriteFailureCode =
   | 'channel_anchor_owned_by_other_user'

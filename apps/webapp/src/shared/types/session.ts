@@ -8,6 +8,15 @@ export type ChannelBindings = {
   maxBotBlocked?: boolean;
 };
 
+export type SessionIdentityContact = {
+  kind: 'phone' | 'email';
+  value: string;
+  isPrimary: boolean;
+  /** Missing means that the contact has not been confirmed. */
+  confirmedAt?: string;
+  sourceOrigin: 'platform_users' | 'oauth_binding' | 'phone_history';
+};
+
 export type SessionUser = {
   /**
    * Canonical `platform_users.id` (UUID) after trusted login with DB — см. `sessionCanonicalUserIdPolicy.ts`.
@@ -21,7 +30,16 @@ export type SessionUser = {
   /** Structured compatibility fields for forms that must not parse `display_name`. */
   lastName?: string;
   patronymic?: string;
+  /**
+   * All phone/e-mail identities, including non-primary and unconfirmed contacts. DB-backed
+   * sessions always receive this from the identity loader. Optional only for old signed cookies
+   * and short-lived non-DB/pre-session transports during the compatibility phase.
+   */
+  contacts?: SessionIdentityContact[];
+  /** Compatibility projection of the primary phone from `contacts`. */
   phone?: string;
+  /** Compatibility projection of the primary e-mail from `contacts`. */
+  email?: string;
   bindings: ChannelBindings;
   /**
    * `platform_users.session_epoch` — THE server-side revocation generation, for staff AND patients

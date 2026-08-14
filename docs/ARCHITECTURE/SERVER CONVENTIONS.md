@@ -439,7 +439,11 @@ Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не явля
 - `PORT=5200`
 - `APP_BASE_URL=http://127.0.0.1:5200`
 - опционально **`NEXT_PUBLIC_APP_BASE_URL=http://127.0.0.1:5200`** — для тестов Markdown с абсолютными URL медиа (см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`)
-- `DATABASE_URL=...`
+- `DB_PRINCIPAL_CONTEXT_MODE=port-context`
+- `DATABASE_URL_STAFF=...`, `DATABASE_URL_PATIENT=...`, `DATABASE_URL_GLOBAL_ADMIN=...`
+- `WEBAPP_DB_{STAFF,PATIENT,GLOBAL_ADMIN}_LOGIN=...`
+- `WEBAPP_DB_TLS_CA_FILE=...` и отдельные cert/key каждого из трёх login
+- `WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON=...`
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`
 - `INTEGRATOR_API_URL=http://127.0.0.1:4200`
@@ -463,7 +467,7 @@ TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NO
 
 Ожидаемые ключи:
 
-- `DATABASE_URL` — **webapp dev** DB;
+- `DATABASE_URL` — target URL миграционного webapp-контура DEV, не runtime webapp URL;
 - `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator dev** DB.
 
 DEV `projection-health` получает `INTEGRATOR_API_URL` либо использует loopback `PORT`; DB URL из cutover env
@@ -471,13 +475,23 @@ DEV `projection-health` получает `INTEGRATOR_API_URL` либо испо�
 
 Подтвержденные **имена dev БД** (по env preview в workspace, без секретов; **2026-06-10** — unified dev на audited host):
 
-| Назначение                     | Файл env                                                    | Переменная                | Имя БД                                                                                  |
-| ------------------------------ | ----------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
-| Integrator dev                 | `/home/dev/dev-projects/BersonCareBot/.env`                 | `DATABASE_URL`            | `bcb_webapp_dev` (та же БД, что webapp)                                                 |
-| Webapp dev                     | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` | `DATABASE_URL`            | `bcb_webapp_dev`                                                                        |
-| Dev cutover/backfill/reconcile | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`     | `INTEGRATOR_DATABASE_URL` | при unified — **тот же** URL, что `DATABASE_URL`; отдельный URL — только legacy cutover |
+| Назначение                       | Файл env                                                    | Переменная                                                                 | Имя БД           |
+| -------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------- |
+| Integrator runtime DEV           | `/home/dev/dev-projects/BersonCareBot/.env`                 | `INTEGRATOR_DB_URL`                                                        | `bcb_webapp_dev` |
+| Webapp runtime DEV (три login)   | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` | `DATABASE_URL_STAFF`, `DATABASE_URL_PATIENT`, `DATABASE_URL_GLOBAL_ADMIN` | `bcb_webapp_dev` |
+| Dev cutover/backfill/reconcile   | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`     | `DATABASE_URL`, `INTEGRATOR_DATABASE_URL`                                 | `bcb_webapp_dev` |
 
-**Целевая dev-модель:** один `DATABASE_URL` в `.env` и `apps/webapp/.env.dev`, обе схемы `public` + `integrator` в одной базе. Имя `bersoncarebot_dev` как отдельная integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md)).
+**Целевая dev-модель:** одна физическая БД `bcb_webapp_dev` со схемами `public` + `integrator`, но не один
+runtime-login. В `port-context` четыре runtime URL соответствуют четырём login выше; общего runtime
+`DATABASE_URL` нет. `.env.cutover.dev` — отдельный миграционный контур. Имя `bersoncarebot_dev` как отдельная
+integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md)).
+
+Для runtime-пробы сначала загрузить соответствующий env и передать конкретный URL через `PGDATABASE`, например
+`PGDATABASE="$DATABASE_URL_STAFF" psql ...`. Для read-only catalog/операционной проверки на локальном DEV,
+которая не является запросом одного runtime-порта, использовать точную БД через локальный admin socket:
+`sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev ...`. Не выполнять старую форму
+`source apps/webapp/.env.dev && psql "$DATABASE_URL"`: в `port-context` эта переменная намеренно отсутствует,
+и пустое значение отправляет `psql` в нецелевой socket/default database.
 
 ### Integrator dev env loading
 

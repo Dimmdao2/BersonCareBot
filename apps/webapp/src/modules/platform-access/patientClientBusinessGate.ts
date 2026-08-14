@@ -1,4 +1,4 @@
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import type { AppSession } from '@/shared/types/session';
 import { resolvePlatformAccessContext } from './resolvePlatformAccessContext';
 import { getPlatformEntry } from '@/shared/lib/platformCookie.server';
@@ -13,7 +13,7 @@ export type PatientBusinessGate = 'allow' | 'need_activation' | 'stale_session';
 export async function patientClientBusinessGate(session: AppSession): Promise<PatientBusinessGate> {
   if (session.user.role !== 'client') return 'allow';
 
-  if (env.DATABASE_URL?.trim()) {
+  if (webappRuntimeDatabaseIsConfigured()) {
     try {
       const ctx = await resolvePlatformAccessContext({
         sessionUserId: session.user.userId,

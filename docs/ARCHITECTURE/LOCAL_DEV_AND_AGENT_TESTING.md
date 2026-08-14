@@ -11,17 +11,22 @@
 pnpm install
 cp .env.example .env
 cp apps/webapp/.env.example apps/webapp/.env.dev
-# заполните DATABASE_URL, SESSION_COOKIE_SECRET, INTEGRATOR_* — см. комментарии в файлах
+# заполните INTEGRATOR_DB_URL, три DATABASE_URL_* webapp, SESSION_COOKIE_SECRET и bootstrap secrets
 pnpm run migrate  # первичный bootstrap; существующая DEV — через migrate-dev.sh ниже
 ```
 
 | Файл                   | Назначение                                         |
 | ---------------------- | -------------------------------------------------- |
-| `.env`                 | integrator (API, worker при необходимости)         |
-| `apps/webapp/.env.dev` | webapp Next.js                                     |
+| `.env`                 | integrator: `INTEGRATOR_DB_URL`                    |
+| `apps/webapp/.env.dev` | webapp: `DATABASE_URL_STAFF`, `DATABASE_URL_PATIENT`, `DATABASE_URL_GLOBAL_ADMIN` |
 | `.env.cutover.dev`     | ops: backfill/reconcile (не для обычного UI-теста) |
 
-**База:** одна PostgreSQL `bcb_webapp_dev` (схемы `public` + `integrator`), один `DATABASE_URL` в обоих env — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md).
+**База физически одна:** PostgreSQL `bcb_webapp_dev` (схемы `public` + `integrator`). В runtime
+port-context к ней ведут четыре URL с разными логинами: один integrator URL и три webapp URL выше.
+Агрегатный `DATABASE_URL` относится только к отключённому legacy-контексту; обычный DEV runtime и
+проверки не должны его требовать. Ops/migration URL живут отдельно в `.env.cutover.dev` — см.
+[`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md) и
+[`SERVER CONVENTIONS.md`](./SERVER%20CONVENTIONS.md).
 
 ### 1.1 Где UX-агенту смотреть интерфейс
 
@@ -389,7 +394,7 @@ http://127.0.0.1:5200/api/auth/logout
 Когда браузер-MCP/расширение недоступны, а нужны **скриншоты авторизованных** doctor-страниц из CLI. Проверено на этой машине (`/usr/bin/chromium-browser`). Двухшаговая схема — иначе сессия не подхватится.
 
 ```bash
-# 0) поднять webapp (грузит .env.dev: ALLOW_DEV_AUTH_BYPASS=true + DATABASE_URL)
+# 0) поднять webapp (грузит .env.dev: ALLOW_DEV_AUTH_BYPASS=true + три port-context DATABASE_URL_*)
 ( set -a && source apps/webapp/.env.dev && set +a && pnpm --dir apps/webapp dev ) &   # 127.0.0.1:5200
 
 PROF="$PWD/.shots/prof"; B="http://127.0.0.1:5200"   # профиль и скриншоты — в персистентный путь (НЕ /tmp)

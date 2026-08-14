@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { integratorWebhookSecret } from '@/config/env';
 import { logger } from '@/infra/logging/logger';
 import { normalizeMaxBotNicknameInput } from '@/modules/system-settings/maxLoginBotNickname';
@@ -115,7 +115,7 @@ export async function startChannelLink(params: {
     };
   };
 
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const result = buildResult();
     return { ok: true, ...result, expiresAtIso: expiresAt.toISOString() };
   }
@@ -145,7 +145,7 @@ export async function completeChannelLinkFromIntegrator(params: {
     return { ok: false, code: 'invalid_token' };
   }
 
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     return { ok: false, code: 'database_unavailable' };
   }
 

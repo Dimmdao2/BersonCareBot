@@ -1,5 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { loadDoctorClientProgramCardData } from '@/modules/doctor-client-card/loadDoctorClientProgramCardAggregates';
 import type { ClientProfile } from '@/modules/doctor-clients/service';
@@ -63,7 +63,7 @@ export async function loadDoctorClientProfileCardProps(input: {
 }): Promise<LoadDoctorClientProfileCardResult> {
   const { userId, doctorUserId, organizationId, scopeParam, autoOpenChat = false } = input;
   const deps = buildAppDeps();
-  const hasDb = Boolean(env.DATABASE_URL);
+  const hasDb = webappRuntimeDatabaseIsConfigured();
   const profileListScope = normalizeDoctorClientProfileScope(scopeParam);
   const listBasePath = listBasePathForScope(profileListScope);
 

@@ -354,16 +354,29 @@ if (
 
 export const env = parsed;
 
+type WebappDatabaseRuntimeEnv = Pick<
+  typeof env,
+  | 'DB_PRINCIPAL_CONTEXT_MODE'
+  | 'DATABASE_URL'
+  | 'DATABASE_URL_STAFF'
+  | 'DATABASE_URL_PATIENT'
+  | 'DATABASE_URL_GLOBAL_ADMIN'
+>;
+
+/** True when the selected runtime mode has every physical DB pool it requires. */
+export function webappRuntimeDatabaseIsConfigured(input: WebappDatabaseRuntimeEnv = env): boolean {
+  return input.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+    ? Boolean((input.DATABASE_URL_STAFF ?? '').trim() && (input.DATABASE_URL_PATIENT ?? '').trim())
+      && Boolean((input.DATABASE_URL_GLOBAL_ADMIN ?? '').trim())
+    : Boolean((input.DATABASE_URL ?? '').trim());
+}
+
 /**
  * In-memory репозитории: Vitest без БД, либо `next build` без `DATABASE_URL` (CI).
  * `next dev` без URL — ошибка; production runtime без URL — см. `instrumentation.ts` и `getPool()`.
  */
 export function webappReposAreInMemory(): boolean {
-  const runtimeDatabaseConfigured =
-    env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
-      ? Boolean((env.DATABASE_URL_STAFF ?? '').trim() && (env.DATABASE_URL_PATIENT ?? '').trim())
-        && Boolean((env.DATABASE_URL_GLOBAL_ADMIN ?? '').trim())
-      : Boolean((env.DATABASE_URL ?? '').trim());
+  const runtimeDatabaseConfigured = webappRuntimeDatabaseIsConfigured();
   if (runtimeDatabaseConfigured) return false;
   if (isTest) return true;
   if (process.env.NODE_ENV === 'development') {

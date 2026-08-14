@@ -350,16 +350,34 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   routes примерно в `100–120 s`. Это отдельный будущий разбор производительности, а не условие текущего
   security/correctness-прохода: сначала измерить отдельно compile, SSR/loaders/DB и client render, затем выбирать
   оптимизацию. Текущий приоритет владельца — рабочий DEV и корректная изоляция данных.
-  Live census 14.08.2026 оставил два явных эксплуатационных шва в phone messenger bind. (1) Закрыто: secret
+  Live census 14.08.2026 нашёл и текущий bounded-fix закрыл два эксплуатационных шва в phone messenger bind.
+  (1) Secret
   lifecycle проведён через один exact pre-session root
   `app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamptz)`; прямого runtime
   доступа к `phone_messenger_bind_secrets` нет. Штатный DEV migrate/reconcile прошёл, живой `start → status`
   дал `200 → pending_contact`, а синтетическая запись закрыта тем же application port и вернула `consumed`.
   Отдельно route теперь явно связывает system-settings adapter: до правки валидный start падал `500` раньше БД.
-  (2) Открыто: signed integrator completion после secret read входит в старую безымянную identity transaction;
-  безопасный no-op checkout на DEV воспроизвёл `Missing declared webapp port capability: pre_session`. Прямой
-  relation grant запрещён; completion обязан сохранить canonical merge/phone-history/contact-mirror семантику
-  через узкий объявленный seam либо перенесённую canonical transaction, а не расширить pre-session роль.
+  (2) Signed integrator completion после secret read входил в
+  старую безымянную identity transaction; безопасный no-op checkout на DEV воспроизвёл
+  `Missing declared webapp port capability: pre_session`. Миграции `0415`–`0418` добавили exact completion-state,
+  bootstrap channel-upsert и bootstrap phone-bind roots; integrator bootstrap больше не открывает relation
+  transaction. Живой `user.phone.link` попутно вскрыл более ранний незавершённый D15b/6:
+  `syncUserContactsMirror` требует читать чужие source-таблицы и пересобирает `user_contacts` как зеркало.
+  Прямой relation grant запрещён. Целевое решение — `user_contacts` как единственный источник phone/email,
+  direct canonical contact writes и последующее удаление дублирующих колонок. Более позднее owner-указание того
+  же дня откладывает этот большой cutover и единый rich user facade до рабочего DEV → TEST → отдельно
+  разрешённого PROD. В текущем этапе допустим только ограниченный compatibility-срез без расширения прав:
+  симметричный phone/email snapshot в `SessionUser`, удаление старого общего `DATABASE_URL` из runtime checks и
+  узкий phone-only sync, который не читает OAuth. Полный live HTTP путь browser start → messenger `user.upsert`
+  → first complete `phone_sync_required` → bootstrap phone link → final complete → browser status дал
+  `200 → phone_sync_required → userPhoneLinkApplied=true → otp_ready → 200/otp_ready`; OTP в evidence не
+  печатался. Read-only aggregate для external id `99000000817` вернул
+  `user=d8903136-1b97-44fa-8099-a4e6af803d42 | phone=+79009990817 | trusted=1 | contacts=1 | active_history=1 | challenge=1`.
+  Отдельно доказаны идемпотентный повтор и merge пустого bootstrap-аккаунта к уже существующему владельцу
+  телефона: оба bindings указывают на один UUID, одна contact и одна active history row. Generator `--check` и
+  `--gaps` зелёные (`unresolved=0`, `gaps=0` для DEV/TEST), function/callsite oracle `11/11`, полный
+  `pnpm run ci` завершился `rc=0`. Этот compatibility slice закрывает текущий runtime-разрыв, но не D15b/6:
+  зеркало и большой identity/contact cutover остаются явно названным post-production долгом.
   OWNER-SUPERSEDED 14.08.2026: A0/disposable/ошибка `0391` не входят в текущий маршрут и не блокируют DEV/TEST.
   Если отдельная временная база когда-либо понадобится, она получает уже отработанную структуру из DEV,
   проверяется и уничтожается; историческая сборка схемы с нуля для этого не выполняется.
@@ -379,7 +397,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   и повторный прогон рабочие, это не выдача данных и не отказ PostgreSQL.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
-- [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.
+- [x] Полный green live matrix достигнут: exact phone bind HTTP path, оба `/health` с `db=up`, полный CI `rc=0`.
+  Владелец может пропустить ручную DEV-проверку по решению 14.08; следующий gate — утверждение cluster cleanup
+  inventory перед TEST.
 
 ## Ф8 — финальная TEST-репетиция после зелёного DEV
 

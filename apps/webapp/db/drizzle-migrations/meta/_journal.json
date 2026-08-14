@@ -2878,6 +2878,34 @@
       "when": 1793539230157,
       "tag": "0414_phone_messenger_bind_secret_root_local",
       "breakpoints": true
+    },
+    {
+      "idx": 411,
+      "version": "7",
+      "when": 1793539230158,
+      "tag": "0415_phone_messenger_bind_completion_state_root_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 412,
+      "version": "7",
+      "when": 1793539230159,
+      "tag": "0416_integrator_channel_identity_upsert_root_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 413,
+      "version": "7",
+      "when": 1793539230160,
+      "tag": "0417_integrator_bootstrap_phone_bind_root_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 414,
+      "version": "7",
+      "when": 1793539230161,
+      "tag": "0418_integrator_bootstrap_phone_bind_column_resolution_local",
+      "breakpoints": true
     }
   ]
 }

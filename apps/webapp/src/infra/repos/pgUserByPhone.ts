@@ -53,14 +53,11 @@ import {
   platformUserPhoneRoleRowSchema,
   platformUserSessionRowSchema,
   puMergeRowSchema,
+  sessionIdentityContactsFromRows,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
 import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
-import {
-  CONTACTS,
-  syncUserContactsMirrorWebapp,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
-} from '@/infra/repos/userContactsSql';
+import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
 import {
   FIO,
   syncUserIdentityFioMirrorWebapp,
@@ -104,7 +101,7 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
  * archive writer's epoch bump kills the cookies that already exist, and this check is what makes
  * it hold on EVERY subsequent request.
  */
-async function loadSessionIdentityUser(
+export async function loadSessionIdentityUser(
   userId: string,
   options: { includeSecurityFactor?: boolean; onMissingRow?: 'throw' | 'null' } = {},
 ): Promise<SessionUser | null> {
@@ -116,13 +113,12 @@ async function loadSessionIdentityUser(
                 ${FIO.firstName} AS first_name,
                 ${FIO.lastName} AS last_name,
                 ${FIO.patronymic} AS patronymic,
-                pu.role, ${CONTACTS.phoneNormalized} AS phone_normalized,
+                pu.role,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 COALESCE(sss.factor_required, false) AS security_factor_required
          FROM platform_users pu
          ${USER_IDENTITY_FIO_JOIN}
-         ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
          LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
          WHERE pu.id = $1`
       : `SELECT pu.id,
@@ -130,12 +126,11 @@ async function loadSessionIdentityUser(
                 ${FIO.firstName} AS first_name,
                 ${FIO.lastName} AS last_name,
                 ${FIO.patronymic} AS patronymic,
-                pu.role, ${CONTACTS.phoneNormalized} AS phone_normalized,
+                pu.role,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived
          FROM platform_users pu
          ${USER_IDENTITY_FIO_JOIN}
-         ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
          WHERE pu.id = $1`,
     [canonicalId],
   );
@@ -153,6 +148,16 @@ async function loadSessionIdentityUser(
     [canonicalId],
   );
   const bindings = bindingsFromRows(bindingsRows.rows);
+  const contactRows = await runIdentityPoolPgText(
+    `SELECT contact_kind, value_normalized, is_primary, confirmed_at, source_origin
+     FROM user_contacts
+     WHERE platform_user_id = $1
+     ORDER BY contact_kind, is_primary DESC, created_at, id`,
+    [canonicalId],
+  );
+  const contacts = sessionIdentityContactsFromRows(contactRows.rows);
+  const phone = contacts.find((contact) => contact.kind === 'phone' && contact.isPrimary)?.value;
+  const email = contacts.find((contact) => contact.kind === 'email' && contact.isPrimary)?.value;
   return {
     userId: canonicalId,
     role: parseUserRole(u.role, 'load_session_user.role'),
@@ -160,7 +165,9 @@ async function loadSessionIdentityUser(
     ...(firstName ? { firstName } : {}),
     ...(lastName ? { lastName } : {}),
     ...(patronymic ? { patronymic } : {}),
-    phone: u.phone_normalized ?? undefined,
+    contacts,
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
     bindings,
     sessionEpoch: u.session_epoch,
     ...(options.includeSecurityFactor

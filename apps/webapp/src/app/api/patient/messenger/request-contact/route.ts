@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
 import { requestMessengerContactViaIntegrator } from '@/modules/messaging/requestMessengerContact';
 import { patientClientBusinessGate } from '@/app-layer/platform-access';
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 403 });
   }
 
-  if (env.DATABASE_URL?.trim()) {
+  if (webappRuntimeDatabaseIsConfigured()) {
     const gate = await patientClientBusinessGate(session);
     if (gate === 'stale_session') {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });

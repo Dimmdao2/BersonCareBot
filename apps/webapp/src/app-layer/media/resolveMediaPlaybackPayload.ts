@@ -1,4 +1,4 @@
-import { env } from '@/config/env';
+import { env, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
 import { presignGetUrl } from '@/app-layer/media/s3Client';
@@ -48,12 +48,13 @@ export async function resolveMediaPlaybackPayload(input: {
 }): Promise<ResolveMediaPlaybackSuccess | ResolveMediaPlaybackFailure> {
   const t0 = performance.now();
   const { id, adminPrefer } = input;
-  if (!UUID_RE.test(id) || !(env.DATABASE_URL ?? '').trim()) {
+  if (!UUID_RE.test(id) || !webappRuntimeDatabaseIsConfigured()) {
     return { ok: false, status: 404, error: 'not found' };
   }
 
+  const legacyDatabaseUrl = env.DATABASE_URL ?? '';
   const row = await getMediaRowForPlayback(id, {
-    allowLocalSaasTestFixture: databaseNameFromUrl(env.DATABASE_URL ?? '') === 'bersoncarebot_test',
+    allowLocalSaasTestFixture: databaseNameFromUrl(legacyDatabaseUrl) === 'bersoncarebot_test',
     allowPlatformBase: input.allowPlatformBase === true,
   });
   if (!row) {
@@ -61,7 +62,7 @@ export async function resolveMediaPlaybackPayload(input: {
   }
 
   const localSaasTestFixture = isSaasTestLocalMediaAllowed({
-    databaseUrl: env.DATABASE_URL ?? '',
+    databaseUrl: legacyDatabaseUrl,
     storedPath: row.stored_path,
     s3Key: row.s3_key,
     mimeType: row.mime_type,

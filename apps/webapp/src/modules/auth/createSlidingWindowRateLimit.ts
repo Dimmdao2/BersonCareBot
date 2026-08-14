@@ -1,4 +1,4 @@
-import { env } from '@/config/env';
+import { env, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { logger } from '@/infra/logging/logger';
 import type { AuthRateLimitDbPort } from '@/modules/auth/authRateLimitPort';
 
@@ -95,7 +95,7 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
   }
 
   return async function isRateLimited(key: string): Promise<boolean> {
-    if (!env.DATABASE_URL || dbUnavailable) {
+    if (!webappRuntimeDatabaseIsConfigured() || dbUnavailable) {
       return isLimitedInMemory(key);
     }
     return isLimitedDb(key);

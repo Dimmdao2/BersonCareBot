@@ -11,7 +11,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/config/env', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/config/env')>();
-  return { ...actual, env: { ...actual.env, DATABASE_URL: 'postgres://test/bersoncarebot_test' } };
+  return {
+    ...actual,
+    env: { ...actual.env, DATABASE_URL: 'postgres://test/bersoncarebot_test' },
+    webappRuntimeDatabaseIsConfigured: () => true,
+  };
 });
 
 import {

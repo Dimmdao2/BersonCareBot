@@ -366,6 +366,7 @@ export type WebappEventsPort = {
     challengeId?: string;
     status?: string;
     replay?: boolean;
+    syncTargetUserId?: string | null;
   }>;
   /** Web Push для записи на приём / рассылок (POST /api/integrator/patient-notifications/web-push). */
   notifyPatientWebPush?(input: { body: string; idempotencyKey: string }): Promise<{

@@ -108,7 +108,18 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
           },
         ],
       })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            contact_kind: 'phone',
+            value_normalized: '+79001234567',
+            is_primary: true,
+            confirmed_at: new Date(),
+            source_origin: 'platform_users',
+          },
+        ],
+      });
 
     await pgUserByPhonePort.createOrBind(
       '+79001234567',

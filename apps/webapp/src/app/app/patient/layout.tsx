@@ -8,7 +8,7 @@ import {
 } from '@/modules/platform-access';
 import { logger } from '@/infra/logging/logger';
 import { routePaths } from '@/app-layer/routes/paths';
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { getCurrentSession } from '@/modules/auth/service';
 import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
 import { canAccessPatient } from '@/modules/roles/service';
@@ -72,7 +72,8 @@ export default async function PatientLayout({ children }: { children: ReactNode 
 
   const gate = await patientClientBusinessGate(session);
 
-  if (env.DATABASE_URL?.trim()) {
+  const databaseConfigured = webappRuntimeDatabaseIsConfigured();
+  if (databaseConfigured) {
     if (gate === 'stale_session') {
       redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
     }
@@ -148,7 +149,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     const skipMaintenance = patientMaintenanceSkipsPath({
       pathname,
       gate,
-      legacyNoDatabase: !env.DATABASE_URL?.trim(),
+      legacyNoDatabase: !databaseConfigured,
       sessionPhoneTrimmed: session.user.phone?.trim(),
     });
 

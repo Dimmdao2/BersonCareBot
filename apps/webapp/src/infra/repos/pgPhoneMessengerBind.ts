@@ -107,6 +107,41 @@ async function runPhoneMessengerBindSecretRoot<T extends QueryResultRow = QueryR
   );
 }
 
+type PhoneMessengerBindCompletionStateRow = QueryResultRow & {
+  ready: boolean;
+  account_created: boolean;
+  sync_target_user_id: string | null;
+  canonical_user_id: string | null;
+};
+
+async function runPhoneMessengerBindCompletionStateRoot(params: {
+  tokenHash: string;
+  channelCode: PhoneMessengerBindChannel;
+  externalId: string;
+  contactPhoneNormalized: string;
+}) {
+  const args = [
+    params.tokenHash,
+    params.channelCode,
+    params.externalId,
+    params.contactPhoneNormalized,
+  ] as const;
+  return runWebappNamedRoot<PhoneMessengerBindCompletionStateRow>(
+    getWebappSqlDb(),
+    'app.phone_messenger_bind_completion_state(text,text,text,text)',
+    [
+      params.tokenHash,
+      params.channelCode,
+      params.externalId,
+      params.contactPhoneNormalized,
+    ],
+    webappSqlFromPgText(
+      `SELECT * FROM app.phone_messenger_bind_completion_state($1::text, $2::text, $3::text, $4::text)`,
+      args,
+    ),
+  );
+}
+
 async function mergeMessengerBindPair(
   client: PoolClient,
   params: {
@@ -544,6 +579,19 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
         null,
         null,
       );
+    },
+
+    async verifyCompletionState(params) {
+      const result = await runPhoneMessengerBindCompletionStateRoot(params);
+      const row = result.rows[0];
+      return {
+        ready: row?.ready === true,
+        accountCreated: row?.account_created === true,
+        syncTargetUserId:
+          typeof row?.sync_target_user_id === 'string' ? row.sync_target_user_id : null,
+        canonicalUserId:
+          typeof row?.canonical_user_id === 'string' ? row.canonical_user_id : null,
+      };
     },
 
     async withTransaction(fn) {

@@ -777,7 +777,7 @@ export function assignToPatient(params) {
 
 ### Жёсткое требование для агентов
 
-1. **Никогда** не выдавать пользователю «голый» `psql "$DATABASE_URL"` / `psql "$INTEGRATOR_DATABASE_URL"` без блока, который **сначала** подгружает нужный env-файл на хосте.
+1. **Никогда** не выдавать пользователю «голый» `psql "$DATABASE_URL"` / `psql "$INTEGRATOR_DATABASE_URL"` без блока, который **сначала** подгружает нужный env-файл на хосте. В `port-context` не подменять отсутствующий агрегатный `DATABASE_URL`: runtime использует ровно URL своего login/порта (`INTEGRATOR_DB_URL`, `DATABASE_URL_STAFF`, `DATABASE_URL_PATIENT`, `DATABASE_URL_GLOBAL_ADMIN`).
 2. Любая инструкция с SQL должна быть **цельной для copy-paste** и называть среду: `set -a` →
    `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`. Текущий `151.241.228.122`
    допускает только DEV/TEST env. PROD env используется только в отдельно разрешённой PROD-сессии на
@@ -819,7 +819,29 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 ### Dev
 
-Пути к локальным `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (например webapp dev: `apps/webapp/.env.dev`). Тот же принцип: **сначала** загрузить файл, в котором задан `DATABASE_URL`, **потом** `psql`.
+Пути и точные ключи локальных `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. На текущем DEV в
+`port-context` четыре runtime-login: integrator берёт `INTEGRATOR_DB_URL` из корневого `.env`, webapp —
+`DATABASE_URL_STAFF`, `DATABASE_URL_PATIENT`, `DATABASE_URL_GLOBAL_ADMIN` из `apps/webapp/.env.dev`.
+Агрегатного runtime `DATABASE_URL` в этих файлах намеренно нет.
+
+Runtime-пробу выполнять только через URL нужного порта после загрузки его env, передавая строку через libpq env,
+а не argv. Например, для staff-порта DEV:
+
+```bash
+set -a && source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev && set +a
+PGDATABASE="$DATABASE_URL_STAFF" psql -X -v ON_ERROR_STOP=1 -c "SELECT current_database(), current_user;"
+```
+
+Read-only catalog/операционная проверка локальной DEV-БД, которой не соответствует runtime-порт, использует
+явно названную БД и локальный административный socket; она не пытается извлечь выдуманный общий URL из runtime env:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT current_database(), current_user; ROLLBACK;"
+```
+
+`.env.cutover.dev` с `DATABASE_URL` / `INTEGRATOR_DATABASE_URL` — отдельный migration/cutover-контур, не источник
+runtime-подключения приложения и не повод возвращать общий URL в `.env` или `apps/webapp/.env.dev`.
 
 На `151.x` в локальном PostgreSQL живут DEV (`bcb_webapp_dev`) и TEST (`bersoncarebot_test`).
 Настоящая PROD-БД находится на `135.x`, не является локальной базой этого хоста и из DEV не открывается.

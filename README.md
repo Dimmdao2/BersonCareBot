@@ -25,12 +25,18 @@
 pnpm install
 cp .env.example .env
 cp apps/webapp/.env.example apps/webapp/.env.dev
-# заполните DATABASE_URL, SESSION_COOKIE_SECRET, секреты integrator — см. комментарии в файлах
+# заполните DB URL нужного режима, SESSION_COOKIE_SECRET, секреты integrator — см. комментарии в файлах
 pnpm run migrate          # integrator SQL + webapp Drizzle (нужна поднятая БД)
 pnpm run dev              # integrator + webapp параллельно
 ```
 
-**База локально:** целевая модель — **одна** PostgreSQL с схемами **`public`** + **`integrator`** (тот же `DATABASE_URL` в корневом `.env` и в `apps/webapp/.env.dev`). См. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md). Шаблоны env: [`deploy/env/README.md`](deploy/env/README.md).
+**База локально:** одна PostgreSQL со схемами **`public`** + **`integrator`**. В простом локальном
+`legacy-guc` режиме приложения могут использовать общий `DATABASE_URL`; на каноническом DEV в `port-context`
+физическая БД та же, но runtime разделён на четыре URL: `INTEGRATOR_DB_URL` и webapp
+`DATABASE_URL_STAFF` / `DATABASE_URL_PATIENT` / `DATABASE_URL_GLOBAL_ADMIN`. См.
+[`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) и
+[`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md). Шаблоны env:
+[`deploy/env/README.md`](deploy/env/README.md).
 
 Dev-порты по умолчанию: **webapp** `http://127.0.0.1:5200`, **integrator API** `http://127.0.0.1:4200` (см. `.env` и `apps/webapp/.env.dev`).
 
@@ -59,13 +65,19 @@ pnpm run build && pnpm run build:webapp
 
 ## Конфигурация
 
-**Env** — bootstrap и инфраструктура процесса (`DATABASE_URL`, `HOST`, `PORT`, `NODE_ENV`, `LOG_LEVEL`, секреты сессии и обмена webapp↔integrator). Полный список имён: [`.env.example`](.env.example), [`apps/webapp/.env.example`](apps/webapp/.env.example). Integrator подхватывает цепочку файлов через [`apps/integrator/src/config/loadEnv.ts`](apps/integrator/src/config/loadEnv.ts): корневой `.env` → `apps/integrator/.env` → `apps/webapp/.env.dev` → `apps/webapp/.env`.
+**Env** — bootstrap и инфраструктура процесса (`DATABASE_URL` в legacy-режиме либо port-specific DB URL в
+`port-context`, `HOST`, `PORT`, `NODE_ENV`, `LOG_LEVEL`, секреты сессии и обмена webapp↔integrator). Полный список
+имён: [`.env.example`](.env.example), [`apps/webapp/.env.example`](apps/webapp/.env.example). Integrator
+подхватывает цепочку файлов через [`apps/integrator/src/config/loadEnv.ts`](apps/integrator/src/config/loadEnv.ts):
+корневой `.env` → `apps/integrator/.env` → `apps/webapp/.env.dev` → `apps/webapp/.env`.
 
 **`system_settings`** (webapp, scope `admin`) — источник истины для ключей интеграций, OAuth, VAPID, флагов и прочей операционной конфигурации, редактируемой без redeploy. Deployment origin `APP_BASE_URL` живёт только в env обоих сервисов. Канон: [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md). Запись настроек — через admin Settings (`/app/settings`) и `updateSetting`; integrator читает одну каноническую таблицу `public.system_settings` по требованию.
 
 Обязательный минимум для старта:
 
-- `DATABASE_URL` — в production **один** URL у webapp и integrator (схемы `public` + `integrator`; см. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md))
+- DB URL выбранного режима: общий `DATABASE_URL` только для legacy runtime; в `port-context` — один
+  `INTEGRATOR_DB_URL` и три webapp URL (`DATABASE_URL_STAFF`, `DATABASE_URL_PATIENT`,
+  `DATABASE_URL_GLOBAL_ADMIN`) к одной физической БД.
 - webapp: `SESSION_COOKIE_SECRET`, `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `INTEGRATOR_WEBHOOK_SECRET` (или `INTEGRATOR_SHARED_SECRET`)
 
 Ручные ops webapp, затрагивающие телефон и tier patient: [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md) · [`apps/webapp/scripts/README.md`](apps/webapp/scripts/README.md).

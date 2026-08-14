@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import { sql } from 'drizzle-orm';
 /**
  * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")`.
- * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
+ * Domain SQL — `runIdentityClientPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
  */
 import { getPool } from '@/infra/db/client';
 import type { SessionUser } from '@/shared/types/session';
@@ -25,11 +25,10 @@ import {
   parseMessengerIdentityResolutionHints,
   parseUserRole,
   preSessionChannelBindingSessionRowSchema,
-  platformUserProfileRowSchema,
   userIdRowSchema,
   platformUserIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
-import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
+import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import {
@@ -37,16 +36,9 @@ import {
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
 } from '@/infra/db/runWebappSql';
-import {
-  FIO,
-  syncUserIdentityFioMirrorWebapp,
-  USER_IDENTITY_FIO_JOIN,
-} from '@/infra/repos/userIdentityFioSql';
-import {
-  CONTACTS,
-  syncUserContactsMirrorWebapp,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
-} from '@/infra/repos/userContactsSql';
+import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
+import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
+import { loadSessionIdentityUser } from '@/infra/repos/pgUserByPhone';
 
 async function collectMessengerResolutionCandidates(
   client: PoolClient,
@@ -75,32 +67,12 @@ async function collectMessengerResolutionCandidates(
 
 async function loadSessionUserForId(
   userId: string,
-  externalIdForDisplay: string,
+  _externalIdForDisplay: string,
 ): Promise<SessionUser> {
   const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-  const userRow = await runIdentityPoolPgText(
-    `SELECT ${FIO.displayName} AS display_name, pu.role, ${CONTACTS.phoneNormalized} AS phone_normalized
-     FROM platform_users pu
-     ${USER_IDENTITY_FIO_JOIN}
-     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-     WHERE pu.id = $1`,
-    [canonicalId],
-  );
-  const u = userRow.rows[0]
-    ? parseIdentityRow(platformUserProfileRowSchema, userRow.rows[0], 'platform_user_profile')
-    : null;
-  const bindingsRows = await runIdentityPoolPgText(
-    'SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1',
-    [canonicalId],
-  );
-  const bindings = bindingsFromRows(bindingsRows.rows);
-  return {
-    userId: canonicalId,
-    role: u ? parseUserRole(u.role, 'platform_user_profile.role') : 'client',
-    displayName: u?.display_name ?? externalIdForDisplay,
-    phone: u?.phone_normalized ?? undefined,
-    bindings,
-  };
+  const user = await loadSessionIdentityUser(canonicalId);
+  if (!user) throw new Error(`identity_resolution: user ${canonicalId} is archived`);
+  return user;
 }
 
 export const pgIdentityResolutionPort: IdentityResolutionPort = {
@@ -239,6 +211,16 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
       userId: first.user_id,
       role: parseUserRole(first.role, 'find_by_channel_binding.role'),
       displayName: first.display_name ?? parsed.externalId,
+      contacts: first.phone_normalized
+        ? [
+            {
+              kind: 'phone',
+              value: first.phone_normalized,
+              isPrimary: true,
+              sourceOrigin: 'platform_users',
+            },
+          ]
+        : [],
       phone: first.phone_normalized ?? undefined,
       bindings: bindingsFromRows(rows),
     };

@@ -3,7 +3,7 @@ import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { PhoneMessengerBindSecretRow } from '@/modules/auth/phoneMessengerBind.ports';
 import type { MessengerIdentityResolutionHints } from '@/modules/auth/identityResolutionPort';
 import type { ChannelContext } from '@/modules/auth/channelContext';
-import type { ChannelBindings } from '@/shared/types/session';
+import type { ChannelBindings, SessionIdentityContact } from '@/shared/types/session';
 import type { UserRole } from '@/shared/types/session';
 
 const userRoleSchema = z.enum(['client', 'doctor', 'admin']);
@@ -52,6 +52,14 @@ export const channelBindingRowSchema = z.object({
   external_id: z.string(),
 });
 
+const sessionIdentityContactRowSchema = z.object({
+  contact_kind: z.enum(['phone', 'email']),
+  value_normalized: z.string().trim().min(1),
+  is_primary: z.coerce.boolean(),
+  confirmed_at: z.union([z.date(), z.string()]).nullable(),
+  source_origin: z.enum(['platform_users', 'oauth_binding', 'phone_history']),
+});
+
 export const platformUserSessionRowSchema = z.object({
   id: z.string(),
   display_name: z.string().nullable(),
@@ -59,7 +67,6 @@ export const platformUserSessionRowSchema = z.object({
   last_name: z.string().nullable().optional(),
   patronymic: z.string().nullable().optional(),
   role: z.string(),
-  phone_normalized: z.string().nullable(),
   /**
    * `platform_users.session_epoch` — the revocation counter (C-1, 2026-07-26, migration 0243).
    * REQUIRED and `>= 1`, with no `.optional()` and no `.default()`, on purpose: the column is
@@ -228,6 +235,18 @@ export function bindingsFromRows(rows: unknown[]): ChannelBindings {
     bindings[key] = row.external_id;
   }
   return bindings;
+}
+
+export function sessionIdentityContactsFromRows(rows: unknown[]): SessionIdentityContact[] {
+  return parseIdentityRows(sessionIdentityContactRowSchema, rows, 'session_identity_contact').map(
+    (row) => ({
+      kind: row.contact_kind,
+      value: row.value_normalized,
+      isPrimary: row.is_primary,
+      ...(row.confirmed_at === null ? {} : { confirmedAt: isoOrString(row.confirmed_at) }),
+      sourceOrigin: row.source_origin,
+    }),
+  );
 }
 
 function isoOrString(value: Date | string): string {

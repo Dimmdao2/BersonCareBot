@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/config/env', () => ({
   env: { DATABASE_URL: 'postgres://test/bersoncarebot_test' },
   isS3MediaEnabled: () => true,
+  webappRuntimeDatabaseIsConfigured: () => true,
 }));
 vi.mock('@/app-layer/logging/logger', () => ({
   logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() },

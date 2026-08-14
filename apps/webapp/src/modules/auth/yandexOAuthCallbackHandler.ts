@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { env } from '@/config/env';
+import { env, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import {
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
@@ -153,7 +153,7 @@ export async function handleYandexOAuthCallbackGet(
     return NextResponse.redirect(redirectToAppQuery('db_error'));
   }
 
-  if (env.DATABASE_URL?.trim()) {
+  if (webappRuntimeDatabaseIsConfigured()) {
     await deps.patientCalendarTimezone.trySetInitialIfEmpty(
       resolved.userId,
       verifiedState.browserCalendarIana ?? null,

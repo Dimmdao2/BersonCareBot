@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/config/env', () => ({ env: { DATABASE_URL: 'postgres://test/bersoncarebot_test' } }));
+vi.mock('@/config/env', () => ({
+  env: { DATABASE_URL: 'postgres://test/bersoncarebot_test' },
+  webappRuntimeDatabaseIsConfigured: () => true,
+}));
 
 import { bindOAuthUserResolvePort, type OAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';

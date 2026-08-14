@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { decodeBase64Url } from '@/shared/utils/base64url';
-import { env, isProduction } from '@/config/env';
+import { env, isProduction, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import type { AppSession, SessionUser, UserRole } from '@/shared/types/session';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import {
@@ -134,11 +134,11 @@ async function finalizeCurrentSession(
 /**
  * True when this identity has a `platform_users` row behind it, i.e. exactly the condition under
  * which {@link resolveSessionIdentityAgainstDb} performs its DB read and under which a session is
- * required to carry a `sessionEpoch`. Anything else (no DATABASE_URL at all, legacy non-UUID
+ * required to carry a `sessionEpoch`. Anything else (no configured runtime DB pools, legacy non-UUID
  * onboarding transports) has no row that could ever hold an epoch.
  */
 function sessionIdentityIsDbBacked(user: SessionUser): boolean {
-  return Boolean(env.DATABASE_URL?.trim()) && isPlatformUserUuid(user.userId);
+  return webappRuntimeDatabaseIsConfigured() && isPlatformUserUuid(user.userId);
 }
 
 /**
@@ -487,6 +487,16 @@ function tokenToUser(token: IntegratorTokenPayload): SessionUser {
     userId: token.sub,
     role: token.role,
     displayName: token.displayName ?? token.sub,
+    contacts: token.phone
+      ? [
+          {
+            kind: 'phone',
+            value: token.phone,
+            isPrimary: true,
+            sourceOrigin: 'platform_users',
+          },
+        ]
+      : [],
     phone: token.phone,
     bindings: {
       telegramId: token.bindings?.telegramId,
@@ -640,7 +650,7 @@ export async function exchangeIntegratorToken(
     } else if (!devParsed) {
       const subTrim = parsed.sub.trim();
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
-      if (env.DATABASE_URL?.trim() && isPlatformUserUuid(subTrim)) {
+      if (webappRuntimeDatabaseIsConfigured() && isPlatformUserUuid(subTrim)) {
         enterStaffSecuritySelfPrincipal(subTrim, 'auth/exchange:signed-platform-self');
         const fromDb = await requireSessionUserPort().findByUserId(subTrim);
         if (!fromDb) {
@@ -669,7 +679,7 @@ export async function exchangeIntegratorToken(
     user = { ...user, role: parsed.role };
   }
 
-  if (devParsed && env.DATABASE_URL?.trim()) {
+  if (devParsed && webappRuntimeDatabaseIsConfigured()) {
     if (lockedDevBypass) {
       if (!devBypassPresetPhoneMatches(user, parsed)) return null;
     } else {
@@ -696,7 +706,7 @@ export async function exchangeIntegratorToken(
 
   if (
     !devParsed &&
-    Boolean(env.DATABASE_URL?.trim()) &&
+    webappRuntimeDatabaseIsConfigured() &&
     identityResolutionPort &&
     user.role === 'client' &&
     !isPlatformUserUuid(user.userId) &&
@@ -797,6 +807,7 @@ export async function exchangeTelegramInitData(
       userId: `tg:${parsed.telegramId}`,
       role: parsed.role,
       displayName: parsed.displayName ?? parsed.telegramId,
+      contacts: [],
       bindings: { telegramId: parsed.telegramId },
     };
   }
@@ -903,6 +914,7 @@ export async function exchangeMaxInitData(
       userId: `max:${parsed.maxUserId}`,
       role: parsed.role,
       displayName: parsed.displayName ?? parsed.maxUserId,
+      contacts: [],
       bindings: { maxId: parsed.maxUserId },
     };
   }
@@ -995,6 +1007,7 @@ export async function exchangeTelegramLoginWidget(
       userId: `tg:${telegramId}`,
       role,
       displayName: displayName || telegramId,
+      contacts: [],
       bindings: { telegramId },
     };
   }
@@ -1026,7 +1039,7 @@ export async function exchangeTelegramLoginWidget(
  * (ADMIN_TELEGRAM_ID, DOCTOR_TELEGRAM_IDS, ADMIN_MAX_IDS, DOCTOR_MAX_IDS).
  * Cookie и при наличии БД строка role в platform_users обновляются при расхождении.
  *
- * При наличии `DATABASE_URL` и UUID `userId` сессия сверяется с `platform_users`: удалённый пользователь
+ * При настроенных runtime DB pools и UUID `userId` сессия сверяется с `platform_users`: удалённый пользователь
  * даёт `null` (клиент увидит «не авторизован»), даже если cookie ещё не истёк.
  */
 async function getCurrentSessionWithPrincipalMode(
@@ -1195,7 +1208,11 @@ export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const decoded = raw ? decodeSessionCookie(raw) : null;
-  if (decoded?.user && isPlatformUserUuid(decoded.user.userId) && env.DATABASE_URL?.trim()) {
+  if (
+    decoded?.user &&
+    isPlatformUserUuid(decoded.user.userId) &&
+    webappRuntimeDatabaseIsConfigured()
+  ) {
     try {
       await runWithStaffSecuritySelfPrincipal(
         decoded.user.userId,

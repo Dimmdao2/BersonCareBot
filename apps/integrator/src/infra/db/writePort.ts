@@ -5,12 +5,16 @@ import type {
   DbWriteMutation,
   DbWriteMutationType,
   DbWritePort,
+  PhoneLinkFailureReason,
   QueuePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
 import { appSettings } from '../../config/appSettings.js';
 import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
@@ -44,6 +48,7 @@ import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   writeIdentityAndPreferencesDirect,
+  upsertBootstrapChannelIdentity,
   normalizeChannelDisplayHandle,
   type DirectPublicChannelCode,
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
@@ -61,6 +66,7 @@ import {
 } from '../principal/organizationPrincipal.js';
 import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
+import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPhoneBind.js';
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
@@ -244,22 +250,23 @@ export function createDbWritePort(
             // (`app_patient`, org set, `patient_user_id` NULL) every `platform_users` FORCE-RLS policy
             // denies it — reads come back silently empty, writes get permission-denied. Same
             // `runDirectPublicWriteWithOrgPrincipal` idiom as the D3-D5 direct writes below.
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              writeIdentityAndPreferencesDirect(
-                db,
-                {
-                  channelCode,
-                  externalId,
-                  displayHandle: normalizeChannelDisplayHandle(username),
-                  firstName: null,
-                  lastName: null,
-                  displayName: null,
-                },
-                {
+            const input = {
+              channelCode,
+              externalId,
+              displayHandle: normalizeChannelDisplayHandle(username),
+              firstName: null,
+              lastName: null,
+              displayName: null,
+            };
+            if (getCurrentDbPrincipal()?.kind === 'bootstrap') {
+              await upsertBootstrapChannelIdentity(db, input);
+            } else {
+              await runDirectPublicWriteWithOrgPrincipal(() =>
+                writeIdentityAndPreferencesDirect(db, input, {
                   mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
-                },
-              ),
-            );
+                }),
+              );
+            }
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err)) {
               logger.warn(
@@ -276,6 +283,9 @@ export function createDbWritePort(
           const resource = readResource(mutation.params);
           const channelUserId = readChannelUserId(mutation.params);
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
+          const preferredPlatformUserId = asNonEmptyString(
+            mutation.params.preferredPlatformUserId,
+          );
           const bindLogBase = {
             event: 'messenger_phone_bind_tx' as const,
             bindOutcome: 'bind_tx_fail' as const,
@@ -303,6 +313,38 @@ export function createDbWritePort(
           try {
             let applied = false;
             let platformUserIdForLog: string | undefined;
+            if (getCurrentDbPrincipal()?.kind === 'bootstrap') {
+              const bootstrapResult = await bindBootstrapMessengerPhone(db, {
+                channelCode: resource,
+                externalId: channelUserId,
+                phoneNormalized,
+                preferredPlatformUserId,
+              });
+              if (!bootstrapResult.applied) {
+                const reason = bootstrapResult.failureCode as PhoneLinkFailureReason | null;
+                return {
+                  userPhoneLinkApplied: false,
+                  ...(reason ? { phoneLinkReason: reason } : { phoneLinkIndeterminate: true }),
+                };
+              }
+              logger.info(
+                {
+                  event: 'messenger_phone_bind_tx',
+                  bindOutcome: 'bind_tx_ok',
+                  metric: 'messenger_bind_ok',
+                  resource,
+                  channelCode: resource,
+                  externalId: channelUserId,
+                  platformUserId: bootstrapResult.platformUserId ?? undefined,
+                  phoneSuffix,
+                  ...(asNonEmptyString(mutation.params.correlationId)
+                    ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
+                    : {}),
+                },
+                'bind_tx_ok',
+              );
+              return { userPhoneLinkApplied: true };
+            }
             // Same D15b/4 fix as `user.upsert` above: this binding-first canonical write is RLS-denied
             // under the bare integrator principal, so it runs with the already-resolved organization
             // principal. It does not create or update integrator-local identity/user rows.
@@ -313,6 +355,7 @@ export function createDbWritePort(
                   externalId: channelUserId,
                   phoneNormalized,
                   canonicalIntegratorUserId: null,
+                  preferredPlatformUserId,
                 });
                 platformUserIdForLog = platformUserId;
                 applied = true;

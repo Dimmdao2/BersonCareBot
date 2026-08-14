@@ -7,7 +7,7 @@
 import { redirect } from 'next/navigation';
 import { requirePatientAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { patientSessionSnapshotHasPhone } from '@/modules/platform-access';
 import { resolvePlatformAccessContext } from '@/app-layer/platform-access';
 import { resolveSkipBindPhoneSurface } from './resolveSkipBindPhoneSurface';
@@ -30,7 +30,8 @@ export default async function BindPhonePage({ searchParams }: Props) {
   const snapshotHasPhone = patientSessionSnapshotHasPhone(session);
   let phoneTrustedForPatient: boolean | undefined;
   let platformContextFailed = false;
-  if (env.DATABASE_URL?.trim()) {
+  const databaseConfigured = webappRuntimeDatabaseIsConfigured();
+  if (databaseConfigured) {
     try {
       const ctx = await resolvePlatformAccessContext({
         sessionUserId: session.user.userId,
@@ -42,7 +43,7 @@ export default async function BindPhonePage({ searchParams }: Props) {
     }
   }
   const skipBindSurface = resolveSkipBindPhoneSurface({
-    databaseUrlSet: Boolean(env.DATABASE_URL?.trim()),
+    databaseUrlSet: databaseConfigured,
     phoneTrustedForPatient,
     platformContextFailed,
     sessionSnapshotHasPhone: snapshotHasPhone,

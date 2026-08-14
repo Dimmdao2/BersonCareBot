@@ -576,7 +576,7 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             `.returning()` — echo только что записали. Доказательство: `rg platformUsers\.(displayName|…)`
             по `apps/webapp/src/infra` → один файл с `.returning()`; `fio.route.test.ts` 4/4;
             journal-sync + migrator self-test зелёные; typecheck без ошибок в затронутых файлах.
-      - [x] **D15b/6 — контакты в `user_contacts`** (36 читателей в `infra`). Не перенос, а сборка из ЧЕТЫРЁХ
+      - [ ] **D15b/6 — контакты в `user_contacts`** (36 читателей в исходной переписи `infra`). Не перенос, а сборка из ЧЕТЫРЁХ
             мест: колонки `platform_users`, `user_oauth_bindings.email`, `user_phone_history`,
             `user_channel_bindings`. Уникальные индексы переезжают вместе — они держат «один контакт = один
             аккаунт». Равноправный вход переводится на эту таблицу.
@@ -603,6 +603,26 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`;
             `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test`;
             `pnpm --dir apps/webapp test -- userContactsSql.unit.test.ts d15b5FioDualWriteGaps.unit.test.ts pgCanonicalPlatformUser.unit.test.ts pgPublicBookingUserResolve.unit.test.ts`.
+            ⛔ **OWNER-REOPENED 14.08.2026 — прежнее `[x]` было ложным.** Слайсы 1–4 перенесли уникальность и
+            часть чтений, но не источник истины: production writer `syncUserContactsMirror` всё ещё удаляет
+            строки пользователя и пересобирает их из `platform_users`, `user_oauth_bindings` и
+            `user_phone_history`. Живой DEV замер дал полное совпадение всех `200` основных телефонов и `126`
+            основных email со старыми колонками, то есть `user_contacts` пока зеркало. Целевая схема подтверждена:
+            таблица привязок контактов остаётся и становится единственным источником phone/email; зеркальный
+            rebuild и дублирующие contact-колонки снимаются после перевода auth/session/delivery/merge путей.
+            Точный замер `200|126`:
+            `sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FILTER (WHERE contact_kind='phone' AND is_primary), count(*) FILTER (WHERE contact_kind='email' AND is_primary) FROM public.user_contacts;"`.
+            Старые `integrator.contacts`, `integrator.identities`, `integrator.users`,
+            `integrator.telegram_users` в каталоге DEV отсутствуют. D15b/6 закрывается только direct canonical
+            writes + отсутствие runtime-читателей старых колонок + fail-closed migration parity/drop + live
+            login/bind/delivery proof; исторические `user_phone_history` и provider binding не считаются
+            каноническим контактом и не должны обратно собирать его.
+            ⏸ **OWNER-DEFER 14.08.2026, более позднее указание:** полный physical cutover, единый rich user
+            facade и перевод всех infra-читателей выполняются после восстановления рабочего DEV, TEST и отдельно
+            разрешённого PROD; текущий security/deploy этап не растягивается на эту переделку. Сейчас разрешён
+            ограниченный compatibility-срез: `SessionUser` получает симметричный phone/email contact snapshot,
+            общий `DATABASE_URL` удаляется из port-context runtime checks, phone-bind доводится без нового широкого
+            grant. Временный mirror-writer остаётся зафиксированным долгом и не считается закрытием D15b/6.
       - [ ] **D15b/7 — псевдоним — OWNER-DEFER (владелец 03.08).** Не в объёме Track D pre-TEST; решение
             принимается после D15b/6. Pre-TEST census 05.08: `[ ]` честно — не закрывать до owner-решения.
             Замер на будущее ⚠️ ИСПРАВЛЕН ПЕРЕПИСЬЮ: не «46 ключей», а **130 FK-constraint'ов от 104 таблиц**;

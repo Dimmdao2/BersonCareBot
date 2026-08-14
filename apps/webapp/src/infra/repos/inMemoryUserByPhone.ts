@@ -71,6 +71,14 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
       userId: `phone:${nextId++}`,
       role: 'client',
       displayName: context.displayName ?? normalized,
+      contacts: [
+        {
+          kind: 'phone',
+          value: normalized,
+          isPrimary: true,
+          sourceOrigin: 'platform_users',
+        },
+      ],
       phone: normalized,
       bindings,
     };

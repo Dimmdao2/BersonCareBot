@@ -123,6 +123,41 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
     expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
 
+  it('verifies completion through the exact read-only root without opening a relation transaction', async () => {
+    runWebappNamedRootMock.mockResolvedValueOnce({
+      rows: [
+        {
+          ready: false,
+          account_created: false,
+          sync_target_user_id: SESSION_USER_ID,
+          canonical_user_id: null,
+        },
+      ],
+    });
+    const port = createPgPhoneMessengerBindPort(fakePool);
+
+    const result = await port.verifyCompletionState({
+      tokenHash: 'completion-token-hash',
+      channelCode: 'telegram',
+      externalId: 'tg-completion',
+      contactPhoneNormalized: '+79001234567',
+    });
+
+    expect(result).toEqual({
+      ready: false,
+      accountCreated: false,
+      syncTargetUserId: SESSION_USER_ID,
+      canonicalUserId: null,
+    });
+    expect(runWebappNamedRootMock).toHaveBeenCalledWith(
+      { tag: 'root-db' },
+      'app.phone_messenger_bind_completion_state(text,text,text,text)',
+      ['completion-token-hash', 'telegram', 'tg-completion', '+79001234567'],
+      { tag: 'root-sql' },
+    );
+    expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
+  });
+
   it('profile_bind: mirrors user_contacts after channel INSERT (not only via phone-history)', async () => {
     resolveCanonicalUserIdMock.mockResolvedValue(SESSION_USER_ID);
     findCanonicalUserIdByPhoneMock.mockResolvedValue(null);

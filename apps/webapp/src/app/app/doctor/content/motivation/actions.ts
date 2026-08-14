@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 
 export type MotivationActionState = { ok: boolean; error?: string };
 
@@ -18,7 +18,9 @@ export async function upsertMotivationQuote(
   formData: FormData,
 ): Promise<MotivationActionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
+  if (!webappRuntimeDatabaseIsConfigured()) {
+    return { ok: false, error: 'База данных недоступна' };
+  }
 
   const id = (formData.get('id') as string)?.trim();
   const bodyText = (formData.get('body_text') as string)?.trim() ?? '';
@@ -60,7 +62,9 @@ export async function setQuoteArchived(
   archived: boolean,
 ): Promise<MotivationActionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
+  if (!webappRuntimeDatabaseIsConfigured()) {
+    return { ok: false, error: 'База данных недоступна' };
+  }
   const deps = buildAppDeps();
   await withDoctorWorkspacePrincipal(workspace, 'doctor.content.motivation.archive', () =>
     deps.doctorMotivationQuotesEditor.setQuoteArchived(id, archived),
@@ -74,7 +78,9 @@ export async function setQuoteActive(
   nextActive: boolean,
 ): Promise<MotivationActionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
+  if (!webappRuntimeDatabaseIsConfigured()) {
+    return { ok: false, error: 'База данных недоступна' };
+  }
   try {
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.motivation.active', () =>
@@ -92,7 +98,9 @@ export type ReorderState = { ok: boolean; error?: string };
 
 export async function reorderMotivationQuotes(orderedIds: string[]): Promise<ReorderState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
+  if (!webappRuntimeDatabaseIsConfigured()) {
+    return { ok: false, error: 'База данных недоступна' };
+  }
   if (!orderedIds.length) return { ok: false, error: 'Пустой порядок' };
   const ids = orderedIds.map((x) => String(x).trim()).filter(Boolean);
   if (ids.length !== orderedIds.length) return { ok: false, error: 'Некорректные id' };

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { renewSessionCookieFromRequest } from '@/modules/auth/service';
 import type { PlatformAccessContext } from '@/modules/platform-access';
 import { resolvePlatformAccessContext } from '@/app-layer/platform-access';
@@ -21,7 +21,7 @@ export async function GET() {
 
   let platformAccess: MePlatformAccessPayload | null = null;
   let platformAccessUnresolved = false;
-  if (env.DATABASE_URL?.trim()) {
+  if (webappRuntimeDatabaseIsConfigured()) {
     try {
       const ctx = await resolvePlatformAccessContext({
         sessionUserId: session.user.userId,

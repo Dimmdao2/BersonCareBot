@@ -14,7 +14,7 @@ import {
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
 import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
-import { syncUserContactsMirror } from './userContactsMirrorWrite.js';
+import { syncUserContactsPhoneMirror } from './userContactsMirrorWrite.js';
 
 /** Any client with `.query` compatible with `pg` / integrator `DbPort` inside a transaction. */
 export type MessengerPhoneBindDb = PlatformMergeDbClient;
@@ -134,7 +134,7 @@ async function writeConfirmedPhoneAndMirror(
   if ((upd.rowCount ?? 0) < 1) {
     throw new MessengerPhoneLinkError('db_transient_failure');
   }
-  await syncUserContactsMirror(db as PlatformMergeDbClient, platformUserId);
+  await syncUserContactsPhoneMirror(db as PlatformMergeDbClient, platformUserId);
 }
 
 async function findOtherPlatformUserWithSameIntegrator(
@@ -166,6 +166,29 @@ async function resolveBoundPlatformUserId(
      LIMIT 1`,
   );
   return r.rows[0]?.platform_user_id ?? null;
+}
+
+async function resolveCanonicalPlatformUserId(
+  db: MessengerPhoneBindDb,
+  platformUserId: string,
+): Promise<string | null> {
+  const r = await runMergeSql<{ id: string }>(
+    db,
+    sql`WITH RECURSIVE person_chain AS (
+          SELECT id, merged_into_id
+          FROM public.platform_users
+          WHERE id = ${platformUserId}::uuid
+          UNION
+          SELECT next_person.id, next_person.merged_into_id
+          FROM public.platform_users next_person
+          INNER JOIN person_chain previous ON next_person.id = previous.merged_into_id
+        )
+        SELECT id::text
+        FROM person_chain
+        WHERE merged_into_id IS NULL
+        LIMIT 1`,
+  );
+  return r.rows[0]?.id ?? null;
 }
 
 function mapMergeFailure(err: unknown, fallbackIds: string[]): MessengerPhoneLinkError {
@@ -209,10 +232,12 @@ export async function applyMessengerPhonePublicBind(
     externalId: string;
     phoneNormalized: string;
     canonicalIntegratorUserId?: string | null;
+    preferredPlatformUserId?: string | null;
   },
 ): Promise<{ platformUserId: string }> {
   const { channelCode, externalId, phoneNormalized } = input;
   const canonicalIntegratorUserId = input.canonicalIntegratorUserId?.trim() || null;
+  const preferredPlatformUserId = input.preferredPlatformUserId?.trim() || null;
 
   let platformUserId = await resolveBoundPlatformUserId(db, channelCode, externalId);
   if (!platformUserId) {
@@ -224,6 +249,25 @@ export async function applyMessengerPhonePublicBind(
     const next = await resolveBoundPlatformUserId(db, channelCode, externalId);
     if (next) platformUserId = next;
   };
+
+  if (preferredPlatformUserId) {
+    const preferredCanonicalId = await resolveCanonicalPlatformUserId(
+      db,
+      preferredPlatformUserId,
+    );
+    if (!preferredCanonicalId) {
+      throw new MessengerPhoneLinkError('merge_blocked_ambiguous_candidates', {
+        candidateIds: [platformUserId, preferredPlatformUserId],
+      });
+    }
+    try {
+      await mergePairIfDistinct(db, platformUserId, preferredCanonicalId);
+    } catch (err) {
+      if (err instanceof MessengerPhoneLinkError) throw err;
+      throw mapMergeFailure(err, [platformUserId, preferredCanonicalId]);
+    }
+    await reboundFromChannel();
+  }
 
   for (let round = 0; round < mergeRoundMax; round++) {
     const rowMeta: { rows: { existing_int_uid: string | null }[]; rowCount?: number } =

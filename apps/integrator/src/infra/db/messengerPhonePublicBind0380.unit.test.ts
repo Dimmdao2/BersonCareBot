@@ -212,5 +212,8 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind after 0380', () => {
         is_primary: true,
       },
     ]);
+    expect(db.statements.some((statement) => statement.includes('user_oauth_bindings'))).toBe(
+      false,
+    );
   });
 });

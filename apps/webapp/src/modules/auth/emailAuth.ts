@@ -1,5 +1,5 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto';
-import { env, integratorWebhookSecret } from '@/config/env';
+import { env, integratorWebhookSecret, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { normalizeEmail } from '@/modules/auth/emailNormalize';
 import {
   OTP_LOCKOUT_BASE_SEC,
@@ -82,7 +82,7 @@ async function checkEmailOtpLock(
   userId: string,
 ): Promise<{ locked: true; retryAfterSeconds: number } | { locked: false }> {
   const now = Math.floor(Date.now() / 1000);
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const lockedUntil = memEmailLocks.get(userId);
     if (lockedUntil != null && lockedUntil > now) {
       return { locked: true, retryAfterSeconds: Math.max(1, lockedUntil - now) };
@@ -103,7 +103,7 @@ async function checkEmailOtpLock(
  */
 async function registerEmailOtpLockoutForUser(userId: string): Promise<number> {
   const now = Math.floor(Date.now() / 1000);
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const previousCycles = memEmailLockCycles.get(userId) ?? 0;
     const duration = nextOtpLockoutDurationSeconds(previousCycles);
     const lockedUntil = now + duration;
@@ -117,7 +117,7 @@ async function registerEmailOtpLockoutForUser(userId: string): Promise<number> {
 
 /** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
 async function resetEmailOtpLockoutForUser(userId: string): Promise<void> {
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     memEmailLocks.delete(userId);
     memEmailLockCycles.delete(userId);
     return;
@@ -157,7 +157,7 @@ export type PendingEmailChallenge = { email: string; expiresAt: string } | null;
  * Returns null if none exists.
  */
 export async function getPendingEmailChallenge(userId: string): Promise<PendingEmailChallenge> {
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const now = Math.floor(Date.now() / 1000);
     let best: { email: string; expiresAt: number } | null = null;
     for (const row of memEmailChallenges.values()) {
@@ -295,7 +295,7 @@ export async function startEmailChallenge(
     return { ok: false, code: 'too_many_attempts', retryAfterSeconds: lockState.retryAfterSeconds };
   }
 
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const code = generateEmailCode();
     const challengeId = randomUUID();
     const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
@@ -381,7 +381,7 @@ export async function confirmEmailChallenge(
     return { ok: false, code: 'invalid_code' };
   }
 
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const row = memEmailChallenges.get(challengeId);
     if (!row || row.userId !== userId) {
       return { ok: false, code: 'expired_code' };
@@ -464,7 +464,7 @@ export async function consumeEmailChallengeCode(
     return { ok: false, code: 'invalid_code' };
   }
 
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const row = memEmailChallenges.get(challengeId);
     if (!row || row.userId !== userId) {
       return { ok: false, code: 'expired_code' };
@@ -526,7 +526,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
     return { ok: false, code: 'invalid_code' };
   }
 
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const now = Math.floor(Date.now() / 1000);
     let bestId: string | null = null;
     let best: {
@@ -625,7 +625,7 @@ export async function consumeLatestEmailChallengeCodeForUser(
     return { ok: false, code: 'invalid_code' };
   }
 
-  if (!env.DATABASE_URL) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     const now = Math.floor(Date.now() / 1000);
     let bestId: string | null = null;
     let best: {

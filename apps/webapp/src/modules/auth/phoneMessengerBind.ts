@@ -163,6 +163,13 @@ export type CompletePhoneMessengerBindResult =
       replay?: boolean;
     }
   | { ok: true; purpose: 'profile_bind'; replay?: boolean }
+  | {
+      ok: true;
+      purpose: PhoneMessengerBindPurpose;
+      status: 'phone_sync_required';
+      syncTargetUserId: string | null;
+      accountCreated: boolean;
+    }
   | { ok: false; code: string };
 
 export async function completePhoneMessengerBindFromIntegrator(
@@ -261,41 +268,21 @@ export async function completePhoneMessengerBindFromIntegrator(
   };
 
   try {
-    const pre = await port.withTransaction(async (client) => {
-      const applied = await port.applyMessengerContactPreOtp(client, {
-        phoneNormalized: contactPhone,
-        channelCode: params.channelCode,
-        externalId: params.externalId.trim(),
-        purpose: row.purpose as PhoneMessengerBindPurpose,
-        sessionUserId: row.user_id,
-      });
-      if (!applied.ok) {
-        if (applied.candidateIds?.length) {
-          await port.recordMessengerBindBlocked?.(client, {
-            reason: applied.code,
-            candidateIds: applied.candidateIds,
-            channelCode: params.channelCode,
-            externalId: params.externalId.trim(),
-            phoneNormalized: contactPhone,
-            source: 'webapp.phone_messenger_bind',
-          });
-        }
-        logger.warn({
-          event: 'phone_messenger_bind_complete_fail',
-          metric: 'phone_messenger_bind_complete_fail',
-          channelCode: params.channelCode,
-          purpose: bindPurpose,
-          failure_code: applied.code,
-          phoneSuffix: phoneSuffixForLog(contactPhone),
-        });
-        return applied;
-      }
-      return applied;
+    const completionState = await port.verifyCompletionState({
+      tokenHash: hashToken(trimmed),
+      channelCode: params.channelCode,
+      externalId: params.externalId.trim(),
+      contactPhoneNormalized: contactPhone,
     });
 
-    if (!pre.ok) {
-      await port.updateFailed(row.id, pre.code);
-      return { ok: false as const, code: pre.code };
+    if (!completionState.ready) {
+      return {
+        ok: true as const,
+        purpose: bindPurpose,
+        status: 'phone_sync_required' as const,
+        syncTargetUserId: completionState.syncTargetUserId,
+        accountCreated: completionState.accountCreated,
+      };
     }
 
     if (bindPurpose === 'profile_bind') {
@@ -314,7 +301,7 @@ export async function completePhoneMessengerBindFromIntegrator(
 
     const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
       registrationAttemptId: trimmed,
-      isRegistrationIntent: pre.accountCreated,
+      isRegistrationIntent: completionState.accountCreated,
     });
     if (!challenge.ok) {
       await port.updateFailed(row.id, challenge.code);
@@ -337,7 +324,7 @@ export async function completePhoneMessengerBindFromIntegrator(
       channelCode: params.channelCode,
       purpose: bindPurpose,
       replay: false,
-      accountCreated: pre.accountCreated,
+      accountCreated: completionState.accountCreated,
       phoneSuffix: phoneSuffixForLog(contactPhone),
     });
 
@@ -345,7 +332,7 @@ export async function completePhoneMessengerBindFromIntegrator(
       ok: true as const,
       purpose: 'login',
       otpCode: challenge.code,
-      accountCreated: pre.accountCreated,
+      accountCreated: completionState.accountCreated,
       challengeId: challenge.challengeId,
     };
   } catch {

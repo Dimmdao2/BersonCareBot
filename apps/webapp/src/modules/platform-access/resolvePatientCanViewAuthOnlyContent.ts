@@ -1,4 +1,4 @@
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import type { AppSession } from '@/shared/types/session';
 import { resolvePlatformAccessContext } from './resolvePlatformAccessContext';
 
@@ -12,7 +12,7 @@ export async function resolvePatientCanViewAuthOnlyContent(
   if (!session?.user || session.user.role !== 'client') {
     return false;
   }
-  if (!env.DATABASE_URL?.trim()) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     return Boolean(session.user.phone?.trim());
   }
   try {

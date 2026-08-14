@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { env, isS3MediaEnabled } from '@/config/env';
+import { env, isS3MediaEnabled, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { getStoredMediaBody } from '@/app-layer/media/mockMediaStorage';
 import { getMediaS3KeyForRedirect } from '@/app-layer/media/s3MediaStorage';
@@ -49,10 +49,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const serve = async (session: AppSession): Promise<Response> => {
     const isUuid = UUID_RE.test(id);
-    const dbUrl = (env.DATABASE_URL ?? '').trim();
+    const legacyDatabaseUrl = (env.DATABASE_URL ?? '').trim();
 
     /** UUID in DB → bytes live in MinIO/S3; presigned GET only (never in-process mock). */
-    if (dbUrl && isUuid) {
+    if (webappRuntimeDatabaseIsConfigured() && isUuid) {
       const access = await authorizeMediaDelivery(id, session);
       if (!access.ok && access.reason === 'not_found') {
         return NextResponse.json({ error: 'not found' }, { status: 404 });
@@ -65,7 +65,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       });
       if (s3Key) return redirectPresignedOr503(s3Key);
       const localBody = await readSaasTestLocalMedia({
-        databaseUrl: dbUrl,
+        databaseUrl: legacyDatabaseUrl,
         storedPath: access.row.stored_path,
         s3Key: access.row.s3_key,
         mimeType: access.row.mime_type,

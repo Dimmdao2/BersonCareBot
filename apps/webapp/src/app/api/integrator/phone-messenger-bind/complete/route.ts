@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
@@ -13,6 +14,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  ensureSystemSettingsConfigAdapterBound();
   const timestamp = request.headers.get('x-bersoncare-timestamp');
   const signature = request.headers.get('x-bersoncare-signature');
   const rawBody = await request.text();
@@ -67,6 +69,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, status: 'already_used' });
     }
     return NextResponse.json({ ok: false, error: result.code }, { status: 400 });
+  }
+
+  if ('status' in result) {
+    return NextResponse.json({
+      ok: true,
+      purpose: result.purpose,
+      status: result.status,
+      syncTargetUserId: result.syncTargetUserId,
+      accountCreated: result.accountCreated,
+    });
   }
 
   return NextResponse.json({

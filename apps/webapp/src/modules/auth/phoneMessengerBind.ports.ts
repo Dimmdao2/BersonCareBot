@@ -40,6 +40,17 @@ export interface PhoneMessengerBindPort {
   updateOtpReady(id: string, challengeId: string): Promise<void>;
   markConsumed(id: string): Promise<void>;
   markConsumedByChallenge(challengeId: string): Promise<void>;
+  verifyCompletionState(params: {
+    tokenHash: string;
+    channelCode: PhoneMessengerBindChannel;
+    externalId: string;
+    contactPhoneNormalized: string;
+  }): Promise<{
+    ready: boolean;
+    accountCreated: boolean;
+    syncTargetUserId: string | null;
+    canonicalUserId: string | null;
+  }>;
   withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T>;
   applyMessengerContactPreOtp(
     client: PoolClient,

@@ -574,6 +574,7 @@ export function createWebappEventsPort(deps: {
       challengeId?: string;
       status?: string;
       replay?: boolean;
+      syncTargetUserId?: string | null;
     }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
@@ -608,6 +609,7 @@ export function createWebappEventsPort(deps: {
           challengeId?: string;
           status?: string;
           replay?: boolean;
+          syncTargetUserId?: string | null;
         };
         if (!res.ok) {
           const err =
@@ -632,6 +634,9 @@ export function createWebappEventsPort(deps: {
           ...(typeof data.challengeId === 'string' ? { challengeId: data.challengeId } : {}),
           ...(typeof data.status === 'string' ? { status: data.status } : {}),
           ...(data.replay === true ? { replay: true } : {}),
+          ...(typeof data.syncTargetUserId === 'string'
+            ? { syncTargetUserId: data.syncTargetUserId }
+            : {}),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

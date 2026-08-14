@@ -22,6 +22,7 @@ export const inMemoryIdentityResolutionPort: IdentityResolutionPort = {
         userId: `${params.channelCode}:${params.externalId}`,
         role: params.role ?? 'client',
         displayName: params.displayName ?? params.externalId,
+        contacts: [],
         bindings,
       },
       accountOutcome: 'created',

@@ -129,6 +129,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.phone-messenger-bind.secret', argCount: 10,
     source: 'apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts',
   },
+  'app.phone_messenger_bind_completion_state(text,text,text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-messenger-bind.completion-state', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts',
+  },
   'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': {
     port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
     purpose: 'analytics.registration-events.read', argCount: 7,
@@ -378,6 +383,16 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'integrator', targetRole: 'app_integrator_resolver', contextClass: 'integrator',
     purpose: 'integrator.user-organization.resolve', argCount: 1,
     source: 'apps/integrator/src/infra/db/repos/channelUsers.ts',
+  },
+  'app.integrator_upsert_channel_identity(text,text,text)': {
+    port: 'integrator', targetRole: 'app_integrator_resolver', contextClass: 'integrator',
+    purpose: 'integrator.channel-identity.upsert', argCount: 3,
+    source: 'apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts',
+  },
+  'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)': {
+    port: 'integrator', targetRole: 'app_integrator_resolver', contextClass: 'integrator',
+    purpose: 'integrator.bootstrap-phone-bind', argCount: 4,
+    source: 'apps/integrator/src/infra/db/directPublic/bootstrapMessengerPhoneBind.ts',
   },
   'app.read_integrator_auth_channel_setting(text)': {
     port: 'integrator', targetRole: 'app_service', contextClass: 'service',

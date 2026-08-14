@@ -376,7 +376,7 @@ export async function executeAction(
         };
       }
       const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
-      const result = await port.completePhoneMessengerBind({
+      let result = await port.completePhoneMessengerBind({
         setupToken,
         channelCode: messengerChannel,
         externalId,
@@ -447,6 +447,9 @@ export async function executeAction(
           resource: messengerChannel,
           channelUserId: externalId,
           phoneNormalized,
+          ...(result.syncTargetUserId
+            ? { preferredPlatformUserId: result.syncTargetUserId }
+            : {}),
           ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
         },
       });
@@ -528,6 +531,59 @@ export async function executeAction(
           ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
           ...(appliedWrites.length > 0 ? { writes: appliedWrites } : {}),
         };
+      }
+
+      if (result.status === 'phone_sync_required') {
+        result = await port.completePhoneMessengerBind({
+          setupToken,
+          channelCode: messengerChannel,
+          externalId,
+          phoneNormalized,
+        });
+        if (!result.ok || result.status === 'phone_sync_required') {
+          const errMsg = !result.ok
+            ? (result.error ?? 'phone messenger bind finalization failed')
+            : 'phone messenger bind finalization remained pending after phone sync';
+          logger.warn(
+            {
+              event: 'phone_messenger_bind_finalize_failed',
+              error: errMsg,
+              externalId,
+              channelCode: messengerChannel,
+            },
+            '[webapp.phoneMessengerBind.complete] finalization failed',
+          );
+          const failureIntents: OutgoingIntent[] = [];
+          if (source === 'telegram' || source === 'max') {
+            await appendPhoneMessengerBindFailureRecovery(failureIntents, action, ctx, fullDeps, {
+              source,
+              externalId,
+              menuActionIdSuffix: 'phone-auth-finalize-failed-menu',
+              ...(tplPort
+                ? {
+                    failureText: {
+                      templateKey: phoneMessengerBindCompleteFailureTemplateKey(source, errMsg),
+                      intentIdSuffix: 'phone-auth-finalize-failed',
+                    },
+                  }
+                : {}),
+            });
+          }
+          return {
+            actionId: action.id,
+            status: 'failed',
+            error: errMsg,
+            values: {
+              phoneMessengerBind: {
+                ok: false,
+                webappComplete: false,
+                phoneLinkSync: { ok: true },
+              },
+            },
+            ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
+            ...(appliedWrites.length > 0 ? { writes: appliedWrites } : {}),
+          };
+        }
       }
 
       const successIntents: OutgoingIntent[] = [];

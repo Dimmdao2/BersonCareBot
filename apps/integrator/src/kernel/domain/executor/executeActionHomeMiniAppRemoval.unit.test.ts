@@ -217,4 +217,58 @@ describe('main menu mini-app retirement', () => {
       expect(serializedIntents).not.toContain('menu.app');
     }
   });
+
+  it('syncs the canonical phone link before finalizing a pending webapp bind', async () => {
+    const writes: Action['params'][] = [];
+    let completionCalls = 0;
+    const result = await executeAction(
+      {
+        id: 'phone-bind-two-phase-profile',
+        type: 'webapp.phoneMessengerBind.complete',
+        mode: 'sync',
+        params: {
+          setupToken: 'setup-token-two-phase',
+          channelCode: 'telegram',
+          externalId: '99321',
+          phoneNormalized: '+79990000994',
+        },
+      },
+      context('telegram'),
+      {
+        webappEventsPort: {
+          emit: async () => ({ ok: true, status: 200 }),
+          completePhoneMessengerBind: async () => {
+            completionCalls += 1;
+            if (completionCalls === 1) {
+              return {
+                ok: true,
+                purpose: 'profile_bind' as const,
+                status: 'phone_sync_required',
+                syncTargetUserId: '00000000-0000-4000-8000-000000009321',
+                accountCreated: false,
+              };
+            }
+            return { ok: true, purpose: 'profile_bind' as const };
+          },
+        },
+        writePort: {
+          writeDb: async (write) => {
+            writes.push(write.params);
+            return { userPhoneLinkApplied: true };
+          },
+        },
+      },
+    );
+
+    expect(result.status).toBe('success');
+    expect(completionCalls).toBe(2);
+    expect(writes).toEqual([
+      expect.objectContaining({
+        resource: 'telegram',
+        channelUserId: '99321',
+        phoneNormalized: '+79990000994',
+        preferredPlatformUserId: '00000000-0000-4000-8000-000000009321',
+      }),
+    ]);
+  });
 });

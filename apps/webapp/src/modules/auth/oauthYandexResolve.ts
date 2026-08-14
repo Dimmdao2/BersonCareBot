@@ -1,4 +1,4 @@
-import { env } from '@/config/env';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 import { requireOAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
@@ -51,7 +51,7 @@ export async function resolveUserIdForYandexOAuth(
 
   const byOAuth = await oauthPort.findUserByOAuthId('yandex', input.yandexId);
   if (byOAuth) {
-    if (!env.DATABASE_URL?.trim()) {
+    if (!webappRuntimeDatabaseIsConfigured()) {
       return { ok: true, userId: byOAuth.userId, accountOutcome: 'linked_existing' };
     }
     const db = requireOAuthUserResolvePort();
@@ -61,7 +61,7 @@ export async function resolveUserIdForYandexOAuth(
     return { ok: true, userId: uidEarly, accountOutcome: 'linked_existing' };
   }
 
-  if (!env.DATABASE_URL?.trim()) {
+  if (!webappRuntimeDatabaseIsConfigured()) {
     return { ok: false, reason: 'db_error' };
   }
 
