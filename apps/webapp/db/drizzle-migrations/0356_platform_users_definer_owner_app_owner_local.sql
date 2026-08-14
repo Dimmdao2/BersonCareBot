@@ -38,12 +38,21 @@ DO $accessor_owner$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner') THEN
     ALTER FUNCTION app.bump_platform_user_session_epoch_self() OWNER TO app_owner;
-    ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO app_owner;
+    -- These three capabilities are owned by closure overlays rather than the Drizzle chain. They
+    -- already existed on the old long-lived TEST when 0356 was authored, but do not exist yet on a
+    -- fresh PROD-copy transition; their overlays create and pin them after migrations.
+    IF to_regprocedure('app.email_auth_verify_user_email(uuid,text)') IS NOT NULL THEN
+      ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO app_owner;
+    END IF;
     ALTER FUNCTION app.email_otp_public_delete_unverified_registration(uuid) OWNER TO app_owner;
-    ALTER FUNCTION app.email_otp_public_find_or_create_user(text) OWNER TO app_owner;
+    IF to_regprocedure('app.email_otp_public_find_or_create_user(text)') IS NOT NULL THEN
+      ALTER FUNCTION app.email_otp_public_find_or_create_user(text) OWNER TO app_owner;
+    END IF;
     ALTER FUNCTION app.email_otp_public_find_user_by_email(text) OWNER TO app_owner;
     ALTER FUNCTION app.email_otp_public_register_patient(text, text, text, text) OWNER TO app_owner;
-    ALTER FUNCTION app.email_password_delete_unverified_registration(uuid) OWNER TO app_owner;
+    IF to_regprocedure('app.email_password_delete_unverified_registration(uuid)') IS NOT NULL THEN
+      ALTER FUNCTION app.email_password_delete_unverified_registration(uuid) OWNER TO app_owner;
+    END IF;
     ALTER FUNCTION app.email_password_find_login_candidate(text) OWNER TO app_owner;
     ALTER FUNCTION app.email_password_register_pending(text, text, text, text, text, text) OWNER TO app_owner;
     ALTER FUNCTION app.is_platform_registration_analytics_user_excluded(uuid) OWNER TO app_owner;

@@ -201,6 +201,11 @@ Before `pnpm migrate`, the wrapper must:
   migrations (`app_owner`, `app_identity_bootstrap`, `app_operational_diagnostic`). Both layers create only
   `NOLOGIN` role prerequisites; they create no runtime login, password or database ACL. The final target zero
   removes the three bridge roles again;
+- apply `pre-migration-target-bridge.sql` to the target database. It installs only the final-state assumptions
+  required before their declaration-owning migrations can run: the two legacy `app_staff` reads verified by
+  webapp `0241`, `pgcrypto` in `app_ext` before `0274`, and the replay-safe public calendar-map shape verified by
+  `0330/0331`. The normal integrator runner still records `20260727_0002`; the final target zero replaces the
+  temporary ACL and ownership state;
 - use the local OS `postgres` migration channel over the Unix socket and set
   `PGOPTIONS='-c role=bersoncarebot_test'`; it must not borrow one of the four runtime logins or recreate an
   aggregate runtime `DATABASE_URL`;

@@ -67,6 +67,7 @@ P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
 P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
 PRIVILEGE_GENERATOR=deploy/postgres/privileges/generate-cli.mjs
 PRE_MIGRATION_LEGACY_ROLE_BRIDGE=deploy/postgres/pre-migration-legacy-role-bridge.sql
+PRE_MIGRATION_TARGET_BRIDGE=deploy/postgres/pre-migration-target-bridge.sql
 P2_B_CONTEXT=deploy/postgres/p2-b-protected-principal-context.sql
 RUNTIME_OVERLAY_APP_OWNER_HANDOFF=deploy/postgres/runtime-overlay-app-owner-handoff.sql
 ORGANIZATION_MEMBER_INVITES_RLS=deploy/postgres/organization-member-invites-rls.sql
@@ -183,6 +184,13 @@ install_pre_migration_role_prerequisites(){
     sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
   sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1 \
     -f "$DEPLOY_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"
+}
+
+install_pre_migration_target_prerequisites(){
+  sudo -u postgres psql -X -1 -d "$DB" -v ON_ERROR_STOP=1 \
+    -v pre_migration_database="$DB" \
+    -v pre_migration_owner_role="$DBROLE" \
+    -f "$DEPLOY_REPO/$PRE_MIGRATION_TARGET_BRIDGE"
 }
 
 revoke_migrator_app_owner_membership(){
@@ -3554,6 +3562,11 @@ run_postgres_repo_with_test_db_owner_bypass \
 #    runtime access cutover: no login, credential or per-database grant is installed at this stage.
 log "pre-migration NOLOGIN role prerequisites"
 install_pre_migration_role_prerequisites
+
+# The PROD schema predates three final-state assumptions embedded in the historical cross-app
+# chain. Install their narrow, replay-safe target-DB bridge before opening migrator elevation.
+log "pre-migration target-DB prerequisites"
+install_pre_migration_target_prerequisites
 
 # 7. Migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke.
 #    Destructive legacy-table migrations are now downstream from fail-closed data parity gates.

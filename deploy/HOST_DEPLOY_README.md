@@ -813,8 +813,13 @@ identity data-fix, затем до migration chain применяет hash-bound
 который требует нулевой остаток живых непринятых legacy-записей. Только после этого migrations удаляют старые
 таблицы и накатывают позднюю схему. Непосредственно перед migrations wrapper применяет декларативный
 `--shared-role-baseline` целевых ролей и узкий `pre-migration-legacy-role-bridge.sql` для трёх удаляемых ролей,
-которые ещё называет историческая цепочка: только `NOLOGIN` имена без runtime-логинов и DB-грантов. Точные
-логины и права остаются финальным port-context cutover, а bridge-роли удаляет его target zero. В том же stopped-writers окне сохраняется durable FIO rollback,
+которые ещё называет историческая цепочка: только `NOLOGIN` имена без runtime-логинов и DB-грантов.
+Затем `pre-migration-target-bridge.sql` в самой целевой БД устанавливает только три временные предпосылки
+исторической cross-app цепочки: старые `app_staff` SELECT для self-check `0241`, перенос `pgcrypto` в
+`app_ext` до `0274` и replay-safe целевую форму `public.booking_calendar_map` до проверок `0330/0331`.
+Канонический integrator runner позже сам записывает свою миграцию календарной карты; финальный
+declaration-generated privilege zero заменяет временные ACL и ownership.
+Точные логины и права остаются финальным port-context cutover, а bridge-роли удаляет его target zero. В том же stopped-writers окне сохраняется durable FIO rollback,
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
