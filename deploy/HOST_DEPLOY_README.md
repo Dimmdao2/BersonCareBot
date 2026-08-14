@@ -731,8 +731,13 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 ```
 
 `deploy-test.sh` — **code-only/no-fresh-restore** путь (build + controlled migrate текущей TEST-БД) и не является
-способом fresh restore. Для ещё не переведённой TEST он выполняет однобазовый `locked → zero/proof → install → live`
-cutover; DEV в этой цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
+способом fresh restore. Для ещё не переведённой TEST он выполняет однобазовый переход без разрыва порядка
+миграций: bounded legacy-integrator phase → provisional canonical port-context base contract с четырьмя
+принудительно `NOLOGIN` target shells → оставшиеся schema/data ledgers через local PostgreSQL administrator →
+`zero/proof → exact declaration install → live`. Provisional contract нужен потому, что миграции начиная с 0391
+используют port-context types/tables, а итоговый capability catalog, наоборот, ссылается на функции, создаваемые
+этими миграциями. Любая ошибка после provisional install автоматически возвращает эту БД в проверенный zero;
+DEV в цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
 NOLOGIN `bcb_test_migrator` и exact declared owners, затем declaration reconcile + catalog audit и обновление
 runtime projection. Постоянный owner-login/BYPASS путь в port-context режиме не используется.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed

@@ -68,6 +68,9 @@ ACCESS_RECONCILER=deploy/postgres/privileges/reconcile-access.mjs
 CANONICAL_SQL_READER=deploy/host/stream-canonical-sql.mjs
 DRIZZLE_FOLDER=apps/webapp/db/drizzle-migrations
 ZERO_STATE_CLUSTER=deploy/postgres/generated/zero-state.cluster.sql
+ZERO_STATE_DATABASE=deploy/postgres/generated/zero-state.bersoncarebot_test.sql
+ZERO_STATE_GENERATOR=deploy/postgres/privileges/generate-cli.mjs
+PORT_CONTEXT_CONTRACT=deploy/postgres/port-context/contract.sql
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$DB"
 UNITS=(api worker scheduler webapp media-worker)
@@ -75,7 +78,7 @@ DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
 DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 APP_OWNER_BYPASS_ADDED=0
 DBROLE_DATABASE_CREATE_GRANTED=0
-DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=0
+INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
@@ -86,13 +89,6 @@ cleanup_elevation(){
     return 0
   fi
   local cleanup_status=0
-  if [ "$DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED" = "1" ]; then
-    if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "REVOKE USAGE, CREATE ON SCHEMA public FROM \"$DBROLE\";" >/dev/null; then
-      DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=0
-    else
-      cleanup_status=1
-    fi
-  fi
   if [ "$DBROLE_DATABASE_CREATE_GRANTED" = "1" ]; then
     if sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE CREATE ON DATABASE \"$DB\" FROM \"$DBROLE\";" >/dev/null; then
       DBROLE_DATABASE_CREATE_GRANTED=0
@@ -126,10 +122,15 @@ cleanup_elevation(){
   local database_create_state
   database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT has_database_privilege('$DBROLE', '$DB', 'CREATE');")" || cleanup_status=1
   [ "$database_create_state" = "f" ] || cleanup_status=1
-  local public_schema_privilege_state
-  public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")" || cleanup_status=1
-  [ "$public_schema_privilege_state" = "false|false" ] || cleanup_status=1
   return "$cleanup_status"
+}
+
+apply_verified_database_zero(){
+  sudo -u postgres psql -X -d "$DB" -1 -v ON_ERROR_STOP=1 \
+    -f "$DEPLOY_REPO/$ZERO_STATE_DATABASE" >/dev/null
+  sudo -u postgres node --experimental-strip-types "$DEPLOY_REPO/$ZERO_STATE_GENERATOR" \
+    --db "$DB" --zero-state-verify | \
+    sudo -u postgres psql -X -d "$DB" -1 -v ON_ERROR_STOP=1 >/dev/null
 }
 
 cleanup_exit(){
@@ -137,6 +138,9 @@ cleanup_exit(){
   set +e
   cleanup_elevation
   local cleanup_status=$?
+  if [ "$original_status" -ne 0 ] && [ "$INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE" = "1" ]; then
+    apply_verified_database_zero || cleanup_status=1
+  fi
   if [ -n "$CREDENTIAL_DIR" ]; then
     rm -rf -- "$CREDENTIAL_DIR" || cleanup_status=1
   fi
@@ -209,10 +213,19 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
 # packet or any shared closure artifact is unavailable. Legacy product-smoke fixtures are not deploy inputs.
 if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "locked" ]; then
   bash "$DEPLOY_REPO/$STRICT_CLOSURE" --strict-preflight
+  for required_path in \
+    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT" \
+    "$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"; do
+    sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
+      echo "FATAL: deploy cannot read initial port-context migration artifact: $DEPLOY_REPO/$required_path" >&2
+      exit 1
+    }
+  done
 else
   for required_path in \
     "$OWNER_MIGRATOR" "$INTEGRATOR_MIGRATOR" "$ACCESS_RECONCILER" \
-    "$CANONICAL_SQL_READER" "$DRIZZLE_FOLDER" "$ZERO_STATE_CLUSTER"; do
+    "$CANONICAL_SQL_READER" "$DRIZZLE_FOLDER" "$ZERO_STATE_CLUSTER" \
+    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT"; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
       echo "FATAL: deploy cannot read port-context migration artifact: $DEPLOY_REPO/$required_path" >&2
       exit 1
@@ -340,17 +353,10 @@ database_create_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELEC
 [ "$database_create_state" = "f" ] || { echo "FATAL: pre-existing $DBROLE CREATE privilege on database $DB" >&2; exit 1; }
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT CREATE ON DATABASE \"$DB\" TO \"$DBROLE\";" >/dev/null
 DBROLE_DATABASE_CREATE_GRANTED=1
-public_schema_privilege_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc "SELECT has_schema_privilege('$DBROLE', 'public', 'USAGE')::text || '|' || has_schema_privilege('$DBROLE', 'public', 'CREATE')::text;")"
-[ "$public_schema_privilege_state" = "false|false" ] || { echo "FATAL: pre-existing $DBROLE USAGE/CREATE privilege on schema public" >&2; exit 1; }
-sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "GRANT USAGE, CREATE ON SCHEMA public TO \"$DBROLE\";" >/dev/null
-DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=1
 # Legacy application logins already have no CONNECT at this point and must not regain it merely
 # to run DDL. Database CREATE is restored because the integrator ledger executes CREATE SCHEMA IF
-# NOT EXISTS; public USAGE/CREATE is restored because the role ceased being pg_database_owner before
-# it finished migrating the public objects it still owns. Authenticate locally as the PostgreSQL OS
-# administrator, then SET ROLE through PGOPTIONS for the remaining historical object privileges.
-(
-  cd "$DEPLOY_REPO"
+# NOT EXISTS. The bounded legacy phase stops before the new port-context contract migrations.
+cd "$DEPLOY_REPO"
   sudo -u postgres env \
     NODE_ENV=production \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
@@ -360,9 +366,35 @@ DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=1
     PGOPTIONS="-c role=$DBROLE -c search_path=integrator,public" \
     INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 \
     pnpm --dir apps/integrator run migrate
+
+  # Initial locked→port-context bridge. Migration 0391 is the first Drizzle change that consumes
+  # the target context types/tables, while the final generated capability catalog depends on the
+  # functions created by 0391+. Install only the canonical base contract now, with all four target
+  # logins forced NOLOGIN; the final cutover below zeros this provisional ACL/ownership state and
+  # installs the complete declaration after both ledgers are current.
+  sudo -u postgres psql -X -1 -d "$DB" -v ON_ERROR_STOP=1 \
+    -v DBNAME="$DB" \
+    -v app_staff_login=bcb_test_webapp_staff \
+    -v app_patient_login=bcb_test_webapp_patient \
+    -v app_global_admin_login=bcb_test_webapp_global_admin \
+    -v integrator_login=bcb_test_integrator \
+    -c "DO \$bcb\$ DECLARE role_name text; BEGIN
+          FOREACH role_name IN ARRAY ARRAY['bcb_test_webapp_staff','bcb_test_webapp_patient','bcb_test_webapp_global_admin','bcb_test_integrator'] LOOP
+            IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=role_name) THEN
+              EXECUTE pg_catalog.format('CREATE ROLE %I NOLOGIN', role_name);
+            END IF;
+            EXECUTE pg_catalog.format('ALTER ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
+          END LOOP;
+        END \$bcb\$;" \
+    -f "$DEPLOY_REPO/$PORT_CONTEXT_CONTRACT"
+  INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=1
+
+  # These statements are still data/schema migrations, not the final access declaration. Run them
+  # through the local PostgreSQL administrator because the provisional contract deliberately removed
+  # legacy ownership; the final cutover immediately neutralizes every provisional owner/ACL and
+  # reinstalls exact generated owners/grants.
   sudo -u postgres env \
     DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
-    PGOPTIONS="-c role=$DBROLE" \
     pnpm --dir apps/webapp run migrate
   sudo -u postgres env \
     NODE_ENV=production \
@@ -370,12 +402,10 @@ DBROLE_PUBLIC_SCHEMA_PRIVILEGES_GRANTED=1
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
     APP_BASE_URL=http://127.0.0.1 \
     BOOKING_URL=http://127.0.0.1 \
-    PGOPTIONS="-c role=$DBROLE -c search_path=integrator,public" \
+    PGOPTIONS="-c search_path=integrator,public" \
     pnpm --dir apps/integrator run migrate
-  sudo -u postgres env PGOPTIONS="-c role=$DBROLE" \
-    psql -X -v ON_ERROR_STOP=1 -d "$DB" \
-      -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
-)
+  sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" \
+    -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
 cleanup_elevation
 # The legacy role still exists here and its temporary powers were just verified absent. The shared
 # cluster cutover deliberately drops it, so the EXIT trap must keep only its writer-stop duty from
@@ -389,5 +419,6 @@ LEGACY_ELEVATION_CLEANUP_REQUIRED=0
 #    restarts TEST and checks its health. Any failure leaves every TEST writer stopped.
 bash "$DEPLOY_REPO/$STRICT_CLOSURE" --port-context-post-migration-cutover
 sudo -u postgres psql -X -d postgres -1 -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$ZERO_STATE_CLUSTER"
+INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=0
 SERVICES_RELEASED=1
 echo "== deploy-test: готово =="
