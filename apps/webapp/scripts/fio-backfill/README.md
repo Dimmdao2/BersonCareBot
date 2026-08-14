@@ -110,7 +110,9 @@ The immutable manifest schema is defined in `owner-reviewed-fio-contract.ts`. It
 The operation requires all of the following simultaneously:
 
 - explicit `--test`;
-- `DATABASE_URL` host exactly `127.0.0.1` and database path exactly `bersoncarebot_test`;
+- `DATABASE_URL` uses either exact host `127.0.0.1` or the exact local peer socket
+  `/var/run/postgresql`, and database path exactly `bersoncarebot_test`; the socket form is used only by the
+  owner-gated reset wrapper and is never stored in runtime env;
 - live `current_database()` attestation;
 - separately confirmed manifest and source-review hashes;
 - a real non-symlink manifest file and rollback directory chain;

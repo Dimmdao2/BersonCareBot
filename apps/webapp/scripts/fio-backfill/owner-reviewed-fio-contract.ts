@@ -525,13 +525,24 @@ export function assertTestTarget(
   if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
     throw new Error('DATABASE_URL must use PostgreSQL');
   }
-  if (parsed.hostname !== '127.0.0.1')
-    throw new Error('TEST FIO operation requires exact loopback host 127.0.0.1');
+  if (!isExactLocalFioTransport(parsed))
+    throw new Error('TEST FIO operation requires exact loopback TCP or local peer socket transport');
   const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
   if (urlDatabase !== 'bersoncarebot_test')
     throw new Error('DATABASE_URL must target bersoncarebot_test');
   if (databaseName !== 'bersoncarebot_test')
     throw new Error('current_database() must equal bersoncarebot_test');
+}
+
+function isExactLocalFioTransport(parsed: URL): boolean {
+  if (parsed.hostname === '127.0.0.1' && parsed.searchParams.size === 0) return true;
+  if (parsed.hostname !== '' || parsed.username !== '' || parsed.password !== '' || parsed.port !== '') {
+    return false;
+  }
+  const parameters = [...parsed.searchParams.entries()];
+  return parameters.length === 1
+    && parameters[0]?.[0] === 'host'
+    && parameters[0]?.[1] === '/var/run/postgresql';
 }
 
 export type FioApplyTargetOptions = {
@@ -571,9 +582,11 @@ export function assertFioApplyTarget(
   if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
     throw new Error('DATABASE_URL must use PostgreSQL');
   }
-  // Never relaxed by the cutover flag: the apply always runs against a loopback database.
-  if (parsed.hostname !== '127.0.0.1')
-    throw new Error('FIO operation requires exact loopback host 127.0.0.1');
+  // Never relaxed by the cutover flag: the apply always uses exact local TCP or the canonical local
+  // peer socket. The socket form is reserved for the owner-gated reset wrapper, which runs as OS
+  // postgres with PGOPTIONS=SET ROLE and therefore needs no aggregate runtime credential.
+  if (!isExactLocalFioTransport(parsed))
+    throw new Error('FIO operation requires exact loopback TCP or local peer socket transport');
   const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
   if (urlDatabase !== databaseName)
     throw new Error('DATABASE_URL and current_database() must agree');
