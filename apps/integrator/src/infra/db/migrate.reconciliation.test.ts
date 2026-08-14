@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   expandAppliedMigrationVersions,
   inspectMigrationReconciliations,
+  shouldDeferSourceToReconciliation,
   type MigrationFile,
 } from './migrate.js';
 
@@ -53,5 +54,17 @@ describe('integrator migration forward reconciliation', () => {
         ]),
       ),
     ).toThrow('integrator_migration_reconciliation_not_forward');
+  });
+
+  it('runs the source when a bounded phase excludes its forward reconciliation', () => {
+    expect(
+      shouldDeferSourceToReconciliation(forward.version, new Set([source.version])),
+    ).toBe(false);
+    expect(
+      shouldDeferSourceToReconciliation(
+        forward.version,
+        new Set([source.version, forward.version]),
+      ),
+    ).toBe(true);
   });
 });

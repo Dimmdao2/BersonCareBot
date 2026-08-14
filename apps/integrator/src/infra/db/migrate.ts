@@ -235,6 +235,13 @@ export function expandAppliedMigrationVersions(
   return applied;
 }
 
+export function shouldDeferSourceToReconciliation(
+  forwardVersion: string | undefined,
+  eligibleVersions: ReadonlySet<string>,
+): boolean {
+  return forwardVersion !== undefined && eligibleVersions.has(forwardVersion);
+}
+
 async function discoverMigrationReconciliations(
   migrations: readonly MigrationFile[],
 ): Promise<IntegratorMigrationReconciliation[]> {
@@ -555,6 +562,7 @@ export async function runMigrations(): Promise<void> {
     // deferred is empty, so the loop below is byte-for-byte identical to the pre-existing behavior.
     const beforeDateBoundRaw = process.env.INTEGRATOR_MIGRATIONS_BEFORE_DATE?.trim() || undefined;
     const { eligible, deferred } = applyBeforeDateBound(migrations, beforeDateBoundRaw);
+    const eligibleVersions = new Set(eligible.map((migration) => migration.version));
 
     if (beforeDateBoundRaw) {
       logger.info(
@@ -579,7 +587,11 @@ export async function runMigrations(): Promise<void> {
       }
 
       const reconciliationForward = reconciliationForwardBySource.get(migration.version);
-      if (reconciliationForward) {
+      // A bounded phase must execute the source when its forward repair is outside this phase.
+      // Otherwise an intermediate dependent migration can observe neither source nor forward.
+      // In an unbounded/final phase the eligible forward remains authoritative and the source is
+      // deferred exactly as before. An already-applied forward expands `applied` to the source above.
+      if (shouldDeferSourceToReconciliation(reconciliationForward, eligibleVersions)) {
         logger.info(
           {
             migration: migration.version,
