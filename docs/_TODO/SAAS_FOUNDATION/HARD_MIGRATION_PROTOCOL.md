@@ -8,7 +8,7 @@ disposable database in this rehearsal. Each deploy/cutover still touches one tar
 TEST wrapper was a point-in-time guard, not a permanent prohibition. The owner explicitly ordered the final
 production-transfer rehearsal on TEST now. The executable order is:
 fresh dump → owner identity consolidation → identity data-fix → reviewed FIO → accepted legacy appointment
-transfer → declaration-derived shared `NOLOGIN` role baseline → ordinary migration chain (including legacy drops and all later tariff/billing work) → target
+transfer → target shared-role baseline + retired-role migration bridge → ordinary migration chain (including legacy drops and all later tariff/billing work) → target
 port-context roles/grants → TEST runtime proof.
 
 **ЗАМЕНЕНО 12.08.2026 (runtime topology remains current; the DEV-first scheduling sentence is replaced above):** every later reference in this document to `locked` as the final runtime, to shared
@@ -196,8 +196,11 @@ login through plain `psql "$DATABASE_URL" -f ...` is not an allowed substitute.
 
 Before `pnpm migrate`, the wrapper must:
 
-- apply `generate-cli.mjs --shared-role-baseline` and its read-only verifier. This creates only the
-  declaration-owned cluster roles needed by migration SQL; it creates no runtime login, password or database ACL;
+- apply `generate-cli.mjs --shared-role-baseline` and its read-only verifier for target roles, then
+  `pre-migration-legacy-role-bridge.sql` for the three retired names still used by executable historical
+  migrations (`app_owner`, `app_identity_bootstrap`, `app_operational_diagnostic`). Both layers create only
+  `NOLOGIN` role prerequisites; they create no runtime login, password or database ACL. The final target zero
+  removes the three bridge roles again;
 - use the local OS `postgres` migration channel over the Unix socket and set
   `PGOPTIONS='-c role=bersoncarebot_test'`; it must not borrow one of the four runtime logins or recreate an
   aggregate runtime `DATABASE_URL`;

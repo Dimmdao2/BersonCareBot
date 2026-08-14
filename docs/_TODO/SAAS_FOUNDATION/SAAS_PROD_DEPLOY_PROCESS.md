@@ -155,9 +155,13 @@ GRANT to / transfer ownership to `app_owner`, `app_staff`, `app_patient` and oth
 those cluster-level roles already existed, which masked the dependency; on a **virgin prod host they will not**,
 and the chain fails with `42704 undefined_object`. The canonical prerequisite is now
 `node deploy/postgres/privileges/generate-cli.mjs --shared-role-baseline`, followed by
-`--shared-role-verify`, applied by `deploy-test-saas.sh` immediately before migrations. It creates only the
-declaration-owned `NOLOGIN` role baseline: no runtime login, password or per-database grant. Exact database ACL
-and the four runtime logins still install after migrations in the single-target port-context cutover.
+`--shared-role-verify`, applied by `deploy-test-saas.sh` immediately before migrations. Because revision 10
+correctly retired `app_owner`, `app_identity_bootstrap` and `app_operational_diagnostic` while the historical
+migration SQL still names them, the wrapper then applies `deploy/postgres/pre-migration-legacy-role-bridge.sql`.
+That bridge is temporary and creates only those three `NOLOGIN` names with fail-closed attributes and zero
+members; the final target zero removes them. Neither layer creates a runtime login, password or per-database
+grant. Exact database ACL and the four runtime logins still install after migrations in the single-target
+port-context cutover.
 
 **Diagnostic recipe (the migrate runner redacts errors on purpose).**
 `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` prints only `reason=… sqlstate=…` and suppresses raw
@@ -469,7 +473,7 @@ owner-reviewed provider-neutral appointment cleanup workstream, and #7 (Track D 
 **Guard-unlock needed:** #3 (and the shared wrapper #4 rides on it); §3.5 remains the walls gate.
 
 **Confirmed current ordering (owner 2026-08-15):** merge identity → identity data-fix → reviewed FIO →
-hash-bound legacy appointment transition → shared `NOLOGIN` role baseline → migrations/drop → exact roles/grants → walls → runtime. The CSV belongs only
+hash-bound legacy appointment transition → target role baseline + retired-role bridge → migrations/drop → exact roles/grants → walls → runtime. The CSV belongs only
 to the one-time transition; no archived Rubitime command or runtime integration returns.
 
 ## 8. Blockers to build BEFORE a full clean run (steps 5, 7, 8)
