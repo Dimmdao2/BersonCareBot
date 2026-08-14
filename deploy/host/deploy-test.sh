@@ -69,6 +69,7 @@ ZERO_STATE_CLUSTER=deploy/postgres/generated/zero-state.cluster.sql
 ZERO_STATE_DATABASE=deploy/postgres/generated/zero-state.bersoncarebot_test.sql
 ZERO_STATE_GENERATOR=deploy/postgres/privileges/generate-cli.mjs
 PORT_CONTEXT_CONTRACT=deploy/postgres/port-context/contract.sql
+INVITE_PROOF_SECRET_SQL=deploy/postgres/port-context/invite-proof-secret.sql
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$DB"
 UNITS=(api worker scheduler webapp media-worker)
@@ -179,7 +180,7 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
 if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "locked" ]; then
   bash "$DEPLOY_REPO/$STRICT_CLOSURE" --strict-preflight
   for required_path in \
-    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT" \
+    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT" "$INVITE_PROOF_SECRET_SQL" \
     "$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
       echo "FATAL: deploy cannot read initial port-context migration artifact: $DEPLOY_REPO/$required_path" >&2
@@ -190,7 +191,7 @@ else
   for required_path in \
     "$OWNER_MIGRATOR" "$INTEGRATOR_MIGRATOR" "$ACCESS_RECONCILER" \
     "$CANONICAL_SQL_READER" "$DRIZZLE_FOLDER" "$ZERO_STATE_CLUSTER" \
-    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT"; do
+    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT" "$INVITE_PROOF_SECRET_SQL"; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
       echo "FATAL: deploy cannot read port-context migration artifact: $DEPLOY_REPO/$required_path" >&2
       exit 1

@@ -120,11 +120,17 @@ function password(values, key, expectedLogin) {
   if (decodeURIComponent(url.username) !== expectedLogin || !url.password) throw new Error(`${key} identity mismatch`);
   return decodeURIComponent(url.password);
 }
+const inviteProof = webapp.get('DB_PRINCIPAL_SIGNING_SECRET')
+  || webapp.get('INTEGRATOR_WEBHOOK_SECRET')
+  || webapp.get('INTEGRATOR_SHARED_SECRET')
+  || webapp.get('SESSION_COOKIE_SECRET');
+if (!inviteProof || inviteProof.length < 32) throw new Error('patient invite proof secret is missing or too short');
 process.stdout.write(JSON.stringify({
   integrator: password(api, 'INTEGRATOR_DB_URL', integratorLogin),
   staff: password(webapp, 'DATABASE_URL_STAFF', staffLogin),
   patient: password(webapp, 'DATABASE_URL_PATIENT', patientLogin),
   globalAdmin: password(webapp, 'DATABASE_URL_GLOBAL_ADMIN', globalAdminLogin),
+  inviteProof,
 }));
 NODE
 read_secret() {
@@ -134,6 +140,7 @@ export "${password_prefix}_WEBAPP_STAFF_PASSWORD=$(read_secret staff)"
 export "${password_prefix}_WEBAPP_PATIENT_PASSWORD=$(read_secret patient)"
 export "${password_prefix}_WEBAPP_GLOBAL_ADMIN_PASSWORD=$(read_secret globalAdmin)"
 export "${password_prefix}_INTEGRATOR_PASSWORD=$(read_secret integrator)"
+export "${password_prefix}_INVITE_PROOF_SECRET=$(read_secret inviteProof)"
 
 captured_connection_limit=$(runuser -u postgres -- psql -X -d postgres -Atqc \
   "SELECT datconnlimit FROM pg_catalog.pg_database WHERE datname='$database';")

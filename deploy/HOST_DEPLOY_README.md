@@ -748,6 +748,12 @@ TEST-команды распознаёт такое fail-closed состояни
 останавливается, если хотя бы одна сессия действительно сохранилась. Поскольку env projection записывается до
 access install, сочетание `port-context` в обоих env и `CONNECTION LIMIT 0` считается незавершённым первым cutover:
 wrapper повторяет идемпотентный stopped-writer bridge и финальную установку, а не входит в stationary migration path.
+Старые `app.context_nonce_ledger` и `app.principal_context` в target declaration имеют
+`PENDING_REMOVAL`: новый transaction-bound контекст их не создаёт и не требует. Отдельная
+`app.context_signing_secrets` пока остаётся не как часть DB-principal протокола, а как узкое хранилище HMAC для
+трёх живых patient-invite email definer roots. Cutover создаёт/обновляет ровно одну её строку тем же защищённым
+secret fallback, которым webapp подписывает start/verify/claim; значение проходит только через root-owned
+временный secret file/process env, не печатается и не попадает в generated SQL.
 DEV в цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
 NOLOGIN `bcb_test_migrator` и exact declared owners, затем declaration reconcile + catalog audit и обновление
 runtime projection. Если более поздняя webapp-миграция уже удалила объект, на который смотрит отложенная ранняя

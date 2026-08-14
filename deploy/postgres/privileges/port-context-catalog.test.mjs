@@ -18,8 +18,8 @@ import {
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 81,
-  integrator: 32,
+  webapp: 83,
+  integrator: 34,
 };
 
 test('the generator library refuses a mistaken direct CLI invocation', () => {
@@ -34,8 +34,8 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 113);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 113);
+  assert.equal(rows.length, 117);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 117);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -86,7 +86,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 99);
+  assert.equal(roots.length, 103);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
@@ -277,7 +277,7 @@ test('runtime gate reconciliation replaces single gates and validates every mult
 
 test('dependent sequences are revoked even when the current table grants no writes', () => {
   const sql = generatePrivilegesSql(declaration, 'bcb_webapp_dev');
-  const start = sql.indexOf('-- ── app.context_nonce_ledger');
+  const start = sql.indexOf('-- ── app.context_signing_secrets');
   const end = sql.indexOf('-- ── ', start + 4);
   assert.ok(start >= 0 && end > start);
   const section = sql.slice(start, end);

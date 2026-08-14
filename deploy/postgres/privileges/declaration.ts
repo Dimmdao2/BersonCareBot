@@ -825,25 +825,21 @@ const W_REF_COPY = 'D3: клинике принадлежит КОПИЯ пла�
 const W_PLATFORM_OR_CLINIC = 'две ветки: строки organization_id IS NULL — только платформенная роль, остальные '
   + 'под стеной клиники';
 const W_PLATFORM_TELEMETRY = 'телеметрия платформы о самой себе: стена своей роли, арендной роли грантов нет';
-const W_PRINCIPAL_SEAM = 'шов принципала: ACL только у владельца, вход исключительно через definer-аксессоры';
 const RLS_OFF_MIGRATOR_LEDGER = 'ЯВНО объявленное отсутствие RLS (SCHEME §A.4: \'off\' — объявленное '
   + 'отсутствие, а не молчание). Журнал мигратора читает и пишет сам мигратор, в том числе ВНЕ окна элевации '
   + '(шаг 0 цепочки сверяет max(created_at) против watermark), а FORCE RLS без политики закрыл бы таблицу и от '
   + 'её владельца — цепочка деплоя перестала бы работать. Стена здесь — НУЛЕВОЙ грант рантайм-ролям.';
 
 const TABLE_ROWS: TableRow[] = [
-  { t: 'app.context_nonce_ledger', cls: 'T', owner: 'app_owner', wall: 'definer-only', why: 'защита от повтора '
-    + 'подписи — без неё подписанный контекст можно проиграть повторно', wallWhy: W_PRINCIPAL_SEAM,
-    pol: 'I14: росла неограниченно (12,6 млн просроченных строк снято 08.08) — D8 даёт прунер '
-    + 'app.prune_context_nonce_ledger под app_operational_maintenance, ежечасно (evidence/16)',
-    defect: ['I1-definer-plus-force', 'I14-unbounded-growth'] },
-  { t: 'app.context_signing_secrets', cls: 'T', owner: 'app_owner', wall: 'definer-only', why: 'HMAC-секрет подписи '
-    + 'контекста — утечка = подделка принципала, т.е. обход всех стен разом', wallWhy: W_PRINCIPAL_SEAM,
-    defect: ['I1-definer-plus-force'] },
-  { t: 'app.principal_context', cls: 'T', owner: 'app_owner', wall: 'definer-only', why: '«кто сейчас в этой сессии» '
-    + '— несущая деталь: без неё все RLS-предикаты видят NULL и вся база становится пустой',
-    wallWhy: W_PRINCIPAL_SEAM, pol: 'пишет только app.install_signed_context, читают только context-аксессоры; без '
-    + 'неё все предикаты видят NULL — отсюда требование D6 RAISE вместо NULL', defect: ['I1-definer-plus-force'] },
+  { t: 'app.context_nonce_ledger', cls: 'T', owner: 'app_owner',
+    why: 'реестр повтора старого HMAC-контекста; transaction-bound port context не использует nonce ledger',
+    drop: { verdict: 'DROP', source: 'revision 10: custom signed context replaced by app_ext.accepted_port_contexts' } },
+  { t: 'app.context_signing_secrets', cls: 'T', owner: 'app_owner',
+    wall: 'definer-only', wallWhy: 'patient invite proof HMAC доступен только трём declared definer-функциям',
+    why: 'HMAC-секрет короткоживущей авторизации start/verify/claim email-приглашения пациента' },
+  { t: 'app.principal_context', cls: 'T', owner: 'app_owner',
+    why: 'session-row старого контекста; новый контекст привязан к транзакции в accepted_port_contexts',
+    drop: { verdict: 'DROP', source: 'revision 10: session-row context replaced by app_ext.accepted_port_contexts' } },
   { t: 'drizzle.__drizzle_migrations', cls: 'T', rls: 'off', why: 'журнал применённых миграций webapp — миграции '
     + 'применяются повторно или не применяются', rlsWhy: RLS_OFF_MIGRATOR_LEDGER },
   { t: 'integrator.contacts', cls: 'P', why: 'контакты пользователя мессенджера — нельзя связать чат с телефоном '

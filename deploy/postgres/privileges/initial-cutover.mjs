@@ -33,6 +33,8 @@ for (let index = 2; index < process.argv.length; index += 2) {
 
 const envName = value('env');
 if (!/^[a-z][a-z0-9_-]*$/u.test(envName)) throw new Error(`unsafe environment '${envName}'`);
+const secretPrefix = { dev: 'BCB_DEV', test: 'BCB_TEST' }[envName];
+if (!secretPrefix) throw new Error('--env must be dev or test');
 const dbName = value('db');
 if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(dbName)) throw new Error(`unsafe database identifier '${dbName}'`);
 const requestedSocket = value('admin-socket');
@@ -62,6 +64,7 @@ const files = [
   `deploy/postgres/generated/org-allowlist.${dbName}.sql`,
   `deploy/postgres/generated/privileges.${dbName}.sql`,
   'deploy/postgres/port-context/contract.sql',
+  'deploy/postgres/port-context/invite-proof-secret.sql',
   'deploy/postgres/privileges/post-zero-roots.sql',
 ];
 for (const file of files) {
@@ -180,6 +183,8 @@ function installAndVerifyTarget() {
     'BEGIN;',
     generator('--shared-role-baseline'),
     generator('--env', envName, '--db', dbName, '--env-login-shells'),
+    `\\getenv invite_proof_secret ${secretPrefix}_INVITE_PROOF_SECRET`,
+    repositorySql('deploy/postgres/port-context/invite-proof-secret.sql'),
     repositorySql('deploy/postgres/port-context/contract.sql'),
     generator('--db', dbName, '--relation-wall-registry'),
     repositorySql('deploy/postgres/privileges/post-zero-roots.sql'),

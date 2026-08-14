@@ -179,6 +179,16 @@ TEST после owner-approved очистки получает штатную sc
 нужна disposable DB, структура копируется из отработанного DEV. Эту границу нельзя снова превратить в blocker
 identity refactor или «чистый» тест, не совпадающий с реальным deploy path.
 
+### 4.6 Patient-invite proof удерживает последний фрагмент старого signed-context протокола
+
+Transaction-bound port context больше не использует `app.context_nonce_ledger` и `app.principal_context`; они
+помечены `PENDING_REMOVAL` и при cutover не создаются. Но три живые patient-invite функции start/verify/claim пока
+проверяют отдельную HMAC-авторизацию через `app.context_signing_secrets`. Для текущего запуска cutover создаёт эту
+единственную узкую таблицу и кладёт ровно тот secret fallback, которым webapp подписывает запрос; прямого runtime
+доступа к таблице нет. После production этот proof следует перевести на обычную attested named capability либо
+отдельный invite-proof contract, затем удалить таблицу и старые аргументы подписи. Возвращать nonce/session tables
+ради этого нельзя.
+
 ## 5. Целевая архитектурная граница
 
 ### SessionPrincipal
@@ -221,6 +231,8 @@ Medical/clinical/program/payment data не загружаются целиком
    primary/scope/confirmation constraints. Историю/provenance не использовать как обратный source of truth.
 8. Отдельно завершить `user_identity` cutover. Pseudonymous medical subject mapping остаётся privacy workstream,
    не частью contact migration.
+9. Перевести patient-invite start/verify/claim с legacy HMAC-table proof на transaction-bound named capability и
+   удалить `app.context_signing_secrets` вместе с устаревшими signature/nonce arguments.
 
 ## 7. Критерий завершения
 
