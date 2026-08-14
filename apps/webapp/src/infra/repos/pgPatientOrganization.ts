@@ -18,6 +18,7 @@ import {
   ensureInvitedOrganizationClientRelationship,
   OrganizationClientRelationshipDeniedError,
 } from '@/infra/repos/pgPatientOrganizationEnrollment';
+import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
 import { StockQuotaReachedError } from '@/infra/repos/transactionQuotaPort';
 import {
   assertManualPatientCommandReplay,
@@ -216,6 +217,14 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
             input.organizationId,
             identity.userId,
           );
+          if (input.specialistId) {
+            await ensureActivePatientSpecialistLink(tx, {
+              organizationId: input.organizationId,
+              patientUserId: identity.userId,
+              specialistId: input.specialistId,
+              createdVia: 'manual_assign',
+            });
+          }
           if (isStandaloneNoContact && commandId && requestFingerprint) {
             await insertManualPatientCommand(tx, {
               commandId,

@@ -5,6 +5,7 @@
  */
 
 import { cache } from 'react';
+import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
@@ -350,6 +351,9 @@ import { inMemoryPatientBookingsPort } from '@/infra/repos/inMemoryPatientBookin
 import { createPgPatientMaintenanceHistoryPort } from '@/infra/repos/pgPatientMaintenanceHistory';
 import { inMemoryPatientMaintenanceHistoryPort } from '@/infra/repos/inMemoryPatientMaintenanceHistory';
 import { createPatientMaintenanceHistoryService } from '@/modules/patient-booking/maintenanceHistory';
+import { createPatientBookingCatalogService } from '@/modules/patient-booking/patientBookingCatalog';
+import { createPgPatientBookingCatalogPort } from '@/infra/repos/pgPatientBookingCatalog';
+import { inMemoryPatientBookingCatalogPort } from '@/infra/repos/inMemoryPatientBookingCatalog';
 import { createPgClinicDirectoryPort } from '@/infra/repos/pgClinicDirectory';
 import { createClinicDirectoryService } from '@/modules/clinic-directory/service';
 import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganizationMembership';
@@ -571,6 +575,9 @@ const patientBookingsPort = !inMemoryRepos ? pgPatientBookingsPort : inMemoryPat
 const patientMaintenanceHistoryService = createPatientMaintenanceHistoryService(
   !inMemoryRepos ? createPgPatientMaintenanceHistoryPort() : inMemoryPatientMaintenanceHistoryPort,
 );
+const patientBookingCatalogService = createPatientBookingCatalogService(
+  !inMemoryRepos ? createPgPatientBookingCatalogPort() : inMemoryPatientBookingCatalogPort,
+);
 const organizationMembershipPort = !inMemoryRepos
   ? createPgOrganizationMembershipPort()
   : createInMemoryOrganizationMembershipPort();
@@ -633,7 +640,17 @@ const clinicSeatsService = createClinicSeatsService({
   membershipPort: organizationMembershipPort,
   invitesPort: organizationInvitesPort,
   orgEntitlementsPort,
-  billingPort: saasBillingRepository,
+  billingPort: {
+    getOrganizationBillingOverview: (organizationId, platformUserId) =>
+      runWithDbClinicBillingPrincipal(
+        {
+          organizationId,
+          platformUserId,
+          source: 'clinic-seat-status-billing-read',
+        },
+        () => saasBillingRepository.getOrganizationBillingOverview(organizationId),
+      ),
+  },
 });
 const clinicDirectoryService = !inMemoryRepos
   ? createClinicDirectoryService(createPgClinicDirectoryPort())
@@ -1589,6 +1606,7 @@ function _buildAppDeps() {
       deliverCode: deliverPublicBookingCode,
     },
     patientMaintenanceHistory: patientMaintenanceHistoryService,
+    patientBookingCatalog: patientBookingCatalogService,
     doctorCabinet: {
       getDoctorWorkspaceState,
       getOverviewState,
@@ -1630,8 +1648,8 @@ function _buildAppDeps() {
     productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({
       assertWriteClearance: assertMechanicWriteClearance,
-      resolveBroadcastAudience: async (filter, channels, category) => {
-        const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
+      resolveBroadcastAudience: async (filter, channels, category, context) => {
+        const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter, context);
         const { devMode, testAccounts } = await systemSettingsService.getRelayDevContext();
         const { effective, nominal, cappedByDevMode } = resolveBroadcastEffectiveClients(
           clients,
@@ -1714,10 +1732,15 @@ function _buildAppDeps() {
         assertMechanicWriteClearance('mailings');
         return broadcastDraftPort.saveDraft(doctorUserId, draft);
       },
-      getChannelCounts: () => broadcastChannelCountsPort.getChannelConnectionCounts(),
-      getChannelCountsByAudience: async (filter: BroadcastAudienceFilter) => {
-        if (filter === 'all') return broadcastChannelCountsPort.getChannelConnectionCounts();
-        const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
+      getChannelCounts: async (context: Parameters<typeof listClientsForBroadcastAudience>[2]) => {
+        const clients = await listClientsForBroadcastAudience(doctorClientsPort, 'all', context);
+        return broadcastChannelCountsPort.getChannelCountsByUserIds(clients.map((c) => c.userId));
+      },
+      getChannelCountsByAudience: async (
+        filter: BroadcastAudienceFilter,
+        context: Parameters<typeof listClientsForBroadcastAudience>[2],
+      ) => {
+        const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter, context);
         const userIds = clients.map((c) => c.userId);
         return broadcastChannelCountsPort.getChannelCountsByUserIds(userIds);
       },

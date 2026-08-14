@@ -39,6 +39,7 @@ export async function GET(request: Request) {
             {
               viewerUserId: gate.ctx.session.user.userId,
               organizationId: gate.ctx.organizationId,
+              visibilityActor: gate.ctx,
             },
             { excludedUserIds },
           )
@@ -50,6 +51,7 @@ export async function GET(request: Request) {
             {
               viewerUserId: gate.ctx.session.user.userId,
               organizationId: gate.ctx.organizationId,
+              visibilityActor: gate.ctx,
             },
             { excludedUserIds },
           ),

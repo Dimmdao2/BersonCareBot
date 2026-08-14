@@ -27,6 +27,8 @@ import {
   upsertClientSupportProfile,
 } from '@/infra/repos/pgDoctorPatientSupport';
 import { appendSqlExcludeUserIds } from '@/modules/analytics/analyticsAudience';
+import { buildPatientVisibilityPredicate } from '@/infra/repos/patientVisibilityPredicateSql';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import {
   FIO,
   FIO_SELECT,
@@ -102,6 +104,17 @@ function appendSqlOrganizationColumn(
     sql: `${input.sql} AND ${columnSql} = $${params.length}::uuid`,
     params,
   };
+}
+
+function appendSqlPatientVisibility(
+  input: { sql: string; params: unknown[] },
+  userColumn: string,
+  organizationId: string | undefined,
+  actor: PatientVisibilityActor | undefined,
+): { sql: string; params: unknown[] } {
+  if (!organizationId) return input;
+  if (!actor) throw new Error('patient_visibility_actor_required');
+  return buildPatientVisibilityPredicate(input, userColumn, organizationId, actor);
 }
 
 function sqlLiteralUuid(value: string): string {
@@ -284,6 +297,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         listBaseWithUserIds = `${listBase} AND pu.id = ANY($${listBaseParams.length}::uuid[])`;
       }
       const listQ = appendSqlExcludeUserIds(listBaseWithUserIds, 'pu.id', excluded, listBaseParams);
+      const visibleListQ = appendSqlPatientVisibility(
+        listQ,
+        'pu.id',
+        organizationId ?? undefined,
+        filters.visibilityActor,
+      );
       const clientRows = await runWebappPgText<{
         id: string;
         display_name: string | null;
@@ -295,9 +314,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         email: string | null;
         email_verified_at: string | null;
       }>(
-        `${listQ.sql}
+        `${visibleListQ.sql}
          ORDER BY display_name, id`,
-        listQ.params,
+        visibleListQ.params,
       );
       if (clientRows.rows.length === 0) return [];
 
@@ -991,6 +1010,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getDashboardPatientMetrics(audience?: {
       excludedUserIds?: string[];
       organizationId?: string;
+      visibilityActor?: PatientVisibilityActor;
     }): Promise<DoctorDashboardPatientMetrics> {
       const excluded = audience?.excludedUserIds ?? [];
       const organizationId = audience?.organizationId;
@@ -1087,16 +1107,47 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         organizationId,
       );
 
+      const visibleTotalQ = appendSqlPatientVisibility(
+        totalQ,
+        'pu.id',
+        organizationId,
+        audience?.visibilityActor,
+      );
+      const visibleSupportQ = appendSqlPatientVisibility(
+        supportQ,
+        'pu.id',
+        organizationId,
+        audience?.visibilityActor,
+      );
+      const visibleVisitedQ = appendSqlPatientVisibility(
+        visitedQ,
+        'pu.id',
+        organizationId,
+        audience?.visibilityActor,
+      );
+      const visibleWithProgramQ = appendSqlPatientVisibility(
+        withProgramQ,
+        'pu.id',
+        organizationId,
+        audience?.visibilityActor,
+      );
+      const visibleAggQ = appendSqlPatientVisibility(
+        aggQ,
+        'pu.id',
+        organizationId,
+        audience?.visibilityActor,
+      );
+
       const [totalR, supportR, visitedR, withProgramR, aggR] = await Promise.all([
-        runWebappPgText<{ c: string }>(totalQ.sql, totalQ.params),
-        runWebappPgText<{ c: string }>(supportQ.sql, supportQ.params),
-        runWebappPgText<{ c: string }>(visitedQ.sql, visitedQ.params),
-        runWebappPgText<{ c: string }>(withProgramQ.sql, withProgramQ.params),
+        runWebappPgText<{ c: string }>(visibleTotalQ.sql, visibleTotalQ.params),
+        runWebappPgText<{ c: string }>(visibleSupportQ.sql, visibleSupportQ.params),
+        runWebappPgText<{ c: string }>(visibleVisitedQ.sql, visibleVisitedQ.params),
+        runWebappPgText<{ c: string }>(visibleWithProgramQ.sql, visibleWithProgramQ.params),
         runWebappPgText<{
           id: string;
           past_count: number;
           future_count: number;
-        }>(`${aggQ.sql} GROUP BY pu.id`, aggQ.params),
+        }>(`${visibleAggQ.sql} GROUP BY pu.id`, visibleAggQ.params),
       ]);
 
       const eligibleUserIds = aggR.rows.map((row) => row.id);
@@ -1156,11 +1207,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getClientIdentityForOrganization(
       userId: string,
       organizationId: string,
+      actor: PatientVisibilityActor,
     ): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-      const membershipRow = await runWebappPgText<{ id: string }>(
-        `SELECT pu.id
+      const visibleIdentityQuery = buildPatientVisibilityPredicate(
+        {
+          sql: `SELECT pu.id
          FROM platform_users pu
          WHERE pu.id = $1::uuid
            AND pu.role = 'client'
@@ -1171,7 +1224,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                AND oe.organization_id = $2::uuid
                AND oe.status IN ('invited', 'active')
            )`,
-        [canonicalId, organizationId],
+          params: [canonicalId, organizationId],
+        },
+        'pu.id',
+        organizationId,
+        actor,
+      );
+      const membershipRow = await runWebappPgText<{ id: string }>(
+        visibleIdentityQuery.sql,
+        visibleIdentityQuery.params,
       );
       if (!membershipRow.rows[0]) return null;
       return this.getClientIdentity(canonicalId);
@@ -1415,6 +1476,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getClientContactBreakdown(audience?: {
       excludedUserIds?: string[];
       organizationId?: string;
+      visibilityActor?: PatientVisibilityActor;
     }) {
       const excluded = audience?.excludedUserIds ?? [];
       const organizationId = audience?.organizationId;
@@ -1442,6 +1504,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         'pu.id',
         organizationId,
       );
+      const visibleQ = appendSqlPatientVisibility(
+        q,
+        'pu.id',
+        organizationId,
+        audience?.visibilityActor,
+      );
       const rows = await runWebappPgText<{
         has_telegram: boolean;
         has_max: boolean;
@@ -1450,7 +1518,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         has_verified_email: boolean;
         has_phone: boolean;
         has_appointment: boolean;
-      }>(q.sql, q.params);
+      }>(visibleQ.sql, visibleQ.params);
       const breakdown = emptyClientContactBreakdown();
       for (const row of rows.rows) {
         accumulateClientContactBreakdown(breakdown, {

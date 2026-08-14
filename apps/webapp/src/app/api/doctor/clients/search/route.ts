@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     deps.doctorClients.listClients({
       search: q,
       organizationId: gate.ctx.organizationId,
+      visibilityActor: gate.ctx,
     }),
   );
   return NextResponse.json({

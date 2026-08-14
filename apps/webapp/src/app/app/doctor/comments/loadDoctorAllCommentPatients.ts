@@ -5,20 +5,21 @@
  * Отличия от `loadDoctorCommentPatients` (unread-режим):
  *   - Убран on-support гейт: показывает ВСЕХ пациентов врача с хоть одним комментарием.
  *   - isOnSupport берётся из ClientListItem.isOnSupport (поле уже есть в listClients).
- *   - Использует listExerciseCommentsForDoctor с assignedByUserId — без фан-аута по patient_user_id.
+ *   - Передаёт в запрос комментариев явный список доступных этому специалисту patient_user_id.
  *   - unreadCount может быть 0 (все прочитаны).
  *   - Сортировка: сначала с непрочитанными (по убыванию), затем по displayName.
  *
  * Безопасность: только пациенты этого врача (listClients скоупирован на doctor-сессию).
  */
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { ListDoctorExerciseCommentsInput } from '@/modules/program-item-discussion/types';
 import type { CommentPatientRow } from './loadDoctorCommentPatients';
 
 export type LoadDoctorAllCommentPatientsDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId'>,
+      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId' | 'visibilityActor'>,
       audience?: { excludedUserIds?: string[] },
     ): Promise<
       Array<{
@@ -34,11 +35,6 @@ export type LoadDoctorAllCommentPatientsDeps = {
     listExerciseCommentsForDoctor(
       input: ListDoctorExerciseCommentsInput,
     ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
-    listAllExerciseCommentsForDoctor(input: {
-      viewerUserId: string;
-      organizationId?: string;
-      limit: number;
-    }): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
     listUnreadCountsForViewerByStageItems(input: {
       stageItemIds: string[];
       viewerUserId: string;
@@ -52,16 +48,30 @@ export type LoadDoctorAllCommentPatientsDeps = {
  */
 export async function loadDoctorAllCommentPatients(
   deps: LoadDoctorAllCommentPatientsDeps,
-  context: { viewerUserId: string; organizationId?: string },
+  context: {
+    viewerUserId: string;
+    organizationId?: string;
+    visibilityActor: PatientVisibilityActor;
+  },
   options?: { excludedUserIds?: string[] },
 ): Promise<CommentPatientRow[]> {
-  const audience = options?.excludedUserIds?.length
-    ? { excludedUserIds: options.excludedUserIds }
-    : undefined;
+  const audience = {
+    excludedUserIds: options?.excludedUserIds ?? [],
+  };
 
-  // Step 1: doctor-wide query — all exercises with any patient comment, no patient-ID fanout.
-  // assignedByUserId scopes to this doctor's instances directly.
-  const allRows = await deps.programItemDiscussion.listAllExerciseCommentsForDoctor({
+  // Step 1: resolve the specialist-visible patients before reading any comment body.
+  const allClients = await deps.doctorClientsPort.listClients(
+    {
+      organizationId: context.organizationId,
+      visibilityActor: context.visibilityActor,
+    },
+    audience,
+  );
+  const visiblePatientUserIds = allClients.map((client) => client.userId.trim()).filter(Boolean);
+  if (visiblePatientUserIds.length === 0) return [];
+
+  const allRows = await deps.programItemDiscussion.listExerciseCommentsForDoctor({
+    patientUserIds: visiblePatientUserIds,
     viewerUserId: context.viewerUserId,
     organizationId: context.organizationId,
     limit: 2000,
@@ -92,12 +102,7 @@ export async function loadDoctorAllCommentPatients(
     }
   }
 
-  // Step 3: resolve patient display info — fetch ALL clients (no supportStatus filter)
-  // so we include patients not on support. isOnSupport used as visual ★ marker only.
-  const allClients = await deps.doctorClientsPort.listClients(
-    { organizationId: context.organizationId },
-    audience,
-  );
+  // Step 3: attach the already scoped patient display info. isOnSupport is a visual ★ marker only.
   const clientById = new Map(
     allClients.map((c) => [
       c.userId.trim(),

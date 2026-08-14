@@ -136,6 +136,7 @@ async function DoctorTodayDashboardSection({
           specialistOwnerUserId: specialistTasksReadable ? session.user.userId : undefined,
           doctorUserId: session.user.userId,
           organizationId: workspace.organizationId,
+          visibilityActor: workspace,
           treatmentProgramProgress: deps.treatmentProgramProgress,
           treatmentProgramInstance: deps.treatmentProgramInstance,
           programItemDiscussion: deps.programItemDiscussion,

@@ -11,6 +11,7 @@ import type { BroadcastAuditEntry, BroadcastAuditPort, BroadcastCommand, DoctorB
 function buildService() {
   const commitAuditAndDeliveryQueue = vi.fn(async (): Promise<BroadcastAuditEntry> => ({
     id: 'audit-1',
+    organizationId: '11111111-1111-4111-8111-111111111111',
     actorId: 'doctor-1',
     category: 'service',
     audienceFilter: 'all',
@@ -60,11 +61,20 @@ const command: BroadcastCommand = {
   channels: ['telegram'],
 };
 
+const executionOptions = {
+  organizationId: '11111111-1111-4111-8111-111111111111',
+  visibilityActor: {
+    membershipRole: 'doctor' as const,
+    specialistId: '33333333-3333-4333-8333-333333333333',
+    canManageAllSpecialists: false,
+  },
+};
+
 describe('doctor-broadcasts service — 3.2 physical door (mailings)', () => {
   it('refuses execute when no mailings mutation decision ran first', async () => {
     const { service, commitAuditAndDeliveryQueue } = buildService();
     await runWithoutMechanicWriteClearance(async () => {
-      await expect(service.execute(command, { organizationId: 'org-1' })).rejects.toBeInstanceOf(
+      await expect(service.execute(command, executionOptions)).rejects.toBeInstanceOf(
         MechanicWriteClearanceRequiredError,
       );
     });
@@ -75,7 +85,7 @@ describe('doctor-broadcasts service — 3.2 physical door (mailings)', () => {
     const { service, commitAuditAndDeliveryQueue } = buildService();
     await runWithoutMechanicWriteClearance(async () => {
       enterWithMechanicWriteClearance('mailings');
-      const result = await service.execute(command, { organizationId: 'org-1' });
+      const result = await service.execute(command, executionOptions);
       expect(result.auditEntry.id).toBe('audit-1');
     });
     expect(commitAuditAndDeliveryQueue).toHaveBeenCalledOnce();

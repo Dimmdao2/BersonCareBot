@@ -681,10 +681,32 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            AND ($1::text IS NULL OR sc.source = $1)
            AND ($3::boolean = false OR COALESCE(unread.unread_from_user_count, 0) > 0)
            AND sc.organization_id = $4::uuid
+           AND (
+             $5::boolean = true
+             OR (
+               $6::uuid IS NOT NULL
+               AND sc.platform_user_id IS NOT NULL
+               AND EXISTS (
+                 SELECT 1
+                 FROM patient_specialist_links psl_visibility
+                 WHERE psl_visibility.organization_id = sc.organization_id
+                   AND psl_visibility.patient_user_id = sc.platform_user_id
+                   AND psl_visibility.specialist_id = $6::uuid
+                   AND psl_visibility.status = 'active'
+               )
+             )
+           )
          ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC,
                   COALESCE(last_personal.personal_msg_at, sc.created_at) DESC
          LIMIT $2`,
-        [source, limit, params.unreadOnly === true, organizationId],
+        [
+          source,
+          limit,
+          params.unreadOnly === true,
+          organizationId,
+          params.visibilityActor.canManageAllSpecialists,
+          params.visibilityActor.specialistId,
+        ],
       );
       return r.rows.map(mapAdminConversationListRow);
     },
@@ -1078,8 +1100,27 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            AND m.read_at IS NULL
            AND c.status <> 'closed'
            AND c.closed_at IS NULL
-           AND c.organization_id = $1::uuid`,
-        [organizationId],
+           AND c.organization_id = $1::uuid
+           AND (
+             $2::boolean = true
+             OR (
+               $3::uuid IS NOT NULL
+               AND c.platform_user_id IS NOT NULL
+               AND EXISTS (
+                 SELECT 1
+                 FROM patient_specialist_links psl_visibility
+                 WHERE psl_visibility.organization_id = c.organization_id
+                   AND psl_visibility.patient_user_id = c.platform_user_id
+                   AND psl_visibility.specialist_id = $3::uuid
+                   AND psl_visibility.status = 'active'
+               )
+             )
+           )`,
+        [
+          organizationId,
+          params.visibilityActor.canManageAllSpecialists,
+          params.visibilityActor.specialistId,
+        ],
       );
       return parseInt(r.rows[0]?.c ?? '0', 10);
     },

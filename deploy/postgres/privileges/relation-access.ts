@@ -1009,6 +1009,20 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": "table"
       },
       {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "event_type",
+          "id",
+          "occurred_at",
+          "organization_id",
+          "patient_package_id",
+          "payload_json"
+        ]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "INSERT"
@@ -1079,6 +1093,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "SELECT"
         ],
         "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "appointment_id",
+          "comment",
+          "id",
+          "occurred_at",
+          "organization_id",
+          "patient_package_id",
+          "usage_kind"
+        ]
       },
       {
         "role": "app_staff",
@@ -1212,6 +1241,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "состав купленного абонемента — не известно, сколько сеансов какой услуги куплено",
     "codePaths": [
+      "apps/webapp/src/app/api/booking/memberships/route.ts",
       "apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts",
       "apps/webapp/src/infra/repos/pgClientHistory.ts",
       "apps/webapp/src/infra/repos/pgMemberships.ts"
@@ -1219,6 +1249,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "grants": [
       {
         "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
         "operations": [
           "SELECT"
         ],
@@ -1255,6 +1292,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "purpose": "купленные пациентом абонементы — абонементы перестают списываться и показываться",
     "codePaths": [
       "apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts",
+      "apps/webapp/src/app/api/booking/memberships/route.ts",
       "apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabRecords.tsx",
       "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
       "apps/webapp/src/infra/repos/pgClientHistory.ts",
@@ -1268,6 +1306,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "grants": [
       {
         "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
         "operations": [
           "SELECT"
         ],
@@ -1357,6 +1402,23 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": "table"
       },
       {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "domain",
+          "event_type",
+          "id",
+          "linked_object_id",
+          "linked_object_type",
+          "occurred_at",
+          "organization_id",
+          "payload",
+          "platform_user_id"
+        ]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "INSERT"
@@ -1394,6 +1456,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "история платежей пациента — пропадает платёжная хронология в карточке пациента",
     "codePaths": [
+      "apps/webapp/src/app/api/booking/payment-history/route.ts",
       "apps/webapp/src/app/api/doctor/patients/[userId]/payment-timeline/route.ts",
       "apps/webapp/src/infra/repos/pgClientHistory.ts",
       "apps/webapp/src/infra/repos/pgPayments.ts",
@@ -1402,6 +1465,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "grants": [
       {
         "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
         "operations": [
           "SELECT"
         ],
@@ -5090,6 +5160,44 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "organization_id",
+          "skip_next_scheduled_rotation",
+          "updated_at",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "content_page_id",
+          "last_rotation_at",
+          "skip_next_scheduled_rotation",
+          "updated_at"
+        ]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -5175,6 +5283,17 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "organization_id",
+          "user_id"
+        ]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -5207,6 +5326,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "purpose": "слепок дня пациента — без неё дневник и «активность по дням» в карточке пациента пусты",
     "codePaths": [
       "apps/webapp/src/app/api/doctor/clients/[userId]/program-day-activity/route.ts",
+      "apps/webapp/src/app/app/patient/diary/PatientDiaryAuthenticatedMain.tsx",
       "apps/webapp/src/infra/repos/pgPatientDiarySnapshots.ts",
       "packages/platform-merge/src/pgPlatformUserMerge.ts"
     ],
@@ -5217,6 +5337,32 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "SELECT"
         ],
         "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "captured_at",
+          "iana",
+          "local_date",
+          "organization_id",
+          "plan_done_mask",
+          "plan_instance_id",
+          "plan_item_ids",
+          "platform_user_id",
+          "warmup_all_done",
+          "warmup_done_count",
+          "warmup_slot_limit"
+        ]
       },
       {
         "role": "app_staff",
@@ -5701,6 +5847,36 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "SELECT"
         ],
         "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_page_id",
+          "feeling",
+          "notes",
+          "organization_id",
+          "source",
+          "user_id"
+        ]
+      },
+      {
+        "role": "app_patient",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "feeling"
+        ]
       },
       {
         "role": "app_staff",

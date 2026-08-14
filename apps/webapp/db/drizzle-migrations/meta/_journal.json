@@ -2850,6 +2850,27 @@
       "when": 1793539230153,
       "tag": "0410_integrator_inbound_reply_enqueue_local",
       "breakpoints": true
+    },
+    {
+      "idx": 407,
+      "version": "7",
+      "when": 1793539230154,
+      "tag": "0411_platform_registration_events_named_root_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 408,
+      "version": "7",
+      "when": 1793539230155,
+      "tag": "0412_patient_roster_and_specialist_link_backfill_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 409,
+      "version": "7",
+      "when": 1793539230156,
+      "tag": "0413_current_patient_booking_catalog_local",
+      "breakpoints": true
     }
   ]
 }

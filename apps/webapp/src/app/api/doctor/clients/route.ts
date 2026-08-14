@@ -70,6 +70,7 @@ export async function POST(request: Request) {
     createDoctorClient(
       {
         organizationId: gate.ctx.organizationId,
+        specialistId: gate.ctx.specialistId,
         requestId: parsed.data.requestId,
         createdByUserId: gate.ctx.session.user.userId,
         lastName: parsed.data.lastName,

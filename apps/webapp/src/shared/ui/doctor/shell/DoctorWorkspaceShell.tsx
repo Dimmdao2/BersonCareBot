@@ -93,9 +93,10 @@ export function DoctorWorkspaceShell({
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
+  const clinicalRuntimeEnabled = enableTenantRuntime && showClinicalShortcuts;
 
   return (
-    <DoctorSupportUnreadProvider enabled={enableTenantRuntime}>
+    <DoctorSupportUnreadProvider enabled={clinicalRuntimeEnabled}>
       <Suspense fallback={null}>
         <AppAccessDeniedToastEffect />
       </Suspense>
@@ -108,7 +109,7 @@ export function DoctorWorkspaceShell({
           menuAccess={menuAccess}
           patientLabel={patientLabel}
           hideMenuOnDesktop={showDoctorDesktopNav}
-          enableBadgePolling={enableTenantRuntime}
+          enableBadgePolling={clinicalRuntimeEnabled}
           homeHref={homeHref}
           showClinicalShortcuts={showClinicalShortcuts}
           menuKind={menuKind}
@@ -119,7 +120,7 @@ export function DoctorWorkspaceShell({
               userDisplayName={userDisplayName}
               menuAccess={menuAccess}
               patientLabel={patientLabel}
-              enableBadgePolling={enableTenantRuntime}
+              enableBadgePolling={clinicalRuntimeEnabled}
               homeHref={homeHref}
               brand={brand}
               menuKind={menuKind}

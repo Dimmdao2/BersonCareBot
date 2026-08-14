@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 /** Та же шкала 1–5, что чек-ин на главной и `POST /api/patient/practice/completion` (симптом `warmup_feeling`). */
 const bodySchema = z.object({
@@ -35,7 +37,19 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   const userId = gate.session.user.userId;
 
   const deps = buildAppDeps();
-  const completion = await deps.patientPractice.getCompletionByIdForUser(completionId, userId);
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    userId,
+  );
+  if (!tenant.ok) return tenant.response;
+  const completion = await withPatientOrganizationPrincipal(
+    {
+      organizationId: tenant.organizationId,
+      platformUserId: userId,
+      source: 'api/patient/practice/completion/[id]/feeling:PATCH:read',
+    },
+    () => deps.patientPractice.getCompletionByIdForUser(completionId, userId),
+  );
   if (!completion) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
@@ -47,7 +61,14 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
-  const items = await deps.references.listActiveItemsByCategoryCode('symptom_type');
+  const items = await withPatientOrganizationPrincipal(
+    {
+      organizationId: tenant.organizationId,
+      platformUserId: userId,
+      source: 'api/patient/practice/completion/[id]/feeling:PATCH:references',
+    },
+    () => deps.references.listActiveItemsByCategoryCode('symptom_type'),
+  );
   const warmupRef = items.find((i) => i.code === 'warmup_feeling');
   if (!warmupRef) {
     return NextResponse.json(
@@ -57,20 +78,28 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   }
   const generalRef = items.find((i) => i.code === 'general_wellbeing');
 
-  const result = await deps.warmupFeelingCompletion.applyDailyWarmupFeeling({
-    userId,
-    completionId,
-    feeling,
-    completedAtIso: completion.completedAt,
-    symptomTypeRefId: warmupRef.id,
-    symptomTitle: warmupRef.title,
-    ...(generalRef
-      ? {
-          generalWellbeingSymptomTypeRefId: generalRef.id,
-          generalWellbeingSymptomTitle: generalRef.title?.trim() || 'Общее самочувствие',
-        }
-      : {}),
-  });
+  const result = await withPatientOrganizationPrincipal(
+    {
+      organizationId: tenant.organizationId,
+      platformUserId: userId,
+      source: 'api/patient/practice/completion/[id]/feeling:PATCH:write',
+    },
+    () =>
+      deps.warmupFeelingCompletion.applyDailyWarmupFeeling({
+        userId,
+        completionId,
+        feeling,
+        completedAtIso: completion.completedAt,
+        symptomTypeRefId: warmupRef.id,
+        symptomTitle: warmupRef.title,
+        ...(generalRef
+          ? {
+              generalWellbeingSymptomTypeRefId: generalRef.id,
+              generalWellbeingSymptomTitle: generalRef.title?.trim() || 'Общее самочувствие',
+            }
+          : {}),
+      }),
+  );
 
   revalidatePath(routePaths.patient);
   return NextResponse.json(result.duplicate ? { ok: true, duplicate: true } : { ok: true });

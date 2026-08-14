@@ -17,6 +17,7 @@ import type {
   TreatmentProgramInstanceSummary,
 } from '@/modules/treatment-program/types';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   type DoctorTodayPeopleListMode,
@@ -74,6 +75,7 @@ export type DoctorTodayDashboardDeps = {
   specialistOwnerUserId?: string;
   doctorUserId?: string;
   organizationId: string;
+  visibilityActor: PatientVisibilityActor;
   treatmentProgramProgress?: TreatmentProgramProgressService;
   treatmentProgramInstance?: {
     listForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
@@ -109,8 +111,12 @@ export type DoctorTodayDashboardDeps = {
         limit?: number;
         unreadOnly?: boolean;
         organizationId?: string;
+        visibilityActor: PatientVisibilityActor;
       }): Promise<TodayConversationSourceRow[]>;
-      unreadFromUsers(params?: { organizationId?: string }): Promise<number>;
+      unreadFromUsers(params: {
+        organizationId?: string;
+        visibilityActor: PatientVisibilityActor;
+      }): Promise<number>;
       unreadFromPatient?: (platformUserId: string, organizationId?: string) => Promise<number>;
     };
   };
@@ -360,6 +366,7 @@ export async function loadDoctorTodayDashboard(
   const scopedAudience: DoctorAppointmentsAudience = {
     excludedUserIds: audience?.excludedUserIds ?? [],
     organizationId: deps.organizationId,
+    visibilityActor: deps.visibilityActor,
   };
   const clientAudience = scopedAudience;
   const [
@@ -377,12 +384,17 @@ export async function loadDoctorTodayDashboard(
       unreadOnly: true,
       limit: 3,
       organizationId: deps.organizationId,
+      visibilityActor: deps.visibilityActor,
     }),
-    deps.messaging.doctorSupport.unreadFromUsers({ organizationId: deps.organizationId }),
+    deps.messaging.doctorSupport.unreadFromUsers({
+      organizationId: deps.organizationId,
+      visibilityActor: deps.visibilityActor,
+    }),
     deps.doctorClients.listClients(
       {
         supportStatus: 'on',
         organizationId: deps.organizationId,
+        visibilityActor: deps.visibilityActor,
         ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
       },
       clientAudience,
@@ -399,6 +411,7 @@ export async function loadDoctorTodayDashboard(
       ? await deps.doctorClients.listClients(
           {
             organizationId: deps.organizationId,
+            visibilityActor: deps.visibilityActor,
             onlyWithAppointmentRecords: true,
             ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
           },

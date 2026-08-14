@@ -13,7 +13,7 @@ export async function GET() {
   const deps = buildAppDeps();
   const [members, seats] = await Promise.all([
     deps.organizationMembership.listOrganizationMembers(gate.ctx.organizationId),
-    deps.clinicSeats.getSeatStatus(gate.ctx.organizationId),
+    deps.clinicSeats.getSeatStatus(gate.ctx.organizationId, gate.ctx.session.user.userId),
   ]);
 
   return NextResponse.json({

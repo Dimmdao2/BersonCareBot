@@ -606,7 +606,12 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       ) : filteredRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Нет строк по текущему фильтру.</p>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <DndContext
+          id={`doctor-reference-items-${categoryCode}`}
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
           <SortableContext
             items={filteredRows.map((row) => row.id)}
             strategy={verticalListSortingStrategy}

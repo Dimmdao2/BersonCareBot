@@ -1,9 +1,15 @@
 import type { ClientListItem, DoctorClientsPort } from '@/modules/doctor-clients/ports';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { TestAccountIdentifiers } from '@/modules/system-settings/testAccounts';
 import type { BroadcastChannel } from './broadcastChannels';
 import type { BroadcastAudienceFilter, BroadcastRecipientsPreview } from './ports';
 import { BROADCAST_RECIPIENT_PREVIEW_NAME_CAP } from './ports';
 import { formatDoctorFio } from '@/shared/lib/fio';
+
+export type DoctorBroadcastAudienceContext = {
+  organizationId: string;
+  visibilityActor: PatientVisibilityActor;
+};
 
 /**
  * Список клиентов в сегменте рассылки (та же логика фильтров, что в `buildAppDeps` → doctorBroadcasts).
@@ -11,34 +17,43 @@ import { formatDoctorFio } from '@/shared/lib/fio';
 export async function listClientsForBroadcastAudience(
   port: Pick<DoctorClientsPort, 'listClients'>,
   filter: BroadcastAudienceFilter,
+  context: DoctorBroadcastAudienceContext,
 ): Promise<ClientListItem[]> {
+  const list = (filters: Parameters<DoctorClientsPort['listClients']>[0]) =>
+    port.listClients(
+      {
+        ...filters,
+        organizationId: context.organizationId,
+        visibilityActor: context.visibilityActor,
+      },
+    );
   if (filter === 'with_telegram') {
-    return port.listClients({ hasTelegram: true });
+    return list({ hasTelegram: true });
   }
   if (filter === 'with_max') {
-    return port.listClients({ hasMax: true });
+    return list({ hasMax: true });
   }
   if (filter === 'with_upcoming_appointment') {
-    return port.listClients({ hasUpcomingAppointment: true });
+    return list({ hasUpcomingAppointment: true });
   }
   if (filter === 'active_clients') {
-    return port.listClients({ onlyWithAppointmentRecords: true });
+    return list({ onlyWithAppointmentRecords: true });
   }
   if (filter === 'without_appointment') {
     const [all, withUpcoming] = await Promise.all([
-      port.listClients({}),
-      port.listClients({ hasUpcomingAppointment: true }),
+      list({}),
+      list({ hasUpcomingAppointment: true }),
     ]);
     const upcomingIds = new Set(withUpcoming.map((c) => c.userId));
     return all.filter((c) => !upcomingIds.has(c.userId));
   }
   if (filter === 'inactive') {
-    return port.listClients({});
+    return list({});
   }
   if (filter === 'sms_only') {
-    return port.listClients({});
+    return list({});
   }
-  return port.listClients({});
+  return list({});
 }
 
 /**

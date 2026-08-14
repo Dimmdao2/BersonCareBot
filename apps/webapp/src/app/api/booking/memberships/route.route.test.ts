@@ -4,7 +4,7 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
   resolvePatientEnrollmentOrganizationId: vi.fn(),
-  withExplicitOrganizationPrincipal: vi.fn(),
+  withPatientOrganizationPrincipal: vi.fn(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
@@ -15,7 +15,7 @@ vi.mock('../bookingTenant', () => ({
   resolvePatientEnrollmentOrganizationId: fakes.resolvePatientEnrollmentOrganizationId,
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
-  withExplicitOrganizationPrincipal: fakes.withExplicitOrganizationPrincipal,
+  withPatientOrganizationPrincipal: fakes.withPatientOrganizationPrincipal,
 }));
 
 import { GET } from './route';
@@ -35,7 +35,7 @@ describe('GET /api/booking/memberships', () => {
 
   it('keeps already purchased package history readable after subscriptions are disabled', async () => {
     const listPatientPackagesForUser = vi.fn().mockResolvedValue([{ id: 'package-1' }]);
-    fakes.withExplicitOrganizationPrincipal.mockImplementation(
+    fakes.withPatientOrganizationPrincipal.mockImplementation(
       async (_context: unknown, callback: () => Promise<unknown>) => callback(),
     );
     fakes.buildAppDeps.mockReturnValue({
@@ -52,7 +52,7 @@ describe('GET /api/booking/memberships', () => {
 
   it('keeps existing package history readable for a read-only patient', async () => {
     const listPatientPackagesForUser = vi.fn().mockResolvedValue([{ id: 'package-1' }]);
-    fakes.withExplicitOrganizationPrincipal.mockImplementation(
+    fakes.withPatientOrganizationPrincipal.mockImplementation(
       async (_context: unknown, callback: () => Promise<unknown>) => callback(),
     );
     fakes.buildAppDeps.mockReturnValue({

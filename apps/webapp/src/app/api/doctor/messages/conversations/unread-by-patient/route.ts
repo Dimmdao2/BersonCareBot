@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     parsed.data.patientUserId,
     auth.ctx.organizationId,
+      auth.ctx,
   );
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'patient_not_found' }, { status: 404 });

@@ -19,6 +19,7 @@ vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({
 import { POST, GET } from './route';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
+const platformUserId = 'platform-user-1';
 
 /** Active/unrestricted entitlement — POST tests below aren't exercising the ladder itself. */
 const activeEntitlement = {
@@ -30,7 +31,7 @@ describe('GET /api/clinic/invites', () => {
     vi.clearAllMocks();
     fakes.requireClinicManagementApiContext.mockResolvedValue({
       ok: true,
-      ctx: { organizationId },
+      ctx: { organizationId, session: { user: { userId: platformUserId } } },
     });
   });
 
@@ -72,7 +73,7 @@ describe('GET /api/clinic/invites', () => {
       seats: { used: 1 },
     });
     expect(listPending).toHaveBeenCalledWith(organizationId);
-    expect(getSeatStatus).toHaveBeenCalledWith(organizationId);
+    expect(getSeatStatus).toHaveBeenCalledWith(organizationId, platformUserId);
   });
 });
 

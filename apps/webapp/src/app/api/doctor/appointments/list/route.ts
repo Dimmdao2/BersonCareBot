@@ -25,6 +25,7 @@ export async function GET(request: Request) {
     },
     {
       organizationId: gate.ctx.organizationId,
+      visibilityActor: gate.ctx,
     },
   );
 

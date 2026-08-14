@@ -34,12 +34,19 @@ import type { PatientWebPushNotifyDeps } from '@/modules/patient-notifications/p
 import { logger } from '@/infra/logging/logger';
 import { routePaths } from '@/app-layer/routes/paths';
 import { env } from '@/config/env';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
+
+export type DoctorBroadcastAudienceContext = {
+  organizationId: string;
+  visibilityActor: PatientVisibilityActor;
+};
 
 export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudience(
     filter: BroadcastAudienceFilter,
     channels: BroadcastChannel[],
     category: BroadcastCategory,
+    context: DoctorBroadcastAudienceContext,
   ): Promise<BroadcastAudienceResolveResult>;
   broadcastAuditPort: BroadcastAuditPort;
   doctorBroadcastDeliveryCommitPort: DoctorBroadcastDeliveryCommitPort;
@@ -62,7 +69,8 @@ export type DoctorBroadcastsServiceDeps = {
 };
 
 export type DoctorBroadcastExecutionOptions = {
-  organizationId?: string;
+  organizationId: string;
+  visibilityActor: PatientVisibilityActor;
   reserveAudienceGrowth?: (audienceSize: number) => Promise<void>;
   runDeliveryCommit?: <T>(fn: () => Promise<T>) => Promise<T>;
 };
@@ -95,12 +103,16 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       return [...CATEGORIES];
     },
 
-    async preview(command: BroadcastCommand): Promise<BroadcastPreviewResult> {
+    async preview(
+      command: BroadcastCommand,
+      context: DoctorBroadcastAudienceContext,
+    ): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
       const resolved = await deps.resolveBroadcastAudience(
         command.audienceFilter,
         channels,
         command.category,
+        context,
       );
       const {
         audienceSize,
@@ -123,7 +135,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async execute(
       command: BroadcastCommand,
-      options?: DoctorBroadcastExecutionOptions,
+      options: DoctorBroadcastExecutionOptions,
     ): Promise<{ auditEntry: BroadcastAuditEntry }> {
       deps.assertWriteClearance?.('mailings');
       const channels = resolvedChannels(command);
@@ -131,6 +143,10 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         command.audienceFilter,
         channels,
         command.category,
+        {
+          organizationId: options.organizationId,
+          visibilityActor: options.visibilityActor,
+        },
       );
       const {
         audienceSize,
@@ -139,7 +155,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         webPushEligibleUserIds,
         emailEligibleUserIds,
       } = resolved;
-      await options?.reserveAudienceGrowth?.(audienceSize);
+      await options.reserveAudienceGrowth?.(audienceSize);
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
       const notificationOpenUrl = buildPatientNotificationsOpenUrl(env.APP_BASE_URL);
       // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
@@ -157,6 +173,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         imageUrl: command.message.mediaUrl ?? null,
       });
       const auditBase = {
+        organizationId: options.organizationId,
         actorId: command.actorId,
         category: command.category,
         audienceFilter: command.audienceFilter,
@@ -171,7 +188,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         errorCount: 0,
         blockedRecipientCount: 0,
       };
-      const runDeliveryCommit = options?.runDeliveryCommit ?? (<T>(fn: () => Promise<T>) => fn());
+      const runDeliveryCommit = options.runDeliveryCommit ?? (<T>(fn: () => Promise<T>) => fn());
       const entry = await runDeliveryCommit(() =>
         deps.doctorBroadcastDeliveryCommitPort.commitAuditAndDeliveryQueue({
           auditId,
@@ -211,7 +228,6 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         deps.fanOutBroadcastWebPush &&
         deps.patientWebPushNotifyDeps
       ) {
-        if (!options?.organizationId) throw new Error('doctor_broadcast_organization_required');
         await deps.fanOutBroadcastWebPush(
           {
             organizationId: options.organizationId,
@@ -228,7 +244,6 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       }
 
       if (channels.includes('email') && deps.fanOutBroadcastEmailDeps) {
-        if (!options?.organizationId) throw new Error('doctor_broadcast_organization_required');
         const emailClients = emailEligibleUserIds
           ? eligibleClients.filter((c) => emailEligibleUserIds.has(c.userId))
           : eligibleClients;
@@ -249,8 +264,11 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       return { auditEntry: entry };
     },
 
-    async listAudit(limit = 50): Promise<BroadcastAuditEntry[]> {
-      return deps.broadcastAuditPort.list(limit);
+    async listAudit(
+      context: DoctorBroadcastAudienceContext & { actorUserId: string },
+      limit = 50,
+    ): Promise<BroadcastAuditEntry[]> {
+      return deps.broadcastAuditPort.list(context, limit);
     },
   };
 }

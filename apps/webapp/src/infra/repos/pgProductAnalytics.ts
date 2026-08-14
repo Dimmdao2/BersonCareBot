@@ -34,7 +34,6 @@ import type {
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
 } from '@/modules/product-analytics/types';
-import { AUTH_REGISTRATION_EVENT_TYPES } from '@/modules/product-analytics/types';
 import { PRODUCT_ANALYTICS_DIM_ALL } from '@/modules/product-analytics/types';
 import {
   productAnalyticsEventsRecent,
@@ -43,8 +42,13 @@ import {
   productPushNotifications,
 } from '../../../db/schema/productAnalytics';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 
 async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
   return normalizeTestAccountIdentifiersValue(
@@ -543,80 +547,42 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
     async listRegistrationEvents(
       params: ListRegistrationEventsParams,
     ): Promise<ListRegistrationEventsResult> {
-      const db = getDrizzle();
-      const isPlatformPrincipal = getCurrentDbPrincipal()?.kind === 'platform';
-      // Operational auth funnel journal — always exclude test accounts (not gated by dev_mode).
-      // The platform role intentionally cannot read platform_users/user_channel_bindings directly;
-      // its boolean SECURITY DEFINER predicate exposes only "exclude this user", not identifiers.
-      const excludedUserIds = isPlatformPrincipal
-        ? []
-        : await resolveAnalyticsExcludedUserIds(db, {
-            includeTestAccounts: false,
-            excludeStaffRoles: true,
-            testAccountIdentifiers: await loadProductAnalyticsTestAccountIdentifiers(),
-          });
-      const conditions = [
-        gte(productAnalyticsEventsRecent.occurredAt, params.startIso),
-        lt(productAnalyticsEventsRecent.occurredAt, params.endExclusiveIso),
-        inArray(productAnalyticsEventsRecent.eventType, [...AUTH_REGISTRATION_EVENT_TYPES]),
-      ];
-      if (isPlatformPrincipal) {
-        conditions.push(
-          sql`NOT app.is_platform_registration_analytics_user_excluded(${productAnalyticsEventsRecent.userId})`,
-        );
-      }
-      if (excludedUserIds.length > 0) {
-        const notExcluded = or(
-          isNull(productAnalyticsEventsRecent.userId),
-          notInArray(productAnalyticsEventsRecent.userId, excludedUserIds),
-        );
-        if (notExcluded) conditions.push(notExcluded);
-      }
-      if (params.eventType) {
-        conditions.push(eq(productAnalyticsEventsRecent.eventType, params.eventType));
-      }
-      if (params.authMethod?.trim()) {
-        conditions.push(
-          sql`${productAnalyticsEventsRecent.metadata}->>'authMethod' = ${params.authMethod.trim()}`,
-        );
-      }
-      if (params.errorClass) {
-        conditions.push(
-          sql`${productAnalyticsEventsRecent.metadata}->>'errorClass' = ${params.errorClass}`,
-        );
-      }
-      const whereClause = and(...conditions);
       const offset = (params.page - 1) * params.limit;
-
-      const [countRow] = await db
-        .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
-        .from(productAnalyticsEventsRecent)
-        .where(whereClause);
-      const total = Number.parseInt(countRow?.c ?? '0', 10) || 0;
-
-      const rows = await db
-        .select({
-          id: productAnalyticsEventsRecent.id,
-          occurredAt: productAnalyticsEventsRecent.occurredAt,
-          eventType: productAnalyticsEventsRecent.eventType,
-          entryChannel: productAnalyticsEventsRecent.entryChannel,
-          userId: productAnalyticsEventsRecent.userId,
-          metadata: productAnalyticsEventsRecent.metadata,
-        })
-        .from(productAnalyticsEventsRecent)
-        .where(whereClause)
-        .orderBy(sql`${productAnalyticsEventsRecent.occurredAt} DESC`)
-        .limit(params.limit)
-        .offset(offset);
+      const eventType = params.eventType ?? null;
+      const errorClass = params.errorClass ?? null;
+      const authMethod = params.authMethod?.trim() || null;
+      const result = await runWebappNamedRoot<{
+        id: string;
+        occurred_at: Date | string;
+        event_type: string;
+        entry_channel: string;
+        metadata: Record<string, unknown> | null;
+        total_count: string | number;
+      }>(
+        getWebappSqlDb(),
+        'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)',
+        [params.startIso, params.endExclusiveIso, eventType, errorClass, authMethod, params.limit, offset],
+        sql`SELECT id::text AS id, occurred_at, event_type, entry_channel, metadata,
+                   total_count::text AS total_count
+            FROM app.list_platform_registration_analytics_events(
+              ${params.startIso}::timestamptz,
+              ${params.endExclusiveIso}::timestamptz,
+              ${eventType}::text,
+              ${errorClass}::text,
+              ${authMethod}::text,
+              ${params.limit}::integer,
+              ${offset}::integer
+            )`,
+      );
+      const total = Number.parseInt(String(result.rows[0]?.total_count ?? '0'), 10) || 0;
 
       return {
-        items: rows.map((row) => ({
+        items: result.rows.map((row) => ({
           id: row.id,
-          occurredAt: row.occurredAt,
-          eventType: row.eventType as ListRegistrationEventsResult['items'][number]['eventType'],
+          occurredAt: toIsoStringSafe(row.occurred_at),
+          eventType: row.event_type as ListRegistrationEventsResult['items'][number]['eventType'],
           entryChannel:
-            row.entryChannel as ListRegistrationEventsResult['items'][number]['entryChannel'],
-          userId: row.userId,
+            row.entry_channel as ListRegistrationEventsResult['items'][number]['entryChannel'],
           metadata: (row.metadata ?? {}) as Record<string, unknown>,
         })),
         total,

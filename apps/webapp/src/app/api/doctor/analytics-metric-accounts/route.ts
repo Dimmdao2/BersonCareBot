@@ -82,6 +82,7 @@ export async function GET(req: Request) {
       const rows = await deps.doctorAppointments.listAppointmentsForSpecialist(appointmentFilter, {
         excludedUserIds: audience.excludedUserIds,
         organizationId: gate.ctx.organizationId,
+        visibilityActor: gate.ctx,
       });
       const pageEnd = offset + limit + 1;
       const pageRows = rows.slice(offset, pageEnd);

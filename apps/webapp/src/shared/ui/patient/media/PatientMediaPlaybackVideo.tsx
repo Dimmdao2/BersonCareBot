@@ -9,7 +9,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type Hls from 'hls.js';
+import Hls from 'hls.js';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import {
@@ -340,7 +340,6 @@ function PlaybackEngine({
       }
 
       try {
-        const { default: Hls } = await import('hls.js');
         if (cancelled) return;
 
         if (!Hls.isSupported()) {

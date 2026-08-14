@@ -1,17 +1,14 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import type { BookingCity } from '@/modules/booking-catalog/types';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
-  listInPersonCitiesForOrganization,
-  listInPersonServicesForBranch,
-  resolveBookableOnlineLocationForOrganization,
-  resolveActiveBranchForCity,
   titleForBookingCityCode,
   type InPersonServiceListItem,
   type OnlineBookingLocationOption,
 } from '@/modules/patient-booking/inPersonServicesCatalog';
+import type { PatientBookingCatalogRow } from '@/modules/patient-booking/patientBookingCatalog';
 
 type PatientOrganizationServiceLike = {
   resolveActiveOrganizationForPatient(
@@ -56,6 +53,69 @@ export type LoadInPersonSlotContextResult =
     }
   | { ok: false; error: 'catalog_unavailable' | 'invalid_selection' };
 
+function bookingCitiesFromRows(rows: PatientBookingCatalogRow[]): BookingCity[] {
+  const firstByCity = new Map<string, PatientBookingCatalogRow>();
+  for (const row of rows) {
+    const cityCode = row.cityCode.trim().toLowerCase();
+    if (!cityCode || cityCode === 'online') continue;
+    const current = firstByCity.get(cityCode);
+    if (
+      !current ||
+      row.branchSortOrder < current.branchSortOrder ||
+      (row.branchSortOrder === current.branchSortOrder && row.branchTitle < current.branchTitle)
+    ) {
+      firstByCity.set(cityCode, row);
+    }
+  }
+  return [...firstByCity.entries()]
+    .sort(([, a], [, b]) =>
+      a.branchSortOrder - b.branchSortOrder || a.cityCode.localeCompare(b.cityCode))
+    .map(([code, row]) => ({
+      id: row.branchId,
+      code,
+      title: titleForBookingCityCode(code),
+      isActive: true,
+      sortOrder: row.branchSortOrder,
+      createdAt: '',
+      updatedAt: '',
+    }));
+}
+
+function onlineLocationFromRows(
+  rows: PatientBookingCatalogRow[],
+): OnlineBookingLocationOption | null {
+  const row = rows.find((item) => item.cityCode.trim().toLowerCase() === 'online');
+  return row
+    ? { id: row.branchId, cityCode: row.cityCode, title: row.branchTitle }
+    : null;
+}
+
+function servicesForCityFromRows(rows: PatientBookingCatalogRow[], cityCode: string) {
+  const normalized = cityCode.trim().toLowerCase();
+  const candidates = rows.filter((row) => row.cityCode.trim().toLowerCase() === normalized);
+  const first = candidates.sort((a, b) =>
+    a.branchSortOrder - b.branchSortOrder || a.branchTitle.localeCompare(b.branchTitle, 'ru'))[0];
+  if (!first) return null;
+  const serviceById = new Map<string, PatientBookingCatalogRow>();
+  for (const row of candidates) {
+    if (row.branchId === first.branchId) serviceById.set(row.serviceId, row);
+  }
+  const services: InPersonServiceListItem[] = [...serviceById.values()]
+    .sort((a, b) =>
+      a.serviceSortOrder - b.serviceSortOrder || a.serviceTitle.localeCompare(b.serviceTitle, 'ru'))
+    .map((row) => ({
+      id: row.serviceId,
+      title: row.serviceTitle,
+      description: row.serviceDescription,
+      durationMinutes: row.durationMinutes,
+      priceMinor: row.priceMinor,
+    }));
+  return {
+    branch: { id: first.branchId, title: first.branchTitle, cityCode: first.cityCode },
+    services,
+  };
+}
+
 export async function resolvePatientOrganizationIdForRsc(
   deps: { patientOrganization: PatientOrganizationServiceLike | null },
   platformUserId: string | undefined,
@@ -79,8 +139,12 @@ export async function loadPatientBookingDisplaySettingsRsc(
   const organizationId = await resolvePatientOrganizationIdForRsc(deps, platformUserId);
   if (!organizationId) return { ok: false, error: 'catalog_unavailable' };
   try {
-    const appDisplayTimeZone = await withExplicitOrganizationPrincipal(
-      { organizationId, source: 'app/patient/booking:load-display-settings' },
+    const appDisplayTimeZone = await withPatientOrganizationPrincipal(
+      {
+        organizationId,
+        platformUserId,
+        source: 'app/patient/booking:load-display-settings',
+      },
       () => getAppDisplayTimeZone(),
     );
     return { ok: true, organizationId, appDisplayTimeZone };
@@ -101,13 +165,17 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
   const deps = buildAppDeps();
   const organizationId = await resolvePatientOrganizationIdForRsc(deps, input.platformUserId);
   const bookingScheduling = deps.bookingScheduling;
-  if (!organizationId || !deps.bookingEngine || !bookingScheduling) {
+  if (!organizationId || !bookingScheduling) {
     return { ok: false, error: 'catalog_unavailable' };
   }
 
   try {
-    return await withExplicitOrganizationPrincipal(
-      { organizationId, source: 'app/patient/booking:load-slot-context' },
+    return await withPatientOrganizationPrincipal(
+      {
+        organizationId,
+        platformUserId: input.platformUserId,
+        source: 'app/patient/booking:load-slot-context',
+      },
       async () => {
         let branchId = input.branchId;
         let serviceId = input.serviceId;
@@ -115,23 +183,11 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           return { ok: false, error: 'invalid_selection' } as const;
         }
 
-        const listed = await listInPersonServicesForBranch(deps, organizationId, branchId);
-        const service = listed?.services.find((item) => item.id === serviceId);
-        if (!listed || !service) {
-          return { ok: false, error: 'invalid_selection' } as const;
-        }
-
-        const context = await bookingScheduling.resolveCanonicalInPersonContext({
-          organizationId,
-          branchId,
-          serviceId,
-        });
-        if (
-          !context ||
-          context.organizationId !== organizationId ||
-          context.branchId !== branchId ||
-          context.serviceId !== serviceId
-        ) {
+        const rows = await deps.patientBookingCatalog.listCurrentPatientCatalog();
+        const selected = rows.find(
+          (row) => row.branchId === branchId && row.serviceId === serviceId,
+        );
+        if (!selected) {
           return { ok: false, error: 'invalid_selection' } as const;
         }
 
@@ -145,11 +201,11 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           organizationId,
           branchId,
           serviceId,
-          cityCode: listed.branch.cityCode,
-          cityTitle: titleForBookingCityCode(listed.branch.cityCode),
-          serviceTitle: service.title,
-          durationMinutes: context.durationMinutes,
-          priceMinor: service.priceMinor,
+          cityCode: selected.cityCode,
+          cityTitle: titleForBookingCityCode(selected.cityCode),
+          serviceTitle: selected.serviceTitle,
+          durationMinutes: selected.durationMinutes,
+          priceMinor: selected.priceMinor,
           maxConsecutiveSlotHours,
           appDisplayTimeZone,
         } as const;
@@ -170,19 +226,20 @@ export async function loadBookingCitiesForPatientRsc(
     return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
   }
   try {
-    const catalog = await withExplicitOrganizationPrincipal(
-      { organizationId, source: 'app/patient/booking:load-cities' },
+    const catalog = await withPatientOrganizationPrincipal(
+      {
+        organizationId,
+        platformUserId,
+        source: 'app/patient/booking:load-cities',
+      },
       async () => {
-        const [cities, onlineLocation] = await Promise.all([
-          listInPersonCitiesForOrganization(deps, organizationId),
-          resolveBookableOnlineLocationForOrganization(deps, organizationId),
-        ]);
-        return { cities, onlineLocation };
+        const rows = await deps.patientBookingCatalog.listCurrentPatientCatalog();
+        return {
+          cities: bookingCitiesFromRows(rows),
+          onlineLocation: onlineLocationFromRows(rows),
+        };
       },
     );
-    if (!catalog.cities) {
-      return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
-    }
     return { ok: true, cities: catalog.cities, onlineLocation: catalog.onlineLocation };
   } catch {
     return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
@@ -196,15 +253,19 @@ export async function loadInPersonServicesForCityRsc(
 ): Promise<LoadInPersonServicesResult> {
   const deps = buildAppDeps();
   const organizationId = await resolvePatientOrganizationIdForRsc(deps, platformUserId);
-  if (!deps.bookingEngine || !organizationId) {
+  if (!platformUserId || !organizationId) {
     return { ok: false, error: 'catalog_unavailable', services: [] };
   }
   try {
-    const listed = await withExplicitOrganizationPrincipal(
-      { organizationId, source: 'app/patient/booking:load-services' },
+    const listed = await withPatientOrganizationPrincipal(
+      {
+        organizationId,
+        platformUserId,
+        source: 'app/patient/booking:load-services',
+      },
       async () => {
-        const branch = await resolveActiveBranchForCity(deps, organizationId, cityCode);
-        return branch ? listInPersonServicesForBranch(deps, organizationId, branch.id) : null;
+        const rows = await deps.patientBookingCatalog.listCurrentPatientCatalog();
+        return servicesForCityFromRows(rows, cityCode);
       },
     );
     if (!listed) {

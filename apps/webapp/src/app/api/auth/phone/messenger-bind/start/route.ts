@@ -21,6 +21,7 @@ import { getMaxLoginBotNickname } from '@/modules/system-settings/maxLoginBotNic
 import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
 import { canAccessPatient } from '@/modules/roles/service';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { logger } from '@/infra/logging/logger';
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -80,22 +81,35 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const isRegistrationIntent =
-    parsed.data.purpose === 'login' && !(await deps.userByPhone.findByPhone(phone));
+  // Registration analytics is owner-deferred. A public bind start must not probe whether an
+  // arbitrary phone already exists merely to classify an analytics event.
+  const isRegistrationIntent = false;
 
   const [botUsername, maxBotNickname] = await Promise.all([
     getTelegramLoginBotUsername(),
     getMaxLoginBotNickname(),
   ]);
 
-  const result = await deps.phoneMessengerBind.start({
-    phone,
-    channelCode: parsed.data.channelCode,
-    purpose: parsed.data.purpose,
-    botUsername,
-    maxBotNickname,
-    sessionUserId,
-  });
+  let result: Awaited<ReturnType<typeof deps.phoneMessengerBind.start>>;
+  try {
+    result = await deps.phoneMessengerBind.start({
+      phone,
+      channelCode: parsed.data.channelCode,
+      purpose: parsed.data.purpose,
+      botUsername,
+      maxBotNickname,
+      sessionUserId,
+    });
+  } catch (error) {
+    logger.error({
+      event: 'phone_messenger_bind_start_failed',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { ok: false, error: 'messenger_bind_unavailable', message: 'Привязка временно недоступна' },
+      { status: 503 },
+    );
+  }
 
   if (!result.ok) {
     if (isRegistrationIntent) {

@@ -23,6 +23,7 @@ export async function GET(request: Request) {
       limit: 50,
       unreadOnly,
       organizationId: auth.ctx.organizationId,
+      visibilityActor: auth.ctx,
     }),
   );
 
@@ -40,7 +41,11 @@ export async function GET(request: Request) {
   const scopedClients =
     patientUserIds.length > 0
       ? await withDoctorWorkspacePrincipal(auth.ctx, () =>
-          deps.doctorClients.listClients({ userIds: patientUserIds }),
+          deps.doctorClients.listClients({
+            userIds: patientUserIds,
+            organizationId: auth.ctx.organizationId,
+            visibilityActor: auth.ctx,
+          }),
         )
       : [];
 

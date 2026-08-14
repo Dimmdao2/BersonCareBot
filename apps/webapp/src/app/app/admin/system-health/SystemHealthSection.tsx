@@ -790,6 +790,7 @@ const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, strin
   patient_runtime_config: 'конфигурация кабинета пациента',
   public_booking_config: 'публичная конфигурация записи',
   patient_identity_exception_check: 'проверка тестового пациента',
+  patient_booking_catalog: 'каталог записи пациента',
   patient_booking_history: 'история записей пациента',
   patient_product_analytics: 'события продуктовой аналитики пациента',
   patient_ui_config: 'настройки интерфейса пациента',

@@ -32,7 +32,6 @@ type Row = {
   occurredAt: string;
   eventType: AuthRegistrationEventType;
   entryChannel: string;
-  userId: string | null;
   metadata: Record<string, unknown>;
 };
 

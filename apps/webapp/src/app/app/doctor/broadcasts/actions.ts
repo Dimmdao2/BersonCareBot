@@ -71,9 +71,12 @@ const draftSchema = z.object({
 export async function previewBroadcastAction(
   command: Omit<BroadcastCommand, 'actorId'>,
 ): Promise<BroadcastPreviewResult> {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  return deps.doctorBroadcasts.preview({ ...command, actorId: session.user.userId });
+  return deps.doctorBroadcasts.preview(
+    { ...command, actorId: workspace.session.user.userId },
+    { organizationId: workspace.organizationId, visibilityActor: workspace },
+  );
 }
 
 export async function executeBroadcastAction(
@@ -93,6 +96,7 @@ export async function executeBroadcastAction(
     },
     {
       organizationId: workspace.organizationId,
+      visibilityActor: workspace,
       runDeliveryCommit: (fn) =>
         withDoctorWorkspacePrincipal(workspace, 'doctor.broadcasts.execute', fn),
     },
@@ -152,9 +156,16 @@ async function assertClinicBroadcastChannels(
 }
 
 export async function listBroadcastAuditAction(limit?: number): Promise<BroadcastAuditEntry[]> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  return deps.doctorBroadcasts.listAudit(limit);
+  return deps.doctorBroadcasts.listAudit(
+    {
+      organizationId: workspace.organizationId,
+      actorUserId: workspace.session.user.userId,
+      visibilityActor: workspace,
+    },
+    limit,
+  );
 }
 
 export async function loadDraftAction(): Promise<BroadcastDraft | null> {
@@ -183,9 +194,12 @@ export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
 }
 
 export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  return deps.doctorBroadcastComposer.getChannelCounts();
+  return deps.doctorBroadcastComposer.getChannelCounts({
+    organizationId: workspace.organizationId,
+    visibilityActor: workspace,
+  });
 }
 
 const audienceFilterSchema = z.enum([
@@ -202,9 +216,12 @@ const audienceFilterSchema = z.enum([
 export async function getChannelCountsByAudienceAction(
   audience: string,
 ): Promise<BroadcastChannelCounts> {
-  await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const parsed = audienceFilterSchema.safeParse(audience);
   if (!parsed.success) throw new Error('invalid_audience_filter');
   const deps = buildAppDeps();
-  return deps.doctorBroadcastComposer.getChannelCountsByAudience(parsed.data);
+  return deps.doctorBroadcastComposer.getChannelCountsByAudience(parsed.data, {
+    organizationId: workspace.organizationId,
+    visibilityActor: workspace,
+  });
 }

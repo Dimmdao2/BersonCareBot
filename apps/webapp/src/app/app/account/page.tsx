@@ -22,6 +22,7 @@ import { StaffSecuritySection } from './StaffSecuritySection';
 import { StaffPasskeySection } from './StaffPasskeySection';
 import { isRestrictedStaffSecuritySession } from '@/app-layer/guards/requireRole';
 import { runWithStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
   return valueJson !== null &&
@@ -65,12 +66,15 @@ export default async function AccountPage({
       </DoctorSection>
     );
   } else if (tab === 'security') {
-    const storedStatus = await runWithStaffSecuritySelfPrincipal(
-      session.user.userId,
-      'app/account:security-self',
-      () => deps.staffSecurity.getStatus(),
-    );
-    const timezone = recoveryOnly ? null : await getDoctorAccountTimezone(session.user.userId);
+    const [storedStatus, timezone, passkeyEnabled] = await Promise.all([
+      runWithStaffSecuritySelfPrincipal(
+        session.user.userId,
+        'app/account:security-self',
+        () => deps.staffSecurity.getStatus(),
+      ),
+      recoveryOnly ? Promise.resolve(null) : getDoctorAccountTimezone(session.user.userId),
+      recoveryOnly ? Promise.resolve(false) : isIndependentAuthMethodEnabled('passkey'),
+    ]);
     const status = storedStatus ?? {
       enrolled: false,
       recoveryConfirmed: false,
@@ -89,7 +93,7 @@ export default async function AccountPage({
           showSpecialistFirstRun={!isPlatformConsole}
           recoveryOnly={recoveryOnly}
         />
-        {!recoveryOnly ? <StaffPasskeySection /> : null}
+        {passkeyEnabled ? <StaffPasskeySection /> : null}
       </>
     );
   } else if (tab === 'notifications') {

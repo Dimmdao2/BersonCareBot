@@ -285,7 +285,9 @@ export interface FunctionRelationSurface {
   /** Per-operation subset when one statement surface must not inherit the union of all columns. */
   operationColumns?: Partial<Record<Privilege, readonly string[]>>;
   /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
-  evidence: 'pg16-function-body-lexical-upper-bound';
+  evidence:
+    | 'pg16-function-body-lexical-upper-bound'
+    | 'exact INSERT ON CONFLICT(event_id) in migration 0410';
 }
 
 export interface DeclaredFunction {

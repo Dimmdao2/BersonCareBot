@@ -22,7 +22,10 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   const deps = buildAppDeps();
 
   const [badges, displayIana] = await Promise.all([
-    loadDoctorCommunicationsBadges(deps),
+    loadDoctorCommunicationsBadges(deps, {
+      organizationId: workspace.organizationId,
+      visibilityActor: workspace,
+    }),
     getAppDisplayTimeZone(),
   ]);
 
@@ -39,6 +42,7 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
           viewerUserId: session.user.userId,
           organizationId: workspace.organizationId,
           excludedUserIds,
+          visibilityActor: workspace,
         }),
       ),
       withDoctorWorkspacePrincipal(workspace, () =>
@@ -47,7 +51,11 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
             doctorClientsPort: deps.doctorClientsPort,
             programItemDiscussion: deps.programItemDiscussion,
           },
-          { viewerUserId: session.user.userId, organizationId: workspace.organizationId },
+          {
+            viewerUserId: session.user.userId,
+            organizationId: workspace.organizationId,
+            visibilityActor: workspace,
+          },
           { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
         ),
       ),

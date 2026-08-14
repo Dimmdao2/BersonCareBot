@@ -6,14 +6,17 @@ import {
   type PatientDiaryDaySnapshotRow,
 } from '../../../db/schema/patientDiarySnapshots';
 import type { PatientDiarySnapshotsPort } from '@/modules/patient-diary/ports';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 export function createPgPatientDiarySnapshotsPort(): PatientDiarySnapshotsPort {
   return {
     async insertIfMissing(row: PatientDiaryDaySnapshotInsert): Promise<boolean> {
+      const organizationId = row.organizationId ?? getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) throw new Error('organization_principal_required');
       const db = getDrizzle();
       const inserted = await db
         .insert(patientDiaryDaySnapshots)
-        .values(row)
+        .values({ ...row, organizationId })
         .onConflictDoNothing({
           target: [patientDiaryDaySnapshots.platformUserId, patientDiaryDaySnapshots.localDate],
         })

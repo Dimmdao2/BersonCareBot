@@ -1,7 +1,7 @@
 /**
  * Typed Drizzle implementation of the live broadcast audit port.
  */
-import { desc } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { getWebappSqlDb } from '@/infra/db/runWebappSql';
 import type { BroadcastAuditEntry, BroadcastAuditPort } from '@/modules/doctor-broadcasts/ports';
 import { broadcastAudit } from '../../../db/schema/schema';
@@ -9,6 +9,7 @@ import { broadcastAudit } from '../../../db/schema/schema';
 function mapRow(row: typeof broadcastAudit.$inferSelect): BroadcastAuditEntry {
   return {
     id: row.id,
+    organizationId: row.organizationId,
     actorId: row.actorId,
     category: row.category as BroadcastAuditEntry['category'],
     audienceFilter: row.audienceFilter as BroadcastAuditEntry['audienceFilter'],
@@ -32,6 +33,7 @@ export function createPgBroadcastAuditPort(): BroadcastAuditPort {
       const [row] = await getWebappSqlDb()
         .insert(broadcastAudit)
         .values({
+          organizationId: entry.organizationId,
           actorId: entry.actorId,
           category: entry.category,
           audienceFilter: entry.audienceFilter,
@@ -49,10 +51,17 @@ export function createPgBroadcastAuditPort(): BroadcastAuditPort {
         .returning();
       return mapRow(row);
     },
-    async list(limit = 50): Promise<BroadcastAuditEntry[]> {
+    async list(scope, limit = 50): Promise<BroadcastAuditEntry[]> {
+      const visibilityCondition = scope.visibilityActor.canManageAllSpecialists
+        ? eq(broadcastAudit.organizationId, scope.organizationId)
+        : and(
+            eq(broadcastAudit.organizationId, scope.organizationId),
+            eq(broadcastAudit.actorId, scope.actorUserId),
+          );
       const rows = await getWebappSqlDb()
         .select()
         .from(broadcastAudit)
+        .where(visibilityCondition)
         .orderBy(desc(broadcastAudit.executedAt))
         .limit(limit);
       return rows.map(mapRow);

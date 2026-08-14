@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { env } from '@/config/env';
-import { integratorWebhookSecret } from '@/config/env';
+import { integratorWebhookSecret, webappReposAreInMemory } from '@/config/env';
 import type {
   PhoneMessengerBindChannel,
   PhoneMessengerBindPurpose,
@@ -67,7 +66,7 @@ export function registerPhoneMessengerBindPort(port: PhoneMessengerBindPort | nu
 
 function resolveBindPort(port?: PhoneMessengerBindPort): PhoneMessengerBindPort | null {
   if (port) return port;
-  if (!env.DATABASE_URL?.trim()) return null;
+  if (webappReposAreInMemory()) return null;
   return registeredPhoneMessengerBindPort;
 }
 
@@ -108,7 +107,7 @@ export async function startPhoneMessengerBind(
     maxBotNickname: params.maxBotNickname,
   });
 
-  if (!env.DATABASE_URL?.trim()) {
+  if (webappReposAreInMemory()) {
     return {
       ok: true,
       setupToken,
@@ -182,7 +181,7 @@ export async function completePhoneMessengerBindFromIntegrator(
     return { ok: false, code: 'invalid_token' };
   }
 
-  if (!env.DATABASE_URL?.trim()) {
+  if (webappReposAreInMemory()) {
     return { ok: false, code: 'database_unavailable' };
   }
 
@@ -375,7 +374,7 @@ export async function getPhoneMessengerBindStatus(
     return { ok: false, code: 'invalid_token' };
   }
 
-  if (!env.DATABASE_URL?.trim()) {
+  if (webappReposAreInMemory()) {
     return { ok: false, code: 'database_unavailable' };
   }
 
@@ -414,8 +413,7 @@ export async function getPhoneMessengerBindStatus(
 }
 
 export type ResolvePhoneMessengerBindLoginChallengeResult =
-  | { ok: true; challengeId: string; code: string }
-  | { ok: false; code: string };
+  { ok: true; challengeId: string; code: string } | { ok: false; code: string };
 
 /**
  * Возвращает challengeId и OTP для server-side finish после контакта в боте.
@@ -431,7 +429,7 @@ export async function resolvePhoneMessengerBindLoginChallenge(
     return { ok: false, code: 'invalid_token' };
   }
 
-  if (!env.DATABASE_URL?.trim()) {
+  if (webappReposAreInMemory()) {
     return { ok: false, code: 'database_unavailable' };
   }
 

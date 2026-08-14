@@ -26,7 +26,6 @@ export type AuthRegistrationEventListRow = {
   occurredAt: string;
   eventType: AuthRegistrationEventType;
   entryChannel: ProductAnalyticsEntryChannel;
-  userId: string | null;
   metadata: Record<string, unknown>;
 };
 

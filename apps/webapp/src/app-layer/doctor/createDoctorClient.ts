@@ -18,6 +18,7 @@ export type CreateDoctorClientInput = {
   email?: string | null;
   createdByUserId: string;
   organizationId: string;
+  specialistId: string | null;
 };
 
 export type CreateDoctorClientResult =
@@ -82,6 +83,7 @@ export async function createDoctorClient(
   if (!lastName || !firstName) return { ok: false, error: 'invalid_fio' };
   const registered = await deps.patientOrganization.createManualOrganizationClient({
     organizationId: input.organizationId,
+    specialistId: input.specialistId,
     commandId: phoneNormalized ? undefined : commandId,
     phoneNormalized,
     lastName,

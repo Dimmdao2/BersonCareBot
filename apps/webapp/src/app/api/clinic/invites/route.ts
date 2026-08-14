@@ -30,7 +30,7 @@ export async function GET() {
   const deps = buildAppDeps();
   const [invites, seats] = await Promise.all([
     deps.organizationInvites.listPending(gate.ctx.organizationId),
-    deps.clinicSeats.getSeatStatus(gate.ctx.organizationId),
+    deps.clinicSeats.getSeatStatus(gate.ctx.organizationId, gate.ctx.session.user.userId),
   ]);
   return jsonOk({ invites, seats });
 }

@@ -326,7 +326,10 @@ export default async function SettingsPage({
     const [members, invites, seats, mutationAvailability] = await Promise.all([
       deps.organizationMembership.listOrganizationMembers(workspace.organizationId),
       deps.organizationInvites.listPending(workspace.organizationId),
-      deps.clinicSeats.getSeatStatus(workspace.organizationId),
+      deps.clinicSeats.getSeatStatus(
+        workspace.organizationId,
+        workspace.session.user.userId,
+      ),
       getMechanicMutationAvailability({ organizationId: workspace.organizationId }, 'clinic_team'),
     ]);
     return (

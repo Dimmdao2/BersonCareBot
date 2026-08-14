@@ -2050,6 +2050,11 @@ const REV10_CONTEXT = {
       runtimeName: 'read_canonical_appointment_by_external_id', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'booking.integrator-record.read',
       functionIdentity: 'app.read_canonical_appointment_by_external_id(text)' },
+    list_platform_registration_analytics_events: { port: 'webapp',
+      runtimeName: 'list_platform_registration_analytics_events', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'analytics.registration-events.read',
+      functionIdentity: 'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)' },
     list_active_canonical_appointments_by_phone: { port: 'webapp',
       runtimeName: 'list_active_canonical_appointments_by_phone', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'booking.integrator-active.read',
@@ -2335,6 +2340,16 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': rev10Function({
+      owner: 'app_seam_telemetry_exclusion_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_platform_settings'], purpose: 'return only sanitized registration-funnel events to platform operations',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text', 'text',
+        'integer', 'integer'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.product_analytics_events_recent',
+        columns: ['id', 'occurred_at', 'event_type', 'entry_channel', 'user_id', 'metadata'],
+        operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
     'app.resolve_organization_mechanic_access(uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_mechanic_access(uuid,text)'],
       execute: [
@@ -3024,6 +3039,87 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       'last_seen_at', 'resolved_at', 'created_at',
     ] }],
   },
+  'public.be_organizations': {
+    kind: 'direct', purpose: 'platform operations reads the clinic registry and changes only its assigned tariff',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+    ],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['UPDATE'], columns: ['tariff_id', 'updated_at'] },
+    ],
+  },
+  'public.be_branches': {
+    kind: 'direct', purpose: 'platform operations reads the non-clinical clinic branch catalog',
+    codePaths: ['apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
+    grants: [{ role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.be_clinic_services': {
+    kind: 'direct', purpose: 'platform operations reads the non-clinical clinic service catalog',
+    codePaths: ['apps/webapp/src/infra/repos/pgBookingEngine.ts'],
+    grants: [{ role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.saas_org_entitlement_overrides': {
+    kind: 'direct', purpose: 'platform operations manages explicit commercial overrides for a clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'enabled', 'expires_at', 'mechanic', 'organization_id', 'quota', 'seat_limit_override', 'updated_at',
+      ] },
+      { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
+        'enabled', 'expires_at', 'mechanic', 'organization_id', 'quota', 'seat_limit_override', 'updated_at',
+      ] },
+      { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
+    ],
+  },
+  'public.saas_organization_trials': {
+    kind: 'direct', purpose: 'platform operations reads and starts the one-time commercial trial for a clinic',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+    ],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'created_by', 'discount_ends_at', 'ends_at', 'organization_id', 'post_trial_behavior',
+        'post_trial_tariff_id', 'started_at', 'tariff_id',
+      ] },
+      { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
+        'discount_ends_at', 'ends_at', 'post_trial_behavior', 'post_trial_tariff_id', 'status',
+        'tariff_id', 'updated_at',
+      ] },
+    ],
+  },
+  'public.saas_trial_policy': {
+    kind: 'direct', purpose: 'platform operations manages the singleton trial policy',
+    codePaths: ['apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'discount_window_days', 'duration_days', 'is_active', 'key', 'post_trial_behavior',
+        'post_trial_tariff_id', 'start_event', 'updated_at', 'updated_by',
+      ] },
+      { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
+        'discount_window_days', 'duration_days', 'is_active', 'post_trial_behavior',
+        'post_trial_tariff_id', 'start_event', 'updated_at', 'updated_by',
+      ] },
+    ],
+  },
+  'public.saas_registration_tariff_policy': {
+    kind: 'direct', purpose: 'platform operations manages the singleton registration tariff policy',
+    codePaths: ['apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'key', 'tariff_id', 'updated_at', 'updated_by',
+      ] },
+      { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
+        'tariff_id', 'updated_at', 'updated_by',
+      ] },
+    ],
+  },
   'public.content_pages': {
     kind: 'direct', purpose: 'patient reads published non-archived CMS pages of the current clinic',
     codePaths: ['apps/webapp/src/infra/repos/pgContentPages.ts'],
@@ -3445,14 +3541,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
       { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
         columns: ['status', 'updated_at', 'attempts_done', 'next_try_at', 'last_error'] },
-    ],
-  },
-  'public.app_runtime_settings_audit': {
-    kind: 'direct', purpose: 'platform operators inspect the immutable runtime-setting change ledger',
-    codePaths: ['apps/webapp/src/infra/repos/pgRuntimeSettings.ts',
-      'apps/webapp/db/drizzle-migrations/0407_material_rating_snapshot_and_runtime_audit_owner_local.sql'],
-    grants: [
-      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
     ],
   },
   'public.saas_billing_periods': {
@@ -3886,7 +3974,7 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.reference_categories' || tableKey === 'public.reference_items') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = app.current_org_id())";
   if (tableKey === 'public.reminder_occurrence_history') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() ELSE false END)";
   if (tableKey === 'public.support_conversations') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() AND (organization_id IS NULL OR organization_id = app.current_org_id()) ELSE false END)";
-  if (tableKey === 'public.be_organizations') return "(current_user IN ('app_staff'::name, 'app_clinic_billing'::name) AND id = app.current_org_id())";
+  if (tableKey === 'public.be_organizations') return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name) THEN id = app.current_org_id() ELSE false END)";
   if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
   if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   if (tableKey.startsWith('public.saas_billing_') && tableKey !== 'public.saas_billing_periods') {
@@ -3930,15 +4018,6 @@ function revision10PatientRatingFeedbackPolicies(index: number): PolicyDecl[] {
     { name: `rev10_patient_rating_feedback_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
       to: ['app_staff', 'app_patient'], withCheck: `((${staffOrg}) OR (${patientOwn}))`,
       note: 'patient inserts feedback only for itself inside the accepted clinic context' },
-  ];
-}
-
-function revision10RuntimeSettingsAuditPolicies(index: number): PolicyDecl[] {
-  const platformGlobal = "current_user = 'app_platform_settings'::name AND organization_id IS NULL";
-  return [
-    { name: `rev10_runtime_settings_audit_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
-      to: ['app_platform_settings'], using: `(${platformGlobal})`,
-      note: 'platform settings reads only the global immutable runtime-setting ledger' },
   ];
 }
 
@@ -4005,11 +4084,15 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       note: 'patient may read only its own explicitly granted profile columns' },
     { name: `rev10_platform_users_staff_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_staff'],
-      using: '(EXISTS (SELECT 1 FROM public.be_organization_members access_member'
+      using: '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
         + ' WHERE access_member.platform_user_id = platform_users.id'
         + ' AND access_member.organization_id = app.current_org_id()'
-        + " AND access_member.status = 'active'))",
-      note: 'staff may read explicitly granted profile columns of current-clinic members' },
+        + " AND access_member.status = 'active'))"
+        + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
+        + ' WHERE access_patient.platform_user_id = platform_users.id'
+        + ' AND access_patient.organization_id = app.current_org_id()'
+        + " AND access_patient.status IN ('invited', 'active'))))",
+      note: 'staff may read explicitly granted profile columns of current-clinic members and enrolled patients' },
     { name: `rev10_platform_users_platform_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_platform_settings'], using: "(current_user = 'app_platform_settings'::name)",
       note: 'platform administration may read explicitly granted non-clinical directory columns' },
@@ -4047,17 +4130,21 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
   const userColumn = REV10_PATIENT_SELF_MANAGED_COLUMN[tableKey];
   if (!userColumn) throw new Error(`missing patient self-managed column for ${tableKey}`);
   const patientWall = `(${userColumn} = app.current_patient_user_id())`;
-  const staffWall = '(EXISTS (SELECT 1 FROM public.be_organization_members access_member'
+  const staffWall = '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
     + ` WHERE access_member.platform_user_id = ${relationName}.${userColumn}`
     + ' AND access_member.organization_id = app.current_org_id()'
-    + " AND access_member.status = 'active'))";
+    + " AND access_member.status = 'active'))"
+    + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
+    + ` WHERE access_patient.platform_user_id = ${relationName}.${userColumn}`
+    + ' AND access_patient.organization_id = app.current_org_id()'
+    + " AND access_patient.status IN ('invited', 'active'))))";
   return [
     { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_patient'], using: patientWall, withCheck: patientWall,
       note: `patient manages only its own rows in ${tableKey}` },
     { name: `rev10_staff_member_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: staffWall, withCheck: staffWall,
-      note: `staff manages ${tableKey} only for current-clinic members` },
+      note: `staff manages ${tableKey} only for current-clinic members and enrolled patients` },
   ];
 }
 
@@ -4082,28 +4169,40 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       && policy.to.every((role) => known.has(role) || role === 'PUBLIC'));
     const contextGates = access ? revision10ContextGates(key, index, access) : [];
     const locked = REV10_LOCKED_POLICIES.get(key);
-    const classSafe = (predicate: string) => {
+    const directRoles = access?.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
+    const ordinaryDirectRoles = directRoles.filter((role) =>
+      !['app_tenant_service'].includes(role));
+    const classSafe = (predicate: string, policyRoles: string[] = ordinaryDirectRoles) => {
       let result = predicate.replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
       if (table.org === true) result = result.replaceAll(
         '(app.current_patient_user_id() IS NOT NULL AND ',
         '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND ');
-      return result.replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()',
+      result = result.replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()',
         '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
+      const hasPatientAccessor = result.includes('app.current_patient_user_id()');
+      const hasSafeClassBranch = /CASE\s+WHEN\s+current_user/u.test(result);
+      const staffPolicy = policyRoles.includes('app_staff');
+      const patientPolicy = policyRoles.includes('app_patient');
+      if (!hasPatientAccessor || hasSafeClassBranch || !staffPolicy) return result;
+      const staffPredicate = result.replaceAll('app.current_patient_user_id()', 'NULL::uuid');
+      if (!patientPolicy) return staffPredicate;
+      return `(CASE WHEN current_user = 'app_staff'::name THEN (${staffPredicate})`
+        + ` WHEN current_user = 'app_patient'::name THEN (${result}) ELSE false END)`;
     };
+    const platformScoped = (predicate: string) => PLATFORM_ROLE_SCOPE.mayTouch.includes(key)
+      ? `(current_user = 'app_platform_settings'::name OR (${predicate}))`
+      : predicate;
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
       'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
       'public.content_section_slug_history', 'public.reference_categories', 'public.reference_items',
       'public.reminder_occurrence_history',
       'public.support_conversations']).has(key);
-    const directRoles = access?.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
-    const ordinaryDirectRoles = directRoles.filter((role) =>
-      !['app_tenant_service'].includes(role));
     const directBusiness: PolicyDecl[] = access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
       name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
       using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
       note: `exact direct role business wall for ${key}`,
     }] : [];
-    const runtimeBusinessBase: PolicyDecl[] = !active ? []
+    const runtimeBusinessBaseRaw: PolicyDecl[] = !active ? []
       : key === 'public.system_settings' && access?.kind === 'direct'
         ? revision10SystemSettingsPolicies(index)
       : key === 'public.app_runtime_settings' && access?.kind === 'direct'
@@ -4116,8 +4215,6 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         ? revision10MaterialRatingsPolicies(index)
       : key === 'public.patient_content_rating_feedback' && access?.kind === 'direct'
         ? revision10PatientRatingFeedbackPolicies(index)
-      : key === 'public.app_runtime_settings_audit' && access?.kind === 'direct'
-        ? revision10RuntimeSettingsAuditPolicies(index)
       : (key === 'public.patient_home_blocks' || key === 'public.patient_home_block_items')
           && access?.kind === 'direct'
         ? revision10PatientHomeCatalogPolicies(key, index)
@@ -4126,14 +4223,19 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       : access?.kind === 'direct' && specialized ? directBusiness
       : access?.kind === 'direct' && locked && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_${locked.policyName}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
-        using: classSafe(renderPhase4StrictPredicate(locked.descriptor)),
-        withCheck: classSafe(renderPhase4StrictPredicate(locked.descriptor)), note: `locked descriptor policy for ${key}`,
+        using: platformScoped(renderPhase4StrictPredicate(locked.descriptor)),
+        withCheck: platformScoped(renderPhase4StrictPredicate(locked.descriptor)), note: `locked descriptor policy for ${key}`,
       }]
       : access?.kind === 'direct' && explicitPolicies.length > 0 && ordinaryDirectRoles.length > 0
         ? explicitPolicies.map((policy) => ({ ...policy, to: ordinaryDirectRoles }))
       : access?.kind === 'direct' ? directBusiness
       : [{ name: `rev10_fail_closed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
           using: 'false', withCheck: 'false', note: `no direct runtime relation surface for ${key}` }];
+    const runtimeBusinessBase = runtimeBusinessBaseRaw.map((policy) => ({
+      ...policy,
+      ...(policy.using ? { using: classSafe(policy.using, policy.to) } : {}),
+      ...(policy.withCheck ? { withCheck: classSafe(policy.withCheck, policy.to) } : {}),
+    }));
     const tenantBusiness = access?.kind === 'direct' && directRoles.includes('app_tenant_service')
       ? revision10TenantPolicies(key, index, access)
       : [];

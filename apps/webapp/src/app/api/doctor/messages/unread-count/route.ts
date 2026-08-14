@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
       patientUserId,
       auth.ctx.organizationId,
+      auth.ctx,
     );
     if (!identity) {
       return NextResponse.json({ ok: false, error: 'patient_not_found' }, { status: 404 });
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
   } else {
     unreadCount = await deps.messaging.doctorSupport.unreadFromUsers({
       organizationId: auth.ctx.organizationId,
+      visibilityActor: auth.ctx,
     });
   }
   return NextResponse.json({ ok: true, unreadCount });

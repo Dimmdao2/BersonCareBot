@@ -47,6 +47,7 @@ export async function GET(_req: Request, context: { params: Promise<{ userId: st
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
+    gate.ctx,
   );
   if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
@@ -108,6 +109,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ userId: s
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
+    gate.ctx,
   );
   if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 

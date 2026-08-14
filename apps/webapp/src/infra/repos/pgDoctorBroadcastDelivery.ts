@@ -13,6 +13,7 @@ import { outgoingDeliveryQueue } from '../../../db/schema/outgoingDeliveryQueue'
 function mapRow(row: typeof broadcastAudit.$inferSelect): BroadcastAuditEntry {
   return {
     id: row.id,
+    organizationId: row.organizationId,
     actorId: row.actorId,
     category: row.category as BroadcastAuditEntry['category'],
     audienceFilter: row.audienceFilter as BroadcastAuditEntry['audienceFilter'],
@@ -43,6 +44,7 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
           .insert(broadcastAudit)
           .values({
             id: auditId,
+            organizationId: input.audit.organizationId,
             actorId: input.audit.actorId,
             category: input.audit.category,
             audienceFilter: input.audit.audienceFilter,
@@ -62,6 +64,7 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
           const insertedJobs = await tx
             .insert(outgoingDeliveryQueue)
             .values({
+              organizationId: input.audit.organizationId,
               eventId: job.eventId,
               kind: job.kind,
               channel: job.channel,
@@ -82,7 +85,11 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
         ];
         if (recipientIds.length > 0) {
           await tx.insert(broadcastAuditRecipients).values(
-            recipientIds.map((platformUserId) => ({ auditId, platformUserId })),
+            recipientIds.map((platformUserId) => ({
+              organizationId: input.audit.organizationId,
+              auditId,
+              platformUserId,
+            })),
           );
         }
         return mapRow(audit);

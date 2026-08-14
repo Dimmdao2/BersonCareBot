@@ -18,10 +18,24 @@ import { createPgBroadcastAuditPort } from './pgBroadcastAudit';
 import { createPgBroadcastChannelCountsPort } from './broadcastChannelCounts';
 import { createPgDoctorBroadcastDeliveryCommitPort } from './pgDoctorBroadcastDelivery';
 
-type AuditInput = Omit<BroadcastAuditEntry, 'id' | 'executedAt'>;
+type AuditInput = Omit<BroadcastAuditEntry, 'id' | 'executedAt' | 'organizationId'> & {
+  organizationId: string;
+};
+
+const organizationId = randomUUID();
+const auditScope = {
+  organizationId,
+  actorUserId: 'doctor-2',
+  visibilityActor: {
+    membershipRole: 'owner' as const,
+    specialistId: null,
+    canManageAllSpecialists: true,
+  },
+};
 
 function auditInput(): AuditInput {
   return {
+    organizationId,
     actorId: 'doctor-42',
     category: 'important_notice',
     audienceFilter: 'active_clients',
@@ -69,6 +83,9 @@ describe('doctor broadcast Drizzle SQL conversion', () => {
         'ALTER TABLE broadcast_audit DISABLE ROW LEVEL SECURITY; ALTER TABLE broadcast_audit_recipients DISABLE ROW LEVEL SECURITY; ALTER TABLE outgoing_delivery_queue DISABLE ROW LEVEL SECURITY;',
       ),
     );
+    await execute(
+      sql`INSERT INTO be_organizations (id, title, is_active) VALUES (${organizationId}, 'Broadcast test clinic', true)`,
+    );
   });
 
   afterAll(async () => {
@@ -97,11 +114,11 @@ describe('doctor broadcast Drizzle SQL conversion', () => {
     const firstId = randomUUID();
     const secondId = randomUUID();
     await execute(
-      sql`INSERT INTO broadcast_audit (id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count, blocked_recipient_count)
-          VALUES (${firstId}, 'doctor-1', 'service', 'all', 'first', '', ARRAY['sms'], '2026-01-01T00:00:00Z', false, 0, 0, false, 0, 0, 0),
-                 (${secondId}, 'doctor-2', 'service', 'all', 'second', '', ARRAY['sms'], '2026-01-02T00:00:00Z', false, 0, 0, false, 0, 0, 0)`,
+      sql`INSERT INTO broadcast_audit (id, organization_id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count, blocked_recipient_count)
+          VALUES (${firstId}, ${organizationId}, 'doctor-1', 'service', 'all', 'first', '', ARRAY['sms'], '2026-01-01T00:00:00Z', false, 0, 0, false, 0, 0, 0),
+                 (${secondId}, ${organizationId}, 'doctor-2', 'service', 'all', 'second', '', ARRAY['sms'], '2026-01-02T00:00:00Z', false, 0, 0, false, 0, 0, 0)`,
     );
-    const listed = await auditPort.list(1);
+    const listed = await auditPort.list(auditScope, 1);
 
     expect(listed).toHaveLength(1);
     expect(listed[0]).toMatchObject({ id: secondId, messageTitle: 'second' });

@@ -7679,6 +7679,100 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.read_current_patient_booking_catalog()": {
+    "owner": "app_seam_patient_booking_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "current patient public booking catalog for the signed active organization",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_branches",
+        "columns": [
+          "id",
+          "organization_id",
+          "title",
+          "city_code",
+          "sort_order",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialist_service_availability",
+        "columns": [
+          "organization_id",
+          "branch_id",
+          "specialist_id",
+          "service_id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_specialists",
+        "columns": [
+          "id",
+          "organization_id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.be_clinic_services",
+        "columns": [
+          "id",
+          "organization_id",
+          "title",
+          "description",
+          "duration_minutes",
+          "price_minor",
+          "sort_order",
+          "is_active",
+          "public_widget_visible",
+          "admin_manual_only"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.read_current_patient_booking_rows(text,timestamp with time zone)": {
     "owner": "app_seam_patient_booking_owner",
     "security": "DEFINER",
@@ -10170,6 +10264,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
+      "app_patient",
       "app_staff"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
@@ -11370,7 +11465,24 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       {
         "relation": "public.saas_tariffs",
         "columns": [
-          "id"
+          "id",
+          "name",
+          "description",
+          "price_minor",
+          "currency",
+          "billing_period",
+          "mechanics",
+          "quotas",
+          "system_access_policy",
+          "mechanic_access_policies",
+          "downgrade_policies",
+          "mailing_templates",
+          "included_seats",
+          "additional_seat_price_minor",
+          "discounted_price_minor",
+          "is_active",
+          "created_at",
+          "updated_at"
         ],
         "operations": [
           "SELECT"

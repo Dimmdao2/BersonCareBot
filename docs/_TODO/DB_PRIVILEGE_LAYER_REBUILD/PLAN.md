@@ -346,6 +346,30 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   Отдельный исчерпывающий live action/worker/scheduler census остаётся частью ручного прохода и owner-gated
   эксплуатационных этапов; внешние delivery/provider действия на DEV намеренно доказываются central no-send,
   а не реальной отправкой.
+  OWNER-DEFERRED 14.08.2026: текущий Chromium-проход измерил первую DEV/Turbopack-компиляцию части patient
+  routes примерно в `100–120 s`. Это отдельный будущий разбор производительности, а не условие текущего
+  security/correctness-прохода: сначала измерить отдельно compile, SSR/loaders/DB и client render, затем выбирать
+  оптимизацию. Текущий приоритет владельца — рабочий DEV и корректная изоляция данных.
+  Live census 14.08.2026 оставил два явных незакрытых эксплуатационных шва. (1) Phone messenger bind больше не
+  делает pre-session identity lookup ради отложенной аналитики и не имитирует успешную запись при трёх pool URL,
+  но настоящий write-path закрыт декларацией: `phone_messenger_bind_secrets` требует отдельного exact named root;
+  до него start отвечает структурированным `503`, direct grant запрещён. (2) Disposable PostgreSQL gate не
+  доходит до integration tests: clean template падает на `0391` с `42704`,
+  потому что migration ссылается на внешний port-context contract/type, отсутствующий в A0 baseline/harness.
+  Maintenance-screen снят по прямому owner-разрешению штатным admin API; итоговое значение `false`, protection
+  trigger включён. DEV fixture теперь даёт два режима: существующая клиника/пациент и отдельная синтетическая
+  клиника/специалист/пациент; для обеих организаций точечно включён только DEV entitlement главной пациента.
+  Chromium content+interaction census прошёл doctor, colleague/isolated doctor, clinic-admin, global-admin и оба
+  patient режима. Финальные patient-артефакты: isolated `32` routes / `111` controls / `8` interactions, existing
+  `32` routes / `154` controls / `30` interactions. Найденные live-only разрывы закрыты: каталог бронирования
+  читается через один patient named root вместо direct relation grants; история визитов — через существующий
+  self-only maintenance root; дневник, пакеты и платежная история получили exact self/current-org права; запись
+  выполнения и ротация разминки всегда несут organization principal; patient media delivery устанавливает
+  выбранную организацию до единого authorization chokepoint; notification settings больше не допускают hydration
+  race. Повторные точечные Chromium-прогоны главной, бронирования, дневника, адреса и уведомлений — без
+  app/API/console/layout diagnostics. Единственный нестабильный шум полного прохода — скрипт внешнего iframe
+  `https://dmitryberson.ru/adress`, который на HTTP DEV иногда пытается читать parent window HTTPS→HTTP; страница
+  и повторный прогон рабочие, это не выдача данных и не отказ PostgreSQL.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.

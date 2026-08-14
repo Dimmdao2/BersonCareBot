@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     search: q || undefined,
     archivedOnly: archived,
     organizationId: gate.ctx.organizationId,
+    visibilityActor: gate.ctx,
     viewerUserId: gate.ctx.session.user.userId,
     // Segment
     supportStatus: segment === 'on_support' ? 'on' : undefined,

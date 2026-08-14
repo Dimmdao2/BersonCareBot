@@ -277,7 +277,12 @@ export function MotivationListClient({ quoteRows }: { quoteRows: QuoteRow[] }) {
         </form>
       ) : null}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        id="doctor-motivation-quotes"
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+      >
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2" aria-busy={reorderPending}>
             {items.map((q) => (

@@ -44,12 +44,14 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
     // PAT-10: search is done client-side — do not pass q to DB
     archivedOnly: initialFilters.archivedOnly,
     organizationId: workspace.organizationId,
+    visibilityActor: workspace,
     viewerUserId: session.user.userId,
     // Segment and channel filters are applied client-side so toggles do not reload the list.
   });
 
   const metricsPromise = deps.doctorClientsPort.getDashboardPatientMetrics({
     organizationId: workspace.organizationId,
+    visibilityActor: workspace,
   });
 
   return (

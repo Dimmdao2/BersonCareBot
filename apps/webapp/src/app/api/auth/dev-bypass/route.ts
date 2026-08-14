@@ -6,7 +6,16 @@ import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { getRequestOrigin } from '@/shared/lib/http/getRequestOrigin';
 import { isDevAuthBypassEnabled } from '@/modules/auth/devBypassPolicy';
 
-const DEV_BYPASS_TOKENS = new Set(['dev:client', 'dev:doctor', 'dev:clinic-admin', 'dev:admin']);
+const DEV_BYPASS_TOKENS = new Set([
+  'dev:client',
+  'dev:doctor',
+  'dev:clinic-admin',
+  'dev:admin',
+  'dev:doctor-isolated',
+  'dev:client-isolated',
+  'dev:doctor-colleague',
+  'dev:client-colleague',
+]);
 
 function redirectToPath(path: string, origin: string): NextResponse {
   return NextResponse.redirect(new URL(path, origin), { status: 303 });

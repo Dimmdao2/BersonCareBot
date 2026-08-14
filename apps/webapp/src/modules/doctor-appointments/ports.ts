@@ -1,4 +1,5 @@
 import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 
 /** Диапазон для агрегатов `getAppointmentStats` (сегодня / завтра / неделя в `app_display_timezone`). */
 export type DoctorAppointmentsStatsRange = 'today' | 'tomorrow' | 'week';
@@ -86,7 +87,11 @@ export type DoctorDashboardAppointmentMetrics = {
   cancellationsInCalendarMonth: number;
 };
 
-export type DoctorAppointmentsAudience = { excludedUserIds?: string[]; organizationId?: string };
+export type DoctorAppointmentsAudience = {
+  excludedUserIds?: string[];
+  organizationId?: string;
+  visibilityActor?: PatientVisibilityActor;
+};
 
 export type DoctorScheduleKpisAudience = {
   excludedUserIds?: string[];
@@ -157,7 +162,7 @@ export type DoctorAppointmentsPort = {
   ): Promise<AppointmentRow[]>;
   getAppointmentStats(
     filter: DoctorAppointmentStatsFilter,
-    audience?: { excludedUserIds?: string[] },
+    audience?: DoctorAppointmentsAudience,
   ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
   getDashboardAppointmentMetrics(
@@ -171,6 +176,6 @@ export type DoctorAppointmentsPort = {
   /** Дневной ряд динамики записей + разбивка по филиалам за выбранный период. */
   getAppointmentDailySeries(
     filter: DoctorAppointmentStatsFilter,
-    audience?: { excludedUserIds?: string[] },
+    audience?: DoctorAppointmentsAudience,
   ): Promise<{ daySeries: AppointmentDayPoint[]; branchSeries: AppointmentBranchPoint[] }>;
 };

@@ -39,6 +39,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     workspace.organizationId,
+    workspace,
   );
   if (!identity) {
     notFound();

@@ -13,21 +13,26 @@
  * (бейдж не рисуется).
  */
 import type { CommunicationsTabId } from './doctorCommunicationsTabs';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 
 export type DoctorCommunicationsBadges = Partial<Record<CommunicationsTabId, number>>;
 
 export type DoctorCommunicationsBadgesDeps = {
   messaging: {
     doctorSupport: {
-      unreadFromUsers(): Promise<number>;
+      unreadFromUsers(params: {
+        organizationId?: string;
+        visibilityActor: PatientVisibilityActor;
+      }): Promise<number>;
     };
   };
 };
 
 export async function loadDoctorCommunicationsBadges(
   deps: DoctorCommunicationsBadgesDeps,
+  context: { organizationId: string; visibilityActor: PatientVisibilityActor },
 ): Promise<DoctorCommunicationsBadges> {
-  const unreadChats = await deps.messaging.doctorSupport.unreadFromUsers().catch(() => 0);
+  const unreadChats = await deps.messaging.doctorSupport.unreadFromUsers(context).catch(() => 0);
 
   const badges: DoctorCommunicationsBadges = {};
   if (unreadChats > 0) badges.chats = unreadChats;

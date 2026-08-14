@@ -716,6 +716,37 @@ export async function requireDoctorWorkspaceApiContext(
   return resolved;
 }
 
+/** Organization-scoped APIs shared by clinical staff and organization managers. */
+export async function requireOrganizationWorkspaceApiContext(
+  options: CabinetGateOptions = {},
+): Promise<
+  { ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: 'requireOrganizationWorkspaceApiContext:pending' });
+  const session = await getCurrentSession();
+  if (!session || !canAccessDoctor(session.user.role)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
+  }
+  const resolved = await resolveDoctorWorkspaceAccessContext(session);
+  if (!resolved.ok) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
+  }
+  if (
+    !contextHasCapability(resolved.ctx, 'clinical.workspace') &&
+    !contextHasCapability(resolved.ctx, 'organization.management')
+  ) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse('forbidden') };
+  }
+  stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceApiContext');
+  if (!options.allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
+  }
+  return resolved;
+}
+
 /**
  * Legacy organization-scoped repair guard. Despite its historical name, it is
  * not a platform grant: explicit global-admin mode is denied, and the caller

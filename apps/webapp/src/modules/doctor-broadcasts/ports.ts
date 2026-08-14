@@ -1,4 +1,5 @@
 import type { ClientListItem } from '@/modules/doctor-clients/ports';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { BroadcastChannel } from './broadcastChannels';
 
 /** Категория рассылки (обязательный выбор). */
@@ -96,6 +97,7 @@ export type BroadcastPreviewResult = {
 /** Запись в журнале рассылок (аудит). */
 export type BroadcastAuditEntry = {
   id: string;
+  organizationId: string | null;
   actorId: string;
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
@@ -115,9 +117,19 @@ export type BroadcastAuditEntry = {
   blockedRecipientCount: number;
 };
 
+export type BroadcastAuditScope = {
+  organizationId: string;
+  actorUserId: string;
+  visibilityActor: PatientVisibilityActor;
+};
+
 export type BroadcastAuditPort = {
-  append(entry: Omit<BroadcastAuditEntry, 'id' | 'executedAt'>): Promise<BroadcastAuditEntry>;
-  list(limit?: number): Promise<BroadcastAuditEntry[]>;
+  append(
+    entry: Omit<BroadcastAuditEntry, 'id' | 'executedAt' | 'organizationId'> & {
+      organizationId: string;
+    },
+  ): Promise<BroadcastAuditEntry>;
+  list(scope: BroadcastAuditScope, limit?: number): Promise<BroadcastAuditEntry[]>;
 };
 
 /** Одна строка очереди доставки рассылки врача. */
@@ -134,7 +146,9 @@ export type DoctorBroadcastDeliveryCommitPort = {
   commitAuditAndDeliveryQueue(input: {
     /** Заранее сгенерированный id аудита (стабильные `event_id` в очереди). */
     auditId: string;
-    audit: Omit<BroadcastAuditEntry, 'id' | 'executedAt'>;
+    audit: Omit<BroadcastAuditEntry, 'id' | 'executedAt' | 'organizationId'> & {
+      organizationId: string;
+    };
     jobs: readonly DoctorBroadcastQueueJob[];
     /** Получатели рассылки (включая push-only) для patient read page. */
     recipientUserIds: readonly string[];

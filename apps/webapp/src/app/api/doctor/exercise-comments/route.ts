@@ -64,44 +64,38 @@ export async function GET(request: Request) {
   let nameById: Map<string, string>;
 
   if (mode === 'all') {
-    // Doctor-wide: no patient-ID fanout, no on-support gate, shows answered threads.
-    rows = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.programItemDiscussion.listAllExerciseCommentsForDoctor({
-        viewerUserId,
+    // Resolve the specialist-visible patient ids first. The comments query itself then receives
+    // that allowlist, so a hidden patient's comment body never reaches application memory.
+    const audience = await loadDoctorAnalyticsAudience();
+    const allClients = await deps.doctorClientsPort.listClients(
+      {
         organizationId,
-        limit: PAGE_SIZE + 1,
-        cursor,
-      }),
+        visibilityActor: gate.ctx,
+      },
+      { excludedUserIds: audience?.excludedUserIds ?? [] },
     );
-    // Resolve display names for the result set only (N rows ≤ PAGE_SIZE+1).
-    nameById = new Map();
-    if (rows.length > 0) {
-      const audience = await loadDoctorAnalyticsAudience();
-      const clientAudience = audience?.excludedUserIds?.length
-        ? { excludedUserIds: audience.excludedUserIds }
-        : undefined;
-      const uniquePatientIds = [...new Set(rows.map((r) => r.patientUserId))];
-      // listClients does NOT take explicit userId list, so we fetch all and filter.
-      const allClients = await deps.doctorClientsPort.listClients(
-        { organizationId },
-        clientAudience,
-      );
-      const idSet = new Set(uniquePatientIds);
-      for (const c of allClients) {
-        if (idSet.has(c.userId.trim())) {
-          nameById.set(c.userId.trim(), c.displayName.trim() || '—');
-        }
-      }
-    }
+    nameById = new Map(
+      allClients.map((client) => [client.userId.trim(), client.displayName.trim() || '—']),
+    );
+    const visiblePatientUserIds = [...nameById.keys()];
+    rows =
+      visiblePatientUserIds.length === 0
+        ? []
+        : await withDoctorWorkspacePrincipal(gate.ctx, () =>
+            deps.programItemDiscussion.listExerciseCommentsForDoctor({
+              patientUserIds: visiblePatientUserIds,
+              viewerUserId,
+              organizationId,
+              limit: PAGE_SIZE + 1,
+              cursor,
+            }),
+          );
   } else {
     // Legacy "unread" path: on-support gate + listExerciseCommentsForDoctor (unreadOnly filter in SSR).
     const audience = await loadDoctorAnalyticsAudience();
-    const clientAudience = audience?.excludedUserIds?.length
-      ? { excludedUserIds: audience.excludedUserIds }
-      : undefined;
     const onSupport = await deps.doctorClientsPort.listClients(
-      { supportStatus: 'on', organizationId },
-      clientAudience,
+      { supportStatus: 'on', organizationId, visibilityActor: gate.ctx },
+      { excludedUserIds: audience?.excludedUserIds ?? [] },
     );
     if (onSupport.length === 0) {
       return NextResponse.json({ ok: true, items: [], hasMore: false, nextCursor: null });

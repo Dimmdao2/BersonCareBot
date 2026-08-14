@@ -35,11 +35,103 @@ function assertNoOperation(relation, role, operation) {
   );
 }
 
+test('platform commercial scope is present in the active relation matrix and row walls', () => {
+  const expected = {
+    'public.be_organizations': ['SELECT', 'UPDATE'],
+    'public.be_branches': ['SELECT'],
+    'public.be_clinic_services': ['SELECT'],
+    'public.saas_org_entitlement_overrides': ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    'public.saas_organization_trials': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.saas_trial_policy': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.saas_registration_tariff_policy': ['SELECT', 'INSERT', 'UPDATE'],
+  };
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const tables = declaration.databases[dbName].tables;
+    for (const [relation, operations] of Object.entries(expected)) {
+      const access = tables[relation].access;
+      assert.equal(access.kind, 'direct', `${dbName}:${relation}`);
+      const actual = [...new Set(access.grants
+        .filter((grant) => grant.role === 'app_platform_settings')
+        .flatMap((grant) => grant.operations))].sort();
+      assert.deepEqual(actual, [...operations].sort(), `${dbName}:${relation}`);
+      const platformBusiness = tables[relation].policies.filter((policy) =>
+        policy.as === 'PERMISSIVE' && policy.to.includes('app_platform_settings'));
+      assert.ok(platformBusiness.length > 0, `${dbName}:${relation}:platform row wall`);
+      assert.ok(platformBusiness.some((policy) =>
+        (policy.using ?? '').includes("current_user = 'app_platform_settings'::name")),
+      `${dbName}:${relation}:platform predicate`);
+    }
+  }
+});
+
+test('staff security identity-self helper accepts both physical self principals', () => {
+  const helper = declaration.portContext.functions['app.require_staff_security_self_user_id()'];
+  assert.deepEqual(helper.execute, ['app_patient', 'app_staff']);
+  for (const outerIdentity of [
+    'app.get_staff_security_profile()',
+    'app.get_staff_security_session_state()',
+    'app.ensure_staff_security_profile()',
+  ]) {
+    const outer = declaration.portContext.functions[outerIdentity];
+    assert.ok(outer.execute.includes('app_patient'), outerIdentity);
+  }
+});
+
+test('platform registration journal is a sanitized named root, not a raw relation grant', () => {
+  const identity = 'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)';
+  const root = declaration.portContext.functions[identity];
+  assert.equal(root.owner, 'app_seam_telemetry_exclusion_owner');
+  assert.deepEqual(root.execute, ['app_platform_settings']);
+  assert.deepEqual(root.relationSurfaces, [{
+    relation: 'public.product_analytics_events_recent',
+    columns: ['id', 'occurred_at', 'event_type', 'entry_channel', 'user_id', 'metadata'],
+    operations: ['SELECT'],
+    evidence: 'pg16-function-body-lexical-upper-bound',
+  }]);
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const access = declaration.databases[dbName].tables[
+      'public.product_analytics_events_recent'
+    ].access;
+    assert.equal(access.kind, 'direct');
+    assert.equal(access.grants.some((grant) => grant.role === 'app_platform_settings'), false);
+    assert.ok(access.seams.some((seam) => seam.regprocedure === identity));
+  }
+});
+
 test('patient runtime has no direct appointment table grant', () => {
   assert.equal(
     directGrants('public.be_appointments').some((grant) => grant.role === 'app_patient'),
     false,
   );
+});
+
+test('patient booking catalog is exposed only through its signed organization root', () => {
+  const identity = 'app.read_current_patient_booking_catalog()';
+  const root = declaration.portContext.functions[identity];
+  assert.equal(root.owner, 'app_seam_patient_booking_owner');
+  assert.deepEqual(root.execute, ['app_patient']);
+  assert.deepEqual(
+    root.relationSurfaces.map((surface) => surface.relation).sort(),
+    [
+      'public.be_branches',
+      'public.be_clinic_services',
+      'public.be_specialist_service_availability',
+      'public.be_specialists',
+      'public.org_enrollments',
+    ].sort(),
+  );
+  for (const relation of [
+    'public.be_branches',
+    'public.be_clinic_services',
+    'public.be_specialist_service_availability',
+    'public.be_specialists',
+  ]) {
+    assert.equal(
+      directGrants(relation).some((grant) => grant.role === 'app_patient'),
+      false,
+      relation,
+    );
+  }
 });
 
 test('patient reminder history is readable and only its seen cursor is mutable', () => {
@@ -300,6 +392,9 @@ test('staff matrix omits unsupported mutations and scopes retained writes', () =
     'public.be_package_usages',
     'public.be_patient_package_items',
     'public.be_patient_packages',
+    'public.be_patient_timeline_events',
+    'public.be_package_history_events',
+    'public.be_package_usages',
     'public.be_reschedule_policies',
     'public.be_rooms',
     'public.be_specialist_rooms',
@@ -538,12 +633,11 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.match(runtimeSelect?.using ?? '', /organization_id = app\.current_org_id\(\)/);
 
   const runtimeAudit = tables['public.app_runtime_settings_audit'];
-  assert.equal(runtimeAudit.access.grants.some((grant) =>
-    ['app_staff', 'app_platform_settings'].includes(grant.role) && grant.operations.includes('INSERT')), false);
-  const auditSelect = runtimeAudit.policies.find((policy) =>
-    policy.name.startsWith('rev10_runtime_settings_audit_select_'));
-  assert.deepEqual(auditSelect?.to, ['app_platform_settings']);
-  assert.match(auditSelect?.using ?? '', /organization_id IS NULL/u);
+  assert.equal(runtimeAudit.access.kind, 'named-seams');
+  assert.equal(runtimeAudit.policies.some((policy) =>
+    policy.to.includes('app_platform_settings') && policy.cmd === 'SELECT'), false);
+  assert.ok(runtimeAudit.policies.some((policy) =>
+    policy.to.includes('app_object_owner') && policy.name.startsWith('rev10_seam_business_')));
   const auditTrigger = declaration.portContext.functions[
     'public.audit_app_runtime_settings_change()'
   ];
@@ -582,6 +676,9 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.doesNotMatch(patientSelect?.using ?? '', /be_organization_members/);
   assert.deepEqual(staffSelect?.to, ['app_staff']);
   assert.match(staffSelect?.using ?? '', /access_member\.platform_user_id = platform_users\.id/);
+  assert.match(staffSelect?.using ?? '', /access_patient\.platform_user_id = platform_users\.id/);
+  assert.match(staffSelect?.using ?? '', /access_patient\.organization_id = app\.current_org_id\(\)/);
+  assert.match(staffSelect?.using ?? '', /access_patient\.status IN \('invited', 'active'\)/);
   assert.deepEqual(platformSelect?.to, ['app_platform_settings']);
   assert.equal(platformSelect?.using, "(current_user = 'app_platform_settings'::name)");
   const staffUpdate = users.access.grants.find((grant) =>
@@ -604,12 +701,18 @@ test('runtime settings and account email use semantic row walls without broad pa
 test('patient page relations have exact self/current-clinic access and published content walls', () => {
   const tables = declaration.databases.bersoncarebot_test.tables;
   const patientReadRelations = [
+    'public.be_patient_package_items',
+    'public.be_patient_packages',
+    'public.be_payment_history_events',
     'public.content_pages',
     'public.content_section_slug_history',
     'public.content_sections',
     'public.lfk_complexes',
     'public.patient_home_block_items',
     'public.patient_home_blocks',
+    'public.patient_daily_warmup_presentations',
+    'public.patient_diary_day_snapshots',
+    'public.patient_practice_completions',
     'public.reminder_journal',
     'public.reminder_rules',
     'public.program_action_log',
@@ -663,6 +766,114 @@ test('patient page relations have exact self/current-clinic access and published
     false, relation);
   }
 
+  for (const relation of [
+    'public.be_patient_packages',
+    'public.be_payment_history_events',
+    'public.patient_diary_day_snapshots',
+  ]) {
+    const policy = tables[relation].policies.find((candidate) =>
+      candidate.to.includes('app_patient') && candidate.name.startsWith('rev10_saas_org_'));
+    assert.match(policy?.using ?? '', /"?organization_id"? = app\.current_org_id\(\)/u, relation);
+    assert.match(policy?.using ?? '', /"?platform_user_id"? = app\.current_patient_user_id\(\)/u, relation);
+  }
+  const practicePolicy = tables['public.patient_practice_completions'].policies.find((candidate) =>
+    candidate.to.includes('app_patient') && candidate.name.startsWith('rev10_saas_org_'));
+  assert.match(practicePolicy?.using ?? '', /"?organization_id"? = app\.current_org_id\(\)/u);
+  assert.match(practicePolicy?.using ?? '', /"?user_id"? = app\.current_patient_user_id\(\)/u);
+  const warmupPresentationPolicy = tables['public.patient_daily_warmup_presentations'].policies.find(
+    (candidate) => candidate.to.includes('app_patient') && candidate.name.startsWith('rev10_saas_org_'),
+  );
+  assert.match(warmupPresentationPolicy?.using ?? '', /"?organization_id"? = app\.current_org_id\(\)/u);
+  assert.match(warmupPresentationPolicy?.using ?? '', /"?user_id"? = app\.current_patient_user_id\(\)/u);
+  const packageItemsPolicy = tables['public.be_patient_package_items'].policies.find((candidate) =>
+    candidate.to.includes('app_patient') && candidate.name.startsWith('rev10_saas_org_'));
+  assert.match(packageItemsPolicy?.using ?? '', /be_patient_packages/u);
+  assert.match(packageItemsPolicy?.using ?? '', /platform_user_id.*app\.current_patient_user_id\(\)/u);
+
+  exactColumns('public.patient_diary_day_snapshots', 'app_patient', 'INSERT', [
+    'captured_at',
+    'iana',
+    'local_date',
+    'organization_id',
+    'plan_done_mask',
+    'plan_instance_id',
+    'plan_item_ids',
+    'platform_user_id',
+    'warmup_all_done',
+    'warmup_done_count',
+    'warmup_slot_limit',
+  ]);
+  exactColumns('public.patient_practice_completions', 'app_patient', 'INSERT', [
+    'content_page_id',
+    'feeling',
+    'notes',
+    'organization_id',
+    'source',
+    'user_id',
+  ]);
+  exactColumns('public.patient_practice_completions', 'app_patient', 'UPDATE', ['feeling']);
+  exactColumns('public.patient_daily_warmup_presentations', 'app_patient', 'SELECT', [
+    'content_page_id',
+    'last_rotation_at',
+    'skip_next_scheduled_rotation',
+    'user_id',
+  ]);
+  exactColumns('public.patient_daily_warmup_presentations', 'app_patient', 'INSERT', [
+    'content_page_id',
+    'last_rotation_at',
+    'organization_id',
+    'skip_next_scheduled_rotation',
+    'updated_at',
+    'user_id',
+  ]);
+  exactColumns('public.patient_daily_warmup_presentations', 'app_patient', 'UPDATE', [
+    'content_page_id',
+    'last_rotation_at',
+    'skip_next_scheduled_rotation',
+    'updated_at',
+  ]);
+  exactColumns('public.patient_daily_warmup_video_views', 'app_patient', 'INSERT', [
+    'content_page_id',
+    'organization_id',
+    'user_id',
+  ]);
+  exactColumns('public.be_patient_timeline_events', 'app_patient', 'SELECT', [
+    'domain',
+    'event_type',
+    'id',
+    'linked_object_id',
+    'linked_object_type',
+    'occurred_at',
+    'organization_id',
+    'payload',
+    'platform_user_id',
+  ]);
+  exactColumns('public.be_package_history_events', 'app_patient', 'SELECT', [
+    'event_type',
+    'id',
+    'occurred_at',
+    'organization_id',
+    'patient_package_id',
+    'payload_json',
+  ]);
+  exactColumns('public.be_package_usages', 'app_patient', 'SELECT', [
+    'appointment_id',
+    'comment',
+    'id',
+    'occurred_at',
+    'organization_id',
+    'patient_package_id',
+    'usage_kind',
+  ]);
+  for (const relation of [
+    'public.be_package_history_events',
+    'public.be_package_usages',
+  ]) {
+    const policy = tables[relation].policies.find((candidate) =>
+      candidate.to.includes('app_patient') && candidate.name.startsWith('rev10_saas_org_'));
+    assert.match(policy?.using ?? '', /app\.current_patient_user_id\(\)/u, relation);
+  }
+
   const patientMessages = tables['public.support_conversation_messages'].access.grants
     .filter((grant) => grant.role === 'app_patient');
   assert.deepEqual(
@@ -681,6 +892,20 @@ test('patient page relations have exact self/current-clinic access and published
     policy.name.startsWith('rev10_direct_business_'));
   assert.match(supportPolicy?.using ?? '', /platform_user_id = app\.current_patient_user_id\(\)/);
   assert.match(supportPolicy?.using ?? '', /organization_id IS NULL OR organization_id = app\.current_org_id\(\)/);
+
+  for (const [relation, table] of Object.entries(tables)) {
+    for (const policy of table.policies) {
+      if (!policy.to.includes('app_staff')) continue;
+      for (const predicate of [policy.using, policy.withCheck]) {
+        if (!predicate?.includes('app.current_patient_user_id()')) continue;
+        assert.match(
+          predicate,
+          /CASE\s+WHEN\s+current_user/u,
+          `${relation}.${policy.name} must class-branch before calling the strict patient accessor`,
+        );
+      }
+    }
+  }
 
   const patientProgramOperations = {
     'public.program_action_log': ['DELETE', 'INSERT', 'SELECT'],
@@ -759,6 +984,8 @@ test('patient notification preferences are product-complete and remain self-only
     assert.doesNotMatch(patientPolicy?.using ?? '', /be_organization_members/, relation);
     assert.deepEqual(staffPolicy?.to, ['app_staff'], relation);
     assert.match(staffPolicy?.using ?? '', /access_member\.platform_user_id =/, relation);
+    assert.match(staffPolicy?.using ?? '', /access_patient\.platform_user_id =/, relation);
+    assert.match(staffPolicy?.using ?? '', /access_patient\.organization_id = app\.current_org_id\(\)/, relation);
   }
 });
 

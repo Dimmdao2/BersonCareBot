@@ -18,8 +18,8 @@ import {
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 79,
-  integrator: 29,
+  webapp: 81,
+  integrator: 32,
 };
 
 test('the generator library refuses a mistaken direct CLI invocation', () => {
@@ -34,8 +34,8 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 108);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 108);
+  assert.equal(rows.length, 113);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 113);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -86,7 +86,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 94);
+  assert.equal(roots.length, 99);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
@@ -226,7 +226,7 @@ test('declared definer delegation propagates context without widening direct exe
   );
   assert.match(
     sql,
-    /GRANT EXECUTE ON FUNCTION app\.saas_billing_effective_tariff\(uuid,uuid\) TO "app_platform_settings";/,
+    /GRANT EXECUTE ON FUNCTION app\.saas_billing_effective_tariff\(uuid,uuid\) TO "app_platform_settings", "app_tenant_service";/,
   );
   assert.doesNotMatch(
     sql,

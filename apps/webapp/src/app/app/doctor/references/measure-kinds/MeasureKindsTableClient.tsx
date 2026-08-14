@@ -313,7 +313,12 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
           Пока нет записей. Добавьте первый вид ниже или из формы клинического теста.
         </p>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <DndContext
+          id="doctor-reference-measure-kinds"
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
           <SortableContext items={rows.map((r) => r.id)} strategy={verticalListSortingStrategy}>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">

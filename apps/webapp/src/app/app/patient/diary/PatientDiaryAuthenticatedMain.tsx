@@ -16,20 +16,31 @@ import { PatientDiaryPlanWeekStripes } from '@/modules/patient-diary/components/
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { PatientDiaryWeekNavStrip } from './PatientDiaryWeekNavStrip';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 const EMPTY_STATS =
   'За эту неделю пока нет отметок общего самочувствия. Отметки можно добавить на главной «Сегодня».';
 
 export async function PatientDiaryAuthenticatedMain({
   userId,
+  organizationId,
   week,
 }: {
   userId: string;
+  organizationId: string;
   /** Сырой query `week` (YYYY-MM-DD); парсинг и clamp — в {@link loadPatientDiaryWeekWellbeing}. */
   week?: string;
 }) {
-  return runWithWebappDbOperationFamily('patient_diary', () =>
-    renderPatientDiaryAuthenticatedMain({ userId, week }),
+  return withPatientOrganizationPrincipal(
+    {
+      organizationId,
+      platformUserId: userId,
+      source: 'app.patient.diary.main',
+    },
+    () =>
+      runWithWebappDbOperationFamily('patient_diary', () =>
+        renderPatientDiaryAuthenticatedMain({ userId, week }),
+      ),
   );
 }
 

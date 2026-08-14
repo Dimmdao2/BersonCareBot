@@ -8,6 +8,7 @@
  * Подробности — `diary/diary.md`.
  */
 import { Suspense } from 'react';
+import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   getOptionalPatientSession,
@@ -23,6 +24,7 @@ import { buildDiaryPlanReminderStrip } from '@/modules/patient-diary/buildDiaryP
 import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-access';
 import { PatientDiaryAuthenticatedMain } from './PatientDiaryAuthenticatedMain';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 
 type PageProps = {
   searchParams?: Promise<{ week?: string | string[] }>;
@@ -49,6 +51,8 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const week = Array.isArray(weekRaw) ? weekRaw[0] : weekRaw;
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(s);
   const deps = buildAppDeps();
+  const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, s.user.userId);
+  if (!patientOrganization.ok) notFound();
   const planReminderStrip = await runWithWebappDbOperationFamily('patient_diary', () =>
     buildDiaryPlanReminderStrip(deps, s.user.userId, canViewAuthOnlyContent),
   );
@@ -62,7 +66,11 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
       patientShellAboveTitleSlot={<PatientPlanTodayRemindersCard {...planReminderStrip} />}
     >
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
-        <PatientDiaryAuthenticatedMain userId={s.user.userId} week={week} />
+        <PatientDiaryAuthenticatedMain
+          userId={s.user.userId}
+          organizationId={patientOrganization.organizationId}
+          week={week}
+        />
       </Suspense>
     </PatientAppShell>
   );

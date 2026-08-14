@@ -13,11 +13,15 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
 import { GET } from './route';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
+const platformUserId = 'platform-user-1';
 
 describe('GET /api/clinic/members', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fakes.requireClinicManagementApiContext.mockResolvedValue({ ok: true, ctx: { organizationId } });
+    fakes.requireClinicManagementApiContext.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId, session: { user: { userId: platformUserId } } },
+    });
   });
 
   it('refuses team members when the clinic team is disabled', async () => {
@@ -62,6 +66,6 @@ describe('GET /api/clinic/members', () => {
       seats: { used: 1 },
     });
     expect(listOrganizationMembers).toHaveBeenCalledWith(organizationId);
-    expect(getSeatStatus).toHaveBeenCalledWith(organizationId);
+    expect(getSeatStatus).toHaveBeenCalledWith(organizationId, platformUserId);
   });
 });

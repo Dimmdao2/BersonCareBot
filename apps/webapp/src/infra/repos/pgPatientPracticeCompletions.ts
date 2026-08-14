@@ -8,6 +8,7 @@ import type {
   PatientPracticeCompletionRow,
   RecordPracticeInput,
 } from '@/modules/patient-practice/types';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 function mapRow(row: typeof patientPracticeCompletions.$inferSelect): PatientPracticeCompletionRow {
   return {
@@ -24,10 +25,13 @@ function mapRow(row: typeof patientPracticeCompletions.$inferSelect): PatientPra
 export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
   return {
     async record(input: RecordPracticeInput) {
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) throw new Error('organization_principal_required');
       const db = getDrizzle();
       const [row] = await db
         .insert(patientPracticeCompletions)
         .values({
+          organizationId,
           userId: input.userId,
           contentPageId: input.contentPageId,
           source: input.source,

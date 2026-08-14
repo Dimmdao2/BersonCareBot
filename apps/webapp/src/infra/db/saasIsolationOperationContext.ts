@@ -6,6 +6,7 @@ export type WebappDbOperationFamily =
   | 'patient_runtime_config'
   | 'public_booking_config'
   | 'patient_identity_exception_check'
+  | 'patient_booking_catalog'
   | 'patient_booking_history'
   | 'patient_product_analytics'
   | 'patient_ui_config'

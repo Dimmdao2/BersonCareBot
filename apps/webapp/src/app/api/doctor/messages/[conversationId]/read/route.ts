@@ -6,15 +6,29 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 
-type WorkspaceConversationRef = { organizationId?: string | null };
+type WorkspaceConversationRef = {
+  organizationId?: string | null;
+  platformUserId: string | null;
+};
 
 async function conversationBelongsToWorkspace(
   deps: ReturnType<typeof buildAppDeps>,
   conversation: WorkspaceConversationRef,
   organizationId: string,
+  actor: PatientVisibilityActor,
 ): Promise<boolean> {
-  return conversation.organizationId === organizationId;
+  if (conversation.organizationId !== organizationId) return false;
+  if (actor.canManageAllSpecialists) return true;
+  if (!conversation.platformUserId) return false;
+  return Boolean(
+    await deps.doctorClientsPort.getClientIdentityForOrganization(
+      conversation.platformUserId,
+      organizationId,
+      actor,
+    ),
+  );
 }
 
 export async function POST(
@@ -30,12 +44,17 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const full = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.supportCommunication.getConversationWithMessages(conversationId, gate.ctx.organizationId),
+  const conversation = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.supportCommunication.getConversationRelayInfo(conversationId, gate.ctx.organizationId),
   );
   if (
-    !full ||
-    !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))
+    !conversation ||
+    !(await conversationBelongsToWorkspace(
+      deps,
+      conversation,
+      gate.ctx.organizationId,
+      gate.ctx,
+    ))
   ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }

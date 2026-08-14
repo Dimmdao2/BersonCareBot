@@ -5,8 +5,8 @@ import { platformUsers } from './schema';
 
 /**
  * Access-boundary link, not a clinical relationship: "specialist X may see patient Y as its own
- * in organization Z." Created dormant (VISIBILITY_MODEL_DESIGN_2026-08-04.md §1/§6 stage A) — no
- * reader is wired to it yet.
+ * in organization Z." List, aggregate, point-read and messaging readers use this boundary for a
+ * specialist actor; clinic owner/admin actors deliberately retain whole-organization visibility.
  */
 export const patientSpecialistLinks = pgTable(
   'patient_specialist_links',

@@ -1,12 +1,15 @@
 import type { ChannelBindings } from '@/shared/types/session';
 import type { ClientContactBreakdown } from './clientContactSegments';
 import type { ClientSupportProfile, PatientProgramInteractionPolicy } from './supportPolicy';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 
 /** Фильтры для списка клиентов специалиста. */
 export type DoctorClientsFilters = {
   search?: string;
   /** Selected doctor workspace organization; when present, patient list and org-backed badges are scoped to it. */
   organizationId?: string;
+  /** Required whenever organizationId is present; narrows ordinary doctors to linked patients. */
+  visibilityActor?: PatientVisibilityActor;
   /** Viewer user id for per-doctor read cursors (discussion unread badges). */
   viewerUserId?: string;
   /**
@@ -269,6 +272,7 @@ export type DoctorClientsPort = {
   getClientContactBreakdown(audience?: {
     excludedUserIds?: string[];
     organizationId?: string;
+    visibilityActor?: PatientVisibilityActor;
   }): Promise<ClientContactBreakdown>;
   /** Lightweight role lookup for routes that must distinguish missing users from non-clients. */
   getPlatformUserRole(userId: string): Promise<string | null>;
@@ -277,12 +281,14 @@ export type DoctorClientsPort = {
   getClientIdentityForOrganization(
     userId: string,
     organizationId: string,
+    actor: PatientVisibilityActor,
   ): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
   getDashboardPatientMetrics(audience?: {
     excludedUserIds?: string[];
     organizationId?: string;
+    visibilityActor?: PatientVisibilityActor;
   }): Promise<DoctorDashboardPatientMetrics>;
   /** Блокировка исходящих сообщений пациента (проверка в patient messaging). */
   isClientMessagingBlocked(userId: string): Promise<boolean>;

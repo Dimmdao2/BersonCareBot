@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   hls: vi.fn(),
   playbackEnabled: vi.fn(),
   recordEvent: vi.fn(),
+  resolvePatientOrganization: vi.fn(),
+  withPatientPrincipal: vi.fn(),
 }));
 
 vi.mock('@/config/env', () => ({
@@ -33,6 +35,15 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: async () => ({ ok: true, session: await mocks.getSession() }),
   requireDoctorWorkspaceApiContext: vi.fn(),
+}));
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
+  buildAppDeps: () => ({ patientOrganization: {} }),
+}));
+vi.mock('@/app-layer/patient-organization/requestContext', () => ({
+  resolvePatientOrganizationRequestContext: mocks.resolvePatientOrganization,
+}));
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
+  withPatientOrganizationPrincipal: mocks.withPatientPrincipal,
 }));
 vi.mock('@/app-layer/media/authorizeMediaDelivery', () => ({
   authorizeMediaDelivery: mocks.authorize,
@@ -102,6 +113,13 @@ describe('media delivery routes', () => {
     mocks.playbackEnabled.mockResolvedValue(true);
     mocks.hls.mockResolvedValue(new Response('segment'));
     mocks.recordEvent.mockResolvedValue(undefined);
+    mocks.resolvePatientOrganization.mockResolvedValue({
+      ok: true,
+      organizationId: '00000000-0000-4000-8000-000000000001',
+    });
+    mocks.withPatientPrincipal.mockImplementation(
+      (_context: unknown, operation: () => unknown) => operation(),
+    );
   });
 
   it('does not reach S3 when the shared door reports a foreign or missing media row', async () => {
@@ -136,6 +154,13 @@ describe('media delivery routes', () => {
     expect(response.headers.get('location')).toBe('https://storage.example/signed');
     expect(response.headers.get('cache-control')).toBe('private, max-age=0, must-revalidate');
     expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900);
+    expect(mocks.withPatientPrincipal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: '00000000-0000-4000-8000-000000000001',
+        platformUserId: 'patient-1',
+      }),
+      expect.any(Function),
+    );
   });
 
   it('stops playback and preview before their delivery consumers when the shared door refuses', async () => {

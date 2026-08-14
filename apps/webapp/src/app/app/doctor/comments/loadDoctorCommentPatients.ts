@@ -28,6 +28,7 @@
  * Все пациенты в списке уже фильтруются `supportStatus: "on"` — флаг `isOnSupport` всегда true.
  */
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { ListDoctorExerciseCommentsInput } from '@/modules/program-item-discussion/types';
 
 /** Поля пациента для многополевого поиска в левом пейне. */
@@ -54,7 +55,7 @@ export type CommentPatientRow = CommentPatientSearchFields & {
 export type LoadDoctorCommentPatientsDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId'>,
+      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId' | 'visibilityActor'>,
       audience?: { excludedUserIds?: string[] },
     ): Promise<
       Array<{
@@ -85,15 +86,23 @@ export type LoadDoctorCommentPatientsDeps = {
  */
 export async function loadDoctorCommentPatients(
   deps: LoadDoctorCommentPatientsDeps,
-  context: { viewerUserId: string; organizationId?: string },
+  context: {
+    viewerUserId: string;
+    organizationId?: string;
+    visibilityActor: PatientVisibilityActor;
+  },
   options?: { excludedUserIds?: string[] },
 ): Promise<CommentPatientRow[]> {
-  const audience = options?.excludedUserIds?.length
-    ? { excludedUserIds: options.excludedUserIds }
-    : undefined;
+  const audience = {
+    excludedUserIds: options?.excludedUserIds ?? [],
+  };
 
   const onSupport = await deps.doctorClientsPort.listClients(
-    { supportStatus: 'on', organizationId: context.organizationId },
+    {
+      supportStatus: 'on',
+      organizationId: context.organizationId,
+      visibilityActor: context.visibilityActor,
+    },
     audience,
   );
   if (onSupport.length === 0) return [];

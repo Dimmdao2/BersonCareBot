@@ -6,6 +6,7 @@ import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
+import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
 import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 import {
   assertManualPatientCommandReplay,
@@ -173,6 +174,19 @@ async function insertAppointmentInTransaction(
 ): Promise<BeAppointment> {
   if (input.source === 'admin_manual' && !catalogValidated) {
     await assertManualAppointmentCatalogSelection(tx, input);
+  }
+  if (input.platformUserId && input.specialistId) {
+    await ensureInvitedOrganizationClientRelationship(
+      tx,
+      input.organizationId,
+      input.platformUserId,
+    );
+    await ensureActivePatientSpecialistLink(tx, {
+      organizationId: input.organizationId,
+      patientUserId: input.platformUserId,
+      specialistId: input.specialistId,
+      createdVia: 'first_appointment',
+    });
   }
   const status = input.status ?? 'created';
   const inserted = await tx

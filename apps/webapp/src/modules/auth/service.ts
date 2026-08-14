@@ -308,6 +308,42 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
       purpose: 'webapp-entry',
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
+    'dev:doctor-isolated': {
+      sub: 'd0000000-0000-4000-8000-000000000005',
+      role: 'doctor',
+      displayName: 'Demo Isolated Doctor',
+      phone: '+79990000005',
+      bindings: { telegramId: '999999999999005' },
+      purpose: 'webapp-entry',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    'dev:client-isolated': {
+      sub: 'd0000000-0000-4000-8000-000000000006',
+      role: 'client',
+      displayName: 'Demo Isolated Patient',
+      phone: '+79990000006',
+      bindings: { telegramId: '999999999999006' },
+      purpose: 'webapp-entry',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    'dev:doctor-colleague': {
+      sub: 'd0000000-0000-4000-8000-000000000007',
+      role: 'doctor',
+      displayName: 'Demo Colleague Doctor',
+      phone: '+79990000007',
+      bindings: { telegramId: '999999999999007' },
+      purpose: 'webapp-entry',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    'dev:client-colleague': {
+      sub: 'd0000000-0000-4000-8000-000000000008',
+      role: 'client',
+      displayName: 'Demo Colleague Patient',
+      phone: '+79990000008',
+      bindings: { telegramId: '999999999999008' },
+      purpose: 'webapp-entry',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
   };
 
   return presets[token] ?? null;

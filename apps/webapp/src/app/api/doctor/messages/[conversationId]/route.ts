@@ -10,20 +10,34 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { serializeSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 
 const postBodySchema = z.object({
   text: z.string().min(1).max(4000),
   idempotencyKey: z.string().min(1).max(200).optional(),
 });
 
-type WorkspaceConversationRef = { organizationId?: string | null };
+type WorkspaceConversationRef = {
+  organizationId?: string | null;
+  platformUserId: string | null;
+};
 
 async function conversationBelongsToWorkspace(
   deps: ReturnType<typeof buildAppDeps>,
   conversation: WorkspaceConversationRef,
   organizationId: string,
+  actor: PatientVisibilityActor,
 ): Promise<boolean> {
-  return conversation.organizationId === organizationId;
+  if (conversation.organizationId !== organizationId) return false;
+  if (actor.canManageAllSpecialists) return true;
+  if (!conversation.platformUserId) return false;
+  return Boolean(
+    await deps.doctorClientsPort.getClientIdentityForOrganization(
+      conversation.platformUserId,
+      organizationId,
+      actor,
+    ),
+  );
 }
 
 export async function GET(
@@ -43,12 +57,17 @@ export async function GET(
   const since = sinceRaw?.trim() ? sinceRaw.trim() : undefined;
 
   const deps = buildAppDeps();
-  const full = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.supportCommunication.getConversationWithMessages(conversationId, gate.ctx.organizationId),
+  const conversation = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.supportCommunication.getConversationRelayInfo(conversationId, gate.ctx.organizationId),
   );
   if (
-    !full ||
-    !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))
+    !conversation ||
+    !(await conversationBelongsToWorkspace(
+      deps,
+      conversation,
+      gate.ctx.organizationId,
+      gate.ctx,
+    ))
   ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
@@ -89,12 +108,17 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const full = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.supportCommunication.getConversationWithMessages(conversationId, gate.ctx.organizationId),
+  const conversation = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.supportCommunication.getConversationRelayInfo(conversationId, gate.ctx.organizationId),
   );
   if (
-    !full ||
-    !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))
+    !conversation ||
+    !(await conversationBelongsToWorkspace(
+      deps,
+      conversation,
+      gate.ctx.organizationId,
+      gate.ctx,
+    ))
   ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }

@@ -3,15 +3,21 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 
 const paramsSchema = z.object({ userId: z.string().uuid() });
 const revokeSchema = z.object({ inviteId: z.string().uuid() }).strict();
 
-async function resolvePatient(userId: string, organizationId: string) {
+async function resolvePatient(
+  userId: string,
+  organizationId: string,
+  actor: PatientVisibilityActor,
+) {
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     organizationId,
+    actor,
   );
   return identity
     ? { deps, patientUserId: identity.userId, invitedEmail: identity.email ?? null }
@@ -24,7 +30,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
-  const patient = await resolvePatient(parsed.data.userId, gate.ctx.organizationId);
+  const patient = await resolvePatient(parsed.data.userId, gate.ctx.organizationId, gate.ctx);
   if (!patient) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   const state = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     patient.deps.patientInvites.getPortalStatus(gate.ctx.organizationId, patient.patientUserId),
@@ -38,7 +44,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ us
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
-  const patient = await resolvePatient(parsed.data.userId, gate.ctx.organizationId);
+  const patient = await resolvePatient(parsed.data.userId, gate.ctx.organizationId, gate.ctx);
   if (!patient) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   const result = await withDoctorWorkspacePrincipal(
     gate.ctx,
@@ -74,7 +80,7 @@ export async function DELETE(
   if (!parsed.success || !body.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  const patient = await resolvePatient(parsed.data.userId, gate.ctx.organizationId);
+  const patient = await resolvePatient(parsed.data.userId, gate.ctx.organizationId, gate.ctx);
   if (!patient) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   const revoked = await withDoctorWorkspacePrincipal(
     gate.ctx,

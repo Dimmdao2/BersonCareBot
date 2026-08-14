@@ -380,7 +380,12 @@ export function ContentSectionsListClient({
           pagesInSection={deletingFor.pagesInSection}
         />
       ) : null}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        id="doctor-content-sections"
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+      >
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2" aria-busy={pending}>
             {items.map((row) => (

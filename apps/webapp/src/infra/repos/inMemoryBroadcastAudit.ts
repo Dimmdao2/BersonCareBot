@@ -28,8 +28,13 @@ export const inMemoryBroadcastAuditPort: BroadcastAuditPort = {
     store.push(full);
     return full;
   },
-  async list(limit = 50): Promise<BroadcastAuditEntry[]> {
+  async list(scope, limit = 50): Promise<BroadcastAuditEntry[]> {
     return store
+      .filter(
+        (entry) =>
+          entry.organizationId === scope.organizationId &&
+          (scope.visibilityActor.canManageAllSpecialists || entry.actorId === scope.actorUserId),
+      )
       .slice()
       .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime())
       .slice(0, limit);

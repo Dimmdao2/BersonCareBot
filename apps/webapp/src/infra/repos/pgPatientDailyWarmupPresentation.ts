@@ -5,6 +5,7 @@ import type {
   DailyWarmupPresentationState,
   PatientDailyWarmupPresentationPort,
 } from '@/modules/patient-home/dailyWarmupPresentationPorts';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 export function createPgPatientDailyWarmupPresentationPort(): PatientDailyWarmupPresentationPort {
   return {
@@ -29,11 +30,14 @@ export function createPgPatientDailyWarmupPresentationPort(): PatientDailyWarmup
     },
 
     async upsertPresentationState(userId, state) {
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) throw new Error('organization_principal_required');
       const db = getDrizzle();
       const now = new Date().toISOString();
       await db
         .insert(patientDailyWarmupPresentations)
         .values({
+          organizationId,
           userId,
           contentPageId: state.contentPageId,
           lastRotationAt: state.lastRotationAt,

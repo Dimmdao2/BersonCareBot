@@ -10,6 +10,7 @@ import {
   entitlementMutationRefusalResponse,
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 const bodySchema = z.object({
   contentPageId: z.string().uuid(),
@@ -45,19 +46,27 @@ export async function POST(request: Request) {
   if (!entitlement.ok) {
     return entitlementMutationRefusalResponse('warmups', 'зафиксировать просмотр разминки');
   }
-  const result = await recordDailyWarmupVideoView(
-    gate.session.user.userId,
-    parsed.data.contentPageId,
+  const result = await withPatientOrganizationPrincipal(
     {
-      patientHomeBlocks: deps.patientHomeBlocks,
-      contentPages: deps.contentPages,
-      contentSections: deps.contentSections,
-      systemSettings: deps.systemSettings,
-      patientDailyWarmupPresentation: deps.patientDailyWarmupPresentation,
-      patientDailyWarmupVideoViews: deps.patientDailyWarmupVideoViews,
-      patientPractice: deps.patientPractice,
-      patientCalendarTimezone: deps.patientCalendarTimezone,
+      organizationId: tenant.organizationId,
+      platformUserId: gate.session.user.userId,
+      source: 'api/patient/daily-warmup/video-viewed:POST',
     },
+    () =>
+      recordDailyWarmupVideoView(
+        gate.session.user.userId,
+        parsed.data.contentPageId,
+        {
+          patientHomeBlocks: deps.patientHomeBlocks,
+          contentPages: deps.contentPages,
+          contentSections: deps.contentSections,
+          systemSettings: deps.systemSettings,
+          patientDailyWarmupPresentation: deps.patientDailyWarmupPresentation,
+          patientDailyWarmupVideoViews: deps.patientDailyWarmupVideoViews,
+          patientPractice: deps.patientPractice,
+          patientCalendarTimezone: deps.patientCalendarTimezone,
+        },
+      ),
   );
 
   if (!result.ok) {

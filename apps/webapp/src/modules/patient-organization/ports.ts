@@ -9,6 +9,8 @@ export type PatientOrganizationEnrollment = {
 
 export type CreateManualOrganizationClientInput = {
   organizationId: string;
+  /** Specialist who owns a manually created card; null for non-clinical clinic managers. */
+  specialistId?: string | null;
   /** Required only for a no-phone/no-email standalone card. */
   commandId?: string;
   phoneNormalized: string | null;

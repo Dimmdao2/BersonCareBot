@@ -109,11 +109,17 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         paymentRows,
         packageHistoryRows,
         packageUsageRows,
-        rescheduleRows,
-        cancelRows,
       ] = await Promise.all([
         db
-          .select()
+          .select({
+            id: bePatientTimelineEvents.id,
+            domain: bePatientTimelineEvents.domain,
+            eventType: bePatientTimelineEvents.eventType,
+            linkedObjectType: bePatientTimelineEvents.linkedObjectType,
+            linkedObjectId: bePatientTimelineEvents.linkedObjectId,
+            payload: bePatientTimelineEvents.payload,
+            occurredAt: bePatientTimelineEvents.occurredAt,
+          })
           .from(bePatientTimelineEvents)
           .where(
             and(
@@ -174,48 +180,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
             ),
           )
           .orderBy(desc(bePackageUsages.occurredAt))
-          .limit(fetchLimit),
-        db
-          .select({
-            id: beAppointmentReschedules.id,
-            appointmentId: beAppointmentReschedules.appointmentId,
-            fromStartAt: beAppointmentReschedules.fromStartAt,
-            toStartAt: beAppointmentReschedules.toStartAt,
-            reason: beAppointmentReschedules.reason,
-            createdAt: beAppointmentReschedules.createdAt,
-          })
-          .from(beAppointmentReschedules)
-          .innerJoin(beAppointments, eq(beAppointmentReschedules.appointmentId, beAppointments.id))
-          .where(
-            and(
-              eq(beAppointmentReschedules.organizationId, organizationId),
-              eq(beAppointments.platformUserId, platformUserId),
-            ),
-          )
-          .orderBy(desc(beAppointmentReschedules.createdAt))
-          .limit(fetchLimit),
-        db
-          .select({
-            id: beAppointmentCancellations.id,
-            appointmentId: beAppointmentCancellations.appointmentId,
-            cancellationType: beAppointmentCancellations.cancellationType,
-            reason: beAppointmentCancellations.reason,
-            wasFree: beAppointmentCancellations.wasFree,
-            wasPenalized: beAppointmentCancellations.wasPenalized,
-            createdAt: beAppointmentCancellations.createdAt,
-          })
-          .from(beAppointmentCancellations)
-          .innerJoin(
-            beAppointments,
-            eq(beAppointmentCancellations.appointmentId, beAppointments.id),
-          )
-          .where(
-            and(
-              eq(beAppointmentCancellations.organizationId, organizationId),
-              eq(beAppointments.platformUserId, platformUserId),
-            ),
-          )
-          .orderBy(desc(beAppointmentCancellations.createdAt))
           .limit(fetchLimit),
       ]);
 
@@ -295,38 +259,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           linkedObjectId: row.id,
           appointmentId: row.appointmentId,
           payload: { usageId: row.id, usageKind: row.usageKind, comment: row.comment },
-        });
-      }
-      for (const row of rescheduleRows) {
-        items.push({
-          id: row.id,
-          category: 'reschedule',
-          eventType: 'reschedule',
-          title: timelineEventTitle('reschedule'),
-          summary: row.reason ?? null,
-          occurredAt: row.createdAt,
-          linkedObjectType: 'appointment_reschedule',
-          linkedObjectId: row.id,
-          appointmentId: row.appointmentId,
-          payload: { fromStartAt: row.fromStartAt, toStartAt: row.toStartAt },
-        });
-      }
-      for (const row of cancelRows) {
-        items.push({
-          id: row.id,
-          category: 'cancellation',
-          eventType: 'cancellation',
-          title: timelineEventTitle('cancellation'),
-          summary: row.reason ?? row.cancellationType,
-          occurredAt: row.createdAt,
-          linkedObjectType: 'appointment_cancellation',
-          linkedObjectId: row.id,
-          appointmentId: row.appointmentId,
-          payload: {
-            cancellationType: row.cancellationType,
-            wasFree: row.wasFree,
-            wasPenalized: row.wasPenalized,
-          },
         });
       }
       return dedupeTimelineItems(items).slice(0, limit);

@@ -159,7 +159,7 @@ sudo -u postgres psql -d bcb_webapp_dev -At -c "SELECT pg_get_userbyid(proowner)
 **Что уже выдано dev-скриптами** (применять `sudo -u postgres psql -d bcb_webapp_dev -f <файл>`):
 `dev-c0-runtime-logins.sql` — рантайм-логины; `dev-c1-bootstrap-schema-app-grants.sql` — доступ к схеме
 `app`, установка и снятие принципала обоим пулам, право владельца definer-функции звать `app.is_staff()`;
-`dev-c2-dev-bypass-fixture.sql` — учётки всех четырёх пресетов дев-входа, членства и запись пациента в
+`dev-c2-dev-bypass-fixture.sql` — учётки всех пресетов дев-входа, членства и записи пациентов в
 клинику.
 
 **Что НЕ выровнено и ждёт работы:** владельцы остальных функций схемы `app`. Источник истины — сами
@@ -228,6 +228,10 @@ NODE_ENV=development
 | `dev:clinic-admin` | `doctor` + membership `owner`               | нет                | Управление своей клиникой (`Врачи`, `Настройки клиники`) без global-admin экранов   |
 | `dev:doctor`       | `doctor` + membership `doctor` + specialist | нет                | Кабинет специалиста без admin-only экранов                                          |
 | `dev:client`       | `client`                                    | —                  | Кабинет пациента                                                                    |
+| `dev:doctor-isolated` | `doctor` + specialist in a separate clinic | нет              | Проверка межорганизационной изоляции                                                 |
+| `dev:client-isolated` | `client` in the separate clinic            | —                | Пациент для положительного сценария отдельной клиники                                |
+| `dev:doctor-colleague` | `doctor` + second specialist in the main clinic | нет          | Проверка изоляции между специалистами одной клиники                                  |
+| `dev:client-colleague` | `client` assigned only to the second specialist | —            | Пациент для отрицательного сценария основного врача                                  |
 
 Когда включён DB-backed identity port, каждый `dev:*` preset требует уже подготовленные synthetic
 `platform_users` + точную messenger binding из preset. Dev bypass на входе делает только read-only lookup;
@@ -309,7 +313,7 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 Параметры:
 
-- `token` — один из `dev:client` | `dev:doctor` | `dev:clinic-admin` | `dev:admin` (URL-encode `:` → `%3A`).
+- `token` — один из пресетов таблицы §4.2 (URL-encode `:` → `%3A`).
 - `next` — путь после входа. **Только для `dev:client`:** безопасные пути внутри `/app/patient/*` (кроме `bind-phone`). Для staff-токенов параметр `next` **игнорируется** — всегда редирект на `/app/doctor`; дальше переходите на нужный маршрут вручную или через browser automation.
 
 Примеры:

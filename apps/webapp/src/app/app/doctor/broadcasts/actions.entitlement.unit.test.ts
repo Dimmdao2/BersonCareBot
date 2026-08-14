@@ -75,6 +75,13 @@ describe('mailing mutation entitlement boundary', () => {
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     await expect(listBroadcastAuditAction()).resolves.toEqual(entries);
-    expect(listAudit).toHaveBeenCalledOnce();
+    expect(listAudit).toHaveBeenCalledWith(
+      {
+        organizationId: workspace.organizationId,
+        actorUserId: workspace.session.user.userId,
+        visibilityActor: workspace,
+      },
+      undefined,
+    );
   });
 });

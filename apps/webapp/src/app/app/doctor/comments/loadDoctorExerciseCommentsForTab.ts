@@ -15,6 +15,7 @@
  * Намеренное расхождение с «Сегодня» зафиксировано как допустимое.
  */
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type {
   DoctorExerciseCommentCursor,
   DoctorExerciseCommentRow,
@@ -30,7 +31,7 @@ export const DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE = 50;
 export type LoadDoctorExerciseCommentsForTabDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId'>,
+      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId' | 'visibilityActor'>,
       audience?: { excludedUserIds?: string[] },
     ): Promise<Array<{ userId: string; displayName: string }>>;
   };
@@ -43,7 +44,12 @@ export type LoadDoctorExerciseCommentsForTabDeps = {
 
 export async function loadDoctorExerciseCommentsForTab(
   deps: LoadDoctorExerciseCommentsForTabDeps,
-  context: { viewerUserId: string; organizationId?: string; excludedUserIds?: string[] },
+  context: {
+    viewerUserId: string;
+    organizationId?: string;
+    excludedUserIds?: string[];
+    visibilityActor: PatientVisibilityActor;
+  },
   options?: { limit?: number; cursor?: DoctorExerciseCommentCursor | null },
 ): Promise<{
   items: TodayExerciseCommentAttentionItem[];
@@ -52,12 +58,16 @@ export async function loadDoctorExerciseCommentsForTab(
 }> {
   const limit = options?.limit ?? DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
-  const audience = context.excludedUserIds?.length
-    ? { excludedUserIds: context.excludedUserIds }
-    : undefined;
+  const audience = {
+    excludedUserIds: context.excludedUserIds ?? [],
+  };
 
   const onSupport = await deps.doctorClientsPort.listClients(
-    { supportStatus: 'on', organizationId: context.organizationId },
+    {
+      supportStatus: 'on',
+      organizationId: context.organizationId,
+      visibilityActor: context.visibilityActor,
+    },
     audience,
   );
   if (onSupport.length === 0) {

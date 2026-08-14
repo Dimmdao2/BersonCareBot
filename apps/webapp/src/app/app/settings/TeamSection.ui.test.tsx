@@ -32,7 +32,10 @@ describe('TeamSection seat configuration refusal', () => {
         listOverrides: async () => [],
         getTariffForOrg: async () => null,
       } as unknown as OrgEntitlementsPort,
-    }).getSeatStatus('11111111-1111-4111-8111-111111111111');
+    }).getSeatStatus(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    );
 
     render(<TeamSection members={[]} invites={[]} seats={seats} canMutateTeam />);
 
@@ -67,7 +70,10 @@ describe('TeamSection seat configuration refusal', () => {
           ],
         }),
       },
-    }).getSeatStatus('11111111-1111-4111-8111-111111111111');
+    }).getSeatStatus(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    );
 
     expect(seats).toEqual({ configured: true, limit: 3, used: 1, available: 2 });
   });

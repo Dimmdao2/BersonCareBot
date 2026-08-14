@@ -56,6 +56,7 @@ function PushChannelRow() {
   const state = useWebPushClientState();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   const runSubscribe = useCallback(async () => {
     setBusy(true);
@@ -91,11 +92,15 @@ function PushChannelRow() {
   const refreshState = state.refresh;
 
   useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
     if (!stateMounted) return;
     void refreshState();
   }, [stateMounted, refreshState]);
 
-  if (!state.mounted) return null;
+  if (!hydrated || !state.mounted) return null;
 
   let action: ReactNode = null;
   if (state.uiStatus === 'pending_permission' || state.uiStatus === 'granted_no_subscription') {

@@ -1,3 +1,5 @@
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
+
 /** Узкий порт для записи входящих сообщений клиники в PWA-чат пациента. */
 export type PatientInboundChatPort = {
   mergeLegacySupportConversationsForPlatformUser?(platformUserId: string): Promise<{
@@ -236,6 +238,7 @@ export type SupportCommunicationPort = {
     limit?: number;
     unreadOnly?: boolean;
     organizationId?: string;
+    visibilityActor: PatientVisibilityActor;
   }): Promise<AdminConversationListRow[]>;
   ensureWebappConversationForUser(
     platformUserId: string,
@@ -284,7 +287,10 @@ export type SupportCommunicationPort = {
     platformUserId: string,
     limit: number,
   ): Promise<SupportConversationMessageRow[]>;
-  countUnreadUserMessagesForAdmin(params?: { organizationId?: string }): Promise<number>;
+  countUnreadUserMessagesForAdmin(params: {
+    organizationId?: string;
+    visibilityActor: PatientVisibilityActor;
+  }): Promise<number>;
   countUnreadUserMessagesForAdminByConversation(conversationId: string): Promise<number>;
   countUnreadUserMessagesForAdminByPatient(
     platformUserId: string,

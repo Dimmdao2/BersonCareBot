@@ -46,6 +46,7 @@ import type {
   ScheduleKpis,
   ScheduleKpisQuery,
   DoctorScheduleKpisAudience,
+  DoctorAppointmentsAudience,
 } from '@/modules/doctor-appointments/ports';
 
 const CANCELLED_STATUSES = [
@@ -59,6 +60,14 @@ function appointmentUserAudienceCond(excludedUserIds: string[]) {
   const exclude = drizzleExcludeUserIdColumn(beAppointments.platformUserId, excludedUserIds);
   if (!exclude) return undefined;
   return or(isNull(beAppointments.platformUserId), exclude);
+}
+
+function appointmentVisibilityCond(audience: DoctorAppointmentsAudience | undefined) {
+  if (!audience?.organizationId) return undefined;
+  const actor = audience.visibilityActor;
+  if (!actor) throw new Error('patient_visibility_actor_required');
+  if (actor.canManageAllSpecialists) return undefined;
+  return actor.specialistId ? eq(beAppointments.specialistId, actor.specialistId) : sql`false`;
 }
 
 const BE_APPOINTMENTS_NOT_PURGED = sql.raw(PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL);
@@ -180,15 +189,17 @@ export function createPgDoctorCanonicalAppointmentsPort(
   return {
     async listAppointmentsForSpecialist(
       filter: DoctorAppointmentsListFilter,
-      audience?: { excludedUserIds?: string[]; organizationId?: string },
+      audience?: DoctorAppointmentsAudience,
     ): Promise<AppointmentRow[]> {
       const db = getDrizzle();
       const organizationId = audience?.organizationId ?? (await getDefaultOrganizationId());
+      const specialistAudience = appointmentVisibilityCond(audience);
       // F1b: soft-deleted (deleted_at) canonical rows are hidden from all doctor reads.
       const base = and(
         eq(beAppointments.organizationId, organizationId),
         isNull(beAppointments.deletedAt),
         isNotNull(beAppointments.startAt),
+        specialistAudience,
       );
       const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
 
@@ -235,6 +246,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               eq(beAppointments.organizationId, organizationId),
               isNull(beAppointments.deletedAt),
               userAudience,
+              specialistAudience,
               gte(beAppointments.startAt, from),
               lt(beAppointments.startAt, toExclusive),
             ),
@@ -311,6 +323,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               eq(beAppointments.organizationId, organizationId),
               isNull(beAppointments.deletedAt),
               userAudience,
+              specialistAudience,
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
             ),
@@ -331,6 +344,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               eq(beAppointments.organizationId, organizationId),
               isNull(beAppointments.deletedAt),
               userAudience,
+              specialistAudience,
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`date_trunc('month', NOW())`),
               lte(beAppointments.updatedAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
@@ -345,7 +359,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getAppointmentStats(
       filter: DoctorAppointmentStatsFilter,
-      audience?: { excludedUserIds?: string[]; organizationId?: string },
+      audience?: DoctorAppointmentsAudience,
     ): Promise<AppointmentStats> {
       const db = getDrizzle();
       const organizationId = audience?.organizationId ?? (await getDefaultOrganizationId());
@@ -353,12 +367,14 @@ export function createPgDoctorCanonicalAppointmentsPort(
       const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
       const excluded = audience?.excludedUserIds ?? [];
       const userAudience = appointmentUserAudienceCond(excluded);
+      const specialistAudience = appointmentVisibilityCond(audience);
       const rangeCond = and(
         eq(beAppointments.organizationId, organizationId),
         isNull(beAppointments.deletedAt),
         gte(beAppointments.startAt, from),
         lt(beAppointments.startAt, toExclusive),
         userAudience,
+        specialistAudience,
       );
       const createdInRangeCond = and(
         eq(beAppointments.organizationId, organizationId),
@@ -366,6 +382,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
         gte(beAppointments.createdAt, from),
         lt(beAppointments.createdAt, toExclusive),
         userAudience,
+        specialistAudience,
       );
       const [
         totalRow,
@@ -418,6 +435,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               gte(beAppointmentCancellations.createdAt, from),
               lt(beAppointmentCancellations.createdAt, toExclusive),
               userAudience,
+              specialistAudience,
             ),
           ),
         db
@@ -431,6 +449,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               gte(beAppointmentReschedules.createdAt, from),
               lt(beAppointmentReschedules.createdAt, toExclusive),
               userAudience,
+              specialistAudience,
             ),
           ),
         db
@@ -443,6 +462,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
               userAudience,
+              specialistAudience,
               BE_APPOINTMENTS_NOT_PURGED,
             ),
           ),
@@ -461,17 +481,18 @@ export function createPgDoctorCanonicalAppointmentsPort(
       };
     },
 
-    async getDashboardAppointmentMetrics(audience?: {
-      excludedUserIds?: string[];
-      organizationId?: string;
-    }): Promise<DoctorDashboardAppointmentMetrics> {
+    async getDashboardAppointmentMetrics(
+      audience?: DoctorAppointmentsAudience,
+    ): Promise<DoctorDashboardAppointmentMetrics> {
       const db = getDrizzle();
       const organizationId = audience?.organizationId ?? (await getDefaultOrganizationId());
       const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
+      const specialistAudience = appointmentVisibilityCond(audience);
       const orgCond = and(
         eq(beAppointments.organizationId, organizationId),
         isNull(beAppointments.deletedAt),
         userAudience,
+        specialistAudience,
       );
       const nowIso = new Date().toISOString();
 

@@ -6,6 +6,7 @@ import type {
   SupportCommunicationPort,
   SupportConversationMessageRow,
 } from '@/modules/messaging/ports';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import { isSupportChatMessage } from '@/shared/lib/supportMessageKinds';
 import { logger, serializeError } from '@/infra/logging/logger';
 import { env } from '@/config/env';
@@ -32,11 +33,13 @@ export function createDoctorSupportMessagingService(
       limit?: number;
       unreadOnly?: boolean;
       organizationId?: string;
+      visibilityActor: PatientVisibilityActor;
     }): Promise<AdminConversationListRow[]> {
       return port.listOpenConversationsForAdmin({
         limit: params.limit ?? 50,
         unreadOnly: params.unreadOnly === true,
         organizationId: params.organizationId,
+        visibilityActor: params.visibilityActor,
       });
     },
 
@@ -149,7 +152,10 @@ export function createDoctorSupportMessagingService(
       return port.markUserMessagesReadByAdmin(conversationId, organizationId);
     },
 
-    unreadFromUsers(params?: { organizationId?: string }): Promise<number> {
+    unreadFromUsers(params: {
+      organizationId?: string;
+      visibilityActor: PatientVisibilityActor;
+    }): Promise<number> {
       return port.countUnreadUserMessagesForAdmin(params);
     },
 

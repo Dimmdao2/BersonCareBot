@@ -58,6 +58,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
+    gate.ctx,
   );
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });

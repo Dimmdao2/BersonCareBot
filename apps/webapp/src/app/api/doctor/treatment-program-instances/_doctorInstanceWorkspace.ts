@@ -33,6 +33,7 @@ export async function resolveDoctorInstanceInWorkspace(
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     instance.patientUserId,
     ctx.organizationId,
+    ctx,
   );
   if (!identity) {
     return {

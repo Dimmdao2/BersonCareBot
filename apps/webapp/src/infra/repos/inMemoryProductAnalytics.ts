@@ -284,7 +284,6 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
           eventType: row.eventType as ListRegistrationEventsResult['items'][number]['eventType'],
           entryChannel:
             row.entryChannel as ListRegistrationEventsResult['items'][number]['entryChannel'],
-          userId: row.userId ?? null,
           metadata: (row.metadata ?? {}) as Record<string, unknown>,
         })),
         total,

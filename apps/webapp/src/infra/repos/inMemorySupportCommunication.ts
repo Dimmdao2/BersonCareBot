@@ -544,7 +544,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return list;
   },
 
-  async countUnreadUserMessagesForAdmin({ organizationId } = {}) {
+  async countUnreadUserMessagesForAdmin({ organizationId }) {
     let n = 0;
     for (const m of messages.values()) {
       const conversation = conversations.get(m.conversationId);

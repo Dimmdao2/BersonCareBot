@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
-  requireDoctorWorkspaceApiContext,
+  requireOrganizationWorkspaceApiContext,
   type DoctorWorkspaceAccessContext,
 } from '@/app-layer/guards/requireRole';
 
@@ -21,7 +21,7 @@ export type DoctorBookingEngineContext = {
 export async function requireDoctorBookingEngine(): Promise<
   { ok: true; ctx: DoctorBookingEngineContext } | { ok: false; response: NextResponse }
 > {
-  const gate = await requireDoctorWorkspaceApiContext();
+  const gate = await requireOrganizationWorkspaceApiContext();
   if (!gate.ok) return gate;
   const service = buildAppDeps().bookingEngine;
   if (!service) {

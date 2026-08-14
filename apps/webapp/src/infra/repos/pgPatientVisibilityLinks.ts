@@ -1,7 +1,33 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import type { PatientVisibilityLinkPort } from '@/modules/patient-visibility/ports';
 import { patientSpecialistLinks } from '../../../db/schema/patientSpecialistLinks';
+
+export async function ensureActivePatientSpecialistLink(
+  db: DrizzleDb,
+  params: {
+    organizationId: string;
+    patientUserId: string;
+    specialistId: string;
+    createdVia: 'first_appointment' | 'manual_assign' | 'transfer';
+  },
+): Promise<{ created: boolean }> {
+  const inserted = await db
+    .insert(patientSpecialistLinks)
+    .values({
+      organizationId: params.organizationId,
+      patientUserId: params.patientUserId,
+      specialistId: params.specialistId,
+      status: 'active',
+      createdVia: params.createdVia,
+    })
+    .onConflictDoNothing({
+      target: [patientSpecialistLinks.patientUserId, patientSpecialistLinks.specialistId],
+      where: sql`${patientSpecialistLinks.status} = 'active'`,
+    })
+    .returning({ id: patientSpecialistLinks.id });
+  return { created: inserted.length > 0 };
+}
 
 export function createPgPatientVisibilityLinkPort(): PatientVisibilityLinkPort {
   return {
@@ -24,23 +50,12 @@ export function createPgPatientVisibilityLinkPort(): PatientVisibilityLinkPort {
 
     async createLinkIfAbsent({ organizationId, patientUserId, specialistId, createdVia }) {
       const db = getDrizzle();
-      const inserted = await db
-        .insert(patientSpecialistLinks)
-        .values({
-          organizationId,
-          patientUserId,
-          specialistId,
-          status: 'active',
-          createdVia,
-        })
-        .onConflictDoNothing({
-          // The unique index is partial (`WHERE status = 'active'`) — Postgres only matches an
-          // ON CONFLICT target against a partial index when the same predicate is repeated here.
-          target: [patientSpecialistLinks.patientUserId, patientSpecialistLinks.specialistId],
-          where: sql`${patientSpecialistLinks.status} = 'active'`,
-        })
-        .returning({ id: patientSpecialistLinks.id });
-      return { created: inserted.length > 0 };
+      return ensureActivePatientSpecialistLink(db, {
+        organizationId,
+        patientUserId,
+        specialistId,
+        createdVia,
+      });
     },
   };
 }

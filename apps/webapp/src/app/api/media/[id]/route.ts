@@ -16,6 +16,9 @@ import {
 import { canAccessDoctor } from '@/modules/roles/service';
 import type { AppSession } from '@/shared/types/session';
 import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolvePatientOrganizationRequestContext } from '@/app-layer/patient-organization/requestContext';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -96,5 +99,29 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   const patientGate = await requirePatientApiBusinessAccess();
   if (!patientGate.ok) return patientGate.response;
-  return serve(patientGate.session);
+  const userId = patientGate.session.user.userId;
+  const resolvedOrganization = await resolvePatientOrganizationRequestContext(
+    buildAppDeps().patientOrganization,
+    userId,
+  );
+  if (!resolvedOrganization.ok) {
+    const status =
+      resolvedOrganization.reason === 'patient_organization_unavailable'
+        ? 503
+        : resolvedOrganization.reason === 'organization_selection_required'
+          ? 409
+          : 403;
+    return NextResponse.json(
+      { error: resolvedOrganization.reason },
+      { status },
+    );
+  }
+  return withPatientOrganizationPrincipal(
+    {
+      organizationId: resolvedOrganization.organizationId,
+      platformUserId: userId,
+      source: 'api/media/[id]:GET',
+    },
+    () => serve(patientGate.session),
+  );
 }

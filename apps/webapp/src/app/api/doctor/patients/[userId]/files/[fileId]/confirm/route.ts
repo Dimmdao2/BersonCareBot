@@ -31,6 +31,7 @@ export async function POST(
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     gate.ctx.organizationId,
+    gate.ctx,
   );
   if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   const file = await withDoctorWorkspacePrincipal(gate.ctx, () =>
