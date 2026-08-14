@@ -127,8 +127,7 @@ export async function startPhoneMessengerBind(
       ? params.sessionUserId.trim()
       : null;
 
-  await port.deletePending(phoneNormalized, params.channelCode, params.purpose);
-  await port.insertSecret({
+  await port.startSecret({
     tokenHash: hashToken(startPayload),
     phoneNormalized,
     channelCode: params.channelCode,
@@ -262,20 +261,19 @@ export async function completePhoneMessengerBindFromIntegrator(
   };
 
   try {
-    return await port.withTransaction(async (client) => {
-      const pre = await port.applyMessengerContactPreOtp(client, {
+    const pre = await port.withTransaction(async (client) => {
+      const applied = await port.applyMessengerContactPreOtp(client, {
         phoneNormalized: contactPhone,
         channelCode: params.channelCode,
         externalId: params.externalId.trim(),
         purpose: row.purpose as PhoneMessengerBindPurpose,
         sessionUserId: row.user_id,
       });
-      if (!pre.ok) {
-        await port.updateFailed(row.id, pre.code, client);
-        if (pre.candidateIds?.length) {
+      if (!applied.ok) {
+        if (applied.candidateIds?.length) {
           await port.recordMessengerBindBlocked?.(client, {
-            reason: pre.code,
-            candidateIds: pre.candidateIds,
+            reason: applied.code,
+            candidateIds: applied.candidateIds,
             channelCode: params.channelCode,
             externalId: params.externalId.trim(),
             phoneNormalized: contactPhone,
@@ -287,63 +285,69 @@ export async function completePhoneMessengerBindFromIntegrator(
           metric: 'phone_messenger_bind_complete_fail',
           channelCode: params.channelCode,
           purpose: bindPurpose,
-          failure_code: pre.code,
+          failure_code: applied.code,
           phoneSuffix: phoneSuffixForLog(contactPhone),
         });
-        return { ok: false as const, code: pre.code };
+        return applied;
       }
+      return applied;
+    });
 
-      if (bindPurpose === 'profile_bind') {
-        await port.markConsumed(row.id, client);
-        logger.info({
-          event: 'phone_messenger_bind_complete_ok',
-          metric: 'phone_messenger_bind_complete_ok',
-          channelCode: params.channelCode,
-          purpose: bindPurpose,
-          replay: false,
-          accountCreated: false,
-          phoneSuffix: phoneSuffixForLog(contactPhone),
-        });
-        return { ok: true as const, purpose: 'profile_bind' };
-      }
+    if (!pre.ok) {
+      await port.updateFailed(row.id, pre.code);
+      return { ok: false as const, code: pre.code };
+    }
 
-      const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
-        registrationAttemptId: trimmed,
-        isRegistrationIntent: pre.accountCreated,
-      });
-      if (!challenge.ok) {
-        await port.updateFailed(row.id, challenge.code, client);
-        logger.warn({
-          event: 'phone_messenger_bind_complete_fail',
-          metric: 'phone_messenger_bind_complete_fail',
-          channelCode: params.channelCode,
-          purpose: bindPurpose,
-          failure_code: challenge.code,
-          phoneSuffix: phoneSuffixForLog(contactPhone),
-        });
-        return { ok: false as const, code: challenge.code };
-      }
-
-      await port.updateOtpReady(row.id, challenge.challengeId, client);
-
+    if (bindPurpose === 'profile_bind') {
+      await port.markConsumed(row.id);
       logger.info({
         event: 'phone_messenger_bind_complete_ok',
         metric: 'phone_messenger_bind_complete_ok',
         channelCode: params.channelCode,
         purpose: bindPurpose,
         replay: false,
-        accountCreated: pre.accountCreated,
+        accountCreated: false,
         phoneSuffix: phoneSuffixForLog(contactPhone),
       });
+      return { ok: true as const, purpose: 'profile_bind' };
+    }
 
-      return {
-        ok: true as const,
-        purpose: 'login',
-        otpCode: challenge.code,
-        accountCreated: pre.accountCreated,
-        challengeId: challenge.challengeId,
-      };
+    const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
+      registrationAttemptId: trimmed,
+      isRegistrationIntent: pre.accountCreated,
     });
+    if (!challenge.ok) {
+      await port.updateFailed(row.id, challenge.code);
+      logger.warn({
+        event: 'phone_messenger_bind_complete_fail',
+        metric: 'phone_messenger_bind_complete_fail',
+        channelCode: params.channelCode,
+        purpose: bindPurpose,
+        failure_code: challenge.code,
+        phoneSuffix: phoneSuffixForLog(contactPhone),
+      });
+      return { ok: false as const, code: challenge.code };
+    }
+
+    await port.updateOtpReady(row.id, challenge.challengeId);
+
+    logger.info({
+      event: 'phone_messenger_bind_complete_ok',
+      metric: 'phone_messenger_bind_complete_ok',
+      channelCode: params.channelCode,
+      purpose: bindPurpose,
+      replay: false,
+      accountCreated: pre.accountCreated,
+      phoneSuffix: phoneSuffixForLog(contactPhone),
+    });
+
+    return {
+      ok: true as const,
+      purpose: 'login',
+      otpCode: challenge.code,
+      accountCreated: pre.accountCreated,
+      challengeId: challenge.challengeId,
+    };
   } catch {
     logger.warn({
       event: 'phone_messenger_bind_complete_fail',

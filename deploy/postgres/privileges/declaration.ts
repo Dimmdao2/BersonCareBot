@@ -2214,6 +2214,10 @@ const REV10_CONTEXT = {
     phone_auth_find_otp_lock: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.phone-otp.lock.read',
       functionIdentity: 'app.phone_auth_find_otp_lock(text)' },
+    phone_messenger_bind_secret: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.phone-messenger-bind.secret',
+      functionIdentity: 'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)' },
     phone_auth_register_otp_lockout: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.phone-otp.lock.register',
       functionIdentity: 'app.phone_auth_register_otp_lockout(text,bigint)' },
@@ -2517,6 +2521,18 @@ const REV10_CONTEXT = {
       owner: 'app_seam_login_token_owner', execute: ['app_pre_session'],
       purpose: 'auth.login-token.session-issued', typedArgs: ['text'], volatility: 'VOLATILE',
       parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_pre_session'], purpose: 'auth.phone-messenger-bind.secret',
+      typedArgs: ['text', 'text', 'uuid', 'text', 'text', 'text', 'uuid', 'text', 'text',
+        'timestamp with time zone'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.phone_messenger_bind_secrets',
+        columns: ['id', 'token_hash', 'phone_normalized', 'channel_code', 'purpose', 'user_id', 'status',
+          'challenge_id', 'failure_code', 'expires_at', 'consumed_at'],
+        operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+        evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.auth_oauth_find_user(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.auth_oauth_find_user(text,text)'],
@@ -3583,10 +3599,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
 };
 
 const REV10_NO_RUNTIME_ACCESS: Record<string, Extract<RelationAccess, { kind: 'no-runtime-surface' }>> = {
-  'public.phone_messenger_bind_secrets': { kind: 'no-runtime-surface', purpose: 'post-zero direct bearer-secret access is intentionally disabled until its replacement is a single exact pre-session named root; no completion role is permitted', evidence: [
-    'OWNER_DECISIONS.md §«Pre-session до опознания человека»: pre-session has named roots only and no tenant/medical relation ACL',
-    'The former direct completion path is not a valid post-zero runtime surface because it depended on the rejected app_phone_bind_completion role.',
-  ] },
   'app.context_nonce_ledger': { kind: 'no-runtime-surface', purpose: 'obsolete custom signed-context nonce ledger replaced by app_ext accepted transaction contexts', evidence: [
     'node /home/dev/brain/tools/code-search.mjs "context nonce ledger runtime" --repo bcb: migrations and the retired custom protocol only',
     'deploy/postgres/port-context/contract.sql uses app_ext.accepted_port_contexts instead',

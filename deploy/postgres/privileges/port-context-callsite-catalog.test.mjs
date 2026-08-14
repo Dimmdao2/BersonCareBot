@@ -124,6 +124,16 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.phone-otp.lock.read', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgPhoneOtpLimits.ts',
   },
+  'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-messenger-bind.secret', argCount: 10,
+    source: 'apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts',
+  },
+  'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'analytics.registration-events.read', argCount: 7,
+    source: 'apps/webapp/src/infra/repos/pgProductAnalytics.ts',
+  },
   'app.phone_auth_register_otp_lockout(text,bigint)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'auth.phone-otp.lock.register', argCount: 2,

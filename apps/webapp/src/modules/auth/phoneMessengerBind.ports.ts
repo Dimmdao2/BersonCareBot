@@ -4,11 +4,7 @@ export type PhoneMessengerBindPurpose = 'login' | 'profile_bind';
 export type PhoneMessengerBindChannel = 'telegram' | 'max';
 
 export type PhoneMessengerBindStatus =
-  | 'pending_contact'
-  | 'otp_ready'
-  | 'failed'
-  | 'consumed'
-  | 'expired';
+  'pending_contact' | 'otp_ready' | 'failed' | 'consumed' | 'expired';
 
 export type PhoneMessengerBindSecretRow = {
   id: string;
@@ -31,12 +27,7 @@ export type PhoneMessengerBindPreOtpFailure = {
 
 export interface PhoneMessengerBindPort {
   findByTokenHash(tokenHash: string): Promise<PhoneMessengerBindSecretRow | null>;
-  deletePending(
-    phoneNormalized: string,
-    channelCode: PhoneMessengerBindChannel,
-    purpose: PhoneMessengerBindPurpose,
-  ): Promise<void>;
-  insertSecret(params: {
+  startSecret(params: {
     tokenHash: string;
     phoneNormalized: string;
     channelCode: PhoneMessengerBindChannel;
@@ -45,9 +36,9 @@ export interface PhoneMessengerBindPort {
     expiresAtIso: string;
   }): Promise<void>;
   updateExpired(id: string): Promise<void>;
-  updateFailed(id: string, failureCode: string, client?: PoolClient): Promise<void>;
-  updateOtpReady(id: string, challengeId: string, client?: PoolClient): Promise<void>;
-  markConsumed(id: string, client?: PoolClient): Promise<void>;
+  updateFailed(id: string, failureCode: string): Promise<void>;
+  updateOtpReady(id: string, challengeId: string): Promise<void>;
+  markConsumed(id: string): Promise<void>;
   markConsumedByChallenge(challengeId: string): Promise<void>;
   withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T>;
   applyMessengerContactPreOtp(

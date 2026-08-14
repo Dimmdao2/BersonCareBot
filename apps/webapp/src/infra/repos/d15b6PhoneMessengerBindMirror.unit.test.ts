@@ -11,6 +11,7 @@ const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
 const findCanonicalUserIdByPhoneMock = vi.hoisted(() => vi.fn());
 const applyPhoneHistoryMock = vi.hoisted(() => vi.fn());
 const upsertBroadcastMock = vi.hoisted(() => vi.fn());
+const runWebappNamedRootMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/infra/repos/userIdentityFioSql', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/infra/repos/userIdentityFioSql')>();
@@ -47,7 +48,10 @@ vi.mock('@/infra/upsertBroadcastDefaultsAfterChannelBind', () => ({
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
+  getWebappSqlDb: vi.fn(() => ({ tag: 'root-db' })),
   getWebappSqlFromPgClient: vi.fn(() => ({})),
+  runWebappNamedRoot: runWebappNamedRootMock,
+  webappSqlFromPgText: vi.fn(() => ({ tag: 'root-sql' })),
 }));
 
 vi.mock('@bersoncare/platform-merge', () => ({
@@ -74,8 +78,7 @@ const fakePool = {
 
 function channelBindingInsertIndex(): number {
   return runIdentityClientPgTextMock.mock.calls.findIndex(
-    ([, sql]) =>
-      typeof sql === 'string' && sql.includes('INSERT INTO user_channel_bindings'),
+    ([, sql]) => typeof sql === 'string' && sql.includes('INSERT INTO user_channel_bindings'),
   );
 }
 
@@ -85,9 +88,41 @@ beforeEach(() => {
   syncContactsMirrorMock.mockResolvedValue(undefined);
   applyPhoneHistoryMock.mockResolvedValue(undefined);
   upsertBroadcastMock.mockResolvedValue(undefined);
+  runWebappNamedRootMock.mockResolvedValue({ rows: [] });
 });
 
 describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
+  it('starts the bearer secret through one exact named root instead of relation SQL', async () => {
+    const port = createPgPhoneMessengerBindPort(fakePool);
+    await port.startSecret({
+      tokenHash: 'token-hash',
+      phoneNormalized: '+79001234567',
+      channelCode: 'telegram',
+      purpose: 'login',
+      userId: null,
+      expiresAtIso: '2026-08-14T19:00:00.000Z',
+    });
+
+    expect(runWebappNamedRootMock).toHaveBeenCalledWith(
+      { tag: 'root-db' },
+      'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)',
+      [
+        'start',
+        'token-hash',
+        null,
+        '+79001234567',
+        'telegram',
+        'login',
+        null,
+        null,
+        null,
+        '2026-08-14T19:00:00.000Z',
+      ],
+      { tag: 'root-sql' },
+    );
+    expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
+  });
+
   it('profile_bind: mirrors user_contacts after channel INSERT (not only via phone-history)', async () => {
     resolveCanonicalUserIdMock.mockResolvedValue(SESSION_USER_ID);
     findCanonicalUserIdByPhoneMock.mockResolvedValue(null);
@@ -110,8 +145,7 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
     const bindIdx = channelBindingInsertIndex();
     expect(bindIdx).toBeGreaterThanOrEqual(0);
     const mirrorAfterBind = syncContactsMirrorMock.mock.invocationCallOrder.some(
-      (mirrorOrder) =>
-        mirrorOrder > runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
+      (mirrorOrder) => mirrorOrder > runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
     );
     expect(mirrorAfterBind).toBe(true);
     expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, SESSION_USER_ID);
@@ -146,8 +180,7 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
     const bindIdx = channelBindingInsertIndex();
     expect(bindIdx).toBeGreaterThanOrEqual(0);
     const mirrorAfterBind = syncContactsMirrorMock.mock.invocationCallOrder.some(
-      (mirrorOrder) =>
-        mirrorOrder > runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
+      (mirrorOrder) => mirrorOrder > runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
     );
     expect(mirrorAfterBind).toBe(true);
     expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, NEW_LOGIN_USER_ID);

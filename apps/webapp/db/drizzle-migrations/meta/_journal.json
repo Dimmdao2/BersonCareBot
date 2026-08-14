@@ -2871,6 +2871,13 @@
       "when": 1793539230156,
       "tag": "0413_current_patient_booking_catalog_local",
       "breakpoints": true
+    },
+    {
+      "idx": 410,
+      "version": "7",
+      "when": 1793539230157,
+      "tag": "0414_phone_messenger_bind_secret_root_local",
+      "breakpoints": true
     }
   ]
 }

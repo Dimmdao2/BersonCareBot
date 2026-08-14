@@ -350,12 +350,19 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   routes примерно в `100–120 s`. Это отдельный будущий разбор производительности, а не условие текущего
   security/correctness-прохода: сначала измерить отдельно compile, SSR/loaders/DB и client render, затем выбирать
   оптимизацию. Текущий приоритет владельца — рабочий DEV и корректная изоляция данных.
-  Live census 14.08.2026 оставил два явных незакрытых эксплуатационных шва. (1) Phone messenger bind больше не
-  делает pre-session identity lookup ради отложенной аналитики и не имитирует успешную запись при трёх pool URL,
-  но настоящий write-path закрыт декларацией: `phone_messenger_bind_secrets` требует отдельного exact named root;
-  до него start отвечает структурированным `503`, direct grant запрещён. (2) Disposable PostgreSQL gate не
-  доходит до integration tests: clean template падает на `0391` с `42704`,
-  потому что migration ссылается на внешний port-context contract/type, отсутствующий в A0 baseline/harness.
+  Live census 14.08.2026 оставил два явных эксплуатационных шва в phone messenger bind. (1) Закрыто: secret
+  lifecycle проведён через один exact pre-session root
+  `app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamptz)`; прямого runtime
+  доступа к `phone_messenger_bind_secrets` нет. Штатный DEV migrate/reconcile прошёл, живой `start → status`
+  дал `200 → pending_contact`, а синтетическая запись закрыта тем же application port и вернула `consumed`.
+  Отдельно route теперь явно связывает system-settings adapter: до правки валидный start падал `500` раньше БД.
+  (2) Открыто: signed integrator completion после secret read входит в старую безымянную identity transaction;
+  безопасный no-op checkout на DEV воспроизвёл `Missing declared webapp port capability: pre_session`. Прямой
+  relation grant запрещён; completion обязан сохранить canonical merge/phone-history/contact-mirror семантику
+  через узкий объявленный seam либо перенесённую canonical transaction, а не расширить pre-session роль.
+  OWNER-SUPERSEDED 14.08.2026: A0/disposable/ошибка `0391` не входят в текущий маршрут и не блокируют DEV/TEST.
+  Если отдельная временная база когда-либо понадобится, она получает уже отработанную структуру из DEV,
+  проверяется и уничтожается; историческая сборка схемы с нуля для этого не выполняется.
   Maintenance-screen снят по прямому owner-разрешению штатным admin API; итоговое значение `false`, protection
   trigger включён. DEV fixture теперь даёт два режима: существующая клиника/пациент и отдельная синтетическая
   клиника/специалист/пациент; для обеих организаций точечно включён только DEV entitlement главной пациента.
@@ -374,16 +381,21 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
 - [ ] Повторять до полного green live matrix; затем ручная проверка владельцем.
 
-## Ф8 — финальная TEST-репетиция на restored production dump
+## Ф8 — финальная TEST-репетиция после зелёного DEV
 
-Этот этап остаётся обязательным, но **не запускается автономно**.
+OWNER-REPLACED 14.08.2026: прежний маршрут через restored production dump и отдельный повторный owner-gate
+заменён прямой командой владельца на DEV → TEST. Текущий TEST разрешено обновить сразу после исправления всех
+найденных DEV-ошибок; PROD и production dump в эту операцию не входят.
 
-- [ ] Все Ф0–Ф7 завершены на коде/disposable/DEV; branch committed, pushed, audited; rollback и backup проверены.
-- [ ] Получена прямая команда владельца на начало, владелец контролирует окно; текущая именованная TEST сохранена.
-- [ ] Production dump восстановлен именно в именованную TEST — не в пустую замену и не в придуманную среду.
-- [ ] На restored dump offline выполнена та же target-neutral цепочка: legacy → zero/proof → install → live proof.
-- [ ] Данные и migration ledgers сохранены; legacy relations отсутствуют; services поднимаются только после
-  полного positive control обоих портов и global-admin.
+- [ ] Все Ф0–Ф7, относящиеся к рабочему DEV, завершены; branch committed/pushed, проверки зелёные.
+- [ ] До удаления показать владельцу измеренный список database и cluster login/role с точной командой; удалить
+  что-либо из этого списка только после его утверждения.
+- [ ] Сохранить Brain/TaskDB, StoryLama DEV+PROD и BersonCareBot DEV+TEST вместе с нужными им ролями/логинами;
+  локальной BersonCareBot PROD и иных старых/backup/copy баз после утверждённой очистки быть не должно.
+- [ ] Именованную TEST обнулить, применить штатные migrations и сгенерированную privilege/role/login projection;
+  не собирать отдельную A0-базу и не восстанавливать production dump.
+- [ ] Доказать migration ledger, отсутствие legacy/лишних grants и positive/negative controls обоих портов;
+  затем поднять services на TEST для ручной проверки владельцем через доменный адрес.
 
 ## Ф9 — PROD
 

@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
 import { getCurrentSession } from '@/modules/auth/service';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
@@ -32,6 +33,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/phone/messenger-bind/start:POST', request);
   ensureAuthModulePortsBound();
+  ensureSystemSettingsConfigAdapterBound();
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);

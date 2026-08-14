@@ -17,7 +17,12 @@ import {
   type AuditLogStatus,
 } from '@/infra/adminAuditLog';
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+  webappSqlFromPgText,
+} from '@/infra/db/runWebappSql';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import {
@@ -42,10 +47,7 @@ import {
   platformUserIdRowSchema,
   userIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
-import {
-  runIdentityClientPgText,
-  runIdentityPoolPgTextOnPool,
-} from '@/infra/repos/identityPhoneSql';
+import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
 
 function asMessengerPhoneBindDb(client: PoolClient): MessengerPhoneBindDb {
   return {
@@ -56,16 +58,53 @@ function asMessengerPhoneBindDb(client: PoolClient): MessengerPhoneBindDb {
   };
 }
 
-async function runBindPgText<T extends QueryResultRow = QueryResultRow>(
-  pool: Pool,
-  client: PoolClient | undefined,
-  queryText: string,
-  values: readonly unknown[] = [],
+async function runPhoneMessengerBindSecretRoot<T extends QueryResultRow = QueryResultRow>(
+  action: string,
+  tokenHash: string | null,
+  secretId: string | null,
+  phoneNormalized: string | null,
+  channelCode: string | null,
+  purpose: string | null,
+  userId: string | null,
+  challengeId: string | null,
+  failureCode: string | null,
+  expiresAtIso: string | null,
 ) {
-  if (client) {
-    return runIdentityClientPgText<T>(client, queryText, values);
-  }
-  return runIdentityPoolPgTextOnPool<T>(pool, queryText, values);
+  const args = [
+    action,
+    tokenHash,
+    secretId,
+    phoneNormalized,
+    channelCode,
+    purpose,
+    userId,
+    challengeId,
+    failureCode,
+    expiresAtIso,
+  ];
+  return runWebappNamedRoot<T>(
+    getWebappSqlDb(),
+    'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)',
+    [
+      action,
+      tokenHash,
+      secretId,
+      phoneNormalized,
+      channelCode,
+      purpose,
+      userId,
+      challengeId,
+      failureCode,
+      expiresAtIso,
+    ],
+    webappSqlFromPgText(
+      `SELECT * FROM app.phone_messenger_bind_secret(
+        $1::text, $2::text, $3::uuid, $4::text, $5::text,
+        $6::text, $7::uuid, $8::text, $9::text, $10::timestamptz
+      )`,
+      args,
+    ),
+  );
 }
 
 async function mergeMessengerBindPair(
@@ -189,7 +228,8 @@ async function applyMessengerContactPreOtpImpl(
   const bindingOwnerIntegratorId = bindingOwnerRow?.integrator_user_id?.trim() || null;
 
   if (bindingOwnerId && phoneOwnerId) {
-    const ownerCanonical = (await resolveCanonicalUserId(clientDb, bindingOwnerId)) ?? bindingOwnerId;
+    const ownerCanonical =
+      (await resolveCanonicalUserId(clientDb, bindingOwnerId)) ?? bindingOwnerId;
     const phoneCanonical = (await resolveCanonicalUserId(clientDb, phoneOwnerId)) ?? phoneOwnerId;
     if (ownerCanonical !== phoneCanonical) {
       if (bindingOwnerIntegratorId) {
@@ -401,85 +441,108 @@ async function recordMessengerBindBlockedImpl(
 export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMessengerBindPort {
   return {
     async findByTokenHash(tokenHash) {
-      const r = await runIdentityPoolPgTextOnPool(
-        pool,
-        `SELECT id, phone_normalized, channel_code, purpose, user_id, status, challenge_id, failure_code, expires_at, consumed_at
-         FROM phone_messenger_bind_secrets WHERE token_hash = $1`,
-        [tokenHash],
+      const r = await runPhoneMessengerBindSecretRoot(
+        'find',
+        tokenHash,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
       );
       return r.rows[0] ? mapPhoneMessengerBindSecretRow(r.rows[0]) : null;
     },
 
-    async deletePending(phoneNormalized, channelCode, purpose) {
-      await runIdentityPoolPgTextOnPool(
-        pool,
-        `DELETE FROM phone_messenger_bind_secrets
-         WHERE phone_normalized = $1 AND channel_code = $2 AND purpose = $3 AND status = 'pending_contact'`,
-        [phoneNormalized, channelCode, purpose],
-      );
-    },
-
-    async insertSecret(params) {
-      await runIdentityPoolPgTextOnPool(
-        pool,
-        `INSERT INTO phone_messenger_bind_secrets
-           (token_hash, phone_normalized, channel_code, purpose, user_id, status, expires_at)
-         VALUES ($1, $2, $3, $4, $5, 'pending_contact', $6)`,
-        [
-          params.tokenHash,
-          params.phoneNormalized,
-          params.channelCode,
-          params.purpose,
-          params.userId,
-          params.expiresAtIso,
-        ],
+    async startSecret(params) {
+      await runPhoneMessengerBindSecretRoot(
+        'start',
+        params.tokenHash,
+        null,
+        params.phoneNormalized,
+        params.channelCode,
+        params.purpose,
+        params.userId,
+        null,
+        null,
+        params.expiresAtIso,
       );
     },
 
     async updateExpired(id) {
-      await runIdentityPoolPgTextOnPool(
-        pool,
-        `UPDATE phone_messenger_bind_secrets SET status = 'expired' WHERE id = $1`,
-        [id],
+      await runPhoneMessengerBindSecretRoot(
+        'expire',
+        null,
+        id,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
       );
     },
 
-    async updateFailed(id, failureCode, client) {
-      await runBindPgText(
-        pool,
-        client,
-        `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = $2 WHERE id = $1`,
-        [id, failureCode],
+    async updateFailed(id, failureCode) {
+      await runPhoneMessengerBindSecretRoot(
+        'fail',
+        null,
+        id,
+        null,
+        null,
+        null,
+        null,
+        null,
+        failureCode,
+        null,
       );
     },
 
-    async updateOtpReady(id, challengeId, client) {
-      await runBindPgText(
-        pool,
-        client,
-        `UPDATE phone_messenger_bind_secrets
-         SET status = 'otp_ready', challenge_id = $2, failure_code = NULL
-         WHERE id = $1`,
-        [id, challengeId],
+    async updateOtpReady(id, challengeId) {
+      await runPhoneMessengerBindSecretRoot(
+        'otp_ready',
+        null,
+        id,
+        null,
+        null,
+        null,
+        null,
+        challengeId,
+        null,
+        null,
       );
     },
 
-    async markConsumed(id, client) {
-      await runBindPgText(
-        pool,
-        client,
-        `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()
-         WHERE id = $1 AND status <> 'consumed'`,
-        [id],
+    async markConsumed(id) {
+      await runPhoneMessengerBindSecretRoot(
+        'consume',
+        null,
+        id,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
       );
     },
 
     async markConsumedByChallenge(challengeId) {
-      await runIdentityPoolPgTextOnPool(
-        pool,
-        `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()
-         WHERE challenge_id = $1 AND status = 'otp_ready'`,
-        [challengeId],
+      await runPhoneMessengerBindSecretRoot(
+        'consume_challenge',
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        challengeId,
+        null,
+        null,
       );
     },
 

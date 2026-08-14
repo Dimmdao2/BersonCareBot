@@ -120,11 +120,7 @@ CREATE OR REPLACE FUNCTION app.delete_google_calendar_event_id(uuid) RETURNS boo
 CREATE OR REPLACE FUNCTION app.read_booking_calendar_patient_profile(uuid) RETURNS boolean LANGUAGE sql AS 'SELECT true';
 CREATE OR REPLACE FUNCTION app.read_booking_calendar_latest_staff_comment(uuid) RETURNS boolean LANGUAGE sql AS 'SELECT true';
 CREATE OR REPLACE FUNCTION app.is_current_patient_self_booking_allowed() RETURNS boolean LANGUAGE sql AS 'SELECT true';
-CREATE OR REPLACE FUNCTION app.find_phone_messenger_bind_secret(text) RETURNS boolean LANGUAGE sql AS 'SELECT true';
-CREATE OR REPLACE FUNCTION app.start_login_phone_messenger_bind(text,text,text,timestamp with time zone) RETURNS boolean LANGUAGE sql AS 'SELECT true';
-CREATE OR REPLACE FUNCTION app.start_profile_phone_messenger_bind(text,text,text,timestamp with time zone) RETURNS boolean LANGUAGE sql AS 'SELECT true';
-CREATE OR REPLACE FUNCTION app.begin_phone_messenger_bind_completion(text,text,text,text) RETURNS boolean LANGUAGE sql AS 'SELECT true';
-CREATE OR REPLACE FUNCTION app.consume_phone_messenger_bind_secret_by_challenge(uuid) RETURNS boolean LANGUAGE sql AS 'SELECT true';
+CREATE OR REPLACE FUNCTION app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone) RETURNS boolean LANGUAGE sql AS 'SELECT true';
 SQL
 fi
 
