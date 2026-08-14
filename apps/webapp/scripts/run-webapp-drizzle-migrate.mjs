@@ -10,6 +10,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -31,6 +32,35 @@ const TRANSACTION_FORBIDDEN_CONCURRENT_INDEX = /\b(?:CREATE(?:\s+UNIQUE)?|DROP)\
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
 const RECONCILIATION_MARKER = /^-- RECONCILES-MIGRATION-HASH: ([0-9]{4}_[a-z0-9_]+)$/gm;
+
+export function selectMigrationPhase(journalEntries, beforeTag) {
+  if (!beforeTag) return { entries: journalEntries, bounded: false };
+  if (!/^[0-9]{4}_[a-z0-9_]+$/.test(beforeTag)) {
+    throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG invalid tag=${beforeTag}`);
+  }
+  const bound = journalEntries.find((entry) => entry.tag === beforeTag);
+  if (!bound) throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG unknown tag=${beforeTag}`);
+  const entries = journalEntries.filter((entry) => entry.when < bound.when);
+  if (entries.length === 0) {
+    throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG empty phase tag=${beforeTag}`);
+  }
+  return { entries, bounded: true };
+}
+
+function materializeMigrationPhase(sourceFolder, sourceJournal, entries) {
+  const phaseFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'bcb-webapp-migrations-'));
+  const metaFolder = path.join(phaseFolder, 'meta');
+  fs.mkdirSync(metaFolder, { mode: 0o700 });
+  for (const entry of entries) {
+    fs.copyFileSync(path.join(sourceFolder, `${entry.tag}.sql`), path.join(phaseFolder, `${entry.tag}.sql`));
+  }
+  fs.writeFileSync(
+    path.join(metaFolder, '_journal.json'),
+    `${JSON.stringify({ ...sourceJournal, entries }, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+  return phaseFolder;
+}
 
 function readCurrentMigrationSources() {
   return fs
@@ -443,6 +473,41 @@ if (process.argv.includes('--self-test')) {
   assertNoTransactionForbiddenConcurrentIndexes([
     { tag: '9999_good', source: 'CREATE INDEX IF NOT EXISTS good_index ON public.example (id);' },
   ]);
+  const phaseFixture = [
+    { idx: 0, when: 100, tag: '0001_first' },
+    { idx: 1, when: 200, tag: '0002_bound' },
+    { idx: 2, when: 300, tag: '0003_later' },
+  ];
+  const selectedPhase = selectMigrationPhase(phaseFixture, '0002_bound');
+  if (!selectedPhase.bounded || selectedPhase.entries.map((entry) => entry.tag).join(',') !== '0001_first') {
+    throw new Error('migration phase self-test lost exclusive before-tag semantics');
+  }
+  for (const invalidBound of ['bad', '9999_unknown']) {
+    try {
+      selectMigrationPhase(phaseFixture, invalidBound);
+      throw new Error('migration phase self-test accepted an invalid bound');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
+    }
+  }
+  const actualJournal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+  const actualPhase = selectMigrationPhase(
+    actualJournal.entries,
+    '0282_failed_reminder_occurrence_history',
+  );
+  const actualPhaseFolder = materializeMigrationPhase(
+    migrationsFolder,
+    actualJournal,
+    actualPhase.entries,
+  );
+  try {
+    const actualPhaseMigrations = readMigrationFiles({ migrationsFolder: actualPhaseFolder });
+    if (actualPhaseMigrations.length !== actualPhase.entries.length) {
+      throw new Error('migration phase self-test materialized an incomplete folder');
+    }
+  } finally {
+    fs.rmSync(actualPhaseFolder, { recursive: true, force: true });
+  }
   try {
     validateD30OnlineIndexArtifact('CREATE INDEX CONCURRENTLY IF NOT EXISTS wrong ON public.example (id);');
     throw new Error('migration online-index self-test accepted an incomplete artifact');
@@ -502,35 +567,51 @@ if (!url) {
 
 validateCurrentD30OnlineIndexDeployment();
 
-const migrations = readMigrationFiles({ migrationsFolder });
-const journalEntries = JSON.parse(fs.readFileSync(journalPath, 'utf8')).entries;
-const reconciliations = readMigrationReconciliations(migrationsFolder, journalEntries);
+const sourceJournal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+const journalEntries = sourceJournal.entries;
+const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
+const phase = selectMigrationPhase(journalEntries, beforeTag);
+const activeMigrationsFolder = phase.bounded
+  ? materializeMigrationPhase(migrationsFolder, sourceJournal, phase.entries)
+  : migrationsFolder;
+const activeJournalEntries = phase.entries;
+const migrations = readMigrationFiles({ migrationsFolder: activeMigrationsFolder });
+const reconciliations = phase.bounded
+  ? []
+  : readMigrationReconciliations(migrationsFolder, journalEntries);
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 try {
-  await migrate(drizzle(pool), { migrationsFolder });
-  const ledgerResult = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
-  const completeness = inspectMigrationLedgerCompleteness({
-    migrations,
-    journalEntries,
-    ledgerHashes: new Set(ledgerResult.rows.map((row) => String(row.hash))),
-    reconciliations,
-  });
-  if (completeness.missing.length > 0) {
-    throw new Error(`migration_ledger_incomplete tags=${completeness.missing.join(',')}`);
+  await migrate(drizzle(pool), { migrationsFolder: activeMigrationsFolder });
+  if (phase.bounded) {
+    console.log(
+      `[migrate] bounded Drizzle phase complete before=${beforeTag} count=${migrations.length}; full ledger verification deferred`,
+    );
+  } else {
+    const ledgerResult = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
+    const completeness = inspectMigrationLedgerCompleteness({
+      migrations,
+      journalEntries,
+      ledgerHashes: new Set(ledgerResult.rows.map((row) => String(row.hash))),
+      reconciliations,
+    });
+    if (completeness.missing.length > 0) {
+      throw new Error(`migration_ledger_incomplete tags=${completeness.missing.join(',')}`);
+    }
+    console.log(
+      `[migrate] Drizzle migrations complete count=${migrations.length} direct=${completeness.direct} reconciled=${completeness.reconciled}`,
+    );
   }
-  console.log(
-    `[migrate] Drizzle migrations complete count=${migrations.length} direct=${completeness.direct} reconciled=${completeness.reconciled}`,
-  );
 } catch (error) {
   exitCode = 1;
   if (error instanceof Error && error.message.startsWith('migration_ledger_incomplete ')) {
     console.error(`[migrate] ${error.message}`);
   } else {
-    console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries));
+    console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, activeJournalEntries));
   }
   console.error('[migrate] Drizzle migration failed; raw SQL and parameters suppressed');
 } finally {
   await pool.end();
+  if (phase.bounded) fs.rmSync(activeMigrationsFolder, { recursive: true, force: true });
 }
 process.exit(exitCode);

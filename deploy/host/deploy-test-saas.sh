@@ -3568,7 +3568,9 @@ install_pre_migration_role_prerequisites
 log "pre-migration target-DB prerequisites"
 install_pre_migration_target_prerequisites
 
-# 7. Migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke.
+# 7. Migrate the two ledgers in dependency order with TEMP BYPASSRLS, then revoke. The first webapp
+#    phase creates org_enrollments/be_organization_members. Integrator 20260708..20260710 can then
+#    backfill organization_id before webapp 0282 consumes failed reminder occurrences.
 #    Destructive legacy-table migrations are now downstream from fail-closed data parity gates.
 log "migrate (temp BYPASSRLS)"
 # Migrations that transfer function ownership to app_owner (0225 and siblings) need membership in it;
@@ -3576,6 +3578,8 @@ log "migrate (temp BYPASSRLS)"
 grant_migrator_app_owner_membership
 run_postgres_repo_with_test_db_owner_bypass \
   "INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 pnpm --dir apps/integrator run migrate && \
+   WEBAPP_MIGRATIONS_BEFORE_TAG=0282_failed_reminder_occurrence_history pnpm --dir apps/webapp run migrate && \
+   INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260724 pnpm --dir apps/integrator run migrate && \
    pnpm --dir apps/webapp run migrate && \
    pnpm --dir apps/integrator run migrate"
 
