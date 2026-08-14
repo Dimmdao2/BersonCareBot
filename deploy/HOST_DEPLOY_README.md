@@ -764,6 +764,10 @@ integrator-миграция, integrator ledger принимает только �
 обязана проверить/довести актуальное конечное состояние, а неизвестный, обратный или двойной marker останавливает
 прогон. Удалённые legacy-таблицы для прохождения истории не восстанавливаются. Постоянный owner-login/BYPASS путь
 в port-context режиме не используется.
+Отдельный split-ledger случай для Google Calendar закрывает
+`20260814_0002_reconcile_booking_calendar_map_location.sql`: каноническая таблица создаётся в `public`, пустая или
+уже канонически ключованная legacy-копия из `integrator` переносится и удаляется. Непереводимые Rubitime keys или
+конфликтующие event mappings останавливают migration без потери данных.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
 Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим
