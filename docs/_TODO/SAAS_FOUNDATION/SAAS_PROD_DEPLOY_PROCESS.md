@@ -476,6 +476,10 @@ owner-reviewed provider-neutral appointment cleanup workstream, and #7 (Track D 
 hash-bound legacy appointment transition → target role baseline + retired-role bridge → migrations/drop → exact roles/grants → walls → runtime. The CSV belongs only
 to the one-time transition; no archived Rubitime command or runtime integration returns.
 
+Fresh-PROD correction: `0143_seed_staff_organization_members` now seeds the canonical specialist retained by
+the preceding owner consolidation instead of the deleted duplicate. `0420_reconcile_canonical_owner_membership_local`
+repairs already-migrated databases and carries the repository's migration-hash reconciliation marker for `0143`.
+
 ## 8. Blockers to build BEFORE a full clean run (steps 5, 7, 8)
 
 > **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
