@@ -20,7 +20,7 @@
   `pnpm --dir apps/integrator exec vitest --run src/integrations/max/webhook.test.ts`  
   `pnpm --dir apps/integrator exec vitest --run src/integrations/max/mapIn.test.ts`  
   `pnpm --dir apps/integrator exec vitest --run src/kernel/domain/executor/executeAction.test.ts -t "reminders.skip.applyPreset"`
-- Барьер как перед push: из корня репозитория `pnpm install --frozen-lockfile && pnpm run ci` (см. `.cursor/rules/pre-push-ci.mdc`).
+- Полный `pnpm install --frozen-lockfile && pnpm run ci` — только если после узких проверок остаётся конкретный непокрытый интеграционный риск по [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate); push сам по себе барьер не создаёт.
 
 ## Вне репозитория (ручной чеклист)
 

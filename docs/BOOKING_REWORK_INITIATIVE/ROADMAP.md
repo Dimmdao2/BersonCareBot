@@ -878,7 +878,7 @@ Drag/drop и resize меняют запись и должны уважать п�
 - targeted tests всех затронутых зон;
 - webapp lint/typecheck;
 - ручной полный проход владельцем постановки;
-- полный `pnpm run ci` перед push/merge по правилам репозитория.
+- полный `pnpm run ci` — только если перед integration checkpoint остаётся конкретный непокрытый repo-level риск по [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate); push/merge сами по себе запуск не требуют.
 
 ## 14. Документация, Которую Нужно Синхронизировать При Реализации
 

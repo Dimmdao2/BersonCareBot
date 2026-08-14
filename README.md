@@ -59,9 +59,9 @@ pnpm test:webapp          # webapp (fast + inprocess)
 pnpm run build && pnpm run build:webapp
 ```
 
-**Полный CI** — перед deploy, merge/integration checkpoint и repo-level изменениями: `pnpm run ci` (или `pnpm check`). Обычный feature-branch backup-push после локального gate не требует полного CI сам по себе.
+**Полный CI** (`pnpm run ci` / `pnpm check`) — не обязательная церемония перед deploy или push. Его запускают, когда накопленные изменения оставляют конкретный непокрытый интеграционный риск; уже зелёный прогон переиспользуют вместе с целевыми проверками последующих локальных правок. Точный критерий: [`AGENTS.md` §9](AGENTS.md#9-full-ci-gate).
 
-В GitHub Actions на **pull request** для webapp гоняется только быстрый набор (`pnpm test:webapp:fast`, шардирование); полный in-process (`pnpm test:webapp:inprocess`) — на **push в `main`**. Локально полный `pnpm run ci` нужен перед deploy, merge/integration checkpoint и repo-level изменениями (включая `pnpm test:webapp`). Политика «не раздувать» webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компактность), подробности — [`apps/webapp/e2e/README.md`](apps/webapp/e2e/README.md).
+В GitHub Actions на **pull request** для webapp гоняется только быстрый набор (`pnpm test:webapp:fast`, шардирование); полный in-process (`pnpm test:webapp:inprocess`) — на **push в `main`**. Локальный полный `pnpm run ci` выбирается по непокрытому repo-level риску, а не по названию следующего действия. Политика «не раздувать» webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компактность), подробности — [`apps/webapp/e2e/README.md`](apps/webapp/e2e/README.md).
 
 ## Конфигурация
 

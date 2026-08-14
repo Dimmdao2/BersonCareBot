@@ -46,7 +46,7 @@ Read these before every nightly pass:
 
 - `AGENTS.md`
 - `.cursor/rules/test-execution-policy.md`
-- `.cursor/rules/pre-push-ci.mdc`
+- `AGENTS.md` §9–§10 (смысловой full-CI gate и уровни проверок)
 - `.cursor/rules/dev-prod-isolation-no-real-creds.mdc`
 - `.cursor/rules/unified-task-db.mdc`
 - `docs/_TODO/SAAS_FOUNDATION/README.md`

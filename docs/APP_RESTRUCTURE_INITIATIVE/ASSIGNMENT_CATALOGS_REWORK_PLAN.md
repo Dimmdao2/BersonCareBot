@@ -344,7 +344,7 @@
 - B5: иконка глаза реагирует, карточка/список комплексов читаемы; фильтры B1.
 - B6: список и модалка добавления элемента в шаблон — с превьюшками; конструктор имеет двухколоночный layout с понятными CTA.
 - B7: `template_comment` + `local_comment` есть на всех item-контейнерах; copy template→instance переносит, override работает.
-- На каждом B-этапе — целевые проверки по затронутой области (step/phase policy); полный `pnpm run ci` обязателен перед push.
+- На каждом B-этапе — целевые проверки по затронутой области (step/phase policy); полный `pnpm run ci` — только если после них остаётся непокрытый интеграционный риск по [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate), а не просто потому, что следующим действием будет push.
 - LOG-блок в [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md) на каждое реализованное B.
 
 ---

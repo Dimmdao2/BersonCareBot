@@ -125,7 +125,7 @@
 - **No duplicate UI/backend** — переиспользовать `clientMediaFolders` / `pgEnsureClientPatientFolder` /
   `excludeClientFiles` / `MediaLibraryFolderScopeSelect`. НЕ строить вторую папочную систему.
 - **UI search before server search**; **SSR before excess fetch**.
-- **Tests scoped per stage** (step/phase level; полный CI только перед push).
+- **Tests scoped per stage** (step/phase level; полный CI — только для непокрытого интеграционного риска по [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate), не по факту push).
 - **Doctor UI primitives** (§16) — `shared/ui/doctor/**`, без голых `<h2>`, `rounded-xl` секции и т.д.
 - **Patient/Doctor UI isolation** (§17).
 

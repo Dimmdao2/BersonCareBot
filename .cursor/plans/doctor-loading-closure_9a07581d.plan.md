@@ -78,7 +78,7 @@ isProject: false
 - Route→port DB trace ([fe8f0801](fe8f0801-3186-41e6-9003-7c0eb745532e)): FCP gap = JS, not DB; **DL-DB-01/02 closed evidence-only** without `EXPLAIN`.
 - Wake runtime подтверждён: `digest-wake` → `200`; `materialize-wake` → validation `400`; после restart нет прежних `500/403`.
 - Post-rollout p95 уже записан в `DOCTOR_LOADING_BASELINE.md` §6: patient-card −65%, communications −68%, treatment templates −57%; schedule +29%, LFK templates +18%. Полный список предварительно провалившихся маршрутов приведён в DL-BASE ниже.
-- Предыдущий full CI зелёный только на `101ad229b`; он не покрывает `33f9b2b82`, `58b8a390a` и будущие fixes. После remediation обязателен новый полный gate и новый TEST deploy; текущие runtime/metric evidence переиспользовать как финальные нельзя.
+- Предыдущий full CI зелёный только на `101ad229b`; он не покрывает `33f9b2b82`, `58b8a390a` и будущие fixes. После remediation заново применить смысловой критерий [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate): полный gate нужен только если правки оставили непокрытый межмодульный/repo-level риск; локальные fixes закрываются целевыми gate с переиспользованием зелёного evidence. Новый TEST deploy нужен для изменённого runtime; прежние runtime/metric evidence как финальные не переиспользуются.
 - GitHub Security на `58b8a390a` красный только по Gitleaks: exact workflow run
   `31023368718`, три findings. Semgrep/Trivy/dependency audit зелёные.
 - Предыдущий p95 получен всего по трём samples и недостаточен для решения о DB bottleneck. До следующего TEST deploy

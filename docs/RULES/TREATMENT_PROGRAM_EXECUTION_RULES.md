@@ -5,7 +5,7 @@
 ## Источник правил
 
 - **Между коммитами:** `.cursor/rules/test-execution-policy.md` (step / phase).
-- **Перед пушем:** `.cursor/rules/pre-push-ci.mdc` (`pnpm install --frozen-lockfile && pnpm run ci`).
+- **Проверки и push:** `AGENTS.md` §8–§10; полный CI выбирается по непокрытому интеграционному риску, не по факту push.
 - **Архитектура модулей:** `.cursor/rules/clean-architecture-module-isolation.mdc`.
 - **Интеграционные ключи:** `.cursor/rules/000-critical-integration-config-in-db.mdc` (в DB, не в env).
 - **Схема логики системы (исторический эталон):** `docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md` — сверять при изменениях домена; расхождение оформлять явно в постановке / LOG.
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
 - **Step:** Vitest по затронутым файлам + typecheck `apps/webapp`.
 - **Phase:** полный `pnpm test:webapp` после закрытия логической фазы.
-- **Full CI:** `pnpm install --frozen-lockfile && pnpm run ci` перед пушем.
+- **Full CI:** `pnpm install --frozen-lockfile && pnpm run ci` только для конкретного непокрытого интеграционного риска по [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate); push сам по себе запуск не требует.
 
 ## Отчётность
 

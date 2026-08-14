@@ -410,7 +410,7 @@ pnpm --dir apps/webapp exec vitest run \
 pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json
 ```
 
-Полный `pnpm run ci` — барьер перед push, не после каждого подблока (см. plan-authoring rule).
+Полный `pnpm run ci` не является барьером по факту push: он запускается только для конкретного непокрытого интеграционного риска по [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate), не после каждого подблока.
 
 ### DoD 3.6 (этап 3 целиком)
 

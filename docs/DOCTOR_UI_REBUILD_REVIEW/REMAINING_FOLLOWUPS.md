@@ -49,6 +49,6 @@ Rubitime sync или запуск архивных команд:
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-- [ ] **Push + полный CI** ветки `feat/doctor-ui-rebuild` перед мержем в main — по правилам репо (`pre-push-ci`). Push не делался намеренно.
+- [ ] **Push** ветки `feat/doctor-ui-rebuild` перед merge в main; перед merge применить критерий [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate) и запускать полный CI только при конкретном непокрытом интеграционном риске. Push не делался намеренно.
 
 > Дублируется в памяти: `booking-overlap-allowed-bug-2026-06`, `doctor-ui-rebuild-owner-review-2026-06`.

@@ -98,7 +98,7 @@ todos:
 - `doctor-ui-shared-primitives.mdc` + `DOCTOR_APP_UI_STYLE_GUIDE.md` — reuse shared-примитивов (эталон — экран упражнений), не хэндроллить UI.
 - `patient-doctor-ui-isolation.mdc` — не смешивать patient/doctor UI.
 - `ui-copy-no-excess-labels.mdc` — без лишних подписей/ярлыков.
-- `pre-push-ci.mdc` / `push-means-ci-commit-push.mdc` / `git-commit-push-full-worktree.mdc` — пуш = отдельная команда пользователя;
+- `AGENTS.md` §7–§10 — commit/push и проверки по масштабу риска; сам push не означает полный CI;
   **в этой задаче не пушим**, коммиты поэтапно с трейлером Co-Authored-By.
 
 ## Контекст (как сейчас)

@@ -253,7 +253,7 @@ S1 (Shell/шапка) ── ФУНДАМЕНТ, идёт ПЕРВЫМ и ОДИ
 - **Ветка одна (`feat/doctor-ui-rebuild`), staging только по явным путям** — `git add <конкретные файлы>`, никогда `-A` (рядом параллельный Comms-чат).
 - **Общие файлы** (`shell/**`, `doctorWorkspaceLayout.ts`, `CatalogSplitLayout.tsx`) — изменения аддитивные + регрессионная проверка эталонных страниц (exercises/clients).
 - **Doctor UI канон** (`.cursor/rules/doctor-ui-shared-primitives`): reuse-first, без `rounded-2xl`, без `text-lg/xl/3xl`, KPI через `doctorMetricValueClass`, плотность не откатывать.
-- **Тесты по уровням** (`test-execution-policy`): step → phase webapp; **полный `pnpm run ci` — один раз перед пушем** (`pre-push-ci`). Текущий известный красный — только `audit` (esbuild advisory), вне нашего scope.
+- **Тесты по уровням** (`test-execution-policy`): step → phase webapp; полный `pnpm run ci` — только если остаётся конкретный непокрытый интеграционный риск по [`AGENTS.md` §9](../../AGENTS.md#9-full-ci-gate), не формально перед push. Текущий известный красный — только `audit` (esbuild advisory), вне нашего scope.
 - **Документация:** обновлять `schedule.md`/`communications.md`/`DOCTOR_*` доки и [`REVIEW_2026-06-13.md`](REVIEW_2026-06-13.md) (статусы пунктов) по мере закрытия; вести `LOG.md` инициативы.
 - **Per-stage cursor-план:** при исполнении этапа заводить `.cursor/plans/<stage>.plan.md` с frontmatter и закрывать статусы по правилу.
 
