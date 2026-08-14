@@ -820,8 +820,9 @@ identity data-fix, затем до migration chain применяет hash-bound
 Канонический integrator runner позже сам записывает свою миграцию календарной карты; финальный
 declaration-generated privilege zero заменяет временные ACL и ownership.
 Сама migration chain идёт по фактическим межледжерным зависимостям: integrator до `20260708`, webapp до
-`0282_failed_reminder_occurrence_history`, integrator до `20260724` для org-backfill, затем полный webapp и
-полный integrator. Только промежуточный webapp-проход ограничен; финальный проход проверяет полноту всего ledger.
+`0282_failed_reminder_occurrence_history`, точечный forward-reconciliation `20260814_0001` для уже удалённых
+mailing-таблиц, integrator до `20260724` для оставшегося org-backfill, затем полный webapp и полный integrator.
+Только промежуточные проходы ограничены; финальные проходы проверяют полноту обоих ledger.
 Точные логины и права остаются финальным port-context cutover, а bridge-роли удаляет его target zero. В том же stopped-writers окне сохраняется durable FIO rollback,
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:

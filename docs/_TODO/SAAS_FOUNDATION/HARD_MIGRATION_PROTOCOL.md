@@ -212,10 +212,11 @@ Before `pnpm migrate`, the wrapper must:
 - run DB-only Node operations with `NODE_ENV=test` and `USE_REAL_DATABASE=1`, so they use hermetic test defaults
   for unrelated application secrets while retaining the explicitly selected real TEST database;
 - run the migration ledgers in their data-dependency order: integrator before `20260708`, webapp before
-  `0282_failed_reminder_occurrence_history`, integrator before `20260724` (the org-column backfill), then the
-  complete webapp chain and finally the complete integrator chain. The bounded webapp phase commits the two
-  organization membership tables needed by the integrator backfill; only the final webapp phase performs the
-  full ledger-completeness gate;
+  `0282_failed_reminder_occurrence_history`, explicit integrator forward `20260814_0001`, integrator before
+  `20260724` (the remaining org-column backfill), then the complete webapp chain and finally the complete
+  integrator chain. The bounded webapp phase commits the two organization membership tables needed by the
+  integrator backfill; the explicit forward handles deliberately absent mailing-domain tables without
+  resurrecting them. Only the final phases perform full ledger-completeness gates;
 - fail if the runtime owner already has pre-existing `app_owner` membership, then grant that membership only for
   the migration window so pending Drizzle migrations can replace protected functions in schema `app`;
 - set `BYPASSRLS` on the runtime owner only for the migration window;

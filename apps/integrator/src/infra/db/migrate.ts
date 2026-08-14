@@ -235,13 +235,6 @@ export function expandAppliedMigrationVersions(
   return applied;
 }
 
-export function shouldDeferSourceToReconciliation(
-  forwardVersion: string | undefined,
-  eligibleVersions: ReadonlySet<string>,
-): boolean {
-  return forwardVersion !== undefined && eligibleVersions.has(forwardVersion);
-}
-
 async function discoverMigrationReconciliations(
   migrations: readonly MigrationFile[],
 ): Promise<IntegratorMigrationReconciliation[]> {
@@ -389,6 +382,29 @@ export function applyBeforeDateBound(
     }
   }
   return { eligible, deferred };
+}
+
+export function applyOnlyVersions(
+  migrations: MigrationFile[],
+  versionsRaw: string,
+): BoundedMigrations {
+  const versions = versionsRaw.split(',').map((version) => version.trim());
+  if (versions.length === 0 || versions.some((version) => version.length === 0)) {
+    throw new Error('INTEGRATOR_MIGRATIONS_ONLY_VERSIONS must be a comma-separated version list');
+  }
+  const requested = new Set(versions);
+  if (requested.size !== versions.length) {
+    throw new Error('INTEGRATOR_MIGRATIONS_ONLY_VERSIONS contains a duplicate version');
+  }
+  const known = new Set(migrations.map((migration) => migration.version));
+  const unknown = versions.filter((version) => !known.has(version));
+  if (unknown.length > 0) {
+    throw new Error(`INTEGRATOR_MIGRATIONS_ONLY_VERSIONS unknown version(s): ${unknown.join(',')}`);
+  }
+  return {
+    eligible: migrations.filter((migration) => requested.has(migration.version)),
+    deferred: migrations.filter((migration) => !requested.has(migration.version)),
+  };
 }
 
 // 'telegram:20260306_0004_add_notification_settings.sql' — версия миграции, не секрет
@@ -561,8 +577,15 @@ export async function runMigrations(): Promise<void> {
     // embedded filename date is >= the bound. Unset => eligible is the full `migrations` list and
     // deferred is empty, so the loop below is byte-for-byte identical to the pre-existing behavior.
     const beforeDateBoundRaw = process.env.INTEGRATOR_MIGRATIONS_BEFORE_DATE?.trim() || undefined;
-    const { eligible, deferred } = applyBeforeDateBound(migrations, beforeDateBoundRaw);
-    const eligibleVersions = new Set(eligible.map((migration) => migration.version));
+    const onlyVersionsRaw = process.env.INTEGRATOR_MIGRATIONS_ONLY_VERSIONS?.trim() || undefined;
+    if (beforeDateBoundRaw && onlyVersionsRaw) {
+      throw new Error(
+        'INTEGRATOR_MIGRATIONS_BEFORE_DATE and INTEGRATOR_MIGRATIONS_ONLY_VERSIONS are mutually exclusive',
+      );
+    }
+    const { eligible, deferred } = onlyVersionsRaw
+      ? applyOnlyVersions(migrations, onlyVersionsRaw)
+      : applyBeforeDateBound(migrations, beforeDateBoundRaw);
 
     if (beforeDateBoundRaw) {
       logger.info(
@@ -572,6 +595,15 @@ export async function runMigrations(): Promise<void> {
           deferredVersions: deferred.map((migration) => migration.version),
         },
         'INTEGRATOR_MIGRATIONS_BEFORE_DATE set: deferring migrations at/after bound to a later phase',
+      );
+    }
+    if (onlyVersionsRaw) {
+      logger.info(
+        {
+          onlyVersions: onlyVersionsRaw.split(','),
+          deferredCount: deferred.length,
+        },
+        'INTEGRATOR_MIGRATIONS_ONLY_VERSIONS set: applying the explicit migration phase only',
       );
     }
 
@@ -587,11 +619,7 @@ export async function runMigrations(): Promise<void> {
       }
 
       const reconciliationForward = reconciliationForwardBySource.get(migration.version);
-      // A bounded phase must execute the source when its forward repair is outside this phase.
-      // Otherwise an intermediate dependent migration can observe neither source nor forward.
-      // In an unbounded/final phase the eligible forward remains authoritative and the source is
-      // deferred exactly as before. An already-applied forward expands `applied` to the source above.
-      if (shouldDeferSourceToReconciliation(reconciliationForward, eligibleVersions)) {
+      if (reconciliationForward) {
         logger.info(
           {
             migration: migration.version,

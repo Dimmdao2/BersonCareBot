@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyOnlyVersions,
   expandAppliedMigrationVersions,
   inspectMigrationReconciliations,
-  shouldDeferSourceToReconciliation,
   type MigrationFile,
 } from './migrate.js';
 
@@ -56,15 +56,13 @@ describe('integrator migration forward reconciliation', () => {
     ).toThrow('integrator_migration_reconciliation_not_forward');
   });
 
-  it('runs the source when a bounded phase excludes its forward reconciliation', () => {
-    expect(
-      shouldDeferSourceToReconciliation(forward.version, new Set([source.version])),
-    ).toBe(false);
-    expect(
-      shouldDeferSourceToReconciliation(
-        forward.version,
-        new Set([source.version, forward.version]),
-      ),
-    ).toBe(true);
+  it('selects an explicit forward-only phase without selecting its historical source', () => {
+    expect(applyOnlyVersions([source, forward], forward.version)).toEqual({
+      eligible: [forward],
+      deferred: [source],
+    });
+    expect(() => applyOnlyVersions([source, forward], 'core:20990101_0001_missing.sql')).toThrow(
+      'unknown version',
+    );
   });
 });

@@ -55,7 +55,14 @@ BEGIN
        AND attnum > 0
        AND NOT attisdropped;
     IF v_organization_attnum IS NULL THEN
-      RAISE EXCEPTION 'reconciliation requires %.organization_id', v_relation;
+      EXECUTE format('ALTER TABLE %s ADD COLUMN organization_id uuid', v_relation);
+      SELECT attnum
+        INTO v_organization_attnum
+        FROM pg_catalog.pg_attribute
+       WHERE attrelid = v_relation
+         AND attname = 'organization_id'
+         AND attnum > 0
+         AND NOT attisdropped;
     END IF;
 
     EXECUTE format('SELECT count(*) FROM %s WHERE organization_id IS NULL', v_relation)

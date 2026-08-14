@@ -3579,6 +3579,7 @@ grant_migrator_app_owner_membership
 run_postgres_repo_with_test_db_owner_bypass \
   "INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 pnpm --dir apps/integrator run migrate && \
    WEBAPP_MIGRATIONS_BEFORE_TAG=0282_failed_reminder_occurrence_history pnpm --dir apps/webapp run migrate && \
+   INTEGRATOR_MIGRATIONS_ONLY_VERSIONS=core:20260814_0001_reconcile_retired_mailing_org_migrations.sql pnpm --dir apps/integrator run migrate && \
    INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260724 pnpm --dir apps/integrator run migrate && \
    pnpm --dir apps/webapp run migrate && \
    pnpm --dir apps/integrator run migrate"
