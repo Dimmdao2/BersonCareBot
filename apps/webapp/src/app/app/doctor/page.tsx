@@ -28,7 +28,10 @@ import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { doctorSectionCardClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
-import { DoctorTodayDashboard } from './DoctorTodayDashboard';
+import {
+  DoctorTodayDashboard,
+  type DoctorTodayCalendarSnapshot,
+} from './DoctorTodayDashboard';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 
 /**
@@ -117,6 +120,12 @@ async function DoctorTodayDashboardSection({
     ]);
 
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
+  const snapshotDateTime = DateTime.now().setZone(displayIana);
+  const calendarSnapshot: DoctorTodayCalendarSnapshot = {
+    todayIso: snapshotDateTime.toISODate() ?? new Date().toISOString().slice(0, 10),
+    nowMinutes: snapshotDateTime.hour * 60 + snapshotDateTime.minute,
+    todayDateLabel: snapshotDateTime.setLocale('ru').toFormat('EEE, d MMMM'),
+  };
   const specialistTasksAvailable = specialistTasksAvailability.available;
   const specialistTasksReadable = specialistTasksRead.ok;
   const workspaceAudience = {
@@ -154,6 +163,7 @@ async function DoctorTodayDashboardSection({
     <DoctorTodayDashboard
       data={data}
       displayIana={displayIana}
+      calendarSnapshot={calendarSnapshot}
       todayWorkingBounds={todayWorkingBounds}
       specialistTasksAvailable={specialistTasksAvailable}
       specialistTasksReadable={specialistTasksReadable}

@@ -98,6 +98,8 @@ type Props = {
   nowMinutes?: number;
   /** Подпись даты, напр. «ср, 11 июня». */
   todayDateLabel: string;
+  /** Server-derived local calendar date for the initial dashboard snapshot. */
+  todayIso: string;
   /** IANA-таймзона для корректного маппинга записей на временную ось. */
   displayIana: string;
   /**
@@ -122,15 +124,12 @@ export function DoctorTodayMiniCalendar({
   appointments,
   calendarEvents,
   todayDateLabel,
+  todayIso,
   displayIana,
   workingBounds,
   onCanonicalEventClick,
   onEventClick,
 }: Props) {
-  // Сегодня в бизнес-таймзоне
-  const todayIso =
-    DateTime.now().setZone(displayIana).toISODate() ?? new Date().toISOString().slice(0, 10);
-
   // #538/#231: слот мин/макс = дефолт 09:00–19:00, который только расширяется
   // наружу по рабочим границам и записям. Не сжимаем «Сегодня» до 14–17.
   const { slotMinTime, slotMaxTime, slotLoMinute, slotHiMinute } = (() => {
