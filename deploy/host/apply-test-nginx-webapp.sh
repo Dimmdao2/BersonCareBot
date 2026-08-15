@@ -145,6 +145,7 @@ server {
     ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
 
     allow 10.9.0.0/24;
+    allow 10.9.1.0/24;
     allow 172.17.0.0/16;
     allow 151.241.228.122;
     allow 127.0.0.1;
@@ -182,6 +183,7 @@ server {
     # routes; all other TEST traffic remains covered by the server-level deny.
     location ~ ^/api/payments/(?:saas-webhook|webhook|patient-acquiring-webhook)/yookassa$ {
         allow 10.9.0.0/24;
+        allow 10.9.1.0/24;
         allow 172.17.0.0/16;
         allow 151.241.228.122;
         allow 127.0.0.1;
