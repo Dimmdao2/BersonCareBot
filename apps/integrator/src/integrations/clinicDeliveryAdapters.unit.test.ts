@@ -62,7 +62,11 @@ beforeEach(() => {
     answerCallbackQuery: vi.fn(),
   });
   mocks.sendMaxMessage.mockResolvedValue({ body: { mid: 'max-message-1' } });
-  mocks.sendMail.mockResolvedValue(undefined);
+  mocks.sendMail.mockResolvedValue({
+    accepted: ['patient@example.test'],
+    rejected: [],
+    messageId: 'smtp-message-1',
+  });
   mocks.resolveSmtpOutboundConfig.mockResolvedValue({
     configured: true,
     smtpHost: 'smtp.platform.test',
@@ -145,5 +149,29 @@ describe('clinic credential handoff to provider adapters', () => {
       clinicSmtp,
       expect.objectContaining({ to: 'patient@example.test', subject: 'Subject', text: 'hello' }),
     );
+  });
+
+  it('fails when SMTP rejects the intended recipient', async () => {
+    mocks.sendMail.mockResolvedValueOnce({
+      accepted: [],
+      rejected: ['patient@example.test'],
+      messageId: 'smtp-message-rejected',
+    });
+
+    await expect(
+      createEmailDeliveryAdapter({ getDb: () => ({}) as never }).send(
+        intent('email', { recipient: { email: 'patient@example.test' } }),
+      ),
+    ).rejects.toThrow('EMAIL_SMTP_RECIPIENT_REJECTED');
+  });
+
+  it('fails when SMTP reports neither acceptance nor rejection', async () => {
+    mocks.sendMail.mockResolvedValueOnce({ accepted: [], rejected: [] });
+
+    await expect(
+      createEmailDeliveryAdapter({ getDb: () => ({}) as never }).send(
+        intent('email', { recipient: { email: 'patient@example.test' } }),
+      ),
+    ).rejects.toThrow('EMAIL_SMTP_RECIPIENT_NOT_ACCEPTED');
   });
 });

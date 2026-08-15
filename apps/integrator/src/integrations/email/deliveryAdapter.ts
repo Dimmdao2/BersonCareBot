@@ -107,7 +107,7 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         throw new Error('EMAIL_NOT_CONFIGURED');
       }
 
-      await sendMail(smtpConfig, {
+      const result = await sendMail(smtpConfig, {
         to,
         subject,
         ...(text !== undefined ? { text } : {}),
@@ -115,6 +115,16 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         ...(fromOverride !== undefined ? { from: fromOverride } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
       });
+
+      const target = to.toLowerCase();
+      const accepted = result.accepted.some((address) => address.trim().toLowerCase() === target);
+      const rejected = result.rejected.some((address) => address.trim().toLowerCase() === target);
+      if (rejected) {
+        throw new Error('EMAIL_SMTP_RECIPIENT_REJECTED');
+      }
+      if (!accepted) {
+        throw new Error('EMAIL_SMTP_RECIPIENT_NOT_ACCEPTED');
+      }
 
       return {};
     },
