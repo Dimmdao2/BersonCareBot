@@ -1,5 +1,34 @@
 # Cutover completeness audit — 2026-08-15
 
+## Closure update — 2026-08-16 MSK
+
+Официальный owner-gated прогон `deploy/host/deploy-test-full-reset.sh` на commit `2a625d195`
+завершился `DONE` из свежего PROD dump одним штатным маршрутом: restore → reviewed data stage → одна
+transactional A→B → TEST settings → password convergence → роли/grants/RLS/mTLS → restart/health.
+
+- B0 закрыт системно: pre-stage вывел 245 ожидаемых canonical clients; итоговая A→B closure потребовала и
+  получила 257 active enrollments/links после добавления target fixtures, включая все 127 patient-domain
+  identities. Итог: 303 platform users и 451 appointment; live legacy unresolved = 0.
+- B1 закрыт reviewed target tariff policy: synthetic DEV/test тарифы исключаются генератором и gate.
+- B2 закрыт: same-checkout snapshot preflight вызывается самим full-reset wrapper до остановки writers и restore.
+- Второй независимый аудит полного порядка обнаружил два оставшихся execution blocker: конфликт PL/pgSQL
+  `reference` с SQL alias и отсутствие вызова существующей установки NOLOGIN role prerequisites до
+  `schema-post`. Оба исправлены; весь A→B прошёл до `COMMIT`, затем прошла final privilege closure.
+- Исправлен перенос email verification при doctor/global-admin split: timestamp подтверждения теперь следует
+  за конкретным email, а не остаётся на строке, с которой адрес снят. Три owner TEST credentials сошлись одной
+  транзакцией.
+- Textual drift `pg_dump` после cluster-role reconciliation оказался только нестабильным порядком одинаковых
+  ролей в `CREATE POLICY TO` (68/68 изменённых строк). Generator теперь канонически сортирует policy roles;
+  повторный same-checkout check стабилен.
+- Пять TEST unit активны; loopback health вернул `{"ok":true,"db":"up"}`. Через
+  `https://test.bersoncare.ru` получены HTTP 200 для `/api/version`, doctor/patient/admin login pages и
+  `/health/projection`.
+
+Команда `pnpm run check:prod-to-target-cutover` остаётся focused snapshot + executable-slice gate, а не
+доказательством полного переноса. Полное доказательство — именно успешно исполненный owner-gated fresh-dump
+wrapper выше. B3 не закрыт: внешняя email/channel delivery по-прежнему честно помечена как unverified и не
+входит в доказанную готовность схемы/локального runtime.
+
 ## Итоговый вердикт
 
 Системный аудит нужен **сейчас, до ручного прохода владельца по страницам**. Ручной проход не обнаружит потерянную tenant-видимость пациентов, загрязнённый тарифный baseline, несовпадение snapshot целевой схемы с текущим DEV и неработающий асинхронный consumer. Более того, ручная мутация данных до устранения первых двух блокеров закрепит неверное состояние и сделает результаты прохода недостоверными.
@@ -16,7 +45,7 @@
 
 ## Подтверждённые блокеры и дефекты
 
-### B0 — BLOCKER: пациенты с реальными данными теряют tenant enrollment
+### B0 — CLOSED: пациенты с реальными данными теряли tenant enrollment
 
 **Достижимый сценарий.** Generic copy переносит patient/clinical/program/task/support таблицы и проставляет им canonical `organization_id`, но `org_enrollments` и `patient_specialist_links` восстанавливаются только из неудалённых `be_appointments`: `deploy/postgres/prod-to-target-cutover-data.sql:389`. Pre-stage проверяет owner/specialist/Rubitime, но не полный patient-domain → enrollment инвариант: `deploy/postgres/pre-cutover-data-stage-assertions.sql:27`. Финальный gate проверяет enrollment только у пациентов, присутствующих в `be_appointments`: `deploy/postgres/prod-to-target-cutover-finish.sql:77`.
 
@@ -71,7 +100,7 @@ src=$(mktemp); tgt=$(mktemp); nonempty=$(mktemp); sudo -u postgres pg_restore --
 
 Результат: `source_only=45; source_only_nonempty=28`. Нужен reviewed mapping `copy / transform / intentionally retire` именно для этих source-only relations; B0 уже доказывает один реальный пропуск.
 
-### B1 — HIGH: в целевой billing baseline попадает активный DEV-тариф
+### B1 — CLOSED: в целевой billing baseline попадал активный DEV-тариф
 
 **Достижимый сценарий.** Generator переносит из live DEV не только migration ledgers, но и данные `public.saas_tariffs` и policies: `scripts/refresh-prod-to-target-cutover.mjs:32`. В сгенерированном baseline активен synthetic тариф `DEV Trial` без цены/валюты и с пустыми mechanics: `deploy/postgres/generated/prod-to-target/ledgers-and-baseline.sql:587`.
 
@@ -103,7 +132,7 @@ active synthetic names=DEV Trial
 
 **Обязательный oracle.** Baseline должен собираться из reviewed target tariff catalog, а gate — отклонять active synthetic/test rows и активные тарифы без обязательных billing/access полей. До этого ручной выбор тарифа не выполнять.
 
-### B2 — HIGH: one-process reset не гарантирует, что A→B snapshot соответствует тому же commit
+### B2 — CLOSED: one-process reset не гарантировал, что A→B snapshot соответствует тому же commit
 
 **Достижимый сценарий.** Snapshot generator/check существует как отдельная package-команда, но destructive wrapper его не вызывает:
 
@@ -133,7 +162,7 @@ prod-to-target cutover snapshot matches current DEV schema B
 
 **Обязательный oracle.** На commit, который запускает rehearsal, `pnpm run check:prod-to-target-cutover` должен быть обязательным preflight того же единого процесса до первого destructive шага. Текущее зелёное состояние закрывает риск только для этого checkout, не воспроизводимость процесса.
 
-### B3 — HIGH acceptance defect: `DONE` не доказывает email/notification delivery
+### B3 — OPEN acceptance boundary: `DONE` не доказывает email/notification delivery
 
 **Достижимый сценарий.** SMTP preflight принимает любую единственную строку, где `value_json.value` лишь не JSON `null`; он не валидирует host/from/port, credentials, TLS, recipient или round-trip (`deploy/host/deploy-test-saas.sh:320`). Затем reset восстанавливает snapshot (`deploy/host/deploy-test-saas.sh:3694`) и может вывести `DONE` (`deploy/host/deploy-test-saas.sh:3744`). Конфигурация с непустым envelope и просроченным паролем либо `{"value":{}}` проходит этот predicate, но auth recovery, приглашения и reminders не доставляются.
 
