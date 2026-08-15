@@ -42,6 +42,8 @@ DECLARE
   v_doctor_live int;
   v_admin_live int;
   v_archived_empty_admins int;
+  v_doctor_email_verified_at timestamptz;
+  v_admin_email_verified_at timestamptz;
 BEGIN
   -- 0. Exactly ONE live (non-merged) row must carry the doctor phone. If prod ever grows un-merged
   --    duplicates on this phone, STOP: they must be merged via the platform-user merge port first.
@@ -57,16 +59,26 @@ BEGIN
   FROM platform_users
   WHERE phone_normalized = c_doctor_phone AND merged_into_id IS NULL;
 
+  -- Verification belongs to the email identifier, not to whichever platform row happens to hold it
+  -- before the split. Preserve the strongest source proof before either identifier is moved.
+  SELECT max(email_verified_at) INTO v_doctor_email_verified_at
+  FROM platform_users
+  WHERE email_normalized = c_doctor_email;
+
+  SELECT max(email_verified_at) INTO v_admin_email_verified_at
+  FROM platform_users
+  WHERE email_normalized = c_admin_email;
+
   -- 1. Free the yandex email from the same-name CLIENT if it still holds it. Idempotent.
   UPDATE platform_users
-  SET email = NULL, email_normalized = NULL, updated_at = now()
+  SET email = NULL, email_normalized = NULL, email_verified_at = NULL, updated_at = now()
   WHERE phone_normalized = c_client_phone
     AND merged_into_id IS NULL
     AND email_normalized = c_doctor_email;
 
   -- 1b. The same-name CLIENT must hold NO email at all — strip the gmail admin email too if it drifted there.
   UPDATE platform_users
-  SET email = NULL, email_normalized = NULL, updated_at = now()
+  SET email = NULL, email_normalized = NULL, email_verified_at = NULL, updated_at = now()
   WHERE phone_normalized = c_client_phone
     AND merged_into_id IS NULL
     AND email_normalized = c_admin_email;
@@ -74,7 +86,7 @@ BEGIN
   -- 2. Free the yandex email from any OTHER LIVE row that is not the canonical doctor (defensive), so the
   --    canonical doctor can own it. Merged (dead) rows keep their historical email harmlessly.
   UPDATE platform_users
-  SET email = NULL, email_normalized = NULL, updated_at = now()
+  SET email = NULL, email_normalized = NULL, email_verified_at = NULL, updated_at = now()
   WHERE email_normalized = c_doctor_email
     AND merged_into_id IS NULL
     AND id <> v_canonical_doctor;
@@ -84,9 +96,17 @@ BEGIN
   SET role = 'doctor',
       email = c_doctor_email,
       email_normalized = c_doctor_email,
+      email_verified_at = CASE
+        WHEN email_normalized IS DISTINCT FROM c_doctor_email THEN v_doctor_email_verified_at
+        ELSE COALESCE(email_verified_at, v_doctor_email_verified_at)
+      END,
       updated_at = now()
   WHERE id = v_canonical_doctor
-    AND (role <> 'doctor' OR email_normalized IS DISTINCT FROM c_doctor_email);
+    AND (
+      role <> 'doctor'
+      OR email_normalized IS DISTINCT FROM c_doctor_email
+      OR (email_verified_at IS NULL AND v_doctor_email_verified_at IS NOT NULL)
+    );
 
   -- 4. THE admin fix (owner 2026-07-25): a DEDICATED, clean GLOBAL ADMIN account holds the gmail email
   --    with a HARD-SET role='admin' in the database — a real persisted global admin, not a session-only
@@ -111,8 +131,14 @@ BEGIN
     -- Clean, credential-less dedicated admin account. The owner signs in to it by email OTP on the gmail
     -- address; it deliberately carries no phone and no organization membership (0143 seeds doctors only),
     -- so it is a pure platform operator and never a clinic member.
-    INSERT INTO platform_users (display_name, role, email, email_normalized)
-    VALUES (c_admin_display_name, 'admin', c_admin_email, c_admin_email)
+    INSERT INTO platform_users (display_name, role, email, email_normalized, email_verified_at)
+    VALUES (
+      c_admin_display_name,
+      'admin',
+      c_admin_email,
+      c_admin_email,
+      v_admin_email_verified_at
+    )
     RETURNING id INTO v_global_admin;
     RAISE NOTICE 'doctor-admin data-fix: created clean global admin % for %', v_global_admin, c_admin_email;
   ELSE
@@ -129,9 +155,14 @@ BEGIN
     UPDATE platform_users
     SET role = 'admin',
         is_archived = FALSE,
+        email_verified_at = COALESCE(email_verified_at, v_admin_email_verified_at),
         updated_at = now()
     WHERE id = v_global_admin
-      AND (role <> 'admin' OR is_archived IS DISTINCT FROM FALSE);
+      AND (
+        role <> 'admin'
+        OR is_archived IS DISTINCT FROM FALSE
+        OR (email_verified_at IS NULL AND v_admin_email_verified_at IS NOT NULL)
+      );
   END IF;
 
   -- 5. Archive identifier-less admin stubs before staff membership seeding. These rows have no login/channel
