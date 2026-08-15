@@ -751,8 +751,8 @@ wrapper повторяет идемпотентный stopped-writer bridge и �
 Финальный cluster zero может удалить retired legacy owner раньше, чем сработает EXIT-cleanup старого migration
 wrapper. Для cleanup отсутствие роли является успешным более сильным состоянием; если роль ещё существует, wrapper
 по-прежнему требует `NOBYPASSRLS` и отсутствие временных memberships.
-Старые `app.context_nonce_ledger` и `app.principal_context` в target declaration имеют
-`PENDING_REMOVAL`: новый transaction-bound контекст их не создаёт и не требует. Отдельная
+Старые `app.context_nonce_ledger` и `app.principal_context` сохраняются как закрытые технические
+таблицы точной DEV-схемы без runtime-surface: новый transaction-bound контекст их не использует. Отдельная
 `app.context_signing_secrets` пока остаётся не как часть DB-principal протокола, а как узкое хранилище HMAC для
 трёх живых patient-invite email definer roots. Cutover создаёт/обновляет ровно одну её строку тем же защищённым
 secret fallback, которым webapp подписывает start/verify/claim; значение проходит только через root-owned

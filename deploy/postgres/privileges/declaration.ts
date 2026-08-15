@@ -832,14 +832,12 @@ const RLS_OFF_MIGRATOR_LEDGER = 'ЯВНО объявленное отсутст�
 
 const TABLE_ROWS: TableRow[] = [
   { t: 'app.context_nonce_ledger', cls: 'T', owner: 'app_owner',
-    why: 'реестр повтора старого HMAC-контекста; transaction-bound port context не использует nonce ledger',
-    drop: { verdict: 'DROP', source: 'revision 10: custom signed context replaced by app_ext.accepted_port_contexts' } },
+    why: 'закрытый технический остаток DEV-схемы; transaction-bound port context не использует nonce ledger' },
   { t: 'app.context_signing_secrets', cls: 'T', owner: 'app_owner',
     wall: 'definer-only', wallWhy: 'patient invite proof HMAC доступен только трём declared definer-функциям',
     why: 'HMAC-секрет короткоживущей авторизации start/verify/claim email-приглашения пациента' },
   { t: 'app.principal_context', cls: 'T', owner: 'app_owner',
-    why: 'session-row старого контекста; новый контекст привязан к транзакции в accepted_port_contexts',
-    drop: { verdict: 'DROP', source: 'revision 10: session-row context replaced by app_ext.accepted_port_contexts' } },
+    why: 'закрытый технический остаток DEV-схемы; новый контекст привязан к транзакции в accepted_port_contexts' },
   { t: 'drizzle.__drizzle_migrations', cls: 'T', rls: 'off', why: 'журнал применённых миграций webapp — миграции '
     + 'применяются повторно или не применяются', rlsWhy: RLS_OFF_MIGRATOR_LEDGER },
   { t: 'integrator.contacts', cls: 'P', why: 'контакты пользователя мессенджера — нельзя связать чат с телефоном '
