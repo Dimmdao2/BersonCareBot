@@ -1,3 +1,4 @@
+-- BCB-MIGRATION-BACKFILL
 -- TEMPORARY LOCAL MIGRATION NUMBER 0424
 -- Reconcile the safe runtime projection from canonical system_settings values.
 -- Only already-registered same-key rows are updated; this never copies an unregistered secret key.

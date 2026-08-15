@@ -1,7 +1,7 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0423
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- TEMPORARY LOCAL MIGRATION NUMBER 0423
 -- 0423: one exact pre-session root for challenge replacement + durable email enqueue.
 
 CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
