@@ -593,8 +593,10 @@ SET search_path = pg_catalog
 AS $$
 #variable_conflict use_column
 DECLARE
-  v_email_normalized text := lower(btrim(p_email_normalized));
-  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  -- Exact pre-session context is injected as the first BEGIN statement by the privilege
+  -- reconciler. Keep all executable initialization after that guard.
+  v_email_normalized text;
+  v_now_sec bigint;
   v_challenge public.email_challenges%ROWTYPE;
   v_latest_challenge_id uuid;
   v_target_user public.platform_users%ROWTYPE;
@@ -602,8 +604,12 @@ DECLARE
   v_next_attempts integer;
   -- C-2 step 4 (0249): the three purposes that legitimately share this one anonymous confirm
   -- engine. See 0249's header for the residual login-vs-clinic_invite gap this does NOT close.
-  v_allowed_purposes CONSTANT text[] := ARRAY['login', 'public_registration', 'clinic_invite'];
+  v_allowed_purposes text[];
 BEGIN
+  v_email_normalized := lower(btrim(p_email_normalized));
+  v_now_sec := extract(epoch FROM clock_timestamp())::bigint;
+  v_allowed_purposes := ARRAY['login', 'public_registration', 'clinic_invite'];
+
   IF v_email_normalized = '' THEN
     RETURN QUERY SELECT false, 'expired_code'::text, NULL::uuid, NULL::integer;
     RETURN;
