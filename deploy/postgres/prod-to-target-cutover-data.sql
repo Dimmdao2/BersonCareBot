@@ -324,7 +324,7 @@ BEGIN
       'SELECT count(*), count(*) FILTER (WHERE %I = $1) FROM cutover_source_public.%I',
       reference.column_name, reference.table_name
     ) INTO expected_rows, expected_canonical_rows
-      USING :'canonical_specialist_id'::uuid;
+      USING current_setting('bcb.cutover.canonical_specialist_id')::uuid;
     INSERT INTO cutover_specialist_transition_reference_baseline
       (table_name, column_name, expected_rows, expected_canonical_rows)
     VALUES (reference.table_name, reference.column_name, expected_rows, expected_canonical_rows);
@@ -394,7 +394,7 @@ INSERT INTO cutover_canonical_first_resolve (
 SELECT identity_map.canonical_id,
        playback.media_id,
        min(playback.first_resolved_at),
-       :'canonical_organization_id'::uuid
+       current_setting('bcb.cutover.canonical_organization_id')::uuid
 FROM public.media_playback_user_video_first_resolve playback
 JOIN cutover_platform_user_canonical_map identity_map ON identity_map.source_id = playback.user_id
 GROUP BY identity_map.canonical_id, playback.media_id;
@@ -453,7 +453,7 @@ INSERT INTO public.reference_categories (
   id, code, title, is_user_extensible, owner_id, tenant_id, created_at, organization_id
 )
 SELECT id, code, title, is_user_extensible, owner_id, tenant_id, created_at,
-       :'canonical_organization_id'::uuid
+       current_setting('bcb.cutover.canonical_organization_id')::uuid
 FROM cutover_source_public.reference_categories;
 
 INSERT INTO public.reference_items (
@@ -461,11 +461,11 @@ INSERT INTO public.reference_items (
   deleted_at, organization_id
 )
 SELECT id, category_id, code, title, sort_order, is_active, meta_json, created_at,
-       deleted_at, :'canonical_organization_id'::uuid
+       deleted_at, current_setting('bcb.cutover.canonical_organization_id')::uuid
 FROM cutover_source_public.reference_items;
 
 UPDATE public.reminder_rules
-SET organization_id = :'canonical_organization_id'::uuid
+SET organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
 WHERE organization_id IS NULL;
 
 -- reminder_occurrence_history predates its canonical patient key. Populate every row that can be
@@ -541,7 +541,7 @@ SELECT
   occurrence.error_code,
   occurrence.created_at,
   occurrence.updated_at,
-  :'canonical_organization_id'::uuid,
+  current_setting('bcb.cutover.canonical_organization_id')::uuid,
   rule.platform_user_id,
   0
 FROM cutover_source_integrator.user_reminder_occurrences occurrence
@@ -563,7 +563,7 @@ SELECT
   legacy.error_code,
   legacy.created_at,
   legacy.updated_at,
-  :'canonical_organization_id'::uuid,
+  current_setting('bcb.cutover.canonical_organization_id')::uuid,
   legacy.platform_user_id,
   0
 FROM cutover_source_public.webapp_reminder_occurrences legacy
@@ -626,7 +626,7 @@ SET canonical_appointment_id = COALESCE(
         THEN substring(legacy.integrator_record_id FROM 4)::uuid
       END
     ),
-    organization_id = :'canonical_organization_id'::uuid
+    organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
 FROM cutover_source_public.clinical_visit source_visit
 JOIN cutover_source_public.appointment_records legacy
   ON legacy.id = source_visit.appointment_record_id
@@ -687,7 +687,7 @@ INSERT INTO public.support_conversations (
   source, admin_scope, status, opened_at, last_message_at, created_at, updated_at
 )
 SELECT md5('cutover-pending-drafts:' || draft_group.identity_id::text || ':' || draft_group.source)::uuid,
-       :'canonical_organization_id'::uuid,
+       current_setting('bcb.cutover.canonical_organization_id')::uuid,
        'cutover-pending-drafts:' || draft_group.identity_id::text || ':' || draft_group.source,
        draft_group.canonical_user_id,
        draft_group.integrator_user_id,
@@ -796,7 +796,7 @@ BEGIN
       AND payload->>'id' = source_draft.id
   ) target_draft ON true
   WHERE binding.draft_id IS NULL
-     OR conversation.organization_id IS DISTINCT FROM :'canonical_organization_id'::uuid
+     OR conversation.organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid
      OR target_draft.payload IS NULL
      OR target_draft.payload->>'source' IS DISTINCT FROM source_draft.source
      OR target_draft.payload->>'externalChatId' IS DISTINCT FROM source_draft.external_chat_id
@@ -912,7 +912,7 @@ SELECT
   legacy.last_error,
   legacy.created_at,
   legacy.updated_at,
-  :'canonical_organization_id'::uuid
+  current_setting('bcb.cutover.canonical_organization_id')::uuid
 FROM cutover_source_integrator.rubitime_create_retry_jobs legacy
 WHERE legacy.status IN ('pending', 'processing')
   AND NOT EXISTS (
@@ -930,10 +930,10 @@ INSERT INTO public.be_organization_members (
   organization_id, platform_user_id, role, specialist_id, status
 )
 SELECT
-  :'canonical_organization_id'::uuid,
+  current_setting('bcb.cutover.canonical_organization_id')::uuid,
   user_row.id,
   'owner',
-  :'canonical_specialist_id'::uuid,
+  current_setting('bcb.cutover.canonical_specialist_id')::uuid,
   'active'
 FROM public.platform_users user_row
 WHERE user_row.role = 'doctor'
@@ -944,40 +944,40 @@ WHERE user_row.role = 'doctor'
 UPDATE public.org_enrollments enrollment
 SET status = 'active'
 FROM cutover_expected_active_canonical_client_membership expected
-WHERE enrollment.organization_id = :'canonical_organization_id'::uuid
+WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
   AND enrollment.platform_user_id = expected.platform_user_id;
 
 INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
-SELECT :'canonical_organization_id'::uuid, expected.platform_user_id, 'active'
+SELECT current_setting('bcb.cutover.canonical_organization_id')::uuid, expected.platform_user_id, 'active'
 FROM cutover_expected_active_canonical_client_membership expected
 WHERE NOT EXISTS (
   SELECT 1 FROM public.org_enrollments enrollment
-  WHERE enrollment.organization_id = :'canonical_organization_id'::uuid
+  WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
     AND enrollment.platform_user_id = expected.platform_user_id
 );
 
 UPDATE public.patient_specialist_links link
-SET organization_id = :'canonical_organization_id'::uuid,
+SET organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid,
     created_via = 'transfer'
 FROM cutover_expected_active_canonical_client_membership expected
 WHERE link.patient_user_id = expected.platform_user_id
-  AND link.specialist_id = :'canonical_specialist_id'::uuid
+  AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
   AND link.status = 'active';
 
 INSERT INTO public.patient_specialist_links (
   organization_id, patient_user_id, specialist_id, status, created_via
 )
 SELECT
-  :'canonical_organization_id'::uuid,
+  current_setting('bcb.cutover.canonical_organization_id')::uuid,
   expected.platform_user_id,
-  :'canonical_specialist_id'::uuid,
+  current_setting('bcb.cutover.canonical_specialist_id')::uuid,
   'active',
   'transfer'
 FROM cutover_expected_active_canonical_client_membership expected
 WHERE NOT EXISTS (
   SELECT 1 FROM public.patient_specialist_links link
   WHERE link.patient_user_id = expected.platform_user_id
-    AND link.specialist_id = :'canonical_specialist_id'::uuid
+    AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
     AND link.status = 'active'
 );
 
@@ -1137,7 +1137,7 @@ BEGIN
 
   SELECT count(*) INTO violations
   FROM integrator.delivery_attempt_logs
-  WHERE organization_id IS DISTINCT FROM :'canonical_organization_id'::uuid;
+  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
   IF violations <> 0 THEN RAISE EXCEPTION 'delivery attempt logs missing canonical organization: %', violations; END IF;
   IF (SELECT count(*) FROM integrator.delivery_attempt_logs)
      <> (SELECT count(*) FROM cutover_source_integrator.delivery_attempt_logs) THEN
@@ -1146,7 +1146,7 @@ BEGIN
 
   SELECT count(*) INTO violations
   FROM public.media_playback_stats_hourly
-  WHERE organization_id IS DISTINCT FROM :'canonical_organization_id'::uuid;
+  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
   IF violations <> 0 THEN RAISE EXCEPTION 'media playback hourly stats missing canonical organization: %', violations; END IF;
   IF (SELECT count(*) FROM public.media_playback_stats_hourly)
      <> (SELECT count(*) FROM cutover_source_public.media_playback_stats_hourly) THEN

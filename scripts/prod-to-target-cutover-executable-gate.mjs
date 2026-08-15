@@ -44,19 +44,13 @@ function slice(text, start, end) {
 function productSlices(sqlRoot) {
   const data = read('deploy/postgres/prod-to-target-cutover-data.sql', sqlRoot);
   const owner = read('apps/webapp/scripts/consolidate-owner-identity.sql', sqlRoot);
-  const executable = (sql) => sql
-    // The production wrapper supplies psql variables.  psql deliberately does not interpolate
-    // inside DO dollar-quoted bodies, so the hermetic harness uses the same already-established
-    // cutover settings through PostgreSQL itself; transformation statements remain byte-for-byte.
-    .replaceAll(":'canonical_organization_id'::uuid", "current_setting('bcb.cutover.canonical_organization_id')::uuid")
-    .replaceAll(":'canonical_specialist_id'::uuid", "current_setting('bcb.cutover.canonical_specialist_id')::uuid");
   return {
-    f5: executable(slice(data, '-- Copy every surviving relation', '-- Every source-only relation')),
-    map: executable(slice(data, '-- Resolve the complete live platform_users merge graph once.', '-- Preserve a source-derived oracle')),
-    f3: executable(slice(data, '-- Two live classes have uniqueness semantics', '-- Required tenant columns added after the source snapshot.')),
-    f2: executable(slice(data, '-- reminder_occurrence_history predates', 'INSERT INTO integrator.user_reminder_occurrences')),
-    f4: executable(slice(data, '-- Preserve actionable drafts', 'CREATE TEMP TABLE cutover_systemic_expected_counts')),
-    membership: executable(slice(data, '-- Rebuild the initial organization membership', '-- Reseed serial/identity sequences')).replace(/\\ir prod-to-target-patient-membership-manifest\.sql\n/u, ''),
+    f5: slice(data, '-- Copy every surviving relation', '-- Every source-only relation'),
+    map: slice(data, '-- Resolve the complete live platform_users merge graph once.', '-- Preserve a source-derived oracle'),
+    f3: slice(data, '-- Two live classes have uniqueness semantics', '-- Required tenant columns added after the source snapshot.'),
+    f2: slice(data, '-- reminder_occurrence_history predates', 'INSERT INTO integrator.user_reminder_occurrences'),
+    f4: slice(data, '-- Preserve actionable drafts', 'CREATE TEMP TABLE cutover_systemic_expected_counts'),
+    membership: slice(data, '-- Rebuild the initial organization membership', '-- Reseed serial/identity sequences').replace(/\\ir prod-to-target-patient-membership-manifest\.sql\n/u, ''),
     f1: slice(owner, '-- ── 4. Консолидация дубля карточки специалиста', '-- В свежем PROD-дампе часть живых записей'),
     manifest: read('deploy/postgres/prod-to-target-patient-membership-manifest.sql', sqlRoot),
   };
