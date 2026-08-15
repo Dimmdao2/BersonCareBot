@@ -9,3 +9,4 @@
 | [`STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`](STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md) | Strict purge, manual merge, audit log (операционный контекст).                 |
 | [`DOCTOR_CLIENT_ARCHIVE_AND_PURGE.md`](DOCTOR_CLIENT_ARCHIVE_AND_PURGE.md)                 | Спека архива/очистки клиента врача (`userLifecycleLock` и связанные сценарии). |
 | [`PLATFORM_MERGE_V2_CUTOVER_RUNBOOK.md`](PLATFORM_MERGE_V2_CUTOVER_RUNBOOK.md)             | Runbook cutover Platform User Merge v2 (SQL-gates на production).              |
+| [`DEV_DOCTOR_API_PORT_CONTEXT_AUDIT_2026-08-16.md`](DEV_DOCTOR_API_PORT_CONTEXT_AUDIT_2026-08-16.md) | Blind audit owner-visible doctor API failures in DEV port-context. |
