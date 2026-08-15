@@ -532,6 +532,15 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
     'post_trial_behavior', 'post_trial_tariff_id', 'status', 'created_by', 'created_at',
     'updated_at',
   ]);
+  const auditInsert = tables['public.admin_audit_log'].access.grants.find((grant) =>
+    grant.role === 'app_platform_settings' && grant.operations.includes('INSERT'));
+  assert.deepEqual(auditInsert?.columns, [
+    'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
+    'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
+  ]);
+  const auditInsertPolicy = tables['public.admin_audit_log'].policies.find((policy) =>
+    policy.cmd === 'INSERT' && policy.to.includes('app_platform_settings'));
+  assert.equal(auditInsertPolicy?.withCheck, "(current_user = 'app_platform_settings'::name)");
   for (const relation of [
     'public.saas_billing_accounts',
     'public.saas_billing_invoices',

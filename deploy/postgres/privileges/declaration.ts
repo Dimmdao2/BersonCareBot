@@ -3200,12 +3200,22 @@ type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.admin_audit_log': {
-    kind: 'direct', purpose: 'platform operations reads the non-clinical administrative event journal',
-    codePaths: ['apps/webapp/src/infra/adminAuditLog.ts#listAdminAuditLog'],
-    grants: [{ role: 'app_platform_settings', operations: ['SELECT'], columns: [
-      'id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status', 'repeat_count',
-      'last_seen_at', 'resolved_at', 'created_at',
-    ] }],
+    kind: 'direct', purpose: 'platform operations reads and appends the non-clinical administrative event journal',
+    codePaths: [
+      'apps/webapp/src/infra/adminAuditLog.ts#listAdminAuditLog',
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts#appendAudit',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+    ],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: [
+        'id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status', 'repeat_count',
+        'last_seen_at', 'resolved_at', 'created_at',
+      ] },
+      { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
+        'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
+      ] },
+    ],
   },
   'public.be_organizations': {
     kind: 'direct', purpose: 'platform operations reads the clinic registry and changes only its assigned tariff',
@@ -4350,14 +4360,19 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10AdminAuditLogPolicies(index: number): PolicyDecl[] {
-  return [{
-    name: `rev10_admin_audit_platform_select_${index + 1}`,
-    as: 'PERMISSIVE',
-    cmd: 'SELECT',
-    to: ['app_platform_settings'],
-    using: "(current_user = 'app_platform_settings'::name)",
-    note: 'platform operations reads the administrative journal; all mutation stays behind named seams',
-  }];
+  const platformWall = "(current_user = 'app_platform_settings'::name)";
+  return [
+    {
+      name: `rev10_admin_audit_platform_select_${index + 1}`,
+      as: 'PERMISSIVE', cmd: 'SELECT', to: ['app_platform_settings'], using: platformWall,
+      note: 'platform operations reads the administrative journal',
+    },
+    {
+      name: `rev10_admin_audit_platform_insert_${index + 1}`,
+      as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_platform_settings'], withCheck: platformWall,
+      note: 'platform commercial transactions append their audit rows directly in the same transaction',
+    },
+  ];
 }
 
 const REV10_PATIENT_SELF_MANAGED_COLUMN: Record<string, string> = {
