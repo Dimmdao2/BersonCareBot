@@ -82,41 +82,75 @@ BEGIN
   IF violations <> 0 THEN RAISE EXCEPTION 'live appointments without active specialist: %', violations; END IF;
 
   SELECT count(*) INTO violations
-  FROM cutover_expected_patient_domain_membership expected
-  WHERE (
-      SELECT count(*) FROM public.org_enrollments enrollment
-      WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
-        AND enrollment.platform_user_id = expected.platform_user_id
-        AND enrollment.status = 'active'
-    ) <> 1;
-  IF violations <> 0 THEN RAISE EXCEPTION 'patient-domain clients without active enrollment: %', violations; END IF;
+  FROM cutover_expected_active_canonical_client_membership expected
+  CROSS JOIN LATERAL (
+    SELECT
+      count(*) FILTER (WHERE enrollment.status = 'active') AS active_count,
+      count(*) FILTER (
+        WHERE enrollment.status = 'active'
+          AND enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+      ) AS canonical_count
+    FROM public.org_enrollments enrollment
+    WHERE enrollment.platform_user_id = expected.platform_user_id
+  ) enrollment
+  WHERE enrollment.active_count <> 1 OR enrollment.canonical_count <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'active canonical clients without exactly one canonical enrollment: %', violations; END IF;
 
   SELECT count(*) INTO violations
-  FROM cutover_expected_patient_domain_membership expected
-  WHERE (
-    SELECT count(*) FROM public.patient_specialist_links link
-    WHERE link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
-      AND link.patient_user_id = expected.platform_user_id
-      AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
-      AND link.status = 'active'
-  ) <> 1;
-  IF violations <> 0 THEN RAISE EXCEPTION 'patient-domain clients without canonical specialist link: %', violations; END IF;
+  FROM cutover_expected_active_canonical_client_membership expected
+  CROSS JOIN LATERAL (
+    SELECT
+      count(*) FILTER (WHERE link.status = 'active') AS active_count,
+      count(*) FILTER (
+        WHERE link.status = 'active'
+          AND link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+          AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
+      ) AS canonical_count
+    FROM public.patient_specialist_links link
+    WHERE link.patient_user_id = expected.platform_user_id
+  ) link
+  WHERE link.active_count <> 1 OR link.canonical_count <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'active canonical clients without exactly one canonical specialist link: %', violations; END IF;
 
   SELECT count(*) INTO violations
   FROM public.org_enrollments enrollment
-  JOIN public.platform_users patient ON patient.id = enrollment.platform_user_id
-  WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
-    AND enrollment.status = 'active'
-    AND (patient.role <> 'client' OR patient.merged_into_id IS NOT NULL OR COALESCE(patient.is_archived, false));
-  IF violations <> 0 THEN RAISE EXCEPTION 'ineligible identities with active patient enrollment: %', violations; END IF;
+  LEFT JOIN cutover_expected_active_canonical_client_membership expected
+    ON expected.platform_user_id = enrollment.platform_user_id
+  WHERE enrollment.status = 'active'
+    AND (
+      expected.platform_user_id IS NULL
+      OR enrollment.organization_id <> current_setting('bcb.cutover.canonical_organization_id')::uuid
+    );
+  IF violations <> 0 THEN RAISE EXCEPTION 'extra or wrong-organization active enrollment: %', violations; END IF;
 
   SELECT count(*) INTO violations
   FROM public.patient_specialist_links link
-  JOIN public.platform_users patient ON patient.id = link.patient_user_id
-  WHERE link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
-    AND link.status = 'active'
-    AND (patient.role <> 'client' OR patient.merged_into_id IS NOT NULL OR COALESCE(patient.is_archived, false));
-  IF violations <> 0 THEN RAISE EXCEPTION 'ineligible identities with active specialist link: %', violations; END IF;
+  LEFT JOIN cutover_expected_active_canonical_client_membership expected
+    ON expected.platform_user_id = link.patient_user_id
+  WHERE link.status = 'active'
+    AND (
+      expected.platform_user_id IS NULL
+      OR link.organization_id <> current_setting('bcb.cutover.canonical_organization_id')::uuid
+      OR link.specialist_id <> current_setting('bcb.cutover.canonical_specialist_id')::uuid
+    );
+  IF violations <> 0 THEN RAISE EXCEPTION 'extra or wrong-specialist active patient link: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM cutover_expected_patient_domain_references reference
+  WHERE (
+    SELECT count(*) FROM public.org_enrollments enrollment
+    WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+      AND enrollment.platform_user_id = reference.platform_user_id
+      AND enrollment.status = 'active'
+  ) <> 1
+  OR (
+    SELECT count(*) FROM public.patient_specialist_links link
+    WHERE link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+      AND link.patient_user_id = reference.platform_user_id
+      AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
+      AND link.status = 'active'
+  ) <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'patient-domain reference closure missing canonical membership: %', violations; END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.be_organization_members
@@ -153,8 +187,11 @@ SELECT json_build_object(
   'platformUsers', (SELECT count(*) FROM public.platform_users),
   'userIdentities', (SELECT count(*) FROM public.user_identity),
   'appointments', (SELECT count(*) FROM public.be_appointments),
-  'patientDomainMembershipExpected', (
-    SELECT count(*) FROM cutover_expected_patient_domain_membership
+  'activeCanonicalClientMembershipExpected', (
+    SELECT count(*) FROM cutover_expected_active_canonical_client_membership
+  ),
+  'patientDomainReferenceExpected', (
+    SELECT count(*) FROM cutover_expected_patient_domain_references
   ),
   'activeEnrollments', (SELECT count(*) FROM public.org_enrollments WHERE status = 'active'),
   'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),

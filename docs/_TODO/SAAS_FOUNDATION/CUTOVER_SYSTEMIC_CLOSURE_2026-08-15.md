@@ -7,6 +7,11 @@ or external delivery operation was performed.
 
 - Execution order and no-manual-surgery oracle: `HARD_MIGRATION_PROTOCOL.md`.
 - Target privilege/runtime topology: `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`.
+- **OWNER DECISION 2026-08-15 (replaces the original narrower B0):** every active canonical client account must
+  enter the canonical clinic and canonical specialist graph, regardless of appointments, Rubitime, chat, clinical
+  history, assigned/promotional programs, or any other patient-domain facts. The invariant is dynamic:
+  `role='client' AND merged_into_id IS NULL AND is_archived=false` after identity consolidation; the aggregate
+  dump count is evidence only and is never hardcoded into migration SQL.
 - B1 owner search used code-search first, then exact owner-file search:
 
 ```bash
@@ -22,9 +27,11 @@ excludes the four exact environment-owned fixture IDs without changing DEV.
 
 ## Implemented closure
 
-- B0: one reviewed 18-relation patient-fact manifest feeds pre-stage evidence, enrollment/link reconstruction, and
-  the final exact-one oracle. Merged/archived/non-client identities are ineligible. All 45 observed source-only
-  relation classes have one `transform` / `intentionally_retire` disposition; unknown and stale classes fail.
+- B0: the all-active-canonical-client manifest feeds pre-stage evidence, enrollment/link reconstruction, and the
+  final exact-one/wrong-endpoint oracle. The reviewed 18-relation patient-fact set plus live appointments remains an
+  additional reference-closure oracle, not a membership filter. Merged/archived/non-client identities are ineligible.
+  All 45 observed source-only relation classes have one `transform` / `intentionally_retire` disposition; unknown
+  and stale classes fail.
 - P1: doctor broadcast phone resolution uses only the terminal canonical `public.platform_users` Drizzle port.
   The legacy SQL reader, setting registry/UI values, generated runtime row, and failure-swallowing catch are gone.
 - B2: the public full-reset wrapper invokes the same-checkout snapshot checker before entering its shared reset
@@ -40,8 +47,16 @@ excludes the four exact environment-owned fixture IDs without changing DEV.
 pnpm run check:cutover-systemic-closure
 ```
 
-Result: PASS — 12/12 Node tests; legacy census PASS over 7 active roots with 7 exact transition files; census
+Result: PASS — 13/13 Node tests; legacy census PASS over 7 active roots with 7 exact transition files; census
 self-test PASS; SMTP shape self-test PASS.
+
+```bash
+node --test scripts/prod-to-target-cutover-contract.test.mjs
+git diff --check
+```
+
+Result: PASS — 5/5 focused manifest/contract tests, including a canonical client without any patient-domain facts
+and missing/duplicate/wrong/extra endpoint failures; whitespace check PASS.
 
 ```bash
 pnpm --dir apps/integrator exec vitest --run src/infra/runtime/worker/doctorBroadcastIntentMenu.test.ts

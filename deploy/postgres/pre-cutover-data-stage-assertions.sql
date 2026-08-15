@@ -116,6 +116,41 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'pre-cutover data assertion: canonical owner account is not the live doctor';
   END IF;
+
+  WITH canonical_clients AS (
+    SELECT id AS platform_user_id
+    FROM public.platform_users
+    WHERE role = 'client'
+      AND merged_into_id IS NULL
+      AND COALESCE(is_archived, false) = false
+  ), manifest_delta AS (
+    (
+      SELECT platform_user_id
+      FROM cutover_expected_active_canonical_client_membership
+      EXCEPT
+      SELECT platform_user_id FROM canonical_clients
+    )
+    UNION ALL
+    (
+      SELECT platform_user_id FROM canonical_clients
+      EXCEPT
+      SELECT platform_user_id
+      FROM cutover_expected_active_canonical_client_membership
+    )
+  )
+  SELECT count(*) INTO violation_count FROM manifest_delta;
+  IF violation_count <> 0 THEN
+    RAISE EXCEPTION 'pre-cutover data assertion: active canonical client manifest drift: %', violation_count;
+  END IF;
+
+  SELECT count(*) INTO violation_count
+  FROM cutover_expected_patient_domain_references reference
+  LEFT JOIN cutover_expected_active_canonical_client_membership expected
+    ON expected.platform_user_id = reference.platform_user_id
+  WHERE expected.platform_user_id IS NULL;
+  IF violation_count <> 0 THEN
+    RAISE EXCEPTION 'pre-cutover data assertion: patient-domain reference outside active canonical manifest: %', violation_count;
+  END IF;
 END $$;
 
 SELECT json_build_object(
@@ -128,8 +163,11 @@ SELECT json_build_object(
     SELECT count(*) FROM public.be_appointments
     WHERE specialist_id = :'canonical_specialist_id'::uuid AND deleted_at IS NULL
   ),
-  'patientDomainMembershipExpected', (
-    SELECT count(*) FROM cutover_expected_patient_domain_membership
+  'activeCanonicalClientMembershipExpected', (
+    SELECT count(*) FROM cutover_expected_active_canonical_client_membership
+  ),
+  'patientDomainReferenceExpected', (
+    SELECT count(*) FROM cutover_expected_patient_domain_references
   ),
   'liveLegacyUnresolved', 0,
   'rawRubitimeUnmapped', 0,

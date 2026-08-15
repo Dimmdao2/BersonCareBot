@@ -1,9 +1,11 @@
 \set ON_ERROR_STOP on
 
--- Build the patient-domain membership oracle from every reviewed surviving relation.
+-- Build the all-active-canonical-client membership oracle. Patient-domain facts remain a separate
+-- reference-closure oracle; they never decide whether a client is eligible for membership.
 -- Caller sets patient_source_schema to either public (preflight) or cutover_source_public (A -> B).
 DROP TABLE IF EXISTS pg_temp.cutover_patient_fact_registry;
-DROP TABLE IF EXISTS pg_temp.cutover_expected_patient_domain_membership;
+DROP TABLE IF EXISTS pg_temp.cutover_expected_patient_domain_references;
+DROP TABLE IF EXISTS pg_temp.cutover_expected_active_canonical_client_membership;
 
 CREATE TEMP TABLE cutover_patient_fact_registry (
   relation_name text PRIMARY KEY,
@@ -30,7 +32,11 @@ INSERT INTO cutover_patient_fact_registry (relation_name, patient_column) VALUES
   ('test_attempts', 'patient_user_id'),
   ('treatment_program_instances', 'patient_user_id');
 
-CREATE TEMP TABLE cutover_expected_patient_domain_membership (
+CREATE TEMP TABLE cutover_expected_active_canonical_client_membership (
+  platform_user_id uuid PRIMARY KEY
+);
+
+CREATE TEMP TABLE cutover_expected_patient_domain_references (
   platform_user_id uuid PRIMARY KEY
 );
 
@@ -48,6 +54,16 @@ BEGIN
   IF to_regclass(format('%I.platform_users', source_schema)) IS NULL THEN
     RAISE EXCEPTION 'patient membership source has no platform_users: %', source_schema;
   END IF;
+
+  EXECUTE format(
+    'INSERT INTO cutover_expected_active_canonical_client_membership (platform_user_id) '
+    'SELECT patient.id '
+    'FROM %I.platform_users patient '
+    'WHERE patient.role = ''client'' '
+    'AND patient.merged_into_id IS NULL '
+    'AND COALESCE(patient.is_archived, false) = false',
+    source_schema
+  );
 
   FOR fact IN SELECT * FROM cutover_patient_fact_registry ORDER BY relation_name
   LOOP
@@ -67,7 +83,7 @@ BEGIN
     END IF;
 
     EXECUTE format(
-      'INSERT INTO cutover_expected_patient_domain_membership (platform_user_id) '
+      'INSERT INTO cutover_expected_patient_domain_references (platform_user_id) '
       'SELECT DISTINCT patient.id '
       'FROM %I.%I domain_fact '
       'JOIN %I.platform_users patient ON patient.id = domain_fact.%I '
@@ -83,5 +99,36 @@ BEGIN
       fact.patient_column
     );
   END LOOP;
+
+  IF to_regclass(format('%I.be_appointments', source_schema)) IS NULL THEN
+    RAISE EXCEPTION 'reviewed patient-domain relation is missing: %.be_appointments', source_schema;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_attribute attribute
+    WHERE attribute.attrelid = format('%I.be_appointments', source_schema)::regclass
+      AND attribute.attname IN ('platform_user_id', 'deleted_at')
+      AND attribute.attnum > 0
+      AND NOT attribute.attisdropped
+    GROUP BY attribute.attrelid
+    HAVING count(*) = 2
+  ) THEN
+    RAISE EXCEPTION 'reviewed patient-domain columns are missing: %.be_appointments', source_schema;
+  END IF;
+
+  EXECUTE format(
+    'INSERT INTO cutover_expected_patient_domain_references (platform_user_id) '
+    'SELECT DISTINCT patient.id '
+    'FROM %I.be_appointments appointment '
+    'JOIN %I.platform_users patient ON patient.id = appointment.platform_user_id '
+    'WHERE appointment.platform_user_id IS NOT NULL '
+    'AND appointment.deleted_at IS NULL '
+    'AND patient.role = ''client'' '
+    'AND patient.merged_into_id IS NULL '
+    'AND COALESCE(patient.is_archived, false) = false '
+    'ON CONFLICT (platform_user_id) DO NOTHING',
+    source_schema,
+    source_schema
+  );
 END
 $patient_domain_manifest$;

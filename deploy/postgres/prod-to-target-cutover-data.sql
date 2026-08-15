@@ -513,7 +513,9 @@ WHERE legacy.status IN ('pending', 'processing')
     WHERE existing.event_id = legacy.payload_json #>> '{intent,meta,eventId}'
   );
 
--- Rebuild the initial organization membership and patient visibility graph from canonical facts.
+-- Rebuild the initial organization membership and patient visibility graph for every active
+-- canonical client. Patient-domain references remain a closure oracle only; merged aliases are
+-- resolved by the owner identity consolidation before this A -> B transition and are never enrolled.
 \set patient_source_schema cutover_source_public
 \ir prod-to-target-patient-membership-manifest.sql
 
@@ -532,26 +534,15 @@ WHERE user_row.role = 'doctor'
   AND user_row.is_archived IS FALSE
 ;
 
-INSERT INTO cutover_expected_patient_domain_membership (platform_user_id)
-SELECT DISTINCT appointment.platform_user_id
-FROM public.be_appointments appointment
-JOIN public.platform_users patient ON patient.id = appointment.platform_user_id
-WHERE appointment.platform_user_id IS NOT NULL
-  AND appointment.deleted_at IS NULL
-  AND patient.role = 'client'
-  AND patient.merged_into_id IS NULL
-  AND COALESCE(patient.is_archived, false) = false
-ON CONFLICT (platform_user_id) DO NOTHING;
-
 UPDATE public.org_enrollments enrollment
 SET status = 'active'
-FROM cutover_expected_patient_domain_membership expected
+FROM cutover_expected_active_canonical_client_membership expected
 WHERE enrollment.organization_id = :'canonical_organization_id'::uuid
   AND enrollment.platform_user_id = expected.platform_user_id;
 
 INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
 SELECT :'canonical_organization_id'::uuid, expected.platform_user_id, 'active'
-FROM cutover_expected_patient_domain_membership expected
+FROM cutover_expected_active_canonical_client_membership expected
 WHERE NOT EXISTS (
   SELECT 1 FROM public.org_enrollments enrollment
   WHERE enrollment.organization_id = :'canonical_organization_id'::uuid
@@ -561,7 +552,7 @@ WHERE NOT EXISTS (
 UPDATE public.patient_specialist_links link
 SET organization_id = :'canonical_organization_id'::uuid,
     created_via = 'transfer'
-FROM cutover_expected_patient_domain_membership expected
+FROM cutover_expected_active_canonical_client_membership expected
 WHERE link.patient_user_id = expected.platform_user_id
   AND link.specialist_id = :'canonical_specialist_id'::uuid
   AND link.status = 'active';
@@ -575,7 +566,7 @@ SELECT
   :'canonical_specialist_id'::uuid,
   'active',
   'transfer'
-FROM cutover_expected_patient_domain_membership expected
+FROM cutover_expected_active_canonical_client_membership expected
 WHERE NOT EXISTS (
   SELECT 1 FROM public.patient_specialist_links link
   WHERE link.patient_user_id = expected.platform_user_id

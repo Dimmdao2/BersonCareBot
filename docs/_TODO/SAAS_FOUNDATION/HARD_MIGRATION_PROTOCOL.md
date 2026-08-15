@@ -468,11 +468,15 @@ The end-state assertions must include:
 
 The atomic A → B transition also owns these fail-closed data gates:
 
-- before source schemas are removed, `prod-to-target-patient-membership-manifest.sql` derives expected membership
-  from every reviewed surviving clinical/program/task/support/patient-card relation plus live appointments. Only
-  active canonical clients are eligible. Data copy reconstructs one active enrollment in the canonical organization
-  and the canonical specialist link; the final oracle rejects every missing membership/link and any reconstructed
-  link for merged or archived identities;
+- **OWNER DECISION 2026-08-15 (replaces the narrower B0 patient-domain criterion):** expected membership is every
+  `platform_users` row that is `role='client'`, canonical after owner identity consolidation
+  (`merged_into_id IS NULL`), and active (`is_archived=false`). No appointment, Rubitime, chat, clinical history,
+  assigned/promotional program, or other patient-domain fact may filter this set. Data copy reconstructs exactly one
+  active enrollment in the canonical organization and exactly one active canonical-specialist link for every such
+  client. The pre/post oracle rejects a missing, extra/duplicate, wrong-organization, or wrong-specialist active
+  endpoint. The reviewed 18 patient-domain relations plus live appointments remain a separate reference-closure
+  oracle, not a membership eligibility filter; merged aliases are not enrolled and must already resolve through the
+  consolidation path;
 - every source-only relation must appear in the reviewed `transform` / `intentionally_retire` registry in
   `prod-to-target-cutover-data.sql`. A new unexplained source-only class and a stale registry entry both abort the
   transaction; there is no manual row patch or silent generic-copy skip;
