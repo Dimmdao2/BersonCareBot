@@ -782,6 +782,8 @@ host/user/password/from, email-shaped from, явный boolean `secure` и port 
 по-прежнему обнуляет значение между restore и защищённым восстановлением. Отсутствующий или неизвестный режим
 останавливает SQL до снятия TEST lock triggers. `smtp_outbound` не входит в TEST lock arrays, поэтому штатная
 Settings-запись через `updateSetting` может менять его; остальные safety-critical ключи остаются залочены.
+Снимок TEST SMTP перед restore поддерживает оба допустимых стартовых состояния: целевую схему B и оставшуюся
+после прерванного full-reset исходную схему A, в которой у `system_settings` ещё нет `organization_id`.
 Снятие lock triggers, settings overlay и пересоздание locks выполняются одной транзакцией: любая ошибка
 `ON_ERROR_STOP` откатывает весь блок и сохраняет ранее установленные locks.
 

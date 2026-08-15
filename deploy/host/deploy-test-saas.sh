@@ -319,11 +319,27 @@ cleanup_exit(){
 }
 
 snapshot_test_smtp_outbound(){
-  local configured snapshot_mode
+  local configured has_organization_column smtp_where snapshot_mode
+  has_organization_column="$(sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -tAc \
+    "SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'system_settings'
+         AND column_name = 'organization_id'
+     );")"
+  case "$has_organization_column" in
+    t) smtp_where="key = 'smtp_outbound' AND scope = 'admin' AND organization_id IS NULL" ;;
+    f) smtp_where="key = 'smtp_outbound' AND scope = 'admin'" ;;
+    *)
+      echo "FATAL: could not determine TEST system_settings schema before full reset" >&2
+      return 1
+      ;;
+  esac
   configured="$(sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -tAc \
     "SELECT count(*) = 1
        FROM public.system_settings
-      WHERE key = 'smtp_outbound' AND scope = 'admin' AND organization_id IS NULL;")"
+      WHERE $smtp_where;")"
   [ "$configured" = "t" ] || {
     echo "FATAL: TEST smtp_outbound must have exactly one global admin row before a full reset" >&2
     return 1
@@ -332,7 +348,7 @@ snapshot_test_smtp_outbound(){
   TEST_SMTP_SNAPSHOT="$(sudo -u postgres mktemp /tmp/bcb-test-smtp-outbound.XXXXXX.json)"
   sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -At \
     -o "$TEST_SMTP_SNAPSHOT" \
-    -c "SELECT value_json::text FROM public.system_settings WHERE key = 'smtp_outbound' AND scope = 'admin' AND organization_id IS NULL;"
+    -c "SELECT value_json::text FROM public.system_settings WHERE $smtp_where;"
   sudo -u postgres chmod 0600 "$TEST_SMTP_SNAPSHOT"
   snapshot_mode="$(stat -Lc '%U:%G:%a' -- "$TEST_SMTP_SNAPSHOT")"
   [ "$snapshot_mode" = "postgres:postgres:600" ] || {
