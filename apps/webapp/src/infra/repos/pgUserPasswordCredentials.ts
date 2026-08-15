@@ -1,5 +1,11 @@
-/** Wave 3 phase 15B — domain SQL via `runWebappPgText`; TX on `registerPendingVerification`. */
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+/** Wave 3 phase 15B — domain SQL via the webapp port; TX on `registerPendingVerification`. */
+import { sql } from 'drizzle-orm';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import argon2 from 'argon2';
 import {
   passwordIdentifierKey,
@@ -229,11 +235,13 @@ export function createPgUserPasswordCredentialsPort(
     verifyEmailPasswordForLogin: verifyEmailPasswordForLoginImpl,
 
     async findVerifiedUserIdWithPassword(emailNormalized) {
-      const r = await runWebappPgText<{ id: string }>(
-        `SELECT user_id::text AS id
-         FROM app.email_password_find_login_candidate($1)
-         WHERE email_verified = true`,
+      const r = await runWebappNamedRoot<{ id: string }>(
+        getWebappSqlDb(),
+        'app.email_password_find_login_candidate(text)',
         [emailNormalized],
+        sql`SELECT user_id::text AS id
+            FROM app.email_password_find_login_candidate(${emailNormalized})
+            WHERE email_verified = true`,
       );
       return r.rows[0]?.id ?? null;
     },

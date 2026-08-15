@@ -29,6 +29,7 @@ const ACTOR_SPECS = Object.freeze({
     passwordKey: 'SAAS_SMOKE_PATIENT_PASSWORD',
     platformRole: 'client',
     requiresClinicOwnerMembership: false,
+    fallbackPhone: '+79189000782',
   }),
 });
 const PASSWORD_MIN_LENGTH = 8;
@@ -139,7 +140,54 @@ async function readStdinJson() {
   }
 }
 
+async function ensureTestAccountEmail(client, account) {
+  const existing = await client.query(
+    `SELECT id::text AS user_id
+     FROM public.platform_users
+     WHERE email_normalized = $1
+       AND merged_into_id IS NULL
+       AND is_archived IS FALSE`,
+    [account.email],
+  );
+  if (existing.rows.length === 1) return;
+  if (existing.rows.length > 1) fail('account_not_ready');
+
+  const spec = ACTOR_SPECS[account.actor];
+  if (!spec?.fallbackPhone) fail('account_not_ready');
+  const fallback = await client.query(
+    `SELECT id::text AS user_id, role
+     FROM public.platform_users
+     WHERE phone_normalized = $1
+       AND merged_into_id IS NULL
+       AND is_archived IS FALSE
+     FOR UPDATE`,
+    [spec.fallbackPhone],
+  );
+  if (fallback.rows.length !== 1 || fallback.rows[0].role !== spec.platformRole) {
+    fail('account_not_ready');
+  }
+  const userId = fallback.rows[0].user_id;
+  const conflict = await client.query(
+    `SELECT platform_user_id::text AS user_id
+     FROM public.user_contacts
+     WHERE contact_kind = 'email' AND value_normalized = $1`,
+    [account.email],
+  );
+  if (conflict.rows.some((row) => row.user_id !== userId)) fail('duplicate_actor_email');
+
+  await client.query(
+    `UPDATE public.platform_users
+     SET email = $1,
+         email_normalized = $1,
+         email_verified_at = COALESCE(email_verified_at, statement_timestamp()),
+         updated_at = statement_timestamp()
+     WHERE id = $2::uuid`,
+    [account.email, userId],
+  );
+}
+
 async function findAccountFact(client, account) {
+  await ensureTestAccountEmail(client, account);
   const result = await client.query(
     `SELECT
        users.id::text AS user_id,
@@ -174,6 +222,34 @@ async function findAccountFact(client, account) {
 async function convergeAccount(client, account) {
   const fact = await findAccountFact(client, account);
   assertSmokeLoginAccountFact(account.actor, fact);
+
+  const contactConflict = await client.query(
+    `SELECT platform_user_id::text AS user_id
+     FROM public.user_contacts
+     WHERE contact_kind = 'email'
+       AND value_normalized = $1
+       AND platform_user_id <> $2::uuid`,
+    [account.email, fact.user_id],
+  );
+  if (contactConflict.rows.length !== 0) fail('duplicate_actor_email');
+
+  await client.query(
+    `INSERT INTO public.user_contacts (
+       platform_user_id, contact_kind, value_normalized, is_primary,
+       confirmed_at, source_origin, updated_at
+     )
+     SELECT id, 'email', email_normalized, true,
+            email_verified_at, 'platform_users', statement_timestamp()
+     FROM public.platform_users
+     WHERE id = $1::uuid
+     ON CONFLICT (value_normalized) WHERE contact_kind = 'email' DO UPDATE
+     SET platform_user_id = EXCLUDED.platform_user_id,
+         is_primary = true,
+         confirmed_at = EXCLUDED.confirmed_at,
+         source_origin = 'platform_users',
+         updated_at = statement_timestamp()`,
+    [fact.user_id],
+  );
 
   const credentialResult = await client.query(
     `SELECT password_hash, algo
@@ -303,7 +379,10 @@ function convergeFromPacket(argv) {
       maxBuffer: 1024 * 1024,
     },
   );
-  if (result.status !== 0) fail('test_password_convergence_failed');
+  if (result.status !== 0) {
+    if (result.stderr) process.stderr.write(result.stderr);
+    fail('test_password_convergence_failed');
+  }
   process.stdout.write(result.stdout);
 }
 
@@ -344,9 +423,10 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => {
+  main().catch((error) => {
+    const code = error instanceof Error ? error.message : 'unknown_error';
     process.stderr.write(
-      'converge-saas-smoke-login-passwords: failed without changing non-packet accounts\n',
+      `converge-saas-smoke-login-passwords: ${code}; transaction rolled back\n`,
     );
     process.exitCode = 1;
   });

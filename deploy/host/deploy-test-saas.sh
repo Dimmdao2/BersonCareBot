@@ -54,6 +54,8 @@ MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
 MEDIA_WORKER_TEST_UNIT=deploy/systemd/bersoncarebot-media-worker-test.service
 MEDIA_WORKER_TEST_UNIT_ASSERTION=deploy/host/assert-media-worker-test-unit-properties.sh
 SAAS_TEST_FIXTURE_ENV=/opt/env/bersoncarebot/saas-test-fixture.env
+SAAS_SMOKE_LOGIN_ENV=/opt/env/bersoncarebot/saas-smoke-login.env
+SAAS_SMOKE_PASSWORD_CONVERGER=apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
@@ -118,6 +120,7 @@ LEGACY_ELEVATION_CLEANUP_REQUIRED=1
 POSTGRES_CUTOVER_INPUT_DIR=""
 POSTGRES_FIO_MANIFEST=""
 POSTGRES_RUBITIME_CSV=""
+TEST_SMTP_SNAPSHOT=""
 # Post-health gate failures collected instead of aborting. See run_closure_gate + CLOSURE_GATE_RED_EXIT.
 CLOSURE_GATE_FAILURES=()
 # Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
@@ -276,6 +279,26 @@ cleanup_postgres_cutover_inputs(){
   POSTGRES_FIO_MANIFEST=""
   POSTGRES_RUBITIME_CSV=""
 }
+cleanup_test_smtp_snapshot(){
+  if [ -z "${TEST_SMTP_SNAPSHOT:-}" ]; then
+    return 0
+  fi
+  case "$TEST_SMTP_SNAPSHOT" in
+    /tmp/bcb-test-smtp-outbound.*.json) ;;
+    *)
+      echo "FATAL: refusing unsafe TEST SMTP snapshot cleanup path: $TEST_SMTP_SNAPSHOT" >&2
+      return 1
+      ;;
+  esac
+  if [ -L "$TEST_SMTP_SNAPSHOT" ]; then
+    echo "FATAL: refusing symlink TEST SMTP snapshot cleanup path: $TEST_SMTP_SNAPSHOT" >&2
+    return 1
+  fi
+  if [ -e "$TEST_SMTP_SNAPSHOT" ]; then
+    sudo -u postgres rm -f -- "$TEST_SMTP_SNAPSHOT" || return 1
+  fi
+  TEST_SMTP_SNAPSHOT=""
+}
 cleanup_exit(){
   local original_status=$?
   local cleanup_status
@@ -283,6 +306,7 @@ cleanup_exit(){
   cleanup_elevation
   cleanup_status=$?
   cleanup_postgres_cutover_inputs || cleanup_status=1
+  cleanup_test_smtp_snapshot || cleanup_status=1
   if [ "$original_status" -ne 0 ] && [ "${WRITERS_STOPPED:-0}" = "1" ] && [ "${SERVICES_RELEASED:-0}" != "1" ]; then
     for unit_name in "${UNITS[@]}"; do
       sudo systemctl stop "bersoncarebot-$unit_name-test" >/dev/null 2>&1 || cleanup_status=1
@@ -292,6 +316,55 @@ cleanup_exit(){
     exit "$cleanup_status"
   fi
   exit "$original_status"
+}
+
+snapshot_test_smtp_outbound(){
+  local configured snapshot_mode
+  configured="$(sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -tAc \
+    "SELECT count(*) = 1 AND bool_and(value_json ? 'value' AND value_json->'value' <> 'null'::jsonb)
+       FROM public.system_settings
+      WHERE key = 'smtp_outbound' AND scope = 'admin' AND organization_id IS NULL;")"
+  [ "$configured" = "t" ] || {
+    echo "FATAL: TEST smtp_outbound must be configured before a full reset; refusing a reset that would finish without working email" >&2
+    return 1
+  }
+
+  TEST_SMTP_SNAPSHOT="$(sudo -u postgres mktemp /tmp/bcb-test-smtp-outbound.XXXXXX.json)"
+  sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -At \
+    -o "$TEST_SMTP_SNAPSHOT" \
+    -c "SELECT value_json::text FROM public.system_settings WHERE key = 'smtp_outbound' AND scope = 'admin' AND organization_id IS NULL;"
+  sudo -u postgres chmod 0600 "$TEST_SMTP_SNAPSHOT"
+  snapshot_mode="$(stat -Lc '%U:%G:%a' -- "$TEST_SMTP_SNAPSHOT")"
+  [ "$snapshot_mode" = "postgres:postgres:600" ] || {
+    echo "FATAL: TEST SMTP snapshot must be postgres:postgres 0600 (got $snapshot_mode)" >&2
+    return 1
+  }
+  echo "   TEST SMTP: configured value snapshotted without printing it"
+}
+
+restore_test_smtp_outbound(){
+  [ -n "${TEST_SMTP_SNAPSHOT:-}" ] || {
+    echo "FATAL: TEST SMTP snapshot is missing" >&2
+    return 1
+  }
+  sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 \
+    -v smtp_snapshot="$TEST_SMTP_SNAPSHOT" <<'SQL'
+BEGIN;
+CREATE TEMP TABLE restore_test_smtp_snapshot (value_json jsonb) ON COMMIT DROP;
+INSERT INTO restore_test_smtp_snapshot (value_json)
+VALUES (pg_catalog.pg_read_file(:'smtp_snapshot')::jsonb);
+SELECT 1 / ((count(*) = 1 AND bool_and(value_json ? 'value' AND value_json->'value' <> 'null'::jsonb))::int)
+FROM restore_test_smtp_snapshot;
+INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by, organization_id)
+SELECT 'smtp_outbound', 'admin', value_json, pg_catalog.now(), NULL, NULL
+FROM restore_test_smtp_snapshot
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
+  SET value_json = EXCLUDED.value_json,
+      updated_at = EXCLUDED.updated_at,
+      updated_by = EXCLUDED.updated_by;
+COMMIT;
+SQL
+  echo "   TEST SMTP: preserved configured value restored"
 }
 
 validate_pg_identifier(){
@@ -3431,6 +3504,15 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_SHA256"
 [ -r "$SRC_REPO/$RESTORE" ] || { echo "FATAL: missing required file: $SRC_REPO/$RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
+[ -r "$SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER"; exit 1; }
+[ -f "$SAAS_SMOKE_LOGIN_ENV" ] && [ ! -L "$SAAS_SMOKE_LOGIN_ENV" ] || {
+  echo "FATAL: protected TEST owner-login packet is missing or is a symlink: $SAAS_SMOKE_LOGIN_ENV" >&2
+  exit 1
+}
+[ "$(stat -Lc '%U:%G:%a' -- "$SAAS_SMOKE_LOGIN_ENV")" = "root:deploy:640" ] || {
+  echo "FATAL: protected TEST owner-login packet must be root:deploy 0640" >&2
+  exit 1
+}
 [ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
 [ -r "$SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER"; exit 1; }
 [ -r "$SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS"; exit 1; }
@@ -3508,6 +3590,9 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
     --confirm-review-source-sha256 '$FIO_REVIEW_SOURCE_SHA256'"
 
 trap cleanup_exit EXIT   # NEVER leave BYPASSRLS or owner-role membership on
+
+log "snapshot configured TEST SMTP before destructive restore"
+snapshot_test_smtp_outbound
 
 log "stop TEST writers before restore/migration"
 for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
@@ -3615,6 +3700,8 @@ log "test settings override"
 sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 \
   -v test_settings_overlay_mode=reset \
   -f "$DEPLOY_REPO/$OVERRIDE"
+log "restore preserved TEST SMTP"
+restore_test_smtp_outbound
 
 # 8. end-state self-check (reproducibility gate — same asserted state every run, from zero)
 log "verify end-state"
@@ -3645,6 +3732,10 @@ echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT futur
 [ "${FUT:-0}" -gt 0 ] || echo "   ⚠ WARNING: 0 future appointments — dump may be stale (live prod should have upcoming bookings)"
 log "B1 doctor/admin identity assertion"
 run_b1_doctor_admin_identity_assertion
+
+log "converge the three owner TEST account emails/passwords from the protected packet"
+sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1 \
+  node "$DEPLOY_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER" --packet="$SAAS_SMOKE_LOGIN_ENV"
 
 # The destructive full-reset is the one authorized one-time access cutover.  All legacy migrations
 # above have completed while their migration identity still exists.  From here the old C2/C4

@@ -773,17 +773,19 @@ repeatable overlay в штатный webapp migration ledger. Миграция �
 declaration добавляет transaction-context gate и назначает exact seam owner/EXECUTE ACL.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
-Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим
+Fresh-reset wrapper до остановки writers требует настроенный TEST `smtp_outbound`, снимает его в защищённый
+`postgres:postgres 0600` временный snapshot без вывода значения, после reset-overlay восстанавливает и удаляет
+snapshot через общий cleanup trap. Поэтому повторный fresh reset не переносит PROD SMTP из дампа и не оставляет
+TEST без почты; отсутствие настроенного TEST SMTP останавливает прогон до разрушительного restore. Сам reset-mode
+по-прежнему обнуляет значение между restore и защищённым восстановлением. Отсутствующий или неизвестный режим
 останавливает SQL до снятия TEST lock triggers. `smtp_outbound` не входит в TEST lock arrays, поэтому штатная
 Settings-запись через `updateSetting` может менять его; остальные safety-critical ключи остаются залочены.
 Снятие lock triggers, settings overlay и пересоздание locks выполняются одной транзакцией: любая ошибка
 `ON_ERROR_STOP` откатывает весь блок и сохраняет ранее установленные locks.
 
-Разовая настройка SMTP для TEST не является частью deploy-overlay: штатный путь — существующий Settings /
-`updateSetting`, который сохраняет `public.system_settings`. По owner ruling допустимо позднее скопировать уже
-существующую DB-backed platform setting в TEST clinic/global context тем же путём, без чтения PROD/env и без вывода
-секрета. Если этот путь недоступен, one-off TEST write требует отдельного owner authorization и backup/rollback;
-обычный deploy не должен изобретать такой bootstrap.
+Первичная настройка SMTP для TEST выполняется штатным Settings / `updateSetting` и сохраняется в
+`public.system_settings`; после неё full-reset сохраняет это TEST-значение автоматически. Обычный deploy и
+fresh-reset не читают SMTP из PROD/env и не печатают секрет.
 **ЗАМЕНЕНО 15.08.2026:** bilateral TEST+DEV route and six-login install remain forbidden. The owner authorized
 the single-target TEST rehearsal now: the wrapper changes only `bersoncarebot_test`, then installs the exact
 four-login port-context target. This is not permission for routine TEST resets.
@@ -832,9 +834,13 @@ discovery-definer роли, применяет C4 overlay, а затем пов�
 Readiness выполняет разрешённые операции и cross-contour negative probes для трёх DB operational capability,
 затем authenticated media control probe; каждый DB base login остаётся отделён от соседних scheduler, delivery и
 diagnostic surfaces, а media-worker не получает DB login или credential.
-Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture`, сохранённые сессии/refs и их credential
-convergence/mint выведены из deploy решением владельца 30.07.2026. Отсутствие временного файла в `/run` не блокирует
-сборку, миграции, security closure или запуск TEST. Продуктовые проверки выполняются отдельными целевыми тестами.
+Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture` и сохранённые сессии/refs выведены из deploy
+решением владельца 30.07.2026. **ЗАМЕНЕНО 15.08.2026:** текущая owner-команда требует после каждого fresh reset
+детерминированный доступ к трём аккаунтам Дмитрия Берсона. Full-reset поэтому читает только защищённый packet
+`/opt/env/bersoncarebot/saas-smoke-login.env`, привязывает отсутствующий TEST-only email к точному пациенту
+`+79189000782`, проверяет роли/активность/doctor-owner membership и атомарно сводит Argon2id-хэши doctor,
+global-admin и patient. Значения не печатаются и не попадают в repo; любое несовпадение identity останавливает
+прогон. Это не возвращает fixture/session mint и не меняет PROD.
 
 Packet создаётся один раз уполномоченным оператором **из root-сессии** (не от `deploy`), без значений в shell
 history. Значения вводятся интерактивным редактором; в repo и docs остаются только имена ключей:
