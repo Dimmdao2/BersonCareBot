@@ -809,20 +809,12 @@ bash deploy/host/deploy-test-full-reset.sh \
 
 Обычные UI/code обновления всегда идут через `deploy-test.sh`; повторное создание БД для них запрещено и не нужно.
 Hard wrapper останавливает writers, восстанавливает dump, первым выполняет owner identity consolidation и
-identity data-fix, затем до migration chain применяет hash-bound reviewed FIO и legacy-appointment transition,
-который требует нулевой остаток живых непринятых legacy-записей. Только после этого migrations удаляют старые
-таблицы и накатывают позднюю схему. Непосредственно перед migrations wrapper применяет декларативный
-`--shared-role-baseline` целевых ролей и узкий `pre-migration-legacy-role-bridge.sql` для трёх удаляемых ролей,
-которые ещё называет историческая цепочка: только `NOLOGIN` имена без runtime-логинов и DB-грантов.
-Затем `pre-migration-target-bridge.sql` в самой целевой БД устанавливает только три временные предпосылки
-исторической cross-app цепочки: старые `app_staff` SELECT для self-check `0241`, перенос `pgcrypto` в
-`app_ext` до `0274` и replay-safe целевую форму `public.booking_calendar_map` до проверок `0330/0331`.
-Канонический integrator runner позже сам записывает свою миграцию календарной карты; финальный
-declaration-generated privilege zero заменяет временные ACL и ownership.
-Сама migration chain идёт по фактическим межледжерным зависимостям: integrator до `20260708`, webapp до
-`0282_failed_reminder_occurrence_history`, точечный forward-reconciliation `20260814_0001` для уже удалённых
-mailing-таблиц, integrator до `20260724` для оставшегося org-backfill, затем полный webapp и полный integrator.
-Только промежуточные проходы ограничены; финальные проходы проверяют полноту обоих ledger.
+identity data-fix, затем применяет hash-bound reviewed FIO и legacy-appointment transition, который требует
+нулевой остаток живых непринятых legacy-записей. После подготовки данных он одним вызовом запускает
+`deploy/postgres/prod-to-target-cutover.sql`: одна транзакция заменяет PROD-схему A точной текущей DEV-схемой B,
+переносит подготовленные данные, записывает целевые webapp/integrator ledgers и удаляет legacy-схемы.
+Исторические webapp/integrator migration runners, их промежуточные bridge-роли и отдельные online-index шаги в
+fresh-reset больше не запускаются. Сбой любого сегмента откатывает весь A → B переход.
 Точные логины и права остаются финальным port-context cutover, а bridge-роли удаляет его target zero. В том же stopped-writers окне сохраняется durable FIO rollback,
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
@@ -878,7 +870,7 @@ membership/BYPASS через обязательный cleanup; application runti
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный
   разрушительный entrypoint — `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`; он владеет fresh dump, restore,
-  migrations, overlays/settings, fixture reconciliation, cleanup, restart и health gates. Не запускать
+  подготовку данных, одну A → B migration, overlays/settings, fixture reconciliation, cleanup, restart и health gates. Не запускать
   `restore-test-db-from-dump.sh`, settings SQL или `deploy-test.sh` как отдельную fresh-restore цепочку. Restore
   primitive является внутренней частью owner-gated wrapper и напрямую не запускается.
   Backfill и миграции в этом окне идут локально через OS `postgres` с `SET ROLE bersoncarebot_test`; общий

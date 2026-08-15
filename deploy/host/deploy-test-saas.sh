@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # deploy-test-saas.sh — shared strict TEST closure engine plus the guarded implementation used only by
 # deploy-test-full-reset.sh for one clean cycle from zero: fresh prod-copy test DB → deploy branch code →
-# apply the SaaS migration chain the CORRECT way (#667/#708) → restart test units → verify healthy.
+# apply the one PROD-dump -> current DEV schema migration → restart test units → verify healthy.
 # Runtime mode is strict: locked during legacy signed-context operation, port-context during the mTLS
 # cutover. Strict helper policies + FORCE are mandatory after every migration chain. Proven sequence;
 # see docs/_TODO/SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md.
@@ -63,6 +63,7 @@ DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 OWNER_IDENTITY_CONSOLIDATION=apps/webapp/scripts/consolidate-owner-identity.sql
 LEGACY_APPOINTMENT_CUTOVER=apps/webapp/scripts/cutover-legacy-appointments.ts
 PRE_CUTOVER_DATA_ASSERTIONS=deploy/postgres/pre-cutover-data-stage-assertions.sql
+CUTOVER_MIGRATION=deploy/postgres/prod-to-target-cutover.sql
 C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
@@ -3428,6 +3429,7 @@ assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_
 [ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
 [ -r "$SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER"; exit 1; }
 [ -r "$SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS"; exit 1; }
+[ -r "$SRC_REPO/$CUTOVER_MIGRATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$CUTOVER_MIGRATION"; exit 1; }
 [ -r "$SRC_REPO/$PRIVILEGE_GENERATOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRIVILEGE_GENERATOR"; exit 1; }
 [ -r "$SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
@@ -3578,36 +3580,15 @@ if [ "$PREPARE_CUTOVER_SOURCE_ONLY" = "1" ]; then
   exit 0
 fi
 
-# 6. Materialize the declaration-owned NOLOGIN role names required by migration SQL. This is not the
-#    runtime access cutover: no login, credential or per-database grant is installed at this stage.
-log "pre-migration NOLOGIN role prerequisites"
-install_pre_migration_role_prerequisites
-
-# The PROD schema predates three final-state assumptions embedded in the historical cross-app
-# chain. Install their narrow, replay-safe target-DB bridge before opening migrator elevation.
-log "pre-migration target-DB prerequisites"
-install_pre_migration_target_prerequisites
-
-# 7. Migrate the two ledgers in dependency order with TEMP BYPASSRLS, then revoke. The first webapp
-#    phase creates org_enrollments/be_organization_members. Integrator 20260708..20260710 can then
-#    backfill organization_id before webapp 0282 consumes failed reminder occurrences.
-#    Destructive legacy-table migrations are now downstream from fail-closed data parity gates.
-log "migrate (temp BYPASSRLS)"
-# Migrations that transfer function ownership to app_owner (0225 and siblings) need membership in it;
-# granted for this step only and revoked + asserted back to zero members by cleanup_elevation.
-grant_migrator_app_owner_membership
-run_postgres_repo_with_test_db_owner_bypass \
-  "INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 pnpm --dir apps/integrator run migrate && \
-   WEBAPP_MIGRATIONS_BEFORE_TAG=0282_failed_reminder_occurrence_history pnpm --dir apps/webapp run migrate && \
-   INTEGRATOR_MIGRATIONS_ONLY_VERSIONS=core:20260814_0001_reconcile_retired_mailing_org_migrations.sql pnpm --dir apps/integrator run migrate && \
-   INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260724 pnpm --dir apps/integrator run migrate && \
-   pnpm --dir apps/webapp run migrate && \
-   pnpm --dir apps/integrator run migrate"
-
-# 0328 commits first; this hot-table index must run as a separate autocommit psql operation.
-log "D30 outgoing delivery queue index (online, transaction-free)"
+# 6. One transaction replaces schema A with the exact current DEV schema, copies
+#    the prepared data, and records the target migration ledgers. Historical
+#    webapp/integrator migration runners are intentionally not invoked here.
+log "single PROD-dump -> current DEV schema migration"
 sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-  -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
+  -v cutover_database="$DB" \
+  -v canonical_organization_id="$ORG_ID" \
+  -v canonical_specialist_id="$CANONICAL_SPECIALIST" \
+  -f "$DEPLOY_REPO/$CUTOVER_MIGRATION"
 
 CNT="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM drizzle.__drizzle_migrations;")"
 [ "${CNT:-0}" -ge 178 ] || { echo "FATAL: drizzle migration count ${CNT:-0} < 178"; exit 1; }
@@ -3621,12 +3602,6 @@ for col in "system_settings.organization_id" "user_phone_history.organization_id
   [ "$ok" = "t" ] || { echo "FATAL: missing column $col after migrate"; exit 1; }
 done
 echo "   drizzle migrations = $CNT (org columns present)"
-
-# media_files is already large. Build the C4D owner index as a separate autocommit psql
-# operation after Drizzle has committed, never inside its migration transaction.
-log "C4D media owner index (online, transaction-free)"
-sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-  -f "$DEPLOY_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"
 
 # 7. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy
