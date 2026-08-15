@@ -163,7 +163,7 @@ server {
         add_header Retry-After "60" always;
     }
 
-    location ~ ^/(health|internal|api/bersoncare|api/telegram|api/internal) {
+    location ~ ^/(health|internal|api/bersoncare|api/telegram) {
         proxy_pass http://127.0.0.1:3300;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

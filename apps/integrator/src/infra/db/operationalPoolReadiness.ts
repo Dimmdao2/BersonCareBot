@@ -48,7 +48,6 @@ export async function assertDeliveryWorkerPoolReady(): Promise<void> {
   const probeId = '00000000-0000-4000-8000-000000000000';
   await probeReadOnly('worker:projection-outbox-tick', 'delivery', [
     'SELECT 1 FROM integrator.projection_outbox WHERE false',
-    'SELECT 1 FROM public.outgoing_delivery_queue WHERE false',
     "SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int",
     // revalidate_specialist_task_reminder_materialization and apply_specialist_task_reminder_success_outcome
     // both take `SELECT ... FOR UPDATE` inside, which cannot run in this probe's READ ONLY transaction on
