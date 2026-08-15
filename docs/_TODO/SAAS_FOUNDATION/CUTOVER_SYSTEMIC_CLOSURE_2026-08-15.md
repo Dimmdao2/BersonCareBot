@@ -152,9 +152,15 @@ are covered by the executable wrapper test.
 node --test scripts/prod-to-target-cutover-contract.test.mjs
 ```
 
-Result: PASS — 10/10 tests. Each F1–F5 test includes a deliberately broken disposition and proves the corresponding
-count, canonical-key, content, or tenant gate distinguishes it; the tests also bind those models to the executable
-SQL gate text.
+Result: PASS — 7/7 tests. The gate starts a private socket-only PostgreSQL cluster, executes the actual
+product-owned membership/F1–F5 SQL slices over PII-free collision and honest-NULL fixtures, and reads resulting
+rows for exact counts, canonical keys, draft content and delivery/playback organization attribution. It does not
+assert SQL text or reconstruct the migration in JavaScript.
+
+The six saved mutants were applied to temporary copies of the actual product files and each produced RED:
+membership insert disabled; F1 specialist rewrite disabled; F2 reminder attribution disabled; F3 live alias rewrite
+disabled; F4 stored draft text nulled; F5 delivery/playback organization injection disabled. The temporary copies are
+removed after each replay; tracked product SQL is unchanged by the proof.
 
 ```bash
 pnpm --dir apps/integrator exec vitest --run src/infra/db/repos/messageLogs.deliveryAttemptAudit.test.ts

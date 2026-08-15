@@ -105,8 +105,13 @@ reviewed FIO manifest and reviewed legacy-appointment CSV bound by SHA-256. It r
 port-context declaration, starts TEST and runs the closure/runtime gates. It remains forbidden for ordinary deploys.
 
 Before its first stop/drop/restore operation, that public entrypoint runs
-`pnpm run check:prod-to-target-cutover` from its own repository root. A non-zero snapshot check aborts the same
-process; a manual check from another checkout is not a substitute.
+`pnpm run check:prod-to-target-cutover` from its own repository root. This command first verifies the generated
+target snapshot and then runs `scripts/prod-to-target-cutover-executable-gate.mjs` against a private, socket-only
+PostgreSQL cluster. The gate executes product-owned F1–F5/membership SQL slices on PII-free fixtures with alias and
+collision shapes, then reads resulting rows for exact membership, preservation and organization attribution. Its
+saved six file-copy mutants (membership; F1 specialist rewrite; F2 reminder attribution; F3 alias rewrite; F4 draft
+content; F5 delivery/playback injection) are part of the focused contract test and must each report RED. A non-zero
+snapshot or executable-gate result aborts the same process; a manual check from another checkout is not a substitute.
 
 ### 1. Assert TEST runtime mode
 
