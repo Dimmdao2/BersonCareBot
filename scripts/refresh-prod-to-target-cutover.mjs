@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import {
   filterAndValidateTargetTariffCatalog,
   removeRetiredRuntimeSettings,
+  sanitizeRuntimeSettingsForCutover,
 } from './prod-to-target-baseline-policy.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -52,7 +53,7 @@ const artifacts = [
     file: 'runtime-settings.sql',
     restrictKey: 'zuW9L5uzqzBzeUZ4w0j4VjwaxfagL7ZbzDDIja2kue9OpChHcJnzVk9ak4FJIHp',
     args: ['--data-only', '--column-inserts', '--table=public.app_runtime_settings'],
-    transform: removeRetiredRuntimeSettings,
+    transform: sanitizeRuntimeSettingsForCutover,
   },
 ];
 

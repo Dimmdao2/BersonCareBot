@@ -7,6 +7,7 @@ import {
   filterAndValidateTargetTariffCatalog,
   removeRetiredRuntimeSettings,
   REVIEWED_TARGET_TARIFF_IDS,
+  sanitizeRuntimeSettingsForCutover,
 } from './prod-to-target-baseline-policy.mjs';
 
 const baselinePath = resolve(
@@ -25,6 +26,15 @@ test('target baseline contains exactly four reviewed product tariffs', () => {
 test('retired linked-phone setting is removed from rows and function allowlists', () => {
   const source = "VALUES ('integrator_linked_phone_source', 'admin');\nWHERE key IN ('integrator_linked_phone_source', 'other');\n";
   assert.equal(removeRetiredRuntimeSettings(source), "WHERE key IN ('other');\n");
+});
+
+test('runtime settings do not carry DEV-only updated_by identities into cutover', () => {
+  const source = "INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES ('auth_sms_enabled', 'admin', NULL, 'public', '{\"value\": true}', '2026-08-11 21:47:06+03', '00000000-0000-0000-0000-000000000003');\n";
+  const rendered = sanitizeRuntimeSettingsForCutover(source);
+  assert.equal(
+    rendered,
+    "INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES ('auth_sms_enabled', 'admin', NULL, 'public', '{\"value\": true}', '2026-08-11 21:47:06+03', NULL);\n",
+  );
 });
 
 test('active environment fixture is excluded by registry id, not by name', () => {

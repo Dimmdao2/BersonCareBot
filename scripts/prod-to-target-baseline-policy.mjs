@@ -37,9 +37,9 @@ function decodeSqlLiteral(token) {
   return token.slice(1, -1).replaceAll("''", "'");
 }
 
-function splitValues(statement) {
+function splitValues(statement, expectedLength = 18, label = 'saas_tariffs') {
   const start = statement.indexOf(' VALUES (');
-  if (start < 0 || !statement.endsWith(');')) fail('unrecognized saas_tariffs INSERT');
+  if (start < 0 || !statement.endsWith(');')) fail(`unrecognized ${label} INSERT`);
   const body = statement.slice(start + ' VALUES ('.length, -2);
   const values = [];
   let token = '';
@@ -62,7 +62,7 @@ function splitValues(statement) {
     }
   }
   values.push(token.trim());
-  if (quoted || values.length !== 18) fail('unrecognized saas_tariffs VALUES shape');
+  if (quoted || values.length !== expectedLength) fail(`unrecognized ${label} VALUES shape`);
   return values;
 }
 
@@ -151,4 +151,18 @@ export function removeRetiredRuntimeSettings(sql) {
     .filter((line) => !line.includes("VALUES ('integrator_linked_phone_source',"))
     .join('\n')
     .replace(/'integrator_linked_phone_source',\s*/gu, '');
+}
+
+export function sanitizeRuntimeSettingsForCutover(sql) {
+  const prefix = 'INSERT INTO public.app_runtime_settings '
+    + '(key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES (';
+  return removeRetiredRuntimeSettings(sql)
+    .split('\n')
+    .map((line) => {
+      if (!line.startsWith(prefix)) return line;
+      const values = splitValues(line, 7, 'app_runtime_settings');
+      values[6] = 'NULL';
+      return `${prefix}${values.join(', ')});`;
+    })
+    .join('\n');
 }
