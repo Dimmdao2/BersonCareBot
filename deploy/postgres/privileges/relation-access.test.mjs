@@ -236,6 +236,31 @@ test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () =>
   }
 });
 
+test('clinic billing can execute first tariff choice without inheriting staff privileges', () => {
+  const root = declaration.portContext.functions[
+    'app.choose_organization_first_tariff(uuid,uuid)'
+  ];
+  assert.deepEqual(root.execute, ['app_staff', 'app_clinic_billing']);
+});
+
+test('definer aggregate and ctid scans retain the table-level reads required by PostgreSQL', () => {
+  const expected = [
+    ['app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)',
+      'public.auth_rate_limit_events'],
+    ['app.read_curated_playback_health_pre_0196()', 'public.media_playback_resolution_events'],
+    ['app.read_curated_playback_health_pre_0196()', 'public.media_playback_user_video_first_resolve'],
+  ];
+  for (const [signature, relation] of expected) {
+    const root = declaration.portContext.functions[signature];
+    const surface = root.relationSurfaces.find((candidate) => candidate.relation === relation);
+    assert.deepEqual(surface?.tableOperations, ['SELECT'], `${signature}:${relation}`);
+    for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+      const grant = declaration.databases[dbName].tables[relation].grants[root.owner];
+      assert.ok(grant.privs.includes('SELECT'), `${dbName}:${signature}:${relation}`);
+    }
+  }
+});
+
 test('reference catalogs are complete within the current clinic and only staff mutates items', () => {
   for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
     const tables = declaration.databases[dbName].tables;

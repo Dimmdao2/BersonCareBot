@@ -2425,6 +2425,25 @@ const REV10_CONTEXT = {
         'app_tenant_service',
       ],
     },
+    'app.choose_organization_first_tariff(uuid,uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid)'],
+      execute: [
+        ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid)'].execute,
+        'app_clinic_billing',
+      ],
+    },
+    'app.read_curated_playback_health_pre_0196()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_curated_playback_health_pre_0196()'],
+      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
+        'app.read_curated_playback_health_pre_0196()'
+      ].relationSurfaces.map((surface) => ({
+        ...surface,
+        ...(surface.relation === 'public.media_playback_resolution_events'
+          || surface.relation === 'public.media_playback_user_video_first_resolve'
+          ? { tableOperations: ['SELECT' as const] }
+          : {}),
+      })),
+    },
     'app.resolve_organization_cabinet_access(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_cabinet_access(uuid)'],
       delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
@@ -2757,6 +2776,12 @@ const REV10_CONTEXT = {
       typedArgs: ['text', 'text', 'integer', 'integer', 'text', 'integer', 'integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
+        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'
+      ].relationSurfaces.map((surface) => ({
+        ...surface,
+        tableOperations: ['SELECT' as const],
+      })),
     }),
     'app.read_public_runtime_setting(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_public_runtime_setting(text,text)'],
