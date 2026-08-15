@@ -1076,7 +1076,8 @@ BEGIN
       'apple_oauth_client_id', 'apple_oauth_redirect_uri', 'apple_oauth_team_id',
       'apple_oauth_key_id', 'apple_oauth_private_key',
       'vk_id_application_id', 'vk_id_client_secret', 'vk_id_redirect_uri',
-      'telegram_bot_token'
+      'telegram_bot_token',
+      'test_account_identifiers'
     )
      AND setting.key = p_key
      AND setting.scope = 'admin'

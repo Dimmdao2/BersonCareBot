@@ -80,6 +80,7 @@ const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
   'vk_id_client_secret',
   'vk_id_redirect_uri',
   'telegram_bot_token',
+  'test_account_identifiers',
 ]);
 
 const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([

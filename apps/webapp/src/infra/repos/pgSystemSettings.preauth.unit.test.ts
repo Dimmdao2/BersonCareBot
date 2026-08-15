@@ -57,6 +57,22 @@ describe('readAdminSystemSettingString under the pre-login bootstrap principal',
     expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 
+  it('reads the TEST account allowlist through the pre-auth accessor', async () => {
+    fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'bootstrap' });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({
+      rows: [{ value_json: { value: { phones: ['+79990000000'] } } }],
+    });
+
+    await expect(readAdminSystemSettingString('test_account_identifiers')).resolves.toBe(
+      '{"phones":["+79990000000"]}',
+    );
+
+    const [, identity, params] = fakes.runWebappNamedRoot.mock.calls[0] as [unknown, string, unknown[]];
+    expect(identity).toBe('app.read_webapp_preauth_provider_setting(text)');
+    expect(params).toEqual(['test_account_identifiers']);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+  });
+
   it('still uses the raw table SELECT for a key outside the pre-auth allowlist', async () => {
     fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'bootstrap' });
     fakes.runWebappPgText.mockResolvedValueOnce({ rows: [] });
