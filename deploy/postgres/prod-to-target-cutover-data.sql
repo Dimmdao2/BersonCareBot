@@ -719,13 +719,7 @@ FROM (
       AND existing_conversation.source = draft.source
   )
   GROUP BY draft.identity_id, draft.source, identity_map.canonical_id, source_identity.user_id
-) draft_group
-ON CONFLICT (integrator_conversation_id) DO UPDATE
-SET organization_id = EXCLUDED.organization_id,
-    platform_user_id = EXCLUDED.platform_user_id,
-    integrator_user_id = EXCLUDED.integrator_user_id,
-    last_message_at = GREATEST(public.support_conversations.last_message_at, EXCLUDED.last_message_at),
-    updated_at = GREATEST(public.support_conversations.updated_at, EXCLUDED.updated_at);
+) draft_group;
 
 CREATE TEMP TABLE cutover_message_draft_bindings (
   draft_id text PRIMARY KEY,
