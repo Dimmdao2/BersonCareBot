@@ -1893,7 +1893,7 @@ INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression,expected_to
   ('app.email_otp_public_find_user_by_email(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
   ('app.email_otp_public_register_patient(text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_email_otp_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
   ('app.email_password_delete_unverified_registration(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
-  ('app.email_password_find_login_candidate(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name, ''app_pre_session''::name]::name[])', ARRAY[]::text[]),
+  ('app.email_password_find_login_candidate(text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
   ('app.email_password_find_reset_candidate(text)', 'exact', 'app.require_accepted_context(''app_seam_password_auth_owner''::name, ''app_pre_session''::name, ''pre_session''::app.port_context_class, ''auth.password.reset-candidate'', app.hash_port_typed_args(ARRAY[ROW(''text@1'', pg_catalog.textsend($1))::app.port_typed_arg]), ''app.email_password_find_reset_candidate(text)''::regprocedure)', ARRAY[]::text[]),
   ('app.email_password_find_user_id_by_email_challenge(uuid)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
   ('app.email_password_register_pending(text,text,text,text,text,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_password_auth_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[]),
@@ -2253,6 +2253,8 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.email_password_delete_unverified_registration(uuid)', 'public.platform_users', ARRAY['id', 'role', 'email_verified_at', 'merged_into_id']::text[], ARRAY['SELECT', 'DELETE']::text[]),
   ('app.email_password_find_login_candidate(text)', 'public.platform_users', ARRAY['id', 'email_verified_at', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT']::text[]),
   ('app.email_password_find_login_candidate(text)', 'public.user_password_credentials', ARRAY['user_id', 'password_hash']::text[], ARRAY['SELECT']::text[]),
+  ('app.email_password_find_reset_candidate(text)', 'public.platform_users', ARRAY['id', 'merged_into_id', 'email_normalized', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.email_password_find_reset_candidate(text)', 'public.user_password_credentials', ARRAY['user_id']::text[], ARRAY['SELECT']::text[]),
   ('app.email_password_find_user_id_by_email_challenge(uuid)', 'public.email_challenges', ARRAY['id', 'user_id']::text[], ARRAY['SELECT']::text[]),
   ('app.email_password_register_pending(text,text,text,text,text,text)', 'public.platform_users', ARRAY['id', 'display_name', 'role', 'updated_at', 'first_name', 'last_name', 'email', 'merged_into_id', 'email_normalized', 'patronymic']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.email_password_register_pending(text,text,text,text,text,text)', 'public.user_password_credentials', ARRAY['user_id', 'password_hash', 'updated_at']::text[], ARRAY['INSERT']::text[]),
@@ -2713,7 +2715,7 @@ BEGIN
     mutation := (pg_catalog.regexp_match(source, '(\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
     IF mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'DELETE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;
   END LOOP;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=540';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=542';
 END
 $bcb$;
 

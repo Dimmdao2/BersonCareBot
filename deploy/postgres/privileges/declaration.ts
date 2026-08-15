@@ -2456,7 +2456,12 @@ const REV10_CONTEXT = {
       owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'uuid',
       execute: ['app_pre_session'], purpose: 'auth.password.reset-candidate', typedArgs: ['text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      delegatesTo: ['app.email_password_find_login_candidate(text)'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id', 'email_normalized',
+          'email_verified_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.user_password_credentials', columns: ['user_id'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.password_login_acquire_impl(text,text,uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],

@@ -79,7 +79,6 @@ DROP FUNCTION IF EXISTS app.get_staff_security_profile();
 DROP FUNCTION IF EXISTS app.ensure_staff_security_profile();
 DROP FUNCTION IF EXISTS app.require_staff_security_self_user_id();
 DROP FUNCTION IF EXISTS app.email_password_find_user_id_by_email_challenge(uuid);
-DROP FUNCTION IF EXISTS app.email_password_find_reset_candidate(text);
 DROP FUNCTION IF EXISTS app.email_password_find_login_candidate(text);
 DROP FUNCTION IF EXISTS app.email_password_delete_unverified_registration(uuid);
 DROP FUNCTION IF EXISTS app.email_password_register_pending(text, text, text, text, text, text);
@@ -534,10 +533,13 @@ BEGIN
     ]),
     'app.email_password_find_reset_candidate(text)'::regprocedure
   );
-  SELECT candidate.user_id
+  SELECT credentials.user_id
   INTO v_user_id
-  FROM app.email_password_find_login_candidate(p_email_norm) AS candidate
-  WHERE candidate.email_verified = true
+  FROM public.user_password_credentials AS credentials
+  INNER JOIN public.platform_users AS users ON users.id = credentials.user_id
+  WHERE users.merged_into_id IS NULL
+    AND users.email_normalized = lower(btrim(p_email_norm))
+    AND users.email_verified_at IS NOT NULL
   LIMIT 1;
   RETURN v_user_id;
 END
@@ -545,8 +547,6 @@ $$;
 
 COMMENT ON FUNCTION app.email_password_find_reset_candidate(text) IS
   'Exact pre-session password-reset candidate lookup; returns only the verified canonical user id and never exposes a password hash.';
-
-ALTER FUNCTION app.email_password_find_reset_candidate(text) OWNER TO app_owner;
 
 -- Retire the former caller-targeted overload before exposing the self-scoped replacement.
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
