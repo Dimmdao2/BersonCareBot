@@ -3602,6 +3602,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
           'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
+          'patient_phone_trust_at',
           'reminder_muted_until'] },
       { role: 'app_patient', operations: ['UPDATE'],
         columns: ['calendar_timezone', 'reminder_muted_until', 'updated_at'] },

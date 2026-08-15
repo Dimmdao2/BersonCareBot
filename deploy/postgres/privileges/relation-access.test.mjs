@@ -665,7 +665,7 @@ test('runtime settings and account email use semantic row walls without broad pa
       grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
     ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
       'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
-      'reminder_muted_until'],
+      'patient_phone_trust_at', 'reminder_muted_until'],
   );
   const identity = tables['public.user_identity'];
   assert.equal(identity.access.kind, 'direct');
