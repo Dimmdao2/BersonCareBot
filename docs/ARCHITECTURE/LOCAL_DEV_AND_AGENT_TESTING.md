@@ -249,7 +249,7 @@ active membership, а все четыре токена синхронизиру�
 `dev:clinic-admin` — owner-membership и отдельного specialist, `dev:admin` — минимальный `assistant` membership
 без specialist (права global admin даёт platform-role + `adminMode`, а не ownership клиники).
 
-В `locked` dev bypass полностью read-only: найденный по binding аккаунт обязан уже иметь точный preset phone;
+В `locked` и `port-context` dev bypass полностью read-only: найденный по binding аккаунт обязан уже иметь точный preset phone;
 отсутствующий или отличный phone завершает вход fail-closed. Phone, role, organization, membership и specialist
 на входе не исправляются. Это сохраняет D3.4 bootstrap surface SELECT-only.
 

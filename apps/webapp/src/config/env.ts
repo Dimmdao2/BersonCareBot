@@ -371,6 +371,16 @@ export function webappRuntimeDatabaseIsConfigured(input: WebappDatabaseRuntimeEn
     : Boolean((input.DATABASE_URL ?? '').trim());
 }
 
+/** Dev-bypass login must not repair identity data through read-only runtime topologies. */
+export function devBypassDatabaseIdentityIsReadOnly(
+  input: Pick<WebappDatabaseRuntimeEnv, 'DB_PRINCIPAL_CONTEXT_MODE'> = env,
+): boolean {
+  return (
+    input.DB_PRINCIPAL_CONTEXT_MODE === 'locked'
+    || input.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+  );
+}
+
 /**
  * In-memory репозитории: Vitest без БД, либо `next build` без `DATABASE_URL` (CI).
  * `next dev` без URL — ошибка; production runtime без URL — см. `instrumentation.ts` и `getPool()`.

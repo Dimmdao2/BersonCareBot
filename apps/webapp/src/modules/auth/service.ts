@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { decodeBase64Url } from '@/shared/utils/base64url';
-import { env, isProduction, webappRuntimeDatabaseIsConfigured } from '@/config/env';
+import {
+  devBypassDatabaseIdentityIsReadOnly,
+  env,
+  isProduction,
+  webappRuntimeDatabaseIsConfigured,
+} from '@/config/env';
 import type { AppSession, SessionUser, UserRole } from '@/shared/types/session';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import {
@@ -606,7 +611,7 @@ export async function exchangeIntegratorToken(
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
-  const lockedDevBypass = Boolean(devParsed) && env.DB_PRINCIPAL_CONTEXT_MODE === 'locked';
+  const readOnlyDevBypass = Boolean(devParsed) && devBypassDatabaseIdentityIsReadOnly();
   const parsed = devParsed ?? (await parseIntegratorToken(token));
   if (!parsed) {
     if (process.env.NODE_ENV !== 'test') {
@@ -673,14 +678,14 @@ export async function exchangeIntegratorToken(
   if (devParsed && user.role !== parsed.role) {
     // Dev bypass tokens must keep explicit preset role (dev:admin/dev:doctor/dev:client),
     // even when identity resolution returns an existing row with stale role from DB.
-    if (!lockedDevBypass && updateRoleFn && isPlatformUserUuid(user.userId)) {
+    if (!readOnlyDevBypass && updateRoleFn && isPlatformUserUuid(user.userId)) {
       await updateRoleFn(user.userId, parsed.role);
     }
     user = { ...user, role: parsed.role };
   }
 
   if (devParsed && webappRuntimeDatabaseIsConfigured()) {
-    if (lockedDevBypass) {
+    if (readOnlyDevBypass) {
       if (!devBypassPresetPhoneMatches(user, parsed)) return null;
     } else {
       user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);

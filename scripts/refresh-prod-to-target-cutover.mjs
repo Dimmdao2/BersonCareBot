@@ -18,6 +18,19 @@ const repoRoot = resolve(import.meta.dirname, '..');
 const outputRoot = resolve(repoRoot, 'deploy/postgres/generated/prod-to-target');
 const database = 'bcb_webapp_dev';
 
+function canonicalizePolicyRoleOrder(sql) {
+  return sql.replace(
+    /^(CREATE POLICY .*?\bTO )([^;]+?)(?=(?: USING| WITH CHECK|;))/gmu,
+    (_statement, prefix, roles) => {
+      const orderedRoles = roles
+        .split(',')
+        .map((role) => role.trim())
+        .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+      return `${prefix}${orderedRoles.join(', ')}`;
+    },
+  );
+}
+
 const artifacts = [
   {
     file: 'schema-pre.sql',
@@ -32,6 +45,7 @@ const artifacts = [
     file: 'schema-post.sql',
     restrictKey: 'VDILCdWDLrtgsAi05DRibKYGuJsuS0NQ9kSaFgv4afgfloUq45O3UwSg2t8hlKI',
     args: ['--schema-only', '--section=post-data'],
+    transform: canonicalizePolicyRoleOrder,
   },
   {
     file: 'ledgers-and-baseline.sql',
