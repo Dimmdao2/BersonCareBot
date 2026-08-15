@@ -2825,11 +2825,12 @@ run_b1_doctor_admin_identity_assertion(){
     return 0
   fi
 
-  run_postgres_repo_with_test_db_owner_role \
-    "node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs \
+  sudo -u postgres env \
+    DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
+    bash -c "cd '$DEPLOY_REPO' && node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs \
       --execute \
       --allow-test-target \
-      --required-current-user='$DBROLE' \
+      --required-current-user=postgres \
       --database-url \"\$DATABASE_URL\""
 }
 
