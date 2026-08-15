@@ -608,6 +608,36 @@ test('staff reads only the global paid-period rule needed for its own access cal
   );
 });
 
+test('clinic billing can evaluate only its own tariff transition metadata', () => {
+  for (const relation of [
+    'public.saas_org_entitlement_overrides',
+    'public.saas_organization_trials',
+  ]) {
+    const table = declaration.databases.bersoncarebot_test.tables[relation];
+    const billing = table.access.grants.find((grant) => grant.role === 'app_clinic_billing');
+    assert.deepEqual(billing?.operations, ['SELECT'], relation);
+    assert.equal(billing?.columns, 'table', relation);
+    const policy = table.policies.find((candidate) =>
+      candidate.name.startsWith('rev10_direct_business_'));
+    assert.match(policy?.using ?? '', /app_clinic_billing/, relation);
+    assert.match(policy?.using ?? '', /organization_id = app\.current_org_id\(\)/, relation);
+  }
+
+  const paidPolicy = declaration.databases.bersoncarebot_test.tables[
+    'public.saas_paid_period_policy'
+  ];
+  const billing = paidPolicy.access.grants.find(
+    (grant) => grant.role === 'app_clinic_billing',
+  );
+  assert.deepEqual(billing?.operations, ['SELECT']);
+  assert.deepEqual(billing?.columns, [
+    'key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
+  ]);
+  const policy = paidPolicy.policies.find((candidate) =>
+    candidate.name.startsWith('rev10_direct_business_'));
+  assert.match(policy?.using ?? '', /app_clinic_billing/);
+});
+
 test('lifecycle notification seam can read the value returned by its organization update', () => {
   const fn = declaration.portContext.functions[
     'app.prepare_organization_lifecycle_notification_context(uuid)'

@@ -7929,6 +7929,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -7969,6 +7976,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/modules/saas-billing/ports.ts"
     ],
     "grants": [
+      {
+        "role": "app_clinic_billing",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
       {
         "role": "app_staff",
         "operations": [

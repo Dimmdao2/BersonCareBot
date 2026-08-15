@@ -3961,6 +3961,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
     ],
     grants: [
+      { role: 'app_clinic_billing', operations: ['SELECT'],
+        columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active'] },
       { role: 'app_staff', operations: ['SELECT'],
         columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active'] },
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
@@ -4360,6 +4362,7 @@ const REV10_EXPLICIT_ORG_COLUMN = new Set([
   'public.organization_slug_claims', 'public.organization_slug_rename_events', 'public.patient_bookings',
   'public.product_analytics_hourly', 'public.saas_billing_accounts', 'public.saas_billing_invoices',
   'public.saas_billing_provider_events', 'public.saas_billing_refunds', 'public.saas_billing_subscriptions',
+  'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
 ]);
 
 function revision10DirectBusinessPredicate(tableKey: string, access: Extract<RelationAccess, { kind: 'direct' }>): string {
@@ -4681,6 +4684,7 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
       'public.content_section_slug_history', 'public.reference_categories', 'public.reference_items',
       'public.reminder_occurrence_history',
+      'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
       'public.support_conversations']).has(key);
     const directBusiness: PolicyDecl[] = access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
       name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
