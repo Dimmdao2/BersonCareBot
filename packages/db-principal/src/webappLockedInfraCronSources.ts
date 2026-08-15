@@ -23,6 +23,14 @@ export const WEBAPP_LOCKED_INFRA_CRON_SOURCES = new Set<string>([
   'api/internal/heartbeat/digest:GET',
 ]);
 
+export const WEBAPP_LOCKED_MEDIA_CRON_SOURCES = new Set<string>([
+  'api/internal/media-pending-delete/purge:POST',
+  'api/internal/media-multipart/cleanup:POST',
+  'api/internal/media-preview/process:POST',
+  'api/internal/media-transcode/enqueue:POST',
+  'api/internal/media-transcode/reconcile:POST',
+]);
+
 /**
  * The media worker has no PostgreSQL credential. Its authenticated HTTP control
  * route is the sole non-cron infra caller which may use the staff pool, and it
@@ -34,6 +42,11 @@ export const WEBAPP_LOCKED_MEDIA_WORKER_CONTROL_SOURCE =
 export function isWebappLockedInfraCronSource(source: string | undefined): boolean {
   const normalized = source?.trim() ?? '';
   return normalized.length > 0 && WEBAPP_LOCKED_INFRA_CRON_SOURCES.has(normalized);
+}
+
+export function isWebappLockedMediaCronSource(source: string | undefined): boolean {
+  const normalized = source?.trim() ?? '';
+  return normalized.length > 0 && WEBAPP_LOCKED_MEDIA_CRON_SOURCES.has(normalized);
 }
 
 export function isWebappLockedMediaWorkerControlSource(source: string | undefined): boolean {

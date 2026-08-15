@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHmac, randomUUID } from 'node:crypto';
 import {
   isWebappLockedInfraCronSource,
+  isWebappLockedMediaCronSource,
   isWebappLockedMediaWorkerControlSource,
 } from './webappLockedInfraCronSources.js';
 
@@ -1436,6 +1437,8 @@ export function createSaasIsolationBackgroundReporter(input: {
 export {
   WEBAPP_LOCKED_INFRA_CRON_SOURCES,
   isWebappLockedInfraCronSource,
+  WEBAPP_LOCKED_MEDIA_CRON_SOURCES,
+  isWebappLockedMediaCronSource,
   WEBAPP_LOCKED_MEDIA_WORKER_CONTROL_SOURCE,
   isWebappLockedMediaWorkerControlSource,
 } from './webappLockedInfraCronSources.js';

@@ -67,6 +67,7 @@ export async function POST(request: Request) {
     const result = await purgeStalePlaybackHourlyStats({
       dryRun,
       retentionDays,
+      throwErrors: true,
     });
 
     logger.info(

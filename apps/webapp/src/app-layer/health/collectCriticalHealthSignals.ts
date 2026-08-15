@@ -39,6 +39,10 @@ import {
   readEmptyAudienceSignal,
   readOperatorHeartbeatVerdicts,
 } from '@/app-layer/health/deliveryHeartbeatObserver';
+import {
+  loadCuratedSystemHealthSnapshot,
+  type CuratedSystemHealthSnapshot,
+} from '@/infra/repos/pgCuratedSystemHealthDiagnostics';
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -152,6 +156,111 @@ async function loadBackupJobsMap(
   return backupJobs;
 }
 
+function findCuratedJob(
+  snapshot: CuratedSystemHealthSnapshot,
+  jobFamily: string,
+  jobKey: string,
+) {
+  return snapshot.operatorJobs.find(
+    (job) => job.jobFamily === jobFamily && job.jobKey === jobKey,
+  );
+}
+
+function curatedBackupJobsMap(
+  snapshot: CuratedSystemHealthSnapshot,
+): Record<string, { lastStatus: string }> {
+  const backupJobs: Record<string, { lastStatus: string }> = {};
+  for (const job of snapshot.operatorJobs) {
+    if (job.jobFamily === 'backup') backupJobs[job.jobKey] = { lastStatus: job.lastStatus };
+  }
+  return backupJobs;
+}
+
+function curatedVideoTranscodeStatus(
+  snapshot: CuratedSystemHealthSnapshot,
+): VideoTranscodeHealthStatus {
+  const reconcileJob = findCuratedJob(
+    snapshot,
+    OPERATOR_MEDIA_JOB_FAMILY,
+    OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+  );
+  return classifyVideoTranscodeSystemHealthStatus({
+    pipelineEnabled: snapshot.config.pipelineEnabled,
+    reconcileEnabled: snapshot.config.reconcileEnabled,
+    pendingCount: snapshot.videoTranscode.pendingCount,
+    oldestPendingAgeSeconds: snapshot.videoTranscode.oldestPendingAgeSeconds,
+    failedLastHour: snapshot.videoTranscode.failedLastHour,
+    failedLast24h: snapshot.videoTranscode.failedLast24h,
+    reconcileLastStatus: reconcileJob?.lastStatus ?? null,
+  });
+}
+
+/** Scheduler path: sensitive cross-tenant aggregates come only from the curated diagnostics root. */
+async function collectScheduledCriticalHealthSignalsBase(
+  read: ReturnType<typeof buildAppDeps>['operatorHealthRead'],
+): Promise<CriticalHealthSignalsInput> {
+  const [webappDb, integratorApi, projection, snapshot, webhookBursts, operatorIncidents] =
+    await Promise.all([
+      probeWebappDb(),
+      probeIntegratorApi(),
+      probeProjection(),
+      loadCuratedSystemHealthSnapshot(),
+      read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
+      read.listOpenIncidents(100),
+    ]);
+  const [heartbeats, emptyAudience] = await Promise.all([
+    readOperatorHeartbeatVerdicts().catch(() => []),
+    readEmptyAudienceSignal().catch(() => undefined),
+  ]);
+  const outgoingDelivery = snapshot.outgoingDelivery;
+  const outboundProviderIncidents = operatorIncidents.filter(
+    (incident) => incident.direction === 'outbound_delivery_provider',
+  );
+  const probeJob = findCuratedJob(
+    snapshot,
+    OPERATOR_HEALTH_JOB_FAMILY,
+    OPERATOR_OUTBOUND_PROBE_JOB_KEY,
+  );
+
+  return {
+    webappDb,
+    integratorApi,
+    projection,
+    outgoingDelivery: {
+      deadTotal: outgoingDelivery.deadTotal,
+      dueBacklog: outgoingDelivery.dueBacklog,
+    },
+    deliveryEvidence: {
+      confirmedDeliveries: outgoingDelivery.confirmedSentLast24h ?? 0,
+      lastConfirmedDeliveryAt: outgoingDelivery.lastSentAt ?? null,
+      oldestUnsentAgeSeconds: outgoingDelivery.oldestDueAgeSeconds,
+    },
+    heartbeats,
+    ...(emptyAudience ? { emptyAudience } : {}),
+    outboundDeliveryProvider: {
+      recentIncidentCount: countRecentOutboundProviderFailureIncidents(operatorIncidents),
+      openIncidentCount: outboundProviderIncidents.length,
+      openIncidents: outboundProviderIncidents,
+    },
+    integratorPushOutbox: {
+      dueBacklog: snapshot.integratorPushOutbox.dueBacklog,
+      deadTotal: snapshot.integratorPushOutbox.deadTotal,
+      oldestDueAgeSeconds: snapshot.integratorPushOutbox.oldestDueAgeSeconds,
+      dueByKind: snapshot.integratorPushOutbox.dueByKind,
+      deadByKind: snapshot.integratorPushOutbox.deadByKind,
+      processingCount: snapshot.integratorPushOutbox.processingCount,
+      oldestProcessingAgeSeconds:
+        snapshot.integratorPushOutbox.oldestProcessingAgeSeconds ?? null,
+      lastQueueActivityAt: snapshot.integratorPushOutbox.lastQueueActivityAt,
+    },
+    backupJobs: curatedBackupJobsMap(snapshot),
+    probeConsecutiveFailRuns: readProbeConsecutiveFailRuns(probeJob?.safeMeta),
+    probeIncidentsOpenCount: operatorIncidents.filter(isOperatorProbeFailureIncident).length,
+    videoTranscodeStatus: curatedVideoTranscodeStatus(snapshot),
+    webhookBursts,
+  };
+}
+
 /** Shared lightweight probes (without media/playback/engagement or isolation state). */
 async function collectCriticalHealthSignalsBase(
   read: ReturnType<typeof buildAppDeps>['operatorHealthRead'],
@@ -225,7 +334,7 @@ async function collectCriticalHealthSignalsBase(
 export async function collectCriticalHealthSignals(): Promise<CriticalHealthSignalsInput> {
   const deps = buildAppDeps();
   const [base, isolationDiagnostics, isolationCanary] = await Promise.all([
-    collectCriticalHealthSignalsBase(deps.operatorHealthRead),
+    collectScheduledCriticalHealthSignalsBase(deps.operatorHealthRead),
     deps.saasIsolationDiagnostics.readHealth().catch(() => null),
     deps.operatorHealthRead.getTenantIsolationCanarySnapshot().catch(() => null),
   ]);

@@ -26,6 +26,7 @@ import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import {
   getCurrentDbPrincipal,
+  isWebappLockedMediaCronSource,
   runWithDbBootstrapPrincipal,
 } from '@bersoncare/db-principal';
 
@@ -57,7 +58,16 @@ type SystemSettingValueRow = {
 
 export type MediaWorkerRuntimeSettingKey =
   | 'video_hls_pipeline_enabled'
+  | 'video_hls_reconcile_enabled'
+  | 'video_hls_new_uploads_auto_transcode'
   | 'video_watermark_enabled';
+
+const MEDIA_WORKER_RUNTIME_SETTING_KEYS: ReadonlySet<string> = new Set([
+  'video_hls_pipeline_enabled',
+  'video_hls_reconcile_enabled',
+  'video_hls_new_uploads_auto_transcode',
+  'video_watermark_enabled',
+]);
 
 /**
  * Keys `app.read_webapp_preauth_provider_setting(text)` (migration 0343) exposes to the bare
@@ -181,6 +191,14 @@ export async function readAdminSystemSettingInnerValue(
   // unchanged (getByKey's patient-UI branch above is the same shape, one seam, split by key set).
   if (getCurrentDbPrincipal()?.kind === 'bootstrap' && PREAUTH_PROVIDER_SETTING_KEYS.has(key)) {
     return readPreAuthProviderSettingInnerValue(key);
+  }
+  const principal = getCurrentDbPrincipal();
+  if (
+    principal?.kind === 'infra'
+    && isWebappLockedMediaCronSource(principal.source)
+    && MEDIA_WORKER_RUNTIME_SETTING_KEYS.has(key)
+  ) {
+    return readMediaWorkerRuntimeSettingInnerValue(key as MediaWorkerRuntimeSettingKey);
   }
   return readSystemSettingInnerValueByScopes(key, ['admin'], options);
 }

@@ -1785,7 +1785,7 @@ const db_bcb_webapp_dev: DatabaseDecl = {
 const REV10_RUNTIME = [
   'app_pre_session', 'app_staff', 'app_patient', 'app_clinic_billing', 'app_platform_settings',
   'app_platform_admin', 'app_worker',
-  'app_operational_media_worker', 'saas_telemetry_operator', 'app_integrator_request',
+  'app_operational_media_worker', 'app_operational_maintenance', 'saas_telemetry_operator', 'app_integrator_request',
   'app_integrator_resolver', 'app_operational_delivery_worker', 'app_operational_scheduler',
   'app_tenant_service', 'app_service',
 ] as const;
@@ -1835,7 +1835,7 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
   dev: {
     bcb_dev_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
       ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker', 'app_tenant_service',
-        'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
+        'app_operational_media_worker', 'app_operational_maintenance', 'saas_telemetry_operator'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_DEV_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
     bcb_dev_webapp_patient: { port: 'webapp', canonicalRole: 'app_patient', memberships: [
@@ -1855,7 +1855,7 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
   test: {
     bcb_test_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
       ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker', 'app_tenant_service',
-        'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
+        'app_operational_media_worker', 'app_operational_maintenance', 'saas_telemetry_operator'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_TEST_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
     bcb_test_webapp_patient: { port: 'webapp', canonicalRole: 'app_patient', memberships: [
@@ -1905,13 +1905,16 @@ const INTEGRATOR_SERVICE_SOURCES = [
 const INTEGRATOR_MIGRATION_LEDGER_SOURCES = ['integrator-startup-migration-ledger'] as const;
 const WEBAPP_MEDIA_SOURCES = [
   'api/internal/media-worker/control:POST',
-  'api/internal/media-hls-proxy-errors/retention:POST',
-  'api/internal/media-playback-stats/retention:POST',
   'api/internal/media-pending-delete/purge:POST',
   'api/internal/media-multipart/cleanup:POST',
   'api/internal/media-preview/process:POST',
   'api/internal/media-transcode/enqueue:POST',
   'api/internal/media-transcode/reconcile:POST',
+] as const;
+const WEBAPP_MAINTENANCE_SOURCES = [
+  'api/internal/media-hls-proxy-errors/retention:POST',
+  'api/internal/media-playback-stats/retention:POST',
+  'api/internal/product-analytics/retention:POST',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
@@ -1923,12 +1926,12 @@ const WEBAPP_WORKER_SOURCES = [
   'api/internal/operator-health-digest/tick:POST',
   'api/internal/operator-health-critical/tick:POST',
   'api/internal/system-health-guard/tick:POST',
-  'api/internal/product-analytics/retention:POST',
   'api/internal/specialist-task-reminders/tick:POST',
   'api/internal/heartbeat/pipeline_delivery:POST',
   'api/internal/heartbeat/pipeline_delivery:GET',
   'api/internal/heartbeat/digest:POST',
   'api/internal/heartbeat/digest:GET',
+  'operator-cron-job-status:write',
   'webapp-health-check',
   'api/health:GET',
 ] as const;
@@ -2137,6 +2140,9 @@ const REV10_CONTEXT = {
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
+    webapp_maintenance_relation: { port: 'webapp', runtimeName: 'maintenance', sessionRole: 'app_staff',
+      targetRole: 'app_operational_maintenance', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_MAINTENANCE_SOURCES },
     webapp_telemetry_relation: { port: 'webapp', runtimeName: 'telemetry', sessionRole: 'app_staff',
       targetRole: 'saas_telemetry_operator', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_TELEMETRY_SOURCES },
@@ -3852,11 +3858,31 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         'video_delivery_override', 'video_duration_seconds', 'video_processing_status',
       ] },
       { role: 'app_operational_media_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_operational_media_worker', operations: ['UPDATE'], columns: [
-        'available_qualities_json', 'hls_artifact_prefix', 'hls_master_playlist_s3_key', 'mime_type',
-        'poster_s3_key', 's3_key', 'video_delivery_override', 'video_duration_seconds',
-        'video_processing_error', 'video_processing_status',
-      ] },
+      { role: 'app_operational_media_worker', operations: ['UPDATE', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.media_upload_sessions': {
+    kind: 'direct',
+    purpose: 'the accepted media housekeeping worker expires multipart sessions across clinics',
+    codePaths: ['apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts'],
+    grants: [
+      { role: 'app_operational_media_worker', operations: ['SELECT', 'UPDATE', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.media_playback_stats_hourly': {
+    kind: 'direct',
+    purpose: 'the accepted media housekeeping worker deletes expired aggregate playback telemetry',
+    codePaths: ['apps/webapp/src/app-layer/media/playbackStats.ts'],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.media_hls_proxy_error_events': {
+    kind: 'direct',
+    purpose: 'the accepted media housekeeping worker deletes expired HLS proxy diagnostics',
+    codePaths: ['apps/webapp/src/app-layer/media/hlsProxyErrorEvents.ts'],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
   },
   'public.org_brand_revisions': {
@@ -3912,6 +3938,54 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         'job_family', 'last_status', 'last_started_at', 'last_finished_at', 'last_success_at',
         'last_failure_at', 'last_duration_ms', 'last_error', 'meta_json',
       ] },
+    ],
+  },
+  'public.operator_incidents': {
+    kind: 'direct',
+    purpose: 'the accepted health worker reads and advances only the operator incident lifecycle',
+    codePaths: ['apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts', 'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts'],
+    grants: [
+      { role: 'app_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_worker', operations: ['INSERT'], columns: [
+        'dedup_key', 'direction', 'integration', 'error_class', 'error_detail', 'opened_at', 'last_seen_at',
+      ] },
+      { role: 'app_worker', operations: ['UPDATE'], columns: [
+        'last_seen_at', 'occurrence_count', 'error_detail', 'alert_sent_at', 'resolved_at',
+        'initial_alert_sent_at', 'one_hour_alert_sent_at', 'alert_claim_phase', 'alert_claim_token',
+        'alert_claimed_at',
+      ] },
+    ],
+  },
+  'public.product_analytics_events_recent': {
+    kind: 'direct',
+    purpose: 'the accepted housekeeping worker deletes expired recent product events',
+    codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgeRecentOlderThan'],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.product_analytics_user_hourly': {
+    kind: 'direct',
+    purpose: 'the accepted housekeeping worker deletes expired per-user analytics aggregates',
+    codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgeUserHourlyOlderThan'],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.product_analytics_hourly': {
+    kind: 'direct',
+    purpose: 'the accepted housekeeping worker deletes expired anonymous analytics aggregates',
+    codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgeHourlyOlderThan'],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.product_push_notifications': {
+    kind: 'direct',
+    purpose: 'the accepted housekeeping worker deletes expired push analytics correlation rows',
+    codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgePushNotificationsOlderThan'],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
   },
   'public.outgoing_delivery_queue': {
@@ -4105,7 +4179,7 @@ function revision10TableGrants(access: RelationAccess): Record<string, GrantDecl
   }]));
 }
 
-const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','app_platform_admin','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
+const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','app_platform_admin','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_maintenance','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
 const REV10_EMPTY_TYPED_ARGS_HASH = "decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex')";
 
 function revision10ContextGates(table: string, index: number, access: RelationAccess): PolicyDecl[] {

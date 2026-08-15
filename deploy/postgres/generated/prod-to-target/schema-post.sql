@@ -9838,14 +9838,14 @@ ALTER TABLE app.principal_context ENABLE ROW LEVEL SECURITY;
 -- Name: context_nonce_ledger rev10_context_gate_1; Type: POLICY; Schema: app; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_1 ON app.context_nonce_ledger AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_1 ON app.context_nonce_ledger AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -9854,7 +9854,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -9863,14 +9863,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: principal_context rev10_context_gate_3; Type: POLICY; Schema: app; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_3 ON app.principal_context AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_3 ON app.principal_context AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -9879,7 +9879,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -9888,21 +9888,21 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: context_nonce_ledger rev10_fail_closed_1; Type: POLICY; Schema: app; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_1 ON app.context_nonce_ledger TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_1 ON app.context_nonce_ledger TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: context_signing_secrets rev10_fail_closed_2; Type: POLICY; Schema: app; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_2 ON app.context_signing_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_2 ON app.context_signing_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: principal_context rev10_fail_closed_3; Type: POLICY; Schema: app; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_3 ON app.principal_context TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_3 ON app.principal_context TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
@@ -9994,14 +9994,14 @@ ALTER TABLE drizzle.__drizzle_migrations ENABLE ROW LEVEL SECURITY;
 -- Name: __drizzle_migrations rev10_context_gate_4; Type: POLICY; Schema: drizzle; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_4 ON drizzle.__drizzle_migrations AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_4 ON drizzle.__drizzle_migrations AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -10010,7 +10010,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -10019,7 +10019,7 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: __drizzle_migrations rev10_fail_closed_4; Type: POLICY; Schema: drizzle; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_4 ON drizzle.__drizzle_migrations TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_4 ON drizzle.__drizzle_migrations TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
@@ -10057,7 +10057,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -10066,7 +10066,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -10082,7 +10082,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -10091,7 +10091,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -10107,7 +10107,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -10116,7 +10116,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -10132,28 +10132,28 @@ CREATE POLICY rev10_direct_business_12 ON integrator.projection_outbox TO app_in
 -- Name: idempotency_keys rev10_fail_closed_10; Type: POLICY; Schema: integrator; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_10 ON integrator.idempotency_keys TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_10 ON integrator.idempotency_keys TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: integration_data_quality_incidents rev10_fail_closed_11; Type: POLICY; Schema: integrator; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_11 ON integrator.integration_data_quality_incidents TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_11 ON integrator.integration_data_quality_incidents TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: schema_migrations rev10_fail_closed_14; Type: POLICY; Schema: integrator; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_14 ON integrator.schema_migrations TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_14 ON integrator.schema_migrations TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: delivery_attempt_logs rev10_fail_closed_9; Type: POLICY; Schema: integrator; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_9 ON integrator.delivery_attempt_logs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_9 ON integrator.delivery_attempt_logs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
@@ -11295,7 +11295,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11304,7 +11304,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11320,7 +11320,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11329,7 +11329,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11345,7 +11345,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11354,7 +11354,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11370,7 +11370,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11379,7 +11379,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11395,7 +11395,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11404,7 +11404,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11420,7 +11420,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11429,7 +11429,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11445,7 +11445,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11454,7 +11454,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11470,7 +11470,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11479,7 +11479,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11495,7 +11495,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11504,7 +11504,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11520,7 +11520,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11529,7 +11529,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11545,7 +11545,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11554,7 +11554,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11570,7 +11570,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11579,7 +11579,32 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    ELSE 'staff'::app.port_context_class
+END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
+
+
+--
+-- Name: media_hls_proxy_error_events rev10_context_gate_113; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_113 ON public.media_hls_proxy_error_events AS RESTRICTIVE TO app_operational_maintenance USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CASE
+    WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    ELSE 'staff'::app.port_context_class
+END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CASE
+    WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11595,7 +11620,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11604,7 +11629,32 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    ELSE 'staff'::app.port_context_class
+END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
+
+
+--
+-- Name: media_playback_stats_hourly rev10_context_gate_116; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_116 ON public.media_playback_stats_hourly AS RESTRICTIVE TO app_operational_maintenance USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CASE
+    WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    ELSE 'staff'::app.port_context_class
+END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CASE
+    WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11620,7 +11670,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11629,7 +11679,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11645,7 +11695,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11654,7 +11704,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11663,14 +11713,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: media_upload_sessions rev10_context_gate_119; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_119 ON public.media_upload_sessions AS RESTRICTIVE TO app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_119 ON public.media_upload_sessions AS RESTRICTIVE TO app_operational_media_worker, app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11679,7 +11729,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11695,7 +11745,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11704,7 +11754,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11720,7 +11770,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11729,7 +11779,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11745,7 +11795,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11754,7 +11804,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11763,14 +11813,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: online_intake_answers rev10_context_gate_123; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_123 ON public.online_intake_answers AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_123 ON public.online_intake_answers AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11779,7 +11829,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11795,7 +11845,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11804,7 +11854,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11820,7 +11870,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11829,7 +11879,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11838,14 +11888,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: online_intake_status_history rev10_context_gate_126; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_126 ON public.online_intake_status_history AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_126 ON public.online_intake_status_history AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11854,7 +11904,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11870,7 +11920,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11879,7 +11929,32 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    ELSE 'staff'::app.port_context_class
+END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
+
+
+--
+-- Name: operator_incidents rev10_context_gate_129; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_129 ON public.operator_incidents AS RESTRICTIVE TO app_worker USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CASE
+    WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    ELSE 'staff'::app.port_context_class
+END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CASE
+    WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+    WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11895,7 +11970,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11904,7 +11979,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11920,7 +11995,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11929,7 +12004,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11945,7 +12020,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11954,7 +12029,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11970,7 +12045,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -11979,7 +12054,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -11995,7 +12070,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12004,7 +12079,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12020,7 +12095,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12029,7 +12104,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12045,7 +12120,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12054,7 +12129,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12070,7 +12145,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12079,7 +12154,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12095,7 +12170,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12104,7 +12179,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12120,7 +12195,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12129,7 +12204,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12145,7 +12220,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12154,7 +12229,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12170,7 +12245,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12179,7 +12254,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12195,7 +12270,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12204,7 +12279,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12220,7 +12295,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12229,7 +12304,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12245,7 +12320,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12254,7 +12329,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12270,7 +12345,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12279,7 +12354,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12295,7 +12370,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12304,7 +12379,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12320,7 +12395,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12329,7 +12404,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12345,7 +12420,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12354,7 +12429,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12370,7 +12445,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12379,7 +12454,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12395,7 +12470,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12404,7 +12479,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12420,7 +12495,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12429,7 +12504,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12445,7 +12520,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12454,7 +12529,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12470,7 +12545,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12479,7 +12554,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12488,14 +12563,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: product_analytics_events_recent rev10_context_gate_159; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_159 ON public.product_analytics_events_recent AS RESTRICTIVE TO app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_159 ON public.product_analytics_events_recent AS RESTRICTIVE TO app_operational_maintenance, app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12504,7 +12579,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12513,14 +12588,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: product_analytics_hourly rev10_context_gate_160; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_160 ON public.product_analytics_hourly AS RESTRICTIVE TO app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_160 ON public.product_analytics_hourly AS RESTRICTIVE TO app_operational_maintenance, app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12529,7 +12604,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12538,14 +12613,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: product_analytics_user_hourly rev10_context_gate_161; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_161 ON public.product_analytics_user_hourly AS RESTRICTIVE TO app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_161 ON public.product_analytics_user_hourly AS RESTRICTIVE TO app_operational_maintenance, app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12554,7 +12629,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12563,14 +12638,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: product_push_notifications rev10_context_gate_162; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_162 ON public.product_push_notifications AS RESTRICTIVE TO app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_162 ON public.product_push_notifications AS RESTRICTIVE TO app_operational_maintenance, app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12579,7 +12654,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12595,7 +12670,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12604,7 +12679,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12620,7 +12695,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12629,7 +12704,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12645,7 +12720,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12654,7 +12729,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12670,7 +12745,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12679,7 +12754,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12695,7 +12770,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12704,7 +12779,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12720,7 +12795,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12729,7 +12804,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12745,7 +12820,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12754,7 +12829,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12770,7 +12845,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12779,7 +12854,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12795,7 +12870,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12804,7 +12879,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12820,7 +12895,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12829,7 +12904,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12845,7 +12920,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12854,7 +12929,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12870,7 +12945,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12879,7 +12954,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12895,7 +12970,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12904,7 +12979,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12920,7 +12995,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12929,7 +13004,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12945,7 +13020,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12954,7 +13029,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12970,7 +13045,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -12979,7 +13054,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -12995,7 +13070,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13004,7 +13079,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13020,7 +13095,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13029,7 +13104,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13045,7 +13120,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13054,7 +13129,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13070,7 +13145,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13079,7 +13154,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13095,7 +13170,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13104,7 +13179,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13120,7 +13195,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13129,7 +13204,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13145,7 +13220,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13154,7 +13229,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13170,7 +13245,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13179,7 +13254,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13195,7 +13270,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13204,7 +13279,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13220,7 +13295,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13229,7 +13304,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13245,7 +13320,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13254,7 +13329,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13270,7 +13345,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13279,7 +13354,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13295,7 +13370,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13304,7 +13379,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13320,7 +13395,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13329,7 +13404,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13345,7 +13420,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13354,7 +13429,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13370,7 +13445,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13379,7 +13454,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13395,7 +13470,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13404,7 +13479,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13420,7 +13495,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13429,7 +13504,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13445,7 +13520,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13454,7 +13529,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13470,7 +13545,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13479,7 +13554,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13495,7 +13570,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13504,7 +13579,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13520,7 +13595,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13529,7 +13604,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13545,7 +13620,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13554,7 +13629,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13570,7 +13645,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13579,7 +13654,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13595,7 +13670,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13604,7 +13679,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13620,7 +13695,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13629,7 +13704,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13645,7 +13720,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13654,7 +13729,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13670,7 +13745,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13679,7 +13754,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13695,7 +13770,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13704,7 +13779,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13720,7 +13795,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13729,7 +13804,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13745,7 +13820,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13754,7 +13829,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13770,7 +13845,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13779,7 +13854,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13795,7 +13870,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13804,7 +13879,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13820,7 +13895,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13829,7 +13904,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13845,7 +13920,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13854,7 +13929,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13870,7 +13945,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13879,7 +13954,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13895,7 +13970,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13904,7 +13979,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13920,7 +13995,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13929,7 +14004,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13945,7 +14020,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13954,7 +14029,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13970,7 +14045,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -13979,7 +14054,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -13995,7 +14070,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14004,7 +14079,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14013,14 +14088,14 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: webapp_schema_migrations rev10_context_gate_233; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_233 ON public.webapp_schema_migrations AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_233 ON public.webapp_schema_migrations AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14029,7 +14104,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14045,7 +14120,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14054,7 +14129,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14070,7 +14145,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14079,7 +14154,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14095,7 +14170,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14104,7 +14179,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14120,7 +14195,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14129,7 +14204,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14145,7 +14220,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14154,7 +14229,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14170,7 +14245,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14179,7 +14254,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14195,7 +14270,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14204,7 +14279,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14220,7 +14295,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14229,7 +14304,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14245,7 +14320,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14254,7 +14329,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14270,7 +14345,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14279,7 +14354,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14295,7 +14370,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14304,7 +14379,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14320,7 +14395,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14329,7 +14404,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14345,7 +14420,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14354,7 +14429,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14370,7 +14445,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14379,7 +14454,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14395,7 +14470,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14404,7 +14479,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14420,7 +14495,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14429,7 +14504,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14445,7 +14520,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14454,7 +14529,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14470,7 +14545,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14479,7 +14554,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14495,7 +14570,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14504,7 +14579,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14520,7 +14595,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14529,7 +14604,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14545,7 +14620,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14554,7 +14629,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14570,7 +14645,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14579,7 +14654,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14595,7 +14670,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14604,7 +14679,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14620,7 +14695,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14629,7 +14704,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14645,7 +14720,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14654,7 +14729,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14670,7 +14745,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14679,7 +14754,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14695,7 +14770,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14704,7 +14779,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14720,7 +14795,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14729,7 +14804,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14745,7 +14820,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14754,7 +14829,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14770,7 +14845,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14779,7 +14854,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14795,7 +14870,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14804,7 +14879,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14820,7 +14895,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14829,7 +14904,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14845,7 +14920,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14854,7 +14929,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14870,7 +14945,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14879,7 +14954,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14895,7 +14970,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14904,7 +14979,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14920,7 +14995,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14929,7 +15004,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14945,7 +15020,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14954,7 +15029,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14970,7 +15045,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -14979,7 +15054,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -14995,7 +15070,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15004,7 +15079,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15020,7 +15095,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15029,7 +15104,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15045,7 +15120,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15054,7 +15129,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15070,7 +15145,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15079,7 +15154,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15095,7 +15170,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15104,7 +15179,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15120,7 +15195,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15129,7 +15204,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15145,7 +15220,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15154,7 +15229,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15170,7 +15245,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15179,7 +15254,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15195,7 +15270,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15204,7 +15279,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15220,7 +15295,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15229,7 +15304,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15245,7 +15320,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15254,7 +15329,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15270,7 +15345,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15279,7 +15354,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15295,7 +15370,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15304,7 +15379,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15320,7 +15395,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15329,7 +15404,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15345,7 +15420,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15354,7 +15429,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15370,7 +15445,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15379,7 +15454,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15395,7 +15470,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15404,7 +15479,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15420,7 +15495,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15429,7 +15504,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15445,7 +15520,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15454,7 +15529,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15470,7 +15545,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15479,7 +15554,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15495,7 +15570,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15504,7 +15579,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15520,7 +15595,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15529,7 +15604,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15545,7 +15620,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15554,7 +15629,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15570,7 +15645,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15579,7 +15654,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15595,7 +15670,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
@@ -15604,7 +15679,7 @@ CASE
     WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
     WHEN (CURRENT_USER = 'app_tenant_service'::name) THEN 'tenant_service'::app.port_context_class
     WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+    WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
     ELSE 'staff'::app.port_context_class
 END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure));
 
@@ -15637,6 +15712,20 @@ CREATE POLICY rev10_courses_staff_write_90 ON public.courses TO app_staff USING 
 --
 
 CREATE POLICY rev10_direct_business_109 ON public.manual_patient_commands TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = app.current_org_id()))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = app.current_org_id())));
+
+
+--
+-- Name: media_playback_stats_hourly rev10_direct_business_116; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_116 ON public.media_playback_stats_hourly TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_maintenance'::name));
+
+
+--
+-- Name: operator_incidents rev10_direct_business_129; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_129 ON public.operator_incidents TO app_worker USING ((CURRENT_USER = 'app_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_worker'::name));
 
 
 --
@@ -15678,7 +15767,7 @@ CREATE POLICY rev10_direct_business_139 ON public.patient_bookings TO app_staff 
 -- Name: product_analytics_hourly rev10_direct_business_160; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_160 ON public.product_analytics_hourly TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = app.current_org_id()))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = app.current_org_id())));
+CREATE POLICY rev10_direct_business_160 ON public.product_analytics_hourly TO app_operational_maintenance, app_staff USING ((((CURRENT_USER = 'app_operational_maintenance'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = app.current_org_id()))) WITH CHECK ((((CURRENT_USER = 'app_operational_maintenance'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = app.current_org_id())));
 
 
 --
@@ -15965,273 +16054,252 @@ END);
 -- Name: login_tokens rev10_fail_closed_108; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_108 ON public.login_tokens TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: media_hls_proxy_error_events rev10_fail_closed_113; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_113 ON public.media_hls_proxy_error_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_108 ON public.login_tokens TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: media_playback_resolution_events rev10_fail_closed_115; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_115 ON public.media_playback_resolution_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: media_playback_stats_hourly rev10_fail_closed_116; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_116 ON public.media_playback_stats_hourly TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_115 ON public.media_playback_resolution_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: online_intake_answers rev10_fail_closed_123; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_123 ON public.online_intake_answers TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_123 ON public.online_intake_answers TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: online_intake_status_history rev10_fail_closed_126; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_126 ON public.online_intake_status_history TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_126 ON public.online_intake_status_history TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: operator_health_alert_sent rev10_fail_closed_127; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_127 ON public.operator_health_alert_sent TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: operator_incidents rev10_fail_closed_129; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_129 ON public.operator_incidents TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_127 ON public.operator_health_alert_sent TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: password_altcha_challenges rev10_fail_closed_137; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_137 ON public.password_altcha_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_137 ON public.password_altcha_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: password_login_identifier_protection rev10_fail_closed_138; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_138 ON public.password_login_identifier_protection TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_138 ON public.password_login_identifier_protection TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: phone_challenges rev10_fail_closed_154; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_154 ON public.phone_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_154 ON public.phone_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: phone_messenger_bind_secrets rev10_fail_closed_155; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_155 ON public.phone_messenger_bind_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_155 ON public.phone_messenger_bind_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: phone_otp_locks rev10_fail_closed_156; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_156 ON public.phone_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_156 ON public.phone_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: reference_catalog_baselines rev10_fail_closed_168; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_168 ON public.reference_catalog_baselines TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_168 ON public.reference_catalog_baselines TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: reference_catalog_snapshot_receipts rev10_fail_closed_169; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_169 ON public.reference_catalog_snapshot_receipts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_169 ON public.reference_catalog_snapshot_receipts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: saas_isolation_coverage_runs rev10_fail_closed_182; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_182 ON public.saas_isolation_coverage_runs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_182 ON public.saas_isolation_coverage_runs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: saas_isolation_event_hourly rev10_fail_closed_183; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_183 ON public.saas_isolation_event_hourly TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_183 ON public.saas_isolation_event_hourly TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: saas_isolation_events rev10_fail_closed_184; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_184 ON public.saas_isolation_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_184 ON public.saas_isolation_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: specialist_signup_intents rev10_fail_closed_192; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_192 ON public.specialist_signup_intents TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_192 ON public.specialist_signup_intents TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: staff_security_profiles rev10_fail_closed_194; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_194 ON public.staff_security_profiles TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_194 ON public.staff_security_profiles TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: app_runtime_settings_audit rev10_fail_closed_22; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_22 ON public.app_runtime_settings_audit TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_22 ON public.app_runtime_settings_audit TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: user_oauth_bindings rev10_fail_closed_225; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_225 ON public.user_oauth_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_225 ON public.user_oauth_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: user_passkey_accounts rev10_fail_closed_226; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_226 ON public.user_passkey_accounts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_226 ON public.user_passkey_accounts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: user_passkey_challenges rev10_fail_closed_227; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_227 ON public.user_passkey_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_227 ON public.user_passkey_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: user_passkey_credentials rev10_fail_closed_228; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_228 ON public.user_passkey_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_228 ON public.user_passkey_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: user_password_credentials rev10_fail_closed_229; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_229 ON public.user_password_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_229 ON public.user_password_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: auth_rate_limit_events rev10_fail_closed_23; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_23 ON public.auth_rate_limit_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_23 ON public.auth_rate_limit_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: webapp_schema_migrations rev10_fail_closed_233; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_233 ON public.webapp_schema_migrations TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_233 ON public.webapp_schema_migrations TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: booking_calendar_map rev10_fail_closed_65; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_65 ON public.booking_calendar_map TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_65 ON public.booking_calendar_map TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: booking_cities rev10_fail_closed_66; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_66 ON public.booking_cities TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_66 ON public.booking_cities TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: channel_link_secrets rev10_fail_closed_70; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_70 ON public.channel_link_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_70 ON public.channel_link_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: clinic_dedicated_bot_bindings rev10_fail_closed_71; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_71 ON public.clinic_dedicated_bot_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_71 ON public.clinic_dedicated_bot_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: email_challenges rev10_fail_closed_93; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_93 ON public.email_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_93 ON public.email_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: email_otp_locks rev10_fail_closed_94; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_94 ON public.email_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_94 ON public.email_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: email_send_cooldowns rev10_fail_closed_95; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_95 ON public.email_send_cooldowns TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_95 ON public.email_send_cooldowns TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: idempotency_keys rev10_fail_closed_96; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_96 ON public.idempotency_keys TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_96 ON public.idempotency_keys TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: integration_webhook_error_events rev10_fail_closed_97; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_97 ON public.integration_webhook_error_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_97 ON public.integration_webhook_error_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: integration_webhook_last_status rev10_fail_closed_98; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_98 ON public.integration_webhook_last_status TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_98 ON public.integration_webhook_last_status TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
 -- Name: integrator_push_outbox rev10_fail_closed_99; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_99 ON public.integrator_push_outbox TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_99 ON public.integrator_push_outbox TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
@@ -17718,10 +17786,17 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_folders TO app_staff
 
 
 --
+-- Name: media_hls_proxy_error_events rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_hls_proxy_error_events TO app_operational_maintenance USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = app.current_patient_user_id())))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = app.current_patient_user_id()))));
+
+
+--
 -- Name: media_upload_sessions rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_upload_sessions TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (owner_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (owner_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_upload_sessions TO app_operational_media_worker, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (owner_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (owner_user_id = NULL::uuid))));
 
 
 --
@@ -17870,21 +17945,21 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_specialist_links T
 -- Name: product_analytics_events_recent rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_events_recent TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_events_recent TO app_operational_maintenance, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid))));
 
 
 --
 -- Name: product_analytics_user_hourly rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_user_hourly TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_user_hourly TO app_operational_maintenance, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid))));
 
 
 --
 -- Name: product_push_notifications rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_push_notifications TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_push_notifications TO app_operational_maintenance, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (user_id = NULL::uuid))));
 
 
 --

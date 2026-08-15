@@ -22,6 +22,7 @@ CANONICAL_SQL_READER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 OWNER_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs"
 INTEGRATOR_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs"
 RECONCILER="$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs"
+PRIVILEGE_GENERATOR="$REPO_ROOT/deploy/postgres/privileges/generate-cli.mjs"
 PORT_CONTEXT_ENV_UPDATER="$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs"
 DRIZZLE_FOLDER="$REPO_ROOT/apps/webapp/db/drizzle-migrations"
 D30_ONLINE_INDEX="$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql"
@@ -106,6 +107,7 @@ assert_canonical_file "$CANONICAL_SQL_READER" "$REPO_ROOT/deploy/host/stream-can
 assert_canonical_file "$OWNER_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" "owner-ordered migrator"
 assert_canonical_file "$INTEGRATOR_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs" "integrator migrator"
 assert_canonical_file "$RECONCILER" "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" "access reconciler"
+assert_canonical_file "$PRIVILEGE_GENERATOR" "$REPO_ROOT/deploy/postgres/privileges/generate-cli.mjs" "privilege generator"
 assert_canonical_file "$PORT_CONTEXT_ENV_UPDATER" "$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs" "DEV port-context env updater"
 assert_canonical_file "$D30_ONLINE_INDEX" "$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql" "D30 online index artifact"
 [[ ! -L "$DRIZZLE_FOLDER" && -d "$DRIZZLE_FOLDER" ]] || fatal "Drizzle migrations path guard failed"
@@ -161,6 +163,17 @@ if [[ "$MODE" == "--preflight" ]]; then
 fi
 
 cd "$REPO_ROOT"
+
+# Cluster roles are shared by DEV and TEST and may be added by the declaration between ordinary
+# deploys. Install the declaration baseline explicitly before a migration can assign ownership or
+# the per-database reconciler can grant a newly introduced capability to one of the four port logins.
+run_tracked bash -c '
+  set -Eeuo pipefail
+  node --experimental-strip-types "$1" --shared-role-baseline |
+    sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+  node --experimental-strip-types "$1" --shared-role-verify |
+    sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+' bash "$PRIVILEGE_GENERATOR"
 
 # Preserve the repository's cross-app dependency order without using any runtime login.
 run_tracked node "$INTEGRATOR_MIGRATOR" \

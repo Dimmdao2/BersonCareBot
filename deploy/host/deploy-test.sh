@@ -219,6 +219,13 @@ if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ] && [ "$RESUME_INITIAL_
   target_sessions="$(sudo -u postgres psql -X -d postgres -tAc "SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname='$DB' AND pid<>pg_backend_pid();")"
   [ "$target_sessions" = "0" ] || { echo "FATAL: TEST database is not quiescent: $target_sessions session(s)" >&2; exit 1; }
 
+  # A code-only release can introduce a new NOLOGIN capability role. Install and verify the
+  # cluster-wide declaration baseline before migrations and the per-target access reconcile.
+  node --experimental-strip-types "$DEPLOY_REPO/$ZERO_STATE_GENERATOR" --shared-role-baseline |
+    sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+  node --experimental-strip-types "$DEPLOY_REPO/$ZERO_STATE_GENERATOR" --shared-role-verify |
+    sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+
   node "$DEPLOY_REPO/$INTEGRATOR_MIGRATOR" \
     --db "$DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
     --root "$DEPLOY_REPO/apps/integrator" --before-date 20260708 --sudo-postgres

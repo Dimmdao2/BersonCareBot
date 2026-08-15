@@ -5,12 +5,28 @@ import {
   applyDbPrincipalToConnection,
   createDbInfraPrincipal,
   isWebappLockedInfraCronSource,
+  isWebappLockedMediaCronSource,
 } from '../dist/index.js';
 
 test('recognizes signed scheduler digest wake source', () => {
   assert.equal(
     isWebappLockedInfraCronSource('api/integrator/operator-health/digest-wake:POST'),
     true,
+  );
+});
+
+test('classifies only media processing cron sources as media runtime-setting readers', () => {
+  assert.equal(
+    isWebappLockedMediaCronSource('api/internal/media-transcode/reconcile:POST'),
+    true,
+  );
+  assert.equal(
+    isWebappLockedMediaCronSource('api/internal/product-analytics/retention:POST'),
+    false,
+  );
+  assert.equal(
+    isWebappLockedMediaCronSource('api/internal/operator-health-critical/tick:POST'),
+    false,
   );
 });
 

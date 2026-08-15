@@ -6,6 +6,7 @@ import {
   isRecognizedSaasIsolationFailure,
 } from '@bersoncare/db-principal';
 import type { SaasIsolationSourceOperation } from '@/modules/operator-health/saasIsolationDiagnostics';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 
 export type RecordOperatorCronJobTickInput = {
   jobFamily: string;
@@ -32,25 +33,27 @@ export async function recordOperatorCronJobTickBestEffort(
   input: RecordOperatorCronJobTickInput,
 ): Promise<void> {
   try {
-    const write = buildAppDeps().operatorHealthWrite;
-    if (input.success) {
-      await write.recordOperatorJobTickSuccess({
-        jobFamily: input.jobFamily,
-        jobKey: input.jobKey,
-        startedAtIso: input.startedAtIso,
-        durationMs: input.durationMs,
-        metaJson: input.metaJson ?? {},
-      });
-    } else {
-      await write.recordOperatorJobTickFailure({
-        jobFamily: input.jobFamily,
-        jobKey: input.jobKey,
-        startedAtIso: input.startedAtIso,
-        durationMs: input.durationMs,
-        error: input.error ?? 'unknown_error',
-        metaJson: input.metaJson ?? {},
-      });
-    }
+    await runWithDbInfraPrincipal({ source: 'operator-cron-job-status:write' }, async () => {
+      const write = buildAppDeps().operatorHealthWrite;
+      if (input.success) {
+        await write.recordOperatorJobTickSuccess({
+          jobFamily: input.jobFamily,
+          jobKey: input.jobKey,
+          startedAtIso: input.startedAtIso,
+          durationMs: input.durationMs,
+          metaJson: input.metaJson ?? {},
+        });
+      } else {
+        await write.recordOperatorJobTickFailure({
+          jobFamily: input.jobFamily,
+          jobKey: input.jobKey,
+          startedAtIso: input.startedAtIso,
+          durationMs: input.durationMs,
+          error: input.error ?? 'unknown_error',
+          metaJson: input.metaJson ?? {},
+        });
+      }
+    });
   } catch (err) {
     const sourceOperation = CRON_OPERATION_BY_FAMILY[input.jobFamily];
     if (sourceOperation && isRecognizedSaasIsolationFailure(err)) {
