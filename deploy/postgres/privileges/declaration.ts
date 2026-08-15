@@ -3251,8 +3251,9 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
-        'created_by', 'discount_ends_at', 'ends_at', 'organization_id', 'post_trial_behavior',
-        'post_trial_tariff_id', 'started_at', 'tariff_id',
+        'id', 'organization_id', 'tariff_id', 'started_at', 'ends_at', 'discount_ends_at',
+        'post_trial_behavior', 'post_trial_tariff_id', 'status', 'created_by', 'created_at',
+        'updated_at',
       ] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
         'discount_ends_at', 'ends_at', 'post_trial_behavior', 'post_trial_tariff_id', 'status',

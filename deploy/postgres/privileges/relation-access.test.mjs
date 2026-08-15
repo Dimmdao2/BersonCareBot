@@ -524,8 +524,14 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
   for (const operation of ['INSERT', 'UPDATE', 'DELETE']) {
     grantFor('public.saas_tariffs', 'app_platform_settings', operation);
   }
-
   const tables = declaration.databases.bersoncarebot_test.tables;
+  const trialInsert = tables['public.saas_organization_trials'].access.grants.find((grant) =>
+    grant.role === 'app_platform_settings' && grant.operations.includes('INSERT'));
+  assert.deepEqual(trialInsert?.columns, [
+    'id', 'organization_id', 'tariff_id', 'started_at', 'ends_at', 'discount_ends_at',
+    'post_trial_behavior', 'post_trial_tariff_id', 'status', 'created_by', 'created_at',
+    'updated_at',
+  ]);
   for (const relation of [
     'public.saas_billing_accounts',
     'public.saas_billing_invoices',
