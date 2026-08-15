@@ -214,6 +214,25 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).toHaveBeenCalledOnce();
   });
 
+  it('sends a first-login global admin to factor enrollment instead of a redirect loop', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue({ ...user, role: 'admin' });
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+
+    await expect((await login(request())).json()).resolves.toMatchObject({
+      ok: true,
+      redirectTo: '/app/account?tab=security',
+      role: 'admin',
+    });
+    expect(fakes.setSession).toHaveBeenCalledOnce();
+  });
+
   it('requires the already-enrolled staff factor before issuing a session', async () => {
     fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
     fakes.findUser.mockResolvedValue({ ...user, securityFactorRequired: true });

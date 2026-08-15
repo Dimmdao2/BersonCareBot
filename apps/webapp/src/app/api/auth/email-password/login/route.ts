@@ -179,7 +179,13 @@ export async function POST(request: Request) {
     await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
     return NextResponse.json({
       ok: true,
-      redirectTo: getRedirectPathForRole(sessionUser.role),
+      // Platform operations always require a verified factor. A newly-created global admin has no
+      // factor yet, so sending it straight to the admin cabinet creates /app <-> system-health loop.
+      // The self-security page is deliberately reachable before enrollment.
+      redirectTo:
+        authenticatedUser.role === 'admin' && !security?.enrolled
+          ? '/app/account?tab=security'
+          : getRedirectPathForRole(sessionUser.role),
       role: authenticatedUser.role,
     });
   } catch (error) {
