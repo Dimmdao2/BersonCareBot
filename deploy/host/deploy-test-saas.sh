@@ -67,7 +67,6 @@ LEGACY_APPOINTMENT_CUTOVER=apps/webapp/scripts/cutover-legacy-appointments.ts
 PRE_CUTOVER_DATA_ASSERTIONS=deploy/postgres/pre-cutover-data-stage-assertions.sql
 CUTOVER_MIGRATION=deploy/postgres/prod-to-target-cutover.sql
 C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql
-D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
 P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
 PRIVILEGE_GENERATOR=deploy/postgres/privileges/generate-cli.mjs
@@ -3520,7 +3519,6 @@ assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_
 [ -r "$SRC_REPO/$PRIVILEGE_GENERATOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRIVILEGE_GENERATOR"; exit 1; }
 [ -r "$SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
-[ -r "$SRC_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$P2_B_CONTEXT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P2_B_CONTEXT"; exit 1; }

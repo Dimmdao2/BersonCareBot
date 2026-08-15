@@ -1,3 +1,6 @@
+-- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- 0422: exact pre-session root for password-reset candidate lookup.
 -- The final privilege declaration owns the seam owner/EXECUTE ACL and verifies the exact gate.
 

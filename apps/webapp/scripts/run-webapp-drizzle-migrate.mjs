@@ -147,11 +147,9 @@ function validateCurrentD30OnlineIndexDeployment() {
       path: path.join(repositoryRoot, 'deploy', 'host', 'deploy-test.sh'),
       migrationCommand: 'pnpm --dir apps/webapp run migrate',
     },
-    {
-      name: 'deploy-test-saas',
-      path: path.join(repositoryRoot, 'deploy', 'host', 'deploy-test-saas.sh'),
-      migrationCommand: 'pnpm --dir apps/webapp run migrate',
-    },
+    // deploy-test-saas is intentionally absent: fresh reset uses one generated A -> B cutover while
+    // writers are stopped, and schema-post creates this index directly. It does not run the historical
+    // webapp migration chain or the online-index companion.
     {
       name: 'deploy-prod',
       path: path.join(repositoryRoot, 'deploy', 'host', 'deploy-prod.sh'),
