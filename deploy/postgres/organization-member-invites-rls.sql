@@ -593,8 +593,8 @@ SET search_path = pg_catalog
 AS $$
 #variable_conflict use_column
 DECLARE
-  -- Exact pre-session context is injected as the first BEGIN statement by the privilege
-  -- reconciler. Keep all executable initialization after that guard.
+  -- Exact pre-session context is injected before the first executable statement by the
+  -- privilege reconciler. Keep all initialization after that guard.
   v_email_normalized text;
   v_now_sec bigint;
   v_challenge public.email_challenges%ROWTYPE;
