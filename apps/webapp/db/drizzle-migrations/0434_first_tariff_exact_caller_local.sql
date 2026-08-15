@@ -1,23 +1,9 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0375 -- final number assigned at merge.
--- #1069 T5 (owner 03.08): when registration tariff policy is empty the clinic owner chooses the
--- first tariff themselves; that first attachment gets the configured one-time trial when the global
--- trial policy is active and the organization has never had a trial row before.
---
--- Clinic billing runs as app_staff / app_clinic_billing and cannot UPDATE be_organizations or INSERT
--- into saas_organization_trials directly — same accessor pattern as apply_paid_saas_billing_tariff.
-GRANT SELECT ON TABLE public.saas_trial_policy TO app_owner;
---> statement-breakpoint
-GRANT INSERT ON TABLE public.saas_organization_trials TO app_owner;
---> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_accounts TO app_owner;
---> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_subscriptions TO app_owner;
---> statement-breakpoint
-GRANT SELECT ON TABLE public.saas_tariffs TO app_owner;
---> statement-breakpoint
-GRANT INSERT ON TABLE public.admin_audit_log TO app_owner;
---> statement-breakpoint
-
+-- BCB-MIGRATION-OWNER: app_seam_specialist_provision_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- The exact clinic-billing capability already authenticates the caller and installs an accepted
+-- organization context. A SECURITY DEFINER body must not re-check app.is_staff(): current_user
+-- is the closed seam owner, not the invoking runtime role.
 CREATE OR REPLACE FUNCTION app.choose_organization_first_tariff(
   p_tariff_id uuid,
   p_actor_id uuid
@@ -185,12 +171,3 @@ BEGIN
   );
 END
 $function$;
---> statement-breakpoint
-
-ALTER FUNCTION app.choose_organization_first_tariff(uuid, uuid) OWNER TO app_owner;
-REVOKE ALL ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) TO app_staff;
---> statement-breakpoint
-
-COMMENT ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) IS
-  'Clinic-billing accessor for the owner''s first tariff attachment when registration tariff policy was empty: assigns the chosen active tariff, opens a pending paid_subscription row, and starts the one-time global trial when policy is active and the organization has never had a trial row. Returns payment_required when trial is unavailable or already consumed.';

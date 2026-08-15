@@ -899,7 +899,7 @@ DECLARE
   v_has_prior_trial boolean;
   v_account_id uuid;
 BEGIN
-  IF v_organization_id IS NULL OR NOT app.is_staff() THEN
+  IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'organization_context_required';
   END IF;
 
