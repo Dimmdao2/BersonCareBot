@@ -3314,6 +3314,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgContentSections.ts'],
     grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
   },
+  'public.courses': {
+    kind: 'direct', purpose: 'patient reads only courses assigned through its own treatment program',
+    codePaths: ['apps/webapp/src/infra/repos/pgCourses.ts#listPublished'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
   'public.lfk_complexes': {
     kind: 'direct', purpose: 'patient reads only its own assigned exercise complexes in the current clinic',
     codePaths: ['apps/webapp/src/infra/repos/pgLfkDiary.ts'],
@@ -3696,14 +3701,46 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.media_files': {
     kind: 'direct',
-    purpose: 'the accepted operational media worker reads media inputs and records transcode outputs',
-    codePaths: ['apps/webapp/src/infra/repos/pgMediaWorkerControl.ts'],
+    purpose: 'the accepted media worker handles transcodes; patient reads current-clinic presentation media and only its own submissions',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+      'apps/webapp/src/infra/repos/pgOrgBranding.ts#selectRevision',
+      'apps/webapp/src/infra/repos/s3MediaStorage.ts#getMediaRowForPlayback',
+    ],
     grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: [
+        'available_qualities_json', 'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id',
+        'owner_kind', 'poster_s3_key', 's3_key', 'status', 'stored_path', 'uploaded_by', 'usage_purpose',
+        'video_delivery_override', 'video_duration_seconds', 'video_processing_status',
+      ] },
       { role: 'app_operational_media_worker', operations: ['SELECT'], columns: 'table' },
       { role: 'app_operational_media_worker', operations: ['UPDATE'], columns: [
         'available_qualities_json', 'hls_artifact_prefix', 'hls_master_playlist_s3_key', 'mime_type',
         'poster_s3_key', 's3_key', 'video_delivery_override', 'video_duration_seconds',
         'video_processing_error', 'video_processing_status',
+      ] },
+    ],
+  },
+  'public.org_brand_revisions': {
+    kind: 'direct', purpose: 'patient reads only the published brand revision of its active clinic',
+    codePaths: ['apps/webapp/src/infra/repos/pgOrgBranding.ts#getPublishedRevision'],
+    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.media_playback_client_events': {
+    kind: 'direct', purpose: 'patient appends only its own current-clinic browser playback failures',
+    codePaths: ['apps/webapp/src/app-layer/media/playbackClientEvents.ts#recordPlaybackClientEvent'],
+    grants: [{ role: 'app_patient', operations: ['INSERT'], columns: [
+      'created_at', 'delivery', 'error_detail', 'event_class', 'id', 'media_id', 'organization_id',
+      'user_agent', 'user_id',
+    ] }],
+  },
+  'public.media_playback_user_video_first_resolve': {
+    kind: 'direct', purpose: 'patient records and returns only its own current-clinic first-view marker',
+    codePaths: ['apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts'],
+    grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: ['media_id', 'user_id'] },
+      { role: 'app_patient', operations: ['INSERT'], columns: [
+        'first_resolved_at', 'media_id', 'organization_id', 'user_id',
       ] },
     ],
   },
@@ -4243,6 +4280,80 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   return `(${rolePredicate})`;
 }
 
+function revision10CoursesPolicies(index: number): PolicyDecl[] {
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const patientAssignment = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+    + ' AND app.current_patient_user_id() IS NOT NULL'
+    + ' AND EXISTS (SELECT 1 FROM public.treatment_program_instances assigned_instance'
+    + ' WHERE assigned_instance.organization_id = app.current_org_id()'
+    + ' AND assigned_instance.patient_user_id = app.current_patient_user_id()'
+    + ' AND assigned_instance.template_id = courses.program_template_id)';
+  return [
+    { name: `rev10_courses_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff', 'app_patient'], using: `((${staffOrg}) OR (${patientAssignment}))`,
+      note: 'staff reads clinic courses; patient reads only courses assigned in its own current-clinic program' },
+    { name: `rev10_courses_staff_write_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+      to: ['app_staff'], using: `(${staffOrg})`, withCheck: `(${staffOrg})`,
+      note: 'only clinic staff mutates current-clinic courses' },
+  ];
+}
+
+function revision10OrgBrandRevisionPolicies(index: number): PolicyDecl[] {
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const patientPublished = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+    + " AND status = 'published' AND app.current_patient_has_active_org_enrollment(organization_id)";
+  return [
+    { name: `rev10_org_brand_revision_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff', 'app_patient'], using: `((${staffOrg}) OR (${patientPublished}))`,
+      note: 'staff reads clinic brand history; patient reads only the published revision of its active clinic' },
+    { name: `rev10_org_brand_revision_staff_write_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+      to: ['app_staff'], using: `(${staffOrg})`, withCheck: `(${staffOrg})`,
+      note: 'only clinic staff mutates current-clinic brand revisions' },
+  ];
+}
+
+function revision10MediaFilesPolicies(index: number): PolicyDecl[] {
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const patientMedia = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+    + " AND owner_kind = 'organization'"
+    + " AND (usage_purpose IS DISTINCT FROM 'program_item_submission'"
+    + ' OR uploaded_by = app.current_patient_user_id())';
+  const worker = "current_user = 'app_operational_media_worker'::name";
+  return [
+    { name: `rev10_media_files_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+      to: ['app_staff'], using: `(${staffOrg})`, withCheck: `(${staffOrg})`,
+      note: 'clinic staff manages media only inside the current clinic' },
+    { name: `rev10_media_files_patient_read_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_patient'], using: `(${patientMedia})`,
+      note: 'patient reads current-clinic presentation media and only submissions uploaded by itself' },
+    { name: `rev10_media_files_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+      to: ['app_operational_media_worker'], using: `(${worker})`, withCheck: `(${worker})`,
+      note: 'accepted media worker processes media across clinics' },
+  ];
+}
+
+function revision10PatientPlaybackTelemetryPolicies(
+  tableKey: 'public.media_playback_client_events' | 'public.media_playback_user_video_first_resolve',
+  index: number,
+): PolicyDecl[] {
+  const patientOwn = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+    + ' AND user_id = app.current_patient_user_id()';
+  if (tableKey === 'public.media_playback_client_events') {
+    return [{
+      name: `rev10_playback_client_event_patient_insert_${index + 1}`,
+      as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_patient'], withCheck: `(${patientOwn})`,
+      note: 'patient appends browser playback errors only for itself in the current clinic',
+    }];
+  }
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  return [{
+    name: `rev10_playback_first_resolve_self_${index + 1}`,
+    as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff', 'app_patient'],
+    using: `((${staffOrg}) OR (${patientOwn}))`, withCheck: `((${staffOrg}) OR (${patientOwn}))`,
+    note: 'staff stays in its clinic; patient reads and inserts only its own first-view marker',
+  }];
+}
+
 function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
   const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
   const patientOrg = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()";
@@ -4472,6 +4583,15 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         ? revision10PlatformUsersPolicies(index)
       : key === 'public.admin_audit_log' && access?.kind === 'direct'
         ? revision10AdminAuditLogPolicies(index)
+      : key === 'public.courses' && access?.kind === 'direct'
+        ? revision10CoursesPolicies(index)
+      : key === 'public.org_brand_revisions' && access?.kind === 'direct'
+        ? revision10OrgBrandRevisionPolicies(index)
+      : key === 'public.media_files' && access?.kind === 'direct'
+        ? revision10MediaFilesPolicies(index)
+      : (key === 'public.media_playback_client_events'
+          || key === 'public.media_playback_user_video_first_resolve') && access?.kind === 'direct'
+        ? revision10PatientPlaybackTelemetryPolicies(key, index)
       : key === 'public.material_ratings' && access?.kind === 'direct'
         ? revision10MaterialRatingsPolicies(index)
       : key === 'public.patient_content_rating_feedback' && access?.kind === 'direct'

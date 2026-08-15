@@ -742,7 +742,10 @@ test('patient page relations have exact self/current-clinic access and published
     'public.content_pages',
     'public.content_section_slug_history',
     'public.content_sections',
+    'public.courses',
     'public.lfk_complexes',
+    'public.media_files',
+    'public.org_brand_revisions',
     'public.patient_home_block_items',
     'public.patient_home_blocks',
     'public.patient_daily_warmup_presentations',
@@ -789,6 +792,54 @@ test('patient page relations have exact self/current-clinic access and published
   const sections = tables['public.content_sections'];
   const sectionPolicy = sections.policies.find((policy) => policy.name.startsWith('rev10_direct_business_'));
   assert.match(sectionPolicy?.using ?? '', /is_visible = true/);
+
+  const courses = tables['public.courses'];
+  const coursePolicy = courses.policies.find((policy) => policy.name.startsWith('rev10_courses_select_'));
+  assert.match(coursePolicy?.using ?? '', /assigned_instance\.patient_user_id = app\.current_patient_user_id\(\)/);
+  assert.match(coursePolicy?.using ?? '', /assigned_instance\.template_id = courses\.program_template_id/);
+  assert.equal(courses.access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.some((operation) => operation !== 'SELECT')), false);
+
+  const branding = tables['public.org_brand_revisions'];
+  const brandPolicy = branding.policies.find((policy) =>
+    policy.name.startsWith('rev10_org_brand_revision_select_'));
+  assert.match(brandPolicy?.using ?? '', /status = 'published'/);
+  assert.match(brandPolicy?.using ?? '', /app\.current_patient_has_active_org_enrollment\(organization_id\)/);
+  assert.equal(branding.access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.some((operation) => operation !== 'SELECT')), false);
+
+  const media = tables['public.media_files'];
+  assert.deepEqual(media.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
+    ['available_qualities_json', 'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id',
+      'owner_kind', 'poster_s3_key', 's3_key', 'status', 'stored_path', 'uploaded_by', 'usage_purpose',
+      'video_delivery_override', 'video_duration_seconds', 'video_processing_status']);
+  const patientMediaPolicy = media.policies.find((policy) =>
+    policy.name.startsWith('rev10_media_files_patient_read_'));
+  assert.match(patientMediaPolicy?.using ?? '', /organization_id = app\.current_org_id\(\)/);
+  assert.match(patientMediaPolicy?.using ?? '', /owner_kind = 'organization'/);
+  assert.match(patientMediaPolicy?.using ?? '', /usage_purpose IS DISTINCT FROM 'program_item_submission'/);
+  assert.match(patientMediaPolicy?.using ?? '', /uploaded_by = app\.current_patient_user_id\(\)/);
+
+  const firstResolve = tables['public.media_playback_user_video_first_resolve'];
+  assert.deepEqual(firstResolve.access.grants.find((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('INSERT'))?.columns,
+  ['first_resolved_at', 'media_id', 'organization_id', 'user_id']);
+  assert.deepEqual(firstResolve.access.grants.find((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('SELECT'))?.columns,
+  ['media_id', 'user_id']);
+  const firstResolvePolicy = firstResolve.policies.find((policy) =>
+    policy.name.startsWith('rev10_playback_first_resolve_self_'));
+  assert.match(firstResolvePolicy?.withCheck ?? '', /organization_id = app\.current_org_id\(\)/);
+  assert.match(firstResolvePolicy?.withCheck ?? '', /user_id = app\.current_patient_user_id\(\)/);
+
+  const clientEvents = tables['public.media_playback_client_events'];
+  assert.deepEqual(clientEvents.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
+    ['created_at', 'delivery', 'error_detail', 'event_class', 'id', 'media_id', 'organization_id',
+      'user_agent', 'user_id']);
+  const clientEventPolicy = clientEvents.policies.find((policy) =>
+    policy.name.startsWith('rev10_playback_client_event_patient_insert_'));
+  assert.match(clientEventPolicy?.withCheck ?? '', /organization_id = app\.current_org_id\(\)/);
+  assert.match(clientEventPolicy?.withCheck ?? '', /user_id = app\.current_patient_user_id\(\)/);
 
   for (const relation of ['public.patient_home_blocks', 'public.patient_home_block_items']) {
     const policy = tables[relation].policies.find((candidate) =>

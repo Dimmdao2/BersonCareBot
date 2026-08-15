@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { drizzleExcludeUserIdColumn } from '@/modules/analytics/analyticsAudience';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { logger } from '@/app-layer/logging/logger';
@@ -49,8 +50,11 @@ export async function recordPlaybackClientEvent(input: {
   userAgent?: string | null;
 }): Promise<void> {
   try {
+    const organizationId = getCurrentDbPrincipalOrganizationId();
+    if (!organizationId) return;
     const db = getDrizzle();
     await db.insert(mediaPlaybackClientEvents).values({
+      organizationId,
       mediaId: input.mediaId,
       userId: input.userId,
       eventClass: input.eventClass,

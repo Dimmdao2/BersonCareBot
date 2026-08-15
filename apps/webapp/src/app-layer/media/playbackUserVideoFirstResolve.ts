@@ -1,5 +1,6 @@
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { logger } from '@/app-layer/logging/logger';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { mediaPlaybackUserVideoFirstResolve } from '../../../db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -10,12 +11,15 @@ export async function recordPlaybackUserVideoFirstResolve(input: {
   mediaId: string;
 }): Promise<boolean> {
   if (!UUID.test(input.userId) || !UUID.test(input.mediaId)) return false;
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  if (!organizationId) return false;
 
   try {
     const db = getDrizzle();
     const rows = await db
       .insert(mediaPlaybackUserVideoFirstResolve)
       .values({
+        organizationId,
         userId: input.userId,
         mediaId: input.mediaId,
       })

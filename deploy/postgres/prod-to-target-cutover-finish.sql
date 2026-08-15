@@ -4,6 +4,17 @@ DROP SCHEMA cutover_source_integrator CASCADE;
 DROP SCHEMA cutover_source_drizzle CASCADE;
 DROP SCHEMA cutover_source_public CASCADE;
 
+-- Existing PROD snapshots predate these required global admin-settings rows. The target UI
+-- deliberately fails loud when one is absent, so the A -> B cutover creates only the missing
+-- canonical rows and never overwrites a configured value.
+INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at)
+VALUES
+  ('vk_id_application_id', 'admin', NULL, '{"value":""}'::jsonb, now()),
+  ('vk_id_client_secret', 'admin', NULL, '{"value":""}'::jsonb, now()),
+  ('vk_id_redirect_uri', 'admin', NULL, '{"value":""}'::jsonb, now()),
+  ('operator_alert_fallback_email', 'admin', NULL, '{"value":""}'::jsonb, now())
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
+
 DO $final_shape_gate$
 DECLARE
   violations bigint;
@@ -55,6 +66,21 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'canonical doctor membership was not rebuilt';
   END IF;
+
+  SELECT count(*) INTO violations
+  FROM (VALUES
+    ('vk_id_application_id'),
+    ('vk_id_client_secret'),
+    ('vk_id_redirect_uri'),
+    ('operator_alert_fallback_email')
+  ) AS required_setting(key)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.system_settings setting
+    WHERE setting.key = required_setting.key
+      AND setting.scope = 'admin'
+      AND setting.organization_id IS NULL
+  );
+  IF violations <> 0 THEN RAISE EXCEPTION 'required global admin settings missing: %', violations; END IF;
 END
 $final_shape_gate$;
 
