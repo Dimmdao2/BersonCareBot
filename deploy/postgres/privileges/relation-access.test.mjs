@@ -64,9 +64,15 @@ test('platform commercial scope is present in the active relation matrix and row
   }
 });
 
-test('staff security identity-self helper accepts both physical self principals', () => {
+test('staff security identity-self helper accepts physical principals and exact definer delegates', () => {
   const helper = declaration.portContext.functions['app.require_staff_security_self_user_id()'];
-  assert.deepEqual(helper.execute, ['app_patient', 'app_staff']);
+  assert.deepEqual(helper.execute, [
+    'app_patient',
+    'app_staff',
+    'app_seam_password_auth_owner',
+    'app_seam_self_security_owner',
+    'app_seam_specialist_provision_owner',
+  ]);
   for (const outerIdentity of [
     'app.get_staff_security_profile()',
     'app.get_staff_security_session_state()',

@@ -2408,6 +2408,47 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_current_org_tariff_transition_usage()'],
       delegatesTo: ['app.read_org_enforced_quota_usage(uuid)'],
     },
+    'app.bump_platform_user_session_epoch_self()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.bump_platform_user_session_epoch_self()'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.create_specialist_signup_intent(uuid,text,text,text,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.create_specialist_signup_intent(uuid,text,text,text,text)'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.get_latest_specialist_signup_intent_for_user()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.get_latest_specialist_signup_intent_for_user()'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.password_credentials_replace_self(text,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_credentials_replace_self(text,text)'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.password_credentials_upsert_self(text,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_credentials_upsert_self(text,text)'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.provision_specialist_owner(uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.replace_pending_specialist_signup_challenge(uuid,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.replace_pending_specialist_signup_challenge(uuid,text)'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.set_staff_security_self_password_hash(text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.set_staff_security_self_password_hash(text)'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+    },
+    'app.require_staff_security_self_user_id()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.require_staff_security_self_user_id()'],
+      execute: [
+        ...BUSINESS_SEAM_FUNCTIONS['app.require_staff_security_self_user_id()'].execute,
+        'app_seam_password_auth_owner',
+        'app_seam_self_security_owner',
+        'app_seam_specialist_provision_owner',
+      ],
+    },
     'app.password_login_acquire_impl(text,text,uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
       execute: [], invocation: 'internal' as const,

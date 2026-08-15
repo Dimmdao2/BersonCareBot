@@ -244,6 +244,10 @@ test('declared definer delegation propagates context without widening direct exe
     sql,
     /GRANT EXECUTE ON FUNCTION app\.read_org_enforced_quota_usage\(uuid\) TO [^;]*"app_clinic_billing"/,
   );
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION app\.require_staff_security_self_user_id\(\) TO "app_patient", "app_seam_password_auth_owner", "app_seam_self_security_owner", "app_seam_specialist_provision_owner", "app_staff";/,
+  );
 });
 
 test('runtime gate reconciliation replaces single gates and validates every multi-context token', () => {
