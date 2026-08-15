@@ -2,6 +2,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
 import { classifyIntegratorPushOutboxSystemHealthStatus } from '@/modules/operator-health/integratorPushOutboxHealth';
 import { WEBHOOK_ERROR_EVENTS_RETENTION_HOURS } from '@/modules/operator-health/webhookBurst';
+import { loadCuratedSystemHealthSnapshot } from '@/infra/repos/pgCuratedSystemHealthDiagnostics';
 
 async function purgeIntegrationWebhookErrorEventsBestEffort(): Promise<void> {
   try {
@@ -42,7 +43,17 @@ export async function runIntegratorPushOutboxHealthClassificationTick(): Promise
   status: 'ok' | 'degraded' | 'error';
   alerted: boolean;
 }> {
-  const snapshot = await buildAppDeps().operatorHealthRead.getIntegratorPushOutboxHealth();
+  const curated = (await loadCuratedSystemHealthSnapshot()).integratorPushOutbox;
+  const snapshot = {
+    dueBacklog: curated.dueBacklog,
+    deadTotal: curated.deadTotal,
+    oldestDueAgeSeconds: curated.oldestDueAgeSeconds,
+    dueByKind: curated.dueByKind,
+    deadByKind: curated.deadByKind,
+    processingCount: curated.processingCount,
+    oldestProcessingAgeSeconds: curated.oldestProcessingAgeSeconds ?? null,
+    lastQueueActivityAt: curated.lastQueueActivityAt,
+  };
   const status = classifyIntegratorPushOutboxSystemHealthStatus(snapshot);
   return { status, alerted: false };
 }
