@@ -1,8 +1,8 @@
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- TEMPORARY LOCAL MIGRATION NUMBER 0423
--- 0423: one exact pre-session root for challenge replacement + durable email enqueue.
+-- TEMPORARY LOCAL MIGRATION NUMBER 0425
+-- Replace the already-landed TEST root without the unnecessary conflict-row read.
 
 CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
   p_user_id uuid,
@@ -60,7 +60,6 @@ BEGIN
     RAISE EXCEPTION 'email_auth_start_challenge: invalid purpose';
   END IF;
 
-  -- Serialise starts for one account even when the cooldown row does not exist yet.
   PERFORM pg_advisory_xact_lock(hashtextextended(p_user_id::text, 0));
 
   SELECT cooldown.last_sent_at

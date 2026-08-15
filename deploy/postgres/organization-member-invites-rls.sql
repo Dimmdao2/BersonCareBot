@@ -914,8 +914,7 @@ BEGIN
       )
     ),
     'pending', 0, 4, now(), 100
-  )
-  ON CONFLICT (event_id) DO NOTHING;
+  );
   GET DIAGNOSTICS v_queue_rows = ROW_COUNT;
   IF v_queue_rows <> 1 THEN
     RAISE EXCEPTION 'email_auth_start_challenge: durable enqueue failed';
