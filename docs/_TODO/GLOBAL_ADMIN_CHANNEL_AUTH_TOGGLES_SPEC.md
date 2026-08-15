@@ -1,5 +1,11 @@
 # Global-admin channel & auth-method toggles + mini-app removal (spec capture)
 
+> **Owner correction 2026-08-16:** 2FA не может быть обязательной просто из-за роли. Пользователь подключает
+> свой фактор в настройках аккаунта; глобальный администратор в настройках платформы выбирает режим
+> `disabled | optional | required`. До реализации трёх режимов runtime остаётся в `optional`: незарегистрированный
+> фактор не блокирует вход, уже зарегистрированный обязан быть подтверждён. Старые строки ниже про булевый
+> `auth_2fa_enabled` и безусловное принуждение staff считаются заменёнными этой политикой.
+
 **СВЕДЕНО в `docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md` 04.08** (раздел «Способы входа и админ control
 plane») — этот файл остаётся исполнительным трекером карточек `#993`/`#1005`/`#1031` и др., канон даёт сводную
 нормативную картину и решения владельца.
@@ -26,8 +32,8 @@ login/registration UI must reflect those toggles **dynamically**.
   - **Yandex OAuth** — independent toggle
   - ~~**Apple — NOT included** (owner 2026-07-24; even though implemented, no Apple toggle / not offered).~~
     **Заменено последующим решением владельца 2026-07-30:** «apple - переключатель в админке.»
-- **2FA / TOTP** — owner 2026-07-24: required for **global admin AND specialists** (staff). The toggle governs
-  whether TOTP 2FA is in effect for those roles.
+- **2FA / TOTP** — **ЗАМЕНЕНО 2026-08-16:** одна трёхрежимная policy-настройка
+  (`disabled | optional | required`) для персонала; роль сама по себе фактор не требует.
 
 ### R2 — dynamic UI gating
 
@@ -54,7 +60,8 @@ login/registration UI must reflect those toggles **dynamically**.
 - Is the toggle **global** (platform-wide, single-tenant owner) or **per-clinic** (tenant-scoped)? (Current owner model
   is single-owner; but SaaS direction may want per-clinic. Default assumption: **global**, matching "global-admin
   settings".)
-- 2FA toggle semantics: disabling 2FA entirely vs making it optional-per-user?
+- ~~2FA toggle semantics: disabling 2FA entirely vs making it optional-per-user?~~ — **решено 2026-08-16:**
+  нужны все три режима `disabled | optional | required`.
 - Confirm which email/OAuth providers are in scope (Google, Yandex, + others?).
 
 ## Current state — RECON (verified 2026-07-24, `scratchpad/channel-auth-toggles-recon.md`)
@@ -86,7 +93,11 @@ login/registration UI must reflect those toggles **dynamically**.
    `PLATFORM_GLOBAL_SETTINGS_API_KEYS`. OAuth toggle becomes `enabled AND creds-present` (decouple from creds-only).
 2. **Login resolver:** feed the new toggles into `authChannelPolicy`/`oauth/providers` + the ~30 server-enforcing routes
    so a disabled method vanishes from UI AND is rejected server-side (fail-closed).
-3. **2FA:** add the global gate honoring `auth_2fa_enabled` (define disable semantics — owner Q).
+3. **2FA:** не возвращать удалённый boolean `auth_2fa_enabled`; добавить типизированную policy-настройку
+   `disabled | optional | required` и один общий reader для login/guards/admin UI. `disabled` запрещает новое
+   подключение и не требует фактор; `optional` разрешает добровольное подключение и требует уже заведённый
+   фактор; `required` ведёт незарегистрированного пользователя к настройке после первичного входа и не пускает
+   в остальные staff-разделы до завершения. Recovery и уже заведённый фактор не ослаблять.
 4. **Admin UI:** build the global-admin settings page (checkbox grid) consuming `/api/platform/settings` (backing API
    exists).
 5. **Mini-app removal:** strip the `web_app` button chokepoint (the 4 targets above), keep bot auth/notification
@@ -99,7 +110,8 @@ login/registration UI must reflect those toggles **dynamically**.
   toggle. visible-to-client = `enabled AND configured`.
 - ~~✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).~~
   **Заменено последующим решением владельца 2026-07-30:** «apple - переключатель в админке.»
-- ✅ **RESOLVED 2026-07-24** — 2FA/TOTP toggle applies to **global admin AND specialists (staff)**.
+- ✅ **ЗАМЕНЕНО 2026-08-16** — 2FA/TOTP задаётся трёхрежимной политикой в админских настройках; роль не
+  включает обязательность сама по себе.
 - ✅ **RESOLVED 2026-07-24** — Toggle scope: **GLOBAL / platform-wide**, configured by the **global admin only**;
   specialists do NOT access these settings. (Not per-clinic.)
 

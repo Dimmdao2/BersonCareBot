@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
@@ -53,6 +54,8 @@ export async function GET(_request: Request) {
 export async function POST(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
 
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
@@ -125,6 +128,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const id = new URL(request.url).searchParams.get('id');
   if (!id || !z.string().uuid().safeParse(id).success) {
     return NextResponse.json({ ok: false, error: 'missing_id' }, { status: 400 });

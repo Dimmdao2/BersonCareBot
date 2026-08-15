@@ -59,7 +59,7 @@ export function reconcileDevBypassStaffWorkspace(input: {
   return {
     organization: {
       id: DEV_CLINIC_ADMIN_ORGANIZATION_ID,
-      title: 'DEV UX Clinic',
+      title: 'DEV Demo Clinic',
       isActive: true,
       sortOrder: 0,
     },

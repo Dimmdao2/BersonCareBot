@@ -85,14 +85,14 @@ export function AppEntryLoginContent({
                 href="/api/auth/dev-bypass?token=dev%3Aclinic-admin"
                 className={cn(buttonVariants({ size: 'sm' }))}
               >
-                Как администратор клиники
+                Как владелец и специалист демо-клиники
               </a>
               <a
                 id="app-entry-dev-login-doctor-role"
                 href="/api/auth/dev-bypass?token=dev%3Adoctor"
                 className={cn(buttonVariants({ size: 'sm' }))}
               >
-                Как специалист
+                Как демо-специалист
               </a>
               <a
                 id="app-entry-dev-login-global-admin"

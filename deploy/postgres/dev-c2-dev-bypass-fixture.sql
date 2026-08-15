@@ -10,7 +10,8 @@
 -- ⛔ Только dev. На TEST у фикстур свой источник (`seed-saas-test-walkthrough-fixtures.ts`),
 -- на проде дев-вход выключен и этот скрипт не применяется никогда.
 --
--- Применение:  sudo -u postgres psql -d bcb_webapp_dev -f dev-c2-dev-bypass-fixture.sql
+-- Применение: sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 \
+--   -d bcb_webapp_dev -v ON_ERROR_STOP=1 -f deploy/postgres/dev-c2-dev-bypass-fixture.sql
 -- Скрипт идемпотентный: повторный прогон ничего не ломает и не плодит.
 
 \set ON_ERROR_STOP on
@@ -18,11 +19,13 @@
 DO $$
 DECLARE
   v_user_id   uuid := '00000000-0000-0000-0000-000000000002';
-  v_org_id    uuid;
-  v_spec_id   uuid;
+  v_org_id    uuid := 'd0000000-0000-4000-8000-000000000004';
+  v_owner_spec_id uuid := 'd0000000-0000-4000-8000-000000000005';
+  v_spec_id   uuid := 'd0000000-0000-4000-8000-000000000006';
   v_isolated_org_id uuid := 'e0000000-0000-4000-8000-000000000001';
   v_isolated_spec_id uuid := 'e1000000-0000-4000-8000-000000000001';
   v_colleague_spec_id uuid := 'e1000000-0000-4000-8000-000000000002';
+  v_tariff_id uuid;
 BEGIN
   IF current_database() <> 'bcb_webapp_dev' THEN
     RAISE EXCEPTION 'этот скрипт только для dev-базы, текущая: %', current_database();
@@ -95,29 +98,37 @@ BEGIN
     ('d0000000-0000-4000-8000-000000000008', 'phone', '+79990000008', true, 'platform_users')
   ON CONFLICT DO NOTHING;
 
-  -- 3. Членство в организации со специалистом. Берём первую активную организацию, у которой есть
-  --    активный специалист: кабинет должен показывать ЖИВЫЕ данные dev-базы, а не пустые экраны
-  --    нового пустого специалиста. Роль `doctor` + непустой `specialist_id` — ровно то, чего
-  --    требует доступ к клиническому рабочему месту.
-  SELECT s.organization_id, s.id
-    INTO v_org_id, v_spec_id
-    FROM be_specialists s
-    JOIN be_organizations o ON o.id = s.organization_id
-   WHERE s.is_active AND o.is_active
-   ORDER BY s.created_at
+  -- 3. Все обычные DEV-пресеты живут в отдельной синтетической клинике. Никогда не выбирать
+  --    «первую активную» реальную организацию/карточку: после restore prod-данных это прикрепляло
+  --    Demo Doctor к карточке Дмитрия Берсона, а Demo Clinic Owner — к его клинике.
+  SELECT o.tariff_id
+    INTO v_tariff_id
+    FROM be_organizations o
+   WHERE o.is_active
+     AND o.tariff_id IS NOT NULL
+     AND o.id NOT IN (v_org_id, v_isolated_org_id)
+   ORDER BY o.created_at
    LIMIT 1;
 
-  IF v_org_id IS NULL THEN
-    RAISE EXCEPTION 'в dev-базе нет активной организации с активным специалистом — кабинет открыть нечем';
+  IF v_tariff_id IS NULL THEN
+    RAISE EXCEPTION 'в dev-базе нет тарифа для синтетических DEV-клиник';
   END IF;
 
-  -- Изолированный режим: отдельная организация со своим врачом и пациентом.
+  INSERT INTO be_organizations (id, title, is_active, tariff_id)
+  VALUES (v_org_id, 'DEV Demo Clinic', true, v_tariff_id)
+  ON CONFLICT (id) DO UPDATE
+    SET title = EXCLUDED.title,
+        is_active = true,
+        tariff_id = EXCLUDED.tariff_id,
+        updated_at = now();
+
+  -- Изолированный режим: вторая отдельная организация со своим врачом и пациентом.
   INSERT INTO be_organizations (id, title, is_active, tariff_id)
   VALUES (
     v_isolated_org_id,
     'DEV Isolated Clinic',
     true,
-    (SELECT tariff_id FROM be_organizations WHERE id = v_org_id)
+    v_tariff_id
   )
   ON CONFLICT (id) DO UPDATE
     SET title = EXCLUDED.title,
@@ -127,6 +138,8 @@ BEGIN
 
   INSERT INTO be_specialists (id, organization_id, full_name, is_active)
   VALUES
+    (v_owner_spec_id, v_org_id, 'Demo Clinic Owner', true),
+    (v_spec_id, v_org_id, 'Demo Doctor', true),
     (v_isolated_spec_id, v_isolated_org_id, 'Demo Isolated Doctor', true),
     (v_colleague_spec_id, v_org_id, 'Demo Colleague Doctor', true)
   ON CONFLICT (id) DO UPDATE
@@ -141,6 +154,10 @@ BEGIN
     (id, organization_id, tariff_id, started_at, ends_at, discount_ends_at,
      post_trial_behavior, post_trial_tariff_id, status)
   VALUES
+    ('d4000000-0000-4000-8000-000000000001', v_org_id,
+     v_tariff_id,
+     now() - interval '1 day', now() + interval '365 days', now() + interval '395 days',
+     'read_only', NULL, 'active'),
     ('e4000000-0000-4000-8000-000000000001', v_isolated_org_id,
      (SELECT tariff_id FROM be_organizations WHERE id = v_isolated_org_id),
      now() - interval '1 day', now() + interval '365 days', now() + interval '395 days',
@@ -167,11 +184,12 @@ BEGIN
         expires_at = NULL,
         updated_at = now();
 
-  -- Один staff-login принадлежит ровно одной клинике. Старые DEV-факты от прежних fixture runs
-  -- сохраняем как историю, но они не могут оставаться вторым active membership.
+  -- Один staff-login принадлежит ровно одной клинике. Это также отключает ошибочные прежние
+  -- привязки синтетических логинов к реальной клинике Дмитрия Берсона.
   UPDATE be_organization_members
      SET status = 'disabled', updated_at = now()
    WHERE platform_user_id IN (
+           '00000000-0000-0000-0000-000000000003'::uuid,
            '00000000-0000-0000-0000-000000000002'::uuid,
            '00000000-0000-0000-0000-000000000004'::uuid,
            'd0000000-0000-4000-8000-000000000007'::uuid
@@ -186,7 +204,10 @@ BEGIN
      AND status = 'active';
 
   INSERT INTO be_organization_members (organization_id, platform_user_id, role, specialist_id, status)
-  VALUES (v_org_id, v_user_id, 'doctor', v_spec_id, 'active')
+  VALUES
+    (v_org_id, v_user_id, 'doctor', v_spec_id, 'active'),
+    (v_org_id, '00000000-0000-0000-0000-000000000003', 'assistant', NULL, 'active'),
+    (v_org_id, '00000000-0000-0000-0000-000000000004', 'owner', v_owner_spec_id, 'active')
   ON CONFLICT (organization_id, platform_user_id) DO UPDATE
     SET role = EXCLUDED.role,
         specialist_id = EXCLUDED.specialist_id,
@@ -204,18 +225,7 @@ BEGIN
         status = EXCLUDED.status,
         updated_at = now();
 
-  -- 4. Владелец клиники (пресет `dev:clinic-admin`) — членство с ролью `owner` в той же организации.
-  --    Без него настройки организации (в том числе эквайринг) править некому: у роли `doctor` прав на
-  --    них нет, а глобальный администратор организации не имеет вовсе. Автосоздание рабочего места
-  --    (`ensureDevBypassStaffWorkspace`) в запертом режиме дев-входа не срабатывает.
-  INSERT INTO be_organization_members (organization_id, platform_user_id, role, specialist_id, status)
-  VALUES (v_org_id, '00000000-0000-0000-0000-000000000004', 'owner', NULL, 'active')
-  ON CONFLICT (organization_id, platform_user_id) DO UPDATE
-    SET role = EXCLUDED.role,
-        status = EXCLUDED.status,
-        updated_at = now();
-
-  -- 5. Пациент (пресет `dev:client`) должен быть записан в ту же организацию: пациентские пути
+  -- 4. Пациент (пресет `dev:client`) должен быть записан в ту же организацию: пациентские пути
   --    (каталог, покупка, оплата) начинаются с поиска активной записи в клинику и без неё отвечают
   --    `no_active_enrollment`.
   INSERT INTO org_enrollments (organization_id, platform_user_id, status)
@@ -226,10 +236,42 @@ BEGIN
   ON CONFLICT (organization_id, platform_user_id) DO UPDATE
     SET status = EXCLUDED.status;
 
+  UPDATE org_enrollments
+     SET status = 'archived'
+   WHERE platform_user_id = '00000000-0000-0000-0000-000000000001'::uuid
+     AND organization_id <> v_org_id
+     AND status = 'active';
+  UPDATE org_enrollments
+     SET status = 'archived'
+   WHERE platform_user_id = 'd0000000-0000-4000-8000-000000000006'::uuid
+     AND organization_id <> v_isolated_org_id
+     AND status = 'active';
+  UPDATE org_enrollments
+     SET status = 'archived'
+   WHERE platform_user_id = 'd0000000-0000-4000-8000-000000000008'::uuid
+     AND organization_id <> v_org_id
+     AND status = 'active';
+
+  UPDATE patient_specialist_links
+     SET status = 'ended', ended_at = COALESCE(ended_at, now())
+   WHERE patient_user_id IN (
+           '00000000-0000-0000-0000-000000000001'::uuid,
+           'd0000000-0000-4000-8000-000000000008'::uuid
+         )
+     AND organization_id <> v_org_id
+     AND status = 'active';
+  UPDATE patient_specialist_links
+     SET status = 'ended', ended_at = COALESCE(ended_at, now())
+   WHERE patient_user_id = 'd0000000-0000-4000-8000-000000000006'::uuid
+     AND organization_id <> v_isolated_org_id
+     AND status = 'active';
+
   -- Положительные пары для двух независимых стен безопасности.
   INSERT INTO patient_specialist_links
     (organization_id, patient_user_id, specialist_id, status, created_via)
   VALUES
+    (v_org_id, '00000000-0000-0000-0000-000000000001', v_owner_spec_id, 'active', 'manual_assign'),
+    (v_org_id, '00000000-0000-0000-0000-000000000001', v_spec_id, 'active', 'manual_assign'),
     (v_isolated_org_id, 'd0000000-0000-4000-8000-000000000006', v_isolated_spec_id, 'active', 'manual_assign'),
     (v_org_id, 'd0000000-0000-4000-8000-000000000008', v_colleague_spec_id, 'active', 'manual_assign')
   ON CONFLICT DO NOTHING;
@@ -261,6 +303,6 @@ BEGIN
   ON CONFLICT (id) DO UPDATE
     SET organization_id = EXCLUDED.organization_id;
 
-  RAISE NOTICE 'дев-врач % привязан к организации % специалистом %', v_user_id, v_org_id, v_spec_id;
+  RAISE NOTICE 'DEV-пресеты изолированы в организации %, врач %, владелец %', v_org_id, v_spec_id, v_owner_spec_id;
 END
 $$;

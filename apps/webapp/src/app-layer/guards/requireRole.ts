@@ -171,11 +171,6 @@ export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
   return requiresEstablishedStaffFactorVerification(session);
 }
 
-/** Platform-global DB entry always requires a factor-verified human session. */
-function hasVerifiedPlatformOperationsFactor(session: AppSession): boolean {
-  return session.staffSecurity?.assurance === 'factor_verified';
-}
-
 /**
  * Platform-only RSC entry. It intentionally does not resolve an organization membership.
  *
@@ -202,7 +197,7 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
   if (!hasLaunchCapability(capabilities, 'platform.operations')) {
     redirect('/app');
   }
-  if (!hasVerifiedPlatformOperationsFactor(session)) {
+  if (isRestrictedStaffSecuritySession(session)) {
     redirect('/app');
   }
   if (isPlatformUserUuid(session.user.userId)) {
@@ -237,7 +232,7 @@ export async function requirePlatformOperationsApiContext(): Promise<
   });
   if (
     !hasLaunchCapability(capabilities, 'platform.operations') ||
-    !hasVerifiedPlatformOperationsFactor(session)
+    isRestrictedStaffSecuritySession(session)
   ) {
     return {
       ok: false,
@@ -402,7 +397,7 @@ async function resolveDoctorWorkspaceAccessContext(
       capabilities: Array.from(
         resolveLaunchCapabilities({
           sessionRole: session.user.role,
-                membershipRole: context.role,
+          membershipRole: context.role,
           specialistId: context.specialistId,
           canManageOrganization: context.canManageOrganization,
           canAccessClinicalWorkspace,
@@ -712,10 +707,7 @@ export async function requireDoctorWorkspaceApiContext(
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('forbidden') };
   }
   stampStaffPrincipal(resolved.ctx, 'requireDoctorWorkspaceApiContext');
-  if (
-    !options.allowCabinetRecovery &&
-    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
-  ) {
+  if (!options.allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
   }
   return resolved;
@@ -784,10 +776,7 @@ export async function requireAdminWorkspaceApiContext(
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('forbidden') };
   }
   stampStaffPrincipal(resolved.ctx, 'requireAdminWorkspaceApiContext');
-  if (
-    !options.allowCabinetRecovery &&
-    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
-  ) {
+  if (!options.allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
   }
   return resolved;
@@ -828,10 +817,7 @@ export async function requireClinicManagementApiContext(
     };
   }
   stampStaffPrincipal(resolved.ctx, 'requireClinicManagementApiContext');
-  if (
-    !options.allowCabinetRecovery &&
-    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
-  ) {
+  if (!options.allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
   }
   return resolved;

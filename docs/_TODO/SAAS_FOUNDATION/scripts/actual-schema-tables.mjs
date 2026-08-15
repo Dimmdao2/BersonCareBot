@@ -55,6 +55,8 @@ const CREATE_TABLE_RE =
   /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 const DROP_TABLE_RE =
   /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
+const QUALIFIED_CREATE_TABLE_RE =
+  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-zA-Z0-9_]+)"?\."?([a-zA-Z0-9_]+)"?/gi;
 const QUALIFIED_DROP_TABLE_RE =
   /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?"?([a-zA-Z0-9_]+)"?\."?([a-zA-Z0-9_]+)"?/gi;
 const RENAME_TABLE_RE =
@@ -238,6 +240,32 @@ function readQualifiedDrops(files, schema) {
   return tables;
 }
 
+// Integrator migrations normally create unqualified tables in the integrator schema, but a
+// migration may deliberately move a shared runtime relation into public. Replay those explicit
+// CREATE/DROP statements separately so one historical unqualified table name cannot hide the new
+// qualified public relation (booking_calendar_map is the first such cutover).
+function readQualifiedMigrationTables(files, schema) {
+  const tables = new Set();
+
+  for (const file of files) {
+    const content = stripSqlLineComments(readFileSync(file, 'utf8'));
+    const events = [];
+    for (const match of content.matchAll(QUALIFIED_CREATE_TABLE_RE)) {
+      if (match[1] === schema) events.push({ index: match.index, kind: 'create', table: match[2] });
+    }
+    for (const match of content.matchAll(QUALIFIED_DROP_TABLE_RE)) {
+      if (match[1] === schema) events.push({ index: match.index, kind: 'drop', table: match[2] });
+    }
+    events.sort((left, right) => left.index - right.index);
+    for (const event of events) {
+      if (event.kind === 'create') tables.add(event.table);
+      else tables.delete(event.table);
+    }
+  }
+
+  return tables;
+}
+
 /**
  * Returns the sorted, schema-qualified list of base tables that actually
  * exist per the repo's own schema declarations and migration history
@@ -258,6 +286,10 @@ export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
   const integratorMigrationFiles = discoverIntegratorMigrationFiles(repoRoot);
   const integratorTables = readMigrationCreatedTables(integratorMigrationFiles);
   const integratorEverCreatedTables = readMigrationEverCreatedTables(integratorMigrationFiles);
+  const explicitlyPublicIntegratorTables = readQualifiedMigrationTables(
+    integratorMigrationFiles,
+    'public',
+  );
   // A later webapp migration may retire an explicitly qualified integrator table.
   // Account for that cross-runner DROP instead of resurrecting the table merely because
   // its historical CREATE remains in the integrator migration ledger.
@@ -273,6 +305,7 @@ export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
   // (baseline/pre-migration-era tables, `public.be_*`, etc.) — is public.
   const publicTables = new Set([
     ...webappCreatedTables,
+    ...explicitlyPublicIntegratorTables,
     ...Array.from(schemaDeclaredTables).filter(
       (table) => !integratorEverCreatedTables.has(table),
     ),

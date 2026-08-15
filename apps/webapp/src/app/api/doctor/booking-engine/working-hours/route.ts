@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { logger } from '@/app-layer/logging/logger';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 import { resolveDoctorOwnSpecialistId } from '../_resolveDoctorSpecialistId';
@@ -93,6 +95,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const parsed = upsertBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success || parsed.data.startMinute >= parsed.data.endMinute) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
@@ -127,14 +131,26 @@ export async function POST(request: Request) {
         }),
     );
     return NextResponse.json({ ok: true, row });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'create_failed' }, { status: 400 });
+  } catch (error) {
+    logger.error({ error }, '[doctor/booking-engine/working-hours] create failed');
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'create_failed',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error
+          ? { detail: error.message }
+          : {}),
+      },
+      { status: 400 },
+    );
   }
 }
 
 export async function PATCH(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const parsed = patchBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
@@ -169,14 +185,26 @@ export async function PATCH(request: Request) {
         }),
     );
     return NextResponse.json({ ok: true, row });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'update_failed' }, { status: 400 });
+  } catch (error) {
+    logger.error({ error }, '[doctor/booking-engine/working-hours] patch failed');
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'update_failed',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error
+          ? { detail: error.message }
+          : {}),
+      },
+      { status: 400 },
+    );
   }
 }
 
 export async function DELETE(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const id = new URL(request.url).searchParams.get('id');
   if (!id || !z.string().uuid().safeParse(id).success) {
     return NextResponse.json({ ok: false, error: 'missing_id' }, { status: 400 });

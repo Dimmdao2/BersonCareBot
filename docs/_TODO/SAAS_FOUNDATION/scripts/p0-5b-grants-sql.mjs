@@ -79,7 +79,10 @@ const migrationOnlyTables = new Set([
 //   below: RLS FORCE with no app_staff policy, owned entirely by app_platform_settings.
 // - saas_paid_period_policy / saas_billing_periods (0376): c5a-platform-operations-runtime.sql owns
 //   app_platform_settings DML and explicit REVOKE FROM app_staff; P0.5b must not re-grant them.
+// - public.booking_calendar_map is the canonical Google Calendar mapping behind exact named roots;
+//   the generated rev10 declaration owns its function-only grants, not ambient app_staff.
 const overlayManagedAppStaffTables = new Set([
+  'public.booking_calendar_map',
   'public.organization_member_invites',
   'public.patient_invites',
   'public.saas_billing_periods',
@@ -105,12 +108,10 @@ const overlayManagedAppStaffTables = new Set([
   'public.user_passkey_credentials',
 ]);
 
-// Rubitime retirement: these 8 provider-owned tables are DROP-migrated. The original R7 integrator
-// migration covered the 7 raw/provider tables; webapp Drizzle migration 0262 also removes
-// booking_calendar_map after the owner confirmed that its Rubitime-record-to-GCal provenance goes.
-// They remain tiered LEGACY in tiers-218.tsv as a historical record (see also
-// check-p0-10-tier-completeness.mjs, which is updated in the same change to stop expecting them in the
-// live schema), but they must never receive an app_staff GRANT again: deploy-test-saas.sh's
+// Rubitime retirement: these provider-owned integrator tables are DROP-migrated. The legacy
+// integrator.booking_calendar_map is retired after its canonical appointment-key rows move to
+// public.booking_calendar_map; the public table remains the live Google Calendar sync map.
+// Retired relations must never receive an app_staff GRANT again: deploy-test-saas.sh's
 // install_p0_5b_runtime_wall applies this generator's output with `-v ON_ERROR_STOP=1`, and
 // `GRANT ... ON TABLE integrator.rubitime_records ...` on a table that no longer exists is a hard error
 // that would take the whole P0.5b runtime-wall install step down.

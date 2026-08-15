@@ -29,7 +29,7 @@ BOOTSTRAP|public.user_password_credentials
 BOOTSTRAP|public.user_phone_history
 BOOTSTRAP|public.user_web_push_subscriptions
 INFRA|drizzle.__drizzle_migrations
-INFRA|integrator.booking_calendar_map
+INFRA|public.booking_calendar_map
 INFRA|integrator.delivery_attempt_logs
 INFRA|integrator.idempotency_keys
 INFRA|integrator.integration_data_quality_incidents

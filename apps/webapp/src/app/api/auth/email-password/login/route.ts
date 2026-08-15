@@ -33,7 +33,8 @@ const bodySchema = z.object({
 
 const INVALID_CREDENTIALS_MESSAGE =
   'Email или пароль неверны. Проверьте данные или восстановите пароль.';
-const SERVER_ERROR_MESSAGE = 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.';
+const SERVER_ERROR_MESSAGE =
+  'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.';
 
 function isConfiguredTestPatientPasswordLogin(
   user: SessionUser | null,
@@ -232,13 +233,9 @@ export async function POST(request: Request) {
     await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
     return NextResponse.json({
       ok: true,
-      // Platform operations always require a verified factor. A newly-created global admin has no
-      // factor yet, so sending it straight to the admin cabinet creates /app <-> system-health loop.
-      // The self-security page is deliberately reachable before enrollment.
-      redirectTo:
-        authenticatedUser.role === 'admin' && !security?.enrolled
-          ? '/app/account?tab=security'
-          : getRedirectPathForRole(sessionUser.role),
+      // A factor that the user has already enrolled is verified above. Without an enrolled factor,
+      // 2FA is voluntary and the role's own cabinet remains reachable.
+      redirectTo: getRedirectPathForRole(sessionUser.role),
       role: authenticatedUser.role,
     });
   } catch (error) {

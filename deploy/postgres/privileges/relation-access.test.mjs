@@ -461,6 +461,30 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
   ]);
 });
 
+test('schedule grants cover the default columns emitted by Drizzle inserts', () => {
+  const expected = {
+    'public.be_schedule_blocks': [
+      'block_type', 'branch_id', 'created_at', 'created_by_actor_id', 'end_at', 'id',
+      'organization_id', 'room_id', 'specialist_id', 'start_at', 'title',
+    ],
+    'public.be_schedule_templates': [
+      'branch_id', 'breaks', 'created_at', 'end_minute', 'id', 'is_active', 'name',
+      'organization_id', 'sort_order', 'start_minute', 'updated_at',
+    ],
+    'public.be_working_days': [
+      'branch_id', 'breaks', 'created_at', 'end_minute', 'id', 'is_closed', 'organization_id',
+      'room_id', 'specialist_id', 'start_minute', 'updated_at', 'work_date',
+    ],
+    'public.be_working_hours': [
+      'branch_id', 'created_at', 'end_minute', 'id', 'is_active', 'organization_id', 'room_id',
+      'specialist_id', 'start_minute', 'updated_at', 'weekday',
+    ],
+  };
+  for (const [relation, columns] of Object.entries(expected)) {
+    exactColumns(relation, 'app_staff', 'INSERT', columns);
+  }
+});
+
 test('no direct INSERT or UPDATE grant is table-wide', () => {
   for (const [relation, access] of Object.entries(REV10_CLINICAL_ACCESS)) {
     if (access.kind !== 'direct') continue;

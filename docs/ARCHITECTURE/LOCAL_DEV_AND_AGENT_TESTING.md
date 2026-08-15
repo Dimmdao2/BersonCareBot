@@ -230,7 +230,7 @@ NODE_ENV=development
 | `token`            | Роль в сессии                               | Admin mode         | Типичное использование                                                              |
 | ------------------ | ------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------- |
 | `dev:admin`        | `admin` + membership `assistant`            | **всегда включён** | Настройки `/app/doctor/admin/*`, audit-log, system-health, merge, опасные admin API |
-| `dev:clinic-admin` | `doctor` + membership `owner`               | нет                | Управление своей клиникой (`Врачи`, `Настройки клиники`) без global-admin экранов   |
+| `dev:clinic-admin` | `doctor` + membership `owner` + specialist  | нет                | Владелец и специалист отдельной демо-клиники без global-admin экранов                |
 | `dev:doctor`       | `doctor` + membership `doctor` + specialist | нет                | Кабинет специалиста без admin-only экранов                                          |
 | `dev:client`       | `client`                                    | —                  | Кабинет пациента                                                                    |
 | `dev:doctor-isolated` | `doctor` + specialist in a separate clinic | нет              | Проверка межорганизационной изоляции                                                 |
@@ -244,10 +244,15 @@ NODE_ENV=development
 `user_channel_bindings`. Поэтому эти четыре аккаунта должны быть подготовлены одноразовым DEV seed/setup до
 проверки входа; это не runtime account-creation path и не основание расширять D3.4 SELECT-only grants.
 
-В `legacy-guc`/`shadow` три staff-токена идемпотентно создают/чинят общую `DEV UX Clinic` и своё единственное
-active membership, а все четыре токена синхронизируют preset phone. `dev:doctor` получает отдельного specialist,
-`dev:clinic-admin` — owner-membership и отдельного specialist, `dev:admin` — минимальный `assistant` membership
-без specialist (права global admin даёт platform-role + `adminMode`, а не ownership клиники).
+В `legacy-guc`/`shadow` три staff-токена идемпотентно создают/чинят общую синтетическую `DEV Demo Clinic` и своё
+единственное active membership, а все четыре токена синхронизируют preset phone. `dev:doctor` получает отдельного
+specialist, `dev:clinic-admin` — owner-membership и свою specialist-карточку, `dev:admin` — минимальный `assistant`
+membership без specialist (права global admin даёт platform-role + `adminMode`, а не ownership клиники).
+
+В `locked`/`port-context` те же exact synthetic rows готовит
+`deploy/postgres/dev-c2-dev-bypass-fixture.sql`. Скрипт использует фиксированную `DEV Demo Clinic` и никогда не
+выбирает первую реальную организацию или specialist из восстановленного дампа. Поэтому `dev:doctor` и
+`dev:clinic-admin` не могут прикрепиться к клинике или карточке Дмитрия Берсона.
 
 В `locked` и `port-context` dev bypass полностью read-only: найденный по binding аккаунт обязан уже иметь точный preset phone;
 отсутствующий или отличный phone завершает вход fail-closed. Phone, role, organization, membership и specialist

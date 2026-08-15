@@ -6,14 +6,18 @@ import type {
 } from '@/modules/organization-membership/service';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 
-vi.mock('@bersoncare/db-principal', () => ({
-  ensureDbPrincipalContext: vi.fn(),
-  enterWithDbPatientPrincipal: vi.fn(),
-  enterWithDbPlatformPrincipal: vi.fn(),
-  enterWithDbStaffPrincipal: vi.fn(),
-  getCurrentDbPrincipal: vi.fn(() => undefined),
-  isDbPrincipalPlatformUserId: vi.fn(() => false),
-}));
+vi.mock('@bersoncare/db-principal', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@bersoncare/db-principal')>();
+  return {
+    ...actual,
+    ensureDbPrincipalContext: vi.fn(),
+    enterWithDbPatientPrincipal: vi.fn(),
+    enterWithDbPlatformPrincipal: vi.fn(),
+    enterWithDbStaffPrincipal: vi.fn(),
+    getCurrentDbPrincipal: vi.fn(() => undefined),
+    isDbPrincipalPlatformUserId: vi.fn(() => false),
+  };
+});
 
 vi.mock('@/app-layer/principal/staffSecuritySelfPrincipal', () => ({
   enterStaffSecuritySelfPrincipal: vi.fn(),

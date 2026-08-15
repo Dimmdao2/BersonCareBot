@@ -1877,8 +1877,10 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "block_type",
           "branch_id",
+          "created_at",
           "created_by_actor_id",
           "end_at",
+          "id",
           "organization_id",
           "room_id",
           "specialist_id",
@@ -1910,12 +1912,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "branch_id",
           "breaks",
+          "created_at",
           "end_minute",
+          "id",
           "is_active",
           "name",
           "organization_id",
           "sort_order",
-          "start_minute"
+          "start_minute",
+          "updated_at"
         ]
       },
       {
@@ -2234,7 +2239,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "branch_id",
           "breaks",
+          "created_at",
           "end_minute",
+          "id",
           "is_closed",
           "organization_id",
           "room_id",
@@ -2293,12 +2300,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "branch_id",
+          "created_at",
           "end_minute",
+          "id",
           "is_active",
           "organization_id",
           "room_id",
           "specialist_id",
           "start_minute",
+          "updated_at",
           "weekday"
         ]
       },
