@@ -3508,10 +3508,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.user_contacts': {
-    kind: 'direct', purpose: 'patient reads only its own normalized primary contact used by account support flows',
-    codePaths: ['apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts'],
+    kind: 'direct', purpose: 'patient reads only its own normalized contacts used by account and session resolution',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts',
+      'apps/webapp/src/infra/repos/pgUserByPhone.ts#loadSessionIdentityUser',
+    ],
     grants: [{ role: 'app_patient', operations: ['SELECT'],
-      columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'] }],
+      columns: ['id', 'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary',
+        'confirmed_at', 'source_origin', 'created_at'] }],
   },
   'public.user_identity': {
     kind: 'direct', purpose: 'patient reads only its own canonical identity used by account and session resolution',

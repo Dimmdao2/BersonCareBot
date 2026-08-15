@@ -667,6 +667,13 @@ test('runtime settings and account email use semantic row walls without broad pa
     identity.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
     ['platform_user_id', 'display_name', 'first_name', 'last_name', 'patronymic'],
   );
+  const contacts = tables['public.user_contacts'];
+  assert.equal(contacts.access.kind, 'direct');
+  assert.deepEqual(
+    contacts.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
+    ['id', 'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary',
+      'confirmed_at', 'source_origin', 'created_at'],
+  );
   assert.deepEqual(
     users.access.grants.find((grant) =>
       grant.role === 'app_patient' && grant.operations.includes('UPDATE'))?.columns,
