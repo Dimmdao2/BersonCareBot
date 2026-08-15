@@ -443,6 +443,14 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (439, '83
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (440, '08e295b3380dee3b19a4b76a6d502467546bf46768c43d3c5f8eab9b2edcf1c6', 1793539230159);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (441, '04c2f72e1d80116f5d5f1d08f62c7b9eff573d9de4303c3c7c98a1e9857b7408', 1793539230160);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (442, 'b9ad7b536f047eec6213350f68c02b2e75e78902ec8bce163c4be037ba3ce62d', 1793539230161);
+-- The one-step target already owns the three following end states: invite roots are present in
+-- schema-pre, the canonical owner membership is preserved by the reviewed identity/C4 data stage,
+-- and every 0356 migration-owned function is present. Record them in the target ledger so a
+-- post-cutover code deploy cannot replay historical transition SQL or downgrade the owner
+-- membership to doctor.
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (443, '9158a8a5f287424b9ba1ab732ca5d63c2a675d6700d6ad2ad42ff6ad5eba17fe', 1793539230162);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (444, '9d5f8ea5092512afa1c13e677528311b879adcecfb7ebea2f9bbc687910e2945', 1793539230163);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (445, '2deabb8015cfae89a31f63293644b051818f1ab7bf89cd97c6c5f121de89f16b', 1793539230164);
 
 
 --
@@ -607,7 +615,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 442, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 445, true);
 
 
 --
