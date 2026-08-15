@@ -3514,9 +3514,13 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'] }],
   },
   'public.user_identity': {
-    kind: 'direct', purpose: 'patient reads only its own display name used by canonical account resolution',
-    codePaths: ['apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts'],
-    grants: [{ role: 'app_patient', operations: ['SELECT'], columns: ['platform_user_id', 'display_name'] }],
+    kind: 'direct', purpose: 'patient reads only its own canonical identity used by account and session resolution',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts',
+      'apps/webapp/src/infra/repos/pgUserByPhone.ts#loadSessionIdentityUser',
+    ],
+    grants: [{ role: 'app_patient', operations: ['SELECT'],
+      columns: ['platform_user_id', 'display_name', 'first_name', 'last_name', 'patronymic'] }],
   },
   'public.app_runtime_settings': {
     kind: 'direct',
@@ -3544,6 +3548,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     purpose: 'identity-self reads own account and controls only its own timezone and reminder mute; clinic staff reads current-clinic members; platform settings reads them for global administration',
     codePaths: [
       'apps/webapp/src/infra/repos/pgUserProjection.ts#getProfileEmailFields',
+      'apps/webapp/src/infra/repos/pgUserByPhone.ts#loadSessionIdentityUser',
       'apps/webapp/src/infra/repos/pgPlatformUserCalendarTimezone.ts',
       'apps/webapp/src/infra/repos/pgReminderRules.ts#setReminderMutedUntil',
       'apps/webapp/src/app/app/account/page.tsx',
@@ -3551,7 +3556,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_patient', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
-          'merged_into_id', 'display_name', 'role', 'reminder_muted_until'] },
+          'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
+          'reminder_muted_until'] },
       { role: 'app_patient', operations: ['UPDATE'],
         columns: ['calendar_timezone', 'reminder_muted_until', 'updated_at'] },
       { role: 'app_platform_settings', operations: ['SELECT'],
