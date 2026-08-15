@@ -237,17 +237,17 @@ BEGIN
   IF violations <> 0 THEN RAISE EXCEPTION 'extra or wrong-specialist active patient link: %', violations; END IF;
 
   SELECT count(*) INTO violations
-  FROM cutover_expected_patient_domain_references reference
+  FROM cutover_expected_patient_domain_references patient_reference
   WHERE (
     SELECT count(*) FROM public.org_enrollments enrollment
     WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
-      AND enrollment.platform_user_id = reference.platform_user_id
+      AND enrollment.platform_user_id = patient_reference.platform_user_id
       AND enrollment.status = 'active'
   ) <> 1
   OR (
     SELECT count(*) FROM public.patient_specialist_links link
     WHERE link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
-      AND link.patient_user_id = reference.platform_user_id
+      AND link.patient_user_id = patient_reference.platform_user_id
       AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
       AND link.status = 'active'
   ) <> 1;

@@ -3687,6 +3687,13 @@ if [ "$PREPARE_CUTOVER_SOURCE_ONLY" = "1" ]; then
   exit 0
 fi
 
+# schema-post creates policies that name the target capability roles. A long-lived TEST cluster can
+# already have them and hide a missing prerequisite; a clean cluster cannot. Install only the
+# declaration-derived NOLOGIN roles here, before the atomic A→B transaction. Login roles, passwords,
+# database ACL and port-context grants are still rebuilt by the final privilege closure below.
+log "pre-migration NOLOGIN role prerequisites"
+install_pre_migration_role_prerequisites
+
 # 6. One transaction replaces schema A with the exact current DEV schema, copies
 #    the prepared data, and records the target migration ledgers. Historical
 #    webapp/integrator migration runners are intentionally not invoked here.
