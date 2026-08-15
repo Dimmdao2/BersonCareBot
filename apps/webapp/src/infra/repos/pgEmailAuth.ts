@@ -48,7 +48,6 @@ export async function startEmailChallengeInDb(params: {
   purpose: EmailChallengePurpose;
   code: string;
 }): Promise<{ challengeId: string | null; retryAfterSeconds: number }> {
-  const identity = 'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)';
   const query = `SELECT challenge_id::text, retry_after_seconds
     FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6)`;
   const result = await runWebappNamedRoot<{
@@ -56,7 +55,7 @@ export async function startEmailChallengeInDb(params: {
     retry_after_seconds: number | string;
   }>(
     getWebappSqlDb(),
-    identity,
+    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)',
     [
       params.userId,
       params.email,

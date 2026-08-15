@@ -3,14 +3,16 @@
  * Satisfies EmailOtpPublicDbPort from modules/auth/emailOtpPublicPort.ts.
  */
 import { sql } from 'drizzle-orm';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type { EmailOtpPublicDbPort } from '@/modules/auth/emailOtpPublicPort';
 
 export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
   return {
     async findOrCreatePublicEmailUser(emailNorm) {
-      const result = await runWebappSql<{ user_id: string; was_created: boolean }>(
+      const result = await runWebappNamedRoot<{ user_id: string; was_created: boolean }>(
         getWebappSqlDb(),
+        'app.email_otp_public_find_or_create_user(text)',
+        [emailNorm],
         sql`SELECT user_id::text, was_created
             FROM app.email_otp_public_find_or_create_user(${emailNorm})`,
       );
@@ -20,8 +22,10 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
     },
 
     async findPublicEmailUser(emailNorm) {
-      const result = await runWebappSql<{ user_id: string }>(
+      const result = await runWebappNamedRoot<{ user_id: string }>(
         getWebappSqlDb(),
+        'app.email_otp_public_find_user_by_email(text)',
+        [emailNorm],
         sql`SELECT user_id::text
             FROM app.email_otp_public_find_user_by_email(${emailNorm})`,
       );
@@ -30,12 +34,14 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
     },
 
     async registerPublicEmailPatient(input) {
-      const result = await runWebappSql<{
+      const result = await runWebappNamedRoot<{
         ok: boolean;
         user_id: string | null;
         was_created: boolean;
       }>(
         getWebappSqlDb(),
+        'app.email_otp_public_register_patient(text,text,text,text)',
+        [input.emailNormalized, input.lastName, input.firstName, input.patronymic],
         sql`SELECT ok, user_id::text AS user_id, was_created
             FROM app.email_otp_public_register_patient(${input.emailNormalized}, ${input.lastName}, ${input.firstName}, ${input.patronymic})`,
       );
@@ -46,13 +52,15 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
     },
 
     async consumeLatestEmailChallenge(emailNorm, codeHash) {
-      const result = await runWebappSql<{
+      const result = await runWebappNamedRoot<{
         ok: boolean;
         code: 'invalid_code' | 'expired_code' | 'too_many_attempts' | 'email_conflict' | null;
         user_id: string | null;
         retry_after_seconds: number | null;
       }>(
         getWebappSqlDb(),
+        'app.email_otp_public_consume_latest_challenge(text,text)',
+        [emailNorm, codeHash],
         sql`SELECT ok, code, user_id::text AS user_id, retry_after_seconds
             FROM app.email_otp_public_consume_latest_challenge(${emailNorm}, ${codeHash})`,
       );
@@ -69,8 +77,10 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
 
     async findEmailSendCooldownByEmail(emailNorm) {
       // Pick the most recent cooldown for this email regardless of which user_id owns it.
-      const r = await runWebappSql<{ last_sent_at: Date | string }>(
+      const r = await runWebappNamedRoot<{ last_sent_at: Date | string }>(
         getWebappSqlDb(),
+        'app.email_otp_public_find_email_send_cooldown_by_email(text)',
+        [emailNorm],
         sql`SELECT last_sent_at
             FROM app.email_otp_public_find_email_send_cooldown_by_email(${emailNorm})`,
       );

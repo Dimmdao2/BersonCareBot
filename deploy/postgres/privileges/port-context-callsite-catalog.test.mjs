@@ -114,6 +114,41 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.email-otp.lock.reset', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgEmailAuth.ts',
   },
+  'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.challenge.start', argCount: 6,
+    source: 'apps/webapp/src/infra/repos/pgEmailAuth.ts',
+  },
+  'app.email_password_find_reset_candidate(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.password.reset-candidate', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgUserPasswordCredentials.ts',
+  },
+  'app.email_otp_public_find_or_create_user(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.user.find-or-create', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgEmailOtpPublic.ts',
+  },
+  'app.email_otp_public_find_user_by_email(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.user.find', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgEmailOtpPublic.ts',
+  },
+  'app.email_otp_public_register_patient(text,text,text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.registration.create', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgEmailOtpPublic.ts',
+  },
+  'app.email_otp_public_consume_latest_challenge(text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.challenge.consume', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgEmailOtpPublic.ts',
+  },
+  'app.email_otp_public_find_email_send_cooldown_by_email(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.email-otp.cooldown.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgEmailOtpPublic.ts',
+  },
   'app.phone_auth_find_latest_challenge_created_at(text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'auth.phone-otp.cooldown.read', argCount: 1,
