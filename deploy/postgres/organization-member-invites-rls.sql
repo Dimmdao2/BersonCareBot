@@ -409,11 +409,13 @@ GRANT EXECUTE ON FUNCTION app.accept_org_invite(text, uuid, text) TO app_patient
 
 CREATE OR REPLACE FUNCTION app.email_otp_public_find_user_by_email(p_email_norm text)
 RETURNS TABLE (user_id uuid)
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
+BEGIN
+  RETURN QUERY
   WITH RECURSIVE chain AS (
     SELECT u.id, u.merged_into_id, 0 AS depth, ARRAY[u.id] AS path
     FROM public.platform_users AS u
@@ -426,7 +428,8 @@ AS $$
   )
   SELECT chain.id FROM chain
   ORDER BY (chain.merged_into_id IS NULL) DESC, chain.depth DESC
-  LIMIT 1
+  LIMIT 1;
+END
 $$;
 
 CREATE OR REPLACE FUNCTION app.email_otp_public_register_patient(
@@ -438,13 +441,18 @@ SET search_path = pg_catalog
 AS $$
 #variable_conflict use_column
 DECLARE
-  v_email_norm text := lower(btrim(p_email_norm));
-  v_last_name text := NULLIF(btrim(p_last_name), '');
-  v_first_name text := NULLIF(btrim(p_first_name), '');
-  v_patronymic text := NULLIF(btrim(p_patronymic), '');
+  v_email_norm text;
+  v_last_name text;
+  v_first_name text;
+  v_patronymic text;
   v_existing public.platform_users%ROWTYPE;
   v_user_id uuid;
 BEGIN
+  v_email_norm := lower(btrim(p_email_norm));
+  v_last_name := NULLIF(btrim(p_last_name), '');
+  v_first_name := NULLIF(btrim(p_first_name), '');
+  v_patronymic := NULLIF(btrim(p_patronymic), '');
+
   IF v_email_norm = '' THEN RETURN QUERY SELECT false, 'invalid_email'::text, NULL::uuid, false; RETURN; END IF;
   IF v_last_name IS NULL OR v_first_name IS NULL THEN RETURN QUERY SELECT false, 'invalid_fio'::text, NULL::uuid, false; RETURN; END IF;
   SELECT u.* INTO v_existing FROM public.platform_users AS u WHERE u.email_normalized = v_email_norm AND u.merged_into_id IS NULL LIMIT 1;
@@ -490,8 +498,10 @@ DECLARE
   v_merged_id uuid;
   v_canonical_id uuid;
   v_inserted_id uuid;
-  v_display_name text := COALESCE(NULLIF(split_part(p_email_norm, '@', 1), ''), p_email_norm);
+  v_display_name text;
 BEGIN
+  v_display_name := COALESCE(NULLIF(split_part(p_email_norm, '@', 1), ''), p_email_norm);
+
   SELECT u.id
   INTO v_existing_id
   FROM public.platform_users AS u
@@ -718,16 +728,19 @@ $$;
 
 CREATE OR REPLACE FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(p_email_norm text)
 RETURNS TABLE (last_sent_at timestamptz)
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
+BEGIN
+  RETURN QUERY
   SELECT c.last_sent_at
   FROM public.email_send_cooldowns AS c
   WHERE c.email_normalized = p_email_norm
   ORDER BY c.last_sent_at DESC
-  LIMIT 1
+  LIMIT 1;
+END
 $$;
 
 CREATE OR REPLACE FUNCTION app.email_auth_find_email_send_cooldown(p_user_id uuid, p_email_norm text)
