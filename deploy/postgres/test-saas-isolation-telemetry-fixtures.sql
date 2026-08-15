@@ -7,20 +7,27 @@
 \set ON_ERROR_STOP on
 \pset pager off
 
-\if :{?telemetry_webapp_runtime_role}
+-- The initial port-context cutover needs these TEST-only routines to exist before
+-- the generated declaration can assign their final owner/ACL. In that one offline
+-- window the caller sets telemetry_fixture_objects_only; runtime login shells do not
+-- exist yet, so only the objects and their deny-PUBLIC baseline are installed.
+\if :{?telemetry_fixture_objects_only}
 \else
-\echo 'FATAL: missing telemetry_webapp_runtime_role'
-SELECT 1 / 0;
-\endif
-\if :{?telemetry_api_runtime_role}
-\else
-\echo 'FATAL: missing telemetry_api_runtime_role'
-SELECT 1 / 0;
-\endif
-\if :{?telemetry_operator_runtime_role}
-\else
-\echo 'FATAL: missing telemetry_operator_runtime_role'
-SELECT 1 / 0;
+  \if :{?telemetry_webapp_runtime_role}
+  \else
+  \echo 'FATAL: missing telemetry_webapp_runtime_role'
+  SELECT 1 / 0;
+  \endif
+  \if :{?telemetry_api_runtime_role}
+  \else
+  \echo 'FATAL: missing telemetry_api_runtime_role'
+  SELECT 1 / 0;
+  \endif
+  \if :{?telemetry_operator_runtime_role}
+  \else
+  \echo 'FATAL: missing telemetry_operator_runtime_role'
+  SELECT 1 / 0;
+  \endif
 \endif
 
 -- Operator-only TEST fixture state. It is physically incapable of mutating any
@@ -103,18 +110,21 @@ $function$;
 ALTER FUNCTION app.set_saas_isolation_test_scenario(text) OWNER TO saas_telemetry_owner;
 ALTER FUNCTION app.read_saas_isolation_test_scenario_fixture_counts() OWNER TO saas_telemetry_owner;
 REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM app_owner, app_staff, app_patient, app_worker;
-SELECT format('REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM %I', :'telemetry_webapp_runtime_role') \gexec
-SELECT format('REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM %I', :'telemetry_api_runtime_role') \gexec
-SELECT format('REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM %I', :'telemetry_operator_runtime_role') \gexec
+\if :{?telemetry_fixture_objects_only}
+\else
+  REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM app_owner, app_staff, app_patient, app_worker;
+  SELECT format('REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM %I', :'telemetry_webapp_runtime_role') \gexec
+  SELECT format('REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM %I', :'telemetry_api_runtime_role') \gexec
+  SELECT format('REVOKE ALL ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() FROM %I', :'telemetry_operator_runtime_role') \gexec
 
--- Coverage/read require a separate infrastructure login; saas_telemetry_operator and its
--- schema USAGE grant already exist from the production overlay applied immediately before this file.
-GRANT EXECUTE ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() TO saas_telemetry_operator;
+  -- Coverage/read require a separate infrastructure login; saas_telemetry_operator and its
+  -- schema USAGE grant already exist from the production overlay applied immediately before this file.
+  GRANT EXECUTE ON FUNCTION app.set_saas_isolation_test_scenario(text), app.read_saas_isolation_test_scenario_fixture_counts() TO saas_telemetry_operator;
 
-SELECT 1 / (
-  NOT has_function_privilege(:'telemetry_webapp_runtime_role', 'app.read_saas_isolation_test_scenario_fixture_counts()', 'EXECUTE')
-  AND NOT has_function_privilege('app_staff', 'app.read_saas_isolation_test_scenario_fixture_counts()', 'EXECUTE')
-  AND has_function_privilege(:'telemetry_operator_runtime_role', 'app.set_saas_isolation_test_scenario(text)', 'EXECUTE')
-  AND has_function_privilege(:'telemetry_operator_runtime_role', 'app.read_saas_isolation_test_scenario_fixture_counts()', 'EXECUTE')
-)::int AS test_fixture_telemetry_least_privilege_verified;
+  SELECT 1 / (
+    NOT has_function_privilege(:'telemetry_webapp_runtime_role', 'app.read_saas_isolation_test_scenario_fixture_counts()', 'EXECUTE')
+    AND NOT has_function_privilege('app_staff', 'app.read_saas_isolation_test_scenario_fixture_counts()', 'EXECUTE')
+    AND has_function_privilege(:'telemetry_operator_runtime_role', 'app.set_saas_isolation_test_scenario(text)', 'EXECUTE')
+    AND has_function_privilege(:'telemetry_operator_runtime_role', 'app.read_saas_isolation_test_scenario_fixture_counts()', 'EXECUTE')
+  )::int AS test_fixture_telemetry_least_privilege_verified;
+\endif

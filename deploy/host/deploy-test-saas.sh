@@ -3349,6 +3349,10 @@ run_port_context_test_release(){
   # responsibility and must not try to ALTER the removed role on success or on a late failure.
   cleanup_elevation
   LEGACY_ELEVATION_CLEANUP_REQUIRED=0
+  log "install TEST-only telemetry fixture objects required by the target privilege declaration"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v telemetry_fixture_objects_only=1 \
+    -f "$DEPLOY_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES"
   log "single-target TEST mTLS → zero/proof → minimal target roles/grants"
   local access_backup="/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-access-$(date -u +%Y%m%dT%H%M%SZ).dump"
   local current_connection_limit
