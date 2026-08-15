@@ -3630,6 +3630,31 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         columns: ['confirming_channel', 'platform_user_id', 'valid_to'] },
     ],
   },
+  'public.media_files': {
+    kind: 'direct',
+    purpose: 'the accepted operational media worker reads media inputs and records transcode outputs',
+    codePaths: ['apps/webapp/src/infra/repos/pgMediaWorkerControl.ts'],
+    grants: [
+      { role: 'app_operational_media_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_operational_media_worker', operations: ['UPDATE'], columns: [
+        'available_qualities_json', 'hls_artifact_prefix', 'hls_master_playlist_s3_key', 'mime_type',
+        'poster_s3_key', 's3_key', 'video_delivery_override', 'video_duration_seconds',
+        'video_processing_error', 'video_processing_status',
+      ] },
+    ],
+  },
+  'public.media_transcode_jobs': {
+    kind: 'direct',
+    purpose: 'the accepted operational media worker claims and completes cross-tenant transcode jobs',
+    codePaths: ['apps/webapp/src/infra/repos/pgMediaWorkerControl.ts'],
+    grants: [
+      { role: 'app_operational_media_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_operational_media_worker', operations: ['UPDATE'], columns: [
+        'attempts', 'finished_at', 'last_error', 'locked_at', 'locked_by', 'next_attempt_at',
+        'processing_started_at', 'status', 'updated_at',
+      ] },
+    ],
+  },
   'public.operator_job_status': {
     kind: 'direct',
     purpose: 'the accepted webapp worker records and reads scheduler health ticks',
