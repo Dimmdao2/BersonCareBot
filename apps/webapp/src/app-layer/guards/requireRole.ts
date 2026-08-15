@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { NextResponse } from 'next/server';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   ensureDbPrincipalContext,
   enterWithDbPlatformPrincipal,
@@ -92,6 +93,10 @@ export async function requireDoctorAccess(): Promise<AppSession> {
 
 /** Personal staff account entry. It deliberately does not require an organization membership. */
 export async function requireStaffAccountPage(): Promise<AppSession> {
+  // Next emits instrumentation and RSC as separate module graphs. Binding in instrumentation does
+  // not populate the RSC copy of SessionUserPort, so this page boundary must bind before the first
+  // session lookup just like auth route handlers do.
+  ensureAuthModulePortsBound();
   const session = await requireSession();
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
