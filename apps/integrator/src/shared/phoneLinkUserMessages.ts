@@ -46,7 +46,7 @@ export function phoneLinkChannelBoundElsewhereUserMessage(source: string): strin
   return 'Не удалось завершить привязку: канал уже связан с другим профилем. Напишите в поддержку.';
 }
 
-/** Legacy integrator.contacts после успешного public-merge — редкий коллизионный хвост. */
+/** Коллизия канонического телефона после public-merge. */
 export function phoneLinkLegacyContactsConflictUserMessage(): string {
   return 'Не удалось записать телефон в учётной системе. Напишите в поддержку — мы проверим данные.';
 }

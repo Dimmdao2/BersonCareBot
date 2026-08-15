@@ -8,6 +8,10 @@
 import { execFileSync } from 'node:child_process';
 import { chmodSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  filterAndValidateTargetTariffCatalog,
+  removeRetiredRuntimeSettings,
+} from './prod-to-target-baseline-policy.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 const outputRoot = resolve(repoRoot, 'deploy/postgres/generated/prod-to-target');
@@ -18,10 +22,10 @@ const artifacts = [
     file: 'schema-pre.sql',
     restrictKey: 'nWtjyBeP1kaN7rDBMHL6kRFv5HeZBf2ix1LExAsn9NhYTKcFdAMQbKcXvISeUTn',
     args: ['--schema-only', '--section=pre-data'],
-    transform: (sql) => sql.replace(
+    transform: (sql) => removeRetiredRuntimeSettings(sql.replace(
       /^CREATE SCHEMA (app|app_control|app_ext|drizzle|integrator);$/gmu,
       'CREATE SCHEMA IF NOT EXISTS $1;',
-    ),
+    )),
   },
   {
     file: 'schema-post.sql',
@@ -42,11 +46,13 @@ const artifacts = [
       '--table=public.saas_registration_tariff_policy',
       '--table=public.saas_trial_policy',
     ],
+    transform: filterAndValidateTargetTariffCatalog,
   },
   {
     file: 'runtime-settings.sql',
     restrictKey: 'zuW9L5uzqzBzeUZ4w0j4VjwaxfagL7ZbzDDIja2kue9OpChHcJnzVk9ak4FJIHp',
     args: ['--data-only', '--column-inserts', '--table=public.app_runtime_settings'],
+    transform: removeRetiredRuntimeSettings,
   },
 ];
 

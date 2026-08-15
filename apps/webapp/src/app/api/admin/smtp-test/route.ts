@@ -31,8 +31,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
+  const probeRef = `smtp-test:${randomUUID()}`;
   const res = await relayOutbound({
-    messageId: `smtp-test:${randomUUID()}`,
+    messageId: probeRef,
     channel: 'email',
     recipient: body.to,
     text: 'Это тестовое письмо с экрана настроек администратора. Если вы его получили, исходящая почта настроена верно.',
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
   });
 
   if (res.ok) {
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, probeRef });
   }
   return NextResponse.json(
     { ok: false, error: 'send_failed', message: res.reason },

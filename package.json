@@ -50,6 +50,7 @@
     "refresh:saas-a0-greenfield-baseline": "node scripts/refresh-a0-greenfield-baseline.mjs --confirm-local-dev-schema-refresh",
     "refresh:prod-to-target-cutover": "node scripts/refresh-prod-to-target-cutover.mjs --confirm-local-dev-target-refresh",
     "check:prod-to-target-cutover": "node scripts/refresh-prod-to-target-cutover.mjs --check",
+    "check:cutover-systemic-closure": "node --test scripts/prod-to-target-cutover-contract.test.mjs scripts/prod-to-target-baseline-policy.test.mjs deploy/host/deploy-test-full-reset.test.mjs && node scripts/check-legacy-access-census.mjs && node scripts/check-legacy-access-census.mjs --self-test && node deploy/host/validate-smtp-outbound-snapshot.mjs --self-test",
     "check:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs",
     "smoke:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-s5-2-settings-security.mjs",
     "smoke:u6b-organization-slug-invariants": "node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-u6b-organization-slug-invariants.mjs",

@@ -94,7 +94,6 @@ export async function fetchIntegratorProviderRuntimeSettingValueJson(
 }
 
 export type IntegratorRuntimeSettingKey =
-  | 'integrator_linked_phone_source'
   | 'admin_telegram_ids'
   | 'admin_max_ids'
   | 'doctor_telegram_ids'

@@ -7,17 +7,9 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/shared/ui/doctor/primitives/select';
 import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
 import { previewTestAccountPhoneTokens } from '@/modules/system-settings/testAccounts';
 import { patchAdminSettingsBatch } from './patchAdminSetting';
-
-export type IntegratorLinkedPhoneSource = 'public_then_contacts' | 'public_only' | 'contacts_only';
 
 export type AdminSettingsSectionProps = {
   devMode: boolean;
@@ -26,8 +18,6 @@ export type AdminSettingsSectionProps = {
   miniappAuthVerboseServerLog: boolean;
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
-  /** Как integrator собирает `linkedPhone`: public vs legacy `integrator.contacts`. */
-  integratorLinkedPhoneSource: IntegratorLinkedPhoneSource;
   /** Тестовые аккаунты: телефоны (пробел/запятая), Telegram ID, Max ID — для техработ и dev_mode relay. */
   testAccountPhones: string;
   testAccountTelegramIds: string;
@@ -47,7 +37,6 @@ export function AdminSettingsSection({
   miniappAuthVerboseServerLog,
   importantFallbackDelayMinutes,
   platformUserMergeV2Enabled,
-  integratorLinkedPhoneSource,
   testAccountPhones,
   testAccountTelegramIds,
   testAccountMaxIds,
@@ -64,7 +53,6 @@ export function AdminSettingsSection({
   const [miniappVerbose, setMiniappVerbose] = useState(miniappAuthVerboseServerLog);
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
   const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
-  const [linkedPhoneSource, setLinkedPhoneSource] = useState(integratorLinkedPhoneSource);
 
   const [testPhonesVal, setTestPhonesVal] = useState(testAccountPhones);
   const [testTgVal, setTestTgVal] = useState(testAccountTelegramIds);
@@ -129,7 +117,6 @@ export function AdminSettingsSection({
           { key: 'max_debug_page_enabled', value: miniappVerbose },
           { key: 'important_fallback_delay_minutes', value: fallbackDelay },
           { key: 'platform_user_merge_v2_enabled', value: mergeV2 },
-          { key: 'integrator_linked_phone_source', value: linkedPhoneSource },
           { key: 'test_account_identifiers', value: testPayload },
           { key: 'patient_app_maintenance_enabled', value: maintenanceEnabled },
           { key: 'patient_app_maintenance_message', value: msgRaw },
@@ -356,36 +343,6 @@ export function AdminSettingsSection({
           disabled={isPending}
           switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
         />
-
-        <DoctorField
-          label="Integrator: источник linkedPhone"
-          htmlFor="integrator-linked-phone-source"
-          width="lg"
-          hint="Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже если номер остался только в integrator.contacts."
-        >
-          <Select
-            value={linkedPhoneSource}
-            onValueChange={(v) => setLinkedPhoneSource(v as IntegratorLinkedPhoneSource)}
-            disabled={isPending}
-          >
-            <SelectTrigger
-              id="integrator-linked-phone-source"
-              displayLabel={linkedPhoneSource}
-            ></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="public_then_contacts">
-                public_then_contacts — сначала public.platform_users, иначе legacy contacts (по
-                умолчанию)
-              </SelectItem>
-              <SelectItem value="public_only">
-                public_only — только канон webapp (целевой режим)
-              </SelectItem>
-              <SelectItem value="contacts_only">
-                contacts_only — только legacy contacts (аварийный откат)
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </DoctorField>
 
         <DoctorField
           label="Задержка SMS fallback для важных сообщений (минут)"

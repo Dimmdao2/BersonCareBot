@@ -18,6 +18,13 @@ DROP SCHEMA cutover_source_integrator CASCADE;
 DROP SCHEMA cutover_source_drizzle CASCADE;
 DROP SCHEMA cutover_source_public CASCADE;
 
+-- Canonical phone is unconditional; do not carry the retired fallback strategy into target state.
+DELETE FROM public.app_runtime_settings WHERE key = 'integrator_linked_phone_source';
+DELETE FROM public.system_settings
+WHERE key = 'integrator_linked_phone_source'
+  AND scope = 'admin'
+  AND organization_id IS NULL;
+
 -- Existing PROD snapshots predate these required global admin-settings rows. The target UI
 -- deliberately fails loud when one is absent, so the A -> B cutover creates only the missing
 -- canonical rows and never overwrites a configured value.
@@ -75,18 +82,41 @@ BEGIN
   IF violations <> 0 THEN RAISE EXCEPTION 'live appointments without active specialist: %', violations; END IF;
 
   SELECT count(*) INTO violations
-  FROM public.be_appointments appointment
-  JOIN public.platform_users patient ON patient.id = appointment.platform_user_id
-  WHERE appointment.deleted_at IS NULL
-    AND patient.role = 'client'
-    AND patient.merged_into_id IS NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM public.org_enrollments enrollment
-      WHERE enrollment.organization_id = appointment.organization_id
-        AND enrollment.platform_user_id = appointment.platform_user_id
+  FROM cutover_expected_patient_domain_membership expected
+  WHERE (
+      SELECT count(*) FROM public.org_enrollments enrollment
+      WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+        AND enrollment.platform_user_id = expected.platform_user_id
         AND enrollment.status = 'active'
-    );
-  IF violations <> 0 THEN RAISE EXCEPTION 'appointment patients without active enrollment: %', violations; END IF;
+    ) <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'patient-domain clients without active enrollment: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM cutover_expected_patient_domain_membership expected
+  WHERE (
+    SELECT count(*) FROM public.patient_specialist_links link
+    WHERE link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+      AND link.patient_user_id = expected.platform_user_id
+      AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
+      AND link.status = 'active'
+  ) <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'patient-domain clients without canonical specialist link: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.org_enrollments enrollment
+  JOIN public.platform_users patient ON patient.id = enrollment.platform_user_id
+  WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+    AND enrollment.status = 'active'
+    AND (patient.role <> 'client' OR patient.merged_into_id IS NOT NULL OR COALESCE(patient.is_archived, false));
+  IF violations <> 0 THEN RAISE EXCEPTION 'ineligible identities with active patient enrollment: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.patient_specialist_links link
+  JOIN public.platform_users patient ON patient.id = link.patient_user_id
+  WHERE link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+    AND link.status = 'active'
+    AND (patient.role <> 'client' OR patient.merged_into_id IS NOT NULL OR COALESCE(patient.is_archived, false));
+  IF violations <> 0 THEN RAISE EXCEPTION 'ineligible identities with active specialist link: %', violations; END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.be_organization_members
@@ -123,6 +153,9 @@ SELECT json_build_object(
   'platformUsers', (SELECT count(*) FROM public.platform_users),
   'userIdentities', (SELECT count(*) FROM public.user_identity),
   'appointments', (SELECT count(*) FROM public.be_appointments),
+  'patientDomainMembershipExpected', (
+    SELECT count(*) FROM cutover_expected_patient_domain_membership
+  ),
   'activeEnrollments', (SELECT count(*) FROM public.org_enrollments WHERE status = 'active'),
   'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
   'pendingDeliveryQueue', (

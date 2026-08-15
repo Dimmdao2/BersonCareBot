@@ -113,6 +113,133 @@ BEGIN
 END
 $copy_common_tables$;
 
+-- Every source-only relation must have an explicit reviewed transition. This registry covers
+-- nonempty and empty source relations alike so a newly appearing class fails the same transaction.
+CREATE TEMP TABLE cutover_source_relation_disposition (
+  source_relation text PRIMARY KEY,
+  disposition text NOT NULL CHECK (disposition IN ('transform', 'intentionally_retire')),
+  target_or_reason text NOT NULL CHECK (btrim(target_or_reason) <> '')
+);
+
+INSERT INTO cutover_source_relation_disposition VALUES
+  ('integrator.booking_calendar_map', 'transform', 'public.booking_calendar_map below'),
+  ('integrator.contacts', 'transform', 'public.user_contacts plus canonical platform phone'),
+  ('integrator.content_access_grants', 'intentionally_retire', 'dead integrator authorization mirror'),
+  ('integrator.conversation_messages', 'transform', 'canonical public support history already copied'),
+  ('integrator.conversations', 'transform', 'canonical public support conversations already copied'),
+  ('integrator.identities', 'transform', 'public.user_channel_bindings and user_identity'),
+  ('integrator.mailing_logs', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('integrator.mailing_topics', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('integrator.mailings', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('integrator.message_drafts', 'intentionally_retire', 'dead draft storage'),
+  ('integrator.question_messages', 'transform', 'canonical public support history already copied'),
+  ('integrator.rubitime_api_throttle', 'intentionally_retire', 'retired provider throttle state'),
+  ('integrator.rubitime_booking_profiles', 'intentionally_retire', 'retired provider catalog'),
+  ('integrator.rubitime_branches', 'intentionally_retire', 'retired provider catalog'),
+  ('integrator.rubitime_cooperators', 'intentionally_retire', 'retired provider catalog'),
+  ('integrator.rubitime_create_retry_jobs', 'transform', 'public.outgoing_delivery_queue below'),
+  ('integrator.rubitime_events', 'intentionally_retire', 'accepted appointments transferred before A -> B'),
+  ('integrator.rubitime_records', 'intentionally_retire', 'accepted appointments transferred before A -> B'),
+  ('integrator.rubitime_services', 'intentionally_retire', 'retired provider catalog'),
+  ('integrator.system_settings', 'intentionally_retire', 'public.system_settings is canonical'),
+  ('integrator.telegram_state', 'transform', 'public.user_channel_bindings display state below'),
+  ('integrator.telegram_users', 'intentionally_retire', 'dead pre-identity messenger mirror'),
+  ('integrator.user_questions', 'transform', 'canonical public support history already copied'),
+  ('integrator.user_reminder_rules', 'intentionally_retire', 'public.reminder_rules is canonical'),
+  ('integrator.user_subscriptions', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('integrator.users', 'transform', 'public.platform_users and user_identity'),
+  ('public.appointment_records', 'transform', 'public.be_appointments before A -> B'),
+  ('public.be_appointment_events', 'transform', 'public.be_appointment_history_events before retirement'),
+  ('public.be_product_history_events', 'intentionally_retire', 'retired empty product engine'),
+  ('public.be_product_pay_links', 'intentionally_retire', 'retired empty product engine'),
+  ('public.be_product_purchases', 'intentionally_retire', 'retired empty product engine'),
+  ('public.be_products', 'intentionally_retire', 'retired empty product engine'),
+  ('public.booking_branch_services', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
+  ('public.booking_branches', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
+  ('public.booking_services', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
+  ('public.booking_specialists', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
+  ('public.branches', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
+  ('public.clinical_test_measure_kinds', 'intentionally_retire', 'empty retired duplicate catalog'),
+  ('public.mailing_logs_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('public.mailing_topics_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('public.schema_migrations', 'transform', 'canonical drizzle and integrator ledgers'),
+  ('public.user_email_setup_tokens', 'intentionally_retire', 'replaced by password setup OTP challenges'),
+  ('public.user_pins', 'intentionally_retire', 'retired PIN path'),
+  ('public.user_subscriptions_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('public.webapp_reminder_occurrences', 'transform', 'integrator.user_reminder_occurrences below');
+
+DO $source_only_disposition_gate$
+DECLARE
+  unexplained text;
+  stale text;
+BEGIN
+  WITH source_relations AS (
+    SELECT
+      CASE source_namespace.nspname
+        WHEN 'cutover_source_public' THEN 'public'
+        WHEN 'cutover_source_integrator' THEN 'integrator'
+        ELSE 'drizzle'
+      END || '.' || source_class.relname AS source_relation,
+      CASE source_namespace.nspname
+        WHEN 'cutover_source_public' THEN 'public'
+        WHEN 'cutover_source_integrator' THEN 'integrator'
+        ELSE 'drizzle'
+      END AS target_schema,
+      source_class.relname AS table_name
+    FROM pg_class source_class
+    JOIN pg_namespace source_namespace ON source_namespace.oid = source_class.relnamespace
+    WHERE source_namespace.nspname IN (
+      'cutover_source_public', 'cutover_source_integrator', 'cutover_source_drizzle'
+    )
+      AND source_class.relkind IN ('r', 'p')
+  ), source_only AS (
+    SELECT source_relation
+    FROM source_relations
+    WHERE to_regclass(format('%I.%I', target_schema, table_name)) IS NULL
+  )
+  SELECT string_agg(source_relation, ', ' ORDER BY source_relation) INTO unexplained
+  FROM source_only
+  WHERE NOT EXISTS (
+    SELECT 1 FROM cutover_source_relation_disposition disposition
+    WHERE disposition.source_relation = source_only.source_relation
+  );
+  IF unexplained IS NOT NULL THEN
+    RAISE EXCEPTION 'unexplained source-only relations: %', unexplained;
+  END IF;
+
+  WITH source_relations AS (
+    SELECT
+      CASE source_namespace.nspname
+        WHEN 'cutover_source_public' THEN 'public'
+        WHEN 'cutover_source_integrator' THEN 'integrator'
+        ELSE 'drizzle'
+      END || '.' || source_class.relname AS source_relation,
+      CASE source_namespace.nspname
+        WHEN 'cutover_source_public' THEN 'public'
+        WHEN 'cutover_source_integrator' THEN 'integrator'
+        ELSE 'drizzle'
+      END AS target_schema,
+      source_class.relname AS table_name
+    FROM pg_class source_class
+    JOIN pg_namespace source_namespace ON source_namespace.oid = source_class.relnamespace
+    WHERE source_namespace.nspname IN (
+      'cutover_source_public', 'cutover_source_integrator', 'cutover_source_drizzle'
+    )
+      AND source_class.relkind IN ('r', 'p')
+  )
+  SELECT string_agg(disposition.source_relation, ', ' ORDER BY disposition.source_relation) INTO stale
+  FROM cutover_source_relation_disposition disposition
+  WHERE NOT EXISTS (
+    SELECT 1 FROM source_relations
+    WHERE source_relations.source_relation = disposition.source_relation
+      AND to_regclass(format('%I.%I', source_relations.target_schema, source_relations.table_name)) IS NULL
+  );
+  IF stale IS NOT NULL THEN
+    RAISE EXCEPTION 'stale source-only disposition entries: %', stale;
+  END IF;
+END
+$source_only_disposition_gate$;
+
 -- Required tenant columns added after the source snapshot.
 INSERT INTO public.reference_categories (
   id, code, title, is_user_extensible, owner_id, tenant_id, created_at, organization_id
@@ -387,6 +514,9 @@ WHERE legacy.status IN ('pending', 'processing')
   );
 
 -- Rebuild the initial organization membership and patient visibility graph from canonical facts.
+\set patient_source_schema cutover_source_public
+\ir prod-to-target-patient-membership-manifest.sql
+
 INSERT INTO public.be_organization_members (
   organization_id, platform_user_id, role, specialist_id, status
 )
@@ -402,8 +532,8 @@ WHERE user_row.role = 'doctor'
   AND user_row.is_archived IS FALSE
 ;
 
-INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
-SELECT DISTINCT appointment.organization_id, appointment.platform_user_id, 'active'
+INSERT INTO cutover_expected_patient_domain_membership (platform_user_id)
+SELECT DISTINCT appointment.platform_user_id
 FROM public.be_appointments appointment
 JOIN public.platform_users patient ON patient.id = appointment.platform_user_id
 WHERE appointment.platform_user_id IS NOT NULL
@@ -411,28 +541,47 @@ WHERE appointment.platform_user_id IS NOT NULL
   AND patient.role = 'client'
   AND patient.merged_into_id IS NULL
   AND COALESCE(patient.is_archived, false) = false
-;
+ON CONFLICT (platform_user_id) DO NOTHING;
+
+UPDATE public.org_enrollments enrollment
+SET status = 'active'
+FROM cutover_expected_patient_domain_membership expected
+WHERE enrollment.organization_id = :'canonical_organization_id'::uuid
+  AND enrollment.platform_user_id = expected.platform_user_id;
+
+INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
+SELECT :'canonical_organization_id'::uuid, expected.platform_user_id, 'active'
+FROM cutover_expected_patient_domain_membership expected
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.org_enrollments enrollment
+  WHERE enrollment.organization_id = :'canonical_organization_id'::uuid
+    AND enrollment.platform_user_id = expected.platform_user_id
+);
+
+UPDATE public.patient_specialist_links link
+SET organization_id = :'canonical_organization_id'::uuid,
+    created_via = 'transfer'
+FROM cutover_expected_patient_domain_membership expected
+WHERE link.patient_user_id = expected.platform_user_id
+  AND link.specialist_id = :'canonical_specialist_id'::uuid
+  AND link.status = 'active';
 
 INSERT INTO public.patient_specialist_links (
   organization_id, patient_user_id, specialist_id, status, created_via
 )
-SELECT DISTINCT
-  appointment.organization_id,
-  appointment.platform_user_id,
-  appointment.specialist_id,
+SELECT
+  :'canonical_organization_id'::uuid,
+  expected.platform_user_id,
+  :'canonical_specialist_id'::uuid,
   'active',
-  'first_appointment'
-FROM public.be_appointments appointment
-JOIN public.platform_users patient ON patient.id = appointment.platform_user_id
-JOIN public.be_specialists specialist
-  ON specialist.id = appointment.specialist_id
- AND specialist.organization_id = appointment.organization_id
-WHERE appointment.platform_user_id IS NOT NULL
-  AND appointment.specialist_id IS NOT NULL
-  AND appointment.deleted_at IS NULL
-  AND patient.role = 'client'
-  AND patient.merged_into_id IS NULL
-;
+  'transfer'
+FROM cutover_expected_patient_domain_membership expected
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.patient_specialist_links link
+  WHERE link.patient_user_id = expected.platform_user_id
+    AND link.specialist_id = :'canonical_specialist_id'::uuid
+    AND link.status = 'active'
+);
 
 -- Reseed serial/identity sequences after explicit-id copy.
 DO $reseed_sequences$

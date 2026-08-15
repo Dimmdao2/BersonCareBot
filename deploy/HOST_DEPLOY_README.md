@@ -775,8 +775,10 @@ declaration добавляет transaction-context gate и назначает ex
 `smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
 Fresh-reset wrapper до остановки writers требует настроенный TEST `smtp_outbound`, снимает его в защищённый
 `postgres:postgres 0600` временный snapshot без вывода значения, после reset-overlay восстанавливает и удаляет
-snapshot через общий cleanup trap. Поэтому повторный fresh reset не переносит PROD SMTP из дампа и не оставляет
-TEST без почты; отсутствие настроенного TEST SMTP останавливает прогон до разрушительного restore. Сам reset-mode
+snapshot через общий cleanup trap. До snapshot и перед restore статический validator требует непустые
+host/user/password/from, email-shaped from, явный boolean `secure` и port 1–65535, не печатая секреты. Поэтому
+повторный fresh reset не переносит PROD SMTP из дампа; отсутствие или неверная форма TEST SMTP останавливает
+прогон до разрушительного restore. Это не доказывает provider acceptance или доставку. Сам reset-mode
 по-прежнему обнуляет значение между restore и защищённым восстановлением. Отсутствующий или неизвестный режим
 останавливает SQL до снятия TEST lock triggers. `smtp_outbound` не входит в TEST lock arrays, поэтому штатная
 Settings-запись через `updateSetting` может менять его; остальные safety-critical ключи остаются залочены.
@@ -785,7 +787,11 @@ Settings-запись через `updateSetting` может менять его;
 
 Первичная настройка SMTP для TEST выполняется штатным Settings / `updateSetting` и сохраняется в
 `public.system_settings`; после неё full-reset сохраняет это TEST-значение автоматически. Обычный deploy и
-fresh-reset не читают SMTP из PROD/env и не печатают секрет.
+fresh-reset не читают SMTP из PROD/env и не печатают секрет. Реальная доставка остаётся отдельной opt-in
+приёмкой: authenticated global-admin вызывает `POST /api/admin/smtp-test` только на allowlisted TEST mailbox,
+сохраняет возвращённый `probeRef=smtp-test:<uuid>` и подтверждает тот же reference в существующем delivery-attempt
+пути и по provider/mailbox receipt. Wrapper этот вызов не делает и не объявляет email/Telegram/MAX/SMS/webpush
+доставку проверенной.
 Fresh PROD-снимок также предшествует обязательному реестру `platform_integration_availability`. Поэтому
 `prod-to-target-cutover-finish.sql` создаёт отсутствующий реестр с целевыми безопасными defaults, синхронизирует
 его зарегистрированную `app_runtime_settings`-проекцию и включает отсутствие строки в финальный shape-gate.
@@ -833,7 +839,9 @@ pnpm run check:prod-to-target-cutover
 `bcb_webapp_dev`; она не создаёт, не удаляет и не восстанавливает БД. Третья побайтно доказывает, что снимок не
 отстал от DEV. Внутренние `migrate-local.mjs` и `migrate-integrator-local.mjs` отдельно оператором не запускаются:
 они не выполняют всю завершающую closure. После commit/push свежий PROD dump проходит уже показанный выше один
-owner-gated `deploy-test-full-reset.sh`; ручное наложение исторической цепочки поверх дампа не является этим путём.
+owner-gated `deploy-test-full-reset.sh`; этот же process из своего checkout выполняет
+`pnpm run check:prod-to-target-cutover` до первого stop/drop/restore и передаёт его non-zero exit. Ручная проверка
+из другого checkout и ручное наложение исторической цепочки поверх дампа не являются этим путём.
 
 Целевой снимок задаёт реестр и audience строк `app_runtime_settings`, но значения уже существующих одноимённых
 зарегистрированных настроек перед удалением source-схемы обязательно пересобираются из канонического
@@ -852,7 +860,8 @@ fail-closed до restore, если защищённый TEST-only data fixture p
 local-only DB URL (`127.0.0.1:5432/bersoncarebot_test`) и control-only media env, создаёт base/capability/
 discovery-definer роли, применяет C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
 Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
-сохраняются для безопасного повторного запуска. `DONE` допустим только после FIO reconciliation; отсутствие
+сохраняются для безопасного повторного запуска. `DONE` означает только `DB/schema/runtime ready; external delivery
+unverified` и допустим после FIO reconciliation; отсутствие
 защищённого manifest или несовпадение SHA-256 останавливает прогон до restore.
 Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
 `bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`.

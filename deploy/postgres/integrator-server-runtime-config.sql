@@ -196,7 +196,6 @@ REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
 --     operator critical alerts were never delivered at all;
 --   * notif_template:* -> patients received the hardcoded default text, never the clinic's edit;
 --   * app_display_timezone -> silently pinned to the compiled default;
---   * integrator_linked_phone_source -> the admin phone-resolution policy was ignored.
 -- Same capability shape as the provider accessor above: fixed key allow-list, admin scope, global
 -- row, EXECUTE only for the narrow integrator runtime login. Deliberately separate from that
 -- accessor because this one must never be able to return a provider secret.
@@ -211,7 +210,6 @@ AS $function$
   SELECT setting.value_json
   FROM public.system_settings AS setting
   WHERE p_key IN (
-      'integrator_linked_phone_source',
       'admin_telegram_ids',
       'admin_max_ids',
       'doctor_telegram_ids',

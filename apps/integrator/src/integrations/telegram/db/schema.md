@@ -12,5 +12,5 @@ Legacy mailing/subscription tables were retired by Track D8 after the exact call
 Связь с канонической user-моделью:
 
 - каноническая identity: `identities(resource, external_id, user_id)`.
-- канонический контактный слой: `contacts(user_id, type, value_normalized, ...)`.
+- канонический телефон: `public.platform_users.phone_normalized`, связь канала: `public.user_channel_bindings`.
 - Telegram runtime state хранится отдельно в `telegram_state`.

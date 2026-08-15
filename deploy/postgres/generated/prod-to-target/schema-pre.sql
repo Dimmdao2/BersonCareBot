@@ -18591,7 +18591,7 @@ CREATE FUNCTION app.read_integrator_runtime_setting(p_key text) RETURNS jsonb
   SELECT setting.value_json
   FROM public.system_settings AS setting
   WHERE p_key IN (
-      'integrator_linked_phone_source', 'admin_telegram_ids', 'admin_max_ids',
+      'admin_telegram_ids', 'admin_max_ids',
       'doctor_telegram_ids', 'doctor_max_ids', 'operator_health_alert_config',
       'admin_incident_alert_config', 'app_display_timezone',
       'notif_template:created:patient', 'notif_template:created:doctor',

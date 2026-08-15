@@ -101,7 +101,6 @@ const ADMIN_SCOPE_KEYS = [
   'dev_mode',
   'platform_user_merge_v2_enabled',
   'material_ratings_enabled',
-  'integrator_linked_phone_source',
   'important_fallback_delay_minutes',
   'integration_test_ids',
   'test_account_identifiers',

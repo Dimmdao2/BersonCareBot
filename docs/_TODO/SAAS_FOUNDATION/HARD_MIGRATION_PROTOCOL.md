@@ -104,6 +104,10 @@ reviewed FIO manifest and reviewed legacy-appointment CSV bound by SHA-256. It r
 `bersoncarebot_test`, runs the ordered transition below, replaces the runtime role/grant surface with the target
 port-context declaration, starts TEST and runs the closure/runtime gates. It remains forbidden for ordinary deploys.
 
+Before its first stop/drop/restore operation, that public entrypoint runs
+`pnpm run check:prod-to-target-cutover` from its own repository root. A non-zero snapshot check aborts the same
+process; a manual check from another checkout is not a substitute.
+
 ### 1. Assert TEST runtime mode
 
 Before the one-time live transition, the wrapper must read only the `DB_PRINCIPAL_CONTEXT_MODE` key from
@@ -449,7 +453,7 @@ must verify the exact loopback TEST database, reject unknown drift, create a dur
 conditional and may restore a row only while its current state still equals the recorded post-apply state.
 
 If the FIO manifest, either approved hash, safe FIO apply entrypoint, or rollback artifact cannot be validated, a
-future full-reset wrapper must stop with writers stopped and must not print a data-ready `DONE`. Manual SQL, parser
+future full-reset wrapper must stop with writers stopped and must not print a DB/schema/runtime-ready `DONE`. Manual SQL, parser
 recomputation, or silently skipping FIO is forbidden.
 
 The end-state assertions must include:
@@ -461,6 +465,30 @@ The end-state assertions must include:
 - appointment counts on the canonical specialist are reported as aggregate counts only;
 - provider-neutral identity/data-cleanup gates passed;
 - FIO reviewed-manifest reconciliation passed with aggregate-only output.
+
+The atomic A → B transition also owns these fail-closed data gates:
+
+- before source schemas are removed, `prod-to-target-patient-membership-manifest.sql` derives expected membership
+  from every reviewed surviving clinical/program/task/support/patient-card relation plus live appointments. Only
+  active canonical clients are eligible. Data copy reconstructs one active enrollment in the canonical organization
+  and the canonical specialist link; the final oracle rejects every missing membership/link and any reconstructed
+  link for merged or archived identities;
+- every source-only relation must appear in the reviewed `transform` / `intentionally_retire` registry in
+  `prod-to-target-cutover-data.sql`. A new unexplained source-only class and a stale registry entry both abort the
+  transaction; there is no manual row patch or silent generic-copy skip;
+- `scripts/prod-to-target-baseline-policy.mjs` permits exactly the four reviewed product tariff IDs. The explicit
+  environment-owned fixture-ID registry removes `DEV Trial` and the three `*-delete-me`/audit fixtures from the
+  generated target baseline without deleting them from DEV. Unknown tariffs and active rows missing price,
+  currency, mechanics, seats, or billing period fail generation/check.
+
+SMTP preservation proves only static configuration readiness. Before snapshot and again before restore,
+`validate-smtp-outbound-snapshot.mjs` requires non-empty host/user/password/from, an email-shaped from address,
+an explicit boolean `secure`, and port 1–65535; it never prints the value. The wrapper success state is
+`DB/schema/runtime ready; external delivery unverified` until a separately authorized provider round-trip exists.
+After cutover an operator may explicitly opt in with authenticated global-admin
+`POST /api/admin/smtp-test` and an allowlisted TEST mailbox. The response returns `probeRef=smtp-test:<uuid>`;
+acceptance then requires that same reference through the existing delivery-attempt path plus provider/mailbox
+receipt. This package does not send that probe and does not claim Telegram/MAX/SMS/webpush delivery.
 
 ### 10. B1, A2, and product smoke gates
 
@@ -596,7 +624,7 @@ acceptance.
   operator URL. It reads first and fails before the coverage write when a genuine unexplained event is already
   active; it also fails when a new unexplained event appears during the gate or the exact fresh complete coverage
   cannot be reread. The gate never invokes the synthetic scenario cleanup and never deletes genuine events. Both
-  fresh-restore and code-only paths must pass this gate before DONE. `awg-quick@awg0` is a separately operated
+  fresh-restore and code-only paths must pass this gate before DB/schema/runtime-ready DONE. `awg-quick@awg0` is a separately operated
   PROD-relay dependency on the shared host and is not part of TEST deployment readiness.
 
 ## DEV/disposable dormant wrapper
@@ -620,7 +648,10 @@ pnpm run check:prod-to-target-cutover
 
 The refresh command is fixed to the existing local `bcb_webapp_dev`, requires an explicit confirmation token,
 checks that its Drizzle ledger reaches the repository journal, and rewrites only the four tracked files under
-`deploy/postgres/generated/prod-to-target/`. It does not create, restore, drop or migrate a database. Do not run
+`deploy/postgres/generated/prod-to-target/`. It does not create, restore, drop or migrate a database.
+It applies the reviewed target-baseline policy while rendering: environment-owned tariff fixture IDs and the
+retired linked-phone strategy setting are not target data, while an unknown tariff or incomplete active tariff
+aborts rendering. Do not run
 the two internal owner-ordered migrators directly as an operator sequence: only `migrate-dev.sh` also completes
 the declaration reconcile and catalog audit required before schema B is captured. The fresh-dump rehearsal then
 uses the single owner-gated `deploy-test-full-reset.sh` command documented above; it never replays the historical

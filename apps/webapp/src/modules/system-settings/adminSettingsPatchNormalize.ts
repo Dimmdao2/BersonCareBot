@@ -1,12 +1,6 @@
 import type { ModesFormKey } from './modesFormKeys';
 import { normalizeTestAccountIdentifiersValue } from './testAccounts';
 
-const INTEGRATOR_LINKED_PHONE_SOURCE_ALLOWED = new Set([
-  'public_then_contacts',
-  'public_only',
-  'contacts_only',
-]);
-
 export function normalizeValueJson(value: unknown): { value: unknown } {
   if (
     value !== null &&
@@ -18,16 +12,6 @@ export function normalizeValueJson(value: unknown): { value: unknown } {
   return { value };
 }
 
-function assertValidIntegratorLinkedPhoneSourceValue(normalized: {
-  value: unknown;
-}): { ok: true; value: string } | { ok: false } {
-  const inner = normalized.value;
-  if (typeof inner !== 'string') return { ok: false };
-  const t = inner.trim();
-  if (!INTEGRATOR_LINKED_PHONE_SOURCE_ALLOWED.has(t)) return { ok: false };
-  return { ok: true, value: t };
-}
-
 /**
  * Normalizes one «Режимы» form key the same way as PATCH /api/admin/settings for that key.
  * `rawBodyValue` is the request `value` field (same as single PATCH `parsed.data.value`).
@@ -37,13 +21,6 @@ export function normalizeModesFormPatchItem(
   rawBodyValue: unknown,
 ): { ok: true; valueJson: { value: unknown } } | { ok: false } {
   let normalizedValue = normalizeValueJson(rawBodyValue);
-
-  if (key === 'integrator_linked_phone_source') {
-    const checked = assertValidIntegratorLinkedPhoneSourceValue(normalizedValue);
-    if (!checked.ok) return { ok: false };
-    normalizedValue = { value: checked.value };
-    return { ok: true, valueJson: normalizedValue };
-  }
 
   if (
     key === 'patient_app_maintenance_enabled' ||

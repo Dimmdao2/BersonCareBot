@@ -7,6 +7,9 @@ SELECT set_config('bcb.cutover.expected_database', :'expected_database', false);
 SELECT set_config('bcb.cutover.canonical_organization_id', :'canonical_organization_id', false);
 SELECT set_config('bcb.cutover.canonical_specialist_id', :'canonical_specialist_id', false);
 
+\set patient_source_schema public
+\ir prod-to-target-patient-membership-manifest.sql
+
 DO $$
 DECLARE
   expected_database text := current_setting('bcb.cutover.expected_database');
@@ -124,6 +127,9 @@ SELECT json_build_object(
   'canonicalAppointments', (
     SELECT count(*) FROM public.be_appointments
     WHERE specialist_id = :'canonical_specialist_id'::uuid AND deleted_at IS NULL
+  ),
+  'patientDomainMembershipExpected', (
+    SELECT count(*) FROM cutover_expected_patient_domain_membership
   ),
   'liveLegacyUnresolved', 0,
   'rawRubitimeUnmapped', 0,

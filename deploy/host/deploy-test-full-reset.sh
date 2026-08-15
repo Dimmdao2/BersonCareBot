@@ -4,6 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 case "${1:-}" in
   --help|-h)
@@ -20,6 +21,12 @@ case " ${*:-} " in
     exit 2
     ;;
 esac
+
+echo "== [deploy-test-full-reset] same-checkout cutover snapshot preflight =="
+(
+  cd "$REPO_ROOT"
+  pnpm run check:prod-to-target-cutover
+)
 
 export BCB_TEST_FULL_RESET_ENTRYPOINT=deploy-test-full-reset-v1
 exec bash "$SCRIPT_DIR/deploy-test-saas.sh" "$@"

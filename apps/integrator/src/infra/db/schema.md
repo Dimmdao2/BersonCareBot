@@ -18,7 +18,7 @@ Core-слой хранит универсальную модель пользо�
   - `created_at`, `updated_at`
   - уникальность: `UNIQUE(resource, external_id)`
   - это единственная каноническая cross-channel таблица identity
-- `contacts`
+- `public.platform_users.phone_normalized` — канонический подтверждённый телефон
   - `id` PK
   - `user_id` FK -> `users.id`
   - `type` (phone/email/...)
@@ -41,11 +41,11 @@ Core-слой хранит универсальную модель пользо�
 Таблица `telegram_users` сохраняется только как legacy/deprecated storage, активный runtime в нее не пишет и не использует ее как канонический источник identity.
 
 Mailing/subscription tables were retired by Track D8 after the producer/consumer census proved the domain had no live producer.
-Это не влияет на каноническую identity-модель: активное разрешение identity идет через `identities`, контактов — через `contacts`, runtime-state — через `telegram_state`.
+Активное разрешение пользователя и телефона идёт через `public.platform_users` / `public.user_channel_bindings`; legacy integrator identity/contact relations существуют только в migration history.
 
 ## Invariants
 
 - Добавление новой интеграции с таблицами не требует правок `src/infra/db/migrate.ts`.
 - Линковка user ↔ channel выполняется через `identities`.
 - Контакты множественные, `is_primary` необязателен.
-- Добавление Telegram-state полей не меняет каноническую identity-модель: `identities` + `contacts`.
+- Добавление Telegram-state полей не меняет каноническую identity-модель в `public`.

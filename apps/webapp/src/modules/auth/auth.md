@@ -245,7 +245,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ## Integrator → webapp: опциональный `POST /api/integrator/messenger-phone/bind`
 
-Только для **внешнего** M2M-клиента (другой сервис, админка): та же транзакция, что **`user.phone.link`** в integrator (`public` binding-first + `integrator.contacts`), подпись **`x-bersoncare-timestamp` / `x-bersoncare-signature`**, обязательный **`x-bersoncare-idempotency-key`**. Семантический хеш для кеша успешного ответа — поля **`channelCode`**, **`externalId`**, **`phoneNormalized`** (`apps/webapp/src/infra/idempotency/messengerPhoneBindRequestHash.ts`). При **одной БД** сценарии бота **не** вызывают этот URL — привязка идёт через `user.phone.link` в процессе integrator. Контракт и коды ответов: `apps/webapp/INTEGRATOR_CONTRACT.md`, этап: `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`.
+Только для **внешнего** M2M-клиента (другой сервис, админка): та же каноническая транзакция привязки `public.platform_users` / `public.user_channel_bindings`, что **`user.phone.link`** в integrator, подпись **`x-bersoncare-timestamp` / `x-bersoncare-signature`**, обязательный **`x-bersoncare-idempotency-key`**. Семантический хеш для кеша успешного ответа — поля **`channelCode`**, **`externalId`**, **`phoneNormalized`** (`apps/webapp/src/infra/idempotency/messengerPhoneBindRequestHash.ts`). При **одной БД** сценарии бота **не** вызывают этот URL — привязка идёт через `user.phone.link` в процессе integrator. Контракт и коды ответов: `apps/webapp/INTEGRATOR_CONTRACT.md`, этап: `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`.
 
 ## Журнал воронки регистрации (product analytics)
 
