@@ -25,6 +25,7 @@ export const INTERNAL_BEARER_CSRF_EXEMPT_PATHS = [
   '/api/internal/media-preview/process',
   '/api/internal/media-transcode/enqueue',
   '/api/internal/media-transcode/reconcile',
+  '/api/internal/media-worker/control',
   // Приёмник dead man's switch (design D-d). Имена — закрытый набор из
   // `modules/operator-health/heartbeat.ts`, поэтому перечислены явно, а не паттерном:
   // список должен оставаться читаемым при аудите.

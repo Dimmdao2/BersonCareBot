@@ -37,3 +37,39 @@ describe('decideCsrfOrigin — saas platform webhook receiver', () => {
     expect(decision.action).toBe('allow');
   });
 });
+
+describe('decideCsrfOrigin — media-worker control', () => {
+  it('lets the bearer-authenticated worker reach its exact server-to-server endpoint', () => {
+    const decision = decideCsrfOrigin({
+      method: 'POST',
+      pathname: '/api/internal/media-worker/control',
+      host: 'test.bersoncare.ru',
+      requestUrlProtocol: 'https:',
+      forwardedProto: 'https',
+      secFetchSite: null,
+      origin: null,
+      referer: null,
+    });
+
+    expect(decision).toEqual({
+      action: 'allow',
+      proof: 'internal_bearer',
+      mutationClass: 'internal_bearer',
+    });
+  });
+
+  it('does not exempt a path below the control endpoint', () => {
+    const decision = decideCsrfOrigin({
+      method: 'POST',
+      pathname: '/api/internal/media-worker/control/extra',
+      host: 'test.bersoncare.ru',
+      requestUrlProtocol: 'https:',
+      forwardedProto: 'https',
+      secFetchSite: null,
+      origin: null,
+      referer: null,
+    });
+
+    expect(decision.action).toBe('reject');
+  });
+});
