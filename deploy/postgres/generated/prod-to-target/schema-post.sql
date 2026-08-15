@@ -13013,7 +13013,7 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: saas_org_entitlement_overrides rev10_context_gate_185; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_185 ON public.saas_org_entitlement_overrides AS RESTRICTIVE TO app_platform_settings, app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_185 ON public.saas_org_entitlement_overrides AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13038,7 +13038,7 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: saas_organization_trials rev10_context_gate_186; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_186 ON public.saas_organization_trials AS RESTRICTIVE TO app_platform_settings, app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_186 ON public.saas_organization_trials AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13063,7 +13063,7 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: saas_paid_period_policy rev10_context_gate_187; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_187 ON public.saas_paid_period_policy AS RESTRICTIVE TO app_platform_settings, app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_187 ON public.saas_paid_period_policy AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -15805,10 +15805,24 @@ END);
 
 
 --
+-- Name: saas_org_entitlement_overrides rev10_direct_business_185; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_185 ON public.saas_org_entitlement_overrides TO app_clinic_billing, app_platform_settings, app_staff USING ((((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = app.current_org_id()))) WITH CHECK ((((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = app.current_org_id())));
+
+
+--
+-- Name: saas_organization_trials rev10_direct_business_186; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_186 ON public.saas_organization_trials TO app_clinic_billing, app_platform_settings, app_staff USING ((((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = app.current_org_id()))) WITH CHECK ((((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = app.current_org_id())));
+
+
+--
 -- Name: saas_paid_period_policy rev10_direct_business_187; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_187 ON public.saas_paid_period_policy TO app_platform_settings, app_staff USING (((CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
+CREATE POLICY rev10_direct_business_187 ON public.saas_paid_period_policy TO app_clinic_billing, app_platform_settings, app_staff USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
 
 
 --
@@ -17927,20 +17941,6 @@ CASE
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = app.current_org_id()) AND (platform_user_id = app.current_patient_user_id())))
     ELSE false
 END);
-
-
---
--- Name: saas_org_entitlement_overrides rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides TO app_platform_settings, app_staff USING (((CURRENT_USER = 'app_platform_settings'::name) OR ((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))))) WITH CHECK (((CURRENT_USER = 'app_platform_settings'::name) OR ((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())))));
-
-
---
--- Name: saas_organization_trials rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.saas_organization_trials TO app_platform_settings, app_staff USING (((CURRENT_USER = 'app_platform_settings'::name) OR ((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))))) WITH CHECK (((CURRENT_USER = 'app_platform_settings'::name) OR ((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())))));
 
 
 --

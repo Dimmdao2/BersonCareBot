@@ -34,6 +34,9 @@ VALUES
   ('vk_id_client_secret', 'admin', NULL, '{"value":""}'::jsonb, now()),
   ('vk_id_redirect_uri', 'admin', NULL, '{"value":""}'::jsonb, now()),
   ('operator_alert_fallback_email', 'admin', NULL, '{"value":""}'::jsonb, now()),
+  ('operator_health_projection_thresholds', 'admin', NULL,
+   '{"value":{"retriesDebounceMinutes":15,"stalePendingDebounceMinutes":15,"oldestPendingStaleMinutes":30}}'::jsonb,
+   now()),
   ('platform_integration_availability', 'admin', NULL,
    '{"value":{"version":1,"integrations":{"telegram":true,"max":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}}'::jsonb,
    now())
@@ -269,6 +272,7 @@ BEGIN
     ('vk_id_client_secret'),
     ('vk_id_redirect_uri'),
     ('operator_alert_fallback_email'),
+    ('operator_health_projection_thresholds'),
     ('platform_integration_availability')
   ) AS required_setting(key)
   WHERE NOT EXISTS (

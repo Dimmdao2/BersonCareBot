@@ -155,6 +155,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   -- Resolve the organization first, then acquire the same organization-wide lock used by invite
   -- creation. The authoritative row is selected FOR UPDATE only after the advisory lock so create,
   -- resend and accept paths have one lock order and cannot deadlock or oversubscribe each other.
@@ -397,6 +404,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   WITH changed AS (
     UPDATE public.operator_incidents AS incident
     SET acknowledged_at = now(),
@@ -430,6 +444,13 @@ DECLARE
   next_recipient jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_reminder_appointment_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.appointment-reminder-advance', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -606,6 +627,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   details_json := p_details::jsonb;
   IF p_action IS NULL
     OR p_action NOT IN (
@@ -647,6 +675,13 @@ DECLARE
   v_applied boolean;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_org_commerce_owner'::name, ARRAY['app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -812,6 +847,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT delivery.organization_id, delivery.sent_at, delivery.payload_json
     INTO queue_organization_id, queue_sent_at, queue_payload
   FROM public.outgoing_delivery_queue AS delivery
@@ -883,6 +925,13 @@ CREATE FUNCTION app.archive_operator_health_failures(p_probe text, p_limit integ
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_platform_admin'::name, 'platform'::app.port_context_class, 'platform.health-archive.clear', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($3))::app.port_typed_arg]), 'app.archive_operator_health_failures(text,integer,uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -1318,6 +1367,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_channel_code IS NULL OR p_channel_code NOT IN ('telegram', 'max', 'vk')
      OR p_external_id IS NULL OR btrim(p_external_id) = '' THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'valid channel binding required';
@@ -1375,6 +1431,13 @@ CREATE FUNCTION app.auth_channel_link_lock_unused_secret(p_secret_id uuid) RETUR
     AS $$
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_phone_binding_owner'::name, ARRAY['app_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -1510,6 +1573,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   UPDATE public.channel_link_secrets AS secret SET used_at = statement_timestamp()
    WHERE p_secret_id IS NOT NULL AND secret.id = p_secret_id;
   RETURN FOUND;
@@ -1527,6 +1597,13 @@ CREATE FUNCTION app.auth_channel_link_mark_secret_used_if_unused(p_secret_id uui
     AS $$
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_phone_binding_owner'::name, ARRAY['app_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -1662,6 +1739,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY SELECT secret.id, secret.user_id, secret.expires_at, secret.used_at
     FROM public.channel_link_secrets AS secret
    WHERE p_channel_code IN ('telegram', 'max') AND p_token_hash ~ '^[0-9a-f]{64}$'
@@ -1680,6 +1764,13 @@ CREATE FUNCTION app.auth_channel_link_replace_secret(p_user_id uuid, p_channel_c
     AS $_$
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_phone_binding_owner'::name, ARRAY['app_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -1820,6 +1911,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   UPDATE public.login_tokens token
      SET status = 'confirmed', confirmed_at = statement_timestamp()
    WHERE p_token_hash ~ '^[0-9a-f]{64}$'
@@ -1842,6 +1940,13 @@ CREATE FUNCTION app.auth_login_token_create(p_token_hash text, p_user_id uuid, p
 DECLARE v_id uuid;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_login_token_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.login-token.create', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), 'app.auth_login_token_create(text,uuid,text,timestamp with time zone)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -1985,6 +2090,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   UPDATE public.login_tokens token
      SET status = 'expired'
    WHERE token.status = 'pending'
@@ -2003,6 +2115,13 @@ CREATE FUNCTION app.auth_login_token_mark_session_issued(p_token_hash text) RETU
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_login_token_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.login-token.session-issued', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.auth_login_token_mark_session_issued(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -2142,6 +2261,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY
   SELECT token.id, token.user_id, token.method, token.status, token.expires_at,
          token.confirmed_at, token.session_issued_at
@@ -2163,6 +2289,13 @@ CREATE FUNCTION app.auth_oauth_find_user(p_provider text, p_provider_user_id tex
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_oauth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.oauth.callback.find-binding', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.auth_oauth_find_user(text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -2304,6 +2437,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY SELECT DISTINCT b.provider FROM public.user_oauth_bindings b
    WHERE p_user_id IS NOT NULL AND b.user_id = p_user_id
      AND b.provider IN ('google', 'apple', 'yandex', 'vk');
@@ -2323,6 +2463,13 @@ DECLARE
   v_user_id uuid;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_oauth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.oauth.callback.upsert-binding', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg]), 'app.auth_oauth_upsert_binding(uuid,text,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -2482,6 +2629,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_channel_code IS NULL
      OR btrim(p_channel_code) = ''
      OR p_external_id IS NULL
@@ -2515,6 +2669,13 @@ DECLARE
   v_user_id uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_phone_binding_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -2622,6 +2783,13 @@ DECLARE
   v_batch integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.rate-limit.check-record', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($3))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($6))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($7))::app.port_typed_arg]), 'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -2806,6 +2974,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
 	UPDATE public.staff_security_profiles p
 	SET login_challenge_hash = p_challenge_hash,
 	    login_challenge_expires_at = p_expires_at,
@@ -2828,6 +3003,13 @@ DECLARE
 	v_session_epoch integer;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_self_security_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -2971,6 +3153,13 @@ CREATE FUNCTION app.cancel_patient_invite_email_proof(p_continuation_hash text, 
 
 
 
+
+
+
+
+
+
+
   UPDATE public.patient_invites AS invite
   SET proof_email_normalized = NULL,
       proof_code_hash = NULL,
@@ -3003,69 +3192,9 @@ DECLARE
   v_has_prior_trial boolean;
   v_account_id uuid;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_specialist_provision_owner'::name, ARRAY['app_staff'::name]::name[]);
+  PERFORM app.require_attested_context_for_roles('app_seam_specialist_provision_owner'::name, ARRAY['app_clinic_billing'::name, 'app_staff'::name]::name[]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  IF v_organization_id IS NULL OR NOT app.is_staff() THEN
+  IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'organization_context_required';
   END IF;
 
@@ -3151,13 +3280,17 @@ BEGIN
     RETURN jsonb_build_object('outcome', 'payment_required');
   END IF;
 
-  SELECT policy.*
+  SELECT
+    policy.duration_days,
+    policy.discount_window_days,
+    policy.post_trial_behavior,
+    policy.post_trial_tariff_id,
+    policy.start_event
   INTO v_policy
   FROM public.saas_trial_policy AS policy
   WHERE policy.key = 'global'
     AND policy.is_active
-  LIMIT 1
-  FOR UPDATE;
+  LIMIT 1;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('outcome', 'payment_required');
@@ -3240,6 +3373,13 @@ DECLARE
   v_now_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -3578,6 +3718,13 @@ CREATE FUNCTION app.close_active_user_phone_history(p_user uuid) RETURNS void
 
 
 
+
+
+
+
+
+
+
   UPDATE public.user_phone_history SET valid_to = now()
   WHERE platform_user_id = p_user AND valid_to IS NULL
     AND (app.current_patient_user_id() IS NULL OR platform_user_id = app.current_patient_user_id())
@@ -3596,6 +3743,13 @@ DECLARE
 	v_session_version integer;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_staff_security_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -3757,6 +3911,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
 	UPDATE public.staff_security_profiles p
 	SET recovery_codes_confirmed_at = now(), updated_at = now()
 	WHERE p.user_id = app.require_staff_security_self_user_id()
@@ -3780,6 +3941,13 @@ DECLARE
 	v_next_hashes jsonb;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_staff_security_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -3948,6 +4116,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
 	UPDATE public.staff_security_profiles p
 	SET login_challenge_hash = NULL,
 	    login_challenge_expires_at = NULL,
@@ -4033,6 +4208,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT count(*) INTO v_count
     FROM public.be_appointments appointment
    WHERE appointment.status IN (
@@ -4058,6 +4240,13 @@ DECLARE
   v_intent_id uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_specialist_provision_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -4260,6 +4449,13 @@ CREATE FUNCTION app.current_patient_has_active_org_enrollment(p_organization_id 
 
 
 
+
+
+
+
+
+
+
   SELECT EXISTS (
     SELECT 1
     FROM public.org_enrollments AS enrollment
@@ -4348,6 +4544,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF pg_catalog.to_regprocedure('app.current_patient_user_id()') IS NOT NULL THEN
     EXECUTE 'SELECT app.current_patient_user_id()' INTO v_patient_user_id;
   ELSE
@@ -4375,6 +4578,13 @@ DECLARE
   v_patient_user_id uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_oauth_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -4540,6 +4750,13 @@ CREATE FUNCTION app.current_provisioned_owner_organization() RETURNS uuid
 
 
 
+
+
+
+
+
+
+
   SELECT member.organization_id
   FROM public.be_organization_members AS member
   INNER JOIN public.be_organizations AS organization
@@ -4563,6 +4780,13 @@ CREATE FUNCTION app.delete_google_calendar_event_id(p_appointment_id uuid) RETUR
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'calendar.map.delete', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.delete_google_calendar_event_id(uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -4702,6 +4926,13 @@ CREATE FUNCTION app.email_auth_delete_email_challenge_by_id(p_challenge_id uuid)
 
 
 
+
+
+
+
+
+
+
   DELETE FROM public.email_challenges WHERE id = p_challenge_id
 $$;
 
@@ -4714,6 +4945,13 @@ CREATE FUNCTION app.email_auth_delete_email_challenges_for_user(p_user_id uuid) 
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -4798,6 +5036,13 @@ DECLARE
   v_row_count integer;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -5009,6 +5254,13 @@ CREATE FUNCTION app.email_auth_find_email_challenge_for_confirm(p_challenge_id u
 
 
 
+
+
+
+
+
+
+
   SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.id = p_challenge_id
@@ -5024,6 +5276,13 @@ CREATE FUNCTION app.email_auth_find_email_challenge_for_consume(p_challenge_id u
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -5162,6 +5421,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY SELECT l.locked_until FROM public.email_otp_locks l WHERE l.user_id = p_user_id;
 END
 $_$;
@@ -5175,6 +5441,13 @@ CREATE FUNCTION app.email_auth_find_email_owner_conflict(p_user_id uuid, p_email
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -5315,6 +5588,13 @@ CREATE FUNCTION app.email_auth_find_email_send_cooldown(p_user_id uuid, p_email_
 
 
 
+
+
+
+
+
+
+
   SELECT c.last_sent_at
   FROM public.email_send_cooldowns AS c
   WHERE c.user_id = p_user_id
@@ -5331,6 +5611,13 @@ CREATE FUNCTION app.email_auth_find_latest_email_challenge_for_user(p_user_id uu
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -5472,6 +5759,13 @@ CREATE FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(p_us
 
 
 
+
+
+
+
+
+
+
   SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.user_id = p_user_id
@@ -5492,6 +5786,13 @@ CREATE FUNCTION app.email_auth_increment_email_challenge_attempts(p_challenge_id
 #variable_conflict use_column
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -5637,6 +5938,13 @@ CREATE FUNCTION app.email_auth_insert_email_challenge(p_user_id uuid, p_email te
 
 
 
+
+
+
+
+
+
+
   INSERT INTO public.email_challenges (user_id, email, code_hash, expires_at, attempts)
   VALUES (p_user_id, p_email, p_code_hash, p_expires_at, 0)
   RETURNING id
@@ -5654,6 +5962,13 @@ CREATE FUNCTION app.email_auth_register_email_otp_lockout(p_user_id uuid) RETURN
 #variable_conflict use_column
 BEGIN
   PERFORM app.require_accepted_context('app_seam_email_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.email-otp.lock.register', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.email_auth_register_email_otp_lockout(uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -5794,6 +6109,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   DELETE FROM public.email_otp_locks WHERE user_id = p_user_id;
 END
 $_$;
@@ -5811,6 +6133,13 @@ DECLARE
   v_token uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -5966,6 +6295,13 @@ CREATE FUNCTION app.email_auth_set_email_challenge_purpose(p_challenge_id uuid, 
 
 
 
+
+
+
+
+
+
+
   UPDATE public.email_challenges SET purpose = p_purpose WHERE id = p_challenge_id
 $$;
 
@@ -5986,6 +6322,13 @@ DECLARE
   v_queue_rows integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_email_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.email-otp.challenge.start', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg]), 'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -6148,6 +6491,13 @@ CREATE FUNCTION app.email_auth_upsert_email_send_cooldown(p_user_id uuid, p_emai
 
 
 
+
+
+
+
+
+
+
   INSERT INTO public.email_send_cooldowns (user_id, email_normalized, last_sent_at)
   VALUES (p_user_id, p_email_norm, now())
   ON CONFLICT (user_id, email_normalized) DO UPDATE SET last_sent_at = now()
@@ -6162,6 +6512,13 @@ CREATE FUNCTION app.email_auth_verify_user_email(p_user_id uuid, p_email text) R
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -6253,6 +6610,13 @@ DECLARE
   v_allowed_purposes text[];
 BEGIN
   PERFORM app.require_accepted_context('app_seam_email_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.email-otp.challenge.consume', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.email_otp_public_consume_latest_challenge(text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -6438,6 +6802,13 @@ CREATE FUNCTION app.email_otp_public_delete_unverified_registration(p_user_id uu
 
 
 
+
+
+
+
+
+
+
   DELETE FROM public.platform_users
   WHERE id = p_user_id AND role = 'client' AND merged_into_id IS NULL AND email_verified_at IS NULL
 $$;
@@ -6453,6 +6824,13 @@ CREATE FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(p_email_n
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_email_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.email-otp.cooldown.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.email_otp_public_find_email_send_cooldown_by_email(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -6477,6 +6855,13 @@ CREATE FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(p_emai
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_email_otp_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -6564,6 +6949,13 @@ DECLARE
   v_display_name text;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_email_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.email-otp.user.find-or-create', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.email_otp_public_find_or_create_user(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -6660,6 +7052,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY
   WITH RECURSIVE chain AS (
     SELECT platform_user.id, platform_user.merged_into_id, 0 AS depth,
@@ -6699,6 +7098,13 @@ DECLARE
   v_user_id uuid;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_email_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.email-otp.registration.create', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg]), 'app.email_otp_public_register_patient(text,text,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -6766,6 +7172,13 @@ CREATE FUNCTION app.email_password_delete_unverified_registration(p_user_id uuid
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_password_auth_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -6906,6 +7319,13 @@ CREATE FUNCTION app.email_password_find_login_candidate(p_email_norm text) RETUR
 
 
 
+
+
+
+
+
+
+
   SELECT upc.user_id, upc.password_hash,
          (pu.email_verified_at IS NOT NULL OR fpu.matched_primary = false) AS email_verified
   FROM public.user_password_credentials AS upc
@@ -6928,6 +7348,13 @@ DECLARE
   v_user_id uuid;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.password.reset-candidate', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.email_password_find_reset_candidate(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -7016,6 +7443,13 @@ CREATE FUNCTION app.email_password_find_user_id_by_email_challenge(p_challenge_i
 
 
 
+
+
+
+
+
+
+
   SELECT c.user_id
   FROM public.email_challenges AS c
   WHERE c.id = p_challenge_id
@@ -7041,6 +7475,13 @@ DECLARE
   v_user_id uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_password_auth_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -7255,6 +7696,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_event_id IS NULL OR btrim(p_event_id) = '' THEN
     RAISE EXCEPTION 'inbound_reply_event_id_required' USING ERRCODE = '22023';
   END IF;
@@ -7349,6 +7797,13 @@ CREATE FUNCTION app.ensure_staff_security_profile() RETURNS void
 
 
 
+
+
+
+
+
+
+
 	INSERT INTO public.staff_security_profiles (user_id)
 	VALUES (app.require_staff_security_self_user_id())
 	ON CONFLICT (user_id) DO NOTHING
@@ -7372,6 +7827,13 @@ DECLARE
   v_hint text;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -7599,6 +8061,13 @@ CREATE FUNCTION app.find_platform_user_ids_by_any_confirmed_email(p_email_norm t
 
 
 
+
+
+
+
+
+
+
   SELECT uc.platform_user_id AS user_id, bool_or(uc.is_primary) AS matched_primary
   FROM public.user_contacts uc
   INNER JOIN public.platform_users pu ON pu.id = uc.platform_user_id
@@ -7621,6 +8090,13 @@ CREATE FUNCTION app.get_google_calendar_event_id(p_appointment_id uuid) RETURNS 
 DECLARE v_event_id text;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'calendar.map.get', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.get_google_calendar_event_id(uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -7760,6 +8236,13 @@ CREATE FUNCTION app.get_latest_specialist_signup_intent_for_user() RETURNS TABLE
 
 
 
+
+
+
+
+
+
+
   SELECT
     intent.id,
     intent.user_id,
@@ -7787,6 +8270,13 @@ CREATE FUNCTION app.get_pending_specialist_signup_intent(p_user_id uuid, p_chall
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_specialist_provision_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -7939,6 +8429,13 @@ CREATE FUNCTION app.get_preferred_auth_channel_code(p_user_id uuid) RETURNS text
 
 
 
+
+
+
+
+
+
+
   SELECT preference.channel_code
   FROM public.user_channel_preferences AS preference
   WHERE (
@@ -7958,6 +8455,13 @@ CREATE FUNCTION app.get_public_config_bool(p_key text) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_settings_preauth_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -8047,6 +8551,13 @@ CREATE FUNCTION app.get_public_reference_baseline(p_category_code text) RETURNS 
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_catalog_public_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'catalog.public-reference.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.get_public_reference_baseline(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -8197,6 +8708,13 @@ CREATE FUNCTION app.get_specialist_signup_intent_by_challenge(p_challenge_id uui
 
 
 
+
+
+
+
+
+
+
   SELECT
     i.id,
     i.user_id,
@@ -8223,6 +8741,13 @@ CREATE FUNCTION app.get_staff_security_profile() RETURNS TABLE(user_id uuid, fac
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_staff_security_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -8366,6 +8891,13 @@ CREATE FUNCTION app.get_staff_security_session_state() RETURNS TABLE(session_ver
 
 
 
+
+
+
+
+
+
+
 	SELECT p.session_version, (p.factor_verified_at IS NOT NULL)
 	FROM public.staff_security_profiles p
 	WHERE p.user_id = app.require_staff_security_self_user_id()
@@ -8383,6 +8915,13 @@ CREATE FUNCTION app.get_web_push_vapid_public_key() RETURNS text
 DECLARE public_key text;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_settings_preauth_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.web-push.vapid-public-key.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.get_web_push_vapid_public_key()'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -8676,6 +9215,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_organization_id IS NULL OR p_delivery NOT IN ('hls', 'mp4', 'file') THEN
     RAISE EXCEPTION 'media_playback_telemetry_context_denied' USING ERRCODE = '42501';
   END IF;
@@ -8806,6 +9352,13 @@ DECLARE
   v_lock_phone bigint;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_phone_binding_owner'::name, 'app_integrator_resolver'::name, 'integrator'::app.port_context_class, 'integrator.bootstrap-phone-bind', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg]), 'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -9089,6 +9642,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY
   SELECT stored.request_hash, stored.status::integer, stored.response_body
   FROM public.idempotency_keys AS stored
@@ -9110,6 +9670,13 @@ DECLARE
   v_row_count integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'integrator.event-idempotency.store', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($5))::app.port_typed_arg]), 'app.integrator_event_idempotency_store(text,text,integer,text,integer)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -9187,6 +9754,13 @@ DECLARE
   v_display_handle text;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_integrator_resolver'::name, 'integrator'::app.port_context_class, 'integrator.channel-identity.upsert', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.integrator_upsert_channel_identity(text,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -9333,6 +9907,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN NOT EXISTS (
     SELECT 1 FROM public.be_patient_booking_profiles p
      WHERE p.organization_id = app.current_org_id()
@@ -9357,6 +9938,13 @@ DECLARE
   v_identifiers jsonb;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_telemetry_exclusion_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -9547,6 +10135,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
     FROM public.system_settings setting
    WHERE setting.key = 'max_bot_api_key'
@@ -9628,6 +10223,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT NOT EXISTS (
     SELECT 1 FROM public.organization_slug_claims AS claim
      WHERE lower(claim.slug) = lower(p_slug)
@@ -9645,6 +10247,13 @@ CREATE FUNCTION app.is_platform_registration_analytics_user_excluded(p_user_id u
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_telemetry_exclusion_owner'::name, ARRAY['app_platform_settings'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -9828,6 +10437,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
     FROM public.system_settings setting
    WHERE setting.key = 'smsc_api_key'
@@ -9850,6 +10466,13 @@ CREATE FUNCTION app.is_smtp_outbound_configured() RETURNS boolean
 DECLARE configured boolean;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_settings_preauth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.channel.smtp.configured', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.is_smtp_outbound_configured()'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -10009,6 +10632,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
     FROM public.app_runtime_settings setting
    WHERE setting.key = 'telegram_login_bot_username'
@@ -10091,6 +10721,13 @@ CREATE FUNCTION app.list_active_booking_cities() RETURNS TABLE(id uuid, code tex
 
 
 
+
+
+
+
+
+
+
   SELECT city.id, city.code, city.title, city.sort_order
   FROM public.booking_cities AS city
   WHERE city.is_active = true
@@ -10108,6 +10745,13 @@ CREATE FUNCTION app.list_active_canonical_appointments_by_phone(p_phone_normaliz
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'booking.integrator-active.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.list_active_canonical_appointments_by_phone(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -10258,6 +10902,13 @@ CREATE FUNCTION app.list_google_calendar_probe_organization_ids() RETURNS SETOF 
 
 
 
+
+
+
+
+
+
+
   SELECT setting.organization_id
   FROM public.system_settings AS setting
   WHERE setting.key = 'google_calendar_enabled'
@@ -10278,6 +10929,13 @@ CREATE FUNCTION app.list_integration_webhook_burst_signals(p_window_minutes inte
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'health.webhook-errors.aggregate', app.hash_port_typed_args(ARRAY[ROW('integer@1', pg_catalog.int4send($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg]), 'app.list_integration_webhook_burst_signals(integer,integer)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -10370,6 +11028,13 @@ CREATE FUNCTION app.list_platform_health_failure_archive(p_probe text, p_limit i
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_platform_admin'::name, 'platform'::app.port_context_class, 'platform.health-archive.list', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg]), 'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -10538,6 +11203,13 @@ CREATE FUNCTION app.list_platform_organization_members(p_organization_id uuid) R
 
 
 
+
+
+
+
+
+
+
   SELECT
     membership.id,
     membership.organization_id,
@@ -10567,6 +11239,13 @@ CREATE FUNCTION app.list_platform_registration_analytics_events(p_start_at times
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_telemetry_exclusion_owner'::name, 'app_platform_settings'::name, 'platform'::app.port_context_class, 'analytics.registration-events.read', app.hash_port_typed_args(ARRAY[ROW('timestamptz@1', pg_catalog.timestamptz_send($1))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($6))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($7))::app.port_typed_arg]), 'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -10643,6 +11322,13 @@ CREATE FUNCTION app.list_scheduler_reminder_organization_ids() RETURNS SETOF uui
     AS $$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_reminder_materialization_owner'::name, 'app_operational_scheduler'::name, 'service'::app.port_context_class, 'scheduler.reminder-organizations', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.list_scheduler_reminder_organization_ids()'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -10803,6 +11489,13 @@ CREATE FUNCTION app.list_web_push_reminder_organization_ids(p_now timestamp with
 
 
 
+
+
+
+
+
+
+
   SELECT DISTINCT rr.organization_id
   FROM public.reminder_rules rr
   JOIN public.platform_users pu ON pu.id = rr.platform_user_id
@@ -10834,6 +11527,13 @@ DECLARE
   v_reopen boolean := false;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -10990,6 +11690,13 @@ CREATE FUNCTION app.lookup_pending_org_invite(p_token_hash text) RETURNS TABLE(i
 
 
 
+
+
+
+
+
+
+
   SELECT
     i.id,
     i.organization_id,
@@ -11081,6 +11788,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   UPDATE public.operator_incidents AS incident
   SET alert_sent_at = COALESCE(incident.alert_sent_at, clock_timestamp())
   WHERE incident.id = p_incident_id;
@@ -11103,6 +11817,13 @@ DECLARE
   invalid_count integer;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_reminder_materialization_owner'::name, ARRAY['app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -11295,6 +12016,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY
   INSERT INTO public.operator_incidents (dedup_key, direction, integration, error_class, error_detail)
   VALUES (p_dedup_key, p_direction, p_integration, p_error_class, p_error_detail)
@@ -11318,6 +12046,13 @@ CREATE FUNCTION app.open_or_touch_operator_probe_incident(p_integration text, p_
     AS $$
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_telemetry_operator_owner'::name, ARRAY['app_operational_scheduler'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -11475,6 +12210,13 @@ CREATE FUNCTION app.operator_incident_alert_already_sent(p_incident_id uuid) RET
 
 
 
+
+
+
+
+
+
+
   SELECT EXISTS (
     SELECT 1
     FROM public.operator_incidents AS incident
@@ -11495,6 +12237,13 @@ CREATE FUNCTION app.passkey_complete_authentication(p_challenge_id uuid, p_crede
 DECLARE v_user_id uuid;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_passkey_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.passkey.authentication.complete', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($3))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($6))::app.port_typed_arg]), 'app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -11588,6 +12337,13 @@ DECLARE
   v_user_id uuid := app.current_patient_user_id();
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_passkey_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -11768,6 +12524,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   DELETE FROM public.user_passkey_credentials AS credential
   WHERE credential.credential_id = p_credential_id
     AND credential.user_id = app.current_patient_user_id();
@@ -11789,6 +12552,13 @@ DECLARE
   v_handle text;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_passkey_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -11956,6 +12726,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_purpose NOT IN ('authentication', 'registration')
     OR p_id IS NULL
     OR p_challenge !~ '^[A-Za-z0-9_-]{32,1024}$'
@@ -12053,6 +12830,13 @@ CREATE FUNCTION app.passkey_list_current_credentials() RETURNS TABLE(credential_
 
 
 
+
+
+
+
+
+
+
   SELECT
     credential.credential_id,
     credential.transports,
@@ -12074,6 +12858,13 @@ CREATE FUNCTION app.passkey_list_current_exclusions() RETURNS TABLE(credential_i
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_passkey_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -12222,6 +13013,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_purpose NOT IN ('authentication', 'registration') THEN RETURN; END IF;
   RETURN QUERY
   SELECT stored.user_id, stored.challenge, stored.expected_origin, stored.rp_id, stored.expires_at
@@ -12244,6 +13042,13 @@ CREATE FUNCTION app.passkey_read_credential(p_credential_id text) RETURNS TABLE(
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_passkey_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.passkey.credential.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.passkey_read_credential(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -12328,6 +13133,13 @@ DECLARE
   v_identifier_key text;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_password_auth_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -12512,6 +13324,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT 'password-email:v1:' || encode(app_ext.digest(users.email_normalized, 'sha256'), 'hex')
   INTO v_identifier_key
   FROM public.platform_users AS users
@@ -12585,6 +13404,13 @@ CREATE FUNCTION app.password_login_acquire(p_email_normalized text, p_identifier
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.password.acquire', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg]), 'app.password_login_acquire(text,text,uuid,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -12960,6 +13786,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY
   SELECT * FROM app.password_login_complete_impl(p_lease_token, p_password_verified);
 END
@@ -13111,6 +13944,13 @@ CREATE FUNCTION app.password_login_issue_altcha_challenge(p_email_normalized tex
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.password.altcha-issue', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -13338,6 +14178,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN app.password_login_read_altcha_secret_impl();
 END
 $$;
@@ -13435,6 +14282,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_patient_user_id IS NULL OR v_org_id IS NULL THEN RETURN 0; END IF;
   DELETE FROM integrator.user_reminder_occurrences AS occurrence
   USING public.reminder_rules AS rule
@@ -13469,6 +14323,13 @@ DECLARE
   v_list_csv text;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -13749,6 +14610,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   v_org_id := app.current_org_id();
   IF pg_has_role(session_user, 'app_patient', 'MEMBER')
      AND NOT pg_has_role(session_user, 'app_integrator_request', 'MEMBER') THEN
@@ -13846,6 +14714,13 @@ CREATE FUNCTION app.patient_reminder_materialization_fingerprint(p_occurrence_id
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_reminder_materialization_owner'::name, ARRAY['app_operational_scheduler'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -14059,6 +14934,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_messenger_channel NOT IN ('telegram', 'max')
      OR v_integrator_user_id IS NULL OR v_org_id IS NULL THEN RETURN; END IF;
   SELECT patient.id INTO v_platform_user_id
@@ -14127,6 +15009,13 @@ DECLARE
   v_timezone text;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -14310,6 +15199,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_integrator_user_id IS NULL OR v_org_id IS NULL THEN RETURN; END IF;
   SELECT patient.id INTO v_platform_user_id
   FROM public.platform_users AS patient
@@ -14348,6 +15244,13 @@ DECLARE
   v_rule_uuid uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_integrator_request'::name, 'app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -14499,6 +15402,13 @@ DECLARE
   v_snoozed_until timestamptz;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_reminder_patient_owner'::name, ARRAY['app_integrator_request'::name, 'app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -14719,6 +15629,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY SELECT max(c.created_at) FROM public.phone_challenges c WHERE c.phone = p_phone;
 END
 $_$;
@@ -14793,6 +15710,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY SELECT l.locked_until FROM public.phone_otp_locks l WHERE l.phone_normalized = p_phone;
 END
 $_$;
@@ -14808,6 +15732,13 @@ CREATE FUNCTION app.phone_auth_register_otp_lockout(p_phone text, p_now_sec bigi
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_phone_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-otp.lock.register', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($2))::app.port_typed_arg]), 'app.phone_auth_register_otp_lockout(text,bigint)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -14947,6 +15878,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   DELETE FROM public.phone_otp_locks l WHERE l.phone_normalized = p_phone;
 END
 $_$;
@@ -14963,6 +15901,13 @@ CREATE FUNCTION app.phone_challenge_store_delete(p_challenge_id text) RETURNS bo
 DECLARE v_row_count integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_phone_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-challenge.delete', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.phone_challenge_store_delete(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -15100,6 +16045,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_phone IS NULL OR btrim(p_phone) = '' THEN RETURN 0; END IF;
   DELETE FROM public.phone_challenges c WHERE c.phone = p_phone;
   GET DIAGNOSTICS v_row_count = ROW_COUNT;
@@ -15178,6 +16130,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   UPDATE public.phone_challenges c SET verify_attempts = c.verify_attempts + 1
    WHERE c.challenge_id = p_challenge_id AND c.expires_at > p_now_sec
    RETURNING c.verify_attempts::integer INTO v_attempts;
@@ -15197,6 +16156,13 @@ CREATE FUNCTION app.phone_challenge_store_read(p_challenge_id text) RETURNS TABL
 DECLARE v_challenge public.phone_challenges%ROWTYPE; v_now_sec bigint;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_phone_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-challenge.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.phone_challenge_store_read(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -15340,6 +16306,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' OR p_phone IS NULL OR btrim(p_phone) = ''
      OR p_expires_at IS NULL OR p_expires_at <= 0 OR p_verify_attempts IS NULL OR p_verify_attempts < 0 THEN
     RETURN false;
@@ -15375,6 +16348,13 @@ DECLARE
   v_depth integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_phone_binding_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-messenger-bind.completion-state', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg]), 'app.phone_messenger_bind_completion_state(text,text,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -15456,6 +16436,13 @@ CREATE FUNCTION app.phone_messenger_bind_secret(p_action text, p_token_hash text
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_phone_binding_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-messenger-bind.secret', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg]), 'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -15619,6 +16606,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   v_now_sec := extract(epoch FROM clock_timestamp())::bigint;
   IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' OR p_code IS NULL OR btrim(p_code) = ''
      OR p_max_attempts IS NULL OR p_max_attempts <= 0
@@ -15669,6 +16663,13 @@ DECLARE
   v_intent jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_phone_otp_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'booking.public-phone-otp.issue', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($4))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg]), 'app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -15855,6 +16856,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_current_organization_id IS NULL OR v_current_organization_id <> p_organization_id THEN
     RAISE EXCEPTION 'organization_context_mismatch';
   END IF;
@@ -15917,6 +16925,13 @@ DECLARE
   v_unique_constraint_name text;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_specialist_provision_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -16272,6 +17287,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_retention_hours IS NULL
     OR p_retention_hours < 1
     OR p_retention_hours > 87600
@@ -16303,6 +17325,13 @@ CREATE FUNCTION app.read_booking_calendar_latest_staff_comment(p_appointment_id 
 DECLARE v_body text;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'calendar.staff-comment.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.read_booking_calendar_latest_staff_comment(uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -16441,6 +17470,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY SELECT p.is_problematic, p.problematic_note
     FROM public.be_appointments a
     JOIN public.be_patient_booking_profiles p
@@ -16460,6 +17496,13 @@ CREATE FUNCTION app.read_canonical_appointment_by_external_id(p_external_id text
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'booking.integrator-record.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.read_canonical_appointment_by_external_id(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -16557,6 +17600,13 @@ CREATE FUNCTION app.read_curated_playback_health() RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('saas_system_health_owner'::name, ARRAY['saas_telemetry_operator'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -16741,6 +17791,13 @@ CREATE FUNCTION app.read_curated_playback_health_pre_0196() RETURNS jsonb
 
 
 
+
+
+
+
+
+
+
 WITH windows(hours) AS (VALUES (24), (1)),
 event_totals AS (
   SELECT
@@ -16802,6 +17859,13 @@ CREATE FUNCTION app.read_curated_system_health() RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('saas_system_health_owner'::name, ARRAY['saas_telemetry_operator'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -17006,6 +18070,13 @@ CREATE FUNCTION app.read_curated_system_health_pre_0196() RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$SELECT app.require_attested_context_for_roles('saas_system_health_owner'::name, ARRAY['saas_telemetry_operator'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -17473,6 +18544,13 @@ CREATE FUNCTION app.read_current_org_tariff_transition_usage() RETURNS TABLE(org
 
 
 
+
+
+
+
+
+
+
       SELECT
         context.organization_id,
         usage.clinic_team_used,
@@ -17502,6 +18580,13 @@ DECLARE
   v_patient_user_id uuid := app.current_patient_user_id();
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_org_projection_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.organization.resolve', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.read_current_patient_active_organizations()'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -17655,6 +18740,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_organization_id IS NULL OR v_patient_user_id IS NULL THEN
     RETURN;
   END IF;
@@ -17727,6 +18819,13 @@ CREATE FUNCTION app.read_current_patient_booking_catalog() RETURNS TABLE(branch_
 
 
 
+
+
+
+
+
+
+
   WITH principal AS (
     SELECT app.current_org_id() AS organization_id,
            app.current_patient_user_id() AS patient_user_id
@@ -17783,6 +18882,13 @@ DECLARE
   v_patient uuid := app.current_patient_user_id();
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_booking_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -18013,6 +19119,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_target_kind <> ALL (ARRAY['content_page', 'lfk_exercise', 'lfk_complex']) THEN
     RAISE EXCEPTION 'unsupported material rating target kind' USING ERRCODE = '22023';
   END IF;
@@ -18051,6 +19164,13 @@ DECLARE
   v_now timestamptz := statement_timestamp();
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_org_projection_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -18288,6 +19408,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   v_organization_id := app.current_org_id();
   v_patient_user_id := app.current_patient_user_id();
   IF v_patient_user_id IS NULL OR p_scope <> 'admin' THEN
@@ -18338,6 +19465,13 @@ CREATE FUNCTION app.read_global_server_runtime_setting(p_key text) RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_settings_runtime_owner'::name, ARRAY['app_integrator_request'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -18481,6 +19615,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json INTO value_json
   FROM public.system_settings AS setting
   WHERE p_key IN ('auth_email_enabled','auth_sms_enabled','auth_telegram_enabled','auth_max_enabled')
@@ -18499,6 +19640,13 @@ CREATE FUNCTION app.read_integrator_clinic_delivery_credential(p_key text, p_org
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_settings_integrator_owner'::name, ARRAY['app_integrator_request'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -18583,6 +19731,13 @@ CREATE FUNCTION app.read_integrator_google_calendar_setting(p_key text, p_organi
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_settings_integrator_owner'::name, ARRAY['app_integrator_request'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -18731,6 +19886,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY SELECT m.version, m.applied_at FROM integrator.schema_migrations m ORDER BY m.version;
 END
 $$;
@@ -18744,6 +19906,13 @@ CREATE FUNCTION app.read_integrator_platform_integration_availability() RETURNS 
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_settings_integrator_owner'::name, ARRAY['app_operational_delivery_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -18825,6 +19994,13 @@ CREATE FUNCTION app.read_integrator_projection_health(p_retry_threshold integer)
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'integrator.projection-health.read', app.hash_port_typed_args(ARRAY[ROW('integer@1', pg_catalog.int4send($1))::app.port_typed_arg]), 'app.read_integrator_projection_health(integer)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -18989,6 +20165,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json INTO value_json
   FROM public.system_settings AS setting
   WHERE p_key IN ('telegram_bot_token','telegram_webhook_secret','telegram_send_menu_on_button_press',
@@ -19009,6 +20192,13 @@ CREATE FUNCTION app.read_integrator_runtime_setting(p_key text) RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$SELECT app.require_accepted_context('app_seam_settings_integrator_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'config.integrator-runtime.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.read_integrator_runtime_setting(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -19158,6 +20348,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json INTO value_json
   FROM public.system_settings AS setting
   WHERE setting.key = 'smtp_outbound' AND setting.scope = 'admin' AND setting.organization_id IS NULL
@@ -19237,6 +20434,13 @@ CREATE FUNCTION app.read_last_saas_isolation_coverage() RETURNS TABLE(id uuid, s
 
 
 
+
+
+
+
+
+
+
   SELECT id, status, started_at, finished_at, services_checked, checks_count, unexpected_errors_count
   FROM public.saas_isolation_coverage_runs ORDER BY finished_at DESC LIMIT 1
 $$;
@@ -19250,6 +20454,13 @@ CREATE FUNCTION app.read_media_worker_runtime_setting(p_key text) RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_settings_runtime_owner'::name, ARRAY['app_operational_media_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -19396,6 +20607,13 @@ CREATE FUNCTION app.read_operator_health_probe_config() RETURNS jsonb
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json
   FROM public.system_settings AS setting
   WHERE setting.key = 'operator_health_probe_config'
@@ -19413,6 +20631,13 @@ CREATE FUNCTION app.read_operator_outbound_probe_meta() RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_telemetry_operator_owner'::name, ARRAY['app_operational_scheduler'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -19554,6 +20779,13 @@ CREATE FUNCTION app.read_org_brand_core_context(p_organization_id uuid) RETURNS 
 
 
 
+
+
+
+
+
+
+
   SELECT organization.id, organization.title, organization.is_active
   FROM public.be_organizations AS organization
   WHERE organization.id = p_organization_id
@@ -19573,6 +20805,13 @@ CREATE FUNCTION app.read_org_enforced_quota_usage(p_organization_id uuid) RETURN
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_org_commerce_owner'::name, ARRAY['app_clinic_billing'::name, 'app_platform_settings'::name, 'app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -19739,6 +20978,13 @@ CREATE FUNCTION app.read_outbound_provider_incident_health() RETURNS jsonb
 
 
 
+
+
+
+
+
+
+
   SELECT jsonb_build_object(
     'openCount', count(*)::int,
     'acknowledgedCount', count(*) FILTER (WHERE acknowledged_at IS NOT NULL)::int,
@@ -19820,6 +21066,13 @@ CREATE FUNCTION app.read_outgoing_delivery_reclaim_config() RETURNS jsonb
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json
   FROM public.system_settings AS setting
   WHERE setting.key = 'outgoing_delivery_reclaim_config'
@@ -19837,6 +21090,13 @@ CREATE FUNCTION app.read_patient_lfk_complex_cover(p_complex_id uuid) RETURNS TA
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_patient_lfk_media_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -20024,6 +21284,13 @@ CREATE FUNCTION app.read_patient_lfk_complex_exercise_lines(p_complex_ids uuid[]
 
 
 
+
+
+
+
+
+
+
   SELECT
     complex_exercise.complex_id,
     complex_exercise.id,
@@ -20129,6 +21396,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_platform_user_id IS NULL OR app.current_org_id() IS NULL OR NOT EXISTS (
     SELECT 1
       FROM public.be_organization_members member
@@ -20156,6 +21430,13 @@ CREATE FUNCTION app.read_platform_lfk_media_entitlement_refs(p_media_id uuid) RE
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_patient_lfk_media_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -20332,6 +21613,13 @@ CREATE FUNCTION app.read_platform_media_row(p_media_id uuid) RETURNS TABLE(id te
 
 
 
+
+
+
+
+
+
+
   SELECT
     id::text,
     mime_type,
@@ -20367,6 +21655,13 @@ CREATE FUNCTION app.read_public_runtime_setting(p_key text, p_scope text) RETURN
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_settings_runtime_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'config.runtime.public.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.read_public_runtime_setting(text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -20508,6 +21803,13 @@ CREATE FUNCTION app.read_reminder_transactional_email_cooldown(p_user_id uuid) R
 
 
 
+
+
+
+
+
+
+
   SELECT cooldown.last_sent_at
   FROM public.email_send_cooldowns AS cooldown
   WHERE cooldown.user_id = p_user_id
@@ -20527,6 +21829,13 @@ CREATE FUNCTION app.read_saas_billing_payment_provider_clinic() RETURNS jsonb
 DECLARE value jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_clinic_billing'::name, 'staff'::app.port_context_class, 'billing.clinic.provider.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.read_saas_billing_payment_provider_clinic()'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -20664,6 +21973,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json INTO value FROM public.system_settings AS setting
    WHERE setting.key = 'saas_billing_payment_provider' AND setting.scope = 'admin'
      AND setting.organization_id IS NULL LIMIT 1;
@@ -20742,6 +22058,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json INTO value FROM public.system_settings AS setting
    WHERE setting.key = 'saas_billing_payment_provider' AND setting.scope = 'admin'
      AND setting.organization_id IS NULL LIMIT 1;
@@ -20758,6 +22081,13 @@ CREATE FUNCTION app.read_saas_isolation_events() RETURNS TABLE(event_class text,
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('saas_telemetry_owner'::name, ARRAY['saas_telemetry_operator'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -20897,6 +22227,13 @@ CREATE FUNCTION app.read_saas_isolation_trend() RETURNS TABLE(as_of timestamp wi
 
 
 
+
+
+
+
+
+
+
   WITH anchor AS MATERIALIZED (
     SELECT statement_timestamp() AS as_of
   ), bounds AS (
@@ -20946,6 +22283,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT setting.value_json INTO value
     FROM public.system_settings AS setting
    WHERE p_key IN (
@@ -20976,6 +22320,13 @@ CREATE FUNCTION app.read_webapp_server_runtime_setting(p_key text, p_scope text)
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_settings_runtime_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'config.runtime.server.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.read_webapp_server_runtime_setting(text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -21110,6 +22461,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_org IS NULL OR v_patient IS NULL
      OR p_event_type NOT IN ('app_open', 'page_view', 'heartbeat')
      OR NULLIF(p_entry_channel, '') IS NULL
@@ -21182,6 +22540,13 @@ DECLARE
   v_inserted bigint := 0;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_telemetry_patient_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -21388,6 +22753,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
 	UPDATE public.staff_security_profiles p
 	SET failed_attempts = CASE
 	      WHEN p.locked_until IS NOT NULL AND p.locked_until <= now() THEN 1
@@ -21416,6 +22788,13 @@ CREATE FUNCTION app.record_integrator_webhook_outcome(p_source text, p_processed
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'integrator.webhook-outcome.record', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($2))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg]), 'app.record_integrator_webhook_outcome(text,boolean,integer,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -21593,6 +22972,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_organization_id IS NULL OR p_delivery NOT IN ('hls', 'mp4', 'file') THEN
     RAISE EXCEPTION 'media_playback_telemetry_context_denied' USING ERRCODE = '42501';
   END IF;
@@ -21630,6 +23016,13 @@ DECLARE
   v_payload_json jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.attempt-audit', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg]), 'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)'::regprocedure);
+
+
+
+
+
+
+
   v_payload_json := p_payload_text::jsonb;
 
   IF p_intent_type IS NULL
@@ -21690,6 +23083,13 @@ DECLARE
   v_user_id uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_telemetry_operator_owner'::name, ARRAY['app_operational_delivery_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -21833,6 +23233,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_last_status IS NULL
     OR p_last_status NOT IN ('success', 'failure')
     OR p_finished_at IS NULL
@@ -21885,6 +23292,13 @@ DECLARE
   v_row_count integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'integrator.reminder-occurrence-finalized.record', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg]), 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -22038,6 +23452,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_user_id IS NULL THEN
     RAISE EXCEPTION 'reminder_transactional_email_cooldown_user_required' USING ERRCODE = '22023';
   END IF;
@@ -22064,6 +23485,13 @@ DECLARE
   v_required constant text[] := ARRAY['webapp','integrator','worker','scheduler','media_worker','cron'];
 BEGIN
   PERFORM app.require_attested_context_for_roles('saas_telemetry_owner'::name, ARRAY['saas_telemetry_operator'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -22183,6 +23611,13 @@ DECLARE
   v_portal_activated_at timestamptz;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -22443,6 +23878,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT delivery.id, delivery.organization_id, delivery.payload_json
     INTO queue_id, queue_organization_id, queue_payload
   FROM public.outgoing_delivery_queue AS delivery
@@ -22517,6 +23959,13 @@ CREATE FUNCTION app.release_integrator_idempotency(p_key text) RETURNS void
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'integrator.idempotency.release', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.release_integrator_idempotency(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -22654,6 +24103,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT intent.id
   INTO v_intent_id
   FROM public.specialist_signup_intents AS intent
@@ -22689,6 +24145,13 @@ DECLARE
   v_bucket_start timestamptz := date_trunc('hour', clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
 BEGIN
   PERFORM app.require_attested_context_for_roles('saas_telemetry_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name, 'app_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -22962,6 +24425,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
 	v_user_id := app.current_patient_user_id();
 	IF v_user_id IS NULL THEN
 		RAISE EXCEPTION 'staff_security_self_principal_required';
@@ -22981,6 +24451,13 @@ CREATE FUNCTION app.resolve_active_organization_for_integrator_user_id(p_integra
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_integrator_resolver'::name, 'integrator'::app.port_context_class, 'integrator.user-organization.resolve', app.hash_port_typed_args(ARRAY[ROW('bigint@1', pg_catalog.int8send($1))::app.port_typed_arg]), 'app.resolve_active_organization_for_integrator_user_id(bigint)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -23050,6 +24527,13 @@ DECLARE
   changed_count bigint;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_platform_admin'::name, 'platform'::app.port_context_class, 'platform.operator-incidents.resolve', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.resolve_all_open_operator_incidents()'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -23188,6 +24672,13 @@ CREATE FUNCTION app.resolve_clinic_dedicated_bot_organization(p_channel text, p_
 
 
 
+
+
+
+
+
+
+
   SELECT binding.organization_id
   FROM public.clinic_dedicated_bot_bindings AS binding
   WHERE binding.channel = p_channel
@@ -23210,6 +24701,13 @@ DECLARE
   v_organization_id uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_program_resolver_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -23367,6 +24865,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_dedup_key_prefix IS NULL
     OR p_dedup_key_prefix NOT IN (
       'outbound:max:', 'outbound:telegram:', 'outbound:google_calendar:'
@@ -23403,6 +24908,13 @@ DECLARE
   v_now timestamptz := statement_timestamp();
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_org_commerce_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -23660,6 +25172,13 @@ DECLARE
   v_now timestamptz := statement_timestamp();
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_org_commerce_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name, 'app_tenant_service'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -24037,6 +25556,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT queue.kind, queue.organization_id, queue.payload_json
   INTO queue_kind, stored_organization_id, queue_payload
   FROM public.outgoing_delivery_queue AS queue
@@ -24127,6 +25653,13 @@ DECLARE
   v_organization_ids uuid[];
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_payment_webhook_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -24290,6 +25823,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_id IS NULL THEN
     RAISE EXCEPTION 'platform audit conflict id is required'
       USING ERRCODE = '23514';
@@ -24334,6 +25874,13 @@ DECLARE
   v_organization_ids uuid[];
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_public_booking_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -24527,6 +26074,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT requested.organization_id INTO resolved
     FROM public.organization_slug_claims AS requested
     JOIN public.organization_slug_claims AS current_claim
@@ -24553,6 +26107,13 @@ CREATE FUNCTION app.resolve_public_organization_slug(p_slug text) RETURNS TABLE(
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_public_slug_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'booking.public-slug.resolve', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.resolve_public_organization_slug(text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -24697,6 +26258,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   RETURN QUERY
   SELECT invoice.id, invoice.organization_id, invoice.amount_minor, invoice.currency
     FROM public.saas_billing_invoices AS invoice
@@ -24717,6 +26285,13 @@ CREATE FUNCTION app.resolve_saas_billing_refund_for_webhook(p_provider_id text, 
     AS $_$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'billing.webhook.refund.resolve', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.resolve_saas_billing_refund_for_webhook(text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -24869,6 +26444,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   v_staff_context := pg_has_role(session_user, 'app_staff', 'MEMBER');
   IF p_platform_user_id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'platform user id required';
@@ -24911,6 +26493,13 @@ DECLARE
   is_current boolean := false;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_reminder_appointment_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.appointment-reminder-revalidate', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.revalidate_appointment_reminder_materialization(uuid)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -25085,6 +26674,13 @@ DECLARE
   channel_allowed boolean;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_reminder_materialization_owner'::name, ARRAY['app_operational_delivery_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -25321,6 +26917,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   SELECT delivery.payload_json
     INTO queue_payload
   FROM public.outgoing_delivery_queue AS delivery
@@ -25373,6 +26976,13 @@ DECLARE
 	v_session_version integer;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_staff_security_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -25558,6 +27168,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_tariff_id IS NULL THEN
     RETURN;
   END IF;
@@ -25655,6 +27272,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_organization_id IS NULL
      OR p_organization_id IS DISTINCT FROM app.current_org_id() THEN
     RAISE EXCEPTION 'saas_tariff_organization_context_denied'
@@ -25676,6 +27300,13 @@ CREATE FUNCTION app.save_pending_staff_totp(p_secret_ciphertext text) RETURNS vo
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_staff_security_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -25902,6 +27533,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_organization_id IS NULL OR v_patient_user_id IS NULL OR p_only_if_empty IS NULL THEN
     RETURN false;
   END IF;
@@ -25975,6 +27613,13 @@ CREATE FUNCTION app.specialist_task_reminder_materialization_fingerprint(p_task_
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_reminder_specialist_owner'::name, ARRAY['app_operational_delivery_worker'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -26174,6 +27819,13 @@ CREATE FUNCTION app.staff_user_has_password_credentials(p_user_id uuid) RETURNS 
 
 
 
+
+
+
+
+
+
+
   SELECT EXISTS (
     SELECT 1
     FROM public.user_password_credentials AS c
@@ -26190,6 +27842,13 @@ CREATE FUNCTION app.staff_user_has_web_oauth_binding(p_user_id uuid) RETURNS boo
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_oauth_owner'::name, ARRAY['app_staff'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -26278,6 +27937,13 @@ DECLARE
   v_now_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -26430,6 +28096,13 @@ DECLARE
   v_trial_id uuid;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_specialist_provision_owner'::name, ARRAY['app_platform_settings'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -26728,6 +28401,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF v_organization_id IS NULL OR v_patient_user_id IS NULL THEN
     RETURN false;
   END IF;
@@ -26770,6 +28450,13 @@ DECLARE
   v_updated_count bigint := 0;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_self_actions_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 
@@ -26938,6 +28625,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_key IS NULL OR btrim(p_key) = '' OR p_ttl_seconds IS NULL
      OR p_ttl_seconds < 1 OR p_ttl_seconds > 604800 THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'bounded idempotency key and ttl required';
@@ -27024,6 +28718,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   IF p_event_id IS NULL OR btrim(p_event_id) = '' OR NOT EXISTS (
     SELECT 1 FROM public.be_appointments a WHERE a.id = p_appointment_id AND a.organization_id = app.current_org_id()
   ) THEN RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'appointment organization and event id required'; END IF;
@@ -27047,6 +28748,13 @@ CREATE FUNCTION app.upsert_integration_data_quality_incident(p_integration text,
 DECLARE v_occurrences integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'integrator.data-quality.upsert', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg]), 'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)'::regprocedure);
+
+
+
+
+
+
+
 
 
 
@@ -27196,6 +28904,13 @@ BEGIN
 
 
 
+
+
+
+
+
+
+
   caller_organization_id := NULLIF(current_setting('app.org', true), '')::uuid;
   IF caller_organization_id IS NULL OR caller_organization_id IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'patient reminder materialization tenant mismatch' USING ERRCODE = '42501';
@@ -27264,6 +28979,13 @@ DECLARE
   v_now_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+
+
+
+
+
+
 
 
 

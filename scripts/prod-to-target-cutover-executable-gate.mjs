@@ -136,7 +136,10 @@ function mutate(sqlRoot, mutant) {
   const file = mutant === 'f1' ? 'apps/webapp/scripts/consolidate-owner-identity.sql' : 'deploy/postgres/prod-to-target-cutover-data.sql';
   const target = path.join(tmp, file); let text = fs.readFileSync(target, 'utf8');
   const replacements = {
-    membership: ["SELECT :'canonical_organization_id'::uuid, expected.platform_user_id, 'active'", "SELECT :'canonical_organization_id'::uuid, expected.platform_user_id, 'active' WHERE false"],
+    membership: [
+      "SELECT current_setting('bcb.cutover.canonical_organization_id')::uuid, expected.platform_user_id, 'active'",
+      "SELECT current_setting('bcb.cutover.canonical_organization_id')::uuid, expected.platform_user_id, 'active' WHERE false",
+    ],
     f1: ["UPDATE %I.%I SET %I = $1 WHERE %I = $2", "UPDATE %I.%I SET %I = $1 WHERE false"],
     f2: ['SET platform_user_id = identity_map.canonical_id', 'SET platform_user_id = NULL'],
     f3: ["|| 'WHERE target.%I = identity_map.source_id '", "|| 'WHERE false AND target.%I = identity_map.source_id '"],
