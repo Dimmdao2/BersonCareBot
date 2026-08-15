@@ -2171,7 +2171,7 @@ const REV10_CONTEXT = {
       functionIdentity: 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
     email_password_find_login_candidate: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.reset-candidate',
-      functionIdentity: 'app.email_password_find_login_candidate(text)' },
+      functionIdentity: 'app.email_password_find_reset_candidate(text)' },
     auth_login_token_create: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.login-token.create',
       functionIdentity: 'app.auth_login_token_create(text,uuid,text,timestamp with time zone)' },
@@ -2452,13 +2452,12 @@ const REV10_CONTEXT = {
         'app_seam_specialist_provision_owner',
       ],
     },
-    'app.email_password_find_login_candidate(text)': {
-      ...BUSINESS_SEAM_FUNCTIONS['app.email_password_find_login_candidate(text)'],
-      execute: [
-        ...BUSINESS_SEAM_FUNCTIONS['app.email_password_find_login_candidate(text)'].execute,
-        'app_pre_session',
-      ],
-    },
+    'app.email_password_find_reset_candidate(text)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'uuid',
+      execute: ['app_pre_session'], purpose: 'auth.password.reset-candidate', typedArgs: ['text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app.email_password_find_login_candidate(text)'],
+    }),
     'app.password_login_acquire_impl(text,text,uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
       execute: [], invocation: 'internal' as const,

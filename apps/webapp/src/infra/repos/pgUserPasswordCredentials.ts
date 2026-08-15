@@ -237,11 +237,9 @@ export function createPgUserPasswordCredentialsPort(
     async findVerifiedUserIdWithPassword(emailNormalized) {
       const r = await runWebappNamedRoot<{ id: string }>(
         getWebappSqlDb(),
-        'app.email_password_find_login_candidate(text)',
+        'app.email_password_find_reset_candidate(text)',
         [emailNormalized],
-        sql`SELECT user_id::text AS id
-            FROM app.email_password_find_login_candidate(${emailNormalized})
-            WHERE email_verified = true`,
+        sql`SELECT app.email_password_find_reset_candidate(${emailNormalized})::text AS id`,
       );
       return r.rows[0]?.id ?? null;
     },

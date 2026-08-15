@@ -79,6 +79,7 @@ DROP FUNCTION IF EXISTS app.get_staff_security_profile();
 DROP FUNCTION IF EXISTS app.ensure_staff_security_profile();
 DROP FUNCTION IF EXISTS app.require_staff_security_self_user_id();
 DROP FUNCTION IF EXISTS app.email_password_find_user_id_by_email_challenge(uuid);
+DROP FUNCTION IF EXISTS app.email_password_find_reset_candidate(text);
 DROP FUNCTION IF EXISTS app.email_password_find_login_candidate(text);
 DROP FUNCTION IF EXISTS app.email_password_delete_unverified_registration(uuid);
 DROP FUNCTION IF EXISTS app.email_password_register_pending(text, text, text, text, text, text);
@@ -512,6 +513,41 @@ COMMENT ON FUNCTION app.email_password_find_login_candidate(text) IS
 -- Also migration 0356's canonical app_owner set -- same reasoning as email_password_register_pending above.
 ALTER FUNCTION app.email_password_find_login_candidate(text) OWNER TO app_owner;
 
+CREATE OR REPLACE FUNCTION app.email_password_find_reset_candidate(p_email_norm text)
+RETURNS uuid
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  v_user_id uuid;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_password_auth_owner',
+    'app_pre_session',
+    'pre_session',
+    'auth.password.reset-candidate',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', textsend(p_email_norm))::app.port_typed_arg
+    ]),
+    'app.email_password_find_reset_candidate(text)'::regprocedure
+  );
+  SELECT candidate.user_id
+  INTO v_user_id
+  FROM app.email_password_find_login_candidate(p_email_norm) AS candidate
+  WHERE candidate.email_verified = true
+  LIMIT 1;
+  RETURN v_user_id;
+END
+$$;
+
+COMMENT ON FUNCTION app.email_password_find_reset_candidate(text) IS
+  'Exact pre-session password-reset candidate lookup; returns only the verified canonical user id and never exposes a password hash.';
+
+ALTER FUNCTION app.email_password_find_reset_candidate(text) OWNER TO app_owner;
+
 -- Retire the former caller-targeted overload before exposing the self-scoped replacement.
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, text, text, text);
@@ -761,6 +797,7 @@ REVOKE ALL ON FUNCTION app.email_password_register_pending(text, text, text, tex
 REVOKE ALL ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_login_candidate(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_password_find_reset_candidate(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM PUBLIC;
@@ -788,6 +825,7 @@ GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, 
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_password_find_reset_candidate(text) TO app_pre_session;
 GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO app_patient;

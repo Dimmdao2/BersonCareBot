@@ -43,7 +43,7 @@ describe('createPgUserPasswordCredentialsPort named roots', () => {
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(1);
     const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
     expect(db).toBe(fakes.db);
-    expect(identity).toBe('app.email_password_find_login_candidate(text)');
+    expect(identity).toBe('app.email_password_find_reset_candidate(text)');
     expect(args).toEqual(['doctor@example.com']);
   });
 });
