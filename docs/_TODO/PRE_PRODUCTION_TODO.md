@@ -105,7 +105,7 @@ globally across all clinics, with no possession proof — so the fix changes beh
 cutover note and re-count how many production bookings currently arrive by the anonymous path before changing
 it. Tracked as taskdb #1004.
 
-## 7. Two settings the alerting work needs before it is real — one is genuinely the owner's
+## 7. External monitoring and two settings the alerting work needs before it is real
 
 Built and committed (`f5ecb6e78`), but inert until configured. Recording rather than guessing, because one of
 them means creating an account somewhere.
@@ -120,6 +120,16 @@ them means creating an account somewhere.
    is not organization-scoped.
 3. `INTERNAL_JOB_SECRET` is unset on DEV, which is why the local heartbeat receiver answers 503 there. TEST
    and PROD already have it — no action, noted so nobody "fixes" it.
+
+4. **External uptime monitor — required for the initial PROD cutover.** Owner direction 2026-08-15: include
+   Uptime Kuma in the production rollout plan for the first operating period. The monitor itself must run
+   **outside the PROD host** (a separate monitoring/DEV host or an independent provider); co-locating it with
+   PROD cannot detect host, network or power loss. Before opening PROD to users, configure public web/API and
+   certificate-expiry probes against the reviewed production health endpoints, connect an alert destination
+   independent of the monitored application, and prove both failure and recovery notifications. Record the
+   monitor owner, admin location, probe inventory and backup/restore procedure without storing notification
+   secrets in the repository. Uptime Kuma is the initial implementation, not a permanent vendor lock-in;
+   Healthchecks.io or an equivalent independent service satisfies the same gate.
 
 Also carried forward from the same work, deliberately deferred: the operator alert path currently shares
 transport and credentials with patient mail. Decision **D-c** in `NOTIFICATION_ALERTING_DESIGN_2026-07-26.md`
