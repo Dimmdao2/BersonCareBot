@@ -121,7 +121,12 @@ BEGIN
     RETURN jsonb_build_object('outcome', 'payment_required');
   END IF;
 
-  SELECT policy.*
+  SELECT
+    policy.duration_days,
+    policy.discount_window_days,
+    policy.post_trial_behavior,
+    policy.post_trial_tariff_id,
+    policy.start_event
   INTO v_policy
   FROM public.saas_trial_policy AS policy
   WHERE policy.key = 'global'

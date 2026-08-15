@@ -3025,6 +3025,13 @@
       "when": 1793539230178,
       "tag": "0435_first_tariff_read_only_policy_local",
       "breakpoints": true
+    },
+    {
+      "idx": 432,
+      "version": "7",
+      "when": 1793539230179,
+      "tag": "0436_first_tariff_exact_policy_columns_local",
+      "breakpoints": true
     }
   ]
 }

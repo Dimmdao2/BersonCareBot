@@ -1,9 +1,8 @@
 -- BCB-MIGRATION-OWNER: app_seam_specialist_provision_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- The exact clinic-billing capability already authenticates the caller and installs an accepted
--- organization context. A SECURITY DEFINER body must not re-check app.is_staff(): current_user
--- is the closed seam owner, not the invoking runtime role.
+-- Read only the policy fields used by the first-tariff decision. SELECT policy.* made unrelated
+-- audit columns part of this closed seam and failed after exact column grants were installed.
 CREATE OR REPLACE FUNCTION app.choose_organization_first_tariff(
   p_tariff_id uuid,
   p_actor_id uuid
@@ -175,3 +174,4 @@ BEGIN
   );
 END
 $function$;
+
