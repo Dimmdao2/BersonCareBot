@@ -26,8 +26,25 @@ VALUES
   ('vk_id_application_id', 'admin', NULL, '{"value":""}'::jsonb, now()),
   ('vk_id_client_secret', 'admin', NULL, '{"value":""}'::jsonb, now()),
   ('vk_id_redirect_uri', 'admin', NULL, '{"value":""}'::jsonb, now()),
-  ('operator_alert_fallback_email', 'admin', NULL, '{"value":""}'::jsonb, now())
+  ('operator_alert_fallback_email', 'admin', NULL, '{"value":""}'::jsonb, now()),
+  ('platform_integration_availability', 'admin', NULL,
+   '{"value":{"version":1,"integrations":{"telegram":true,"max":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}}'::jsonb,
+   now())
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
+
+INSERT INTO public.app_runtime_settings (
+  key, scope, organization_id, audience, value_json, updated_at, updated_by
+)
+SELECT key, scope, organization_id, 'server', value_json, updated_at, updated_by
+FROM public.system_settings
+WHERE key = 'platform_integration_availability'
+  AND scope = 'admin'
+  AND organization_id IS NULL
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
+  audience = EXCLUDED.audience,
+  value_json = EXCLUDED.value_json,
+  updated_at = EXCLUDED.updated_at,
+  updated_by = EXCLUDED.updated_by;
 
 DO $final_shape_gate$
 DECLARE
@@ -86,7 +103,8 @@ BEGIN
     ('vk_id_application_id'),
     ('vk_id_client_secret'),
     ('vk_id_redirect_uri'),
-    ('operator_alert_fallback_email')
+    ('operator_alert_fallback_email'),
+    ('platform_integration_availability')
   ) AS required_setting(key)
   WHERE NOT EXISTS (
     SELECT 1 FROM public.system_settings setting

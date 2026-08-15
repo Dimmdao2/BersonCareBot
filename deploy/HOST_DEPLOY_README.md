@@ -786,6 +786,10 @@ Settings-запись через `updateSetting` может менять его;
 Первичная настройка SMTP для TEST выполняется штатным Settings / `updateSetting` и сохраняется в
 `public.system_settings`; после неё full-reset сохраняет это TEST-значение автоматически. Обычный deploy и
 fresh-reset не читают SMTP из PROD/env и не печатают секрет.
+Fresh PROD-снимок также предшествует обязательному реестру `platform_integration_availability`. Поэтому
+`prod-to-target-cutover-finish.sql` создаёт отсутствующий реестр с целевыми безопасными defaults, синхронизирует
+его зарегистрированную `app_runtime_settings`-проекцию и включает отсутствие строки в финальный shape-gate.
+Без этого delivery worker fail-closed отклоняет все каналы как unreadable configuration.
 **ЗАМЕНЕНО 15.08.2026:** bilateral TEST+DEV route and six-login install remain forbidden. The owner authorized
 the single-target TEST rehearsal now: the wrapper changes only `bersoncarebot_test`, then installs the exact
 four-login port-context target. This is not permission for routine TEST resets.
