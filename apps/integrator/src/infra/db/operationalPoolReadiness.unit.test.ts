@@ -134,7 +134,7 @@ describe('operational pool readiness port context', () => {
     ]);
   });
 
-  it('checks scheduler relations separately, then starts discovery with its exact descriptor', async () => {
+  it('checks the scheduler capability, then starts discovery with its exact descriptor', async () => {
     await expect(assertSchedulerPoolReady()).resolves.toBeUndefined();
 
     expect(fakes.relationCheckouts).toHaveBeenCalledTimes(1);

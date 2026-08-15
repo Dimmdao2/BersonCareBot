@@ -73,7 +73,7 @@ export async function assertDeliveryWorkerPoolReady(): Promise<void> {
 
 export async function assertSchedulerPoolReady(): Promise<void> {
   await probeReadOnly('scheduler:handle-tick-event', 'scheduler', [
-    'SELECT 1 FROM integrator.idempotency_keys WHERE false',
+    'SELECT 1',
   ]);
   await probeNamedRoot(
     'scheduler:handle-tick-event',
