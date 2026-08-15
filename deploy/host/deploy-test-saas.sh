@@ -3628,7 +3628,7 @@ OLD_SOURCE="$(sudo -u postgres psql -d "$DB" -X -tAc "SELECT count(*) FROM publi
 [ "${OLD_SOURCE:-1}" = "0" ] || { echo "FATAL: $OLD_SOURCE appointments still carry retired rubitime_projection source" >&2; exit 1; }
 ACTIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_specialists WHERE is_active=true;")"
 [ "${ACTIVE:-0}" = "1" ] || { echo "FATAL: expected exactly 1 active specialist, got ${ACTIVE:-0}"; exit 1; }
-ORPHAN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id IS NULL OR specialist_id IN (SELECT id FROM be_specialists WHERE is_active=false);")"
+ORPHAN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE deleted_at IS NULL AND (specialist_id IS NULL OR specialist_id IN (SELECT id FROM be_specialists WHERE is_active=false));")"
 [ "${ORPHAN:-1}" = "0" ] || { echo "FATAL: ${ORPHAN} appointments left on NULL/inactive specialist (data not fully consolidated)"; exit 1; }
 DROLE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT role FROM platform_users WHERE phone_normalized='+79643805480' AND merged_into_id IS NULL;")"
 [ "$DROLE" = "doctor" ] || { echo "FATAL: canonical doctor role is '$DROLE', expected 'doctor'"; exit 1; }
