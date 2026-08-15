@@ -2,7 +2,6 @@
 
 import { CircleHelp, Dumbbell, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
-import { DateTime } from 'luxon';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   doctorDnaFlatListClass,
@@ -29,9 +28,17 @@ import {
   RECENT_VISITS_LIST_HREF,
 } from './doctorTodayLinks';
 
+export type DoctorTodayCalendarSnapshot = {
+  todayIso: string;
+  nowMinutes: number;
+  todayDateLabel: string;
+};
+
 type Props = {
   data: TodayDashboardData;
   displayIana: string;
+  /** Fixed on the RSC render so the SSR shell and browser hydrate the same calendar day. */
+  calendarSnapshot: DoctorTodayCalendarSnapshot;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
   /**
@@ -56,14 +63,11 @@ function peopleItemName(client: TodayDashboardData['people'][number]): string {
 export function DoctorTodayDashboard({
   data,
   displayIana,
+  calendarSnapshot,
   todayWorkingBounds,
   specialistTasksAvailable,
   specialistTasksReadable,
 }: Props) {
-  const nowDt = DateTime.now().setZone(displayIana);
-  const nowMinutes = nowDt.hour * 60 + nowDt.minute;
-  const todayIso = nowDt.toISODate() ?? new Date().toISOString().slice(0, 10);
-  const todayDateLabel = nowDt.setLocale('ru').toFormat('EEE, d MMMM');
   const peopleListIsOnSupport = data.peopleListMode === 'on_support';
   const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
 
@@ -87,7 +91,7 @@ export function DoctorTodayDashboard({
           <DoctorGlobalTasksSection
             initialTasks={data.globalOpenTasks}
             initialTasksTotal={data.globalOpenTasksTotal}
-            todayIso={todayIso}
+            todayIso={calendarSnapshot.todayIso}
             displayIana={displayIana}
             className="flex-1"
             available={specialistTasksAvailable}
@@ -208,8 +212,7 @@ export function DoctorTodayDashboard({
         <div id="doctor-today-right-pane" className="flex flex-col gap-3">
           <TodayMiniCalendarWithModal
             appointments={data.todayAppointments}
-            nowMinutes={nowMinutes}
-            todayDateLabel={todayDateLabel}
+            calendarSnapshot={calendarSnapshot}
             displayIana={displayIana}
             workingBounds={todayWorkingBounds}
           />

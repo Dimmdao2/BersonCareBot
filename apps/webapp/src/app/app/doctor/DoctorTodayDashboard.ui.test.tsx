@@ -15,8 +15,12 @@ vi.mock('./DoctorGlobalTasksSection', () => ({
 }));
 
 vi.mock('./TodayMiniCalendarWithModal', () => ({
-  TodayMiniCalendarWithModal: ({ todayDateLabel }: { todayDateLabel: string }) => (
-    <p data-testid="today-mini-calendar-label">{todayDateLabel}</p>
+  TodayMiniCalendarWithModal: ({
+    calendarSnapshot,
+  }: {
+    calendarSnapshot: { todayDateLabel: string };
+  }) => (
+    <p data-testid="today-mini-calendar-label">{calendarSnapshot.todayDateLabel}</p>
   ),
 }));
 
@@ -70,6 +74,11 @@ describe('DoctorTodayDashboard', () => {
       <DoctorTodayDashboard
         data={emptyDashboardData}
         displayIana="Europe/Moscow"
+        calendarSnapshot={{
+          todayIso: '2026-08-16',
+          nowMinutes: 720,
+          todayDateLabel: 'Вс, 16 августа',
+        }}
         specialistTasksAvailable={false}
         specialistTasksReadable={false}
       />

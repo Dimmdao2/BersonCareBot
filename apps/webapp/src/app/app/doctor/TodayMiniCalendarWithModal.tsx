@@ -2,12 +2,12 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { DateTime } from 'luxon';
 import { Dialog, DialogContent } from '@/shared/ui/doctor/primitives/dialog';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import Link from 'next/link';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
+import type { DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import type {
   CalendarAppointmentEvent,
   CalendarFilterMeta,
@@ -89,8 +89,8 @@ type CalendarApiResponse = {
 type Props = {
   /** Server-rendered fallback list — used for sr-only accessibility and empty-state check. */
   appointments: TodayAppointmentItem[];
-  nowMinutes?: number;
-  todayDateLabel: string;
+  /** Fixed on the RSC render so fallback and loaded calendar use one calendar day. */
+  calendarSnapshot: DoctorTodayCalendarSnapshot;
   displayIana: string;
   workingBounds?: { startMinute: number; endMinute: number } | null;
 };
@@ -104,8 +104,7 @@ type Props = {
  */
 export function TodayMiniCalendarWithModal({
   appointments,
-  nowMinutes,
-  todayDateLabel,
+  calendarSnapshot,
   displayIana,
   workingBounds,
 }: Props) {
@@ -115,8 +114,7 @@ export function TodayMiniCalendarWithModal({
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
   const [showFc, setShowFc] = useState(false);
 
-  const todayIso =
-    DateTime.now().setZone(displayIana).toISODate() ?? new Date().toISOString().slice(0, 10);
+  const { todayIso, nowMinutes, todayDateLabel } = calendarSnapshot;
 
   function fetchTodayEvents(onDone?: () => void) {
     const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
@@ -178,6 +176,7 @@ export function TodayMiniCalendarWithModal({
       {showFc ? (
         <DoctorTodayMiniCalendar
           appointments={appointments}
+          todayIso={todayIso}
           calendarEvents={calendarEvents}
           nowMinutes={nowMinutes}
           todayDateLabel={todayDateLabel}
