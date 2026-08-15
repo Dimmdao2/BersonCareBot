@@ -112,8 +112,7 @@ BEGIN
   FROM public.saas_trial_policy AS policy
   WHERE policy.key = 'global'
     AND policy.is_active
-  LIMIT 1
-  FOR UPDATE;
+  LIMIT 1;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('outcome', 'payment_required');

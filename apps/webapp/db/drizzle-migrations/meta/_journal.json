@@ -3018,6 +3018,13 @@
       "when": 1793539230177,
       "tag": "0434_first_tariff_exact_caller_local",
       "breakpoints": true
+    },
+    {
+      "idx": 431,
+      "version": "7",
+      "when": 1793539230178,
+      "tag": "0435_first_tariff_read_only_policy_local",
+      "breakpoints": true
     }
   ]
 }
