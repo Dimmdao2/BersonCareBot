@@ -8,7 +8,6 @@ export const MODES_FORM_KEYS = [
   'max_debug_page_enabled',
   'important_fallback_delay_minutes',
   'platform_user_merge_v2_enabled',
-  'integrator_linked_phone_source',
   'admin_phones',
   'admin_telegram_ids',
   'admin_max_ids',

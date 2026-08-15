@@ -11,7 +11,10 @@ import {
 /** Match webapp canonical merge-chain guard (`pgCanonicalPlatformUser.ts`). */
 const MAX_MERGE_CHAIN_DEPTH = 5;
 
-async function followPlatformUserMergedIntoChain(db: DbPort, startId: string): Promise<string> {
+export async function resolveCanonicalPlatformUserIdFromId(
+  db: DbPort,
+  startId: string,
+): Promise<string> {
   const d = getIntegratorDrizzleSession(db);
   let current = startId;
   const seen = new Set<string>();
@@ -55,7 +58,7 @@ export async function resolveCanonicalPlatformUserIdByChannel(
     .limit(1);
   const startId = bindings[0]?.userId;
   if (!startId) return null;
-  const canonical = await followPlatformUserMergedIntoChain(db, startId);
+  const canonical = await resolveCanonicalPlatformUserIdFromId(db, startId);
   return canonical.trim() ? canonical.trim() : null;
 }
 

@@ -25,7 +25,6 @@ export default async function DoctorAdminTechnicalPage() {
         miniappAuthVerboseServerLog={diagnostics.miniappAuthVerboseServerLog}
         importantFallbackDelayMinutes={diagnostics.importantFallbackDelayMinutes}
         platformUserMergeV2Enabled={diagnostics.platformUserMergeV2Enabled}
-        integratorLinkedPhoneSource={diagnostics.integratorLinkedPhoneSource}
         testAccountPhones={diagnostics.testAccountIdentifiers.phones.join(' ')}
         testAccountTelegramIds={diagnostics.testAccountIdentifiers.telegramIds.join(' ')}
         testAccountMaxIds={diagnostics.testAccountIdentifiers.maxIds.join(' ')}

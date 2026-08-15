@@ -9,7 +9,8 @@
 --   1. Переносит все ссылки с админского надгробия a754c977 на живую основную запись b0021a38.
 --   2. Удаляет надгробие.
 --   3. Удаляет две пустые админские записи 9504c4b8 и 2e5068fe.
---   4. Удаляет пустой дубль карточки специалиста 518ea988.
+--   4. Переносит все FK-ссылки с дубля карточки специалиста 518ea988 на каноническую c9515025
+--      и только после dump-derived post-gate удаляет дубль.
 --
 -- Чего НЕ делает: не меняет роль выжившей записи. В свежем PROD-дампе она ещё role=admin с gmail;
 -- следующий обязательный p0-data-fix-doctor-admin-split.sql переводит её в doctor с yandex и создаёт
@@ -107,8 +108,211 @@ DELETE FROM platform_users WHERE id = '2e5068fe-7f50-459f-b879-41cd194e5080';
 -- ни одна таблица на него не ссылается. Живая пациентская запись 1c312a64 не трогается.
 DELETE FROM platform_users WHERE id = '9475c2a9-cbef-4d3e-8357-f96503e2e29b';
 
--- ── 4. Удаление пустого дубля карточки специалиста ──────────────────────────────────────────────
--- На неё не ссылается ни одна запись, ни расписание, ни услуга. Живая карточка c9515025 не трогается.
+-- ── 4. Консолидация дубля карточки специалиста ──────────────────────────────────────────
+-- В свежем PROD-дампе на дубль ссылаются appointments и scheduling configuration. Данные переносятся до DELETE,
+-- включая soft-deleted appointment history; ON DELETE CASCADE/SET NULL не являются механизмом миграции.
+CREATE TEMP TABLE cutover_specialist_reference_baseline (
+  relation_oid oid PRIMARY KEY,
+  schema_name text NOT NULL,
+  table_name text NOT NULL,
+  column_name text NOT NULL,
+  total_rows bigint NOT NULL,
+  duplicate_rows bigint NOT NULL,
+  canonical_rows bigint NOT NULL,
+  merged_collisions bigint NOT NULL DEFAULT 0
+) ON COMMIT DROP;
+
+DO $specialist_reference_baseline$
+DECLARE
+  reference record;
+  total_rows bigint;
+  duplicate_rows bigint;
+  canonical_rows bigint;
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint constraint_row
+    WHERE constraint_row.contype = 'f'
+      AND constraint_row.confrelid = 'public.be_specialists'::regclass
+      AND (
+        array_length(constraint_row.conkey, 1) <> 1
+        OR array_length(constraint_row.confkey, 1) <> 1
+      )
+  ) THEN
+    RAISE EXCEPTION 'specialist reference baseline cannot safely rewrite a composite FK';
+  END IF;
+
+  FOR reference IN
+    SELECT source_table.oid AS relation_oid,
+           source_namespace.nspname AS schema_name,
+           source_table.relname AS table_name,
+           source_attribute.attname AS column_name
+    FROM pg_constraint constraint_row
+    JOIN pg_class source_table ON source_table.oid = constraint_row.conrelid
+    JOIN pg_namespace source_namespace ON source_namespace.oid = source_table.relnamespace
+    JOIN pg_attribute source_attribute
+      ON source_attribute.attrelid = constraint_row.conrelid
+     AND source_attribute.attnum = constraint_row.conkey[1]
+    WHERE constraint_row.contype = 'f'
+      AND constraint_row.confrelid = 'public.be_specialists'::regclass
+      AND array_length(constraint_row.conkey, 1) = 1
+      AND array_length(constraint_row.confkey, 1) = 1
+  LOOP
+    EXECUTE format(
+      'SELECT count(*), count(*) FILTER (WHERE %1$I = $1), count(*) FILTER (WHERE %1$I = $2) FROM %2$I.%3$I',
+      reference.column_name, reference.schema_name, reference.table_name
+    ) INTO total_rows, duplicate_rows, canonical_rows
+      USING '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid,
+            'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid;
+
+    INSERT INTO cutover_specialist_reference_baseline
+      (relation_oid, schema_name, table_name, column_name, total_rows, duplicate_rows, canonical_rows)
+    VALUES
+      (reference.relation_oid, reference.schema_name, reference.table_name, reference.column_name,
+       total_rows, duplicate_rows, canonical_rows);
+  END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM cutover_specialist_reference_baseline
+    WHERE schema_name = 'public' AND table_name = 'be_appointments'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM cutover_specialist_reference_baseline
+    WHERE schema_name = 'public' AND table_name = 'be_specialist_service_availability'
+  ) THEN
+    RAISE EXCEPTION 'specialist FK baseline is missing required appointment/availability classes';
+  END IF;
+END
+$specialist_reference_baseline$;
+
+-- Equivalent unique scopes are merged deterministically before the dynamic FK rewrite. The current
+-- dump has no availability collisions, so all seven availability rows remain distinct and retain IDs.
+DO $specialist_unique_scope_merge$
+DECLARE
+  removed bigint;
+BEGIN
+  UPDATE public.be_specialist_locations canonical
+  SET is_active = canonical.is_active OR duplicate.is_active,
+      created_at = LEAST(canonical.created_at, duplicate.created_at)
+  FROM public.be_specialist_locations duplicate
+  WHERE canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+    AND duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND canonical.branch_id = duplicate.branch_id;
+  DELETE FROM public.be_specialist_locations duplicate
+  WHERE duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND EXISTS (SELECT 1 FROM public.be_specialist_locations canonical
+      WHERE canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+        AND canonical.branch_id = duplicate.branch_id);
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  UPDATE cutover_specialist_reference_baseline SET merged_collisions = removed
+  WHERE table_name = 'be_specialist_locations';
+
+  UPDATE public.be_specialist_rooms canonical
+  SET is_active = canonical.is_active OR duplicate.is_active,
+      created_at = LEAST(canonical.created_at, duplicate.created_at)
+  FROM public.be_specialist_rooms duplicate
+  WHERE canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+    AND duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND canonical.room_id = duplicate.room_id;
+  DELETE FROM public.be_specialist_rooms duplicate
+  WHERE duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND EXISTS (SELECT 1 FROM public.be_specialist_rooms canonical
+      WHERE canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+        AND canonical.room_id = duplicate.room_id);
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  UPDATE cutover_specialist_reference_baseline SET merged_collisions = removed
+  WHERE table_name = 'be_specialist_rooms';
+
+  UPDATE public.be_specialist_service_availability canonical
+  SET is_active = canonical.is_active OR duplicate.is_active,
+      price_minor_override = CASE WHEN duplicate.updated_at >= canonical.updated_at
+        THEN duplicate.price_minor_override ELSE canonical.price_minor_override END,
+      sort_order = LEAST(canonical.sort_order, duplicate.sort_order),
+      created_at = LEAST(canonical.created_at, duplicate.created_at),
+      updated_at = GREATEST(canonical.updated_at, duplicate.updated_at)
+  FROM public.be_specialist_service_availability duplicate
+  WHERE canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+    AND duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND canonical.service_id = duplicate.service_id
+    AND canonical.branch_id IS NOT DISTINCT FROM duplicate.branch_id
+    AND canonical.room_id IS NOT DISTINCT FROM duplicate.room_id
+    AND canonical.city_code IS NOT DISTINCT FROM duplicate.city_code;
+  DELETE FROM public.be_specialist_service_availability duplicate
+  WHERE duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND EXISTS (SELECT 1 FROM public.be_specialist_service_availability canonical
+      WHERE canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+        AND canonical.service_id = duplicate.service_id
+        AND canonical.branch_id IS NOT DISTINCT FROM duplicate.branch_id
+        AND canonical.room_id IS NOT DISTINCT FROM duplicate.room_id
+        AND canonical.city_code IS NOT DISTINCT FROM duplicate.city_code);
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  UPDATE cutover_specialist_reference_baseline SET merged_collisions = removed
+  WHERE table_name = 'be_specialist_service_availability';
+
+  UPDATE public.be_working_days canonical
+  SET branch_id = CASE WHEN duplicate.updated_at >= canonical.updated_at THEN duplicate.branch_id ELSE canonical.branch_id END,
+      room_id = CASE WHEN duplicate.updated_at >= canonical.updated_at THEN duplicate.room_id ELSE canonical.room_id END,
+      start_minute = CASE WHEN duplicate.updated_at >= canonical.updated_at THEN duplicate.start_minute ELSE canonical.start_minute END,
+      end_minute = CASE WHEN duplicate.updated_at >= canonical.updated_at THEN duplicate.end_minute ELSE canonical.end_minute END,
+      is_closed = CASE WHEN duplicate.updated_at >= canonical.updated_at THEN duplicate.is_closed ELSE canonical.is_closed END,
+      breaks = CASE WHEN duplicate.updated_at >= canonical.updated_at THEN duplicate.breaks ELSE canonical.breaks END,
+      created_at = LEAST(canonical.created_at, duplicate.created_at),
+      updated_at = GREATEST(canonical.updated_at, duplicate.updated_at)
+  FROM public.be_working_days duplicate
+  WHERE canonical.organization_id = duplicate.organization_id
+    AND canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+    AND duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND canonical.work_date = duplicate.work_date;
+  DELETE FROM public.be_working_days duplicate
+  WHERE duplicate.specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'
+    AND EXISTS (SELECT 1 FROM public.be_working_days canonical
+      WHERE canonical.organization_id = duplicate.organization_id
+        AND canonical.specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'
+        AND canonical.work_date = duplicate.work_date);
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  UPDATE cutover_specialist_reference_baseline SET merged_collisions = removed
+  WHERE table_name = 'be_working_days';
+END
+$specialist_unique_scope_merge$;
+
+DO $specialist_reference_migration$
+DECLARE reference record;
+BEGIN
+  FOR reference IN SELECT * FROM cutover_specialist_reference_baseline ORDER BY schema_name, table_name
+  LOOP
+    EXECUTE format('UPDATE %I.%I SET %I = $1 WHERE %I = $2',
+      reference.schema_name, reference.table_name, reference.column_name, reference.column_name)
+    USING 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid,
+          '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid;
+  END LOOP;
+END
+$specialist_reference_migration$;
+
+DO $specialist_reference_post_gate$
+DECLARE
+  reference record;
+  total_rows bigint;
+  duplicate_rows bigint;
+  canonical_rows bigint;
+BEGIN
+  FOR reference IN SELECT * FROM cutover_specialist_reference_baseline ORDER BY schema_name, table_name
+  LOOP
+    EXECUTE format(
+      'SELECT count(*), count(*) FILTER (WHERE %1$I = $1), count(*) FILTER (WHERE %1$I = $2) FROM %2$I.%3$I',
+      reference.column_name, reference.schema_name, reference.table_name
+    ) INTO total_rows, duplicate_rows, canonical_rows
+      USING '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid,
+            'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid;
+    IF duplicate_rows <> 0
+      OR total_rows <> reference.total_rows - reference.merged_collisions
+      OR canonical_rows <> reference.canonical_rows + reference.duplicate_rows - reference.merged_collisions
+    THEN
+      RAISE EXCEPTION 'specialist reference migration drift in %.%: duplicate %, total %, canonical %',
+        reference.schema_name, reference.table_name, duplicate_rows, total_rows, canonical_rows;
+    END IF;
+  END LOOP;
+END
+$specialist_reference_post_gate$;
+
 DELETE FROM be_specialists WHERE id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b';
 
 -- В свежем PROD-дампе часть живых записей той же единственной клиники исторически не имеет

@@ -65,6 +65,10 @@ export const supportConversations = pgTable(
     closeReason: text('close_reason'),
     channelCode: text('channel_code'),
     channelExternalId: text('channel_external_id'),
+    pendingMessageDrafts: jsonb('pending_message_drafts')
+      .$type<Array<Record<string, unknown>>>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -2179,16 +2183,16 @@ export const mediaTranscodeJobs = pgTable(
 export const mediaPlaybackStatsHourly = pgTable(
   'media_playback_stats_hourly',
   {
+    organizationId: uuid('organization_id'),
     bucketHour: timestamp('bucket_hour', { withTimezone: true, mode: 'string' }).notNull(),
     delivery: text().notNull(),
     resolvedCount: integer('resolved_count').default(0).notNull(),
     fallbackCount: integer('fallback_count').default(0).notNull(),
   },
   (table) => [
-    primaryKey({
-      columns: [table.bucketHour, table.delivery],
-      name: 'media_playback_stats_hourly_pkey',
-    }),
+    uniqueIndex('media_playback_stats_hourly_org_bucket_delivery_uidx')
+      .on(table.organizationId, table.bucketHour, table.delivery),
+    index('idx_media_playback_stats_hourly_organization_id').on(table.organizationId),
     index('idx_media_playback_stats_hourly_bucket').using(
       'btree',
       table.bucketHour.desc().nullsFirst().op('timestamptz_ops'),

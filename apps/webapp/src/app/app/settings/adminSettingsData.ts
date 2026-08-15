@@ -4,7 +4,6 @@ import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
   VIDEO_PRESIGN_TTL_MIN_SEC,
 } from '@/modules/media/videoPresignTtlConstants';
-import type { IntegratorLinkedPhoneSource } from './AdminSettingsSection';
 import type { VideoDefaultDeliveryUi } from './VideoSystemSettingsSection';
 import type { EmailSmtpSectionProps } from './EmailSmtpSection';
 import type { AuthProvidersSectionProps } from './AuthProvidersSection';
@@ -48,7 +47,7 @@ export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
 const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'error_tracking_dsn', 'error_tracking_enabled', 'dev_mode', 'debug_forward_to_admin',
   'max_debug_page_enabled', 'important_fallback_delay_minutes', 'platform_user_merge_v2_enabled',
-  'integrator_linked_phone_source', 'test_account_identifiers', 'patient_app_maintenance_enabled',
+  'test_account_identifiers', 'patient_app_maintenance_enabled',
   'patient_app_maintenance_message', 'patient_program_discussion_doctor_reply_from_log_enabled',
   'patient_program_discussion_ui_enabled', 'patient_program_discussion_media_submission_enabled',
   'patient_booking_url', 'operator_health_alert_config', 'admin_incident_alert_config',
@@ -203,7 +202,6 @@ export type AdminDiagnosticsSettings = {
   miniappAuthVerboseServerLog: boolean;
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
-  integratorLinkedPhoneSource: IntegratorLinkedPhoneSource;
   testAccountIdentifiers: {
     phones: string[];
     telegramIds: string[];
@@ -310,15 +308,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
         false,
       );
       return raw === true || raw === 'true';
-    })(),
-    integratorLinkedPhoneSource: ((): IntegratorLinkedPhoneSource => {
-      const raw = getValueJson<unknown>(
-        adminSettingsList.find((x) => x.key === 'integrator_linked_phone_source')?.valueJson,
-        'public_then_contacts',
-      );
-      const s = typeof raw === 'string' ? raw.trim() : '';
-      if (s === 'public_only' || s === 'contacts_only' || s === 'public_then_contacts') return s;
-      return 'public_then_contacts';
     })(),
     testAccountIdentifiers: (() => {
       const inner = getValueJson<unknown>(

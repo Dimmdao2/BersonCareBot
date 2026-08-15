@@ -9,6 +9,7 @@ type DeliveryAttemptLogParams = {
   intentType?: unknown;
   intentEventId?: unknown;
   correlationId?: unknown;
+  organizationId?: unknown;
   channel?: unknown;
   status?: unknown;
   attempt?: unknown;
@@ -31,6 +32,7 @@ function safeAttemptFields(params: DeliveryAttemptLogParams): Record<string, unk
     intentType: asString(params.intentType),
     intentEventId: asString(params.intentEventId),
     correlationId: asString(params.correlationId),
+    organizationId: asString(params.organizationId),
     channel: asString(params.channel),
     status: asString(params.status),
     attempt: asNumber(params.attempt),
@@ -65,6 +67,7 @@ export async function insertDeliveryAttemptLog(
     const intentType = asString(params.intentType);
     const intentEventId = asString(params.intentEventId);
     const correlationId = asString(params.correlationId);
+    const organizationId = asString(params.organizationId);
     const reason = asString(params.reason);
     const payloadJson =
       typeof params.payload === 'object' && params.payload !== null
@@ -75,11 +78,12 @@ export async function insertDeliveryAttemptLog(
     await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
       runIntegratorNamedRoot(
         db,
-        'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)',
+        'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
         [
           intentType,
           intentEventId,
           correlationId,
+          organizationId,
           channel,
           status,
           attempt,
@@ -88,7 +92,7 @@ export async function insertDeliveryAttemptLog(
           occurredAt,
         ],
         sql`SELECT app.record_operational_delivery_attempt_audit(
-          ${intentType}, ${intentEventId}, ${correlationId}, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadText}, ${occurredAt}::timestamptz
+          ${intentType}, ${intentEventId}, ${correlationId}, ${organizationId}::uuid, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadText}, ${occurredAt}::timestamptz
         )`,
       ),
     );

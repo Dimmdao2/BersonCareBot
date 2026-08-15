@@ -120,6 +120,7 @@ POSTGRES_CUTOVER_INPUT_DIR=""
 POSTGRES_FIO_MANIFEST=""
 POSTGRES_RUBITIME_CSV=""
 TEST_SMTP_SNAPSHOT=""
+SMTP_SNAPSHOT_VALIDATOR="$DEPLOY_TEST_SAAS_SCRIPT_DIR/validate-smtp-outbound-snapshot.mjs"
 # Post-health gate failures collected instead of aborting. See run_closure_gate + CLOSURE_GATE_RED_EXIT.
 CLOSURE_GATE_FAILURES=()
 # Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
@@ -320,11 +321,11 @@ cleanup_exit(){
 snapshot_test_smtp_outbound(){
   local configured snapshot_mode
   configured="$(sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -tAc \
-    "SELECT count(*) = 1 AND bool_and(value_json ? 'value' AND value_json->'value' <> 'null'::jsonb)
+    "SELECT count(*) = 1
        FROM public.system_settings
       WHERE key = 'smtp_outbound' AND scope = 'admin' AND organization_id IS NULL;")"
   [ "$configured" = "t" ] || {
-    echo "FATAL: TEST smtp_outbound must be configured before a full reset; refusing a reset that would finish without working email" >&2
+    echo "FATAL: TEST smtp_outbound must have exactly one global admin row before a full reset" >&2
     return 1
   }
 
@@ -338,7 +339,8 @@ snapshot_test_smtp_outbound(){
     echo "FATAL: TEST SMTP snapshot must be postgres:postgres 0600 (got $snapshot_mode)" >&2
     return 1
   }
-  echo "   TEST SMTP: configured value snapshotted without printing it"
+  sudo -u postgres cat -- "$TEST_SMTP_SNAPSHOT" | node "$SMTP_SNAPSHOT_VALIDATOR" --stdin
+  echo "   TEST SMTP: statically valid value snapshotted without printing it"
 }
 
 restore_test_smtp_outbound(){
@@ -346,13 +348,14 @@ restore_test_smtp_outbound(){
     echo "FATAL: TEST SMTP snapshot is missing" >&2
     return 1
   }
+  sudo -u postgres cat -- "$TEST_SMTP_SNAPSHOT" | node "$SMTP_SNAPSHOT_VALIDATOR" --stdin
   sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 \
     -v smtp_snapshot="$TEST_SMTP_SNAPSHOT" <<'SQL'
 BEGIN;
 CREATE TEMP TABLE restore_test_smtp_snapshot (value_json jsonb) ON COMMIT DROP;
 INSERT INTO restore_test_smtp_snapshot (value_json)
 VALUES (pg_catalog.pg_read_file(:'smtp_snapshot')::jsonb);
-SELECT 1 / ((count(*) = 1 AND bool_and(value_json ? 'value' AND value_json->'value' <> 'null'::jsonb))::int)
+SELECT 1 / ((count(*) = 1)::int)
 FROM restore_test_smtp_snapshot;
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by, organization_id)
 SELECT 'smtp_outbound', 'admin', value_json, pg_catalog.now(), NULL, NULL
@@ -363,7 +366,7 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
       updated_by = EXCLUDED.updated_by;
 COMMIT;
 SQL
-  echo "   TEST SMTP: preserved configured value restored"
+  echo "   TEST SMTP: preserved statically valid value restored"
 }
 
 validate_pg_identifier(){
@@ -3476,7 +3479,7 @@ case "${1:-}" in
     WRITERS_STOPPED=1
     trap cleanup_exit EXIT
     run_strict_post_migration_closure
-    log "DONE — shared strict TEST post-migration closure"
+    log "DONE — shared strict TEST DB/schema/runtime ready; external delivery unverified"
     exit 0
     ;;
   --port-context-post-migration-cutover)
@@ -3741,4 +3744,4 @@ sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1 \
 # cluster-wide zero deliberately removes. Install the target HBA and target-only zero +
 # exact six-logins target state, then prove live authentication through the two ports.
 run_port_context_test_release
-log "DONE — full data-ready TEST migration (reviewed FIO + port-context runtime verified)"
+log "DONE — TEST DB/schema/runtime ready (reviewed FIO + port-context runtime verified); external delivery unverified"

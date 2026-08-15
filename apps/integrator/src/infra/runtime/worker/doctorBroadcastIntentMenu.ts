@@ -2,7 +2,6 @@
  * Enrich queued `doctor_broadcast_intent` message.send payloads with the same Telegram reply
  * keyboard as normal `message.send` in `delivery.ts` (per-chat only; no global BotFather menu).
  */
-import { sql } from 'drizzle-orm';
 import type {
   ContentPort,
   DbPort,
@@ -15,11 +14,7 @@ import {
   buildWebappEntryUrl,
   buildWebappEntryUrlForMax,
 } from '../../../integrations/webappEntryToken.js';
-import { runIntegratorSql } from '../../db/runIntegratorSql.js';
-import {
-  getIntegratorLinkedPhoneSource,
-  resolveLinkedPhoneNormalized,
-} from '../../db/repos/linkedPhoneSource.js';
+import { getCanonicalPlatformUserDeliveryIdentity } from '../../db/repos/platformUserDeliveryPhone.js';
 import {
   asNumber,
   asRecord,
@@ -33,58 +28,16 @@ export type DoctorBroadcastMenuWorkerDeps = {
   isTelegramMenuOnButtonPress: () => Promise<boolean>;
 };
 
-async function resolveLinkedPhoneForPlatformUser(
+export async function resolveLinkedPhoneForPlatformUser(
   db: DbPort,
   platformUserId: string,
-  messengerLabel: 'telegram' | 'max',
 ): Promise<{ linkedPhone: boolean; integratorUserId: string | null }> {
-  const strategy = await getIntegratorLinkedPhoneSource(db);
-  try {
-    const res = await runIntegratorSql<{
-      pub_phone: string | null;
-      legacy_contact_phone: string | null;
-      integrator_user_id: string | null;
-    }>(
-      db,
-      sql`
-      WITH RECURSIVE pu_chain AS (
-        SELECT pu.id, pu.phone_normalized, pu.merged_into_id, pu.integrator_user_id
-        FROM public.platform_users pu
-        WHERE pu.id = ${platformUserId}::uuid
-        UNION ALL
-        SELECT p.id, p.phone_normalized, p.merged_into_id, p.integrator_user_id
-        FROM public.platform_users p
-        INNER JOIN pu_chain c ON p.id = c.merged_into_id
-      )
-      SELECT NULLIF(TRIM(terminal.phone_normalized), '') AS pub_phone,
-             cp.phone AS legacy_contact_phone,
-             terminal.integrator_user_id::text AS integrator_user_id
-      FROM pu_chain terminal
-      LEFT JOIN LATERAL (
-        SELECT c.value_normalized AS phone
-        FROM contacts c
-        WHERE c.user_id = terminal.integrator_user_id
-          AND c.type = 'phone'
-          AND c.label = ${messengerLabel}
-        ORDER BY c.is_primary DESC NULLS LAST, c.id ASC
-        LIMIT 1
-      ) cp ON true
-      WHERE terminal.merged_into_id IS NULL
-      LIMIT 1
-    `,
-    );
-    const row = res.rows[0];
-    if (!row) return { linkedPhone: false, integratorUserId: null };
-    const phone = resolveLinkedPhoneNormalized(strategy, row.pub_phone, row.legacy_contact_phone);
-    const linkedPhone = typeof phone === 'string' && phone.trim().length > 0;
-    const integratorUserId =
-      typeof row.integrator_user_id === 'string' && row.integrator_user_id.trim().length > 0
-        ? row.integrator_user_id.trim()
-        : null;
-    return { linkedPhone, integratorUserId };
-  } catch {
-    return { linkedPhone: false, integratorUserId: null };
-  }
+  const identity = await getCanonicalPlatformUserDeliveryIdentity(db, platformUserId);
+  if (!identity) return { linkedPhone: false, integratorUserId: null };
+  return {
+    linkedPhone: identity.phoneNormalized !== null,
+    integratorUserId: identity.integratorUserId,
+  };
 }
 
 function buildDoctorBroadcastMenuContext(input: {
@@ -196,12 +149,7 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
     typeof row.payloadJson.clientUserId === 'string' ? row.payloadJson.clientUserId.trim() : '';
   if (!clientUserId) return intent;
 
-  const messengerLabel = row.channel === 'max' ? 'max' : 'telegram';
-  const { linkedPhone, integratorUserId } = await resolveLinkedPhoneForPlatformUser(
-    db,
-    clientUserId,
-    messengerLabel,
-  );
+  const { linkedPhone, integratorUserId } = await resolveLinkedPhoneForPlatformUser(db, clientUserId);
 
   const payload = asRecord(intent.payload);
   const recipient = asRecord(payload.recipient);

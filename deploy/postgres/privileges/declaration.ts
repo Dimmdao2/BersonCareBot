@@ -855,10 +855,10 @@ const TABLE_ROWS: TableRow[] = [
     defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало '
       + 'public.support_conversations 21/21; писатель ещё жив (пишется на каждое сообщение поддержки)' } },
-  { t: 'integrator.delivery_attempt_logs', cls: 'S', org: false, why: 'журнал попыток отправки — нельзя разобрать, '
+  { t: 'integrator.delivery_attempt_logs', cls: 'S', org: true, why: 'журнал попыток отправки — нельзя разобрать, '
     + 'почему письмо/СМС не ушло',
-    revoke: { app_staff: 'D14/I16: payload_json — тело отправленного сообщения; I16(б) — не добавлять '
-      + 'organization_id, а отозвать app_staff и ходить операционными ролями области NONE' },
+    revoke: { app_staff: 'D14/I16: payload_json содержит тело отправленного сообщения; tenant attribution '
+      + 'не даёт app_staff прямого чтения, доступ остаётся только у узкой операционной capability' },
     pol: 'ЕДИНСТВЕННАЯ таблица схемы integrator, где стена реально нужна (evidence/15 §14).',
     defect: ['D14-integrator-no-wall', 'I16-integrator-queues'] },
   { t: 'integrator.idempotency_keys', cls: 'S', org: false, why: 'ключи идемпотентности API — повтор вебхука '
@@ -1161,10 +1161,10 @@ const TABLE_ROWS: TableRow[] = [
     + 'несогласованный набор (awd без r).', defect: ['I7-privilege-mismatch'] },
   { t: 'public.media_playback_resolution_events', cls: 'T', org: true, wall: 'platform-role', why: 'Как отдавалось '
     + 'видео — оценка минут просмотра в отчётах', wallWhy: W_PLATFORM_TELEMETRY },
-  { t: 'public.media_playback_stats_hourly', cls: 'T', org: false, wall: 'platform-role', why: 'Почасовой агрегат '
+  { t: 'public.media_playback_stats_hourly', cls: 'T', org: true, wall: 'platform-role', why: 'Почасовой агрегат '
     + 'воспроизведений — дешёвый график вместо скана событий', wallWhy: W_PLATFORM_TELEMETRY,
-    revoke: { app_staff: 'D21: строка bucket_hour × delivery суммирует воспроизведения ВСЕХ клиник — ни чтения, ни '
-      + 'записи арендной роли' },
+    revoke: { app_staff: 'D21: прямое чтение/запись агрегата не выдаётся арендной роли; organization_id разделяет '
+      + 'строки клиник, а выдача идёт через узкую curated capability' },
     defect: ['D21-reference-write'] },
   { t: 'public.media_playback_user_video_first_resolve', cls: 'P', org: true, why: 'отметка «впервые досмотрел '
     + 'видео» — без неё нет метрики первого просмотра', pol: 'I7: вставку делает ПАЦИЕНТСКАЯ сессия, гранта у '
@@ -1991,7 +1991,7 @@ const REV10_CONTEXT = {
       runtimeName: 'delivery_attempt_audit', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
-      functionIdentity: 'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)' },
+      functionIdentity: 'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
     integrator_inbound_reply_enqueue: { port: 'integrator', runtimeName: 'inbound_reply_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'delivery.inbound-reply.enqueue',

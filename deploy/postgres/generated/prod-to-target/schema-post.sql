@@ -1013,14 +1013,6 @@ ALTER TABLE ONLY public.media_playback_resolution_events
 
 
 --
--- Name: media_playback_stats_hourly media_playback_stats_hourly_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.media_playback_stats_hourly
-    ADD CONSTRAINT media_playback_stats_hourly_pkey PRIMARY KEY (bucket_hour, delivery);
-
-
---
 -- Name: media_playback_user_video_first_resolve media_playback_user_video_first_resolve_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2238,6 +2230,13 @@ CREATE INDEX idx_delivery_attempt_logs_correlation ON integrator.delivery_attemp
 --
 
 CREATE INDEX idx_delivery_attempt_logs_event ON integrator.delivery_attempt_logs USING btree (intent_event_id);
+
+
+--
+-- Name: idx_delivery_attempt_logs_organization_id; Type: INDEX; Schema: integrator; Owner: -
+--
+
+CREATE INDEX idx_delivery_attempt_logs_organization_id ON integrator.delivery_attempt_logs USING btree (organization_id);
 
 
 --
@@ -3575,6 +3574,13 @@ CREATE INDEX idx_media_playback_resolution_events_user_resolved_at ON public.med
 --
 
 CREATE INDEX idx_media_playback_stats_hourly_bucket ON public.media_playback_stats_hourly USING btree (bucket_hour);
+
+
+--
+-- Name: idx_media_playback_stats_hourly_organization_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_media_playback_stats_hourly_organization_id ON public.media_playback_stats_hourly USING btree (organization_id);
 
 
 --
@@ -5521,6 +5527,13 @@ CREATE INDEX idx_user_phone_history_user ON public.user_phone_history USING btre
 --
 
 CREATE INDEX idx_user_web_push_subscriptions_user ON public.user_web_push_subscriptions USING btree (user_id);
+
+
+--
+-- Name: media_playback_stats_hourly_org_bucket_delivery_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX media_playback_stats_hourly_org_bucket_delivery_uidx ON public.media_playback_stats_hourly USING btree (organization_id, bucket_hour, delivery);
 
 
 --

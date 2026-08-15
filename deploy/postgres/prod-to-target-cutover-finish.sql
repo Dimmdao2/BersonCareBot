@@ -18,6 +18,13 @@ DROP SCHEMA cutover_source_integrator CASCADE;
 DROP SCHEMA cutover_source_drizzle CASCADE;
 DROP SCHEMA cutover_source_public CASCADE;
 
+-- Canonical phone is unconditional; do not carry the retired fallback strategy into target state.
+DELETE FROM public.app_runtime_settings WHERE key = 'integrator_linked_phone_source';
+DELETE FROM public.system_settings
+WHERE key = 'integrator_linked_phone_source'
+  AND scope = 'admin'
+  AND organization_id IS NULL;
+
 -- Existing PROD snapshots predate these required global admin-settings rows. The target UI
 -- deliberately fails loud when one is absent, so the A -> B cutover creates only the missing
 -- canonical rows and never overwrites a configured value.
@@ -49,6 +56,9 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
 DO $final_shape_gate$
 DECLARE
   violations bigint;
+  reference record;
+  target_rows bigint;
+  target_canonical_rows bigint;
 BEGIN
   IF to_regnamespace('cutover_source_public') IS NOT NULL
      OR to_regnamespace('cutover_source_integrator') IS NOT NULL
@@ -65,6 +75,104 @@ BEGIN
     );
   IF violations <> 0 THEN RAISE EXCEPTION 'canonical users without user_identity: %', violations; END IF;
 
+  FOR reference IN
+    SELECT * FROM cutover_specialist_transition_reference_baseline ORDER BY table_name
+  LOOP
+    EXECUTE format(
+      'SELECT count(*), count(*) FILTER (WHERE %I = $1) FROM public.%I',
+      reference.column_name, reference.table_name
+    ) INTO target_rows, target_canonical_rows
+      USING current_setting('bcb.cutover.canonical_specialist_id')::uuid;
+    IF target_rows <> reference.expected_rows
+      OR target_canonical_rows <> reference.expected_canonical_rows
+    THEN
+      RAISE EXCEPTION 'post-transition specialist reference drift in public.%: rows %/%, canonical %/%',
+        reference.table_name, target_rows, reference.expected_rows,
+        target_canonical_rows, reference.expected_canonical_rows;
+    END IF;
+  END LOOP;
+
+  IF EXISTS (
+    SELECT 1 FROM public.be_specialists
+    WHERE id <> current_setting('bcb.cutover.canonical_specialist_id')::uuid
+  ) THEN
+    RAISE EXCEPTION 'noncanonical specialist card survived the transition';
+  END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.reminder_occurrence_history history
+  LEFT JOIN public.platform_users source_user
+    ON source_user.integrator_user_id = history.integrator_user_id
+  LEFT JOIN cutover_platform_user_canonical_map identity_map
+    ON identity_map.source_id = source_user.id
+  WHERE history.platform_user_id IS DISTINCT FROM identity_map.canonical_id;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition reminder history identity drift: %', violations; END IF;
+  IF (SELECT count(*) FROM public.reminder_occurrence_history)
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'reminder_occurrence_history') THEN
+    RAISE EXCEPTION 'post-transition reminder history row count drift';
+  END IF;
+
+  FOR reference IN
+    SELECT * FROM cutover_reviewed_live_identity_references ORDER BY schema_name, table_name, column_name
+  LOOP
+    EXECUTE format(
+      'SELECT count(*) FROM %I.%I target '
+      || 'JOIN cutover_platform_user_canonical_map identity_map ON identity_map.source_id = target.%I '
+      || 'WHERE identity_map.source_id <> identity_map.canonical_id',
+      reference.schema_name, reference.table_name, reference.column_name
+    ) INTO violations;
+    IF violations <> 0 THEN
+      RAISE EXCEPTION 'post-transition merged alias in %.%.%: %',
+        reference.schema_name, reference.table_name, reference.column_name, violations;
+    END IF;
+  END LOOP;
+
+  SELECT count(*) INTO violations FROM public.user_channel_preferences
+  WHERE user_id <> platform_user_id::text;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition channel preference dual identity drift: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.support_conversations conversation
+  WHERE EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(conversation.pending_message_drafts) draft_payload
+    WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
+  )
+    AND (
+      conversation.organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid
+      OR NOT EXISTS (
+        SELECT 1 FROM cutover_platform_user_canonical_map identity_map
+        WHERE identity_map.canonical_id = conversation.platform_user_id
+          AND identity_map.source_id = identity_map.canonical_id
+      )
+    );
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition canonical message draft scope drift: %', violations; END IF;
+  IF (
+    SELECT count(*)
+    FROM public.support_conversations conversation
+    CROSS JOIN LATERAL jsonb_array_elements(conversation.pending_message_drafts) draft_payload
+    WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
+  )
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'message_drafts') THEN
+    RAISE EXCEPTION 'post-transition message draft row count drift';
+  END IF;
+
+  SELECT count(*) INTO violations FROM integrator.delivery_attempt_logs
+  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition delivery attempt organization drift: %', violations; END IF;
+  IF (SELECT count(*) FROM integrator.delivery_attempt_logs)
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'delivery_attempt_logs') THEN
+    RAISE EXCEPTION 'post-transition delivery attempt row count drift';
+  END IF;
+
+  SELECT count(*) INTO violations FROM public.media_playback_stats_hourly
+  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition playback hourly organization drift: %', violations; END IF;
+  IF (SELECT count(*) FROM public.media_playback_stats_hourly)
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'media_playback_stats_hourly') THEN
+    RAISE EXCEPTION 'post-transition playback hourly row count drift';
+  END IF;
+
   SELECT count(*) INTO violations
   FROM public.be_appointments appointment
   LEFT JOIN public.be_specialists specialist
@@ -75,18 +183,75 @@ BEGIN
   IF violations <> 0 THEN RAISE EXCEPTION 'live appointments without active specialist: %', violations; END IF;
 
   SELECT count(*) INTO violations
-  FROM public.be_appointments appointment
-  JOIN public.platform_users patient ON patient.id = appointment.platform_user_id
-  WHERE appointment.deleted_at IS NULL
-    AND patient.role = 'client'
-    AND patient.merged_into_id IS NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM public.org_enrollments enrollment
-      WHERE enrollment.organization_id = appointment.organization_id
-        AND enrollment.platform_user_id = appointment.platform_user_id
-        AND enrollment.status = 'active'
+  FROM cutover_expected_active_canonical_client_membership expected
+  CROSS JOIN LATERAL (
+    SELECT
+      count(*) FILTER (WHERE enrollment.status = 'active') AS active_count,
+      count(*) FILTER (
+        WHERE enrollment.status = 'active'
+          AND enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+      ) AS canonical_count
+    FROM public.org_enrollments enrollment
+    WHERE enrollment.platform_user_id = expected.platform_user_id
+  ) enrollment
+  WHERE enrollment.active_count <> 1 OR enrollment.canonical_count <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'active canonical clients without exactly one canonical enrollment: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM cutover_expected_active_canonical_client_membership expected
+  CROSS JOIN LATERAL (
+    SELECT
+      count(*) FILTER (WHERE link.status = 'active') AS active_count,
+      count(*) FILTER (
+        WHERE link.status = 'active'
+          AND link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+          AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
+      ) AS canonical_count
+    FROM public.patient_specialist_links link
+    WHERE link.patient_user_id = expected.platform_user_id
+  ) link
+  WHERE link.active_count <> 1 OR link.canonical_count <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'active canonical clients without exactly one canonical specialist link: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.org_enrollments enrollment
+  LEFT JOIN cutover_expected_active_canonical_client_membership expected
+    ON expected.platform_user_id = enrollment.platform_user_id
+  WHERE enrollment.status = 'active'
+    AND (
+      expected.platform_user_id IS NULL
+      OR enrollment.organization_id <> current_setting('bcb.cutover.canonical_organization_id')::uuid
     );
-  IF violations <> 0 THEN RAISE EXCEPTION 'appointment patients without active enrollment: %', violations; END IF;
+  IF violations <> 0 THEN RAISE EXCEPTION 'extra or wrong-organization active enrollment: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.patient_specialist_links link
+  LEFT JOIN cutover_expected_active_canonical_client_membership expected
+    ON expected.platform_user_id = link.patient_user_id
+  WHERE link.status = 'active'
+    AND (
+      expected.platform_user_id IS NULL
+      OR link.organization_id <> current_setting('bcb.cutover.canonical_organization_id')::uuid
+      OR link.specialist_id <> current_setting('bcb.cutover.canonical_specialist_id')::uuid
+    );
+  IF violations <> 0 THEN RAISE EXCEPTION 'extra or wrong-specialist active patient link: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM cutover_expected_patient_domain_references reference
+  WHERE (
+    SELECT count(*) FROM public.org_enrollments enrollment
+    WHERE enrollment.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+      AND enrollment.platform_user_id = reference.platform_user_id
+      AND enrollment.status = 'active'
+  ) <> 1
+  OR (
+    SELECT count(*) FROM public.patient_specialist_links link
+    WHERE link.organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
+      AND link.patient_user_id = reference.platform_user_id
+      AND link.specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
+      AND link.status = 'active'
+  ) <> 1;
+  IF violations <> 0 THEN RAISE EXCEPTION 'patient-domain reference closure missing canonical membership: %', violations; END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.be_organization_members
@@ -123,7 +288,27 @@ SELECT json_build_object(
   'platformUsers', (SELECT count(*) FROM public.platform_users),
   'userIdentities', (SELECT count(*) FROM public.user_identity),
   'appointments', (SELECT count(*) FROM public.be_appointments),
+  'activeCanonicalClientMembershipExpected', (
+    SELECT count(*) FROM cutover_expected_active_canonical_client_membership
+  ),
+  'patientDomainReferenceExpected', (
+    SELECT count(*) FROM cutover_expected_patient_domain_references
+  ),
   'activeEnrollments', (SELECT count(*) FROM public.org_enrollments WHERE status = 'active'),
+  'reminderHistoryAttributed', (
+    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NOT NULL
+  ),
+  'reminderHistoryHonestlyUnmapped', (
+    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NULL
+  ),
+  'preservedMessageDrafts', (
+    SELECT count(*)
+    FROM public.support_conversations conversation
+    CROSS JOIN LATERAL jsonb_array_elements(conversation.pending_message_drafts) draft_payload
+    WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
+  ),
+  'attributedDeliveryAttempts', (SELECT count(*) FROM integrator.delivery_attempt_logs),
+  'attributedPlaybackHourlyRows', (SELECT count(*) FROM public.media_playback_stats_hourly),
   'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
   'pendingDeliveryQueue', (
     SELECT count(*) FROM public.outgoing_delivery_queue

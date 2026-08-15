@@ -3702,6 +3702,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       {
         "relation": "public.media_playback_stats_hourly",
         "columns": [
+          "organization_id",
           "bucket_hour",
           "delivery",
           "resolved_count",
@@ -9669,7 +9670,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)": {
+  "app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "void",
@@ -9686,6 +9687,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text",
       "text",
+      "uuid",
       "text",
       "text",
       "integer",
@@ -9704,6 +9706,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "intent_type",
           "intent_event_id",
           "correlation_id",
+          "organization_id",
           "channel",
           "status",
           "attempt",

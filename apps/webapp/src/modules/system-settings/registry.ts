@@ -78,13 +78,6 @@ export const SYSTEM_SETTING_REGISTRY = {
   platform_user_merge_v2_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   /** Platform-wide product switch, deliberately not a per-tariff mechanic. */
   material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
-  integrator_linked_phone_source: runtime(
-    'admin',
-    'global',
-    'server',
-    'string',
-    'public_then_contacts',
-  ),
   patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты'),
   sms_fallback_enabled: restricted(
     'doctor',
