@@ -477,6 +477,31 @@ The atomic A → B transition also owns these fail-closed data gates:
   endpoint. The reviewed 18 patient-domain relations plus live appointments remain a separate reference-closure
   oracle, not a membership eligibility filter; merged aliases are not enrolled and must already resolve through the
   consolidation path;
+- before the duplicate specialist card is deleted, `consolidate-owner-identity.sql` inventories every live
+  single-column FK to `be_specialists`, merges only equivalent unique scheduling scopes deterministically, rewrites
+  every remaining reference (including soft-deleted history), and proves source-derived total/canonical counts. The
+  A→B final gate repeats that reference-class census after the source schemas have gone. Cascades and `SET NULL`
+  are never a migration mechanism;
+- `reminder_occurrence_history.platform_user_id` is derived from its `integrator_user_id` through the terminal
+  `platform_users.merged_into_id` graph. Every mechanically attributable source row must land on that terminal user;
+  `NULL` survives only for a source identity with no platform-user mapping, and source/attributed/honest-NULL counts
+  are checked before and after source-schema removal;
+- live subject/ownership UUID references named `platform_user_id`, `patient_user_id`, `user_id`, `owner_user_id`, or
+  `doctor_user_id` are discovered from the copied target catalog and canonicalized through the complete merge graph.
+  Unique channel-preference collisions keep the latest complete state per canonical user/channel; first-playback
+  collisions keep the earliest observation per canonical user/media. Author/actor/audit provenance columns are not
+  included in this subject rewrite. The final gate rejects any reviewed live subject column still pointing at an
+  alias and separately checks the dual channel-preference keys;
+- actionable `integrator.message_drafts` are transformed into the canonical support-conversation path, not retired.
+  A deterministic patient/channel conversation holder is created only when no source conversation exists; the
+  pending payload is kept under the conversation's organization and canonical patient identity. The transition
+  compares row count and every content field without printing content, then repeats count/scope checks after the
+  legacy schemas are gone;
+- `integrator.delivery_attempt_logs` and `public.media_playback_stats_hourly` have an organization discriminator in
+  schema B and tenant-aware privilege/RLS declarations. Every copied fresh-dump row is assigned the canonical
+  organization, and source/target counts plus zero wrong/NULL attribution are checked before and after source removal.
+  Clinic delivery-attempt writes preserve their supplied organization; genuinely global/pre-login future audit may
+  remain honestly `NULL`. Media aggregate writes key their upsert by organization, hour, and delivery;
 - every source-only relation must appear in the reviewed `transform` / `intentionally_retire` registry in
   `prod-to-target-cutover-data.sql`. A new unexplained source-only class and a stale registry entry both abort the
   transaction; there is no manual row patch or silent generic-copy skip;

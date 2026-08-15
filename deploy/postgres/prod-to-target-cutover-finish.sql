@@ -56,6 +56,9 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
 DO $final_shape_gate$
 DECLARE
   violations bigint;
+  reference record;
+  target_rows bigint;
+  target_canonical_rows bigint;
 BEGIN
   IF to_regnamespace('cutover_source_public') IS NOT NULL
      OR to_regnamespace('cutover_source_integrator') IS NOT NULL
@@ -71,6 +74,104 @@ BEGIN
       WHERE identity_row.platform_user_id = platform_users.id
     );
   IF violations <> 0 THEN RAISE EXCEPTION 'canonical users without user_identity: %', violations; END IF;
+
+  FOR reference IN
+    SELECT * FROM cutover_specialist_transition_reference_baseline ORDER BY table_name
+  LOOP
+    EXECUTE format(
+      'SELECT count(*), count(*) FILTER (WHERE %I = $1) FROM public.%I',
+      reference.column_name, reference.table_name
+    ) INTO target_rows, target_canonical_rows
+      USING current_setting('bcb.cutover.canonical_specialist_id')::uuid;
+    IF target_rows <> reference.expected_rows
+      OR target_canonical_rows <> reference.expected_canonical_rows
+    THEN
+      RAISE EXCEPTION 'post-transition specialist reference drift in public.%: rows %/%, canonical %/%',
+        reference.table_name, target_rows, reference.expected_rows,
+        target_canonical_rows, reference.expected_canonical_rows;
+    END IF;
+  END LOOP;
+
+  IF EXISTS (
+    SELECT 1 FROM public.be_specialists
+    WHERE id <> current_setting('bcb.cutover.canonical_specialist_id')::uuid
+  ) THEN
+    RAISE EXCEPTION 'noncanonical specialist card survived the transition';
+  END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.reminder_occurrence_history history
+  LEFT JOIN public.platform_users source_user
+    ON source_user.integrator_user_id = history.integrator_user_id
+  LEFT JOIN cutover_platform_user_canonical_map identity_map
+    ON identity_map.source_id = source_user.id
+  WHERE history.platform_user_id IS DISTINCT FROM identity_map.canonical_id;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition reminder history identity drift: %', violations; END IF;
+  IF (SELECT count(*) FROM public.reminder_occurrence_history)
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'reminder_occurrence_history') THEN
+    RAISE EXCEPTION 'post-transition reminder history row count drift';
+  END IF;
+
+  FOR reference IN
+    SELECT * FROM cutover_reviewed_live_identity_references ORDER BY schema_name, table_name, column_name
+  LOOP
+    EXECUTE format(
+      'SELECT count(*) FROM %I.%I target '
+      || 'JOIN cutover_platform_user_canonical_map identity_map ON identity_map.source_id = target.%I '
+      || 'WHERE identity_map.source_id <> identity_map.canonical_id',
+      reference.schema_name, reference.table_name, reference.column_name
+    ) INTO violations;
+    IF violations <> 0 THEN
+      RAISE EXCEPTION 'post-transition merged alias in %.%.%: %',
+        reference.schema_name, reference.table_name, reference.column_name, violations;
+    END IF;
+  END LOOP;
+
+  SELECT count(*) INTO violations FROM public.user_channel_preferences
+  WHERE user_id <> platform_user_id::text;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition channel preference dual identity drift: %', violations; END IF;
+
+  SELECT count(*) INTO violations
+  FROM public.support_conversations conversation
+  WHERE EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(conversation.pending_message_drafts) draft_payload
+    WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
+  )
+    AND (
+      conversation.organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid
+      OR NOT EXISTS (
+        SELECT 1 FROM cutover_platform_user_canonical_map identity_map
+        WHERE identity_map.canonical_id = conversation.platform_user_id
+          AND identity_map.source_id = identity_map.canonical_id
+      )
+    );
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition canonical message draft scope drift: %', violations; END IF;
+  IF (
+    SELECT count(*)
+    FROM public.support_conversations conversation
+    CROSS JOIN LATERAL jsonb_array_elements(conversation.pending_message_drafts) draft_payload
+    WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
+  )
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'message_drafts') THEN
+    RAISE EXCEPTION 'post-transition message draft row count drift';
+  END IF;
+
+  SELECT count(*) INTO violations FROM integrator.delivery_attempt_logs
+  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition delivery attempt organization drift: %', violations; END IF;
+  IF (SELECT count(*) FROM integrator.delivery_attempt_logs)
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'delivery_attempt_logs') THEN
+    RAISE EXCEPTION 'post-transition delivery attempt row count drift';
+  END IF;
+
+  SELECT count(*) INTO violations FROM public.media_playback_stats_hourly
+  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
+  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition playback hourly organization drift: %', violations; END IF;
+  IF (SELECT count(*) FROM public.media_playback_stats_hourly)
+     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'media_playback_stats_hourly') THEN
+    RAISE EXCEPTION 'post-transition playback hourly row count drift';
+  END IF;
 
   SELECT count(*) INTO violations
   FROM public.be_appointments appointment
@@ -194,6 +295,20 @@ SELECT json_build_object(
     SELECT count(*) FROM cutover_expected_patient_domain_references
   ),
   'activeEnrollments', (SELECT count(*) FROM public.org_enrollments WHERE status = 'active'),
+  'reminderHistoryAttributed', (
+    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NOT NULL
+  ),
+  'reminderHistoryHonestlyUnmapped', (
+    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NULL
+  ),
+  'preservedMessageDrafts', (
+    SELECT count(*)
+    FROM public.support_conversations conversation
+    CROSS JOIN LATERAL jsonb_array_elements(conversation.pending_message_drafts) draft_payload
+    WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
+  ),
+  'attributedDeliveryAttempts', (SELECT count(*) FROM integrator.delivery_attempt_logs),
+  'attributedPlaybackHourlyRows', (SELECT count(*) FROM public.media_playback_stats_hourly),
   'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
   'pendingDeliveryQueue', (
     SELECT count(*) FROM public.outgoing_delivery_queue

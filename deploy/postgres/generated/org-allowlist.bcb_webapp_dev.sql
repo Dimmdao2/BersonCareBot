@@ -21,6 +21,7 @@ END
 $bcb$;
 
 WITH declared(schema_name, table_name) AS (VALUES
+  ('integrator', 'delivery_attempt_logs'),
   ('integrator', 'user_reminder_delivery_logs'),
   ('integrator', 'user_reminder_occurrences'),
   ('public', 'admin_audit_log'),
@@ -87,6 +88,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'media_hls_proxy_error_events'),
   ('public', 'media_playback_client_events'),
   ('public', 'media_playback_resolution_events'),
+  ('public', 'media_playback_stats_hourly'),
   ('public', 'media_playback_user_video_first_resolve'),
   ('public', 'media_transcode_jobs'),
   ('public', 'media_upload_sessions'),

@@ -48,6 +48,7 @@ export const deliveryAttemptLogs = integratorSchema.table(
   'delivery_attempt_logs',
   {
     id: bigserial({ mode: 'number' }).primaryKey().notNull(),
+    organizationId: uuid('organization_id'),
     intentType: text('intent_type'),
     intentEventId: text('intent_event_id'),
     correlationId: text('correlation_id'),
@@ -64,6 +65,10 @@ export const deliveryAttemptLogs = integratorSchema.table(
       .notNull(),
   },
   (table) => [
+    index('idx_delivery_attempt_logs_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+    ),
     index('idx_delivery_attempt_logs_channel_occurred').using(
       'btree',
       table.channel.asc().nullsLast().op('text_ops'),

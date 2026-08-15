@@ -25,6 +25,7 @@ const attempt = (channel: string, status: 'success' | 'failed' | 'skipped' = 'fa
   intentType: 'message.send',
   intentEventId: `booking-reminder:${channel}:24h`,
   correlationId: null,
+  organizationId: '10000000-0000-4000-8000-000000000001',
   channel,
   status,
   attempt: 1,
@@ -56,7 +57,7 @@ describe('delivery attempt audit capability', () => {
       );
       expect(fakes.runNamedRoot).toHaveBeenCalledWith(
         db,
-        'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)',
+        'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
         expect.arrayContaining([channel, 'failed']),
         expect.anything(),
       );
@@ -84,13 +85,13 @@ describe('delivery attempt audit capability', () => {
 
     await writePort.writeDb({
       type: 'delivery.attempt.log',
-      params: attempt('max', 'success'),
+      params: { ...attempt('max', 'success'), organizationId: null },
     } as never);
 
     expect(db.tx).not.toHaveBeenCalled();
     expect(fakes.runNamedRoot).toHaveBeenCalledWith(
       db,
-      'app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,text,timestamp with time zone)',
+      'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
       expect.arrayContaining(['max', 'success']),
       expect.anything(),
     );
