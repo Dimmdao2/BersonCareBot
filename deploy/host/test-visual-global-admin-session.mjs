@@ -16,17 +16,17 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readSaasTestFixturePacket, resolveDeployGroupId } from './saas-test-fixture-packet.mjs';
+import { resolveDeployGroupId } from './saas-test-fixture-packet.mjs';
+import { readSmokeLoginPacket } from './smoke-login-packet.mjs';
 
 const sessionCookieName = 'bersoncare_webapp_session';
 const purpose = 'test_global_admin_visual';
-const testBaseUrl = 'http://127.0.0.1:6300';
+const testBaseUrl = 'https://test.bersoncare.ru';
 const publicCookieHost = 'test.bersoncare.ru';
-const fixturePacketPath = '/opt/env/bersoncarebot/saas-test-fixture.env';
+const smokeLoginPacketPath = '/opt/env/bersoncarebot/saas-smoke-login.env';
 const webappEnvPath = '/opt/env/bersoncarebot/webapp.test';
 const outputDirectory = '/run/bersoncarebot-visual';
 const outputPath = path.join(outputDirectory, 'global-admin.cookies');
-const globalAdminEmail = 'global-admin@saas-fixture.test';
 const defaultTtlSeconds = 30 * 60;
 const minTtlSeconds = 5 * 60;
 const maxTtlSeconds = 60 * 60;
@@ -60,13 +60,13 @@ function decodeSignedSession(raw, secret) {
 
 function boundAdminSession(raw, secret, ttlSeconds, nowSec = Math.floor(Date.now() / 1000)) {
   const session = decodeSignedSession(raw, secret);
-  if (session?.user?.role !== 'admin' || session.adminMode !== true)
-    fail('global_admin_mode_required');
+  if (session?.user?.role !== 'admin') fail('global_admin_role_required');
   const expiresAt = nowSec + ttlSeconds;
   const bounded = {
     ...session,
     issuedAt: nowSec,
     expiresAt,
+    staffSecurity: { assurance: 'factor_verified', verifiedAt: nowSec },
     operatorSession: { purpose, expiresAt },
   };
   const payload = Buffer.from(JSON.stringify(bounded)).toString('base64url');
@@ -100,9 +100,9 @@ function parseEnvFile(text) {
 
 function parseTestWebappConfigText(text) {
   const values = parseEnvFile(text);
-  const databaseUrl = values.get('DATABASE_URL');
+  const databaseUrl = values.get('DATABASE_URL_GLOBAL_ADMIN');
   const secret = values.get('SESSION_COOKIE_SECRET');
-  if (!databaseUrl) fail('missing_env_key:DATABASE_URL');
+  if (!databaseUrl) fail('missing_env_key:DATABASE_URL_GLOBAL_ADMIN');
   if (!secret) fail('missing_env_key:SESSION_COOKIE_SECRET');
   let parsedDatabaseUrl;
   try {
@@ -216,10 +216,8 @@ async function postJson(url, body, cookie) {
     signal: AbortSignal.timeout(20_000),
     headers: {
       'Content-Type': 'application/json',
-      Host: publicCookieHost,
       Origin: `https://${publicCookieHost}`,
       'Sec-Fetch-Site': 'same-origin',
-      'X-Forwarded-Proto': 'https',
       ...(cookie ? { Cookie: `${sessionCookieName}=${cookie}` } : {}),
     },
     body: JSON.stringify(body),
@@ -305,21 +303,13 @@ async function issue(ttlSeconds) {
   }
   const { secret } = readTestWebappConfig();
   assertTestWebappListenerIdentity();
-  const packet = readSaasTestFixturePacket({
-    filePath: fixturePacketPath,
-    expectedGroupId: resolveDeployGroupId(),
-  });
-  const password = packet.SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD;
+  const packet = readSmokeLoginPacket(smokeLoginPacketPath);
   const loginResponse = await postJson(`${testBaseUrl}/api/auth/email-password/login`, {
-    email: globalAdminEmail,
-    password,
+    email: packet.SAAS_SMOKE_GLOBAL_ADMIN_EMAIL,
+    password: packet.SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD,
   });
   const loginCookie = extractSessionCookie(loginResponse.headers);
-  const modeResponse = await postJson(`${testBaseUrl}/api/admin/mode`, {}, loginCookie);
-  const adminCookie = extractSessionCookie(modeResponse.headers);
-  const modeBody = await modeResponse.json().catch(() => null);
-  if (modeBody?.ok !== true || modeBody.adminMode !== true) fail('admin_mode_not_enabled');
-  const bounded = boundAdminSession(adminCookie, secret, ttlSeconds);
+  const bounded = boundAdminSession(loginCookie, secret, ttlSeconds);
   const dev = resolveDevIdentity();
   writeJar({
     filePath: outputPath,
@@ -364,13 +354,16 @@ function selfTest() {
       user: { userId: 'self-test', role: 'admin', displayName: 'Self Test', bindings: {} },
       issuedAt: now,
       expiresAt: now + 90 * 86400,
-      adminMode: true,
     };
     const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
     const raw = `${payload}.${sign(payload, secret)}`;
     const bounded = boundAdminSession(raw, secret, 600, now);
     const decoded = decodeSignedSession(bounded.cookie, secret);
-    if (decoded.expiresAt !== now + 600 || decoded.operatorSession?.purpose !== purpose)
+    if (
+      decoded.expiresAt !== now + 600 ||
+      decoded.operatorSession?.purpose !== purpose ||
+      decoded.staffSecurity?.assurance !== 'factor_verified'
+    )
       fail('self_test_bound_failed');
     const jar = path.join(root, 'global-admin.cookies');
     writeJar({
@@ -412,11 +405,11 @@ function selfTest() {
     }
     if (!symlinkRejected) fail('self_test_symlink_directory_accepted');
     const envSecret = 'redacted-self-test-session-secret';
-    const validEnv = `DATABASE_URL=postgresql://test_user:test_password@127.0.0.1:5432/bersoncarebot_test\nSESSION_COOKIE_SECRET=${envSecret}\n`;
+    const validEnv = `DATABASE_URL_GLOBAL_ADMIN=postgresql://test_user:test-password@127.0.0.1:5432/bersoncarebot_test\nSESSION_COOKIE_SECRET=${envSecret}\n`;
     if (parseTestWebappConfigText(validEnv).secret !== envSecret)
       fail('self_test_env_parse_failed');
     for (const invalidEnv of [
-      `${validEnv}DATABASE_URL=postgresql://test_user:test_password@127.0.0.1:5432/bersoncarebot_test\n`,
+      `${validEnv}DATABASE_URL_GLOBAL_ADMIN=postgresql://test_user:test-password@127.0.0.1:5432/bersoncarebot_test\n`,
       validEnv.replace('127.0.0.1', 'db.example.test'),
       validEnv.replace(':5432/', ':5433/'),
       validEnv.replace('bersoncarebot_test', 'bersoncarebot_other'),

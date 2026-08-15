@@ -1,22 +1,22 @@
 # Short-lived TEST global-admin visual session
 
-This is the canonical handoff for an authorized visual agent that needs `/app/doctor/system-health` on TEST.
+This is the canonical handoff for an authorized visual agent that needs `/app/admin/system-health` on TEST.
 It does not read or copy `/run/bersoncarebot/saas-smoke.fixture` and does not use dev-bypass.
 
 ## Security model
 
 - A root operator runs one repository helper on the TEST host.
 - The helper requires `webapp.test` to be a regular non-symlink `root:deploy 0640` file with no duplicate env keys.
-  Its `DATABASE_URL` must be PostgreSQL on exact `127.0.0.1:5432/bersoncarebot_test`.
+  Its `DATABASE_URL_GLOBAL_ADMIN` must be PostgreSQL on exact `127.0.0.1:5432/bersoncarebot_test`.
 - Before sending credentials, the helper proves that `bersoncarebot-webapp-test.service` is active as
   `bcb-web-test:bcb-web-test` (its own dedicated OS identity since the B-1 split — see
   `docs/_TODO/B1_B2_IDENTITY_SPLIT_RUNBOOK.md`), has the canonical TEST standalone working directory, and
   that its `MainPID` owns the `127.0.0.1:6300` listener.
-- Credentials are read internally from the existing strict `/opt/env/bersoncarebot/saas-test-fixture.env` parser.
+- Credentials are read internally from the existing strict `/opt/env/bersoncarebot/saas-smoke-login.env` parser.
   Values never enter argv, stdout, logs, repository files, or the handoff manifest.
-- Authentication uses ordinary `POST /api/auth/email-password/login`, followed by ordinary
-  `POST /api/admin/mode` over loopback `127.0.0.1:6300`.
-- The resulting signed session is re-signed with a bounded `expiresAt` and
+- Authentication uses ordinary `POST /api/auth/email-password/login` through the exact
+  `https://test.bersoncare.ru` origin after the helper proves the local TEST listener identity.
+- The root-only TEST helper re-signs the verified admin session with bounded factor assurance, `expiresAt`, and
   `operatorSession.purpose=test_global_admin_visual`. Webapp session renewal explicitly refuses to slide it.
 - TTL defaults to 30 minutes and is restricted to 5–60 minutes.
 - The separate Netscape cookie jar is `/run/bersoncarebot-visual/global-admin.cookies`, directory `root:dev 0750`,
@@ -49,7 +49,7 @@ node deploy/host/test-visual-global-admin-session.mjs status
 
 Use the jar only through the constrained repository capture wrapper. The wrapper accepts no base URL, cookie path,
 output path, or route argument: it fixes the origin to exact `https://test.bersoncare.ru`, the jar to the handoff
-above, and the route to `/app/doctor/system-health`. It also strips the inherited environment before starting the
+above, and the route to `/app/admin/system-health`. It also strips the inherited environment before starting the
 underlying screenshot engine.
 
 ```bash
@@ -81,11 +81,11 @@ must report `absent`. If cleanup is missed, the cookie still cannot slide and ex
 
 - The helper refuses non-root issuance/revocation, non-canonical TEST env metadata, duplicate env keys, non-local
   PostgreSQL host/port, non-TEST database names, wrong systemd/listener identity, malformed protected packets,
-  invalid session signatures, non-admin sessions, missing admin mode, unsafe TTL, symlink output directories/files,
+  invalid session signatures, non-admin sessions, unsafe TTL, symlink output directories/files,
   and overwrite of an existing handoff. The capture wrapper rejects non-dev callers, expired/mis-scoped/non-Secure
   cookies and every caller-supplied argument.
-- The fixed System Health route has its own global-operator layout: it still requires `role=admin` and explicit
-  admin mode, but deliberately does not require a tenant organization membership. Before Chromium starts, the
+- The fixed System Health route has its own global-operator layout: it still requires `role=admin` and a
+  factor-verified session, but deliberately does not require a tenant organization membership. Before Chromium starts, the
   wrapper follows only same-origin redirects for the exact route and emits one classified line containing only the
   fixed origin, normalized path, HTTP status and category. Redirect loops, cross-origin redirects, auth failures and
   non-200 terminal responses fail closed without exposing headers, cookie values, response bodies or page text.
