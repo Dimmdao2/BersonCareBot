@@ -5,6 +5,7 @@
 | слой | коммит | вердикт |
 |---|---|---|
 | Browser hydration / stale HMR graph | `d9536c3e5` (`wt/dev-browser-runtime-20260816`) | **FAIL → worker handoff**: 1 реальный hydration-дефект пойман красным acceptance-тестом, непойманных 0; три ChunkLoadError классифицированы прямой проверкой как transient stale HMR graph, не product-code finding. Артефакт: `docs/REPORTS/DEV_DOCTOR_BROWSER_RUNTIME_AUDIT_2026-08-16.md`. |
+| Doctor API / port-context | `96b37218f` (`wt/dev-doctor-api-20260816`) | **PASS по правам и API, config handoff по оплате**: свежая same-origin doctor-сессия дала 200 на 9 read API и create/deactivate графика; непойманных permission faults 0. Исторические 401 относятся к прежнему DEV instance на `:15200`, текущий канон слушает `:5200`. Оплата выключена DEV-настройкой и canonical patient fixture не проходит UUID validator. Артефакт: `docs/REPORTS/DEV_DOCTOR_API_PORT_CONTEXT_AUDIT_2026-08-16.md`. |
 
 ## 🔀 Доска параллельных оркестраторов — номера миграций и ветки
 
