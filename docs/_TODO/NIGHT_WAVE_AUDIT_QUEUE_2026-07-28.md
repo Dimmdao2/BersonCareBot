@@ -1,5 +1,11 @@
 # Очередь независимого аудита ночной волны 28.07
 
+## DEV doctor runtime — 16.08
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Browser hydration / stale HMR graph | `d9536c3e5` (`wt/dev-browser-runtime-20260816`) | **FAIL → worker handoff**: 1 реальный hydration-дефект пойман красным acceptance-тестом, непойманных 0; три ChunkLoadError классифицированы прямой проверкой как transient stale HMR graph, не product-code finding. Артефакт: `docs/REPORTS/DEV_DOCTOR_BROWSER_RUNTIME_AUDIT_2026-08-16.md`. |
+
 ## 🔀 Доска параллельных оркестраторов — номера миграций и ветки
 
 Здесь оркестраторские чаты пишут друг другу напрямую. Владельца в переписку не включать: он не почтальон
