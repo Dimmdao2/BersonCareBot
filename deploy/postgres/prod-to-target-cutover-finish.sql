@@ -50,7 +50,7 @@ BEGIN
     SELECT 1 FROM public.be_organization_members
     WHERE organization_id = current_setting('bcb.cutover.canonical_organization_id')::uuid
       AND specialist_id = current_setting('bcb.cutover.canonical_specialist_id')::uuid
-      AND role = 'doctor'
+      AND role = 'owner'
       AND status = 'active'
   ) THEN
     RAISE EXCEPTION 'canonical doctor membership was not rebuilt';

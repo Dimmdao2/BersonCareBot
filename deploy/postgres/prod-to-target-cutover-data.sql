@@ -393,7 +393,7 @@ INSERT INTO public.be_organization_members (
 SELECT
   :'canonical_organization_id'::uuid,
   user_row.id,
-  'doctor',
+  'owner',
   :'canonical_specialist_id'::uuid,
   'active'
 FROM public.platform_users user_row
