@@ -35,30 +35,25 @@ const INVALID_CREDENTIALS_MESSAGE =
   'Email или пароль неверны. Проверьте данные или восстановите пароль.';
 const SERVER_ERROR_MESSAGE = 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.';
 
-async function isConfiguredTestPatientPasswordLogin(
+function isConfiguredTestPatientPasswordLogin(
   user: SessionUser | null,
   emailNormalized: string,
-): Promise<boolean> {
+  identifiersValue: unknown,
+): boolean {
   if (!user || user.role !== 'client') return false;
-  try {
-    const identifiers = normalizeTestAccountIdentifiersValue(
-      await getServerConfigStructuredValue('test_account_identifiers'),
-    );
-    if (!identifiers) return false;
-    return (
-      identifiers.emails.includes(emailNormalized) ||
-      sessionMatchesTestAccountIdentifiers(
-        {
-          phone: user.phone,
-          telegramId: user.bindings.telegramId,
-          maxId: user.bindings.maxId,
-        },
-        identifiers,
-      )
-    );
-  } catch {
-    return false;
-  }
+  const identifiers = normalizeTestAccountIdentifiersValue(identifiersValue);
+  if (!identifiers) return false;
+  return (
+    identifiers.emails.includes(emailNormalized) ||
+    sessionMatchesTestAccountIdentifiers(
+      {
+        phone: user.phone,
+        telegramId: user.bindings.telegramId,
+        maxId: user.bindings.maxId,
+      },
+      identifiers,
+    )
+  );
 }
 
 export async function POST(request: Request) {
@@ -133,7 +128,6 @@ export async function POST(request: Request) {
       );
     }
 
-    enterStaffSecuritySelfPrincipal(pwd.userId, 'api/auth/email-password/login:primary-verified');
     if (!pwd.emailVerified) {
       return NextResponse.json(
         {
@@ -144,6 +138,15 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+
+    // Read the fixed TEST allowlist while this pre-session request still carries the bootstrap
+    // principal. The identity-self principal installed below is deliberately unable to read global
+    // settings; moving this read below that boundary makes every configured patient look unlisted.
+    const testAccountIdentifiers = await getServerConfigStructuredValue(
+      'test_account_identifiers',
+    ).catch(() => null);
+
+    enterStaffSecuritySelfPrincipal(pwd.userId, 'api/auth/email-password/login:primary-verified');
 
     let sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
     if (!sessionUser) {
@@ -168,9 +171,10 @@ export async function POST(request: Request) {
       sessionUser = { ...sessionUser, role: effectiveRole };
     }
 
-    const testPatientPasswordLogin = await isConfiguredTestPatientPasswordLogin(
+    const testPatientPasswordLogin = isConfiguredTestPatientPasswordLogin(
       sessionUser,
       emailNorm,
+      testAccountIdentifiers,
     );
     if (!isPasswordEligibleRole(sessionUser.role) && !testPatientPasswordLogin) {
       return NextResponse.json(

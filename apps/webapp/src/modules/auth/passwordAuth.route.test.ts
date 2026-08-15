@@ -41,12 +41,13 @@ const fakes = vi.hoisted(() => ({
   requireStaffSession: vi.fn<RequireStaffSession>(),
   setSession: vi.fn<SetSession>(),
   getStructuredSetting: vi.fn(),
+  enterSelfPrincipal: vi.fn(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({ stampBootstrapPrincipal: vi.fn() }));
 vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({ ensureAuthModulePortsBound: vi.fn() }));
 vi.mock('@/app-layer/principal/staffSecuritySelfPrincipal', () => ({
-  enterStaffSecuritySelfPrincipal: vi.fn(),
+  enterStaffSecuritySelfPrincipal: fakes.enterSelfPrincipal,
 }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireStaffSecurityApiSession: fakes.requireStaffSession,
@@ -295,6 +296,9 @@ describe('email/password login HTTP boundary', () => {
     });
     expect(fakes.setSession).toHaveBeenCalledOnce();
     expect(fakes.getSecurityStatus).not.toHaveBeenCalled();
+    expect(fakes.getStructuredSetting.mock.invocationCallOrder[0]).toBeLessThan(
+      fakes.enterSelfPrincipal.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
   });
 
   it('returns a typed our-side failure instead of an empty body when an unhandled exception hits the DB', async () => {
