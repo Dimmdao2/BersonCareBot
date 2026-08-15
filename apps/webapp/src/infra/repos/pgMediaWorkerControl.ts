@@ -29,8 +29,8 @@ function controlConflict(): never {
 
 export async function assertMediaWorkerControlReady(): Promise<void> {
   await Promise.all([
-    runWebappSql(getWebappSqlDb(), sql`SELECT 1 FROM media_transcode_jobs WHERE false`),
-    runWebappSql(getWebappSqlDb(), sql`SELECT 1 FROM media_files WHERE false`),
+    runWebappSql(getWebappSqlDb(), sql`SELECT 1 FROM public.media_transcode_jobs WHERE false`),
+    runWebappSql(getWebappSqlDb(), sql`SELECT 1 FROM public.media_files WHERE false`),
   ]);
 }
 
@@ -42,7 +42,7 @@ export async function reclaimAndClaimMediaWorkerJob(params: {
   if (!params.enabled) return { kind: 'disabled' };
   return runWebappTransaction(async (tx) => {
     await runWebappSql(tx, sql`
-      UPDATE media_transcode_jobs
+      UPDATE public.media_transcode_jobs
       SET status = 'pending', locked_at = NULL, locked_by = NULL, processing_started_at = NULL,
           finished_at = NULL, updated_at = now(),
           last_error = COALESCE(last_error, '') || ' [stale_lock_reclaimed]'
@@ -55,7 +55,7 @@ export async function reclaimAndClaimMediaWorkerJob(params: {
       media_organization_id: string | null;
     }>(tx, sql`
       SELECT j.id, j.media_id, j.organization_id AS job_organization_id, mf.organization_id AS media_organization_id
-      FROM media_transcode_jobs j LEFT JOIN media_files mf ON mf.id = j.media_id
+      FROM public.media_transcode_jobs j LEFT JOIN public.media_files mf ON mf.id = j.media_id
       WHERE j.status = 'pending' AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= now())
       ORDER BY j.created_at ASC FOR UPDATE OF j SKIP LOCKED LIMIT 1`);
     const row = selected.rows[0];
@@ -66,7 +66,7 @@ export async function reclaimAndClaimMediaWorkerJob(params: {
       row.job_organization_id !== row.media_organization_id
     ) {
       await runWebappSql(tx, sql`
-        UPDATE media_transcode_jobs SET status = 'failed', attempts = attempts + 1, locked_at = now(),
+        UPDATE public.media_transcode_jobs SET status = 'failed', attempts = attempts + 1, locked_at = now(),
           locked_by = ${params.lockedBy}, last_error = 'organization_invariant_violation', next_attempt_at = NULL,
           processing_started_at = NULL, finished_at = now(), updated_at = now()
         WHERE id = ${row.id}::uuid AND status = 'pending'`);
@@ -78,7 +78,7 @@ export async function reclaimAndClaimMediaWorkerJob(params: {
       organization_id: string;
       attempts: number;
     }>(tx, sql`
-      UPDATE media_transcode_jobs SET status = 'processing', locked_at = now(), locked_by = ${params.lockedBy},
+      UPDATE public.media_transcode_jobs SET status = 'processing', locked_at = now(), locked_by = ${params.lockedBy},
         attempts = attempts + 1, processing_started_at = now(), finished_at = NULL, updated_at = now()
       WHERE id = ${row.id}::uuid AND status = 'pending'
       RETURNING id, media_id, organization_id, attempts`);
@@ -111,7 +111,7 @@ export async function loadMediaWorkerControlMedia(
   }>(getWebappSqlDb(), sql`
     SELECT mf.id, mf.mime_type, mf.s3_key, mf.hls_master_playlist_s3_key, mf.video_processing_status,
       mf.video_duration_seconds, mf.usage_purpose
-    FROM media_transcode_jobs j JOIN media_files mf ON mf.id = j.media_id
+    FROM public.media_transcode_jobs j JOIN public.media_files mf ON mf.id = j.media_id
     WHERE j.id = ${job.id}::uuid AND j.media_id = ${job.mediaId}::uuid AND j.status = 'processing'
       AND j.locked_by = ${lockedBy} AND j.organization_id = mf.organization_id`);
   const row = result.rows[0];
@@ -135,7 +135,7 @@ async function withOwnedProcessingJob<T>(
 ): Promise<T> {
   return runWebappTransaction(async (tx) => {
     const locked = await runWebappSql<{ media_id: string }>(tx, sql`
-      SELECT j.media_id FROM media_transcode_jobs j JOIN media_files mf ON mf.id = j.media_id
+      SELECT j.media_id FROM public.media_transcode_jobs j JOIN public.media_files mf ON mf.id = j.media_id
       WHERE j.id = ${job.id}::uuid AND j.media_id = ${job.mediaId}::uuid AND j.status = 'processing'
         AND j.locked_by = ${lockedBy} AND j.organization_id = mf.organization_id FOR UPDATE OF j`);
     if (!locked.rows[0]) controlConflict();
@@ -146,7 +146,7 @@ async function withOwnedProcessingJob<T>(
 export async function markMediaWorkerProcessing(job: JobRef, lockedBy: string): Promise<void> {
   await withOwnedProcessingJob(job, lockedBy, async (tx) => {
     await runWebappSql(tx, sql`
-      UPDATE media_files SET video_processing_status = 'processing', video_processing_error = NULL
+      UPDATE public.media_files SET video_processing_status = 'processing', video_processing_error = NULL
       WHERE id = ${job.mediaId}::uuid`);
   });
 }
@@ -159,12 +159,12 @@ export async function retryMediaWorkerJob(
 ): Promise<void> {
   await withOwnedProcessingJob(job, lockedBy, async (tx) => {
     await runWebappSql(tx, sql`
-      UPDATE media_transcode_jobs SET status = 'pending', last_error = ${error},
+      UPDATE public.media_transcode_jobs SET status = 'pending', last_error = ${error},
         next_attempt_at = ${nextAttemptAt}::timestamptz, locked_at = NULL, locked_by = NULL,
         processing_started_at = NULL, finished_at = NULL, updated_at = now()
       WHERE id = ${job.id}::uuid`);
     await runWebappSql(tx, sql`
-      UPDATE media_files SET video_processing_status = 'pending', video_processing_error = ${error}
+      UPDATE public.media_files SET video_processing_status = 'pending', video_processing_error = ${error}
       WHERE id = ${job.mediaId}::uuid`);
   });
 }
@@ -176,11 +176,11 @@ export async function failMediaWorkerJob(
 ): Promise<void> {
   await withOwnedProcessingJob(job, lockedBy, async (tx) => {
     await runWebappSql(tx, sql`
-      UPDATE media_transcode_jobs SET status = 'failed', last_error = ${error}, locked_at = NULL,
+      UPDATE public.media_transcode_jobs SET status = 'failed', last_error = ${error}, locked_at = NULL,
         locked_by = NULL, next_attempt_at = NULL, finished_at = now(), updated_at = now()
       WHERE id = ${job.id}::uuid`);
     await runWebappSql(tx, sql`
-      UPDATE media_files SET video_processing_status = 'failed', video_processing_error = ${error}
+      UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = ${error}
       WHERE id = ${job.mediaId}::uuid`);
   });
 }
@@ -198,14 +198,14 @@ export async function completeMediaWorkerHlsJob(
 ): Promise<void> {
   await withOwnedProcessingJob(job, lockedBy, async (tx) => {
     await runWebappSql(tx, sql`
-      UPDATE media_files SET video_processing_status = 'ready', video_processing_error = NULL,
+      UPDATE public.media_files SET video_processing_status = 'ready', video_processing_error = NULL,
         hls_master_playlist_s3_key = COALESCE(${values.masterKey ?? null}, hls_master_playlist_s3_key),
         hls_artifact_prefix = COALESCE(${values.artifactPrefix ?? null}, hls_artifact_prefix),
         poster_s3_key = COALESCE(${values.posterKey ?? null}, poster_s3_key),
         available_qualities_json = COALESCE(${values.qualitiesJson ?? null}::jsonb, available_qualities_json),
         video_duration_seconds = COALESCE(${values.durationSeconds ?? null}, video_duration_seconds)
       WHERE id = ${job.mediaId}::uuid`);
-    await runWebappSql(tx, sql`UPDATE media_transcode_jobs SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now() WHERE id = ${job.id}::uuid`);
+    await runWebappSql(tx, sql`UPDATE public.media_transcode_jobs SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now() WHERE id = ${job.id}::uuid`);
   });
 }
 
@@ -221,13 +221,13 @@ export async function completeMediaWorkerProgramJob(
 ): Promise<void> {
   await withOwnedProcessingJob(job, lockedBy, async (tx) => {
     await runWebappSql(tx, sql`
-      UPDATE media_files SET s3_key = ${values.outputKey}, mime_type = 'video/mp4',
+      UPDATE public.media_files SET s3_key = ${values.outputKey}, mime_type = 'video/mp4',
         video_processing_status = 'ready', video_processing_error = NULL,
         video_delivery_override = 'mp4', available_qualities_json = ${values.qualitiesJson}::jsonb,
         hls_master_playlist_s3_key = NULL, hls_artifact_prefix = NULL,
         poster_s3_key = ${values.posterKey},
         video_duration_seconds = COALESCE(${values.durationSeconds}, video_duration_seconds)
       WHERE id = ${job.mediaId}::uuid`);
-    await runWebappSql(tx, sql`UPDATE media_transcode_jobs SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now() WHERE id = ${job.id}::uuid`);
+    await runWebappSql(tx, sql`UPDATE public.media_transcode_jobs SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now() WHERE id = ${job.id}::uuid`);
   });
 }
