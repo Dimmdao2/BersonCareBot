@@ -1,3 +1,6 @@
+-- BCB-MIGRATION-OWNER: app_seam_org_invite_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- Journal the two live organization-invite roots that previously existed only in the repeatable
 -- legacy deploy overlay. The final declaration injects the transaction-context gate and assigns
 -- exact seam owners/ACL; this migration leaves both roots closed to PUBLIC.
@@ -43,6 +46,12 @@ $$;
 
 COMMENT ON FUNCTION app.lookup_pending_org_invite(text) IS
   'Narrow invite-token lookup for bootstrap accept flow. Final EXECUTE ACL is declaration-owned.';
+
+--> statement-breakpoint
+
+-- BCB-MIGRATION-OWNER: app_seam_org_invite_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 
 CREATE OR REPLACE FUNCTION app.accept_org_invite(
   p_token_hash text,

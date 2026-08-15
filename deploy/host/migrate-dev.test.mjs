@@ -251,7 +251,7 @@ test('integrator local adapter commits a pending file and ledger row under the e
   mkdirSync(bin);
   writeFileSync(
     join(root, 'src/infra/db/migrations/core/20260814_0001_fixture.sql'),
-    'CREATE TABLE integrator.fixture (id bigint PRIMARY KEY);\n',
+    'DO $$ BEGIN NULL; END $$;\nCREATE TABLE integrator.fixture (id bigint PRIMARY KEY);\n',
   );
   writeFileSync(
     join(bin, 'sudo'),
@@ -286,13 +286,16 @@ esac
   assert.match(result.stdout, /pending=1 eligible=1 total=1/u);
   const sql = readFileSync(capture, 'utf8');
   assert.match(sql, /BEGIN;[\s\S]*GRANT "app_object_owner" TO "bcb_dev_migrator"/u);
+  assert.match(sql, /GRANT USAGE ON LANGUAGE "plpgsql" TO "app_object_owner";/u);
   assert.match(sql, /SET LOCAL SESSION AUTHORIZATION "bcb_dev_migrator";/u);
   assert.match(sql, /SET LOCAL ROLE "app_object_owner";/u);
-  assert.match(sql, /\\i .*20260814_0001_fixture\.sql/u);
+  assert.match(sql, /DO \$\$ BEGIN NULL; END \$\$;[\s\S]*CREATE TABLE integrator\.fixture/u);
+  assert.doesNotMatch(sql, /\\i /u);
   assert.match(
     sql,
     /INSERT INTO integrator\.schema_migrations\(version\) VALUES \('core:20260814_0001_fixture\.sql'\);/u,
   );
+  assert.match(sql, /REVOKE USAGE ON LANGUAGE "plpgsql" FROM "app_object_owner";/u);
   assert.match(sql, /REVOKE "app_object_owner" FROM "bcb_dev_migrator";[\s\S]*COMMIT;/u);
   assert.doesNotMatch(sql, /LOGIN|PASSWORD|BYPASSRLS/u);
 });

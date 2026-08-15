@@ -443,14 +443,17 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (439, '83
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (440, '08e295b3380dee3b19a4b76a6d502467546bf46768c43d3c5f8eab9b2edcf1c6', 1793539230159);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (441, '04c2f72e1d80116f5d5f1d08f62c7b9eff573d9de4303c3c7c98a1e9857b7408', 1793539230160);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (442, 'b9ad7b536f047eec6213350f68c02b2e75e78902ec8bce163c4be037ba3ce62d', 1793539230161);
--- The one-step target already owns the three following end states: invite roots are present in
--- schema-pre, the canonical owner membership is preserved by the reviewed identity/C4 data stage,
--- and every 0356 migration-owned function is present. Record them in the target ledger so a
--- post-cutover code deploy cannot replay historical transition SQL or downgrade the owner
--- membership to doctor.
-INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (443, '9158a8a5f287424b9ba1ab732ca5d63c2a675d6700d6ad2ad42ff6ad5eba17fe', 1793539230162);
-INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (444, '9d5f8ea5092512afa1c13e677528311b879adcecfb7ebea2f9bbc687910e2945', 1793539230163);
-INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (445, '2deabb8015cfae89a31f63293644b051818f1ab7bf89cd97c6c5f121de89f16b', 1793539230164);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (444, '5adadb304d7496fd5f12337d8ccf0386b3a8ea69aef32b774abcf52d5f3413d3', 1793539230162);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (445, '0cb81749d7b7a56812b5ca39c715754b26c7f92a197f63f632fc7f7e09bc6f3f', 1793539230163);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (446, 'cd7da390b4c26a306aa31ea6c9219484fd155d6dcc5748a26bd2c8a401d537ad', 1793539230164);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (447, 'a400fe3f03ace5b4e6922a2b1e8ed8c08b6be4924573e10d361008f2bfb422fb', 1793539230165);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (448, 'f4b24e7d15c2a84b1df00bd9a0ad2fd55bc44406f5458710854162a206ef4fc0', 1793539230166);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (449, 'f4f00b68a60551adcde7dbafff3f8cfe3c5e8aa209c6e573801bae33ced93543', 1793539230167);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (450, '611e37791cc75427b1544e24cede2a895e03acf81727521de213ef05554d7a58', 1793539230168);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (451, '99ffd1a9f9cf15373b881b05fe08c26c9f48bb3434c902379b0db02e89a91509', 1793539230169);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (452, '30167fdc55bfa6045ffde08358d8fcfe5e06e00139504adda9faa248d9fcb6b6', 1793539230170);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (453, '7f89e39cab611b79178eeea7838efd5a3fc0fb72be779ee466c98778534672fc', 1793539230171);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (454, '81d1f7f55bb68d86f58f474712799b7726098999069bcb6fcaacf3bb3dd40803', 1793539230172);
 
 
 --
@@ -549,12 +552,8 @@ INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:202
 INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260808_0011_drop_legacy_users.sql', '2026-08-09 17:41:53.847209+03');
 INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260808_0012_drop_legacy_telegram_state.sql', '2026-08-09 17:41:53.848981+03');
 INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260812_0001_offline_drop_legacy_identity.sql', '2026-08-13 00:54:06.586928+03');
--- The one-step target already contains the end state represented by these two reconciliation
--- migrations: retired mailing tables are absent and booking_calendar_map is canonical in public.
--- Seed their versions with the rest of the target ledger so locked runtime never tries to replay
--- historical transition SQL after the A -> B cutover.
-INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260814_0001_reconcile_retired_mailing_org_migrations.sql', '2026-08-15 00:00:00+03');
-INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260814_0002_reconcile_booking_calendar_map_location.sql', '2026-08-15 00:00:00+03');
+INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260814_0001_reconcile_retired_mailing_org_migrations.sql', '2026-08-15 18:15:35.243747+03');
+INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260814_0002_reconcile_booking_calendar_map_location.sql', '2026-08-15 18:15:35.309945+03');
 
 
 --
@@ -579,7 +578,7 @@ INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, m
 до 10 филиалов (локаций)
 Собственный бренд и логотип
 Возможность подключить собственный домен', 280000, 'RUB', '{"files": true, "booking": true, "courses": false, "branding": true, "mailings": true, "payments": true, "cms_pages": false, "clinic_team": true, "patient_app": false, "patient_card": true, "custom_domain": true, "subscriptions": true, "exercise_catalog": true, "exercise_packages": false, "patient_app_paid_subscription": false}', true, '2026-07-26 02:25:00.396696+03', '2026-07-26 02:25:00.397+03', 3, 'month', '{}', NULL, '{}', '{}', NULL, NULL, '[]');
-INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('2512c9fd-128d-484d-a83c-3593ae56fe8a', 'ПРОФИ', 'Все что в тарифе СТАРТ плюс: 
+INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('2512c9fd-128d-484d-a83c-3593ae56fe8a', 'ПРОФИ', 'Все что в тарифе СТАРТ плюс:
 Неограниченное количество клиентов
 Абонементы и онлайн оплата при записи
 Возможность настроить частичную или полную предоплату
@@ -615,7 +614,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 445, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 454, true);
 
 
 --

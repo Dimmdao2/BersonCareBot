@@ -1,3 +1,4 @@
+-- BCB-MIGRATION-BACKFILL
 -- Reconcile existing databases after 0143's fresh-PROD specialist anchor was corrected from the
 -- retired duplicate to the owner-approved canonical specialist.
 -- RECONCILES-MIGRATION-HASH: 0143_seed_staff_organization_members
@@ -6,26 +7,22 @@ DO $canonical_owner_membership$
 DECLARE
   v_organization_id constant uuid := 'a0000000-0000-4000-8000-000000000001';
   v_specialist_id constant uuid := 'c9515025-7224-4d9b-86b6-9cb7d26ea503';
-  v_doctor_user_id uuid;
+  v_doctor_user_id constant uuid := 'b0021a38-fb86-45e9-9aec-d85014e932d4';
+  v_doctor_phone constant text := '+79643805480';
   v_count integer;
 BEGIN
   SELECT count(*)::integer
   INTO v_count
   FROM public.platform_users
-  WHERE role = 'doctor'
+  WHERE id = v_doctor_user_id
+    AND phone_normalized = v_doctor_phone
+    AND role = 'doctor'
     AND merged_into_id IS NULL
     AND is_archived IS FALSE;
 
   IF v_count <> 1 THEN
-    RAISE EXCEPTION 'canonical membership reconcile expected one active doctor, found %', v_count;
+    RAISE EXCEPTION 'canonical membership reconcile expected the exact active owner doctor, found %', v_count;
   END IF;
-
-  SELECT id
-  INTO v_doctor_user_id
-  FROM public.platform_users
-  WHERE role = 'doctor'
-    AND merged_into_id IS NULL
-    AND is_archived IS FALSE;
 
   SELECT count(*)::integer
   INTO v_count
@@ -56,7 +53,7 @@ BEGIN
   ) VALUES (
     v_organization_id,
     v_doctor_user_id,
-    'doctor',
+    'owner',
     v_specialist_id,
     'active'
   )
@@ -71,7 +68,7 @@ BEGIN
   FROM public.be_organization_members
   WHERE organization_id = v_organization_id
     AND platform_user_id = v_doctor_user_id
-    AND role = 'doctor'
+    AND role = 'owner'
     AND specialist_id = v_specialist_id
     AND status = 'active';
 

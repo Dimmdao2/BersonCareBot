@@ -2962,6 +2962,27 @@
       "when": 1793539230169,
       "tag": "0426_seed_platform_integration_availability_local",
       "breakpoints": true
+    },
+    {
+      "idx": 423,
+      "version": "7",
+      "when": 1793539230170,
+      "tag": "0427_delivery_worker_attempt_journal_all_kinds_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 424,
+      "version": "7",
+      "when": 1793539230171,
+      "tag": "0428_email_otp_consume_exact_gate_first_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 425,
+      "version": "7",
+      "when": 1793539230172,
+      "tag": "0429_email_otp_public_roots_exact_gate_first_local",
+      "breakpoints": true
     }
   ]
 }

@@ -32,6 +32,15 @@ function regularDirectory(path, label) {
   return resolved;
 }
 
+function requiredLanguages(source) {
+  const languages = new Set();
+  if (/^\s*DO(?:\s|\$)/imu.test(source) || /\bLANGUAGE\s+'?plpgsql'?\b/iu.test(source)) {
+    languages.add('plpgsql');
+  }
+  if (/\bLANGUAGE\s+'?sql'?\b/iu.test(source)) languages.add('sql');
+  return [...languages].sort();
+}
+
 const allowed = new Set([
   '--db',
   '--migrator',
@@ -166,16 +175,23 @@ for (const migration of pending) {
     );
   }
   const ledgerValue = ledgerColumn === 'version' ? migration.version : migration.fileName;
+  const temporaryLanguages = requiredLanguages(source);
   const sql = [
     '\\set ON_ERROR_STOP on',
     'BEGIN;',
     `GRANT ${qOwner} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`,
+    ...temporaryLanguages.map(
+      (language) => `GRANT USAGE ON LANGUAGE ${identifier(language)} TO ${qOwner};`,
+    ),
     `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
     `SET LOCAL ROLE ${qOwner};`,
-    `\\i ${migration.path}`,
+    source,
     'RESET ROLE;',
     'RESET SESSION AUTHORIZATION;',
     `INSERT INTO integrator.schema_migrations(${ledgerColumn}) VALUES (${literal(ledgerValue)});`,
+    ...temporaryLanguages.map(
+      (language) => `REVOKE USAGE ON LANGUAGE ${identifier(language)} FROM ${qOwner};`,
+    ),
     `REVOKE ${qOwner} FROM ${qMigrator};`,
     `DO $$ BEGIN
        IF EXISTS (

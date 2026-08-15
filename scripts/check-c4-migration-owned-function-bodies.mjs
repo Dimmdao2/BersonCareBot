@@ -20,6 +20,7 @@ const MIGRATION_OWNED_FUNCTION_NAMES = [
   'app.read_media_worker_runtime_setting',
   'app.open_or_touch_operator_incident',
   'app.read_integrator_platform_integration_availability',
+  'app.record_operator_delivery_attempt',
   'app.release_principal_context',
 ];
 

@@ -819,6 +819,22 @@ identity data-fix, затем применяет hash-bound reviewed FIO и lega
 нулевой остаток живых непринятых legacy-записей. После подготовки данных он одним вызовом запускает
 `deploy/postgres/prod-to-target-cutover.sql`: одна транзакция заменяет PROD-схему A точной текущей DEV-схемой B,
 переносит подготовленные данные, записывает целевые webapp/integrator ledgers и удаляет legacy-схемы.
+
+Перед новой репетицией целевая схема B фиксируется только из уже доведённой DEV-базы, в таком порядке:
+
+```bash
+bash deploy/host/migrate-dev.sh --execute
+pnpm run refresh:prod-to-target-cutover
+pnpm run check:prod-to-target-cutover
+```
+
+Первая команда применяет штатные integrator/webapp migrations и завершает declaration reconcile. Вторая
+атомарно пересобирает четыре файла `deploy/postgres/generated/prod-to-target/` из точной локальной
+`bcb_webapp_dev`; она не создаёт, не удаляет и не восстанавливает БД. Третья побайтно доказывает, что снимок не
+отстал от DEV. Внутренние `migrate-local.mjs` и `migrate-integrator-local.mjs` отдельно оператором не запускаются:
+они не выполняют всю завершающую closure. После commit/push свежий PROD dump проходит уже показанный выше один
+owner-gated `deploy-test-full-reset.sh`; ручное наложение исторической цепочки поверх дампа не является этим путём.
+
 Целевой снимок задаёт реестр и audience строк `app_runtime_settings`, но значения уже существующих одноимённых
 зарегистрированных настроек перед удалением source-схемы обязательно пересобираются из канонического
 `system_settings` свежего PROD-дампа. Поэтому DEV-снимок не может стереть рабочий PROD URL/feature value;

@@ -611,6 +611,21 @@ validates exact local `bcb_webapp_dev`/`bcb_webapp_dev_user` and runs the ordina
 does not copy TEST, restore a dump or test RLS walls. Only for the migration window it grants the DEV database
 owner membership in `app_owner` and `BYPASSRLS`, then revokes and verifies both on success, failure or signal.
 
+After `migrate-dev.sh --execute` reports PASS, refresh and immediately verify the one A→B target snapshot:
+
+```bash
+pnpm run refresh:prod-to-target-cutover
+pnpm run check:prod-to-target-cutover
+```
+
+The refresh command is fixed to the existing local `bcb_webapp_dev`, requires an explicit confirmation token,
+checks that its Drizzle ledger reaches the repository journal, and rewrites only the four tracked files under
+`deploy/postgres/generated/prod-to-target/`. It does not create, restore, drop or migrate a database. Do not run
+the two internal owner-ordered migrators directly as an operator sequence: only `migrate-dev.sh` also completes
+the declaration reconcile and catalog audit required before schema B is captured. The fresh-dump rehearsal then
+uses the single owner-gated `deploy-test-full-reset.sh` command documented above; it never replays the historical
+migration chain on top of the restored dump.
+
 The DEV/disposable rehearsal path is now repo-tracked and separate from TEST services:
 
 ```bash
