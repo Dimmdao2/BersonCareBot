@@ -2352,6 +2352,20 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app_ext.digest(text,text)': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea',
+      execute: ['app_seam_dedicated_bot_owner', 'app_seam_password_auth_owner'],
+      purpose: 'private pgcrypto digest dependency of the dedicated-bot and password-auth seams',
+      typedArgs: ['text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
+      invocation: 'internal' as const,
+    }),
+    'app_ext.hmac(text,text,text)': rev10Function({
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea',
+      execute: ['app_seam_patient_invite_owner'],
+      purpose: 'private pgcrypto HMAC dependency of the patient-invite seam',
+      typedArgs: ['text', 'text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
+      invocation: 'internal' as const,
+    }),
     'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': rev10Function({
       owner: 'app_seam_telemetry_exclusion_owner', security: 'DEFINER', returns: 'record',
       execute: ['app_platform_settings'], purpose: 'return only sanitized registration-funnel events to platform operations',
@@ -3607,12 +3621,47 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         columns: ['confirming_channel', 'platform_user_id', 'valid_to'] },
     ],
   },
+  'public.operator_job_status': {
+    kind: 'direct',
+    purpose: 'the accepted webapp worker records and reads scheduler health ticks',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts',
+      'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+      'apps/webapp/src/infra/repos/pgOperatorHealthDigestRead.ts',
+    ],
+    grants: [
+      { role: 'app_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_worker', operations: ['INSERT'], columns: [
+        'job_key', 'job_family', 'last_status', 'last_started_at', 'last_finished_at',
+        'last_success_at', 'last_failure_at', 'last_duration_ms', 'last_error', 'meta_json',
+      ] },
+      { role: 'app_worker', operations: ['UPDATE'], columns: [
+        'job_family', 'last_status', 'last_started_at', 'last_finished_at', 'last_success_at',
+        'last_failure_at', 'last_duration_ms', 'last_error', 'meta_json',
+      ] },
+    ],
+  },
+  'public.outgoing_delivery_queue': {
+    kind: 'direct',
+    purpose: 'the accepted operational delivery worker claims and finishes cross-tenant queue rows',
+    codePaths: ['apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts'],
+    grants: [
+      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_operational_delivery_worker', operations: ['UPDATE'], columns: [
+        'status', 'reclaim_count', 'next_retry_at', 'dead_at', 'failure_class', 'last_error',
+        'updated_at', 'attempt_count', 'last_attempt_at', 'sent_at', 'payload_json',
+      ] },
+    ],
+  },
   'public.system_settings': {
     kind: 'direct',
-    purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows',
+    purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows; the accepted webapp worker reads only fixed global health keys',
     codePaths: [
       'apps/webapp/src/infra/repos/pgSystemSettings.ts',
       'apps/webapp/src/app/app/settings/page.tsx',
+      'apps/webapp/src/app-layer/health/runOperatorHealthDigestTick.ts',
+      'apps/webapp/src/app-layer/health/collectOperatorHealthDigestInput.ts',
+      'apps/webapp/src/app-layer/health/deliveryHeartbeatObserver.ts',
     ],
     grants: [
       { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
@@ -3626,6 +3675,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['UPDATE'],
         columns: ['value_json', 'updated_at', 'updated_by'] },
       { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
+      { role: 'app_worker', operations: ['SELECT'],
+        columns: ['key', 'scope', 'organization_id', 'value_json'] },
     ],
   },
   'public.operator_health_failure_archive': {
@@ -4141,12 +4192,12 @@ function revision10PatientHomeCatalogPolicies(
 }
 
 function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = app.current_org_id()) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = app.current_org_id()) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL WHEN current_user = 'app_worker'::name THEN organization_id IS NULL AND scope = 'admin' AND key IN ('operator_health_alert_config', 'admin_incident_alert_config', 'operator_health_projection_thresholds', 'operator_heartbeat_config') ELSE false END)";
   const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   return [
     { name: `rev10_system_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
-      to: ['app_staff', 'app_platform_settings'], using: readWall,
-      note: 'staff sees its clinic rows and non-secret doctor defaults; platform settings sees global rows' },
+      to: ['app_staff', 'app_platform_settings', 'app_worker'], using: readWall,
+      note: 'staff sees its clinic rows and non-secret doctor defaults; platform settings sees global rows; worker sees only fixed global health keys' },
     { name: `rev10_system_settings_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
       to: ['app_staff', 'app_platform_settings'], withCheck: writeWall,
       note: 'staff writes only its clinic rows; platform settings writes only global rows' },
@@ -4356,7 +4407,14 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
         usage: [...new Set([...REV10_RUNTIME, ...REV10_SEAM_OWNERS, 'app_seam_context_owner', ...loginNames])].sort(),
         create: ['app_object_owner'] },
       app_ext: { owner: 'app_object_owner', present: true,
-        usage: ['app_seam_context_owner', 'app_seam_identity_lookup_owner'], create: ['app_object_owner'] },
+        usage: [
+          'app_seam_context_owner',
+          'app_seam_dedicated_bot_owner',
+          'app_seam_identity_lookup_owner',
+          'app_seam_password_auth_owner',
+          'app_seam_patient_invite_owner',
+        ],
+        create: ['app_object_owner'] },
       public: { owner: 'app_object_owner', present: true, usage: schemaUsage('public'), create: ['app_object_owner'] },
       integrator: { owner: 'app_object_owner', present: true, usage: schemaUsage('integrator'), create: ['app_object_owner'] },
       drizzle: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },

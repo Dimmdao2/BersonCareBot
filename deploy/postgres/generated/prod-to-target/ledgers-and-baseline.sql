@@ -541,6 +541,12 @@ INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:202
 INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260808_0011_drop_legacy_users.sql', '2026-08-09 17:41:53.847209+03');
 INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260808_0012_drop_legacy_telegram_state.sql', '2026-08-09 17:41:53.848981+03');
 INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260812_0001_offline_drop_legacy_identity.sql', '2026-08-13 00:54:06.586928+03');
+-- The one-step target already contains the end state represented by these two reconciliation
+-- migrations: retired mailing tables are absent and booking_calendar_map is canonical in public.
+-- Seed their versions with the rest of the target ledger so locked runtime never tries to replay
+-- historical transition SQL after the A -> B cutover.
+INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260814_0001_reconcile_retired_mailing_org_migrations.sql', '2026-08-15 00:00:00+03');
+INSERT INTO integrator.schema_migrations (version, applied_at) VALUES ('core:20260814_0002_reconcile_booking_calendar_map_location.sql', '2026-08-15 00:00:00+03');
 
 
 --
@@ -609,4 +615,3 @@ SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 442, true);
 --
 
 \unrestrict 6xzycw3O74f0f9FxN40D7hBJa1BUoZPri2X8OgBphy4ZCgHYN04UzAxR2bLbMUg
-
