@@ -3507,11 +3507,11 @@ assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_
 [ -r "$SRC_REPO/$RESTORE" ] || { echo "FATAL: missing required file: $SRC_REPO/$RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER"; exit 1; }
-[ -f "$SAAS_SMOKE_LOGIN_ENV" ] && [ ! -L "$SAAS_SMOKE_LOGIN_ENV" ] || {
+sudo -u deploy test -f "$SAAS_SMOKE_LOGIN_ENV" && sudo -u deploy test ! -L "$SAAS_SMOKE_LOGIN_ENV" || {
   echo "FATAL: protected TEST owner-login packet is missing or is a symlink: $SAAS_SMOKE_LOGIN_ENV" >&2
   exit 1
 }
-[ "$(stat -Lc '%U:%G:%a' -- "$SAAS_SMOKE_LOGIN_ENV")" = "root:deploy:640" ] || {
+[ "$(sudo -u deploy stat -Lc '%U:%G:%a' -- "$SAAS_SMOKE_LOGIN_ENV")" = "root:deploy:640" ] || {
   echo "FATAL: protected TEST owner-login packet must be root:deploy 0640" >&2
   exit 1
 }
