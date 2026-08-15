@@ -55,6 +55,10 @@ type SystemSettingValueRow = {
   value_json: unknown;
 };
 
+export type MediaWorkerRuntimeSettingKey =
+  | 'video_hls_pipeline_enabled'
+  | 'video_watermark_enabled';
+
 /**
  * Keys `app.read_webapp_preauth_provider_setting(text)` (migration 0343) exposes to the bare
  * bootstrap/nonstaff login, which has no SELECT on `system_settings` at all (TEST owner findings
@@ -92,6 +96,16 @@ function parseSettingEnvelopeValue(valueJson: unknown): unknown | null {
   if (valueJson === null || typeof valueJson !== 'object' || Array.isArray(valueJson)) return null;
   const envelope = valueJson as Record<string, unknown>;
   return 'value' in envelope ? envelope.value : null;
+}
+
+export async function readMediaWorkerRuntimeSettingInnerValue(
+  key: MediaWorkerRuntimeSettingKey,
+): Promise<unknown | null> {
+  const result = await runWebappSql<{ value_json: unknown }>(
+    getWebappSqlDb(),
+    sql`SELECT app.read_media_worker_runtime_setting(${key}) AS value_json`,
+  );
+  return parseSettingEnvelopeValue(result.rows[0]?.value_json ?? null);
 }
 
 export async function readSystemSettingInnerValueByScopes(

@@ -2418,6 +2418,7 @@ const REV10_CONTEXT = {
         ...surface,
         ...(surface.relation === 'public.password_altcha_challenges'
           || surface.relation === 'public.password_login_identifier_protection'
+          || surface.relation === 'public.user_password_credentials'
           ? { tableOperations: ['SELECT' as const] }
           : {}),
       })),
@@ -3689,7 +3690,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.system_settings': {
     kind: 'direct',
-    purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows; accepted webapp and media workers read their fixed global runtime keys',
+    purpose: 'clinic staff manages its own settings and consumes global doctor defaults; platform settings manages only global rows; the accepted webapp worker reads only fixed global health keys',
     codePaths: [
       'apps/webapp/src/infra/repos/pgSystemSettings.ts',
       'apps/webapp/src/app/app/settings/page.tsx',
@@ -3710,8 +3711,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         columns: ['value_json', 'updated_at', 'updated_by'] },
       { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
       { role: 'app_worker', operations: ['SELECT'],
-        columns: ['key', 'scope', 'organization_id', 'value_json'] },
-      { role: 'app_operational_media_worker', operations: ['SELECT'],
         columns: ['key', 'scope', 'organization_id', 'value_json'] },
     ],
   },
