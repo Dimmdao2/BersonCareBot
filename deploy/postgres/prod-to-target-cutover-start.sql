@@ -318,6 +318,11 @@ ALTER SCHEMA public RENAME TO cutover_source_public;
 ALTER SCHEMA integrator RENAME TO cutover_source_integrator;
 ALTER SCHEMA drizzle RENAME TO cutover_source_drizzle;
 
+-- Fresh PROD schema A predates tenant-scoped settings. Normalize only the preserved
+-- source copy so finish.sql can rehydrate global values through the target B shape.
+ALTER TABLE cutover_source_public.system_settings
+  ADD COLUMN IF NOT EXISTS organization_id uuid;
+
 CREATE SCHEMA public;
 CREATE SCHEMA app;
 CREATE SCHEMA app_control;
