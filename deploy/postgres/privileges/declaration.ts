@@ -2172,6 +2172,10 @@ const REV10_CONTEXT = {
     email_password_find_login_candidate: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.reset-candidate',
       functionIdentity: 'app.email_password_find_reset_candidate(text)' },
+    email_auth_start_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.email-otp.challenge.start',
+      functionIdentity: 'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)' },
     auth_login_token_create: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.login-token.create',
       functionIdentity: 'app.auth_login_token_create(text,uuid,text,timestamp with time zone)' },
@@ -2461,6 +2465,27 @@ const REV10_CONTEXT = {
           'email_verified_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
         { relation: 'public.user_password_credentials', columns: ['user_id'], operations: ['SELECT'],
           evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
+    }),
+    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)': rev10Function({
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_pre_session'], purpose: 'auth.email-otp.challenge.start',
+      typedArgs: ['uuid', 'text', 'text', 'bigint', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.email_challenges', columns: [
+          'id', 'user_id', 'email', 'code_hash', 'expires_at', 'attempts', 'purpose',
+          'pending_delivery_code', 'delivery_token', 'delivery_claimed_at',
+        ], operations: ['SELECT', 'INSERT', 'DELETE'],
+        evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.email_send_cooldowns', columns: [
+          'user_id', 'email_normalized', 'last_sent_at',
+        ], operations: ['SELECT', 'INSERT', 'UPDATE'],
+        evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.outgoing_delivery_queue', columns: [
+          'organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
+          'attempt_count', 'max_attempts', 'next_retry_at', 'priority',
+        ], operations: ['INSERT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       ],
     }),
     'app.password_login_acquire_impl(text,text,uuid,text)': {

@@ -40,6 +40,48 @@ export type EmailChallengeCodeRow = {
 
 class EmailClaimConflictError extends Error {}
 
+export async function startEmailChallengeInDb(params: {
+  userId: string;
+  email: string;
+  codeHash: string;
+  expiresAt: number;
+  purpose: EmailChallengePurpose;
+  code: string;
+}): Promise<{ challengeId: string | null; retryAfterSeconds: number }> {
+  const identity = 'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)';
+  const query = `SELECT challenge_id::text, retry_after_seconds
+    FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6)`;
+  const result = await runWebappNamedRoot<{
+    challenge_id: string | null;
+    retry_after_seconds: number | string;
+  }>(
+    getWebappSqlDb(),
+    identity,
+    [
+      params.userId,
+      params.email,
+      params.codeHash,
+      params.expiresAt,
+      params.purpose,
+      params.code,
+    ],
+    webappSqlFromPgText(query, [
+      params.userId,
+      params.email,
+      params.codeHash,
+      params.expiresAt,
+      params.purpose,
+      params.code,
+    ]),
+  );
+  const row = result.rows[0];
+  if (!row) throw new Error('email_auth_start_challenge_empty_result');
+  return {
+    challengeId: row.challenge_id,
+    retryAfterSeconds: Number(row.retry_after_seconds),
+  };
+}
+
 function mergeDbClientFromTx(tx: WebappSqlTransactionExecutor): PlatformMergeDbClient {
   return {
     async query<R extends QueryResultRow = QueryResultRow>(
@@ -325,6 +367,7 @@ export async function resetEmailOtpLockout(userId: string): Promise<void> {
 }
 
 export const pgEmailAuthPort = {
+  startEmailChallenge: startEmailChallengeInDb,
   findEmailSendCooldown,
   deleteEmailChallengesForUser,
   insertEmailChallenge,

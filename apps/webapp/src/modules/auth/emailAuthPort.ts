@@ -46,6 +46,18 @@ export type ClaimVerifiedEmailOptions = {
 };
 
 export type EmailAuthDbPort = {
+  /**
+   * Atomically creates one challenge and its durable email-delivery job through the exact
+   * pre-session root. A null challengeId means the per-user/email cooldown is still active.
+   */
+  startEmailChallenge: (params: {
+    userId: string;
+    email: string;
+    codeHash: string;
+    expiresAt: number;
+    purpose: EmailChallengePurpose;
+    code: string;
+  }) => Promise<{ challengeId: string | null; retryAfterSeconds: number }>;
   findEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<Date | null>;
   deleteEmailChallengesForUser: (userId: string) => Promise<void>;
   insertEmailChallenge: (params: {

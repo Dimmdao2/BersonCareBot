@@ -9,7 +9,6 @@ import {
 } from '@/modules/auth/otpConstants';
 import type { EmailAuthDbPort, EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
-import { enqueueEmailOtpDelivery } from '@/modules/auth/emailOtpDeliveryQueuePort';
 
 export type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 
@@ -308,22 +307,6 @@ export async function startEmailChallenge(
     return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
   }
 
-  const db = requireEmailAuthDb();
-  const now = Date.now();
-  const lastSent = await db.findEmailSendCooldown(userId, email);
-  if (lastSent) {
-    const delta = Math.floor((now - new Date(lastSent).getTime()) / 1000);
-    if (delta < OTP_RESEND_COOLDOWN_SEC) {
-      return {
-        ok: false,
-        code: 'rate_limited',
-        retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - delta,
-      };
-    }
-  }
-
-  await db.deleteEmailChallengesForUser(userId);
-
   const code = generateEmailCode();
   const codeHash = hashEmailChallengeCode(code);
   const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
@@ -334,39 +317,40 @@ export async function startEmailChallenge(
     console.log(`[DEV] Email OTP code for ${email}: ${code}`);
   }
 
-  const { challengeId, deliveryToken } = await db.insertEmailChallenge({
-    userId,
-    email,
-    codeHash,
-    expiresAt,
-    purpose,
-    code,
-  });
-  // D27-C: enqueue onto the durable delivery queue instead of awaiting the provider here. This is
-  // what takes provider latency out of the public request (the D27-A2 timing oracle) and what
-  // makes a delivery failure visible to the operator instead of the person at the screen — see
-  // enqueueAuthEmailOtpDelivery / outgoingDeliveryWorker's auth_email_otp branch. A failure here
-  // means the ENQUEUE itself failed (DB outage), not that the provider rejected the code.
-  // D27-C fix round 2: the queue-facing port only carries the challenge id — recipient/code/subject
-  // are composed DB-side from the row just written above (app.email_auth_enqueue_otp_delivery).
-  // D27-C fix round 3: also carries deliveryToken, the one-shot ownership secret insertEmailChallenge
-  // just minted — never sent to the client, threaded straight from that call into this one.
   try {
-    await enqueueEmailOtpDelivery({ challengeId, deliveryToken });
+    // The exact pre-session root performs cooldown, challenge replacement and durable enqueue in
+    // one database transaction. This keeps public password reset/login on one declared capability
+    // instead of leaking the operation across seven patient-only helper calls.
+    const started = await requireEmailAuthDb().startEmailChallenge({
+      userId,
+      email,
+      codeHash,
+      expiresAt,
+      purpose,
+      code,
+    });
+    if (!started.challengeId) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        retryAfterSeconds: started.retryAfterSeconds,
+      };
+    }
+    return {
+      ok: true,
+      challengeId: started.challengeId,
+      retryAfterSeconds: started.retryAfterSeconds,
+    };
   } catch (err) {
     if (isEmailOtpDebugEnabled()) {
-      // Opt-in dev aid: tolerate enqueue failure (no DB delivery queue reachable). Code logged above.
       console.warn(
-        `[DEV] Email OTP enqueue failed for ${email}: ${String(err)}. Use the code from the log.`,
+        `[DEV] Email OTP start failed for ${email}: ${String(err)}. Use the code from the log.`,
       );
     } else {
-      await db.deleteEmailChallengeById(challengeId);
       return { ok: false, code: 'email_send_failed' };
     }
   }
-  await db.upsertEmailSendCooldown(userId, email);
-
-  return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
+  return { ok: false, code: 'email_send_failed' };
 }
 
 export async function confirmEmailChallenge(

@@ -1,5 +1,19 @@
 \set ON_ERROR_STOP on
 
+-- runtime-settings.sql supplies the target key/audience registry, but values for keys that already
+-- exist in the fresh PROD dump must come from its canonical system_settings rows, not from the DEV
+-- snapshot used to generate the target schema. Only same-key registered projection rows are copied;
+-- unregistered secret settings never enter app_runtime_settings.
+UPDATE public.app_runtime_settings AS runtime
+SET value_json = canonical.value_json,
+    updated_at = canonical.updated_at,
+    updated_by = canonical.updated_by
+FROM cutover_source_public.system_settings AS canonical
+WHERE canonical.key = runtime.key
+  AND canonical.scope = runtime.scope
+  AND canonical.organization_id IS NOT DISTINCT FROM runtime.organization_id
+  AND runtime.value_json IS DISTINCT FROM canonical.value_json;
+
 DROP SCHEMA cutover_source_integrator CASCADE;
 DROP SCHEMA cutover_source_drizzle CASCADE;
 DROP SCHEMA cutover_source_public CASCADE;

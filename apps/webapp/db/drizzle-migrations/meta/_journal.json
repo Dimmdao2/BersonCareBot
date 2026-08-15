@@ -2934,6 +2934,20 @@
       "when": 1793539230165,
       "tag": "0422_email_password_reset_candidate_root_local",
       "breakpoints": true
+    },
+    {
+      "idx": 419,
+      "version": "7",
+      "when": 1793539230166,
+      "tag": "0423_email_auth_start_challenge_root_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 420,
+      "version": "7",
+      "when": 1793539230167,
+      "tag": "0424_reconcile_runtime_settings_from_canonical_local",
+      "breakpoints": true
     }
   ]
 }

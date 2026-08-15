@@ -1,4 +1,5 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { logger } from '@/app-layer/logging/logger';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -43,7 +44,22 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (userId) {
-    void startEmailChallenge(userId, emailNorm, 'password_reset').catch(() => undefined);
+    void startEmailChallenge(userId, emailNorm, 'password_reset').then(
+      (result) => {
+        if (!result.ok && result.code === 'email_send_failed') {
+          logger.warn(
+            { route: 'auth/email-password/forgot', outcome: 'email_delivery_failed' },
+            'auth/email-password/forgot delivery failed',
+          );
+        }
+      },
+      () => {
+        logger.warn(
+          { route: 'auth/email-password/forgot', outcome: 'email_delivery_exception' },
+          'auth/email-password/forgot delivery failed',
+        );
+      },
+    );
     return forgotPasswordNeutralResponse(OTP_RESEND_COOLDOWN_SEC);
   }
 

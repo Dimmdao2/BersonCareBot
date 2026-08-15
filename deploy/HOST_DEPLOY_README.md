@@ -815,6 +815,11 @@ identity data-fix, затем применяет hash-bound reviewed FIO и lega
 нулевой остаток живых непринятых legacy-записей. После подготовки данных он одним вызовом запускает
 `deploy/postgres/prod-to-target-cutover.sql`: одна транзакция заменяет PROD-схему A точной текущей DEV-схемой B,
 переносит подготовленные данные, записывает целевые webapp/integrator ledgers и удаляет legacy-схемы.
+Целевой снимок задаёт реестр и audience строк `app_runtime_settings`, но значения уже существующих одноимённых
+зарегистрированных настроек перед удалением source-схемы обязательно пересобираются из канонического
+`system_settings` свежего PROD-дампа. Поэтому DEV-снимок не может стереть рабочий PROD URL/feature value;
+незарегистрированные секретные ключи в runtime-проекцию не копируются. После этого TEST-overlay меняет только
+явно перечисленные TEST-ключи.
 Исторические webapp/integrator migration runners, их промежуточные bridge-роли и отдельные online-index шаги в
 fresh-reset больше не запускаются. Сбой любого сегмента откатывает весь A → B переход.
 Точные логины и права остаются финальным port-context cutover, а bridge-роли удаляет его target zero. В том же stopped-writers окне сохраняется durable FIO rollback,
