@@ -18,6 +18,12 @@ import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
 } from '@/modules/auth/authConfirmRateLimit';
+import { getServerConfigStructuredValue } from '@/modules/system-settings/configAdapter';
+import {
+  normalizeTestAccountIdentifiersValue,
+  sessionMatchesTestAccountIdentifiers,
+} from '@/modules/system-settings/testAccounts';
+import type { SessionUser } from '@/shared/types/session';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
@@ -28,6 +34,32 @@ const bodySchema = z.object({
 const INVALID_CREDENTIALS_MESSAGE =
   'Email или пароль неверны. Проверьте данные или восстановите пароль.';
 const SERVER_ERROR_MESSAGE = 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.';
+
+async function isConfiguredTestPatientPasswordLogin(
+  user: SessionUser | null,
+  emailNormalized: string,
+): Promise<boolean> {
+  if (!user || user.role !== 'client') return false;
+  try {
+    const identifiers = normalizeTestAccountIdentifiersValue(
+      await getServerConfigStructuredValue('test_account_identifiers'),
+    );
+    if (!identifiers) return false;
+    return (
+      identifiers.emails.includes(emailNormalized) ||
+      sessionMatchesTestAccountIdentifiers(
+        {
+          phone: user.phone,
+          telegramId: user.bindings.telegramId,
+          maxId: user.bindings.maxId,
+        },
+        identifiers,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-password/login:POST', request);
@@ -136,11 +168,28 @@ export async function POST(request: Request) {
       sessionUser = { ...sessionUser, role: effectiveRole };
     }
 
-    if (!isPasswordEligibleRole(sessionUser.role)) {
+    const testPatientPasswordLogin = await isConfiguredTestPatientPasswordLogin(
+      sessionUser,
+      emailNorm,
+    );
+    if (!isPasswordEligibleRole(sessionUser.role) && !testPatientPasswordLogin) {
       return NextResponse.json(
         { ok: false, error: PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR },
         { status: 403 },
       );
+    }
+
+    // Owner-approved TEST walkthrough exception (15.08.2026): the configured Dmitry Berson patient
+    // account must be reachable with the same protected packet password as the doctor/admin accounts.
+    // It remains a patient session and never enters the staff-factor pipeline. Production patients
+    // and unlisted TEST patients retain the passwordless policy.
+    if (sessionUser.role === 'client') {
+      await setSessionFromUser(sessionUser);
+      return NextResponse.json({
+        ok: true,
+        redirectTo: getRedirectPathForRole(sessionUser.role),
+        role: sessionUser.role,
+      });
     }
 
     let security = await deps.staffSecurity.getStatus();

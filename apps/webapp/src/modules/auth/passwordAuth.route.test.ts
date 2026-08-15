@@ -40,6 +40,7 @@ const fakes = vi.hoisted(() => ({
   issueStaffLoginContinuation: vi.fn<IssueStaffLoginContinuation>(),
   requireStaffSession: vi.fn<RequireStaffSession>(),
   setSession: vi.fn<SetSession>(),
+  getStructuredSetting: vi.fn(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({ stampBootstrapPrincipal: vi.fn() }));
@@ -69,6 +70,9 @@ vi.mock('@/modules/auth/staffLoginContinuation', () => ({
   issueStaffLoginContinuation: fakes.issueStaffLoginContinuation,
 }));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: fakes.setSession }));
+vi.mock('@/modules/system-settings/configAdapter', () => ({
+  getServerConfigStructuredValue: fakes.getStructuredSetting,
+}));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     passwordAltcha: { verify: fakes.verifyAltcha },
@@ -141,6 +145,12 @@ beforeEach(() => {
   fakes.updatePassword.mockResolvedValue(undefined);
   fakes.requireStaffSession.mockResolvedValue({ ok: true, session });
   fakes.getVerifiedEmail.mockResolvedValue('person@example.test');
+  fakes.getStructuredSetting.mockResolvedValue({
+    phones: [],
+    telegramIds: [],
+    maxIds: [],
+    emails: [],
+  });
 });
 
 describe('email/password login HTTP boundary', () => {
@@ -251,7 +261,7 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
-  it('blocks a correct password for a patient account (patients have no password)', async () => {
+  it('blocks a correct password for an unlisted patient account', async () => {
     fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
     fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
 
@@ -263,6 +273,28 @@ describe('email/password login HTTP boundary', () => {
       error: 'password_not_available_for_role',
     });
     expect(fakes.setSession).not.toHaveBeenCalled();
+  });
+
+  it('allows the configured TEST patient password without entering staff-factor handling', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue({ ...user, role: 'client', phone: '+12025550101' });
+    fakes.getStructuredSetting.mockResolvedValue({
+      phones: ['+12025550101'],
+      telegramIds: [],
+      maxIds: [],
+      emails: [],
+    });
+
+    const response = await login(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      redirectTo: '/app/patient',
+      role: 'client',
+    });
+    expect(fakes.setSession).toHaveBeenCalledOnce();
+    expect(fakes.getSecurityStatus).not.toHaveBeenCalled();
   });
 
   it('returns a typed our-side failure instead of an empty body when an unhandled exception hits the DB', async () => {
