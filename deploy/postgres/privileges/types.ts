@@ -261,6 +261,8 @@ export interface NamedSeamAccess {
   operations: Privilege[];
   /** Per-operation subset when PostgreSQL needs fewer columns than the union surface. */
   operationColumns?: Partial<Record<Privilege, string[]>>;
+  /** Operations which require a table-level grant (for example a bounded ctid retention scan). */
+  tableOperations?: Privilege[];
   purpose: string;
 }
 
@@ -284,6 +286,8 @@ export interface FunctionRelationSurface {
   operations: readonly Privilege[];
   /** Per-operation subset when one statement surface must not inherit the union of all columns. */
   operationColumns?: Partial<Record<Privilege, readonly string[]>>;
+  /** Operations which use PostgreSQL system columns and therefore cannot use column-level ACLs. */
+  tableOperations?: readonly Privilege[];
   /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
   evidence:
     | 'pg16-function-body-lexical-upper-bound'

@@ -2412,6 +2412,15 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
       execute: [], invocation: 'internal' as const,
       purpose: 'private implementation behind exact-gated app.password_login_acquire',
+      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
+        'app.password_login_acquire(text,text,uuid,text)'
+      ].relationSurfaces?.map((surface) => ({
+        ...surface,
+        ...(surface.relation === 'public.password_altcha_challenges'
+          || surface.relation === 'public.password_login_identifier_protection'
+          ? { tableOperations: ['SELECT' as const] }
+          : {}),
+      })),
     },
     'app.password_login_complete_impl(uuid,boolean)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_complete(uuid,boolean)'],
@@ -3768,6 +3777,7 @@ function revision10RelationSeams(tableKey: string, dbName: string): NamedSeamAcc
       ...(surface.operationColumns ? { operationColumns: Object.fromEntries(
         Object.entries(surface.operationColumns).map(([operation, columns]) => [operation, [...columns]]),
       ) } : {}),
+      ...(surface.tableOperations ? { tableOperations: [...surface.tableOperations] } : {}),
       purpose: `${fn.purpose}: ${tableKey}`,
     });
   }
@@ -3814,7 +3824,14 @@ function revision10TableGrants(access: RelationAccess): Record<string, GrantDecl
   }
   for (const seam of access.kind === 'direct' ? access.seams : access.seams) {
     for (const operation of seam.operations) {
-      add(seam.owner, [operation], seam.operationColumns?.[operation] ?? seam.columns, seam.purpose);
+      add(
+        seam.owner,
+        [operation],
+        seam.tableOperations?.includes(operation)
+          ? 'table'
+          : seam.operationColumns?.[operation] ?? seam.columns,
+        seam.purpose,
+      );
     }
   }
   return Object.fromEntries([...byRole.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([role, row]) => [role, {
