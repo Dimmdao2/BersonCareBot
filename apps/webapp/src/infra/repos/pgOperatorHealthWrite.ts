@@ -28,23 +28,11 @@ async function upsertOperatorJobSuccess(input: {
 }): Promise<void> {
   const db = getDrizzle();
   const finishedIso = new Date().toISOString();
-  await db
-    .insert(operatorJobStatus)
-    .values({
-      jobKey: input.jobKey,
-      jobFamily: input.jobFamily,
-      lastStatus: 'success',
-      lastStartedAt: input.startedAtIso,
-      lastFinishedAt: finishedIso,
-      lastSuccessAt: finishedIso,
-      lastFailureAt: null,
-      lastDurationMs: input.durationMs,
-      lastError: null,
-      metaJson: input.metaJson,
-    })
-    .onConflictDoUpdate({
-      target: operatorJobStatus.jobKey,
-      set: {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(operatorJobStatus)
+      .values({
+        jobKey: input.jobKey,
         jobFamily: input.jobFamily,
         lastStatus: 'success',
         lastStartedAt: input.startedAtIso,
@@ -54,8 +42,22 @@ async function upsertOperatorJobSuccess(input: {
         lastDurationMs: input.durationMs,
         lastError: null,
         metaJson: input.metaJson,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: operatorJobStatus.jobKey,
+        set: {
+          jobFamily: input.jobFamily,
+          lastStatus: 'success',
+          lastStartedAt: input.startedAtIso,
+          lastFinishedAt: finishedIso,
+          lastSuccessAt: finishedIso,
+          lastFailureAt: null,
+          lastDurationMs: input.durationMs,
+          lastError: null,
+          metaJson: input.metaJson,
+        },
+      });
+  });
 }
 
 async function upsertOperatorJobFailure(input: {
@@ -71,33 +73,35 @@ async function upsertOperatorJobFailure(input: {
   const finishedIso = new Date().toISOString();
   const err = clampErrorMessage(input.error);
   const metaJson = input.clearMetaOnFailure ? {} : input.metaJson;
-  await db
-    .insert(operatorJobStatus)
-    .values({
-      jobKey: input.jobKey,
-      jobFamily: input.jobFamily,
-      lastStatus: 'failure',
-      lastStartedAt: input.startedAtIso,
-      lastFinishedAt: finishedIso,
-      lastSuccessAt: null,
-      lastFailureAt: finishedIso,
-      lastDurationMs: input.durationMs,
-      lastError: err,
-      metaJson,
-    })
-    .onConflictDoUpdate({
-      target: operatorJobStatus.jobKey,
-      set: {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(operatorJobStatus)
+      .values({
+        jobKey: input.jobKey,
         jobFamily: input.jobFamily,
         lastStatus: 'failure',
         lastStartedAt: input.startedAtIso,
         lastFinishedAt: finishedIso,
+        lastSuccessAt: null,
         lastFailureAt: finishedIso,
         lastDurationMs: input.durationMs,
         lastError: err,
         metaJson,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: operatorJobStatus.jobKey,
+        set: {
+          jobFamily: input.jobFamily,
+          lastStatus: 'failure',
+          lastStartedAt: input.startedAtIso,
+          lastFinishedAt: finishedIso,
+          lastFailureAt: finishedIso,
+          lastDurationMs: input.durationMs,
+          lastError: err,
+          metaJson,
+        },
+      });
+  });
 }
 
 export const pgOperatorHealthWritePort: OperatorHealthWritePort = {

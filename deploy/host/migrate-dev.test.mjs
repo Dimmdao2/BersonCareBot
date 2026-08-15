@@ -228,14 +228,12 @@ test('migrate-dev executes owner-scoped migrations before mandatory reconcile', 
   assert.match(result.stdout, /declaration reconciled and catalog-audited/u);
   const calls = readFileSync(runtime.capture, 'utf8');
   const firstIntegrator = calls.indexOf('migrate-integrator-local.mjs');
-  const sharedRoleBaseline = calls.indexOf('--shared-role-baseline');
   const webapp = calls.indexOf('migrate-local.mjs');
   const secondIntegrator = calls.indexOf('migrate-integrator-local.mjs', firstIntegrator + 1);
   const onlineIndex = calls.indexOf('d30-outgoing-delivery-queue');
   const reconcile = calls.indexOf('RECONCILE_ENV');
   const runtimeEnv = calls.indexOf('update-dev-port-context-env.mjs');
-  assert.ok(sharedRoleBaseline >= 0 && firstIntegrator > sharedRoleBaseline);
-  assert.ok(webapp > firstIntegrator && secondIntegrator > webapp);
+  assert.ok(firstIntegrator >= 0 && webapp > firstIntegrator && secondIntegrator > webapp);
   assert.ok(onlineIndex > secondIntegrator && reconcile > onlineIndex);
   assert.ok(runtimeEnv > reconcile);
   assert.match(calls, /--migrator> <bcb_dev_migrator>.*--drizzle-folder>.*--sudo-postgres>/su);

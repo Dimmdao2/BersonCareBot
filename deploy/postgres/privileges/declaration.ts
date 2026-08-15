@@ -756,6 +756,14 @@ const PROCONFIG_EXCEPTIONS: Record<string, DefinerException> = {
     why: 'чтение здоровья исходящих инцидентов. ⚠ ДРЕЙФ владения: живьём владелец — мигратор-логин; цель — '
       + 'app_owner (§C). TODO(census-gap G3) для остальных 37.',
   },
+  'app.read_tenant_isolation_canary()': {
+    owner: 'saas_system_health_owner',
+    searchPath: ['search_path=pg_catalog'],
+    execute: ['saas_telemetry_operator'],
+    isNew: true,
+    why: 'ограниченный cross-tenant canary для критического health tick; runtime получает только active/member counts, '
+      + 'а прямой SELECT по be_organizations и be_organization_members остаётся закрыт',
+  },
   'app.resolve_organization_for_channel_identity(text,text)': {
     owner: 'app_owner',
     searchPath: ['search_path=app, public, integrator, pg_catalog'],
@@ -782,7 +790,7 @@ const OWNERSHIP_EXCEPTIONS: DefinerExceptionsSection['ownershipExceptions'] = {
       functions: { todo: 'TODO(census-gap G3): 7 имён не перечислены read-only переписью' },
     },
     saas_system_health_owner: {
-      count: 4, why: 'владеет definer-функциями health-агрегации; BYPASSRLS-владелец (§I Р9)',
+      count: 5, why: 'владеет definer-функциями health-агрегации; BYPASSRLS-владелец (§I Р9)',
       functions: { todo: 'TODO(census-gap G3): 4 имени не перечислены' },
     },
     app_web_push_reminder_discovery_definer: {
@@ -1915,6 +1923,7 @@ const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
   'api/internal/product-analytics/retention:POST',
+  'operator-health-failure-archive:prune',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
@@ -3246,6 +3255,18 @@ const REV10_CONTEXT = {
         columns: ['resolved_at', 'alert_claim_phase', 'alert_claim_token', 'alert_claimed_at'],
         operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    'app.read_tenant_isolation_canary()': rev10Function({
+      owner: 'saas_system_health_owner', security: 'DEFINER', returns: 'jsonb',
+      execute: ['saas_telemetry_operator'],
+      purpose: 'return a bounded organization/member-count snapshot for the critical isolation canary',
+      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['id', 'organization_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record',
       execute: ['app_platform_admin'], purpose: 'list only sanitized platform health archive fields',
@@ -4027,10 +4048,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.operator_health_failure_archive': {
-    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; platform access is sanitized through named seams',
+    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; the maintenance worker prunes expired rows; platform access is sanitized through named seams',
     codePaths: ['apps/webapp/src/app/api/doctor/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
   },
   'integrator.projection_outbox': {

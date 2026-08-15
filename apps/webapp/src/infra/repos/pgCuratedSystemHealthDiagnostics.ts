@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { getSaasIsolationOperatorPool } from '@/infra/db/saasIsolationTelemetry';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import type { TenantIsolationCanarySnapshot } from '@/modules/operator-health/ports';
 
 const nonNegativeNumber = z.number().finite().nonnegative();
 const nullableIso = z
@@ -261,6 +262,23 @@ export const curatedPlaybackHealthSnapshotSchema = z
 
 export type CuratedPlaybackHealthSnapshot = z.infer<typeof curatedPlaybackHealthSnapshotSchema>;
 
+const tenantIsolationCanarySnapshotSchema = z
+  .object({
+    organizations: z
+      .array(
+        z
+          .object({
+            organizationId: z.string().uuid(),
+            isActive: z.boolean(),
+            memberRowCount: z.number().int().nonnegative(),
+          })
+          .strict(),
+      )
+      .max(4_096),
+    truncated: z.boolean(),
+  })
+  .strict();
+
 /** Uses the already-protected diagnostics credential; never the principal-aware app pool. */
 export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHealthSnapshot> {
   const result = await runPgPoolPgText<{
@@ -277,6 +295,17 @@ export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHe
       ? { ...row.snapshot, outboundProviderIncidents: row.outbound_provider_incidents }
       : row.snapshot;
   return curatedSystemHealthSnapshotSchema.parse(snapshot);
+}
+
+/** Bounded cross-tenant canary through the same protected diagnostics capability. */
+export async function loadTenantIsolationCanarySnapshot(): Promise<TenantIsolationCanarySnapshot> {
+  const result = await runPgPoolPgText<{ snapshot: unknown }>(
+    getSaasIsolationOperatorPool(),
+    'SELECT app.read_tenant_isolation_canary() AS snapshot',
+  );
+  const row = result.rows[0];
+  if (!row) throw new Error('tenant_isolation_canary_snapshot_missing');
+  return tenantIsolationCanarySnapshotSchema.parse(row.snapshot);
 }
 
 /** Uses a redacted SECURITY DEFINER aggregate; the operator role has no source-table access. */

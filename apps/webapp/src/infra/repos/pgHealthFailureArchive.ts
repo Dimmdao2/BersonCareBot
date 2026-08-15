@@ -198,10 +198,12 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
 
   async deleteArchivedBefore(cutoffIso: string): Promise<number> {
     const db = getDrizzle();
-    const del = await db
-      .delete(operatorHealthFailureArchive)
-      .where(lt(operatorHealthFailureArchive.archivedAt, cutoffIso))
-      .returning({ id: operatorHealthFailureArchive.id });
-    return del.length;
+    return db.transaction(async (tx) => {
+      const deleted = await tx
+        .delete(operatorHealthFailureArchive)
+        .where(lt(operatorHealthFailureArchive.archivedAt, cutoffIso))
+        .returning({ id: operatorHealthFailureArchive.id });
+      return deleted.length;
+    });
   },
 };

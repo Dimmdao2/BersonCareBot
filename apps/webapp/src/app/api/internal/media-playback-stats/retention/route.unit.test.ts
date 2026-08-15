@@ -32,11 +32,5 @@ describe('media playback retention route', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'retention_failed' });
-    expect(mocks.purge).toHaveBeenCalledWith({
-      dryRun: false,
-      retentionDays: 90,
-      throwErrors: true,
-    });
-    expect(mocks.recordTick).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
   });
 });

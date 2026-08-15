@@ -3046,6 +3046,13 @@
       "when": 1793539230181,
       "tag": "0438_expand_media_worker_runtime_settings_local",
       "breakpoints": true
+    },
+    {
+      "idx": 435,
+      "version": "7",
+      "when": 1793539230182,
+      "tag": "0439_tenant_isolation_canary_health_root_local",
+      "breakpoints": true
     }
   ]
 }

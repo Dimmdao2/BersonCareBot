@@ -3,6 +3,7 @@ import { logger } from '@/app-layer/logging/logger';
 import { classifyIntegratorPushOutboxSystemHealthStatus } from '@/modules/operator-health/integratorPushOutboxHealth';
 import { WEBHOOK_ERROR_EVENTS_RETENTION_HOURS } from '@/modules/operator-health/webhookBurst';
 import { loadCuratedSystemHealthSnapshot } from '@/infra/repos/pgCuratedSystemHealthDiagnostics';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 
 async function purgeIntegrationWebhookErrorEventsBestEffort(): Promise<void> {
   try {
@@ -23,7 +24,10 @@ async function purgeIntegrationWebhookErrorEventsBestEffort(): Promise<void> {
 
 async function purgeHealthFailureArchiveTtlBestEffort(): Promise<void> {
   try {
-    const purge = await buildAppDeps().healthFailureArchive.purgeExpired();
+    const purge = await runWithDbInfraPrincipal(
+      { source: 'operator-health-failure-archive:prune' },
+      () => buildAppDeps().healthFailureArchive.purgeExpired(),
+    );
     if (purge.deleted > 0) {
       logger.info(
         { deleted: purge.deleted },

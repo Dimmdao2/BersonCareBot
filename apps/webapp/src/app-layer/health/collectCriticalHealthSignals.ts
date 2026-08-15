@@ -41,6 +41,7 @@ import {
 } from '@/app-layer/health/deliveryHeartbeatObserver';
 import {
   loadCuratedSystemHealthSnapshot,
+  loadTenantIsolationCanarySnapshot,
   type CuratedSystemHealthSnapshot,
 } from '@/infra/repos/pgCuratedSystemHealthDiagnostics';
 
@@ -336,7 +337,7 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
   const [base, isolationDiagnostics, isolationCanary] = await Promise.all([
     collectScheduledCriticalHealthSignalsBase(deps.operatorHealthRead),
     deps.saasIsolationDiagnostics.readHealth().catch(() => null),
-    deps.operatorHealthRead.getTenantIsolationCanarySnapshot().catch(() => null),
+    loadTenantIsolationCanarySnapshot().catch(() => null),
   ]);
   const observedAt = Date.now();
   return {
