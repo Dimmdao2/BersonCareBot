@@ -4,16 +4,16 @@ Authority: `full-control-pass-brief.md`. Executable declarations: `scenarios.mjs
 
 ## Role/page coverage
 
-- `global_admin` (actual `dimmdao@gmail.com`): 16 declared roots, including every flat platform-nav
-  destination, all four booking subpages, all five Commercial tabs, account security, and runtime
-  organization-detail links discovered from rendered pages.
-- `doctor` / clinic owner (actual `dimmdao@yandex.ru`): 30 declared roots, including all doctor-nav
+- `global_admin` (actual `dimmdao@gmail.com`): every unique platform route template, all five
+  Commercial tabs, account security, and one representative runtime organization-detail template.
+- `doctor` / clinic owner (actual `dimmdao@yandex.ru`): declared roots include all doctor-nav
   destinations, all three Schedule tabs, all nine Setup sections, all three clinic-settings tabs,
-  account, and runtime patient/catalog detail links discovered from rendered pages.
-- `patient` (actual phone `+79189000782`, supplied as an already-minted DEV session cookie): 19
+  account, one representative per runtime content/catalog detail template, and all eight tabs of the
+  exact `+79189000782` / «Берсон Дмитрий» patient card.
+- `patient` (actual phone `+79189000782`, supplied as an already-minted DEV session cookie):
   declared roots, all five primary-nav roots, profile/organization/notification/reminder/purchase
-  surfaces, CMS/help/support/install pages, daily-warmup deep link, and runtime program/item/journal
-  links discovered from rendered pages.
+  surfaces, CMS/help/support/install pages, home-page daily-warmup CTA, and one representative per
+  runtime program/content template.
 
 Those counts come from:
 
@@ -21,30 +21,29 @@ Those counts come from:
 node --input-type=module -e "import {ROLE_SCENARIOS} from './runs/dev-interactive-audit/scenarios.mjs'; for (const [role,v] of Object.entries(ROLE_SCENARIOS)) console.log(role, v.routes.length)"
 ```
 
-Each page records final URL, substantive body proof, navigation status, DOM/cold and warm settled
-latency, all rendered tabs and their action latency, browser console/page errors, request failures,
-same-origin API responses and all HTTP 4xx/5xx (including redirected media hosts). Only aborted document
-navigations caused by the harness moving to the next page are excluded.
+Each page records exact final URL with preserved query, a unique main/panel marker, navigation status,
+DOM/cold and warm settled latency, required-tab click/readback latency, browser console/page errors,
+request failures, same-origin API responses and all HTTP 4xx/5xx. `net::ERR_ABORTED` is ignored only
+while the harness itself is replacing the current document; settled-page aborts remain failures.
 
 ## Control checks ready to run
 
 | Adapter                              | Mutation/readback/restore contract                                                                                    |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| global admin registration tariff     | current tariff/null → alternate → exact GET → original → exact GET                                                    |
-| global admin trial                   | current duration → ±1 day → exact GET → original → exact GET                                                          |
-| global admin paid-period policy      | current `isActive` → inverse → exact GET → original → exact GET                                                       |
-| doctor weekly working schedule       | own active row start minute → +1 → exact GET → original → exact GET                                                   |
-| doctor location/service availability | one existing active service+location+specialist tuple → inverse → overview readback → original → overview readback    |
-| patient reminder enabled             | rendered switch value → inverse → reload/read → original → reload/read                                                |
-| patient reminder time                | rendered schedule time → ±1 minute → save/reopen/read → original → save/reopen/read                                   |
+| global admin registration tariff     | rendered selector: current tariff/null → alternate → save/reload/exact GET → original → save/reload/exact GET         |
+| global admin trial                   | rendered duration → ±1 day → save/reload/exact GET → original → save/reload/exact GET                                 |
+| global admin paid-period policy      | rendered `isActive` → inverse → save/reload/exact GET → original → save/reload/exact GET                              |
+| doctor weekly working schedule       | rendered weekday time → alternate 15-minute slot through `POST replace=true` → exact GET → UI restore → exact GET     |
+| doctor location/service availability | rendered service×location switch → inverse → full matrix readback → UI restore → lossless full-matrix readback        |
+| patient program/warmup enabled       | each exact rendered switch → inverse → reload/read → original → reload/read                                           |
+| patient program/warmup time          | each exact rendered dialog time → alternate → save/reopen/read → original → save/reopen/read                          |
 | patient chat                         | rendered composer → append labelled DEV audit message → require visible readback; row remains by append-only contract |
-| patient daily warmup                 | `/go/daily-warmup` → require substantive `/content/*` target                                                          |
+| patient daily warmup                 | rendered «Начать разминку» on `/app/patient` → require substantive `/content/*` target                                |
 | patient phone change                 | profile action → require bind-phone surface; stop before number submission                                            |
 
-The phone-change flow is page/open-only. Password, deletion, payment, external delivery, registration
-and exercise-comment controls are deliberately not mutated. Reminder time mutation supports both
-interval-window and exact-slot schedules and restores through the same rendered dialog. Chat is the
-single explicit append-only exception authorized for DEV and is marked as retained in the artifact.
+The phone-change flow is page/open-only. Password, deletion, contact-change and external delivery are
+not mutated. Reminder mutations restore through the same rendered dialogs. Chat and an actual payment
+link attempt are explicit append-only DEV evidence and are marked as retained in the artifact.
 
 ## Authentication and execution state
 
