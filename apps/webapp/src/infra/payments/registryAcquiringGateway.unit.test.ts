@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
-import type {
-  BookingPaymentSettings,
-  PaymentProviderConfig,
-} from '@/modules/payments/types';
+import type { BookingPaymentSettings, PaymentProviderConfig } from '@/modules/payments/types';
 
 type GetPaymentProviderAdapter =
   typeof import('@/infra/payments/paymentProviderRegistry').getPaymentProviderAdapter;
@@ -57,6 +54,7 @@ describe('registry acquiring provider boundary', () => {
 
     await expect(
       gateway.createCharge({
+        organizationId: '00000000-0000-4000-8000-000000001074',
         patientUserId: '00000000-0000-4000-8000-000000001074',
         amountMinor: 12_345,
         currency: 'RUB',
@@ -74,6 +72,7 @@ describe('registry acquiring provider boundary', () => {
 
     await expect(
       gateway.createCharge({
+        organizationId: '00000000-0000-4000-8000-000000001074',
         patientUserId: '00000000-0000-4000-8000-000000001074',
         amountMinor: 12_345,
         currency: 'RUB',

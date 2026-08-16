@@ -90,6 +90,8 @@ export interface PatientPaymentsPort {
  * Расширяется при подключении конкретного провайдера (ЮКасса/ЮМани/etc.).
  */
 export type AcquiringChargeInput = {
+  /** Server-derived clinic that owns both the patient ledger and provider settings. */
+  organizationId: string;
   patientUserId: string;
   amountMinor: number;
   currency: string;
@@ -137,6 +139,7 @@ export interface AcquiringGatewayPort {
    * providerPaymentId — ref returned by createCharge.
    */
   refund(input: {
+    organizationId: string;
     providerPaymentId: string;
     amountMinor: number;
     currency: string;

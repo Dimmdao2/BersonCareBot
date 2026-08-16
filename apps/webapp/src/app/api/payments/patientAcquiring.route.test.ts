@@ -3,35 +3,29 @@ import { z } from 'zod';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import type { ClientIdentity } from '@/modules/doctor-clients/ports';
 import type { PatientPayment } from '@/modules/patient-payments/ports';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
-type AppDeps = ReturnType<
-  typeof import('@/app-layer/di/buildAppDeps').buildAppDeps
->;
+type AppDeps = ReturnType<typeof import('@/app-layer/di/buildAppDeps').buildAppDeps>;
 type RequireDoctorWorkspace =
   typeof import('@/app-layer/guards/requireRole').requireDoctorWorkspaceApiContext;
 type RequireEntitlement =
   typeof import('@/app-layer/guards/requireEntitlement').requireEntitlementForMutation;
 
 const fakes = vi.hoisted(() => ({
-  buildAppDeps:
-    vi.fn<typeof import('@/app-layer/di/buildAppDeps').buildAppDeps>(),
+  buildAppDeps: vi.fn<typeof import('@/app-layer/di/buildAppDeps').buildAppDeps>(),
   requireDoctorWorkspace: vi.fn<RequireDoctorWorkspace>(),
   requireEntitlement: vi.fn<RequireEntitlement>(),
-  getClientIdentity:
-    vi.fn<AppDeps['doctorClientsPort']['getClientIdentityForOrganization']>(),
+  getClientIdentity: vi.fn<AppDeps['doctorClientsPort']['getClientIdentityForOrganization']>(),
   createCharge: vi.fn<AppDeps['acquiringGateway']['createCharge']>(),
-  recordAcquiringCharge:
-    vi.fn<AppDeps['patientPayments']['recordAcquiringCharge']>(),
-  getPaymentSettings:
-    vi.fn<NonNullable<AppDeps['payments']>['getSettings']>(),
+  recordAcquiringCharge: vi.fn<AppDeps['patientPayments']['recordAcquiringCharge']>(),
+  getPaymentSettings: vi.fn<NonNullable<AppDeps['payments']>['getSettings']>(),
   resolvePaymentOrganization:
-    vi.fn<
-      AppDeps['patientPayments']['resolveOrganizationIdByProviderPaymentId']
-    >(),
-  handleWebhook:
-    vi.fn<AppDeps['patientPayments']['handleAcquiringWebhookEvent']>(),
+    vi.fn<AppDeps['patientPayments']['resolveOrganizationIdByProviderPaymentId']>(),
+  handleWebhook: vi.fn<AppDeps['patientPayments']['handleAcquiringWebhookEvent']>(),
+  getPaymentProviderAdapter:
+    vi.fn<typeof import('@/infra/payments/paymentProviderRegistry').getPaymentProviderAdapter>(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
@@ -54,14 +48,15 @@ vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: vi.fn(),
 }));
 vi.mock('@bersoncare/db-principal', () => ({
-  runWithDbOrganizationPrincipal: <T>(
-    _organizationId: string,
-    callback: () => T,
-  ): T => callback(),
+  runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T => callback(),
+}));
+vi.mock('@/infra/payments/paymentProviderRegistry', () => ({
+  getPaymentProviderAdapter: fakes.getPaymentProviderAdapter,
 }));
 
 import { POST as chargePatient } from '@/app/api/doctor/patients/[userId]/acquiring-charge/route';
 import { POST as receivePatientWebhook } from '@/app/api/payments/patient-acquiring-webhook/[provider]/route';
+import { createRegistryAcquiringGateway } from '@/infra/payments/registryAcquiringGateway';
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000001074';
 const DOCTOR_ID = '00000000-0000-4000-8000-000000002074';
@@ -127,8 +122,7 @@ const fakeDeps = {
   },
   patientPayments: {
     recordAcquiringCharge: fakes.recordAcquiringCharge,
-    resolveOrganizationIdByProviderPaymentId:
-      fakes.resolvePaymentOrganization,
+    resolveOrganizationIdByProviderPaymentId: fakes.resolvePaymentOrganization,
     handleAcquiringWebhookEvent: fakes.handleWebhook,
   },
   payments: {
@@ -162,18 +156,21 @@ function invokeCharge(request = chargeRequest()) {
 }
 
 function webhookRequest(bodyText: string): Request {
-  return new Request(
-    'https://app.example.test/api/payments/patient-acquiring-webhook/alfabank',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: bodyText,
-    },
-  );
+  return new Request('https://app.example.test/api/payments/patient-acquiring-webhook/alfabank', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: bodyText,
+  });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fakes.getPaymentProviderAdapter.mockReturnValue({
+    createIntent: vi.fn(),
+    refund: vi.fn(),
+    inspectWebhook: vi.fn(),
+    verifyWebhook: vi.fn().mockRejectedValue(new Error('invalid_webhook_signature')),
+  });
   fakes.buildAppDeps.mockReturnValue(fakeDeps);
   fakes.requireDoctorWorkspace.mockResolvedValue({
     ok: true,
@@ -223,9 +220,7 @@ describe('patient acquiring charge HTTP boundary', () => {
   it('returns not found without charging a patient outside the doctor workspace', async () => {
     fakes.getClientIdentity.mockResolvedValue(null);
 
-    const response = await invokeCharge(
-      chargeRequest('charge-1074-foreign-patient'),
-    );
+    const response = await invokeCharge(chargeRequest('charge-1074-foreign-patient'));
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({
@@ -240,6 +235,7 @@ describe('patient acquiring charge HTTP boundary', () => {
 
     expect(response.status).toBe(201);
     expect(fakes.createCharge).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
       patientUserId: PATIENT_ID,
       amountMinor: 12_345,
       currency: 'RUB',
@@ -247,6 +243,53 @@ describe('patient acquiring charge HTTP boundary', () => {
       description: 'Test charge',
       returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
     });
+    expect(fakes.getPaymentSettings).toHaveBeenCalledWith(ORGANIZATION_ID);
+  });
+
+  it('uses the doctor workspace provider settings without the route making an external request', async () => {
+    const getConfig = vi.fn(async (organizationId: string) => {
+      expect(organizationId).toBe(ORGANIZATION_ID);
+      return {
+        enabled: true,
+        defaultProviderId: 'safe-test-provider',
+        providers: [{ id: 'safe-test-provider', label: 'Safe test provider', enabled: true }],
+      };
+    });
+    const createIntent = vi.fn<PaymentProviderPort['createIntent']>().mockResolvedValue({
+      providerIntentRef: 'safe-test-intent-1074',
+      checkoutUrl: 'https://checkout.example.test/safe-test-intent-1074',
+    });
+    const adapter: PaymentProviderPort = {
+      createIntent,
+      refund: vi.fn(),
+      inspectWebhook: vi.fn(),
+      verifyWebhook: vi.fn(),
+    };
+    fakes.getPaymentProviderAdapter.mockReturnValue(adapter);
+    const gateway = createRegistryAcquiringGateway({ getConfig });
+    fakes.buildAppDeps.mockReturnValue({
+      ...fakeDeps,
+      acquiringGateway: gateway,
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const response = await invokeCharge(chargeRequest('charge-1074-org-provider'));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      redirectUrl: 'https://checkout.example.test/safe-test-intent-1074',
+    });
+    expect(getConfig).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(createIntent).toHaveBeenCalledOnce();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fakes.recordAcquiringCharge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORGANIZATION_ID,
+        providerPaymentId: 'safe-test-intent-1074',
+      }),
+    );
+    fetchSpy.mockRestore();
   });
 
   it('generates a UUID idempotency key when an older caller omits the header', async () => {
@@ -254,9 +297,7 @@ describe('patient acquiring charge HTTP boundary', () => {
 
     expect(response.status).toBe(201);
     const input = fakes.createCharge.mock.calls[0]?.[0];
-    expect(z.string().uuid().safeParse(input?.idempotencyKey).success).toBe(
-      true,
-    );
+    expect(z.string().uuid().safeParse(input?.idempotencyKey).success).toBe(true);
   });
 
   it('does not report public success or write a pending record on provider failure', async () => {
@@ -265,9 +306,7 @@ describe('patient acquiring charge HTTP boundary', () => {
       reason: 'provider_unavailable',
     });
 
-    const response = await invokeCharge(
-      chargeRequest('charge-1074-provider-error'),
-    );
+    const response = await invokeCharge(chargeRequest('charge-1074-provider-error'));
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
@@ -280,10 +319,7 @@ describe('patient acquiring charge HTTP boundary', () => {
 
 describe('patient acquiring webhook HTTP boundary', () => {
   it.each([
-    [
-      'a missing checksum',
-      'mdOrder=alfa-order-1074&orderNumber=charge-1074&status=2',
-    ],
+    ['a missing checksum', 'mdOrder=alfa-order-1074&orderNumber=charge-1074&status=2'],
     [
       'an invalid checksum',
       'mdOrder=alfa-order-1074&orderNumber=charge-1074&status=2&checksum=not-valid',

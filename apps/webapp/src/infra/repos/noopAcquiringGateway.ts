@@ -21,6 +21,7 @@ export const noopAcquiringGateway: AcquiringGatewayPort = {
   },
 
   async refund(_input: {
+    organizationId: string;
     providerPaymentId: string;
     amountMinor: number;
     currency: string;

@@ -26,7 +26,7 @@ export type AcquiringGatewayConfig = {
    * Async getter for the active payment settings.
    * Typically delegates to createPaymentsConfigReader().getBookingPaymentSettings().
    */
-  getConfig: () => Promise<BookingPaymentSettings>;
+  getConfig: (organizationId: string) => Promise<BookingPaymentSettings>;
 };
 
 /**
@@ -39,8 +39,8 @@ export type AcquiringGatewayConfig = {
 export function createRegistryAcquiringGateway(
   config: AcquiringGatewayConfig,
 ): AcquiringGatewayPort {
-  async function resolveProvider(explicitProviderId?: string) {
-    const settings = await config.getConfig();
+  async function resolveProvider(organizationId: string, explicitProviderId?: string) {
+    const settings = await config.getConfig(organizationId);
     if (!settings.enabled) throw new Error('payments_disabled');
     const id = (explicitProviderId ?? settings.defaultProviderId).trim();
     const providerCfg = settings.providers.find((p) => p.id === id && p.enabled);
@@ -56,7 +56,7 @@ export function createRegistryAcquiringGateway(
       let adapter;
       let providerCfg;
       try {
-        ({ adapter, providerCfg } = await resolveProvider(explicitProvider));
+        ({ adapter, providerCfg } = await resolveProvider(input.organizationId, explicitProvider));
       } catch (err) {
         return {
           ok: false,
@@ -97,7 +97,7 @@ export function createRegistryAcquiringGateway(
       let adapter;
       let providerCfg;
       try {
-        ({ adapter, providerCfg } = await resolveProvider());
+        ({ adapter, providerCfg } = await resolveProvider(input.organizationId));
       } catch (err) {
         return {
           ok: false,

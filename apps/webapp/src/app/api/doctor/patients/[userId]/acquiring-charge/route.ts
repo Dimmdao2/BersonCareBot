@@ -73,18 +73,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   if (!entitlement.ok) return entitlement.response;
 
   const idempotencyHeader = request.headers.get('idempotency-key');
-  const idempotencyKey =
-    idempotencyHeader === null ? randomUUID() : idempotencyHeader.trim();
+  const idempotencyKey = idempotencyHeader === null ? randomUUID() : idempotencyHeader.trim();
   if (!idempotencyKey || idempotencyKey.length > 64) {
-    return NextResponse.json(
-      { ok: false, error: 'invalid_idempotency_key' },
-      { status: 400 },
-    );
+    return NextResponse.json({ ok: false, error: 'invalid_idempotency_key' }, { status: 400 });
   }
 
   // Initiate the charge via the acquiring gateway. This link is handed to the patient (copied or
   // shown as a QR at the counter), so it returns to their own purchases screen, not the doctor's.
   const chargeResult = await deps.acquiringGateway.createCharge({
+    organizationId: gate.ctx.organizationId,
     patientUserId: identity.userId,
     amountMinor,
     currency,
@@ -102,7 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   let providerId = 'unknown';
   try {
     if (deps.payments) {
-      const settings = await deps.payments.getSettings();
+      const settings = await deps.payments.getSettings(gate.ctx.organizationId);
       providerId = settings.defaultProviderId;
     }
   } catch {

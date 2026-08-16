@@ -955,14 +955,14 @@ const paymentsService =
 // Falls back to noopAcquiringGateway when repos are in-memory (test mode).
 const acquiringGateway = !inMemoryRepos
   ? createRegistryAcquiringGateway({
-      getConfig: () =>
+      getConfig: (organizationId) =>
         createPaymentsConfigReader((key, organizationId) =>
           systemSettingsService.getSetting(
             key,
             'admin',
             organizationId ? { organizationId } : undefined,
           ),
-        ).getBookingPaymentSettings(),
+        ).getBookingPaymentSettings(organizationId),
     })
   : noopAcquiringGateway;
 
