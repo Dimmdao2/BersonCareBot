@@ -21,8 +21,8 @@ const fakes = vi.hoisted(() => ({
   createCharge: vi.fn<AppDeps['acquiringGateway']['createCharge']>(),
   recordAcquiringCharge: vi.fn<AppDeps['patientPayments']['recordAcquiringCharge']>(),
   getPaymentSettings: vi.fn<NonNullable<AppDeps['payments']>['getSettings']>(),
-  resolvePaymentOrganization:
-    vi.fn<AppDeps['patientPayments']['resolveOrganizationIdByProviderPaymentId']>(),
+  resolveAcquiringWebhookOrganization:
+    vi.fn<AppDeps['patientPayments']['resolveAcquiringWebhookOrganization']>(),
   handleWebhook: vi.fn<AppDeps['patientPayments']['handleAcquiringWebhookEvent']>(),
   getPaymentProviderAdapter:
     vi.fn<typeof import('@/infra/payments/paymentProviderRegistry').getPaymentProviderAdapter>(),
@@ -122,7 +122,7 @@ const fakeDeps = {
   },
   patientPayments: {
     recordAcquiringCharge: fakes.recordAcquiringCharge,
-    resolveOrganizationIdByProviderPaymentId: fakes.resolvePaymentOrganization,
+    resolveAcquiringWebhookOrganization: fakes.resolveAcquiringWebhookOrganization,
     handleAcquiringWebhookEvent: fakes.handleWebhook,
   },
   payments: {
@@ -168,7 +168,12 @@ beforeEach(() => {
   fakes.getPaymentProviderAdapter.mockReturnValue({
     createIntent: vi.fn(),
     refund: vi.fn(),
-    inspectWebhook: vi.fn(),
+    inspectWebhook: vi.fn().mockReturnValue({
+      idempotencyKey: 'charge-1074',
+      eventType: 'payment.succeeded',
+      payload: { intentRef: 'provider-payment-1074' },
+      intentRef: 'provider-payment-1074',
+    }),
     verifyWebhook: vi.fn().mockRejectedValue(new Error('invalid_webhook_signature')),
   });
   fakes.buildAppDeps.mockReturnValue(fakeDeps);
@@ -196,7 +201,7 @@ beforeEach(() => {
       },
     ],
   });
-  fakes.resolvePaymentOrganization.mockResolvedValue(null);
+  fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(ORGANIZATION_ID);
   fakes.handleWebhook.mockResolvedValue({ ok: true });
 });
 
@@ -318,22 +323,133 @@ describe('patient acquiring charge HTTP boundary', () => {
 });
 
 describe('patient acquiring webhook HTTP boundary', () => {
-  it.each([
-    ['a missing checksum', 'mdOrder=alfa-order-1074&orderNumber=charge-1074&status=2'],
-    [
-      'an invalid checksum',
-      'mdOrder=alfa-order-1074&orderNumber=charge-1074&status=2&checksum=not-valid',
-    ],
-  ])('rejects %s before payment lookup', async (_case, bodyText) => {
-    const response = await receivePatientWebhook(webhookRequest(bodyText), {
+  it('uses the exact pending payment clinic config rather than the global provider config', async () => {
+    const clinicId = '00000000-0000-4000-8000-000000009074';
+    fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(clinicId);
+    fakes.getPaymentSettings.mockImplementation(async (organizationId?: string) =>
+      organizationId === clinicId
+        ? {
+            enabled: true,
+            defaultProviderId: 'alfabank',
+            providers: [
+              { id: 'alfabank', label: 'Clinic B', enabled: true, webhookSecret: 'clinic-b-secret' },
+            ],
+          }
+        : {
+            enabled: true,
+            defaultProviderId: 'global-provider-a',
+            providers: [
+              { id: 'global-provider-a', label: 'Global A', enabled: true, webhookSecret: 'global-secret' },
+            ],
+          },
+    );
+    const verifyWebhook = vi.fn().mockResolvedValue({
+      idempotencyKey: 'charge-1074',
+      eventType: 'payment.succeeded',
+      payload: { intentRef: 'provider-payment-1074' },
+      intentRef: 'provider-payment-1074',
+    });
+    fakes.getPaymentProviderAdapter.mockReturnValue({
+      createIntent: vi.fn(), refund: vi.fn(), inspectWebhook: vi.fn().mockReturnValue({
+        idempotencyKey: 'charge-1074', eventType: 'payment.succeeded',
+        payload: { intentRef: 'provider-payment-1074' }, intentRef: 'provider-payment-1074',
+      }), verifyWebhook,
+    });
+
+    const response = await receivePatientWebhook(webhookRequest('mdOrder=provider-payment-1074'), {
+      params: Promise.resolve({ provider: 'alfabank' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(fakes.resolveAcquiringWebhookOrganization).toHaveBeenCalledWith(
+      'provider-payment-1074',
+      'alfabank',
+    );
+    expect(fakes.getPaymentSettings).toHaveBeenCalledWith(clinicId);
+    expect(verifyWebhook).toHaveBeenCalledWith(expect.objectContaining({
+      webhookSecret: 'clinic-b-secret',
+      providerConfig: expect.objectContaining({ id: 'alfabank' }),
+    }));
+  });
+
+  it('rejects a callback signed with a foreign clinic secret', async () => {
+    const verifyWebhook = vi.fn().mockImplementation(async ({ webhookSecret }) => {
+      if (webhookSecret !== 'clinic-secret') throw new Error('invalid_webhook_signature');
+      throw new Error('invalid_webhook_signature');
+    });
+    fakes.getPaymentProviderAdapter.mockReturnValue({
+      createIntent: vi.fn(), refund: vi.fn(), inspectWebhook: vi.fn().mockReturnValue({
+        idempotencyKey: 'charge-1074', eventType: 'payment.succeeded',
+        payload: { intentRef: 'provider-payment-1074' }, intentRef: 'provider-payment-1074',
+      }), verifyWebhook,
+    });
+    fakes.getPaymentSettings.mockResolvedValue({
+      enabled: true, defaultProviderId: 'alfabank',
+      providers: [{ id: 'alfabank', label: 'Clinic', enabled: true, webhookSecret: 'clinic-secret' }],
+    });
+
+    const response = await receivePatientWebhook(webhookRequest('foreign-secret-signature'), {
       params: Promise.resolve({ provider: 'alfabank' }),
     });
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: 'invalid_webhook_signature',
+    expect(verifyWebhook).toHaveBeenCalledWith(expect.objectContaining({ webhookSecret: 'clinic-secret' }));
+    expect(fakes.handleWebhook).not.toHaveBeenCalled();
+  });
+
+  it('ignores an unknown provider payment reference without reading any clinic config', async () => {
+    fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(null);
+
+    const response = await receivePatientWebhook(webhookRequest('unknown-payment'), {
+      params: Promise.resolve({ provider: 'alfabank' }),
     });
-    expect(fakes.resolvePaymentOrganization).not.toHaveBeenCalled();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, ignored: true });
+    expect(fakes.getPaymentSettings).not.toHaveBeenCalled();
+    expect(fakes.handleWebhook).not.toHaveBeenCalled();
+  });
+
+  it('does not look up a payment or config when the provider adapter cannot inspect the callback', async () => {
+    fakes.getPaymentProviderAdapter.mockReturnValue({
+      createIntent: vi.fn(),
+      refund: vi.fn(),
+      inspectWebhook: vi.fn(() => {
+        throw new Error('malformed_provider_callback');
+      }),
+      verifyWebhook: vi.fn(),
+    });
+
+    const response = await receivePatientWebhook(webhookRequest('broken-callback'), {
+      params: Promise.resolve({ provider: 'alfabank' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(fakes.resolveAcquiringWebhookOrganization).not.toHaveBeenCalled();
+    expect(fakes.getPaymentSettings).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges an idempotent callback only after exact-clinic verification', async () => {
+    fakes.handleWebhook.mockResolvedValue({ ok: true, alreadyProcessed: true });
+    const verifyWebhook = vi.fn().mockResolvedValue({
+      idempotencyKey: 'charge-1074', eventType: 'payment.succeeded',
+      payload: { intentRef: 'provider-payment-1074' }, intentRef: 'provider-payment-1074',
+    });
+    fakes.getPaymentProviderAdapter.mockReturnValue({
+      createIntent: vi.fn(), refund: vi.fn(), inspectWebhook: vi.fn().mockReturnValue({
+        idempotencyKey: 'charge-1074', eventType: 'payment.succeeded',
+        payload: { intentRef: 'provider-payment-1074' }, intentRef: 'provider-payment-1074',
+      }), verifyWebhook,
+    });
+
+    const response = await receivePatientWebhook(webhookRequest('duplicate'), {
+      params: Promise.resolve({ provider: 'alfabank' }),
+    });
+
+    await expect(response.json()).resolves.toEqual({ ok: true, alreadyProcessed: true });
+    expect(verifyWebhook).toHaveBeenCalledOnce();
+    expect(fakes.handleWebhook).toHaveBeenCalledWith({
+      eventType: 'payment.succeeded', providerPaymentId: 'provider-payment-1074',
+    });
   });
 });

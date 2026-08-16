@@ -110,6 +110,27 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
     },
 
     /**
+     * Resolve only the server-owned clinic for a webhook's untrusted provider reference.
+     * The reference is not an authority: it merely selects the pending ledger row whose
+     * provider and organization will be used to verify the callback.
+     */
+    async resolveAcquiringWebhookOrganization(
+      providerPaymentId: string,
+      providerId: string,
+    ): Promise<string | null> {
+      const payment = await patientPaymentsPort.findByProviderPaymentId(providerPaymentId);
+      if (
+        !payment ||
+        payment.kind !== 'acquiring' ||
+        payment.provider !== providerId ||
+        !payment.organizationId
+      ) {
+        return null;
+      }
+      return payment.organizationId;
+    },
+
+    /**
      * Record a newly created acquiring payment (kind='acquiring', status='pending').
      * Called by the charge-initiation route after the gateway confirms the intent.
      */
