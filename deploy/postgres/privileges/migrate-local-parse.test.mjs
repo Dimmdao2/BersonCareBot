@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   parseOwnerStatements,
   renderTemporaryMembershipAssertion,
 } from './migrate-local-parse.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 test('parses owner DDL and a reusable local-postgres backfill without duplicating the migration path', () => {
   const steps = parseOwnerStatements(`
@@ -57,4 +62,40 @@ test('a pure backfill emits no untyped empty owner-membership array', () => {
   ]);
   assert.match(assertion ?? '', /m\.roleid = ANY \(ARRAY\['app_one_owner'::regrole, 'app_two_owner'::regrole\]\)/u);
   assert.doesNotMatch(assertion ?? '', /ARRAY\[\]/u);
+});
+
+test('payment webhook bootstrap migration follows the real owner-ordered deploy path', () => {
+  const source = fs.readFileSync(
+    path.join(
+      repoRoot,
+      'apps/webapp/db/drizzle-migrations/0449_patient_acquiring_webhook_bootstrap_resolver_local.sql',
+    ),
+    'utf8',
+  );
+  const steps = parseOwnerStatements(
+    source,
+    '0449_patient_acquiring_webhook_bootstrap_resolver_local',
+  );
+
+  assert.deepEqual(
+    steps.map(({ owner, schemaCreate, languageUsage }) => ({
+      owner,
+      schemaCreate,
+      languageUsage,
+    })),
+    [
+      { owner: 'app_object_owner', schemaCreate: null, languageUsage: null },
+      { owner: 'app_object_owner', schemaCreate: null, languageUsage: null },
+      {
+        owner: 'app_seam_payment_webhook_owner',
+        schemaCreate: 'app',
+        languageUsage: 'plpgsql',
+      },
+      {
+        owner: 'app_seam_payment_webhook_owner',
+        schemaCreate: null,
+        languageUsage: null,
+      },
+    ],
+  );
 });

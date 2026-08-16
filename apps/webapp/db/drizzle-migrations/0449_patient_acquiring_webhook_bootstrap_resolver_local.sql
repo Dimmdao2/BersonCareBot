@@ -1,5 +1,5 @@
+-- BCB-MIGRATION-OWNER: app_object_owner
 -- TEMPORARY LOCAL MIGRATION NUMBER 0449
--- BCB-MIGRATION-OWNER: app_seam_payment_webhook_owner
 -- Patient acquiring webhooks arrive before a clinic principal exists. This exact, attested
 -- resolver returns only the owning organization for one server-owned acquiring lifecycle row.
 
@@ -10,10 +10,14 @@ CREATE INDEX IF NOT EXISTS idx_patient_payment_acquiring_webhook_authority
     AND organization_id IS NOT NULL;
 --> statement-breakpoint
 
+-- BCB-MIGRATION-OWNER: app_object_owner
 GRANT SELECT (organization_id, provider, provider_payment_id, kind, status)
   ON TABLE public.patient_payment TO app_seam_payment_webhook_owner;
 --> statement-breakpoint
 
+-- BCB-MIGRATION-OWNER: app_seam_payment_webhook_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.resolve_patient_acquiring_webhook_organization(
   p_provider_id text,
   p_provider_payment_id text
@@ -64,6 +68,7 @@ END;
 $function$;
 --> statement-breakpoint
 
+-- BCB-MIGRATION-OWNER: app_seam_payment_webhook_owner
 ALTER FUNCTION app.resolve_patient_acquiring_webhook_organization(text, text)
   OWNER TO app_seam_payment_webhook_owner;
 REVOKE ALL ON FUNCTION app.resolve_patient_acquiring_webhook_organization(text, text) FROM PUBLIC;
