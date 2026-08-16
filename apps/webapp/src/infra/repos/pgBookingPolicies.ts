@@ -1,6 +1,11 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappTransaction } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import { beCancellationPolicies, beReschedulePolicies } from '../../../db/schema/bookingPolicies';
 import type {
   BookingPoliciesPort,
@@ -71,9 +76,114 @@ function mapReschedule(row: typeof beReschedulePolicies.$inferSelect): Reschedul
   };
 }
 
+type CurrentPatientCancellationPolicyRow = {
+  id: string;
+  organization_id: string;
+  scope_level: string;
+  scope_entity_id: string | null;
+  title: string;
+  is_active: boolean;
+  free_cancel_hours_before: number;
+  cancellation_allowed: boolean;
+  late_cancellation_behavior: string;
+  refund_prepayment_on_late: string;
+  charge_package_session_on_late: boolean;
+  requires_staff_confirmation: boolean;
+  notify_patient: boolean;
+  notify_staff: boolean;
+  sort_order: number;
+};
+
+type CurrentPatientReschedulePolicyRow = {
+  id: string;
+  organization_id: string;
+  scope_level: string;
+  scope_entity_id: string | null;
+  title: string;
+  is_active: boolean;
+  self_reschedule_hours_before: number;
+  max_self_reschedules: number;
+  allow_different_branch: boolean;
+  allow_different_city: boolean;
+  allow_different_specialist: boolean;
+  allow_different_service: boolean;
+  limit_exceeded_behavior: string;
+  requires_staff_confirmation: boolean;
+  notify_patient: boolean;
+  notify_staff: boolean;
+  sort_order: number;
+};
+
+async function readCurrentPatientPolicies<T>(kind: 'cancellation' | 'reschedule'): Promise<T[]> {
+  const result = await runWebappNamedRoot<{ policies: T[] }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_policies(text)',
+    [kind],
+    sql`SELECT app.read_current_patient_booking_policies(${kind}::text) AS policies`,
+  );
+  return result.rows[0]?.policies ?? [];
+}
+
+function mapCurrentPatientCancellationPolicy(
+  row: CurrentPatientCancellationPolicyRow,
+): CancellationPolicy {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    scopeLevel: row.scope_level as CancellationPolicy['scopeLevel'],
+    scopeEntityId: row.scope_entity_id,
+    title: row.title,
+    isActive: row.is_active,
+    freeCancelHoursBefore: row.free_cancel_hours_before,
+    cancellationAllowed: row.cancellation_allowed,
+    lateCancellationBehavior:
+      row.late_cancellation_behavior as CancellationPolicy['lateCancellationBehavior'],
+    refundPrepaymentOnLate: row.refund_prepayment_on_late,
+    chargePackageSessionOnLate: row.charge_package_session_on_late,
+    requiresStaffConfirmation: row.requires_staff_confirmation,
+    notifyPatient: row.notify_patient,
+    notifyStaff: row.notify_staff,
+    sortOrder: row.sort_order,
+  };
+}
+
+function mapCurrentPatientReschedulePolicy(
+  row: CurrentPatientReschedulePolicyRow,
+): ReschedulePolicy {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    scopeLevel: row.scope_level as ReschedulePolicy['scopeLevel'],
+    scopeEntityId: row.scope_entity_id,
+    title: row.title,
+    isActive: row.is_active,
+    selfRescheduleHoursBefore: row.self_reschedule_hours_before,
+    maxSelfReschedules: row.max_self_reschedules,
+    allowDifferentBranch: row.allow_different_branch,
+    allowDifferentCity: row.allow_different_city,
+    allowDifferentSpecialist: row.allow_different_specialist,
+    allowDifferentService: row.allow_different_service,
+    limitExceededBehavior: row.limit_exceeded_behavior as ReschedulePolicy['limitExceededBehavior'],
+    requiresStaffConfirmation: row.requires_staff_confirmation,
+    notifyPatient: row.notify_patient,
+    notifyStaff: row.notify_staff,
+    sortOrder: row.sort_order,
+  };
+}
+
 export function createPgBookingPoliciesPort(): BookingPoliciesPort {
   return {
     async listCancellationPolicies(organizationId) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const rows = await readCurrentPatientPolicies<CurrentPatientCancellationPolicyRow>(
+          'cancellation',
+        );
+        const policies = rows.map(mapCurrentPatientCancellationPolicy);
+        if (policies.some((policy) => policy.organizationId !== organizationId)) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return policies;
+      }
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -84,6 +194,16 @@ export function createPgBookingPoliciesPort(): BookingPoliciesPort {
     },
 
     async listReschedulePolicies(organizationId) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const rows = await readCurrentPatientPolicies<CurrentPatientReschedulePolicyRow>(
+          'reschedule',
+        );
+        const policies = rows.map(mapCurrentPatientReschedulePolicy);
+        if (policies.some((policy) => policy.organizationId !== organizationId)) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return policies;
+      }
       const db = getDrizzle();
       const rows = await db
         .select()

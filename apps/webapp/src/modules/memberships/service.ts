@@ -478,6 +478,9 @@ export function createMembershipsService(deps: {
       organizationId: string,
       serviceId: string,
     ) {
+      if (deps.port.listCurrentPatientBookingPackages) {
+        return deps.port.listCurrentPatientBookingPackages(organizationId, serviceId);
+      }
       const rows = await deps.port.listPatientPackagesForUser(platformUserId, organizationId, [
         'active',
       ]);
@@ -517,6 +520,9 @@ export function createMembershipsService(deps: {
       platformUserId: string;
     }) {
       deps.assertWriteClearance?.('subscriptions');
+      if (deps.port.reserveCurrentPatientBookingPackage) {
+        return deps.port.reserveCurrentPatientBookingPackage(input);
+      }
       return deps.port.runWithPackageLock(
         input.patientPackageId,
         input.organizationId,

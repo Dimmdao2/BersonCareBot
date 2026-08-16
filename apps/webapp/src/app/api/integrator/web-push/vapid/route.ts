@@ -15,8 +15,7 @@
 import { NextResponse } from 'next/server';
 import { assertIntegratorGetRequest } from '@/app-layer/integrator/assertIntegratorGetRequest';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getWebPushVapidKeyPair } from '@/modules/system-settings/webPushVapidRuntime';
-import { deriveVapidSubject } from '@/modules/web-push/vapidSubject';
+import { webPushVapidKeyPairFromValueJson } from '@/modules/system-settings/webPushVapidRuntime';
 import { enterVerifiedIntegratorOrganizationPrincipal } from '@/app-layer/principal/integratorOrganizationPrincipal';
 
 export async function GET(request: Request) {
@@ -30,12 +29,11 @@ export async function GET(request: Request) {
     );
   }
 
-  const deps = buildAppDeps();
-
-  const [vapid, subject] = await Promise.all([
-    getWebPushVapidKeyPair(deps.systemSettings),
-    deriveVapidSubject(deps.systemSettings),
-  ]);
+  const settings = await buildAppDeps().integratorWebPushDelivery.readDeliverySettings(
+    organizationId,
+  );
+  const vapid = webPushVapidKeyPairFromValueJson(settings?.webPushVapidValueJson);
+  const subject = settings?.vapidSubject ?? null;
 
   if (!vapid || !subject) {
     return NextResponse.json(

@@ -720,6 +720,12 @@ bash deploy/host/deploy-prod.sh
 
 ### Тест-деплой на `151.x` (feat → test)
 
+> **OWNER-CORRECTION 17.08.2026.** Пока полный DEV runtime-проход не green, TEST не трогают. Единственный
+> сохранённый entrypoint `deploy-test.sh` предназначен только для будущих B0-forward updates существующей TEST
+> базы и пишет защищённый transcript. Fresh dump, restore, disposable/A0 replay и A → B0 tooling удалены из
+> active checkout и будут проектироваться только после green DEV и TEST по отдельному owner gate; нижеследующие
+> historical paragraphs about a full-reset wrapper are not executable authority.
+
 **Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. `ci.yml` выполняет проверки и
 ничего не деплоит; production запускается только ручным `deploy-prod.yml`. Тест-сервер (`151.x`) держит
 **зеркало** текущей dev-ветки и обновляется **вручную одной командой**.

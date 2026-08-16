@@ -1,173 +1,111 @@
-#!/bin/bash
-# =============================================================================
-# deploy-test.sh — доставить ТЕКУЩУЮ ветку dev-репо в ТЕСТ-окружение (151.x).
-#
-# КОНТЕКСТ (почему так, а не `git pull` как на проде):
-#   • Ветки `test` и авто-деплоя НЕТ. CI не деплоит test.
-#   • Деплой-репо `/opt/projects/bersoncarebot-test` принадлежит `deploy`, а тот
-#     НЕ читает `/home/dev` (0750) → remote `localrepo` под deploy не работает,
-#     а push в GitHub гейтован. Поэтому ветку переносим **git-bundle через /tmp**
-#     (world-readable): полная история, без push, без проблем с правами.
-#   • TEST = одноразовое ЗЕРКАЛО dev-ветки → checkout **force-align (reset --hard)**,
-#     НИКАКОГО merge (на тесте нечего хранить).
-#   • Send-safety НЕ зависит от кода: `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`,
-#     `SMSC_ENABLED=false`, `DEV_REDIRECT_PASSTHROUGH_*` зашиты в `api.test` (env).
-#
-# ЗАПУСК: от пользователя `dev` (использует sudo для deploy/systemctl).
-#   bash deploy/host/deploy-test.sh [ветка]      # по умолчанию feat/doctor-ui-rebuild
-# =============================================================================
-set -euo pipefail
+#!/usr/bin/env bash
+# Deliver the current committed DEV branch to the existing named TEST environment.
+# B0/post-B0 only: no restore, database recreation, zero-state, greenfield or historical replay.
 
-# Transcript. On 2026-07-26 a deploy went red, its cleanup stopped all five TEST units, and by the time
-# anyone looked the only surviving evidence was systemd's "Stopping…" lines — the reason the deploy failed
-# was gone. Which gate went red is still unknown. Nothing about that investigation was possible because this
-# script wrote its output to a terminal nobody kept.
-#
-# Everything below is teed to a per-run file. This runs BEFORE the first FATAL check so an early abort is
-# captured too. Kept out of the repo tree deliberately (it records env-file paths and role names) and out of
-# /tmp, which is world-readable and swept.
-DEPLOY_LOG_DIR="${DEPLOY_LOG_DIR:-$HOME/.local/state/bersoncarebot/deploy-logs}"
-if [ -z "${BCB_DEPLOY_LOG_ACTIVE:-}" ]; then
-  mkdir -p "$DEPLOY_LOG_DIR"
-  chmod 700 "$DEPLOY_LOG_DIR" 2>/dev/null || true
-  DEPLOY_LOG_FILE="$DEPLOY_LOG_DIR/deploy-test-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
-  export BCB_DEPLOY_LOG_ACTIVE=1
-  echo "[deploy-test] transcript: $DEPLOY_LOG_FILE"
-  # Re-exec through tee so both streams are captured while still reaching the terminal. The exit code must be
-  # the SCRIPT's, not tee's — otherwise a red deploy reports success, which is the failure mode this whole
-  # change exists to stop. `set -o pipefail` alone is not enough (it would return tee's status on success),
-  # so take PIPESTATUS[0] explicitly, and disable errexit around the call so a non-zero run still reaches it.
-  # `bash "$0"`, not `"$0"` — the documented invocation is `bash deploy/host/deploy-test.sh`, so the exec bit
-  # is not guaranteed and re-execing the path directly would fail with 126 before anything ran. Caught by a
-  # probe of this very wrapper.
-  set +e
-  bash "$0" "$@" 2>&1 | tee "$DEPLOY_LOG_FILE"
-  deploy_status="${PIPESTATUS[0]}"
-  set -e
-  # Keep the last 40 transcripts; they are small, and a full disk is its own outage.
-  ls -1t "$DEPLOY_LOG_DIR"/deploy-test-*.log 2>/dev/null | tail -n +41 | xargs -r rm -f
-  echo "[deploy-test] transcript saved: $DEPLOY_LOG_FILE (exit $deploy_status)"
-  exit "$deploy_status"
-fi
+set -Eeuo pipefail
+{ set +x; } 2>/dev/null
+umask 077
 
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="${1:-feat/doctor-ui-rebuild}"
 API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
-MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
-BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
-STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
-PORT_CONTEXT_ENV_BOOTSTRAP=deploy/host/bootstrap-c4-test-env.mjs
-OWNER_MIGRATOR=deploy/postgres/privileges/migrate-local.mjs
-INTEGRATOR_MIGRATOR=deploy/postgres/privileges/migrate-integrator-local.mjs
-ACCESS_RECONCILER=deploy/postgres/privileges/reconcile-access.mjs
-CANONICAL_SQL_READER=deploy/host/stream-canonical-sql.mjs
-DRIZZLE_FOLDER=apps/webapp/db/drizzle-migrations
-ZERO_STATE_CLUSTER=deploy/postgres/generated/zero-state.cluster.sql
-ZERO_STATE_DATABASE=deploy/postgres/generated/zero-state.bersoncarebot_test.sql
-ZERO_STATE_GENERATOR=deploy/postgres/privileges/generate-cli.mjs
-PORT_CONTEXT_CONTRACT=deploy/postgres/port-context/contract.sql
-INVITE_PROOF_SECRET_SQL=deploy/postgres/port-context/invite-proof-secret.sql
-D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
-LOCAL_MIGRATION_DATABASE_URL="postgresql://postgres@%2Fvar%2Frun%2Fpostgresql/$DB"
+MIGRATOR_ROLE=bcb_test_migrator
+OBJECT_OWNER_ROLE=app_object_owner
+BUNDLE=/tmp/bcb-test-deploy.bundle
+TRANSCRIPT_DIR=${BCB_TEST_DEPLOY_TRANSCRIPT_DIR:-/var/log/bersoncarebot/deploy-test}
+TRANSCRIPT=""
 UNITS=(api worker scheduler webapp media-worker)
-INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=0
+CREDENTIAL_DIR=""
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
-CREDENTIAL_DIR=""
 
-apply_verified_database_zero(){
-  sudo -u postgres psql -X -d "$DB" -1 -v ON_ERROR_STOP=1 \
-    -f "$DEPLOY_REPO/$ZERO_STATE_DATABASE" >/dev/null
-  sudo -u postgres node --experimental-strip-types "$DEPLOY_REPO/$ZERO_STATE_GENERATOR" \
-    --db "$DB" --zero-state-verify | \
-    sudo -u postgres psql -X -d "$DB" -1 -v ON_ERROR_STOP=1 >/dev/null
-}
-
-cleanup_exit(){
-  local original_status=$?
-  set +e
-  local cleanup_status=0
-  if [ "$original_status" -ne 0 ] && [ "$INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE" = "1" ]; then
-    apply_verified_database_zero || cleanup_status=1
-  fi
-  if [ -n "$CREDENTIAL_DIR" ]; then
-    rm -rf -- "$CREDENTIAL_DIR" || cleanup_status=1
-  fi
-  if [ "$original_status" -ne 0 ] && [ "$WRITERS_STOPPED" = "1" ] && [ "$SERVICES_RELEASED" != "1" ]; then
-    for unit_name in "${UNITS[@]}"; do
-      sudo systemctl stop "bersoncarebot-$unit_name-test" >/dev/null 2>&1 || cleanup_status=1
-    done
-  fi
-  if [ "$original_status" -eq 0 ] && [ "$cleanup_status" -ne 0 ]; then exit "$cleanup_status"; fi
-  exit "$original_status"
-}
-
-resolve_test_runtime_mode(){
-  local env_file mode resolved_mode=""
-  for env_file in "$API_ENV" "$WEBAPP_ENV"; do
-    mode="$(sudo -u deploy bash -lc "set -a && . '$env_file' && set +a && printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-legacy-guc}\"")"
-    case "$mode" in
-      locked|port-context) ;;
-      *)
-        echo "FATAL: $env_file must use DB_PRINCIPAL_CONTEXT_MODE=locked or port-context, got $mode" >&2
-        exit 1
-        ;;
-    esac
-    if [ -z "$resolved_mode" ]; then
-      resolved_mode="$mode"
-    elif [ "$resolved_mode" != "$mode" ]; then
-      echo "FATAL: TEST DB_PRINCIPAL_CONTEXT_MODE mismatch: $resolved_mode vs $mode in $env_file" >&2
-      exit 1
-    fi
-  done
-  printf '%s\n' "$resolved_mode"
-}
-
-echo "== deploy-test: ${BRANCH}  ->  ${DEPLOY_REPO} =="
-TEST_DB_PRINCIPAL_CONTEXT_MODE="$(resolve_test_runtime_mode)"
-TEST_DB_CONNECTION_LIMIT="$(sudo -u postgres psql -X -d postgres -Atqc \
-  "SELECT datconnlimit FROM pg_catalog.pg_database WHERE datname='$DB';")"
-[[ "$TEST_DB_CONNECTION_LIMIT" =~ ^-?[0-9]+$ ]] || {
-  echo "FATAL: could not resolve TEST database connection limit" >&2
+fail() {
+  printf 'FATAL: %s\n' "$1" >&2
   exit 1
 }
-RESUME_INITIAL_PORT_CONTEXT_CUTOVER=0
-if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ] && [ "$TEST_DB_CONNECTION_LIMIT" = "0" ]; then
-  # initial cutover renders the target env before it changes database access. Its fail-closed EXIT
-  # path leaves this exact state on any later error. Replay the idempotent stopped-writer bridge
-  # rather than treating a zeroed database as an already stationary port-context deployment.
-  RESUME_INITIAL_PORT_CONTEXT_CUTOVER=1
-  echo "   TEST resume state: port-context env + CONNECTION LIMIT 0 (initial cutover incomplete)"
-fi
-[ -r "$SRC_REPO/$STRICT_CLOSURE" ] || { echo "FATAL: missing $SRC_REPO/$STRICT_CLOSURE" >&2; exit 1; }
 
-# 1) Бандлим ветку из dev-репо (perm-safe перенос; deploy не читает /home/dev).
+start_transcript() {
+  sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 0750 "$TRANSCRIPT_DIR" ||
+    fail "cannot create TEST deploy transcript directory"
+  TRANSCRIPT="$TRANSCRIPT_DIR/deploy-test.$(date -u +%Y%m%dT%H%M%SZ).log"
+  : > "$TRANSCRIPT" && chmod 0640 "$TRANSCRIPT" || fail "cannot create TEST deploy transcript"
+  exec > >(tee -a "$TRANSCRIPT") 2>&1
+  printf 'deploy-test transcript: %s\n' "$TRANSCRIPT"
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT
+  rm -f -- "$BUNDLE"
+  if [[ -n "$CREDENTIAL_DIR" ]]; then rm -rf -- "$CREDENTIAL_DIR"; fi
+  if [[ "$status" -ne 0 && "$WRITERS_STOPPED" == 1 && "$SERVICES_RELEASED" != 1 ]]; then
+    printf 'TEST writers remain stopped after failed migration/deploy; inspect the transcript before recovery.\n' >&2
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
+[[ "$(id -u)" -ne 0 ]] || fail 'run as the non-root repository owner'
+start_transcript
+[[ "$(realpath "$SRC_REPO")" == /home/dev/dev-projects/BersonCareBot ]] || fail 'source repository path guard failed'
+[[ -d "$DEPLOY_REPO/.git" ]] || fail 'TEST deploy checkout is missing'
+for command in curl flock git mktemp node pnpm realpath sudo systemctl; do
+  command -v "$command" >/dev/null 2>&1 || fail "required command is unavailable: $command"
+done
+for env_file in "$API_ENV" "$WEBAPP_ENV"; do
+  [[ ! -L "$env_file" && -f "$env_file" ]] || fail "canonical TEST env is missing: $env_file"
+done
+
+for address in $(hostname -I 2>/dev/null || true); do
+  [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
+done
+[[ "${on_dev_test_host:-0}" == 1 ]] || fail 'TEST deploy is allowed only on DEV/TEST host 151.241.228.122'
+
+exec 9>/tmp/bcb-test-deploy.lock
+flock -n 9 || fail 'another TEST deploy is already running'
+
+for env_file in "$API_ENV" "$WEBAPP_ENV"; do
+  mode="$(sudo -u deploy bash -lc "set -a; . '$env_file'; set +a; printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-missing}\"")"
+  [[ "$mode" == port-context ]] || fail "$env_file must use DB_PRINCIPAL_CONTEXT_MODE=port-context, got $mode"
+done
+
+database_identity="$(sudo -n -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -Atqc \
+  "SELECT current_database() || '|' || pg_catalog.pg_get_userbyid(datdba) FROM pg_catalog.pg_database WHERE datname=current_database();")"
+[[ "$database_identity" == "$DB|postgres" ]] || fail "unexpected TEST database identity: $database_identity"
+
+migrator_state="$(sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 -Atqc \
+  "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' ||
+          rolcanlogin::text || '|' || rolbypassrls::text || '|' || rolinherit::text || '|' ||
+          (rolpassword IS NULL)::text || '|' ||
+          (SELECT count(*) FROM pg_catalog.pg_auth_members WHERE member=role.oid)::text
+     FROM pg_catalog.pg_authid AS role WHERE rolname='$MIGRATOR_ROLE';")"
+[[ "$migrator_state" == false\|false\|false\|false\|false\|false\|true\|0 ]] ||
+  fail "$MIGRATOR_ROLE is not the stationary declaration migrator"
+
+git -C "$SRC_REPO" diff --quiet --ignore-submodules -- || fail 'tracked source changes must be committed before TEST deploy'
+git -C "$SRC_REPO" diff --cached --quiet --ignore-submodules -- || fail 'staged source changes must be committed before TEST deploy'
+git -C "$SRC_REPO" show-ref --verify --quiet "refs/heads/$BRANCH" || fail "local branch does not exist: $BRANCH"
+
+rm -f -- "$BUNDLE"
 git -C "$SRC_REPO" bundle create "$BUNDLE" "$BRANCH"
 chmod 644 "$BUNDLE"
-
-# 2) Force-align тест-checkout на ветку (зеркало; рабочее дерево сбрасываем).
 sudo -u deploy git -C "$DEPLOY_REPO" fetch "$BUNDLE" "$BRANCH"
 sudo -u deploy git -C "$DEPLOY_REPO" checkout -f -B "$BRANCH" FETCH_HEAD
-echo "   HEAD: $(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD)"
 
-[ -r "$DEPLOY_REPO/$PORT_CONTEXT_ENV_BOOTSTRAP" ] || {
-  echo "FATAL: missing $PORT_CONTEXT_ENV_BOOTSTRAP" >&2
-  exit 1
-}
-# A locked source does not have all four target mTLS client certificates yet; the single-target
-# cutover provisions and verifies them before rendering the port-context env.  Requiring those
-# future files here creates a circular preflight and blocks before build.  An already converted
-# target must, conversely, prove its complete stationary projection before build.
-if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "locked" ]; then
-  sudo node --experimental-strip-types "$DEPLOY_REPO/$PORT_CONTEXT_ENV_BOOTSTRAP" --check
-else
-  sudo node --experimental-strip-types "$DEPLOY_REPO/$PORT_CONTEXT_ENV_BOOTSTRAP" --port-context-check
-fi
+OWNER_MIGRATOR="$DEPLOY_REPO/deploy/postgres/privileges/migrate-local.mjs"
+INTEGRATOR_MIGRATOR="$DEPLOY_REPO/deploy/postgres/privileges/migrate-integrator-local.mjs"
+RECONCILER="$DEPLOY_REPO/deploy/postgres/privileges/reconcile-access.mjs"
+GENERATOR="$DEPLOY_REPO/deploy/postgres/privileges/generate-cli.mjs"
+PORT_CONTEXT_ENV_BOOTSTRAP="$DEPLOY_REPO/deploy/host/bootstrap-c4-test-env.mjs"
+DRIZZLE_FOLDER="$DEPLOY_REPO/apps/webapp/db/drizzle-migrations"
+for required_path in "$OWNER_MIGRATOR" "$INTEGRATOR_MIGRATOR" "$RECONCILER" "$GENERATOR" \
+  "$PORT_CONTEXT_ENV_BOOTSTRAP" "$DRIZZLE_FOLDER"; do
+  sudo -u deploy test -r "$required_path" || fail "deploy cannot read required B0 artifact: $required_path"
+done
 
-# 3) Сборка (тот же порядок, что в deploy-prod.sh) — от имени deploy.
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
   pnpm install --frozen-lockfile && \
   rm -rf dist && pnpm build && \
@@ -175,76 +113,26 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
   pnpm --dir apps/media-worker build && \
   bash deploy/host/sync-webapp-standalone-assets.sh"
 
-# Fail before stopping writers or changing the database when the locked mode, protected fixture
-# packet or any shared closure artifact is unavailable. Legacy product-smoke fixtures are not deploy inputs.
-if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "locked" ]; then
-  bash "$DEPLOY_REPO/$STRICT_CLOSURE" --strict-preflight
-  for required_path in \
-    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT" "$INVITE_PROOF_SECRET_SQL" \
-    "$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"; do
-    sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
-      echo "FATAL: deploy cannot read initial port-context migration artifact: $DEPLOY_REPO/$required_path" >&2
-      exit 1
-    }
-  done
-else
-  for required_path in \
-    "$OWNER_MIGRATOR" "$INTEGRATOR_MIGRATOR" "$ACCESS_RECONCILER" \
-    "$CANONICAL_SQL_READER" "$DRIZZLE_FOLDER" "$ZERO_STATE_CLUSTER" \
-    "$ZERO_STATE_DATABASE" "$ZERO_STATE_GENERATOR" "$PORT_CONTEXT_CONTRACT" "$INVITE_PROOF_SECRET_SQL"; do
-    sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
-      echo "FATAL: deploy cannot read port-context migration artifact: $DEPLOY_REPO/$required_path" >&2
-      exit 1
-    }
-  done
-fi
-
-# 4) Stop all TEST writers. A legacy locked target uses the one-time local-postgres bridge below and
-#    then the single-target access cutover; no retired application identity regains authority. An
-#    already port-context target uses only the stationary NOLOGIN migrator and exact declared owners.
-#    Any failure leaves all TEST writers stopped.
-#    This code-only path never restores or recreates TEST; it applies migrations to the named database.
-for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
+for unit_name in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$unit_name-test"; done
 WRITERS_STOPPED=1
-trap cleanup_exit EXIT
+target_sessions="$(sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 -Atqc \
+  "SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname='$DB' AND pid<>pg_backend_pid();")"
+[[ "$target_sessions" == 0 ]] || fail "TEST database is not quiescent: $target_sessions session(s)"
 
-if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ] && [ "$RESUME_INITIAL_PORT_CONTEXT_CUTOVER" != "1" ]; then
-  MIGRATOR_ROLE=bcb_test_migrator
-  OBJECT_OWNER_ROLE=app_object_owner
-  migrator_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text || '|' || rolinherit::text || '|' || (rolpassword IS NULL)::text || '|' || (SELECT count(*) FROM pg_catalog.pg_auth_members WHERE member=role.oid)::text FROM pg_catalog.pg_authid AS role WHERE rolname='$MIGRATOR_ROLE';")"
-  [ "$migrator_state" = "false|false|false|false|false|false|true|0" ] || {
-    echo "FATAL: $MIGRATOR_ROLE is not the stationary declaration migrator" >&2
-    exit 1
-  }
-  target_sessions="$(sudo -u postgres psql -X -d postgres -tAc "SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname='$DB' AND pid<>pg_backend_pid();")"
-  [ "$target_sessions" = "0" ] || { echo "FATAL: TEST database is not quiescent: $target_sessions session(s)" >&2; exit 1; }
+node --experimental-strip-types "$GENERATOR" --shared-role-baseline |
+  sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+node --experimental-strip-types "$GENERATOR" --shared-role-verify |
+  sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
 
-  # A code-only release can introduce a new NOLOGIN capability role. Install and verify the
-  # cluster-wide declaration baseline before migrations and the per-target access reconcile.
-  node --experimental-strip-types "$DEPLOY_REPO/$ZERO_STATE_GENERATOR" --shared-role-baseline |
-    sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
-  node --experimental-strip-types "$DEPLOY_REPO/$ZERO_STATE_GENERATOR" --shared-role-verify |
-    sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
+node "$OWNER_MIGRATOR" --db "$DB" --migrator "$MIGRATOR_ROLE" \
+  --drizzle-folder "$DRIZZLE_FOLDER" --sudo-postgres
+node "$INTEGRATOR_MIGRATOR" --db "$DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
+  --root "$DEPLOY_REPO/apps/integrator" --sudo-postgres
 
-  node "$DEPLOY_REPO/$INTEGRATOR_MIGRATOR" \
-    --db "$DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
-    --root "$DEPLOY_REPO/apps/integrator" --before-date 20260708 --sudo-postgres
-  node "$DEPLOY_REPO/$OWNER_MIGRATOR" \
-    --db "$DB" --migrator "$MIGRATOR_ROLE" \
-    --drizzle-folder "$DEPLOY_REPO/$DRIZZLE_FOLDER" --sudo-postgres
-  node "$DEPLOY_REPO/$INTEGRATOR_MIGRATOR" \
-    --db "$DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
-    --root "$DEPLOY_REPO/apps/integrator" --sudo-postgres
-  node "$DEPLOY_REPO/$CANONICAL_SQL_READER" \
-    "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX" \
-    "$DEPLOY_REPO/deploy/postgres" | \
-    sudo -u postgres env PGOPTIONS="-c role=$OBJECT_OWNER_ROLE" \
-      psql -X -d "$DB" -v ON_ERROR_STOP=1
-
-  CREDENTIAL_DIR="$(mktemp -d /tmp/bcb-test-reconcile-credentials.XXXXXX)"
-  chmod 700 "$CREDENTIAL_DIR"
-  RECONCILE_ENV="$CREDENTIAL_DIR/reconcile.env"
-  sudo node - "$API_ENV" "$WEBAPP_ENV" >"$RECONCILE_ENV" <<'NODE'
+CREDENTIAL_DIR="$(mktemp -d /tmp/bcb-test-reconcile-credentials.XXXXXX)"
+chmod 700 "$CREDENTIAL_DIR"
+RECONCILE_ENV="$CREDENTIAL_DIR/reconcile.env"
+sudo node - "$API_ENV" "$WEBAPP_ENV" >"$RECONCILE_ENV" <<'NODE'
 const { readFileSync } = require('node:fs');
 function parse(path) {
   const values = new Map();
@@ -278,99 +166,30 @@ const entries = [
 ];
 process.stdout.write(`${entries.map(([key, value]) => `${key}='${value.replaceAll("'", `'"'"'`)}'`).join('\n')}\n`);
 NODE
-  chmod 600 "$RECONCILE_ENV"
-  NODE_BIN_DIR="$(dirname "$(command -v node)")"
-  sudo env -i PATH="$NODE_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" HOME=/root \
-    RECONCILE_ENV="$RECONCILE_ENV" DEPLOY_REPO="$DEPLOY_REPO" DB="$DB" bash -c '
-      set -Eeuo pipefail
-      set -a; . "$RECONCILE_ENV"; set +a
-      exec node "$DEPLOY_REPO/deploy/postgres/privileges/reconcile-access.mjs" \
-        --env test --db "$DB" --admin-socket /var/run/postgresql --admin-port 5432
-    '
-  sudo node --experimental-strip-types "$DEPLOY_REPO/$PORT_CONTEXT_ENV_BOOTSTRAP" --port-context-execute
+chmod 600 "$RECONCILE_ENV"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
+sudo env -i PATH="$NODE_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" HOME=/root \
+  RECONCILE_ENV="$RECONCILE_ENV" DEPLOY_REPO="$DEPLOY_REPO" DB="$DB" bash -c '
+    set -Eeuo pipefail
+    set -a; . "$RECONCILE_ENV"; set +a
+    exec node "$DEPLOY_REPO/deploy/postgres/privileges/reconcile-access.mjs" \
+      --env test --db "$DB" --admin-socket /var/run/postgresql --admin-port 5432
+  '
+sudo node --experimental-strip-types "$PORT_CONTEXT_ENV_BOOTSTRAP" --port-context-execute
 
-  for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
-  sleep 4
-  for unit_name in "${UNITS[@]}"; do sudo systemctl is-active --quiet "bersoncarebot-$unit_name-test"; done
-  curl -fsS http://127.0.0.1:3300/health >/dev/null
-  curl -fsS http://127.0.0.1:6300/api/health >/dev/null
-  SERVICES_RELEASED=1
-  echo "== deploy-test: port-context migration/reconcile готово =="
-  exit 0
-fi
-
-database_name="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" -tAc 'SELECT current_database();')"
-[ "$database_name" = "$DB" ] || { echo "FATAL: local TEST migration channel reached $database_name, expected $DB" >&2; exit 1; }
-cd "$DEPLOY_REPO"
-  # The one-time bridge, including an interrupted-cutover replay, runs only while every TEST writer
-  # is stopped. It does not grant authority to a retired application identity: local postgres
-  # advances the bounded legacy ledger, then the generated zero neutralizes every DB-local owner and
-  # ACL before the target contract is installed.
-  INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=1
-  sudo -u postgres env \
-    NODE_ENV=production \
-    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
-    DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
-    APP_BASE_URL=http://127.0.0.1 \
-    BOOKING_URL=http://127.0.0.1 \
-    PGOPTIONS="-c search_path=integrator,public" \
-    INTEGRATOR_MIGRATIONS_BEFORE_DATE=20260708 \
-    pnpm --dir apps/integrator run migrate
-
-  apply_verified_database_zero
-
-  # Initial locked→port-context bridge. Migration 0391 is the first Drizzle change that consumes
-  # the target context types/tables, while the final generated capability catalog depends on the
-  # functions created by 0391+. Install only the canonical base contract now, with all four target
-  # logins forced NOLOGIN; the final cutover below zeros this provisional ACL/ownership state and
-  # installs the complete declaration after both ledgers are current.
-  sudo -u postgres psql -X -1 -d "$DB" -v ON_ERROR_STOP=1 \
-    -v DBNAME="$DB" \
-    -v app_staff_login=bcb_test_webapp_staff \
-    -v app_patient_login=bcb_test_webapp_patient \
-    -v app_global_admin_login=bcb_test_webapp_global_admin \
-    -v integrator_login=bcb_test_integrator \
-    -c "DO \$bcb\$ DECLARE role_name text; BEGIN
-          FOREACH role_name IN ARRAY ARRAY['bcb_test_webapp_staff','bcb_test_webapp_patient','bcb_test_webapp_global_admin','bcb_test_integrator'] LOOP
-            IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=role_name) THEN
-              EXECUTE pg_catalog.format('CREATE ROLE %I NOLOGIN', role_name);
-            END IF;
-            EXECUTE pg_catalog.format('ALTER ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
-          END LOOP;
-        END \$bcb\$;" \
-    -f "$DEPLOY_REPO/$PORT_CONTEXT_CONTRACT"
-  # The base contract also installs the final fail-closed relation birth wall. Its registry and
-  # expected owners come from the generated declaration, which cannot be installed until the
-  # remaining migrations have created their functions and relations. Keep the wall absent only
-  # inside this stopped-writer, local-postgres bridge; the final cutover zeros the database again,
-  # installs the complete registry/owners and recreates the wall before any writer is released.
-  sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 \
-    -c 'DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall'
-  # These statements are still data/schema migrations, not the final access declaration. Run them
-  # through the local PostgreSQL administrator because the provisional contract deliberately removed
-  # legacy ownership; the final cutover immediately neutralizes every provisional owner/ACL and
-  # reinstalls exact generated owners/grants.
-  sudo -u postgres env \
-    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
-    pnpm --dir apps/webapp run migrate
-  sudo -u postgres env \
-    NODE_ENV=production \
-    DATABASE_URL="$LOCAL_MIGRATION_DATABASE_URL" \
-    DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
-    APP_BASE_URL=http://127.0.0.1 \
-    BOOKING_URL=http://127.0.0.1 \
-    PGOPTIONS="-c search_path=integrator,public" \
-    pnpm --dir apps/integrator run migrate
-  sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$DB" \
-    -f "$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
-
-# 5) One-time locked→port-context transition on the current TEST data. The retired strict closure
-#    is forbidden here: it recreates diagnostic/delivery/scheduler/operator logins immediately before
-#    the owner-ordered zero. The shared cutover first installs the exact HBA, then performs bilateral
-#    DEV+TEST zero, installs only the six declared logins and minimal roles/grants, proves live auth,
-#    restarts TEST and checks its health. Any failure leaves every TEST writer stopped.
-bash "$DEPLOY_REPO/$STRICT_CLOSURE" --port-context-post-migration-cutover
-sudo -u postgres psql -X -d postgres -1 -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$ZERO_STATE_CLUSTER"
-INITIAL_PORT_CONTEXT_BRIDGE_ACTIVE=0
-SERVICES_RELEASED=1
-echo "== deploy-test: готово =="
+for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
+for attempt in $(seq 1 30); do
+  all_active=1
+  for unit_name in "${UNITS[@]}"; do
+    sudo systemctl is-active --quiet "bersoncarebot-$unit_name-test" || all_active=0
+  done
+  if [[ "$all_active" == 1 ]] && curl -fsS --max-time 3 http://127.0.0.1:3300/health >/dev/null &&
+     curl -fsS --max-time 3 http://127.0.0.1:6300/api/health >/dev/null; then
+    SERVICES_RELEASED=1
+    printf 'deploy-test: PASS branch=%s head=%s B0/post-B0 only\n' \
+      "$BRANCH" "$(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD)"
+    exit 0
+  fi
+  sleep 1
+done
+fail 'TEST services did not become healthy within 30 seconds'

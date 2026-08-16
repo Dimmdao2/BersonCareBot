@@ -1,1 +1,0 @@
-ALTER TABLE telegram_users ADD COLUMN IF NOT EXISTS state text NULL;

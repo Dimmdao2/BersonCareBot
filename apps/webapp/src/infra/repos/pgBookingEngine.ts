@@ -1,8 +1,16 @@
 import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
@@ -164,6 +172,98 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     appointmentReminderSelectionSource:
       row.appointmentReminderSelectionSource === 'patient' ? 'patient' : 'specialist_default',
   };
+}
+
+type CurrentPatientAppointmentRow = {
+  id: string;
+  organization_id: string;
+  branch_id: string | null;
+  room_id: string | null;
+  specialist_id: string | null;
+  service_id: string | null;
+  platform_user_id: string | null;
+  start_at: string;
+  end_at: string;
+  duration_minutes: number;
+  chain_id: string | null;
+  chain_position: number | null;
+  source: string;
+  status: string;
+  original_start_at: string | null;
+  reschedule_count: number;
+  payment_ref: string | null;
+  package_usage_ref: string | null;
+  phone_normalized: string | null;
+  attribution_json: Record<string, unknown> | null;
+  appointment_reminder_allowed_preset_ids: string[] | null;
+  appointment_reminder_preset_id: string | null;
+  appointment_reminder_selection_source: string;
+};
+
+function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppointment {
+  const reminderSettings = normalizeAppointmentReminderSettings({
+    allowedPresetIds: row.appointment_reminder_allowed_preset_ids ?? [],
+    defaultPresetId: row.appointment_reminder_preset_id,
+  });
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    branchId: row.branch_id,
+    roomId: row.room_id,
+    specialistId: row.specialist_id,
+    serviceId: row.service_id,
+    platformUserId: row.platform_user_id,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    durationMinutes: row.duration_minutes,
+    chainId: row.chain_id,
+    chainPosition: row.chain_position,
+    source: row.source as BeAppointment['source'],
+    status: row.status as BeAppointment['status'],
+    originalStartAt: row.original_start_at,
+    rescheduleCount: row.reschedule_count,
+    paymentRef: row.payment_ref,
+    packageUsageRef: row.package_usage_ref,
+    phoneNormalized: row.phone_normalized,
+    attributionJson: row.attribution_json ?? {},
+    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
+    appointmentReminderPresetId: reminderSettings.defaultPresetId,
+    appointmentReminderSelectionSource:
+      row.appointment_reminder_selection_source === 'patient'
+        ? 'patient'
+        : 'specialist_default',
+  };
+}
+
+function isCurrentPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function createCurrentPatientAppointments(
+  inputs: readonly CreateAppointmentInput[],
+): Promise<BeAppointment[]> {
+  const result = await runWebappNamedRoot<{ appointments: CurrentPatientAppointmentRow[] }>(
+    getWebappSqlDb(),
+    'app.create_current_patient_booking_appointments(text)',
+    [JSON.stringify(inputs)],
+    sql`SELECT app.create_current_patient_booking_appointments(
+      ${JSON.stringify(inputs)}::text
+    ) AS appointments`,
+  );
+  return (result.rows[0]?.appointments ?? []).map(mapCurrentPatientAppointment);
+}
+
+export async function readCurrentPatientBookingAppointment(
+  id: string,
+): Promise<BeAppointment | null> {
+  const result = await runWebappNamedRoot<{ appointment: CurrentPatientAppointmentRow | null }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_appointment(uuid)',
+    [id],
+    sql`SELECT app.read_current_patient_booking_appointment(${id}::uuid) AS appointment`,
+  );
+  const appointment = result.rows[0]?.appointment;
+  return appointment ? mapCurrentPatientAppointment(appointment) : null;
 }
 
 async function insertAppointmentInTransaction(
@@ -1319,6 +1419,18 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async setPatientAppointmentReminderPreset({ appointmentId, presetId }) {
+      if (isCurrentPatientPrincipal()) {
+        const result = await runWebappNamedRoot<{ updated: boolean }>(
+          getWebappSqlDb(),
+          'app.set_current_patient_booking_reminder_preset(uuid,text)',
+          [appointmentId, presetId],
+          sql`SELECT app.set_current_patient_booking_reminder_preset(
+            ${appointmentId}::uuid,
+            ${presetId}::text
+          ) AS updated`,
+        );
+        return result.rows[0]?.updated === true;
+      }
       const db = getDrizzle();
       const allowedPresetPredicate =
         presetId === null
@@ -1342,6 +1454,21 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getPatientAppointmentReminderPreference(appointmentId) {
+      if (isCurrentPatientPrincipal()) {
+        const appointment = await readCurrentPatientBookingAppointment(appointmentId);
+        if (!appointment) return null;
+        const reminderSettings = normalizeAppointmentReminderSettings({
+          allowedPresetIds: appointment.appointmentReminderAllowedPresetIds,
+          defaultPresetId: appointment.appointmentReminderPresetId,
+        });
+        return {
+          organizationId: appointment.organizationId,
+          status: appointment.status,
+          allowedPresetIds: reminderSettings.allowedPresetIds,
+          presetId: reminderSettings.defaultPresetId,
+          selectionSource: appointment.appointmentReminderSelectionSource,
+        };
+      }
       const db = getDrizzle();
       const rows = await db
         .select({
@@ -1370,6 +1497,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getAppointment(id) {
+      if (isCurrentPatientPrincipal()) {
+        return readCurrentPatientBookingAppointment(id);
+      }
       const db = getDrizzle();
       const rows = await db.select().from(beAppointments).where(eq(beAppointments.id, id)).limit(1);
       return rows[0] ? mapAppointment(rows[0]) : null;
@@ -1415,6 +1545,12 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async createAppointment(input: CreateAppointmentInput) {
+      if (isCurrentPatientPrincipal()) {
+        const appointments = await createCurrentPatientAppointments([input]);
+        const appointment = appointments[0];
+        if (!appointment) throw new Error('appointment_create_failed');
+        return appointment;
+      }
       const db = getDrizzle();
       const now = new Date().toISOString();
       return db.transaction((tx) => insertAppointmentInTransaction(tx as DrizzleDb, input, now));
@@ -1746,6 +1882,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async createAppointmentChain(inputs) {
+      if (isCurrentPatientPrincipal()) {
+        return createCurrentPatientAppointments(inputs);
+      }
       const db = getDrizzle();
       const now = new Date().toISOString();
       return db.transaction(async (tx) => {

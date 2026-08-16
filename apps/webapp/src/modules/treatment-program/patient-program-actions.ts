@@ -430,6 +430,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       instanceId: string;
       stageItemId: string;
       note: string;
+      patientLabel?: string;
     }): Promise<ProgramItemDiscussionMessage | null> {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
@@ -483,7 +484,7 @@ export function createTreatmentProgramPatientActionService(deps: {
         detail.assignmentSource === 'doctor' &&
         detail.organizationId &&
         deps.notifyDoctorOfProgramNote &&
-        deps.resolvePatientLabel
+        (input.patientLabel?.trim() || deps.resolvePatientLabel)
       ) {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
@@ -499,7 +500,10 @@ export function createTreatmentProgramPatientActionService(deps: {
           noteText: noteTrim,
         };
         void (async () => {
-          const patientLabel = await deps.resolvePatientLabel!(input.patientUserId);
+          const patientLabel =
+            input.patientLabel?.trim() ||
+            (await deps.resolvePatientLabel?.(input.patientUserId)) ||
+            'Пациент';
           await deps.notifyDoctorOfProgramNote!({
             ...notifyInput,
             patientLabel,
@@ -517,6 +521,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       instanceId: string;
       stageItemId: string;
       mediaFileId: string;
+      patientLabel?: string;
     }): Promise<void> {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
@@ -568,7 +573,7 @@ export function createTreatmentProgramPatientActionService(deps: {
         detail.assignmentSource === 'doctor' &&
         detail.organizationId &&
         deps.notifyDoctorOfProgramNote &&
-        deps.resolvePatientLabel
+        (input.patientLabel?.trim() || deps.resolvePatientLabel)
       ) {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
@@ -584,7 +589,10 @@ export function createTreatmentProgramPatientActionService(deps: {
           noteText: 'Медиафайл',
         };
         void (async () => {
-          const patientLabel = await deps.resolvePatientLabel!(input.patientUserId);
+          const patientLabel =
+            input.patientLabel?.trim() ||
+            (await deps.resolvePatientLabel?.(input.patientUserId)) ||
+            'Пациент';
           await deps.notifyDoctorOfProgramNote!({
             ...notifyInput,
             patientLabel,

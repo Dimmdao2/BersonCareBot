@@ -1,11 +1,11 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
-import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import {
   getDrizzleOrMutationTx,
   runDrizzleMutationTransaction,
 } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   bePaymentHistoryEvents,
   bePaymentIntents,
@@ -39,6 +39,48 @@ function mapPolicy(row: typeof bePrepaymentPolicies.$inferSelect): PrepaymentPol
     currency: row.currency,
     isActive: row.isActive,
   };
+}
+
+type PatientPrepaymentPolicyRow = {
+  id: string;
+  organization_id: string;
+  service_id: string | null;
+  online_category: string | null;
+  mode: string;
+  amount_minor: number | null;
+  percent_bps: number | null;
+  currency: string;
+  is_active: boolean;
+};
+
+function mapPatientPolicy(row: PatientPrepaymentPolicyRow): PrepaymentPolicyRecord {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    serviceId: row.service_id,
+    onlineCategory: row.online_category,
+    mode: row.mode as PrepaymentPolicyRecord['mode'],
+    amountMinor: row.amount_minor,
+    percentBps: row.percent_bps,
+    currency: row.currency,
+    isActive: row.is_active,
+  };
+}
+
+async function readCurrentPatientPrepaymentPolicy(
+  serviceId: string | null,
+  onlineCategory: string | null,
+): Promise<PrepaymentPolicyRecord | null> {
+  const result = await runWebappNamedRoot<PatientPrepaymentPolicyRow>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_prepayment_policy(uuid,text)',
+    [serviceId, onlineCategory],
+    sql`SELECT * FROM app.read_current_patient_booking_prepayment_policy(
+      ${serviceId}::uuid,
+      ${onlineCategory}::text
+    )`,
+  );
+  return result.rows[0] ? mapPatientPolicy(result.rows[0]) : null;
 }
 
 function mapIntent(row: typeof bePaymentIntents.$inferSelect): PaymentIntentRecord {
@@ -119,6 +161,9 @@ function runPaymentMutation<T>(
 export function createPgPaymentsPort(): PaymentsPort {
   return {
     async getPrepaymentPolicyForService(organizationId, serviceId) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        return readCurrentPatientPrepaymentPolicy(serviceId, null);
+      }
       const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
@@ -134,6 +179,9 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async getPrepaymentPolicyForOnlineCategory(organizationId, onlineCategory) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        return readCurrentPatientPrepaymentPolicy(null, onlineCategory);
+      }
       const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()

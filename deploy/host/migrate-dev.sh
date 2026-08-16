@@ -18,14 +18,12 @@ REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 API_ENV="$REPO_ROOT/.env"
 WEBAPP_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
-CANONICAL_SQL_READER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 OWNER_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs"
 INTEGRATOR_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs"
 RECONCILER="$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs"
 PRIVILEGE_GENERATOR="$REPO_ROOT/deploy/postgres/privileges/generate-cli.mjs"
 PORT_CONTEXT_ENV_UPDATER="$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs"
 DRIZZLE_FOLDER="$REPO_ROOT/apps/webapp/db/drizzle-migrations"
-D30_ONLINE_INDEX="$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql"
 CREDENTIAL_DIR=""
 ACTIVE_CHILD_PID=""
 
@@ -103,13 +101,11 @@ fi
 assert_canonical_file "$API_ENV" "$REPO_ROOT/.env" "DEV API env"
 assert_canonical_file "$WEBAPP_ENV" "$REPO_ROOT/apps/webapp/.env.dev" "DEV webapp env"
 assert_canonical_file "$DEV_ENV_PARSER" "$REPO_ROOT/deploy/host/parse-dev-database-url.mjs" "DEV env parser"
-assert_canonical_file "$CANONICAL_SQL_READER" "$REPO_ROOT/deploy/host/stream-canonical-sql.mjs" "canonical SQL reader"
 assert_canonical_file "$OWNER_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" "owner-ordered migrator"
 assert_canonical_file "$INTEGRATOR_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs" "integrator migrator"
 assert_canonical_file "$RECONCILER" "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" "access reconciler"
 assert_canonical_file "$PRIVILEGE_GENERATOR" "$REPO_ROOT/deploy/postgres/privileges/generate-cli.mjs" "privilege generator"
 assert_canonical_file "$PORT_CONTEXT_ENV_UPDATER" "$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs" "DEV port-context env updater"
-assert_canonical_file "$D30_ONLINE_INDEX" "$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql" "D30 online index artifact"
 [[ ! -L "$DRIZZLE_FOLDER" && -d "$DRIZZLE_FOLDER" ]] || fatal "Drizzle migrations path guard failed"
 
 for command in flock mktemp node psql realpath setsid sudo; do
@@ -187,16 +183,6 @@ run_tracked node "$OWNER_MIGRATOR" \
 run_tracked node "$INTEGRATOR_MIGRATOR" \
   --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
   --root "$REPO_ROOT/apps/integrator" --sudo-postgres
-
-# 0328 commits first; this hot-table index is an idempotent separate autocommit operation. The
-# repository owner opens the guarded file and streams it because the postgres OS identity cannot
-# read the private repository tree.
-run_tracked bash -c '
-  set -Eeuo pipefail
-  node "$1" "$2" "$3" | sudo -n -u postgres env PGOPTIONS="-c role=$4" \
-    psql -X -h "$5" -p "$6" -d "$7" -v ON_ERROR_STOP=1
-' bash "$CANONICAL_SQL_READER" "$D30_ONLINE_INDEX" "$(dirname "$D30_ONLINE_INDEX")" \
-  "$OBJECT_OWNER_ROLE" "$ADMIN_SOCKET" "$ADMIN_PORT" "$TARGET_DB"
 
 # Reconcile loads only the four already-configured runtime passwords.  It reapplies the exact
 # declaration and runs its environment/catalog closure verifiers in the same transaction.

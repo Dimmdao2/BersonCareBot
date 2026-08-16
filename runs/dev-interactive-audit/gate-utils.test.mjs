@@ -5,6 +5,7 @@ import {
   exactUrlMatches,
   evaluatePageObservation,
   routeContractMatches,
+  routePatternMatches,
   routeTemplateKey,
   shouldIgnoreRequestFailure,
   summarizeBinaryGate,
@@ -31,6 +32,45 @@ test('collapses different entity rows to one route template without collapsing s
   );
   assert.equal(first, second);
   assert.notEqual(first, finances);
+});
+
+test('collapses temporal pagination without collapsing semantic route state', () => {
+  assert.equal(
+    routeTemplateKey('/app/patient/diary?week=2026-08-10&tab=wellbeing'),
+    '/app/patient/diary?tab=wellbeing&week=%3Asample',
+  );
+  assert.equal(
+    routeTemplateKey('/app/patient/diary?week=2026-08-03&tab=wellbeing'),
+    '/app/patient/diary?tab=wellbeing&week=%3Asample',
+  );
+  assert.notEqual(
+    routeTemplateKey('/app/patient/diary?week=2026-08-03&tab=wellbeing'),
+    routeTemplateKey('/app/patient/diary?week=2026-08-03&tab=symptoms'),
+  );
+});
+
+test('matches explicit dynamic route contracts without weakening query-state matching', () => {
+  assert.equal(
+    routePatternMatches(
+      '/app/patient/content/:slug',
+      '/app/patient/content/daily-warmup',
+    ),
+    true,
+  );
+  assert.equal(
+    routePatternMatches(
+      '/app/doctor/patients/:uuid?tab=finances',
+      '/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=finances',
+    ),
+    true,
+  );
+  assert.equal(
+    routePatternMatches(
+      '/app/doctor/patients/:uuid?tab=finances',
+      '/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=overview',
+    ),
+    false,
+  );
 });
 
 test('exact URL comparison catches a dropped query parameter', () => {
@@ -110,6 +150,16 @@ test('rejects duplicated controls and captures a real HTTP 5xx on its page', () 
   });
   assert.equal(serverFailure.pass, false);
   assert.deepEqual(serverFailure.reasons, ['network_failures:1']);
+
+  const consoleWarning = evaluatePageObservation({
+    responseOk: true,
+    urlOk: true,
+    visibleFatal: false,
+    mainCount: 1,
+    anchors: [{ name: '#diary-chart', count: 1, visible: true }],
+    consoleWarnings: [{ message: 'chart has invalid dimensions' }],
+  });
+  assert.deepEqual(consoleWarning.reasons, ['console_warnings:1']);
 });
 
 test('ignores harness-created aborts only while a harness navigation is active', () => {
@@ -123,6 +173,24 @@ test('ignores harness-created aborts only while a harness navigation is active',
   );
   assert.equal(
     shouldIgnoreRequestFailure({ errorText: 'net::ERR_FAILED', harnessNavigationActive: true }),
+    false,
+  );
+  assert.equal(
+    shouldIgnoreRequestFailure({
+      errorText: 'net::ERR_ABORTED',
+      harnessNavigationActive: false,
+      url: 'http://127.0.0.1:5200/app/patient?_rsc=prefetch',
+      resourceType: 'fetch',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldIgnoreRequestFailure({
+      errorText: 'net::ERR_ABORTED',
+      harnessNavigationActive: false,
+      url: 'http://127.0.0.1:5200/api/patient/messages',
+      resourceType: 'fetch',
+    }),
     false,
   );
 });
@@ -141,6 +209,14 @@ test('binary gate fails for identity, page, action, network, or console evidence
   const broken = structuredClone(clean);
   broken.pages[0].pass = false;
   assert.equal(summarizeBinaryGate([broken]).pass, false);
+  const warning = structuredClone(clean);
+  warning.console_warnings = [{ message: 'runtime warning' }];
+  assert.deepEqual(summarizeBinaryGate([warning]).violations, [
+    'doctor:console_warning',
+  ]);
+  const incomplete = structuredClone(clean);
+  incomplete.complete = false;
+  assert.deepEqual(summarizeBinaryGate([incomplete]).violations, ['doctor:incomplete']);
   assert.deepEqual(summarizeBinaryGate([clean], ['doctor', 'patient']).violations, [
     'patient:missing_role_artifact',
   ]);

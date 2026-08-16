@@ -5,7 +5,7 @@
  */
 
 import { cache } from 'react';
-import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
@@ -152,6 +152,7 @@ import { inMemoryChannelPreferencesPort } from '@/infra/repos/inMemoryChannelPre
 import { inMemoryWebPushSubscriptionsPort } from '@/infra/repos/inMemoryWebPushSubscriptions';
 import { pgChannelPreferencesPort } from '@/infra/repos/pgChannelPreferences';
 import { createPgWebPushSubscriptionsPort } from '@/infra/repos/pgWebPushSubscriptions';
+import { createPgIntegratorWebPushDeliveryPort } from '@/infra/repos/pgIntegratorWebPushDelivery';
 import {
   createPgPatientNotificationTopicsPort,
   inMemoryPatientNotificationTopicsPort,
@@ -161,6 +162,7 @@ import {
   inMemoryTopicChannelPrefsPort,
 } from '@/infra/repos/pgTopicChannelPrefs';
 import { createPgStaffUsersPort, inMemoryStaffUsersPort } from '@/infra/repos/pgStaffUsers';
+import { createPgPatientStaffNotificationProfilesPort } from '@/infra/repos/pgPatientStaffNotificationProfiles';
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from '@/infra/repos/pgUserProjection';
 import {
   createPgUserPasswordCredentialsPort,
@@ -488,6 +490,7 @@ const channelPreferencesPort = !inMemoryRepos
 const webPushSubscriptionsPort = !inMemoryRepos
   ? createPgWebPushSubscriptionsPort()
   : inMemoryWebPushSubscriptionsPort;
+const integratorWebPushDeliveryPort = createPgIntegratorWebPushDeliveryPort();
 const reminderTransactionalEmailCooldownPort = !inMemoryRepos
   ? createPgReminderTransactionalEmailCooldownPort()
   : createNoOpReminderTransactionalEmailCooldownPort();
@@ -495,6 +498,9 @@ const topicChannelPrefsPort = !inMemoryRepos
   ? createPgTopicChannelPrefsPort()
   : inMemoryTopicChannelPrefsPort;
 const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaffUsersPort;
+const patientStaffNotificationProfilesPort = !inMemoryRepos
+  ? createPgPatientStaffNotificationProfilesPort()
+  : undefined;
 const globalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = !inMemoryRepos
   ? createPgGlobalAdminWebPushRecipientsPort()
   : emptyGlobalAdminWebPushRecipientsPort;
@@ -792,6 +798,7 @@ const appRuntimeSettingsPort = !inMemoryRepos
 const systemSettingsServiceBase = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
+  shouldCompareRuntimeWithLegacy: () => getCurrentDbPrincipal()?.kind !== 'patient',
 });
 const systemSettingsService = wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
   wrapSystemSettingsServiceWithPatientHomeWriteClearance(
@@ -914,6 +921,10 @@ const paymentsService =
             'payments',
           );
           return access.state === 'full_access' || access.state === 'grace';
+        },
+        resolvePayerEmail: async (platformUserId) => {
+          const identity = await doctorClientsPort.getClientIdentity(platformUserId);
+          return identity?.email?.trim() || null;
         },
         onPackagePaymentCaptured: membershipsService
           ? async ({ patientPackageId, paymentId, organizationId }) => {
@@ -1063,6 +1074,7 @@ const doctorPatientMessageStaffDeps = {
   webPushSubscriptions: webPushSubscriptionsPort,
   systemSettings: systemSettingsService,
   getChannelBindings: loadPlatformUserChannelBindings,
+  patientStaffNotificationProfiles: patientStaffNotificationProfilesPort,
 };
 registerAdminIncidentStaffPushDeps({
   staffUsers: staffUsersPort,
@@ -1822,6 +1834,7 @@ function _buildAppDeps() {
     channelPreferences: channelPreferencesService,
     channelPreferencesPort,
     webPushSubscriptions: webPushSubscriptionsPort,
+    integratorWebPushDelivery: integratorWebPushDeliveryPort,
     readReminderNotifyGate: readReminderWebappNotifyGate,
     loadPlatformUserChannelBindings,
     reminderTransactionalEmailCooldown: reminderTransactionalEmailCooldownPort,

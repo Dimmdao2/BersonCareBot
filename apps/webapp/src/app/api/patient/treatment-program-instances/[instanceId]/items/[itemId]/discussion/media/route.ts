@@ -119,6 +119,7 @@ export async function POST(
       instanceId,
       stageItemId: itemId,
       mediaFileId: parsed.data.mediaFileId,
+      patientLabel: gate.session.user.displayName,
     });
     const latest = await listLatestDiscussionMessage(itemContext.deps, itemId);
     return NextResponse.json({ ok: true, message: latest });

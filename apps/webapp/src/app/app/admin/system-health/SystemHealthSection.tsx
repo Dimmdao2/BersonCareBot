@@ -956,7 +956,7 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
   const webPushSectionStatus = webPushSubsStatus;
 
   return (
-    <div className="space-y-4">
+    <div id="system-health-root" className="space-y-4">
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">

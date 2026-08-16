@@ -62,11 +62,15 @@ export function PatientCoursesCatalogClient(props: {
   }
 
   if (items.length === 0) {
-    return <p className={patientMutedTextClass}>Пока нет опубликованных курсов.</p>;
+    return (
+      <p id="patient-courses-catalog" className={patientMutedTextClass}>
+        Пока нет опубликованных курсов.
+      </p>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div id="patient-courses-catalog" className="flex flex-col gap-4">
       {error ? (
         <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}

@@ -10,6 +10,11 @@ pnpm-debug.log*
 # TypeScript
 *.tsbuildinfo
 
+# Generated local audit/transcript output; it can contain runtime identity evidence.
+runs/dev-interactive-audit/out/
+runs/dev-interactive-audit/runs/
+runs/orchestration/
+
 # Logs
 logs/
 *.log

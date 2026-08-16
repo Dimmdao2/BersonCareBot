@@ -71,7 +71,7 @@ export function PlatformIntegrationAvailabilitySection() {
   }
 
   return (
-    <DoctorSection>
+    <DoctorSection id="platform-integration-availability">
       <DoctorSectionHeader>
         <DoctorSectionTitle>Доступность интеграций для клиник</DoctorSectionTitle>
       </DoctorSectionHeader>

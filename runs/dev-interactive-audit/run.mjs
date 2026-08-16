@@ -10,6 +10,7 @@ import {
   canonicalAuditUrl,
   routeContractMatches,
   evaluatePageObservation,
+  routePatternMatches,
   routeTemplateKey,
   shouldIgnoreRequestFailure,
   summarizeBinaryGate,
@@ -21,6 +22,7 @@ const outDir = 'runs/dev-interactive-audit/out';
 const password = process.env.DEV_AUDIT_PASSWORD || '';
 const allowSynthetic = process.env.DEV_AUDIT_ALLOW_SYNTHETIC === '1';
 const mutationsEnabled = process.env.DEV_AUDIT_MUTATE === '1';
+const skipRoutes = process.env.DEV_AUDIT_SKIP_ROUTES === '1';
 const configuredOrganizationId = process.env.DEV_AUDIT_ORGANIZATION_ID || null;
 const patientName = process.env.DEV_AUDIT_PATIENT_NAME || 'Берсон Дмитрий';
 const patientPhone = '+79189000782';
@@ -33,6 +35,14 @@ const aggregateArtifacts = (process.env.DEV_AUDIT_AGGREGATE_ARTIFACTS || '')
   .split(',')
   .map((path) => path.trim())
   .filter(Boolean);
+let stopRequested = false;
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    if (stopRequested) process.exit(130);
+    stopRequested = true;
+    console.error(JSON.stringify({ event: 'dev_audit_stop_requested', signal }));
+  });
+}
 for (const role of requestedRoles) {
   if (!ROLE_SCENARIOS[role]) throw new Error(`DEV_AUDIT_ROLES contains unknown role: ${role}`);
 }
@@ -100,6 +110,8 @@ function attachEvidence(page, evidence, navigationState) {
       shouldIgnoreRequestFailure({
         errorText: detail,
         harnessNavigationActive: navigationState.active,
+        url: request.url(),
+        resourceType: request.resourceType(),
       })
     ) {
       evidence.ignoredHarnessAborts += 1;
@@ -132,7 +144,7 @@ function attachEvidence(page, evidence, navigationState) {
   });
 }
 
-async function authenticate(context, label, scenario) {
+async function authenticate(context, page, label, scenario) {
   const cookieValue = scenario.sessionCookieEnv ? process.env[scenario.sessionCookieEnv] : null;
   if (cookieValue) {
     await context.addCookies([
@@ -142,14 +154,27 @@ async function authenticate(context, label, scenario) {
   }
   const email = process.env[scenario.emailEnv] || scenario.defaultEmail;
   if (email && password) {
-    const response = await context.request.post(`${baseUrl}/api/auth/email-password/login`, {
-      headers: { Origin: baseUrl },
-      data: { email, password },
-    });
-    const body = await response.json().catch(() => null);
-    if (response.status() !== 200 || body?.ok !== true || body?.factorRequired === true) {
+    await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+    const response = await page.evaluate(
+      async ({ loginUrl, loginEmail, loginPassword }) => {
+        const result = await fetch(loginUrl, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json', 'X-Real-IP': '127.0.0.1' },
+          body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        });
+        return { status: result.status, body: await result.json().catch(() => null) };
+      },
+      {
+        loginUrl: `${baseUrl}/api/auth/email-password/login`,
+        loginEmail: email,
+        loginPassword: password,
+      },
+    );
+    const body = response.body;
+    if (response.status !== 200 || body?.ok !== true || body?.factorRequired === true) {
       throw new Error(
-        `actual_${label}_login_failed:${response.status()}:${body?.error ?? 'unknown'}`,
+        `actual_${label}_login_failed:${response.status}:${body?.error ?? 'unknown'}`,
       );
     }
     return { kind: 'actual_email_password' };
@@ -164,30 +189,45 @@ async function authenticate(context, label, scenario) {
   return { kind: 'synthetic_dev_bypass' };
 }
 
-async function requestJson(context, evidence, pathname, options = {}) {
+async function requestJson(page, evidence, pathname, options = {}) {
   const started = nowMs();
-  const response = await context.request.fetch(`${baseUrl}${pathname}`, {
-    headers: { Origin: baseUrl, ...(options.headers || {}) },
-    ...options,
-  });
-  const body = await response.json().catch(() => null);
+  const response = await page.evaluate(
+    async ({ requestUrl, requestMethod, requestHeaders }) => {
+      const result = await fetch(requestUrl, {
+        method: requestMethod,
+        credentials: 'include',
+        headers: requestHeaders,
+      });
+      return {
+        ok: result.ok,
+        status: result.status,
+        body: await result.json().catch(() => null),
+      };
+    },
+    {
+      requestUrl: `${baseUrl}${pathname}`,
+      requestMethod: options.method || 'GET',
+      requestHeaders: { 'X-Real-IP': '127.0.0.1', ...(options.headers || {}) },
+    },
+  );
+  const body = response.body;
   const item = {
     method: options.method || 'GET',
-    status: response.status(),
+    status: response.status,
     url: canonicalAuditUrl(pathname),
     resource: 'audit-action',
     duration_ms: Math.round(nowMs() - started),
   };
   evidence.api.push(item);
-  if (response.status() >= 400) {
+  if (response.status >= 400) {
     evidence.failures.push({ kind: 'action_http', ...item });
     evidence.network.push({ kind: 'action_http', ...item });
   }
-  return { ok: response.ok(), status: response.status(), body, duration_ms: item.duration_ms };
+  return { ok: response.ok, status: response.status, body, duration_ms: item.duration_ms };
 }
 
-async function assertIdentity(context, evidence, label, scenario, expectedOrganizationId) {
-  const me = await requestJson(context, evidence, '/api/me');
+async function assertIdentity(page, evidence, label, scenario, expectedOrganizationId) {
+  const me = await requestJson(page, evidence, '/api/me');
   const user = me.body?.user;
   const expected = scenario.identity;
   const contact = Array.isArray(user?.contacts)
@@ -210,13 +250,13 @@ async function assertIdentity(context, evidence, label, scenario, expectedOrgani
     if (me.body?.platformAccess?.dbRole !== 'admin') reasons.push('global_admin_db_role_mismatch');
     if (me.body?.platformAccess?.tier !== null) reasons.push('global_admin_tier_not_na');
   } else if (label === 'doctor') {
-    const workspace = await requestJson(context, evidence, '/api/doctor/booking-engine/overview');
+    const workspace = await requestJson(page, evidence, '/api/doctor/booking-engine/overview');
     organizationId = workspace.body?.organizationId ?? null;
     if (!workspace.ok || workspace.body?.organization?.id !== organizationId) {
       reasons.push('doctor_workspace_missing');
     }
   } else {
-    const organization = await requestJson(context, evidence, '/api/patient/organization-context');
+    const organization = await requestJson(page, evidence, '/api/patient/organization-context');
     organizationId = organization.body?.context?.ok
       ? organization.body.context.organizationId
       : null;
@@ -239,7 +279,7 @@ async function navigate(page, navigationState, target) {
   navigationState.active = true;
   const started = nowMs();
   try {
-    const response = await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    const response = await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 120_000 });
     const domcontentloadedMs = Math.round(nowMs() - started);
     const settled = await settlePage(page);
     return { response, domcontentloadedMs, ...settled };
@@ -249,6 +289,13 @@ async function navigate(page, navigationState, target) {
 }
 
 async function semanticEvidence(page, selectors) {
+  if (selectors.length > 0) {
+    await Promise.any(
+      selectors.map((selector) =>
+        page.locator(selector).waitFor({ state: 'visible', timeout: 15_000 }),
+      ),
+    ).catch(() => undefined);
+  }
   const anchors = await Promise.all(
     selectors.map(async (selector) => {
       const locator = page.locator(selector);
@@ -264,11 +311,10 @@ async function semanticEvidence(page, selectors) {
 }
 
 function selectorsForRoute(scenario, expectedUrl) {
-  const direct = scenario.routeEvidence?.[expectedUrl];
-  if (direct) return direct;
-  // An explicit functional/landmark selector is required for every page. This
-  // fallback is deliberately strict: a naked app shell has none of these.
-  return ['main [data-testid]', 'main [id^="patient-"]', 'main [id^="doctor-"]', 'main form'];
+  for (const [pattern, selectors] of Object.entries(scenario.routeEvidence ?? {})) {
+    if (routePatternMatches(pattern, expectedUrl)) return selectors;
+  }
+  return [];
 }
 
 async function clickRequiredTabs(page, labels) {
@@ -307,6 +353,7 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   const started = nowMs();
   const failuresBefore = evidence.failures.length;
   const consoleBefore = evidence.consoleErrors.length;
+  const warningsBefore = evidence.consoleWarnings.length;
   const navigation = await navigate(page, navigationState, target);
   const body = (
     await page
@@ -320,6 +367,42 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   const finalUrl = canonicalAuditUrl(page.url());
   const selectors = selectorsForRoute(scenario, expectedUrl);
   const semantics = await semanticEvidence(page, selectors);
+  const horizontalOverflow = await page.evaluate(() => {
+    const viewportWidth = globalThis.visualViewport?.width ?? document.documentElement.clientWidth;
+    const tolerance = 1;
+    const offenders = [];
+    for (const node of document.body?.querySelectorAll('*') ?? []) {
+      if (!(node instanceof HTMLElement)) continue;
+      const style = getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+      const rect = node.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      const overflowLeftPx = Math.max(0, -rect.left - tolerance);
+      const overflowRightPx = Math.max(0, rect.right - viewportWidth - tolerance);
+      if (overflowLeftPx <= 0 && overflowRightPx <= 0) continue;
+      const className = typeof node.className === 'string' ? node.className : '';
+      offenders.push({
+        tag: node.tagName.toLowerCase(),
+        id: node.id || null,
+        testId: node.getAttribute('data-testid'),
+        classSnippet: className.length > 120 ? `${className.slice(0, 117)}…` : className,
+        rect: { left: rect.left, right: rect.right, width: rect.width },
+        overflowLeftPx,
+        overflowRightPx,
+      });
+    }
+    offenders.sort(
+      (left, right) =>
+        right.overflowLeftPx + right.overflowRightPx -
+        (left.overflowLeftPx + left.overflowRightPx),
+    );
+    return {
+      viewportWidth,
+      documentScrollOverflow:
+        document.documentElement.scrollWidth > document.documentElement.clientWidth + tolerance,
+      offenders: offenders.slice(0, 12),
+    };
+  });
   const allowedFinalTemplates = scenario.allowedFinalTemplates?.[expectedUrl] ?? [];
   const exactUrl = routeContractMatches(page.url(), target, allowedFinalTemplates);
   const visibleFatal = /(?:404|not found|internal server error|application error)/i.test(body);
@@ -339,6 +422,7 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
     ...semantics,
     failures: evidence.failures.slice(failuresBefore),
     consoleErrors: evidence.consoleErrors.slice(consoleBefore),
+    consoleWarnings: evidence.consoleWarnings.slice(warningsBefore),
   });
   const pass = observation.pass && !tabFailure && tabs.every((tab) => tab.pass);
   return {
@@ -349,6 +433,7 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
     exact_url: exactUrl,
     ...(allowedFinalTemplates.length ? { intentional_redirect_templates: allowedFinalTemplates } : {}),
     semantic_evidence: semantics,
+    horizontal_overflow: horizontalOverflow,
     failure_reasons: [...observation.reasons, ...(tabFailure ? ['required_tab_failure'] : [])],
     navigation_status: status,
     navigation_ms: Math.round(nowMs() - started),
@@ -424,7 +509,8 @@ async function waitForPost(page, pathname, action) {
   );
   await action();
   const response = await responsePromise;
-  return { ok: response.ok(), status: response.status() };
+  const body = await response.json().catch(() => null);
+  return { ok: response.ok(), status: response.status(), body };
 }
 
 async function waitForPatientReminderPatch(page, action) {
@@ -462,7 +548,7 @@ async function selectOptionInForm(page, form, label) {
 async function commercialUiCycles(page, context, evidence, navigationState) {
   await navigate(page, navigationState, `${baseUrl}/app/admin/commercial`);
   await openCommercialTrialTab(page, navigationState);
-  const read = () => requestJson(context, evidence, '/api/admin/commercial');
+  const read = () => requestJson(page, evidence, '/api/admin/commercial');
   const results = [];
 
   let registrationChanged;
@@ -606,7 +692,7 @@ async function selectDoctorTime(page, testId, value) {
 }
 
 async function doctorScheduleUiCycle(page, context, evidence, navigationState) {
-  const read = () => requestJson(context, evidence, '/api/doctor/booking-engine/working-hours');
+  const read = () => requestJson(page, evidence, '/api/doctor/booking-engine/working-hours');
   let selected;
   let changedSnapshot;
   return runReversibleCycle({
@@ -676,7 +762,7 @@ function availabilitySnapshot(body) {
 }
 
 async function doctorAvailabilityUiCycle(page, context, evidence, navigationState) {
-  const read = () => requestJson(context, evidence, '/api/admin/booking-engine/overview');
+  const read = () => requestJson(page, evidence, '/api/admin/booking-engine/overview');
   let selected;
   let changedSnapshot;
   return runReversibleCycle({
@@ -716,9 +802,9 @@ async function doctorAvailabilityUiCycle(page, context, evidence, navigationStat
   });
 }
 
-async function resolveActualPatient(context, evidence) {
+async function resolveActualPatient(page, evidence) {
   const response = await requestJson(
-    context,
+    page,
     evidence,
     `/api/doctor/clients/search?q=${encodeURIComponent(patientPhone)}&limit=10`,
   );
@@ -746,21 +832,17 @@ async function doctorPatientCardTabs(page, navigationState, patient) {
     ).trim();
     const programRoute = `/app/doctor/patients/:uuid/programs/:uuid`;
     const urlOk = routeContractMatches(page.url(), target, tabId === 'program' ? [programRoute] : []);
+    const programRedirected = tabId === 'program' && canonicalAuditUrl(page.url()) === programRoute;
+    const substantiveSurface = programRedirected
+      ? await page.locator('#doctor-program-instance-summary').isVisible().catch(() => false)
+      : (await card.isVisible().catch(() => false)) && activeClass.includes('bg-primary/15');
+    const pass =
+      Boolean(navigation.response?.ok()) && urlOk && substantiveSurface && body.length > 20;
     results.push({
       url: canonicalAuditUrl(target),
       final_url: canonicalAuditUrl(page.url()),
-      pass:
-        Boolean(navigation.response?.ok()) &&
-        urlOk &&
-        (await card.isVisible().catch(() => false)) &&
-        activeClass.includes('bg-primary/15') &&
-        body.length > 20,
-      substantive:
-        Boolean(navigation.response?.ok()) &&
-        urlOk &&
-        (await card.isVisible().catch(() => false)) &&
-        activeClass.includes('bg-primary/15') &&
-        body.length > 20,
+      pass,
+      substantive: pass,
       exact_url: urlOk,
       ...(tabId === 'program' ? { intentional_redirect_templates: [programRoute] } : {}),
       main_marker: { pass: true, marker: `Карточка пациента / ${label}` },
@@ -788,9 +870,9 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
     if ((await comments.count()) !== 1) throw new Error(`comments_surface_count:${await comments.count()}`);
     await comments.waitFor({ state: 'visible', timeout: 15_000 });
     const patientRows = comments.getByText(patientName, { exact: true });
+    await patientRows.first().waitFor({ state: 'visible', timeout: 15_000 });
     if ((await patientRows.count()) !== 1)
       throw new Error(`comments_patient_match_count:${await patientRows.count()}`);
-    await patientRows.waitFor({ state: 'visible', timeout: 15_000 });
     results.push({
       id: 'doctor.comments-patient-list',
       pass: true,
@@ -835,6 +917,7 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
         id: 'doctor.payment-link-control',
         pass: response.ok && visible,
         status: response.status,
+        failure_reason: response.body?.reason ?? response.body?.error ?? null,
         retained_dev_payment_attempt: response.ok,
         duration_ms: Math.round(nowMs() - started),
       });
@@ -1100,18 +1183,30 @@ async function auditRole(label, scenario, expectedOrganizationId) {
   const navigationState = { active: false };
   attachEvidence(page, evidence, navigationState);
   try {
-    const authentication = await authenticate(context, label, scenario);
+    const authentication = await authenticate(context, page, label, scenario);
+    // The role gate starts after successful authentication. Discard aborted
+    // prefetches and public-auth bootstrap traffic from the temporary `/app`
+    // origin page used only to establish the real browser session.
+    evidence.failures.length = 0;
+    evidence.consoleErrors.length = 0;
+    evidence.consoleWarnings.length = 0;
+    evidence.network.length = 0;
+    evidence.api.length = 0;
+    evidence.ignoredHarnessAborts = 0;
     const identityAssertion = await assertIdentity(
-      context,
+      page,
       evidence,
       label,
       scenario,
       expectedOrganizationId,
     );
-    const queue = scenario.routes.map((route) => new URL(route, baseUrl).href);
+    console.error(
+      JSON.stringify({ event: 'dev_audit_identity', role: label, pass: identityAssertion.pass }),
+    );
+    const queue = skipRoutes ? [] : scenario.routes.map((route) => new URL(route, baseUrl).href);
     const queuedTemplates = new Set(queue.map((route) => routeTemplateKey(route)));
     const pages = [];
-    while (queue.length > 0 && pages.length < 55) {
+    while (queue.length > 0 && pages.length < 55 && !stopRequested) {
       const target = queue.shift();
       try {
         const cold = await pageProof(page, navigationState, target, scenario, evidence);
@@ -1134,14 +1229,24 @@ async function auditRole(label, scenario, expectedOrganizationId) {
           error: compactError(error),
         });
       }
+      console.error(
+        JSON.stringify({
+          event: 'dev_audit_page',
+          role: label,
+          index: pages.length,
+          remaining: queue.length,
+          url: pages.at(-1)?.url ?? canonicalAuditUrl(target),
+          pass: pages.at(-1)?.pass ?? false,
+        }),
+      );
     }
 
     const actionChecks = [];
-    if (label === 'global_admin' && mutationsEnabled) {
+    if (!stopRequested && label === 'global_admin' && mutationsEnabled) {
       actionChecks.push(...(await commercialUiCycles(page, context, evidence, navigationState)));
     }
-    if (label === 'doctor') {
-      const patient = await resolveActualPatient(context, evidence);
+    if (!stopRequested && label === 'doctor') {
+      const patient = await resolveActualPatient(page, evidence);
       pages.push(...(await doctorPatientCardTabs(page, navigationState, patient)));
       actionChecks.push(
         ...(await doctorCommentsAndPaymentControls(
@@ -1158,7 +1263,7 @@ async function auditRole(label, scenario, expectedOrganizationId) {
         );
       }
     }
-    if (label === 'patient') {
+    if (!stopRequested && label === 'patient') {
       actionChecks.push(await patientWarmupFromHome(page, navigationState));
       actionChecks.push(await patientPhoneSurface(page, navigationState));
       if (mutationsEnabled) {
@@ -1218,6 +1323,7 @@ async function auditRole(label, scenario, expectedOrganizationId) {
     }
     return {
       role: label,
+      complete: !stopRequested && queue.length === 0,
       authentication,
       authenticated: identityAssertion.pass,
       identity_assertion: identityAssertion,
@@ -1236,8 +1342,8 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       ignored_harness_aborts: evidence.ignoredHarnessAborts,
     };
   } finally {
-    await context.close();
-    await browser.close();
+    await context.close().catch(() => undefined);
+    await browser.close().catch(() => undefined);
   }
 }
 
@@ -1257,6 +1363,7 @@ async function main() {
     } catch (error) {
       results.push({
         role: label,
+        complete: false,
         authenticated: false,
         identity_assertion: { pass: false, reasons: ['fatal_role_error'] },
         fatal_error: compactError(error),

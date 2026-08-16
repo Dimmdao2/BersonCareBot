@@ -25,6 +25,7 @@ import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 import { defaultDoctorTopicFallbackChannels } from './doctorTopicChannelDefaults';
 import type { DoctorNotificationTopicCode } from './doctorNotificationTopics';
 import { resolveDoctorNotificationChannels } from './resolveDoctorNotificationChannels';
+import type { PatientStaffNotificationProfilesPort } from './patientStaffNotificationProfilesPort';
 import type { StaffUsersPort } from './staffUsersPort';
 import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
@@ -38,6 +39,7 @@ export type NotifyDoctorPatientMessageToStaffDeps = {
   getChannelBindings: (
     platformUserId: string,
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
+  patientStaffNotificationProfiles?: PatientStaffNotificationProfilesPort;
 };
 
 export type NotifyDoctorStaffTopicInput = {
@@ -59,7 +61,15 @@ export async function notifyDoctorPatientMessageToStaff(
   input: NotifyDoctorStaffTopicInput,
   deps: NotifyDoctorPatientMessageToStaffDeps,
 ): Promise<NotifyDoctorPatientMessageToStaffResult> {
-  const staffIds = await deps.staffUsers.listActiveStaffUserIds();
+  const patientProfiles = deps.patientStaffNotificationProfiles
+    ? await deps.patientStaffNotificationProfiles.listForCurrentPatientOrganization({
+        organizationId: input.organizationId,
+        topicCode: input.topicCode,
+      })
+    : null;
+  const staffIds = patientProfiles
+    ? patientProfiles.map((profile) => profile.userId)
+    : await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
   const notificationText = buildPersonalChatNotificationText(input.senderDisplayName, 'patient');
@@ -83,12 +93,20 @@ export async function notifyDoctorPatientMessageToStaff(
   }
 
   for (const userId of staffIds) {
-    const [prefRows, channelPrefs, bindings, hasPush] = await Promise.all([
-      deps.topicChannelPrefs.listByUserId(userId),
-      deps.channelPreferences.getPreferences(userId),
-      deps.getChannelBindings(userId),
-      deps.webPushSubscriptions.hasAnyForUserId(userId),
-    ]);
+    const patientProfile = patientProfiles?.find((profile) => profile.userId === userId);
+    const [prefRows, channelPrefs, bindings, hasPush] = patientProfile
+      ? [
+          patientProfile.topicChannelPreferences,
+          patientProfile.channelPreferences,
+          { telegramId: patientProfile.telegramId, maxId: patientProfile.maxId },
+          patientProfile.hasWebPushSubscription,
+        ]
+      : await Promise.all([
+          deps.topicChannelPrefs.listByUserId(userId),
+          deps.channelPreferences.getPreferences(userId),
+          deps.getChannelBindings(userId),
+          deps.webPushSubscriptions.hasAnyForUserId(userId),
+        ]);
 
     const channels = resolveDoctorNotificationChannels({
       topicCode: input.topicCode,

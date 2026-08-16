@@ -87,6 +87,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   const chargeResult = await deps.acquiringGateway.createCharge({
     organizationId: gate.ctx.organizationId,
     patientUserId: identity.userId,
+    customerEmail: identity.email ?? null,
     amountMinor,
     currency,
     idempotencyKey,

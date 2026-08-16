@@ -25,6 +25,7 @@ export default async function PatientNotificationsPage() {
     >
       <div className={patientInnerPageStackClass}>
         <section
+          id="patient-notifications-inbox"
           className={`${patientSectionSurfaceClass} flex min-h-[60dvh] flex-col overflow-hidden`}
         >
           <ChatView

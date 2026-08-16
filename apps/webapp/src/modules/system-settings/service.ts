@@ -38,6 +38,11 @@ type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
   writeUnitOfWork?: SettingsWriteUnitOfWork;
   runtimeReadTelemetry?: RuntimeReadTelemetry;
+  /**
+   * Runtime rows are authoritative. Legacy parity reads are diagnostic only and must be skipped
+   * for principals that deliberately have no access to the restricted legacy store.
+   */
+  shouldCompareRuntimeWithLegacy?: () => boolean;
 };
 
 type RuntimeReadTelemetryEvent = {
@@ -369,9 +374,11 @@ export function createSystemSettingsService(
       return port.getByKey(key, scope, options);
     }
     telemetry.record({ key, source: 'runtime' });
-    const legacy = await port.getByKey(key, scope, options);
-    if (legacy && JSON.stringify(legacy.valueJson) !== JSON.stringify(runtime.valueJson)) {
-      telemetry.record({ key, source: 'mismatch' });
+    if (dependencies.shouldCompareRuntimeWithLegacy?.() !== false) {
+      const legacy = await port.getByKey(key, scope, options);
+      if (legacy && JSON.stringify(legacy.valueJson) !== JSON.stringify(runtime.valueJson)) {
+        telemetry.record({ key, source: 'mismatch' });
+      }
     }
     return {
       key,

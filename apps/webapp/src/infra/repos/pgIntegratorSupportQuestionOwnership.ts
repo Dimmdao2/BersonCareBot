@@ -1,9 +1,9 @@
-import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
   supportConversations,
-  supportDeliveryEvents,
   supportQuestionMessages,
   supportQuestions,
 } from '../../../db/schema';
@@ -123,41 +123,42 @@ export const pgIntegratorSupportQuestionOwnershipPort: IntegratorSupportQuestion
 
   async recordDeliveryAttempt(params) {
     assertOrganizationPrincipal(params.organizationId);
-    return getDrizzle().transaction(async (tx) => {
-      const insert = tx.insert(supportDeliveryEvents).values({
-        organizationId: params.organizationId,
-        conversationMessageId: null,
-        integratorIntentEventId: params.integratorIntentEventId,
-        correlationId: params.correlationId,
-        channelCode: params.channelCode,
-        status: params.status,
-        attempt: params.attempt,
-        reason: params.reason,
-        payloadJson: params.payloadJson,
-        occurredAt: params.occurredAt,
-      });
-      const [inserted] = params.integratorIntentEventId
-        ? await insert
-            .onConflictDoNothing({
-              target: supportDeliveryEvents.integratorIntentEventId,
-              where: isNotNull(supportDeliveryEvents.integratorIntentEventId),
-            })
-            .returning({ id: supportDeliveryEvents.id })
-        : await insert.returning({ id: supportDeliveryEvents.id });
-      if (inserted) return { id: inserted.id, created: true };
-
-      const [existing] = await tx
-        .select({ id: supportDeliveryEvents.id })
-        .from(supportDeliveryEvents)
-        .where(
-          and(
-            eq(supportDeliveryEvents.integratorIntentEventId, params.integratorIntentEventId!),
-            eq(supportDeliveryEvents.organizationId, params.organizationId),
-          ),
-        )
-        .limit(1);
-      if (!existing) throw new Error('support_delivery_attempt_conflict');
-      return { id: existing.id, created: false };
-    });
+    const result = await runWebappNamedRoot<{ payload: unknown }>(
+      getWebappSqlDb(),
+      'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)',
+      [
+        params.organizationId,
+        params.integratorIntentEventId,
+        params.correlationId,
+        params.channelCode,
+        params.status,
+        params.attempt,
+        params.reason,
+        JSON.stringify(params.payloadJson),
+        params.occurredAt,
+      ],
+      sql`SELECT app.record_integrator_support_delivery_attempt(
+        ${params.organizationId}::uuid,
+        ${params.integratorIntentEventId}::text,
+        ${params.correlationId}::text,
+        ${params.channelCode}::text,
+        ${params.status}::text,
+        ${params.attempt}::integer,
+        ${params.reason}::text,
+        ${JSON.stringify(params.payloadJson)}::text,
+        ${params.occurredAt}::timestamptz
+      ) AS payload`,
+    );
+    const payload = result.rows[0]?.payload;
+    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('support_delivery_attempt_write_failed');
+    }
+    const row = payload as Record<string, unknown>;
+    if (row.ok !== true || typeof row.id !== 'string') {
+      throw new Error(
+        typeof row.code === 'string' ? row.code : 'support_delivery_attempt_write_failed',
+      );
+    }
+    return { id: row.id, created: row.created === true };
   },
 };

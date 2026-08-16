@@ -83,7 +83,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
 
   return (
     <DoctorAppShell title="Курсы" user={workspace.session.user} backHref="/app/doctor">
-      <DoctorPageHeader title="Курсы" />
+      <DoctorPageHeader id="doctor-courses-header" title="Курсы" />
       <DoctorCatalogFiltersToolbar
         filters={
           <DoctorCatalogToolbarFiltersSlot>

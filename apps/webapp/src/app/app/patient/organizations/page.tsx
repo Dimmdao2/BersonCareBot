@@ -42,7 +42,7 @@ export default async function PatientOrganizationsPage({
       backLabel="Профиль"
     >
       <div className={patientInnerPageStackClass}>
-        <section className={patientSectionSurfaceClass}>
+        <section id="patient-organizations-list" className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Доступные организации</h2>
           <p className={patientMutedTextClass}>
             Выберите организацию, данные которой хотите открыть.

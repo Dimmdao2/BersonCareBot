@@ -443,7 +443,7 @@ export function createPatientBookingService(input: {
       invalidateSlotsCache();
 
       let paymentOutcomeFailed = false;
-      if (input.payments && row.canonicalAppointmentId) {
+      if (input.payments && row.canonicalAppointmentId && appointment.paymentRef) {
         try {
           await input.payments.recordReschedulePaymentCarryOver({
             appointmentId: row.canonicalAppointmentId,
@@ -466,10 +466,20 @@ export function createPatientBookingService(input: {
 
       const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
       let integratorStatus: 'sent' | 'failed' = 'failed';
+      let lifecycleNotificationSettings: BookingLifecycleNotificationsSettings | null = null;
+      try {
+        lifecycleNotificationSettings =
+          (await input.getBookingLifecycleNotificationSettings?.()) ?? null;
+      } catch (err) {
+        console.error(
+          '[patient-booking] reschedule notification settings read failed (reschedule already committed)',
+          { bookingId: row.id, err },
+        );
+      }
       const rescheduleNotify = resolveBookingNotifyTargets(
         'booking.rescheduled',
         result.reschedulePolicy,
-        (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
+        lifecycleNotificationSettings,
       );
       try {
         const appointment = await loadCanonicalAppointment(input.bookingEngine, row.canonicalAppointmentId);
@@ -561,11 +571,12 @@ export function createPatientBookingService(input: {
       }
 
       if (row.canonicalAppointmentId && input.bookingEngine && input.appointmentLifecycle) {
-        const orgId = await resolveCanonicalAppointmentOrganizationId(
+        const appointment = await loadCanonicalAppointment(
           input.bookingEngine,
           row.canonicalAppointmentId,
         ).catch(() => null);
-        if (!orgId) return { ok: false, error: 'not_found' };
+        if (!appointment) return { ok: false, error: 'not_found' };
+        const orgId = appointment.organizationId;
         const preview = await input.appointmentLifecycle.previewPatientCancel(
           row.canonicalAppointmentId,
           orgId,
@@ -602,7 +613,7 @@ export function createPatientBookingService(input: {
         let membershipOutcomeFailed = false;
         let notificationOutcomeFailed = false;
 
-        if (input.payments) {
+        if (input.payments && appointment.paymentRef) {
           try {
             await input.payments.applyCancelPaymentOutcome({
               appointmentId: row.canonicalAppointmentId,
@@ -629,7 +640,12 @@ export function createPatientBookingService(input: {
           }
         }
 
-        if (input.memberships && lifecycleResult.eligibility) {
+        if (
+          input.memberships &&
+          lifecycleResult.eligibility &&
+          (appointment.packageUsageRef !== null ||
+            lifecycleResult.eligibility.decisionType === 'package_charged')
+        ) {
           const { eligibility } = lifecycleResult;
           const packageLessonDeducted =
             !eligibility.isFree && eligibility.decisionType === 'package_charged';
@@ -661,10 +677,20 @@ export function createPatientBookingService(input: {
 
         const idempotencyKey = `booking.cancelled:${row.id}`;
         let integratorStatus: 'sent' | 'failed' = 'failed';
+        let lifecycleNotificationSettings: BookingLifecycleNotificationsSettings | null = null;
+        try {
+          lifecycleNotificationSettings =
+            (await input.getBookingLifecycleNotificationSettings?.()) ?? null;
+        } catch (err) {
+          console.error(
+            '[patient-booking] cancel notification settings read failed (cancel already committed)',
+            { bookingId: row.id, err },
+          );
+        }
         const cancelNotify = resolveBookingNotifyTargets(
           'booking.cancelled',
           lifecycleResult.cancelPolicy,
-          (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
+          lifecycleNotificationSettings,
         );
         try {
           const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;

@@ -17,7 +17,10 @@ export default async function PatientAboutPage() {
       backHref={routePaths.patientHelp}
       backLabel="Справка"
     >
-      <section className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}>
+      <section
+        id="patient-about-specialist"
+        className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}
+      >
         <PatientAboutSiteLink />
       </section>
     </PatientAppShell>

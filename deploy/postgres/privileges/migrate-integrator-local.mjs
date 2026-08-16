@@ -11,6 +11,8 @@ import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+const B0_LEDGER_BASELINE_MARKER = /^-- BCB-INTEGRATOR-LEDGER-BASELINE: B0\s*$/mu;
+
 function value(name) {
   const at = process.argv.indexOf(`--${name}`);
   if (at < 0 || !process.argv[at + 1]) throw new Error(`--${name} is required`);
@@ -169,6 +171,7 @@ const pending = eligible.filter(
 
 for (const migration of pending) {
   const source = readFileSync(migration.path, 'utf8');
+  const resetsLedgerToB0 = B0_LEDGER_BASELINE_MARKER.test(source);
   if (/^\s*(?:BEGIN|START\s+TRANSACTION|COMMIT|ROLLBACK)\s*;/imu.test(source)) {
     throw new Error(
       `pending integrator migration contains transaction control: ${migration.version}`,
@@ -188,6 +191,7 @@ for (const migration of pending) {
     source,
     'RESET ROLE;',
     'RESET SESSION AUTHORIZATION;',
+    ...(resetsLedgerToB0 ? ['DELETE FROM integrator.schema_migrations;'] : []),
     `INSERT INTO integrator.schema_migrations(${ledgerColumn}) VALUES (${literal(ledgerValue)});`,
     ...temporaryLanguages.map(
       (language) => `REVOKE USAGE ON LANGUAGE ${identifier(language)} FROM ${qOwner};`,
@@ -206,6 +210,23 @@ for (const migration of pending) {
   ].join('\n');
   psql(['-X', '-d', db, '-v', 'ON_ERROR_STOP=1'], { input: sql });
   console.log(`integrator owner-ordered migration committed: ${migration.version}`);
+}
+
+const soleMigration = migrations.length === 1 ? migrations[0] : null;
+if (soleMigration) {
+  const soleSource = readFileSync(soleMigration.path, 'utf8');
+  const soleLedgerValue = ledgerColumn === 'version' ? soleMigration.version : soleMigration.fileName;
+  if (B0_LEDGER_BASELINE_MARKER.test(soleSource) && appliedValues.has(soleLedgerValue)) {
+    psql([
+      '-X',
+      '-d',
+      db,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `DELETE FROM integrator.schema_migrations WHERE ${ledgerColumn} <> ${literal(soleLedgerValue)};`,
+    ]);
+  }
 }
 
 console.log(

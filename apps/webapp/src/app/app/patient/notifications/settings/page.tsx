@@ -63,7 +63,7 @@ export default async function PatientNotificationSettingsPage() {
       backLabel="Назад"
     >
       <div className={patientInnerPageStackClass}>
-        <section className={patientSectionSurfaceClass}>
+        <section id="patient-notification-channels" className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Каналы</h2>
           <PatientNotificationChannelsStatus
             hasTelegram={hasTelegram}
@@ -82,7 +82,7 @@ export default async function PatientNotificationSettingsPage() {
           ) : null}
         </section>
 
-        <section className={patientSectionSurfaceClass}>
+        <section id="patient-notification-topics" className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Типы уведомлений</h2>
           <PatientNotificationsTopicsSection
             initialTopics={notificationModels}

@@ -589,6 +589,131 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'booking.self.allowed', argCount: 0,
     source: 'apps/webapp/src/infra/repos/pgClientHistory.ts',
   },
+  'app.read_current_patient_booking_runtime_integer(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-runtime-integer.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-creation-snapshot.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_current_patient_booking_payment_setting(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-payment-config.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.read_current_patient_booking_prepayment_policy(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-prepayment-policy.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPayments.ts',
+  },
+  'app.read_current_patient_booking_busy_intervals(uuid,uuid,timestamp with time zone,timestamp with time zone,uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-busy-intervals.read', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_current_patient_booking_form_fields()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-form-fields.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgBookingForm.ts',
+  },
+  'app.save_current_patient_booking_form_answers(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-form-answers.save', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingForm.ts',
+  },
+  'app.read_current_patient_booking_packages(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-packages.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMemberships.ts',
+  },
+  'app.create_current_patient_booking_pending(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-pending.create', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPatientBookings.ts',
+  },
+  'app.mutate_current_patient_booking(uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-row.mutate', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPatientBookings.ts',
+  },
+  'app.create_current_patient_booking_appointments(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-appointments.create', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.read_current_patient_booking_appointment(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-appointment.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.set_current_patient_booking_reminder_preset(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-reminder-preset.set', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.current_patient_lfk_sessions(text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'diary.patient-lfk-sessions', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgLfkDiary.ts',
+  },
+  'app.read_current_patient_staff_notification_profiles(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'notification.current-patient-staff-profiles', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPatientStaffNotificationProfiles.ts',
+  },
+  'app.read_integrator_web_push_subscriptions(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.web-push-subscriptions.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorWebPushDelivery.ts',
+  },
+  'app.read_integrator_web_push_delivery_settings(uuid)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.web-push-delivery-settings.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorWebPushDelivery.ts',
+  },
+  'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.support-delivery-attempt.record', argCount: 9,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorSupportQuestionOwnership.ts',
+  },
+  'app.read_current_patient_booking_row(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-row.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPatientBookings.ts',
+  },
+  'app.read_current_patient_booking_policies(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-policies.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingPolicies.ts',
+  },
+  'app.read_current_patient_booking_reschedules(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-reschedules.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.apply_current_patient_booking_reschedule(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-reschedule.apply', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.apply_current_patient_booking_cancellation(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-cancellation.apply', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.patch_current_patient_booking_notifications(uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-notifications.patch', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.reserve_current_patient_booking_package(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-package.reserve', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMemberships.ts',
+  },
   'app.pre_session_resolve_identity(uuid)': {
     port: 'webapp', contextClass: 'pre_session',
     purpose: 'identity.variant-a.resolve', argCount: 1, descriptorCount: 3,

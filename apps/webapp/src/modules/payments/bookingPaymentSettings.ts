@@ -1,5 +1,26 @@
 import type { BookingPaymentSettings, PaymentProviderConfig } from './types';
 
+const YOOKASSA_VAT_CODES = new Set([
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  '11',
+  '12',
+]);
+const YOOKASSA_TAX_SYSTEM_CODES = new Set(['1', '2', '3', '4', '5', '6']);
+
+function fiscalCode(value: unknown, allowed: ReadonlySet<string>): string | null {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return normalized && allowed.has(normalized) ? normalized : null;
+}
+
 function parseProviders(raw: unknown): PaymentProviderConfig[] {
   if (!Array.isArray(raw)) return [];
   const out: PaymentProviderConfig[] = [];
@@ -28,6 +49,8 @@ export function parseBookingPaymentSettingsValue(envelope: unknown): BookingPaym
   const defaults: BookingPaymentSettings = {
     enabled: false,
     defaultProviderId: 'yookassa',
+    fiscalVatCode: null,
+    fiscalTaxSystemCode: null,
     providers: [
       { id: 'yookassa', label: 'ЮKassa', enabled: false },
       { id: 'tinkoff', label: 'Тинькофф Касса', enabled: false },
@@ -48,6 +71,8 @@ export function parseBookingPaymentSettingsValue(envelope: unknown): BookingPaym
       typeof o.defaultProviderId === 'string' && o.defaultProviderId.trim()
         ? o.defaultProviderId.trim()
         : defaults.defaultProviderId,
+    fiscalVatCode: fiscalCode(o.fiscalVatCode, YOOKASSA_VAT_CODES),
+    fiscalTaxSystemCode: fiscalCode(o.fiscalTaxSystemCode, YOOKASSA_TAX_SYSTEM_CODES),
     providers:
       parseProviders(o.providers).length > 0 ? parseProviders(o.providers) : defaults.providers,
   };
@@ -110,6 +135,8 @@ export async function mergeBookingPaymentProvidersSecretsRetain(
     value: {
       enabled: next.enabled,
       defaultProviderId: next.defaultProviderId,
+      fiscalVatCode: next.fiscalVatCode,
+      fiscalTaxSystemCode: next.fiscalTaxSystemCode,
       providers: mergedProviders,
     },
   };

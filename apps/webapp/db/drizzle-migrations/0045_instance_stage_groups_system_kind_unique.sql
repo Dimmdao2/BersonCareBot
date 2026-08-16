@@ -1,2 +1,0 @@
-CREATE UNIQUE INDEX "treatment_program_instance_stage_groups_one_rec_per_stage" ON "treatment_program_instance_stage_groups" USING btree ("stage_id" uuid_ops) WHERE (system_kind = 'recommendations');--> statement-breakpoint
-CREATE UNIQUE INDEX "treatment_program_instance_stage_groups_one_tests_per_stage" ON "treatment_program_instance_stage_groups" USING btree ("stage_id" uuid_ops) WHERE (system_kind = 'tests');

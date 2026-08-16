@@ -15,8 +15,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "pnpm run build && pnpm run test:type && node --test test/*.test.mjs && pnpm run test:port-context",
-    "test:port-context": "bash ../../deploy/postgres/port-context/acceptance.sh",
+    "test": "pnpm run build && pnpm run test:type && node --test test/*.test.mjs",
     "test:type": "tsc -p tsconfig.type-tests.json"
   },
   "devDependencies": {

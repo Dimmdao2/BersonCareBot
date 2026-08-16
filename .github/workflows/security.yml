@@ -50,6 +50,9 @@ jobs:
         # Exit non-zero on any new (non-allowlisted) finding => red build. --redact hides values
         # from logs. Uses ./.gitleaks.toml (default-detected in the working dir).
         run: gitleaks git . --no-banner --redact --config .gitleaks.toml --gitleaks-ignore-path .gitleaksignore --report-format sarif --report-path gitleaks.sarif
+      - name: Publish gitleaks findings in check results
+        if: always()
+        run: node scripts/render-gitleaks-sarif.mjs gitleaks.sarif >> "${GITHUB_STEP_SUMMARY}"
       - name: Upload gitleaks report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
