@@ -437,7 +437,7 @@ async function discoverUniqueTemplates(page, scenario, queuedTemplates) {
         .map((anchor) => anchor.href)
         .filter((href) => href.startsWith(`${globalThis.location.origin}/app/`)),
     );
-  return discoverBounded({ knownTemplates: queuedTemplates, hrefs, scenario, limit: 120 });
+  return discoverBounded({ knownTemplates: queuedTemplates, hrefs, scenario, limit: 120, baseUrl });
 }
 
 async function inventoryRenderedControls(page, scenario) {
@@ -822,6 +822,7 @@ async function resolveRenderedDoctorPatient(page, navigationState, scenario, evi
     hrefs: [new URL(href, baseUrl).href],
     scenario,
     limit: 1,
+    baseUrl,
   });
   if (discovery.violations.length || discovery.discovered.length !== 1 || !discovery.discovered[0].classification.pass)
     throw new Error('rendered_patient_link_not_bfs_discoverable');

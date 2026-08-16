@@ -98,11 +98,13 @@ export function isRouteScopedSemanticSelector(selector) {
     || /(?:\[aria-label=|article\[id\^=)/.test(normalized);
 }
 
-export function discoverBounded({ knownTemplates, hrefs, scenario, limit }) {
+export function discoverBounded({ knownTemplates, hrefs, scenario, limit, baseUrl = 'http://127.0.0.1:5200' }) {
   const discovered = [];
   const violations = [];
+  const traversalOrigin = new URL(baseUrl).origin;
   for (const href of hrefs) {
-    const value = new URL(href, 'http://127.0.0.1:5200');
+    const value = new URL(href, baseUrl);
+    if (value.origin !== traversalOrigin) continue;
     if (!scenario.allowedPathnames.some((prefix) => value.pathname.startsWith(prefix))) continue;
     const template = routeTemplateKey(href);
     if (knownTemplates.has(template)) continue;

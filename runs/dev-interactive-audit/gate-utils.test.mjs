@@ -254,8 +254,8 @@ test('a route adapter cannot classify a different rendered control', () => {
 test('doctor card and program detail require rendered, explicitly contracted dynamic hrefs', () => {
   const doctor = ROLE_SCENARIOS.doctor;
   const hrefs = [
-    '/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=overview',
-    '/app/doctor/patients/11111111-1111-4111-8111-111111111111/programs/22222222-2222-4222-8222-222222222222',
+    'http://127.0.0.1:5200/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=overview',
+    'http://127.0.0.1:5200/app/doctor/patients/11111111-1111-4111-8111-111111111111/programs/22222222-2222-4222-8222-222222222222',
   ];
   const discovered = discoverBounded({
     knownTemplates: new Set(['/app/doctor/patients']), hrefs, scenario: doctor, limit: 2,
@@ -265,6 +265,16 @@ test('doctor card and program detail require rendered, explicitly contracted dyn
     knownTemplates: new Set(['/app/doctor/patients']), hrefs: [hrefs[0]], scenario: doctor, limit: 2,
   });
   assert.equal(missingProgram.discovered.some((item) => item.template.includes('/programs/')), false);
+});
+
+test('bounded traversal never discovers a foreign-origin doctor patient link', () => {
+  const discovery = discoverBounded({
+    knownTemplates: new Set(['/app/doctor/patients']),
+    hrefs: ['https://evil.example/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=overview'],
+    scenario: ROLE_SCENARIOS.doctor,
+    limit: 1,
+  });
+  assert.deepEqual(discovery, { discovered: [], violations: [] });
 });
 
 test('late request remains with A and console without a proven origin fails globally during B', () => {
