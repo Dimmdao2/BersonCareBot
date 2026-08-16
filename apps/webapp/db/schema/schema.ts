@@ -3223,14 +3223,35 @@ export const mediaFolders = pgTable(
       )
       .where(sql`(parent_id IS NOT NULL)`),
     uniqueIndex('uq_media_folders_root_name')
+      .using(
+        'btree',
+        table.organizationId.asc().nullsLast().op('uuid_ops'),
+        table.nameNormalized.asc().nullsLast().op('text_ops'),
+      )
+      .where(sql`((parent_id IS NULL) AND (organization_id IS NOT NULL))`),
+    uniqueIndex('uq_media_folders_root_name_legacy')
       .using('btree', table.nameNormalized.asc().nullsLast().op('text_ops'))
-      .where(sql`(parent_id IS NULL)`),
+      .where(sql`((parent_id IS NULL) AND (organization_id IS NULL))`),
     uniqueIndex('uq_media_folders_client_patient_user')
+      .using(
+        'btree',
+        table.organizationId.asc().nullsLast().op('uuid_ops'),
+        table.patientUserId.asc().nullsLast().op('uuid_ops'),
+      )
+      .where(
+        sql`((kind = 'client_patient'::text) AND (patient_user_id IS NOT NULL) AND (organization_id IS NOT NULL))`,
+      ),
+    uniqueIndex('uq_media_folders_client_patient_user_legacy')
       .using('btree', table.patientUserId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`((kind = 'client_patient'::text) AND (patient_user_id IS NOT NULL))`),
+      .where(
+        sql`((kind = 'client_patient'::text) AND (patient_user_id IS NOT NULL) AND (organization_id IS NULL))`,
+      ),
     uniqueIndex('uq_media_folders_client_files_root')
+      .using('btree', table.organizationId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`((kind = 'client_files_root'::text) AND (organization_id IS NOT NULL))`),
+    uniqueIndex('uq_media_folders_client_files_root_legacy')
       .using('btree', sql`(1)`)
-      .where(sql`(kind = 'client_files_root'::text)`),
+      .where(sql`((kind = 'client_files_root'::text) AND (organization_id IS NULL))`),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],

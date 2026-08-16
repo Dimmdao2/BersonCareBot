@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
-import { enqueueMediaTranscodeJob } from '@/app-layer/media/mediaTranscodeJobs';
+import { enqueueMediaTranscodeJobForService } from '@/app-layer/media/mediaTranscodeJobs';
 import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const out = await enqueueMediaTranscodeJob(parsed.mediaId);
+    const out = await enqueueMediaTranscodeJobForService(parsed.mediaId);
     if (!out.ok) {
       const status = out.error === 'not_found' ? 404 : 400;
       return NextResponse.json({ ok: false, error: out.error }, { status });

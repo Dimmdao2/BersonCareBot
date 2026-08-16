@@ -30,12 +30,13 @@ const fakes = vi.hoisted(() => ({
   assertPatientProgramMediaAllowed: vi.fn(),
   isPatientProgramDiscussionMediaFlowEnabled: vi.fn(),
   insertPendingMediaFileTx: vi.fn(),
-  insertPendingProgramSubmissionMediaFileTx: vi.fn(),
+  createPendingProgramSubmissionMediaFile: vi.fn(),
   deletePendingMediaFileById: vi.fn(),
   stagePendingMediaAbort: vi.fn(),
   getMediaRowForConfirm: vi.fn(),
   confirmMediaFileReady: vi.fn(),
   confirmProgramSubmissionMediaFileReady: vi.fn(),
+  abortPendingProgramSubmissionMedia: vi.fn(),
   insertUploadSessionTx: vi.fn(),
   claimUploadSessionForCompletingTx: vi.fn(),
   getCompletingSessionTx: vi.fn(),
@@ -60,7 +61,6 @@ const fakes = vi.hoisted(() => ({
   confirmPatientFileUpload: vi.fn(),
   getStorageUsedBytes: vi.fn(),
   maybeAutoEnqueueVideoTranscodeAfterUpload: vi.fn(),
-  enqueueProgramSubmissionTranscodeAfterConfirm: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
 }));
@@ -110,12 +110,13 @@ vi.mock('@/modules/program-item-discussion/discussionFeatureGates', () => ({
 vi.mock('@/app-layer/routes/paths', () => ({ routePaths: { patient: '/app/patient' } }));
 vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   insertPendingMediaFileTx: fakes.insertPendingMediaFileTx,
-  insertPendingProgramSubmissionMediaFileTx: fakes.insertPendingProgramSubmissionMediaFileTx,
+  createPendingProgramSubmissionMediaFile: fakes.createPendingProgramSubmissionMediaFile,
   deletePendingMediaFileById: fakes.deletePendingMediaFileById,
   stagePendingMediaAbort: fakes.stagePendingMediaAbort,
   getMediaRowForConfirm: fakes.getMediaRowForConfirm,
   confirmMediaFileReady: fakes.confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady: fakes.confirmProgramSubmissionMediaFileReady,
+  abortPendingProgramSubmissionMedia: fakes.abortPendingProgramSubmissionMedia,
 }));
 vi.mock('@/app-layer/media/mediaUploadSessionsRepo', () => ({
   insertUploadSessionTx: fakes.insertUploadSessionTx,
@@ -141,10 +142,6 @@ vi.mock('@/app-layer/media/s3Client', () => ({
 }));
 vi.mock('@/app-layer/media/mediaTranscodeAutoEnqueue', () => ({
   maybeAutoEnqueueVideoTranscodeAfterUpload: fakes.maybeAutoEnqueueVideoTranscodeAfterUpload,
-}));
-vi.mock('@/app-layer/media/programSubmissionTranscodeEnqueue', () => ({
-  enqueueProgramSubmissionTranscodeAfterConfirm:
-    fakes.enqueueProgramSubmissionTranscodeAfterConfirm,
 }));
 vi.mock('@/app-layer/logging/logger', () => ({
   logger: { error: fakes.loggerError, warn: fakes.loggerWarn },
@@ -263,6 +260,8 @@ beforeEach(() => {
   fakes.s3GetObjectPrefix.mockResolvedValue(Buffer.from([0xff, 0xd8, 0xff]));
   fakes.confirmMediaFileReady.mockResolvedValue(true);
   fakes.confirmProgramSubmissionMediaFileReady.mockResolvedValue(true);
+  fakes.createPendingProgramSubmissionMediaFile.mockResolvedValue(true);
+  fakes.abortPendingProgramSubmissionMedia.mockResolvedValue(true);
   fakes.stagePendingMediaAbort.mockResolvedValue(true);
   fakes.tryFinalizeMultipartIdempotentTx.mockResolvedValue({
     kind: 'finalized',
@@ -369,7 +368,7 @@ describe('Ч1 intent policy at the six public intake routes', () => {
     expect(fakes.presignPutUrl).not.toHaveBeenCalled();
     expect(fakes.s3CreateMultipartUpload).not.toHaveBeenCalled();
     expect(fakes.insertPendingMediaFileTx).not.toHaveBeenCalled();
-    expect(fakes.insertPendingProgramSubmissionMediaFileTx).not.toHaveBeenCalled();
+    expect(fakes.createPendingProgramSubmissionMediaFile).not.toHaveBeenCalled();
     expect(fakes.createPatientFile).not.toHaveBeenCalled();
     expect(fakes.mediaUpload).not.toHaveBeenCalled();
   });
@@ -382,6 +381,50 @@ describe('Ч1 intent policy at the six public intake routes', () => {
     expect(response.status).toBe(415);
     expect(fakes.insertPendingMediaFileTx).not.toHaveBeenCalled();
     expect(fakes.presignPutUrl).not.toHaveBeenCalled();
+  });
+
+  it('patient submission presign creates the exact pending record before issuing the upload URL', async () => {
+    const response = await submissionPresign(
+      jsonRequest({ filename: 'photo.jpg', mimeType: 'image/jpeg', size: 3 }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fakes.createPendingProgramSubmissionMediaFile).toHaveBeenCalledOnce();
+    expect(fakes.createPendingProgramSubmissionMediaFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filename: 'photo.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 3,
+      }),
+    );
+    expect(fakes.presignPutUrl).toHaveBeenCalledOnce();
+  });
+
+  it('patient video confirm atomically makes the submission ready and queues processing', async () => {
+    fakes.getMediaRowForConfirm.mockResolvedValue(
+      pendingRow({
+        original_name: 'clip.mp4',
+        mime_type: 'video/mp4',
+        size_bytes: 12,
+        usage_purpose: 'program_item_submission',
+      }),
+    );
+    fakes.s3HeadObjectDetails.mockResolvedValue(
+      receivedHead({ contentLength: 12, contentType: 'video/mp4' }),
+    );
+    fakes.s3GetObjectPrefix.mockResolvedValue(
+      Buffer.from([
+        0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,
+      ]),
+    );
+
+    const response = await submissionConfirm(jsonRequest({ mediaId: ids.media }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({ ok: true, mediaId: ids.media, processing: true }),
+    );
+    expect(fakes.confirmProgramSubmissionMediaFileReady).toHaveBeenCalledOnce();
   });
 
   it('does not replace an empty proxy filename with a valid synthetic filename', async () => {
@@ -515,9 +558,8 @@ describe('Ч1 received object at real confirm handlers', () => {
 
     expect(response.status).toBe(413);
     expect(fakes.confirmProgramSubmissionMediaFileReady).not.toHaveBeenCalled();
-    expect(fakes.enqueueProgramSubmissionTranscodeAfterConfirm).not.toHaveBeenCalled();
-    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledOnce();
-    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledWith(ids.media);
+    expect(fakes.abortPendingProgramSubmissionMedia).toHaveBeenCalledOnce();
+    expect(fakes.abortPendingProgramSubmissionMedia).toHaveBeenCalledWith(ids.media);
   });
 
   it('patient-file confirm refuses a received mismatch before atomic quota/state change', async () => {

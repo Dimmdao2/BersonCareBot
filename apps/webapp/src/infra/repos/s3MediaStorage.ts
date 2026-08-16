@@ -8,7 +8,12 @@ import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { startPoolTransaction, withPoolTransaction } from '@/infra/db/withClient';
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from '@/infra/db/pgAdvisoryLock';
-import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+  runWebappSql,
+} from '@/infra/db/runWebappSql';
 import { logger } from '@/infra/logging/logger';
 import {
   pgCreateFolder,
@@ -618,36 +623,30 @@ export async function insertPendingMediaFileTx(
   });
 }
 
-/** Patient program-item submission upload (usage_purpose + mp4 override for video). */
-export async function insertPendingProgramSubmissionMediaFileTx(
-  client: PoolClient,
+/** Exact patient-context root: ensure the patient folder and insert one pending submission. */
+export async function createPendingProgramSubmissionMediaFile(
   params: {
     id: string;
     filename: string;
     key: string;
     mimeType: string;
     sizeBytes: number;
-    userId: string;
-    folderId: string;
   },
-): Promise<void> {
-  const isVideo = params.mimeType.toLowerCase().startsWith('video/');
-  const organizationId = currentPrincipalOrganizationId();
-  const db = getWebappSqlFromPgClient(client);
-  await db.insert(mediaFiles).values({
-    id: params.id,
-    originalName: params.filename,
-    storedPath: params.key,
-    s3Key: params.key,
-    mimeType: params.mimeType,
-    sizeBytes: params.sizeBytes,
-    status: 'pending',
-    uploadedBy: params.userId,
-    folderId: params.folderId,
-    organizationId,
-    usagePurpose: 'program_item_submission',
-    videoDeliveryOverride: isVideo ? 'mp4' : null,
-  });
+): Promise<boolean> {
+  const args = [params.id, params.filename, params.key, params.mimeType, params.sizeBytes] as const;
+  const result = await runWebappNamedRoot<{ created: boolean }>(
+    getWebappSqlDb(),
+    'app.create_patient_program_submission_media(uuid,text,text,text,bigint)',
+    args,
+    sql`SELECT app.create_patient_program_submission_media(
+      ${params.id}::uuid,
+      ${params.filename}::text,
+      ${params.key}::text,
+      ${params.mimeType}::text,
+      ${params.sizeBytes}::bigint
+    ) AS created`,
+  );
+  return result.rows[0]?.created === true;
 }
 
 /** Insert pending row + return presign target (presign route). */
@@ -745,16 +744,24 @@ export async function confirmProgramSubmissionMediaFileReady(
   received: ReceivedUpload,
 ): Promise<boolean> {
   assertReceivedUpload(received);
-  const organizationId = currentPrincipalOrganizationId();
-  const res = await runWebappSql(
+  const res = await runWebappNamedRoot<{ confirmed: boolean }>(
     getWebappSqlDb(),
-    sql`UPDATE media_files SET status = 'ready'
-     WHERE id = ${mediaId}::uuid
-       AND organization_id = ${organizationId}::uuid
-       AND status = 'pending'
-       AND usage_purpose = 'program_item_submission'`,
+    'app.confirm_patient_program_submission_media(uuid)',
+    [mediaId],
+    sql`SELECT app.confirm_patient_program_submission_media(${mediaId}::uuid) AS confirmed`,
   );
-  return (res.rowCount ?? 0) > 0;
+  return res.rows[0]?.confirmed === true;
+}
+
+/** Exact patient-context terminal transition; never touches the unrelated patient_files table. */
+export async function abortPendingProgramSubmissionMedia(mediaId: string): Promise<boolean> {
+  const res = await runWebappNamedRoot<{ aborted: boolean }>(
+    getWebappSqlDb(),
+    'app.abort_patient_program_submission_media(uuid)',
+    [mediaId],
+    sql`SELECT app.abort_patient_program_submission_media(${mediaId}::uuid) AS aborted`,
+  );
+  return res.rows[0]?.aborted === true;
 }
 
 export type ProgramSubmissionMediaAttachRow = {
@@ -809,27 +816,6 @@ export async function getMediaRowForProgramSubmissionAttach(
     status: row.status,
     video_processing_status: row.video_processing_status,
   };
-}
-
-export async function markProgramSubmissionVideoProcessingFailed(
-  mediaId: string,
-  errorMessage: string,
-): Promise<void> {
-  const msg = errorMessage.slice(0, 8000);
-  const organizationId = currentPrincipalOrganizationId();
-  await getWebappSqlDb()
-    .update(mediaFiles)
-    .set({
-      videoProcessingStatus: 'failed',
-      videoProcessingError: msg,
-    })
-    .where(
-      and(
-        eq(mediaFiles.id, mediaId),
-        eq(mediaFiles.organizationId, organizationId),
-        eq(mediaFiles.usagePurpose, 'program_item_submission'),
-      ),
-    );
 }
 
 export type MediaAccessRow = {

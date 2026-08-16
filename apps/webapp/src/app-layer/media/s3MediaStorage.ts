@@ -1,4 +1,5 @@
 export {
+  abortPendingProgramSubmissionMedia,
   confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady,
   deletePendingMediaFileById,
@@ -10,10 +11,9 @@ export {
   getMediaRowForProgramSubmissionAttach,
   getProgramSubmissionMediaStatusRow,
   isProgramSubmissionMediaAttachReady,
-  markProgramSubmissionVideoProcessingFailed,
   getMediaS3KeyForRedirect,
   insertPendingMediaFileTx,
-  insertPendingProgramSubmissionMediaFileTx,
+  createPendingProgramSubmissionMediaFile,
   listMediaDeleteErrors,
   purgePendingMediaDeleteBatch,
 } from '@/infra/repos/s3MediaStorage';

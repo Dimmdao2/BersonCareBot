@@ -17,6 +17,7 @@ import {
 import {
   confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady,
+  abortPendingProgramSubmissionMedia,
   stagePendingMediaAbort,
 } from './s3MediaStorage';
 import { tryFinalizeMultipartIdempotentTx } from './mediaUploadSessionsRepo';
@@ -154,6 +155,11 @@ export function acceptReceivedProgramSubmission(
 /** The only route-facing abort transition for terminal single-PUT receive failures. */
 export function abortPendingMediaUpload(mediaId: string): Promise<boolean> {
   return stagePendingMediaAbort(mediaId);
+}
+
+/** Patient submission abort uses its own exact DB root and cannot delete patient-file metadata. */
+export function abortPendingProgramSubmissionUpload(mediaId: string): Promise<boolean> {
+  return abortPendingProgramSubmissionMedia(mediaId);
 }
 
 export function finalizeReceivedMultipart(

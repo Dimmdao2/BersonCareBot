@@ -928,8 +928,10 @@ test('patient page relations have exact self/current-clinic access and published
   const media = tables['public.media_files'];
   assert.deepEqual(media.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
     ['available_qualities_json', 'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id',
-      'owner_kind', 'poster_s3_key', 's3_key', 'status', 'stored_path', 'uploaded_by', 'usage_purpose',
-      'video_delivery_override', 'video_duration_seconds', 'video_processing_status']);
+      'original_name', 'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key',
+      'preview_status', 's3_key', 'size_bytes', 'status', 'stored_path', 'uploaded_by',
+      'usage_purpose', 'video_delivery_override', 'video_duration_seconds',
+      'video_processing_error', 'video_processing_status']);
   const patientMediaPolicy = media.policies.find((policy) =>
     policy.name.startsWith('rev10_media_files_patient_read_'));
   assert.match(patientMediaPolicy?.using ?? '', /organization_id = app\.current_org_id\(\)/);

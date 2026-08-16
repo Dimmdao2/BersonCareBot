@@ -59,6 +59,10 @@ if [[ "$full_schema_mode" == 1 ]]; then
   psql_admin -c 'CREATE ROLE postgres SUPERUSER NOLOGIN' >/dev/null
   psql_admin -f "$work_dir/source-roles.sql" >/dev/null
   psql_admin -f "$work_dir/source-schema.sql" >/dev/null
+  # A schema-only dump contains the event trigger but not its registry rows.  The canonical
+  # contract below recreates it after the declaration-owned registry exists; disable the restored
+  # trigger first so its own contract reconciliation is not rejected by an empty registry.
+  psql_admin -c 'DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall' >/dev/null
 fi
 psql_admin <<SQL >/dev/null
 DO \$roles\$
@@ -85,6 +89,9 @@ psql_admin \
   -f "$repo_root/deploy/postgres/port-context/contract.sql" >/dev/null
 
 if [[ "$full_schema_mode" == 1 ]]; then
+  # The declaration registry is populated by the generated privilege artifact below.  Keep the
+  # freshly recreated wall disabled only across the schema-only bootstrap that precedes it.
+  psql_admin -c 'ALTER EVENT TRIGGER bcb_relation_birth_wall DISABLE' >/dev/null
   psql_admin -f "$repo_root/deploy/postgres/privileges/post-zero-roots.sql" >/dev/null
   awk '
     /^CREATE OR REPLACE FUNCTION / { capture=1 }
@@ -127,6 +134,9 @@ fi
 psql_admin -1 -f "$repo_root/deploy/postgres/generated/port-context-capabilities.${db_name}.sql" >/dev/null
 if [[ "$full_schema_mode" == 1 ]]; then
   psql_admin -1 -f "$repo_root/deploy/postgres/generated/privileges.${db_name}.sql" >/dev/null
+  node "$repo_root/deploy/postgres/privileges/generate-cli.mjs" --db "$db_name" --relation-wall-registry |
+    psql_admin -1 >/dev/null
+  psql_admin -c 'ALTER EVENT TRIGGER bcb_relation_birth_wall ENABLE' >/dev/null
   node "$repo_root/deploy/postgres/privileges/generate-cli.mjs" --env test --db "$db_name" |
     psql_admin -1 \
       -v BCB_TEST_INTEGRATOR_PASSWORD=disposable-integrator \
@@ -230,9 +240,8 @@ WITH expected(session_login, target_role) AS (
 )
 SELECT count(*) FROM expected
 WHERE pg_has_role(session_login, target_role, 'SET')")" 16
-assert_eq "$(psql_admin -Atc "SELECT
-  pg_has_role('$staff_login','app_tenant_service','SET')
-  OR pg_has_role('$staff_login','app_service','SET')")" f
+assert_eq "$(psql_admin -Atc "SELECT pg_has_role('$staff_login','app_tenant_service','SET')")" t
+assert_eq "$(psql_admin -Atc "SELECT pg_has_role('$staff_login','app_service','SET')")" f
 
 pnpm --dir "$repo_root/packages/db-principal" run build >/dev/null
 uuid=11111111-1111-4111-8111-111111111111
@@ -306,11 +315,174 @@ if [[ "$full_schema_mode" == 1 ]]; then
 SET session_replication_role=replica;
 INSERT INTO public.be_organizations(id,title) VALUES ('$org_a','Tenant A'),('$org_b','Tenant B') ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.platform_users(id,display_name,role) VALUES ('$user_a','Patient A','client'),('$user_b','Patient B','client') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_identity(platform_user_id,display_name)
+VALUES ('$user_a','Patient A'),('$user_b','Patient B') ON CONFLICT (platform_user_id) DO NOTHING;
 INSERT INTO public.org_enrollments(organization_id,platform_user_id,status)
-VALUES ('$org_a','$user_a','active'),('$org_b','$user_b','active')
+VALUES ('$org_a','$user_a','active'),('$org_b','$user_a','active'),('$org_b','$user_b','active')
 ON CONFLICT (organization_id,platform_user_id) DO UPDATE SET status='active';
+INSERT INTO app_ext.variant_a_identity_refs(physical_user_id,opaque_ref)
+VALUES
+  ('$user_a','aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'),
+  ('$user_b','bbbbbbbb-bbbb-4bbb-9bbb-bbbbbbbbbbb2')
+ON CONFLICT (physical_user_id) DO NOTHING;
 RESET session_replication_role;
 SQL
+
+  # Patient media intake is a real exact-root lifecycle: create derives owner/org from the
+  # accepted patient context, video confirm produces exactly one active transcode job, abort is
+  # self-only, and the patient never receives direct write access to media/queue/session tables.
+  patient_media_create_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$patient_login' AND target_role='app_patient' AND context_class='patient' AND purpose='patient.media.program-submission.create' AND function_identity='app.create_patient_program_submission_media(uuid,text,text,text,bigint)'::regprocedure")
+  patient_media_confirm_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$patient_login' AND target_role='app_patient' AND context_class='patient' AND purpose='patient.media.program-submission.confirm' AND function_identity='app.confirm_patient_program_submission_media(uuid)'::regprocedure")
+  patient_media_abort_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$patient_login' AND target_role='app_patient' AND context_class='patient' AND purpose='patient.media.program-submission.abort' AND function_identity='app.abort_patient_program_submission_media(uuid)'::regprocedure")
+  staff_media_enqueue_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$staff_login' AND target_role='app_staff' AND context_class='staff' AND purpose='media.transcode.enqueue' AND function_identity='app.enqueue_media_transcode_job_for_staff(uuid)'::regprocedure")
+  service_media_enqueue_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$staff_login' AND target_role='app_operational_media_worker' AND context_class='service' AND purpose='media.transcode.enqueue' AND function_identity='app.enqueue_media_transcode_job_for_service(uuid)'::regprocedure")
+  [[ -n "$patient_media_create_capability" && -n "$patient_media_confirm_capability" && -n "$patient_media_abort_capability" && -n "$staff_media_enqueue_capability" && -n "$service_media_enqueue_capability" ]] || fail 'patient media exact capabilities missing'
+
+  media_video=aaaaaaaa-3333-4333-8333-aaaaaaaaaaa3
+  media_abort=aaaaaaaa-4444-4444-8444-aaaaaaaaaaa4
+  media_org_b=bbbbbbbb-5555-4555-8555-bbbbbbbbbbb5
+  media_foreign_video=bbbbbbbb-6666-4666-8666-bbbbbbbbbbb6
+  create_video_hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$media_video'::uuid)),ROW('text@1',textsend('clip.mp4')),ROW('text@1',textsend('media/$media_video/clip.mp4')),ROW('text@1',textsend('video/mp4')),ROW('bigint@1',int8send(12::bigint))]::app.port_typed_arg[]),'hex')")
+  create_abort_hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$media_abort'::uuid)),ROW('text@1',textsend('photo.jpg')),ROW('text@1',textsend('media/$media_abort/photo.jpg')),ROW('text@1',textsend('image/jpeg')),ROW('bigint@1',int8send(3::bigint))]::app.port_typed_arg[]),'hex')")
+  create_org_b_hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$media_org_b'::uuid)),ROW('text@1',textsend('second-org.jpg')),ROW('text@1',textsend('media/$media_org_b/second-org.jpg')),ROW('text@1',textsend('image/jpeg')),ROW('bigint@1',int8send(4::bigint))]::app.port_typed_arg[]),'hex')")
+  video_uuid_hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$media_video'::uuid))]::app.port_typed_arg[]),'hex')")
+  abort_uuid_hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$media_abort'::uuid))]::app.port_typed_arg[]),'hex')")
+
+  psql_admin <<SQL >/dev/null
+SET SESSION AUTHORIZATION $patient_login;
+BEGIN;
+SELECT app.install_port_context('$patient_media_create_capability'::uuid,
+  ROW(1,'patient'::app.port_context_class,'app_patient'::name,'patient.media.program-submission.create',
+    'app.create_patient_program_submission_media(uuid,text,text,text,bigint)'::regprocedure,
+    decode('$create_video_hash','hex'),'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,
+    'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,'$org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_patient;
+SELECT app.create_patient_program_submission_media('$media_video','clip.mp4','media/$media_video/clip.mp4','video/mp4',12);
+COMMIT;
+BEGIN;
+SELECT app.install_port_context('$patient_media_create_capability'::uuid,
+  ROW(1,'patient'::app.port_context_class,'app_patient'::name,'patient.media.program-submission.create',
+    'app.create_patient_program_submission_media(uuid,text,text,text,bigint)'::regprocedure,
+    decode('$create_abort_hash','hex'),'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,
+    'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,'$org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_patient;
+SELECT app.create_patient_program_submission_media('$media_abort','photo.jpg','media/$media_abort/photo.jpg','image/jpeg',3);
+COMMIT;
+BEGIN;
+SELECT app.install_port_context('$patient_media_create_capability'::uuid,
+  ROW(1,'patient'::app.port_context_class,'app_patient'::name,'patient.media.program-submission.create',
+    'app.create_patient_program_submission_media(uuid,text,text,text,bigint)'::regprocedure,
+    decode('$create_org_b_hash','hex'),'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,
+    'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,'$org_b'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_patient;
+SELECT app.create_patient_program_submission_media('$media_org_b','second-org.jpg','media/$media_org_b/second-org.jpg','image/jpeg',4);
+COMMIT;
+RESET SESSION AUTHORIZATION;
+SQL
+
+  assert_eq "$(psql_admin -Atc "SELECT organization_id::text||'|'||uploaded_by::text||'|'||usage_purpose||'|'||status FROM public.media_files WHERE id='$media_video'")" "$org_a|$user_a|program_item_submission|pending"
+  assert_eq "$(psql_admin -Atc "SELECT organization_id::text||'|'||uploaded_by::text||'|'||usage_purpose||'|'||status FROM public.media_files WHERE id='$media_org_b'")" "$org_b|$user_a|program_item_submission|pending"
+  assert_eq "$(psql_admin -Atc "SELECT count(DISTINCT organization_id) FROM public.media_folders WHERE kind='client_files_root' AND organization_id IN ('$org_a','$org_b')")" 2
+  assert_eq "$(psql_admin -Atc "SELECT count(DISTINCT organization_id) FROM public.media_folders WHERE kind='client_patient' AND patient_user_id='$user_a' AND organization_id IN ('$org_a','$org_b')")" 2
+
+  psql_admin <<SQL >/dev/null
+SET SESSION AUTHORIZATION $patient_login;
+BEGIN;
+SELECT app.install_port_context('$patient_media_confirm_capability'::uuid,
+  ROW(1,'patient'::app.port_context_class,'app_patient'::name,'patient.media.program-submission.confirm',
+    'app.confirm_patient_program_submission_media(uuid)'::regprocedure,decode('$video_uuid_hash','hex'),
+    'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,
+    '$org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_patient;
+SELECT app.confirm_patient_program_submission_media('$media_video');
+COMMIT;
+RESET SESSION AUTHORIZATION;
+SQL
+  assert_eq "$(psql_admin -Atc "SELECT status||'|'||video_processing_status FROM public.media_files WHERE id='$media_video'")" 'ready|pending'
+  assert_eq "$(psql_admin -Atc "SELECT count(*) FROM public.media_transcode_jobs WHERE media_id='$media_video' AND status IN ('pending','processing')")" 1
+
+  psql_admin <<SQL >/dev/null
+SET SESSION AUTHORIZATION $patient_login;
+BEGIN;
+SELECT app.install_port_context('$patient_media_abort_capability'::uuid,
+  ROW(1,'patient'::app.port_context_class,'app_patient'::name,'patient.media.program-submission.abort',
+    'app.abort_patient_program_submission_media(uuid)'::regprocedure,decode('$abort_uuid_hash','hex'),
+    'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,
+    '$org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_patient;
+SELECT app.abort_patient_program_submission_media('$media_abort');
+COMMIT;
+RESET SESSION AUTHORIZATION;
+SQL
+  assert_eq "$(psql_admin -Atc "SELECT status FROM public.media_files WHERE id='$media_abort'")" pending_delete
+
+  foreign_abort_hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$media_video'::uuid))]::app.port_typed_arg[]),'hex')")
+  foreign_abort_result=$(psql_admin -At <<SQL
+SET SESSION AUTHORIZATION $patient_login;
+BEGIN;
+SELECT app.install_port_context('$patient_media_abort_capability'::uuid,
+  ROW(1,'patient'::app.port_context_class,'app_patient'::name,'patient.media.program-submission.abort',
+    'app.abort_patient_program_submission_media(uuid)'::regprocedure,decode('$foreign_abort_hash','hex'),
+    'bbbbbbbb-bbbb-4bbb-9bbb-bbbbbbbbbbb2'::uuid,'bbbbbbbb-bbbb-4bbb-9bbb-bbbbbbbbbbb2'::uuid,
+    '$org_b'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_patient;
+SELECT 'foreign_abort=' || app.abort_patient_program_submission_media('$media_video')::text;
+ROLLBACK;
+SQL
+)
+  assert_eq "$(printf '%s\n' "$foreign_abort_result" | rg -o 'foreign_abort=[tf]' | tail -n 1 | cut -d= -f2)" f
+  assert_eq "$(psql_admin -Atc "SELECT has_table_privilege('app_patient','public.media_upload_sessions','SELECT') OR has_table_privilege('app_patient','public.media_transcode_jobs','INSERT') OR has_table_privilege('app_patient','public.media_files','INSERT')")" f
+
+  psql_admin <<SQL >/dev/null
+INSERT INTO public.media_files (
+  id, owner_kind, organization_id, original_name, stored_path, mime_type, size_bytes,
+  uploaded_by, s3_key, status, usage_purpose, video_processing_status
+) VALUES (
+  '$media_foreign_video', 'organization', '$org_b', 'foreign.mp4',
+  'media/$media_foreign_video/foreign.mp4', 'video/mp4', 8,
+  '$user_b', 'media/$media_foreign_video/foreign.mp4', 'ready',
+  'program_item_submission', 'pending'
+);
+SQL
+  foreign_video_hash=$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('uuid@1',uuid_send('$media_foreign_video'::uuid))]::app.port_typed_arg[]),'hex')")
+  cross_org_staff_result=$(psql_admin -At <<SQL
+SET SESSION AUTHORIZATION $staff_login;
+BEGIN;
+SELECT app.install_port_context('$staff_media_enqueue_capability'::uuid,
+  ROW(1,'staff'::app.port_context_class,'app_staff'::name,'media.transcode.enqueue',
+    'app.enqueue_media_transcode_job_for_staff(uuid)'::regprocedure,decode('$foreign_video_hash','hex'),
+    'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,NULL::uuid,'$org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_staff;
+SELECT 'cross_org_staff=' || app.enqueue_media_transcode_job_for_staff('$media_foreign_video')::text;
+COMMIT;
+RESET SESSION AUTHORIZATION;
+SQL
+)
+  [[ "$cross_org_staff_result" == *'"error": "not_found"'* ]] || fail 'cross-organization staff enqueue did not fail closed'
+  assert_eq "$(psql_admin -Atc "SELECT count(*) FROM public.media_transcode_jobs WHERE media_id='$media_foreign_video'")" 0
+
+  psql_admin <<SQL >/dev/null
+SET SESSION AUTHORIZATION $staff_login;
+BEGIN;
+SELECT app.install_port_context('$staff_media_enqueue_capability'::uuid,
+  ROW(1,'staff'::app.port_context_class,'app_staff'::name,'media.transcode.enqueue',
+    'app.enqueue_media_transcode_job_for_staff(uuid)'::regprocedure,decode('$video_uuid_hash','hex'),
+    'aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1'::uuid,NULL::uuid,'$org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_staff;
+SELECT app.enqueue_media_transcode_job_for_staff('$media_video');
+COMMIT;
+BEGIN;
+SELECT app.install_port_context('$service_media_enqueue_capability'::uuid,
+  ROW(1,'service'::app.port_context_class,'app_operational_media_worker'::name,'media.transcode.enqueue',
+    'app.enqueue_media_transcode_job_for_service(uuid)'::regprocedure,decode('$video_uuid_hash','hex'),
+    NULL::uuid,NULL::uuid,NULL::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims);
+SET LOCAL ROLE app_operational_media_worker;
+SELECT app.enqueue_media_transcode_job_for_service('$media_video');
+COMMIT;
+RESET SESSION AUTHORIZATION;
+SQL
+  assert_eq "$(psql_admin -Atc "SELECT count(*) FROM public.media_transcode_jobs WHERE media_id='$media_video' AND status IN ('pending','processing')")" 1
+
   tenant_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$integrator_login' AND target_role='app_tenant_service' AND purpose='relation' AND function_identity IS NULL")
   [[ -n "$tenant_capability" ]] || fail 'tenant relation capability missing'
   claims="ROW(1,'tenant_service'::app.port_context_class,'app_tenant_service'::name,'relation',NULL::regprocedure,decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),NULL::uuid,NULL::uuid,'$org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims"

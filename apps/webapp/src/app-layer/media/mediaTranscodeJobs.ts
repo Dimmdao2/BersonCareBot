@@ -1,5 +1,5 @@
 export {
   enqueueMediaTranscodeJob,
-  enqueueProgramSubmissionTranscodeJob,
+  enqueueMediaTranscodeJobForService,
 } from '@/infra/repos/pgMediaTranscodeJobs';
 export type { EnqueueTranscodeResult } from '@/infra/repos/pgMediaTranscodeJobs';

@@ -3,7 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
-import { buttonVariants } from '@/shared/ui/patient/primitives/button';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
 
 const ADDRESS_IFRAME_SRC = 'https://dmitryberson.ru/adress';
 

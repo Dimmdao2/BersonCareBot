@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 import { bindConfigAdapterPort } from './configAdapterPort';
 
+vi.mock('@/app-layer/di/bindSystemSettingsConfigAdapter', () => ({
+  ensureSystemSettingsConfigAdapterBound: vi.fn(),
+}));
+
 const readAdminSystemSettingString = vi.fn();
 const readExactOrganizationAdminSystemSettingString = vi.fn();
 const readPublicAuthChannelConfigured = vi.fn();

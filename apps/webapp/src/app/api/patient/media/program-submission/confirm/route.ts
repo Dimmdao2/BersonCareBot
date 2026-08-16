@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
-import { enqueueProgramSubmissionTranscodeAfterConfirm } from '@/app-layer/media/programSubmissionTranscodeEnqueue';
 import {
   acceptReceivedProgramSubmission,
-  abortPendingMediaUpload,
+  abortPendingProgramSubmissionUpload,
   validateReceivedMediaObject,
 } from '@/app-layer/media/mediaUploadAdapter';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
@@ -94,13 +93,13 @@ export async function POST(request: Request) {
     policyId: 'patient-program-submission',
   });
   if (!intent.ok) {
-    await abortPendingMediaUpload(parsed.data.mediaId);
+    await abortPendingProgramSubmissionUpload(parsed.data.mediaId);
     const rejection = uploadValidationResponse(intent);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
   const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
   if (!received.ok) {
-    await abortPendingMediaUpload(parsed.data.mediaId);
+    await abortPendingProgramSubmissionUpload(parsed.data.mediaId);
     const rejection = uploadValidationResponse(received);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
@@ -119,12 +118,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'confirm_race' }, { status: 409 });
   }
 
-  const isVideo = isProgramSubmissionVideoMime(row.mime_type);
-  let processing = false;
-  if (isVideo) {
-    const enq = await enqueueProgramSubmissionTranscodeAfterConfirm(parsed.data.mediaId);
-    processing = enq.ok;
-  }
+  const processing = isProgramSubmissionVideoMime(row.mime_type);
 
   return NextResponse.json({
     ok: true as const,

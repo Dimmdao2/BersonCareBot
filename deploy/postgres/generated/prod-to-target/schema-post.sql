@@ -5750,21 +5750,42 @@ CREATE UNIQUE INDEX uq_media_folders_child_name ON public.media_folders USING bt
 -- Name: uq_media_folders_client_files_root; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_media_folders_client_files_root ON public.media_folders USING btree ((1)) WHERE (kind = 'client_files_root'::text);
+CREATE UNIQUE INDEX uq_media_folders_client_files_root ON public.media_folders USING btree (organization_id) WHERE ((kind = 'client_files_root'::text) AND (organization_id IS NOT NULL));
+
+
+--
+-- Name: uq_media_folders_client_files_root_legacy; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_media_folders_client_files_root_legacy ON public.media_folders USING btree ((1)) WHERE ((kind = 'client_files_root'::text) AND (organization_id IS NULL));
 
 
 --
 -- Name: uq_media_folders_client_patient_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_media_folders_client_patient_user ON public.media_folders USING btree (patient_user_id) WHERE ((kind = 'client_patient'::text) AND (patient_user_id IS NOT NULL));
+CREATE UNIQUE INDEX uq_media_folders_client_patient_user ON public.media_folders USING btree (organization_id, patient_user_id) WHERE ((kind = 'client_patient'::text) AND (patient_user_id IS NOT NULL) AND (organization_id IS NOT NULL));
+
+
+--
+-- Name: uq_media_folders_client_patient_user_legacy; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_media_folders_client_patient_user_legacy ON public.media_folders USING btree (patient_user_id) WHERE ((kind = 'client_patient'::text) AND (patient_user_id IS NOT NULL) AND (organization_id IS NULL));
 
 
 --
 -- Name: uq_media_folders_root_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_media_folders_root_name ON public.media_folders USING btree (name_normalized) WHERE (parent_id IS NULL);
+CREATE UNIQUE INDEX uq_media_folders_root_name ON public.media_folders USING btree (organization_id, name_normalized) WHERE ((parent_id IS NULL) AND (organization_id IS NOT NULL));
+
+
+--
+-- Name: uq_media_folders_root_name_legacy; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_media_folders_root_name_legacy ON public.media_folders USING btree (name_normalized) WHERE ((parent_id IS NULL) AND (organization_id IS NULL));
 
 
 --
@@ -16455,6 +16476,13 @@ CREATE POLICY rev10_named_root_owner_gate_111 ON public.media_files AS RESTRICTI
 
 
 --
+-- Name: media_folders rev10_named_root_owner_gate_112; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_112 ON public.media_folders AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
 -- Name: media_hls_proxy_error_events rev10_named_root_owner_gate_113; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -16493,7 +16521,7 @@ CREATE POLICY rev10_named_root_owner_gate_117 ON public.media_playback_user_vide
 -- Name: media_transcode_jobs rev10_named_root_owner_gate_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_118 ON public.media_transcode_jobs AS RESTRICTIVE TO saas_system_health_owner USING ((CURRENT_USER = 'saas_system_health_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_system_health_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_118 ON public.media_transcode_jobs AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -16535,7 +16563,7 @@ CREATE POLICY rev10_named_root_owner_gate_130 ON public.operator_job_status AS R
 -- Name: org_enrollments rev10_named_root_owner_gate_132; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_132 ON public.org_enrollments AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_reminder_patient_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_132 ON public.org_enrollments AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_lfk_media_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_reminder_patient_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
@@ -16899,7 +16927,7 @@ CREATE POLICY rev10_named_root_owner_gate_220 ON public.user_contacts AS RESTRIC
 -- Name: user_identity rev10_named_root_owner_gate_222; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_222 ON public.user_identity AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_222 ON public.user_identity AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_patient_lfk_media_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
 
 
 --
@@ -18685,6 +18713,13 @@ CREATE POLICY rev10_seam_business_111 ON public.media_files TO app_seam_patient_
 
 
 --
+-- Name: media_folders rev10_seam_business_112; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_112 ON public.media_folders TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
 -- Name: media_hls_proxy_error_events rev10_seam_business_113; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -18723,7 +18758,7 @@ CREATE POLICY rev10_seam_business_117 ON public.media_playback_user_video_first_
 -- Name: media_transcode_jobs rev10_seam_business_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_118 ON public.media_transcode_jobs TO saas_system_health_owner USING ((CURRENT_USER = 'saas_system_health_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_system_health_owner'::name));
+CREATE POLICY rev10_seam_business_118 ON public.media_transcode_jobs TO app_seam_patient_lfk_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -18765,7 +18800,7 @@ CREATE POLICY rev10_seam_business_130 ON public.operator_job_status TO app_seam_
 -- Name: org_enrollments rev10_seam_business_132; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_132 ON public.org_enrollments TO app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_reminder_patient_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_seam_business_132 ON public.org_enrollments TO app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_lfk_media_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_reminder_patient_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
@@ -19129,7 +19164,7 @@ CREATE POLICY rev10_seam_business_220 ON public.user_contacts TO app_seam_identi
 -- Name: user_identity rev10_seam_business_222; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_222 ON public.user_identity TO app_seam_identity_lookup_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
+CREATE POLICY rev10_seam_business_222 ON public.user_identity TO app_seam_identity_lookup_owner, app_seam_patient_lfk_media_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
 
 
 --

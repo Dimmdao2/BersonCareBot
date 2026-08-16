@@ -58,6 +58,7 @@ import {
   enterStaffSecuritySelfPrincipal,
   runWithStaffSecuritySelfPrincipal,
 } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   normalizePatientOrganizationPreference,
   PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
@@ -1050,6 +1051,10 @@ export async function exchangeTelegramLoginWidget(
 async function getCurrentSessionWithPrincipalMode(
   options: { stampDbPrincipal?: boolean } = {},
 ): Promise<AppSession | null> {
+  // Next dev/build can instantiate instrumentation, RSC and route handlers as separate module
+  // graphs. A cold route graph therefore cannot rely on instrumentation's module-local binding
+  // guard having run. Bind at the one session-resolution chokepoint before reading its port.
+  ensureAuthModulePortsBound();
   // MUST run before the first `await cookies()` below — this is the other half of the central
   // DB-principal fix (see the doc comment on ensureDbPrincipalContext() in
   // packages/db-principal/src/index.ts). Diagnostic proof (TEST, live logging of

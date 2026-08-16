@@ -18,7 +18,8 @@ import {
 } from './runtimeConfig';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 import type { PublicAuthChannelCapability } from './ports';
-import { requireConfigAdapterPort } from './configAdapterPort';
+import { requireConfigAdapterPort, type ConfigAdapterPort } from './configAdapterPort';
+import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
 
 const TTL_MS = 60_000;
 
@@ -55,8 +56,15 @@ function writeCached(identity: CacheIdentity, value: string, fetchedAt: number):
 }
 
 const cache = new Map<string, CacheEntry>();
+function currentConfigAdapterPort(): ConfigAdapterPort {
+  // Next can instantiate instrumentation and a cold route handler as separate module graphs.
+  // Bind in the one adapter chokepoint so the first request cannot observe an unbound port.
+  ensureSystemSettingsConfigAdapterBound();
+  return requireConfigAdapterPort();
+}
+
 function runtimeConfigProvider() {
-  return createRuntimeConfigProvider(requireConfigAdapterPort().runtimeSettings);
+  return createRuntimeConfigProvider(currentConfigAdapterPort().runtimeSettings);
 }
 
 export function getPublicRuntimeBool(
@@ -144,7 +152,7 @@ type SettingReadOutcome =
 
 async function fetchFromDb(key: string): Promise<SettingReadOutcome> {
   try {
-    return { read: true, value: await requireConfigAdapterPort().readAdminSystemSettingString(key) };
+    return { read: true, value: await currentConfigAdapterPort().readAdminSystemSettingString(key) };
   } catch (cause) {
     return { read: false, cause };
   }
@@ -157,7 +165,7 @@ async function fetchExactOrganizationValue(
   try {
     return {
       read: true,
-      value: await requireConfigAdapterPort().readExactOrganizationAdminSystemSettingString(
+      value: await currentConfigAdapterPort().readExactOrganizationAdminSystemSettingString(
         key,
         organizationId,
       ),
@@ -243,7 +251,7 @@ export async function getPublicAuthChannelConfigured(
   const now = Date.now();
   const cached = readCached(identity, now);
   if (cached !== null) return cached === 'true';
-  const dbValue = await requireConfigAdapterPort().readPublicAuthChannelConfigured(channel);
+  const dbValue = await currentConfigAdapterPort().readPublicAuthChannelConfigured(channel);
   writeCached(identity, dbValue ? 'true' : 'false', now);
   return dbValue;
 }
