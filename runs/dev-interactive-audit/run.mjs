@@ -94,7 +94,7 @@ function productContractStaticGate() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '../../apps/webapp/src');
   return staticContractViolations(
     ROLE_SCENARIOS,
-    productSourceFiles(root).map((path) => readFileSync(path, 'utf8')),
+    productSourceFiles(root).map((path) => ({ path, source: readFileSync(path, 'utf8') })),
     DOCTOR_PATIENT_CARD_TABS,
   );
 }

@@ -33,7 +33,7 @@ const productSources = (directory) => readdirSync(directory, { withFileTypes: tr
   const path = join(directory, entry.name);
   if (entry.isDirectory()) return productSources(path);
   return /\.[cm]?[jt]sx?$/.test(entry.name) && !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
-    ? [readFileSync(path, 'utf8')]
+    ? [{ path, source: readFileSync(path, 'utf8') }]
     : [];
 });
 
@@ -237,6 +237,16 @@ test('rejects generic message textarea and accepts only the route-specific messa
   );
 });
 
+test('rejects generic standalone text as a substantive route contract', () => {
+  const generic = classifyRoute({
+    routeClassifications: [{
+      template: '/app/patient/empty', classification: 'substantive',
+      semanticContract: { selectors: [{ kind: 'text', text: 'Сохранить' }] },
+    }],
+  }, '/app/patient/empty');
+  assert.equal(generic.reason, 'route_semantic_contract_generic');
+});
+
 test('a route adapter cannot classify a different rendered control', () => {
   const adapters = [{
     role: 'patient', route: '/app/patient/reminders', controlKind: 'switch', controlId: 'program-reminder-toggle', disposition: 'reversible_adapter',
@@ -330,7 +340,10 @@ test('the 64-route census has exactly one explicit, route-specific contract per 
 });
 
 test('runner static contract gate rejects an invented selector while real contracts map to product primitives', () => {
-  const source = ['<section id="real-product-surface" />'];
+  const source = [
+    { path: '/repo/apps/webapp/src/app/app/doctor/invented/page.tsx', source: '<section id="real-product-surface" />' },
+    { path: '/repo/apps/webapp/src/app/app/doctor/real/page.tsx', source: '<section id="real-product-surface" />' },
+  ];
   const invented = {
     doctor: {
       routeClassifications: [{
@@ -353,6 +366,20 @@ test('runner static contract gate rejects an invented selector while real contra
     staticContractViolations(ROLE_SCENARIOS, productSources(productSourceRoot), DOCTOR_PATIENT_CARD_TABS),
     [],
   );
+});
+
+test('runner static contract gate rejects a selector exported only by another route owner', () => {
+  const sources = [
+    { path: '/repo/apps/webapp/src/app/app/patient/empty/page.tsx', source: '<section id="patient-empty" />' },
+    { path: '/repo/apps/webapp/src/app/app/patient/other/page.tsx', source: '<section id="other-route-anchor" />' },
+  ];
+  const scenario = { patient: { routeClassifications: [{
+    template: '/app/patient/empty', classification: 'substantive',
+    semanticContract: { selectors: ['#other-route-anchor'] },
+  }] } };
+  assert.deepEqual(staticContractViolations(scenario, sources), [
+    'patient:/app/patient/empty:product_semantic_primitive_missing:other-route-anchor',
+  ]);
 });
 
 test('canonical navigation is distinct from query-state seeds and a missing manifest destination is red', () => {

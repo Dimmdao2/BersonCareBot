@@ -81,8 +81,12 @@ export function routeSelectors(scenario, input) {
 /** Shell/form selectors are not evidence that this particular route rendered its content. */
 export function isRouteScopedSemanticSelector(selector) {
   if (typeof selector === 'object' && selector?.kind === 'patient_messages') return true;
-  if (typeof selector === 'object' && selector?.kind === 'text')
-    return typeof selector.text === 'string' && selector.text.trim().length > 0;
+  if (typeof selector === 'object' && selector?.kind === 'text') {
+    const text = selector.text?.trim();
+    return typeof text === 'string'
+      && text.length > 0
+      && !/^(?:сохранить|отмена|закрыть|назад|далее|удалить|добавить|создать)$/iu.test(text);
+  }
   if (typeof selector === 'object' && selector?.kind === 'compound')
     return Array.isArray(selector.all)
       && selector.all.length >= 2

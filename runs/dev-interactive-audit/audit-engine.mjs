@@ -143,14 +143,97 @@ function selectorPrimitive(selector) {
   return null;
 }
 
-/** Static drift gate: proves a live contract names markup/semantics that the product actually exports. */
+const SOURCE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js', '.mts', '.mjs'];
+
+function sourceRecord(source, index) {
+  return typeof source === 'string' ? { path: `source-${index}.tsx`, source } : source;
+}
+
+function routePath(template) {
+  return typeof template === 'string' ? template.split('?')[0] : null;
+}
+
+function routeSegments(path) {
+  return path.split('/').filter(Boolean);
+}
+
+function pageRoute(path) {
+  const marker = '/src/app/';
+  const offset = path.replaceAll('\\', '/').indexOf(marker);
+  if (offset < 0 || !/\/page\.[cm]?[jt]sx?$/.test(path)) return null;
+  return routeSegments(path.slice(offset + marker.length).replace(/\/page\.[cm]?[jt]sx?$/, ''))
+    .filter((segment) => !/^\(.+\)$/.test(segment));
+}
+
+function routeOwnsPage(template, page) {
+  const route = routePath(template);
+  if (!route || !page) return false;
+  const expected = routeSegments(route);
+  for (let index = 0; index < page.length; index += 1) {
+    const segment = page[index];
+    if (/^\[\.\.\./.test(segment)) return index < expected.length;
+    if (index >= expected.length || (!/^\[.+\]$/.test(segment) && segment !== expected[index])) return false;
+  }
+  return page.length === expected.length;
+}
+
+function importedPaths(record, recordsByPath) {
+  const imported = [...record.source.matchAll(/(?:from\s*|import\s*\(|export\s+[^;]*?from\s*)["']([^"']+)["']/g)]
+    .map((match) => match[1]);
+  const resolved = [];
+  for (const specifier of imported) {
+    const base = specifier.startsWith('@/')
+      ? `${record.path.slice(0, record.path.indexOf('/src/') + 5)}${specifier.slice(2)}`
+      : specifier.startsWith('.')
+        ? new URL(specifier, `file://${record.path}`).pathname
+        : null;
+    if (!base) continue;
+    for (const candidate of [base, ...SOURCE_EXTENSIONS.map((extension) => `${base}${extension}`), ...SOURCE_EXTENSIONS.map((extension) => `${base}/index${extension}`)]) {
+      if (recordsByPath.has(candidate)) {
+        resolved.push(candidate);
+        break;
+      }
+    }
+  }
+  return resolved;
+}
+
+function reachableRouteSource(template, records) {
+  const recordsByPath = new Map(records.map((record) => [record.path, record]));
+  const owners = records
+    .filter((record) => routeOwnsPage(template, pageRoute(record.path)))
+    .sort((left, right) => (pageRoute(left.path)?.filter((segment) => /^\[\.\.\./.test(segment)).length ?? 0)
+      - (pageRoute(right.path)?.filter((segment) => /^\[\.\.\./.test(segment)).length ?? 0));
+  if (!owners.length) return null;
+  const ownerDirectory = owners[0].path.slice(0, owners[0].path.lastIndexOf('/') + 1);
+  const pending = [owners[0].path, ...records
+    .filter((record) => record.path.startsWith(ownerDirectory))
+    .map((record) => record.path)];
+  const visited = new Set();
+  let source = '';
+  while (pending.length) {
+    const path = pending.pop();
+    if (visited.has(path)) continue;
+    visited.add(path);
+    const record = recordsByPath.get(path);
+    if (!record) continue;
+    source += `\n${record.source}`;
+    pending.push(...importedPaths(record, recordsByPath));
+  }
+  return source;
+}
+
+/** Static drift gate: proves a live contract belongs to the route page module or one of its imports. */
 export function staticContractViolations(scenarios, productSource, tabContracts = []) {
-  const source = Array.isArray(productSource) ? productSource.join('\n') : productSource;
-  const check = (selector, label) => {
+  const records = (Array.isArray(productSource) ? productSource : [productSource])
+    .map(sourceRecord)
+    .filter((record) => typeof record?.source === 'string' && typeof record.path === 'string');
+  const check = (selector, label, source) => {
     const primitive = selectorPrimitive(selector);
     if (!primitive) return [`${label}:unsupported_semantic_contract`];
-    if (primitive.kind === 'compound') return primitive.value.flatMap((part) => check(part, label));
+    if (primitive.kind === 'compound') return primitive.value.flatMap((part) => check(part, label, source));
     if (primitive.kind === 'semantic') return [];
+    if (!source) return [`${label}:route_owner_source_missing`];
     const escaped = primitive.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const exists = primitive.kind === 'id'
       ? new RegExp(`\\bid\\s*=\\s*["']${escaped}["']`).test(source)
@@ -163,11 +246,13 @@ export function staticContractViolations(scenarios, productSource, tabContracts 
   for (const [role, scenario] of Object.entries(scenarios)) {
     for (const entry of scenario.routeClassifications ?? []) {
       const label = `${role}:${typeof entry.template === 'string' ? entry.template : entry.template}`;
-      for (const selector of entry.semanticContract?.selectors ?? []) violations.push(...check(selector, label));
+      const source = reachableRouteSource(entry.staticTemplate ?? entry.template, records);
+      for (const selector of entry.semanticContract?.selectors ?? []) violations.push(...check(selector, label, source));
     }
   }
   for (const [tab, , contract] of tabContracts) {
-    violations.push(...check(contract, `doctor_patient_tab:${tab}`));
+    const source = reachableRouteSource('/app/doctor/patients/:uuid?tab=overview', records);
+    violations.push(...check(contract, `doctor_patient_tab:${tab}`, source));
   }
   return violations;
 }
