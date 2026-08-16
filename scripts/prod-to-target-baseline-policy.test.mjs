@@ -8,6 +8,7 @@ import {
   removeRetiredRuntimeSettings,
   REVIEWED_TARGET_TARIFF_IDS,
   sanitizeRuntimeSettingsForCutover,
+  sanitizeSingletonPolicyAuditMetadata,
 } from './prod-to-target-baseline-policy.mjs';
 
 const baselinePath = resolve(
@@ -34,6 +35,14 @@ test('runtime settings do not carry DEV-only updated_by identities into cutover'
   assert.equal(
     rendered,
     "INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES ('auth_sms_enabled', 'admin', NULL, 'public', '{\"value\": true}', '2026-08-11 21:47:06+03', NULL);\n",
+  );
+});
+
+test('singleton policy seed ignores volatile DEV operator metadata', () => {
+  const source = "INSERT INTO public.saas_registration_tariff_policy (key, tariff_id, updated_by, created_at, updated_at) VALUES ('global', NULL, '9c40e322-5823-4dba-ba98-84b1e9b3aeba', '2026-08-01 15:21:48+03', '2026-08-16 13:54:12+03');\n";
+  assert.equal(
+    sanitizeSingletonPolicyAuditMetadata(source),
+    "INSERT INTO public.saas_registration_tariff_policy (key, tariff_id, updated_by, created_at, updated_at) VALUES ('global', NULL, NULL, '2026-08-01 15:21:48+03', '2026-08-01 15:21:48+03');\n",
   );
 });
 

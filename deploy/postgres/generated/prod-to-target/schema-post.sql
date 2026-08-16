@@ -16896,6 +16896,13 @@ CREATE POLICY rev10_named_root_owner_gate_213 ON public.treatment_program_instan
 
 
 --
+-- Name: treatment_program_templates rev10_named_root_owner_gate_217; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_217 ON public.treatment_program_templates AS RESTRICTIVE TO app_seam_patient_program_resolver_owner USING ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name));
+
+
+--
 -- Name: user_channel_bindings rev10_named_root_owner_gate_218; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -17179,7 +17186,7 @@ CREATE POLICY rev10_named_root_owner_gate_98 ON public.integration_webhook_last_
 -- Name: integrator_push_outbox rev10_named_root_owner_gate_99; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_99 ON public.integrator_push_outbox AS RESTRICTIVE TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_99 ON public.integrator_push_outbox AS RESTRICTIVE TO app_seam_reminder_patient_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -19133,6 +19140,13 @@ CREATE POLICY rev10_seam_business_213 ON public.treatment_program_instances TO a
 
 
 --
+-- Name: treatment_program_templates rev10_seam_business_217; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_217 ON public.treatment_program_templates TO app_seam_patient_program_resolver_owner USING ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name));
+
+
+--
 -- Name: user_channel_bindings rev10_seam_business_218; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -19416,7 +19430,7 @@ CREATE POLICY rev10_seam_business_98 ON public.integration_webhook_last_status T
 -- Name: integrator_push_outbox rev10_seam_business_99; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_99 ON public.integrator_push_outbox TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_99 ON public.integrator_push_outbox TO app_seam_reminder_patient_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --

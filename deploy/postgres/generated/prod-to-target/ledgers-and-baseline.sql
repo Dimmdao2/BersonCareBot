@@ -467,6 +467,12 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (464, 'a9
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (465, '3bfc9f7a830d8bf9b7449a8e2a89ee365da69c8896f15ed30f8ef05c3d94fbdc', 1793539230183);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (468, '8dc3abbf38ceefbc3bbcb5daa21136e67ae568ae14b2317ee53a680253c195f3', 1793539230184);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (469, '6209e48335876e76059ab48bd23c6b7d986f50bbe08ed6e6350860042455c98c', 1793539230185);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (470, '288ca3f91cdae763eaaf1f0fdedd53f3f001cbdcf5d26eec165c1c8254571cbf', 1793539230186);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (471, '8c5b889be439da9958a9038812918d2752dc028257b3ed448d387264e011584d', 1793539230187);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (472, '31bd18307aa06d1cca9d972b51fdbcb9e2c149cc0c3f335a6877b341451554b9', 1793539230188);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (473, '2c4bd7c08a7b50b20e59e23a5f649fb4e60299c5c8f334da168aa773828af891', 1793539230189);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (474, '0fc8292313e5c9abc50b9b5005bdeb25b2ef1071caf0410ec108dd86fa4037d9', 1793539230190);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (475, '1ed05ce811aef1ea91bc68dadf5eed7032741a4044601a1a9367f0c6a9cde3b1', 1793539230191);
 
 
 --
@@ -583,7 +589,6 @@ INSERT INTO public.saas_billing_periods (code, label, months, is_selectable, sor
 -- Data for Name: saas_tariffs; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('d1156dc6-e71e-4225-ad94-93c9d423c9e1', 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК', '', 0, 'RUB', '{"files": true, "booking": true, "courses": true, "branding": true, "mailings": true, "payments": true, "cms_pages": true, "clinic_team": true, "patient_app": true, "patient_card": true, "custom_domain": true, "subscriptions": true, "exercise_catalog": true, "exercise_packages": true, "patient_app_paid_subscription": true}', true, '2026-07-25 20:15:14.807477+03', '2026-07-25 20:15:14.81+03', 1000, 'year', '{}', NULL, '{}', '{}', NULL, NULL, '[]');
 INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('e07db366-f471-40a5-bc9b-499908636acd', 'СТАРТ', 'Все необходимое для старта. Полноценное сопровождение клиентов, назначение индивидуальных программ, защищенный чат, публичная страница и удобная запись на прием по цене меньше чем сервисы для онлайн-записи.', 80000, 'RUB', '{"files": true, "booking": true, "courses": false, "branding": false, "mailings": false, "payments": false, "cms_pages": false, "clinic_team": false, "patient_app": false, "patient_card": true, "custom_domain": false, "subscriptions": false, "exercise_catalog": true, "exercise_packages": false, "patient_app_paid_subscription": false}', true, '2026-07-26 02:16:33.324227+03', '2026-07-26 02:16:33.333+03', 1, 'month', '{}', NULL, '{}', '{}', NULL, NULL, '[]');
 INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('59fbb0c9-371d-4fcc-8602-78e174c81062', 'КЛИНИКА', 'Все что есть в ПРОФИ, плюс:
 возможность работать командой
@@ -596,6 +601,7 @@ INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, m
 Абонементы и онлайн оплата при записи
 Возможность настроить частичную или полную предоплату
 Информационные и рекламные рассылки в пуш и на email', 150000, 'RUB', '{"promo": false, "booking": true, "courses": false, "warmups": false, "branding": false, "mailings": true, "payments": true, "cms_pages": false, "custom_domain": false, "online_intake": false, "subscriptions": true, "clinical_tests": false, "exercise_catalog": true, "specialist_tasks": false, "doctor_statistics": false, "exercise_packages": false, "external_calendar": false, "booking_prepayment": false, "patient_home_today": false, "patient_app_paid_subscription": false}', true, '2026-07-26 02:20:55.016818+03', '2026-08-01 16:05:56.944+03', 1, 'month', '{}', '{"graceDays": 21, "readOnlyDays": 7, "notifications": [], "terminalState": "read_only"}', '{}', '{}', NULL, NULL, '[]');
+INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('d1156dc6-e71e-4225-ad94-93c9d423c9e1', 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК', '', 0, 'RUB', '{"promo": true, "booking": true, "courses": true, "warmups": true, "branding": true, "mailings": true, "payments": true, "cms_pages": true, "clinic_sms": true, "clinic_smtp": true, "custom_domain": true, "subscriptions": true, "clinic_max_bot": true, "exercise_catalog": true, "specialist_tasks": true, "doctor_statistics": true, "exercise_packages": true, "external_calendar": true, "booking_prepayment": true, "patient_home_today": true, "clinic_telegram_bot": true, "patient_app_paid_subscription": true}', true, '2026-07-25 20:15:14.807477+03', '2026-08-16 12:20:01.289+03', 1000, 'year', '{"files": {"kind": "unlimited", "unit": "bytes", "limit": null, "warningAtPercent": null}, "branches": {"kind": "unlimited", "unit": "items", "limit": null}, "patient_count": {"kind": "unlimited", "unit": "items", "limit": null, "warningAtPercent": null}}', NULL, '{}', '{}', NULL, NULL, '[]');
 
 
 --
@@ -609,21 +615,21 @@ INSERT INTO public.saas_paid_period_policy (key, post_paid_period_behavior, post
 -- Data for Name: saas_registration_tariff_policy; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.saas_registration_tariff_policy (key, tariff_id, updated_by, created_at, updated_at) VALUES ('global', NULL, '00000000-0000-0000-0000-000000000003', '2026-08-01 15:21:48.076728+03', '2026-08-01 20:43:32.247+03');
+INSERT INTO public.saas_registration_tariff_policy (key, tariff_id, updated_by, created_at, updated_at) VALUES ('global', NULL, NULL, '2026-08-01 15:21:48.076728+03', '2026-08-01 15:21:48.076728+03');
 
 
 --
 -- Data for Name: saas_trial_policy; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_trial_behavior, post_trial_tariff_id, is_active, updated_by, created_at, updated_at, discount_window_days) VALUES ('global', 30, 'organization_provisioned', 'blocked', NULL, true, '9c40e322-5823-4dba-ba98-84b1e9b3aeba', '2026-07-26 02:26:34.787873+03', '2026-07-26 02:26:34.792+03', 0);
+INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_trial_behavior, post_trial_tariff_id, is_active, updated_by, created_at, updated_at, discount_window_days) VALUES ('global', 30, 'organization_provisioned', 'blocked', NULL, true, NULL, '2026-07-26 02:26:34.787873+03', '2026-07-26 02:26:34.787873+03', 0);
 
 
 --
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 469, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 475, true);
 
 
 --

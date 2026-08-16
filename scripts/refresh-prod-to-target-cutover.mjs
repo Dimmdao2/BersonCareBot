@@ -12,6 +12,7 @@ import {
   filterAndValidateTargetTariffCatalog,
   removeRetiredRuntimeSettings,
   sanitizeRuntimeSettingsForCutover,
+  sanitizeSingletonPolicyAuditMetadata,
 } from './prod-to-target-baseline-policy.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -61,7 +62,9 @@ const artifacts = [
       '--table=public.saas_registration_tariff_policy',
       '--table=public.saas_trial_policy',
     ],
-    transform: filterAndValidateTargetTariffCatalog,
+    transform: (sql) => sanitizeSingletonPolicyAuditMetadata(
+      filterAndValidateTargetTariffCatalog(sql),
+    ),
   },
   {
     file: 'runtime-settings.sql',

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 const REVIEWED_TARGET_TARIFFS = new Map([
   ['d1156dc6-e71e-4225-ad94-93c9d423c9e1', {
     price: 0, currency: 'RUB', seats: 1000, period: 'year',
-    mechanicsSha256: 'f59472c37a6835c63a94d423479e389bce1f5d3eb9b65b7b2e29c7a275b15caf',
+    mechanicsSha256: 'f4adbfecd531c443240e9d763fb3e3ebcb39850aee1a7576a4c7de39e9764652',
   }],
   ['e07db366-f471-40a5-bc9b-499908636acd', {
     price: 80000, currency: 'RUB', seats: 1, period: 'month',
@@ -163,6 +163,34 @@ export function sanitizeRuntimeSettingsForCutover(sql) {
       const values = splitValues(line, 7, 'app_runtime_settings');
       values[6] = 'NULL';
       return `${prefix}${values.join(', ')});`;
+    })
+    .join('\n');
+}
+
+const SINGLETON_POLICY_AUDIT_FIELDS = new Map([
+  ['saas_paid_period_policy', { values: 7, updatedBy: 4, createdAt: 5, updatedAt: 6 }],
+  ['saas_registration_tariff_policy', { values: 5, updatedBy: 2, createdAt: 3, updatedAt: 4 }],
+  ['saas_trial_policy', { values: 10, updatedBy: 6, createdAt: 7, updatedAt: 8 }],
+]);
+
+/**
+ * These singleton rows are target seed policy, not a copy of DEV's operator audit trail. UI smoke
+ * cycles legitimately advance updated_by/updated_at even after restoring the exact policy value;
+ * carrying that volatile DEV metadata would make the reviewed A -> B artifact drift after every
+ * rehearsal. Keep the stable creation timestamp and semantic fields, but seed without an actor.
+ */
+export function sanitizeSingletonPolicyAuditMetadata(sql) {
+  return sql
+    .split('\n')
+    .map((line) => {
+      const match = line.match(/^INSERT INTO public\.(saas_[a-z_]+) /u);
+      const policy = match ? SINGLETON_POLICY_AUDIT_FIELDS.get(match[1]) : undefined;
+      if (!policy) return line;
+      const values = splitValues(line, policy.values, match[1]);
+      values[policy.updatedBy] = 'NULL';
+      values[policy.updatedAt] = values[policy.createdAt];
+      const valuesAt = line.indexOf(' VALUES (');
+      return `${line.slice(0, valuesAt + ' VALUES ('.length)}${values.join(', ')});`;
     })
     .join('\n');
 }
