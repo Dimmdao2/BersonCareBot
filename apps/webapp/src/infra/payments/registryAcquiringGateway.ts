@@ -29,6 +29,10 @@ export type AcquiringGatewayConfig = {
   getConfig: (organizationId: string) => Promise<BookingPaymentSettings>;
 };
 
+function isExactProviderId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
+
 /**
  * Create a registry-backed AcquiringGatewayPort that delegates to the same
  * PaymentProviderPort adapters used by booking payments.
@@ -42,7 +46,8 @@ export function createRegistryAcquiringGateway(
   async function resolveProvider(organizationId: string, explicitProviderId?: string) {
     const settings = await config.getConfig(organizationId);
     if (!settings.enabled) throw new Error('payments_disabled');
-    const id = (explicitProviderId ?? settings.defaultProviderId).trim();
+    const id = explicitProviderId ?? settings.defaultProviderId;
+    if (!isExactProviderId(id)) throw new Error('payment_provider_unavailable');
     const providerCfg = settings.providers.find((p) => p.id === id && p.enabled);
     if (!providerCfg) throw new Error(`payment_provider_unavailable:${id}`);
     const adapter = getPaymentProviderAdapter(id);
@@ -84,6 +89,9 @@ export function createRegistryAcquiringGateway(
           },
           providerConfig: providerCfg,
         });
+        if (!isExactProviderId(providerId)) {
+          return { ok: false, reason: 'payment_provider_unavailable' };
+        }
         return {
           ok: true,
           providerId,
@@ -102,7 +110,7 @@ export function createRegistryAcquiringGateway(
       let adapter;
       let providerCfg;
       try {
-        ({ adapter, providerCfg } = await resolveProvider(input.organizationId));
+        ({ adapter, providerCfg } = await resolveProvider(input.organizationId, input.providerId));
       } catch (err) {
         return {
           ok: false,

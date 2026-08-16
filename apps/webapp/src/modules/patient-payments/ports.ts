@@ -136,10 +136,12 @@ export interface AcquiringGatewayPort {
 
   /**
    * Вернуть платёж (refund).
-   * providerPaymentId — ref returned by createCharge.
+   * providerId and providerPaymentId are server-derived from the original acquiring row.
+   * Refunds must never reselect the clinic's current default provider.
    */
   refund(input: {
     organizationId: string;
+    providerId: string;
     providerPaymentId: string;
     amountMinor: number;
     currency: string;

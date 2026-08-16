@@ -29,6 +29,17 @@ const providerAdapter: PaymentProviderPort = {
   verifyWebhook: vi.fn<PaymentProviderPort['verifyWebhook']>(),
 };
 
+const providerAConfig: PaymentProviderConfig = {
+  ...providerConfig,
+  id: 'provider-a',
+  label: 'Provider A',
+};
+const providerBConfig: PaymentProviderConfig = {
+  ...providerConfig,
+  id: 'provider-b',
+  label: 'Provider B',
+};
+
 function settings(enabled: boolean): BookingPaymentSettings {
   return {
     enabled,
@@ -101,5 +112,46 @@ describe('registry acquiring provider boundary', () => {
       },
       providerConfig,
     });
+  });
+
+  it('refunds through the original provider after the clinic default changes', async () => {
+    let defaultProviderId = providerAConfig.id;
+    const refundA = vi.fn<PaymentProviderPort['refund']>().mockResolvedValue({
+      providerRefundRef: 'refund-a-1074',
+    });
+    const adapterA: PaymentProviderPort = { ...providerAdapter, refund: refundA };
+    const adapterB: PaymentProviderPort = { ...providerAdapter, refund: vi.fn() };
+    registry.getPaymentProviderAdapter.mockImplementation((providerId) =>
+      providerId === providerAConfig.id ? adapterA : adapterB,
+    );
+    const gateway = createRegistryAcquiringGateway({
+      getConfig: async () => ({
+        enabled: true,
+        defaultProviderId,
+        providers: [providerAConfig, providerBConfig],
+      }),
+    });
+
+    defaultProviderId = providerBConfig.id;
+    await expect(
+      gateway.refund({
+        organizationId: '00000000-0000-4000-8000-000000001074',
+        providerId: providerAConfig.id,
+        providerPaymentId: 'provider-intent-a-1074',
+        amountMinor: 12_345,
+        currency: 'RUB',
+        idempotencyKey: 'refund-1074',
+      }),
+    ).resolves.toEqual({ ok: true, providerRefundRef: 'refund-a-1074' });
+
+    expect(registry.getPaymentProviderAdapter).toHaveBeenCalledWith(providerAConfig.id);
+    expect(refundA).toHaveBeenCalledWith({
+      providerIntentRef: 'provider-intent-a-1074',
+      amountMinor: 12_345,
+      currency: 'RUB',
+      idempotencyKey: 'refund-1074',
+      providerConfig: providerAConfig,
+    });
+    expect(adapterB.refund).not.toHaveBeenCalled();
   });
 });

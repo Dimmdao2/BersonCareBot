@@ -35,6 +35,10 @@ const postBodySchema = z.object({
   description: z.string().max(1000).optional(),
 });
 
+function isExactProviderId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
@@ -92,6 +96,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   if (!chargeResult.ok) {
     return NextResponse.json({ ok: false, reason: chargeResult.reason }, { status: 503 });
+  }
+  if (!isExactProviderId(chargeResult.providerId)) {
+    return NextResponse.json({ ok: false, reason: 'invalid_provider_result' }, { status: 503 });
   }
 
   // Record the pending payment in the patient ledger.

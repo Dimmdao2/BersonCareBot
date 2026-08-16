@@ -340,6 +340,23 @@ describe('patient acquiring charge HTTP boundary', () => {
     });
     expect(fakes.recordAcquiringCharge).not.toHaveBeenCalled();
   });
+
+  it('fails closed without a pending record when a gateway success omits its provider identity', async () => {
+    fakes.createCharge.mockResolvedValue({
+      ok: true,
+      providerId: '',
+      providerPaymentId: 'provider-payment-1074',
+    });
+
+    const response = await invokeCharge(chargeRequest('charge-1074-missing-provider'));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      reason: 'invalid_provider_result',
+    });
+    expect(fakes.recordAcquiringCharge).not.toHaveBeenCalled();
+  });
 });
 
 describe('patient acquiring webhook HTTP boundary', () => {
