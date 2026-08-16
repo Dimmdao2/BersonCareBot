@@ -57,9 +57,27 @@ test('platform commercial scope is present in the active relation matrix and row
       const platformBusiness = tables[relation].policies.filter((policy) =>
         policy.as === 'PERMISSIVE' && policy.to.includes('app_platform_settings'));
       assert.ok(platformBusiness.length > 0, `${dbName}:${relation}:platform row wall`);
-      assert.ok(platformBusiness.some((policy) =>
-        (policy.using ?? '').includes("current_user = 'app_platform_settings'::name")),
-      `${dbName}:${relation}:platform predicate`);
+      if (
+        relation === 'public.saas_org_entitlement_overrides'
+        || relation === 'public.saas_organization_trials'
+      ) {
+        const directBusiness = platformBusiness.find((policy) =>
+          policy.to.includes('app_staff') && policy.to.includes('app_clinic_billing'));
+        assert.ok(directBusiness, `${dbName}:${relation}:direct platform/tenant row wall`);
+        const expectedWall = "(CASE WHEN current_user = 'app_platform_settings'::name THEN true"
+          + " WHEN current_user IN ('app_clinic_billing'::name, 'app_staff'::name)"
+          + ' THEN organization_id = app.current_org_id() ELSE false END)';
+        assert.equal(
+          directBusiness.using,
+          expectedWall,
+          `${dbName}:${relation}:platform reads every organization`,
+        );
+        assert.equal(
+          directBusiness.withCheck,
+          expectedWall,
+          `${dbName}:${relation}:platform writes every organization`,
+        );
+      }
     }
   }
 });
@@ -522,6 +540,26 @@ test('no direct INSERT or UPDATE grant is table-wide', () => {
 });
 
 test('billing relations use the clinic, platform, and webhook worker roles without ordinary staff mutation', () => {
+  const billingAccountInsertColumns = [
+    'billing_address', 'billing_email', 'billing_requisites', 'created_at', 'id', 'legal_name',
+    'organization_id', 'registration_reason_code', 'tax_identifier', 'updated_at',
+  ];
+  const billingSubscriptionInsertColumns = [
+    'autopay_consent_text', 'autopay_consented_at', 'autopay_revoked_at', 'cancelled_at',
+    'created_at', 'current_period_ends_at', 'current_period_starts_at', 'grace_ends_at', 'id',
+    'lifecycle_state', 'organization_id', 'paid_additional_seats', 'pending_tariff_id',
+    'provider_id', 'read_only_ends_at', 'saas_billing_account_id', 'saved_payment_method_id',
+    'source', 'status', 'tariff_id', 'tariff_snapshot', 'updated_at',
+  ];
+  for (const role of ['app_clinic_billing', 'app_platform_settings']) {
+    exactColumns('public.saas_billing_accounts', role, 'INSERT', billingAccountInsertColumns);
+    exactColumns(
+      'public.saas_billing_subscriptions',
+      role,
+      'INSERT',
+      billingSubscriptionInsertColumns,
+    );
+  }
   for (const relation of [
     'public.saas_billing_accounts',
     'public.saas_billing_invoices',

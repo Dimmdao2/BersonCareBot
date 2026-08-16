@@ -8,8 +8,10 @@ disposable database in this rehearsal. Each deploy/cutover still touches one tar
 TEST wrapper was a point-in-time guard, not a permanent prohibition. The owner explicitly ordered the final
 production-transfer rehearsal on TEST now. The executable order is:
 fresh dump → owner identity consolidation → identity data-fix → reviewed FIO → accepted legacy appointment
-transfer → target shared-role baseline + retired-role migration bridge → ordinary migration chain (including legacy drops and all later tariff/billing work) → target
-port-context roles/grants → TEST runtime proof.
+transfer → declaration-derived NOLOGIN prerequisites → **one atomic PROD-schema A → current DEV-schema B
+transition** (`prod-to-target-cutover.sql`) → TEST settings overlay → generated target port-context
+roles/grants/RLS → TEST runtime proof. Historical webapp/integrator migration runners, retired-role bridges and
+standalone online-index steps are not invoked on this fresh-reset path.
 
 **ЗАМЕНЕНО 12.08.2026 (runtime topology remains current; the DEV-first scheduling sentence is replaced above):** every later reference in this document to `locked` as the final runtime, to shared
 DEV+TEST/bilateral cutover, to exact six cluster-global application logins, to global-admin via staff, to the old
@@ -56,8 +58,8 @@ wrapper is blocked and must be fixed; его нельзя объявить ка�
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
-5. Temporary privileges are allowed only inside the migration window and the separate TEST fixture reconciliation
-   window. Both must be cleaned up fail-visibly; neither privilege window is application runtime.
+5. Temporary owner/BYPASS authority is allowed only for the reviewed pre-cutover data stage. It must be cleaned up
+   fail-visibly before target access installation and is never application runtime authority.
 6. Reports and evidence must be aggregate-only: no patient names, phone numbers, emails, raw payloads,
    credential-bearing URLs, or secrets.
 7. The TEST wrapper owns the migration window. DDL/backfill work happens only inside the documented temporary
@@ -82,10 +84,10 @@ wrapper is blocked and must be fixed; его нельзя объявить ка�
    failed strict TEST deployment by switching walls off. `--mode locked` remains blocked because the supported
    wrappers already own the locked closure; any exceptional owner-directed environment rewrite is a separate
    incident operation and does not count as strict TEST acceptance.
-10. Every fresh TEST restore must reconcile the repo-managed S3 A/B walkthrough fixture before TEST services
-    restart. The protected external operator packet is mandatory and the wrapper fails before restore when it is
-    missing, symlinked, not exact `root:deploy 0640`, disabled, malformed, or incomplete. Fixture credential values
-    never enter the repository, command arguments, or logs.
+10. Every fresh TEST restore requires the hash-bound owner-reviewed FIO manifest and legacy-appointment CSV plus
+    the protected `/opt/env/bersoncarebot/saas-smoke-login.env` owner-login packet. The wrapper validates all three
+    before restore and converges only the three canonical owner TEST credentials before the port-context cutover.
+    The retired S3 A/B walkthrough fixture is not seeded or required.
 
 ## Roles
 
@@ -118,13 +120,12 @@ snapshot or executable-gate result aborts the same process; a manual check from 
 Before the one-time live transition, the wrapper must read only the `DB_PRINCIPAL_CONTEXT_MODE` key from
 `/opt/env/bersoncarebot/api.test` and `/opt/env/bersoncarebot/webapp.test` as the deploy-readable TEST env files.
 Missing mode means the application default `legacy-guc`, which is now a preflight failure for TEST. Both files
-must explicitly say `locked`; `legacy-guc`, `shadow`, and every other value are rejected before writers stop.
+must agree and explicitly say either `locked` (supported source state) or `port-context` (idempotent retry/source
+state). `legacy-guc`, `shadow`, disagreement and every other value are rejected before writers stop.
 
-The wrapper must continue to own migrations through the temporary owner-authority window below, then run the shared
-zero/target cutover and restart TEST units in `port-context` mode. It must not patch grants outside the
-documented migration window and must not edit `/opt/env`. The reason this restart is valid is the integrator startup
-contract: after deploy has run `pnpm migrate`, API startup skips DDL migrations in `shadow|locked` and strictly
-verifies that `integrator.schema_migrations` contains every discovered integrator migration from the deployed repo.
+The wrapper owns the data stage and one A → B transition, then invokes the single-target cutover which atomically
+renders the protected TEST env into `port-context` and restarts TEST on the four exact URLs. Agents must not edit
+`/opt/env` manually or patch grants outside that repo-managed cutover.
 
 The repo-tracked historical mode helper may still be inspected in dry-run mode, but it is not a recovery step for
 strict TEST and is not required for a locked TEST restart:
@@ -158,22 +159,15 @@ This creates no dump file on production and performs no production writes. `DUMP
 be used only for an already-pulled fresh dump. Do not silently fall back to the local `/opt/backups` copy on
 the TEST box for this hard rehearsal.
 
-### 3. Restore to TEST or a disposable DB
+### 3. Restore directly to TEST
 
 TEST restore goes through repo-tracked `deploy/host/restore-test-db-from-dump.sh`, invoked only by the
 owner-gated full-reset wrapper. The restored target is
 `bersoncarebot_test`, and the restore path must leave the database and representative tables owned by
 `bersoncarebot_test`.
 
-Disposable prod-copy rehearsals use `scripts/deploy-saas-667.sh` through the repo-tracked disposable wrapper,
-not by hand. The wrapper passes either explicit `DATABASE_URL` + `SUPERUSER_URL` URLs or explicit
-`DATABASE_URL` + `SUPERUSER_SUDO_POSTGRES=1` for local peer/sudo superuser psql calls. Disposable DB names
-must match exact `^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$` and must not contain delimited
-prod/production/prd/live/main/bersoncare/test/dev environment aliases. `SAAS_DISPOSABLE_ALLOWED_HOSTS` is the only
-remote-host allowlist accepted by `scripts/migrate-all.sh`: a comma-separated list of exact hostnames/IPs,
-normalized case-insensitively with a trailing dot removed; wildcards are not supported. It is operational
-configuration, not a secret. Loopback is allowed without the list. Production aliases and IPs under
-`bersoncare.ru` / `bersonservices.ru` are always rejected even if listed.
+**Historical only:** disposable prod-copy runners remain available for isolated diagnostics, but they are not a
+stage of the authorized TEST rehearsal and must not be inserted between the dump and `bersoncarebot_test`.
 
 ### 4. Assert owner state before data-fix
 
@@ -201,50 +195,30 @@ RESET ROLE;
 This is required because the data-fix must behave as the runtime owner. Running it as an arbitrary deploy
 login through plain `psql "$DATABASE_URL" -f ...` is not an allowed substitute.
 
-### 6. Temporarily elevate only for migration window
+### 6. Run the prepared data through one atomic A → B transition
 
-Before `pnpm migrate`, the wrapper must:
+After the identity/FIO/legacy-appointment data stage passes, the wrapper installs only the
+declaration-derived `NOLOGIN` role prerequisites required to parse the target policies. It then invokes
+`deploy/postgres/prod-to-target-cutover.sql` once as the TEST database owner. That single transaction:
 
-- apply `generate-cli.mjs --shared-role-baseline` and its read-only verifier for target roles, then
-  `pre-migration-legacy-role-bridge.sql` for the three retired names still used by executable historical
-  migrations (`app_owner`, `app_identity_bootstrap`, `app_operational_diagnostic`). Both layers create only
-  `NOLOGIN` role prerequisites; they create no runtime login, password or database ACL. The final target zero
-  removes the three bridge roles again;
-- apply `pre-migration-target-bridge.sql` to the target database. It installs only the final-state assumptions
-  required before their declaration-owning migrations can run: the two legacy `app_staff` reads verified by
-  webapp `0241`, `pgcrypto` in `app_ext` before `0274`, and the replay-safe public calendar-map shape verified by
-  `0330/0331`. The normal integrator runner still records `20260727_0002`; the final target zero replaces the
-  temporary ACL and ownership state;
-- use the local OS `postgres` migration channel over the Unix socket and set
-  `PGOPTIONS='-c role=bersoncarebot_test'`; it must not borrow one of the four runtime logins or recreate an
-  aggregate runtime `DATABASE_URL`;
-- run DB-only Node operations with `NODE_ENV=test` and `USE_REAL_DATABASE=1`, so they use hermetic test defaults
-  for unrelated application secrets while retaining the explicitly selected real TEST database;
-- run the migration ledgers in their data-dependency order: integrator before `20260708`, webapp before
-  `0282_failed_reminder_occurrence_history`, explicit integrator forward `20260814_0001`, integrator before
-  `20260724` (the remaining org-column backfill), then the complete webapp chain and finally the complete
-  integrator chain. The bounded webapp phase commits the two organization membership tables needed by the
-  integrator backfill; the explicit forward handles deliberately absent mailing-domain tables without
-  resurrecting them. Only the final phases perform full ledger-completeness gates;
-- fail if the runtime owner already has pre-existing `app_owner` membership, then grant that membership only for
-  the migration window so pending Drizzle migrations can replace protected functions in schema `app`;
-- set `BYPASSRLS` on the runtime owner only for the migration window;
-- run the migration chain with `PGOPTIONS='-c role=bersoncarebot_test'`.
+- replaces source schema A with the version-matched DEV schema B from `deploy/postgres/generated/prod-to-target/`;
+- copies the prepared patient, clinic, specialist, clinical, communication, tariff and billing data;
+- records the exact target webapp and integrator ledgers;
+- removes the retired legacy schemas/tables; and
+- runs the target shape/data assertions before commit.
 
-The purpose is narrow: owner-only DDL must run under owner authority, while backfills under RLS/FORCE need
-temporary BYPASSRLS. The temporary grant and BYPASSRLS flag must be revoked on success and through the
-`EXIT` trap on failure.
+The wrapper must not run `pnpm migrate`, historical Drizzle/integrator migration chains,
+`pre-migration-legacy-role-bridge.sql`, `pre-migration-target-bridge.sql`, or the standalone C4D online-index step
+on top of the restored dump. `pnpm run check:prod-to-target-cutover` is executed by the same wrapper before its
+first destructive action and proves both snapshot freshness and the executable A → B contract.
 
-After Drizzle has committed migration `0217` and before TEST services restart, the full-reset wrapper runs
-`deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql` as its own autocommit `psql` operation. The artifact
-uses `CREATE INDEX CONCURRENTLY IF NOT EXISTS` for the existing hot `public.media_files` table, removes only an
-invalid residue of that exact index on retry, and fails unless the final index is valid, ready and has the exact
-`public.media_files(owner_kind, organization_id, status, created_at DESC)` definition. A valid same-name index with
-an incompatible definition is not dropped automatically. It must never be
-folded into the Drizzle migration transaction. Ordinary code-only deploy does not restore the DB or implicitly
-rebuild this index; the next owner-authorized fresh TEST rehearsal executes the version-matched one-time step.
+### 7. Install generated target access and prove cleanup
 
-### 7. Cleanup and post-cleanup assertions are mandatory
+After A → B commits, the wrapper applies the TEST reset settings overlay and invokes the single-target
+port-context cutover. `initial-cutover.mjs` checks that
+`deploy/postgres/generated/privileges.bersoncarebot_test.sql` matches the declaration, zeroes legacy access,
+installs that exact generated artifact in one transaction and runs catalog closure. No manual grant or separate
+strict-finalizer command is part of this path.
 
 Cleanup is not best-effort. The wrapper must fail visibly if cleanup fails, and must assert after cleanup:
 
@@ -254,12 +228,11 @@ Cleanup is not best-effort. The wrapper must fail visibly if cleanup fails, and 
 - required Drizzle migrations are present;
 - required organization columns exist.
 
-The older `p0-5b-role-split-staff-patient.sql`-first wording below describes the superseded locked-runtime
-closure. In the current port-context rehearsal, the pre-migration role authority is the declaration-derived
-shared baseline above; exact database ACL and four runtime logins are installed only by the final single-target
-port-context cutover.
+The older `p0-5b-role-split-staff-patient.sql`-first wording below is **SUPERSEDED HISTORICAL PROVENANCE — DO NOT
+EXECUTE**. Exact database ACL and four runtime logins are installed only by the final single-target port-context
+cutover.
 
-Immediately after the migration cleanup/schema assertions and before any TEST service restart, the historical locked closure must:
+The historical locked closure used to:
 
 - run the fixed `app_staff` / `app_patient` role split SQL as the TEST superuser for every accepted runtime mode,
   including `legacy-guc` without a signing secret;
@@ -541,7 +514,11 @@ B1 must not run as a TEST runtime login. The checker must verify `current_user` 
 `BYPASSRLS`; if it is ever added for this step, that must be documented and checked as a separate protocol
 change.
 
-Before fixture reconciliation, the wrapper must run the mandatory idempotent TEST strict finalizer
+**SUPERSEDED HISTORICAL BLOCK — DO NOT EXECUTE:** the paragraphs below through the fixture capability gate
+describe the former locked overlay/fixture closure. The current fresh-reset path does not call the separate
+strict-finalizer or synthetic A/B fixture seeder; generated access is already installed and verified by §7.
+
+Historically, before fixture reconciliation, the wrapper ran the TEST strict finalizer
 `deploy/postgres/test-strict-rls-finalizer.sql`. It reapplies the generated helper-based strict policy set, applies
 FORCE to the exact canonical 163-table inventory, and fails unless every target has both ENABLE and FORCE. Migration
 0177 remains historical compatibility provenance; its NO FORCE end-state is not accepted on TEST. The finalizer runs
@@ -613,17 +590,12 @@ This fixture packet is TEST operator input, not application runtime/integration 
 added to `api.test`, `webapp.test`, `system_settings`, git, screenshots, shell history, or captured evidence.
 The fixture reconciliation privilege window is also not runtime and must never be reused by an application unit.
 
-It must then restart TEST units and run:
-
-- health check for `https://test.bersoncare.ru/api/health`;
-- repo-managed TEST nginx apply path before A2:
-  `bash deploy/host/apply-test-nginx-webapp.sh --apply`;
-- the TEST nginx apply script must remain TEST-only, default-dry-run unless `--apply`, refuse production-looking
-  paths/upstreams, render the TEST vhost from audited repo content, include `proxy_set_header X-Forwarded-Host $host`
-  and `proxy_set_header X-Forwarded-Proto $scheme` in the webapp `location /`, backup active TEST nginx config,
-  run `nginx -t`, reload nginx only on success, and run the A2 checker against `nginx -T`;
-- A2 nginx forwarded-host preflight against active `nginx -T`;
-- `awg-quick@awg0` active check, because the production Telegram relay on the TEST host must remain untouched.
+**CURRENT runtime gates:** after the generated single-target closure, the fresh-reset wrapper installs/asserts the
+TEST media-worker unit, restarts `api`, `worker`, `scheduler`, `webapp` and `media-worker`, verifies that all five
+units are active, and requires `https://test.bersoncare.ru/api/health` to return both `ok=true` and `db=up`.
+Nginx apply/A2 and `awg-quick@awg0` checks belong to the superseded strict-closure branch and are not claimed by
+the current fresh-reset wrapper. Product page/Console/Network traversal is the explicit post-deploy acceptance
+stage, not an implicit deploy-wrapper fixture gate.
 
 Do not claim a TEST deploy passed unless the wrapper has actually run and these gates have passed.
 Fixture-based A1/product smoke выведен из deploy решением владельца 30.07.2026. Временный
@@ -639,27 +611,27 @@ pnpm run check:saas-d2-fb1-bootstrap-phone-write
 pnpm run check:saas-d3-4-bootstrap-base-login-grants
 ```
 
-Strict+FORCE is mandatory in both supported TEST deploy paths: fresh restore (`deploy-test-full-reset.sh`) and code-only
-migration (`deploy-test.sh`). Both stop writers, migrate under a short audited privilege window, clean it up, run
-`test-strict-rls-finalizer.sql`, assert the exact target state, restart locked units, and keep walls on after failures.
-The disposable rehearsal remains dormant/NO FORCE for historical migration compatibility proof only; it is not TEST
-acceptance.
+Strict+FORCE is mandatory in both supported TEST deploy paths, but neither path installs it through a separate
+`test-strict-rls-finalizer.sql` call. Fresh restore (`deploy-test-full-reset.sh`) performs the one A → B transition
+and then `initial-cutover.mjs` installs the exact generated TEST privilege artifact and proves catalog closure.
+Code-only deploy (`deploy-test.sh`) applies stationary migrations and then `reconcile-access.mjs` verifies and
+reinstalls the same declaration-generated access state. Both keep writers stopped until the target state and
+runtime gates pass. The disposable historical runner is not TEST acceptance.
 
 ## Failure policy
 
 - Stop at the first failed gate.
 - Do not continue by manually changing DB rows, grants, owners, RLS flags, or settings.
 - Fix the repo script, SQL, checker, or protocol that produced the failure.
-- Rerun from a fresh restore or fresh disposable DB.
+- For this authorized rehearsal, rerun the wrapper from a fresh restore directly into the named
+  `bersoncarebot_test` target. Do not insert a disposable/intermediate database.
 - If a temporary privilege cleanup failure occurs, treat it as the primary incident until post-cleanup
   assertions prove the target is clean.
-- After locked TEST services restart, health/nginx and both mandatory product-smoke passes, the shared closure records
-  one real E1 coverage run for all six process families and immediately rereads diagnostics through the protected
-  operator URL. It reads first and fails before the coverage write when a genuine unexplained event is already
-  active; it also fails when a new unexplained event appears during the gate or the exact fresh complete coverage
-  cannot be reread. The gate never invokes the synthetic scenario cleanup and never deletes genuine events. Both
-  fresh-restore and code-only paths must pass this gate before DB/schema/runtime-ready DONE. `awg-quick@awg0` is a separately operated
-  PROD-relay dependency on the shared host and is not part of TEST deployment readiness.
+- Fresh-reset `DONE` means the five TEST units are active and `/api/health` proves `ok=true` and `db=up` after the
+  generated port-context closure. It does not claim nginx/A2, E1, external delivery or product-page acceptance.
+  The owner-required three-account page/Console/Network traversal is a separate post-deploy gate and must be
+  reported separately. `awg-quick@awg0` is a separately operated PROD-relay dependency on the shared host and is
+  not part of TEST deployment readiness.
 
 ## DEV/disposable dormant wrapper
 

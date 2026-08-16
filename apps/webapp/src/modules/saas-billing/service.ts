@@ -675,7 +675,7 @@ export function createSaasBillingService(dependencies: {
       };
     },
 
-    assignManualTariff(input: {
+    async assignManualTariff(input: {
       organizationId: string;
       tariffId: string | null;
       /** A restrictive switch preserves the already paid access until `currentPeriodEndsAt`. */
@@ -683,6 +683,12 @@ export function createSaasBillingService(dependencies: {
       scheduleOnly?: boolean;
       audit: { actorId: string | null; reason: string };
     }) {
+      // Port-context transactions own one exact PostgreSQL client. Resolve the immutable
+      // billing-period catalog before opening that transaction so the callback never waits for a
+      // second pool checkout while holding the first one.
+      const billingPeriodMonths = input.tariffId
+        ? billingPeriodMonthsMap(await dependencies.repository.listBillingPeriods())
+        : new Map<string, number>();
       return dependencies.repository.runManualAssignmentTransaction(async (transaction) => {
         const state = await transaction.loadManualAssignmentState(input.organizationId);
         const currentManualTariffId =
@@ -772,10 +778,10 @@ export function createSaasBillingService(dependencies: {
                   }
                 : {
                     startsAt,
-                    endsAt: await paidPeriodEndsAtForBillingCode(
-                      dependencies.repository,
+                    endsAt: paidPeriodEndsAtForCode(
                       startsAt,
                       (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
+                      billingPeriodMonths,
                     ),
                   }),
             }

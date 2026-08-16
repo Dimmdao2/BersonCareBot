@@ -206,45 +206,41 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
       .limit(1);
     if (!organization) throw new Error('organization_not_found');
 
-    const [trial, paidPolicyRow, subscriptionPeriodRow] = await Promise.all([
-      tx
-        .select({
-          tariffId: saasOrganizationTrials.tariffId,
-          endsAt: saasOrganizationTrials.endsAt,
-          postTrialBehavior: saasOrganizationTrials.postTrialBehavior,
-          postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
-        })
-        .from(saasOrganizationTrials)
-        .where(
-          and(
-            eq(saasOrganizationTrials.organizationId, organizationId),
-            eq(saasOrganizationTrials.status, 'active'),
-          ),
-        )
-        .limit(1),
-      tx
-        .select({
-          postPaidPeriodBehavior: saasPaidPeriodPolicy.postPaidPeriodBehavior,
-          postPaidPeriodTariffId: saasPaidPeriodPolicy.postPaidPeriodTariffId,
-        })
-        .from(saasPaidPeriodPolicy)
-        .where(
-          and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)),
-        )
-        .limit(1),
-      tx
-        .select({
-          periodEndsAt: sql<string | null>`max(${saasBillingSubscriptions.currentPeriodEndsAt})`,
-        })
-        .from(saasBillingSubscriptions)
-        .where(
-          and(
-            eq(saasBillingSubscriptions.organizationId, organizationId),
-            inArray(saasBillingSubscriptions.status, ['active', 'expired']),
-            isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
-          ),
+    const trial = await tx
+      .select({
+        tariffId: saasOrganizationTrials.tariffId,
+        endsAt: saasOrganizationTrials.endsAt,
+        postTrialBehavior: saasOrganizationTrials.postTrialBehavior,
+        postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
+      })
+      .from(saasOrganizationTrials)
+      .where(
+        and(
+          eq(saasOrganizationTrials.organizationId, organizationId),
+          eq(saasOrganizationTrials.status, 'active'),
         ),
-    ]);
+      )
+      .limit(1);
+    const paidPolicyRow = await tx
+      .select({
+        postPaidPeriodBehavior: saasPaidPeriodPolicy.postPaidPeriodBehavior,
+        postPaidPeriodTariffId: saasPaidPeriodPolicy.postPaidPeriodTariffId,
+      })
+      .from(saasPaidPeriodPolicy)
+      .where(and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)))
+      .limit(1);
+    const subscriptionPeriodRow = await tx
+      .select({
+        periodEndsAt: sql<string | null>`max(${saasBillingSubscriptions.currentPeriodEndsAt})`,
+      })
+      .from(saasBillingSubscriptions)
+      .where(
+        and(
+          eq(saasBillingSubscriptions.organizationId, organizationId),
+          inArray(saasBillingSubscriptions.status, ['active', 'expired']),
+          isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
+        ),
+      );
     const paidPeriod: CommercialAccessPaidPeriodInput =
       paidPolicyRow[0] && subscriptionPeriodRow[0]?.periodEndsAt
         ? {

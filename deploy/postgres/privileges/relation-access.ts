@@ -7341,8 +7341,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "billing_address",
           "billing_email",
-          "organization_id"
+          "billing_requisites",
+          "created_at",
+          "id",
+          "legal_name",
+          "organization_id",
+          "registration_reason_code",
+          "tax_identifier",
+          "updated_at"
         ]
       },
       {
@@ -7368,8 +7376,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "billing_address",
           "billing_email",
-          "organization_id"
+          "billing_requisites",
+          "created_at",
+          "id",
+          "legal_name",
+          "organization_id",
+          "registration_reason_code",
+          "tax_identifier",
+          "updated_at"
         ]
       },
       {
@@ -7725,16 +7741,28 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "autopay_consent_text",
+          "autopay_consented_at",
+          "autopay_revoked_at",
+          "cancelled_at",
+          "created_at",
           "current_period_ends_at",
           "current_period_starts_at",
+          "grace_ends_at",
+          "id",
           "lifecycle_state",
           "organization_id",
+          "paid_additional_seats",
           "pending_tariff_id",
+          "provider_id",
+          "read_only_ends_at",
           "saas_billing_account_id",
+          "saved_payment_method_id",
           "source",
           "status",
           "tariff_id",
-          "tariff_snapshot"
+          "tariff_snapshot",
+          "updated_at"
         ]
       },
       {
@@ -7798,16 +7826,28 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "autopay_consent_text",
+          "autopay_consented_at",
+          "autopay_revoked_at",
+          "cancelled_at",
+          "created_at",
           "current_period_ends_at",
           "current_period_starts_at",
+          "grace_ends_at",
+          "id",
           "lifecycle_state",
           "organization_id",
+          "paid_additional_seats",
           "pending_tariff_id",
+          "provider_id",
+          "read_only_ends_at",
           "saas_billing_account_id",
+          "saved_payment_method_id",
           "source",
           "status",
           "tariff_id",
-          "tariff_snapshot"
+          "tariff_snapshot",
+          "updated_at"
         ]
       },
       {

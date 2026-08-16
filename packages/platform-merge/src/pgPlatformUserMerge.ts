@@ -918,7 +918,8 @@ async function assertSharedPhoneGuard(
     return sum;
   }
 
-  const [ct, cd] = await Promise.all([meaningfulCount(targetId), meaningfulCount(duplicateId)]);
+  const ct = await meaningfulCount(targetId);
+  const cd = await meaningfulCount(duplicateId);
   if (ct > 0 && cd > 0) {
     throw new MergeDependentConflictError(
       'shared-phone guard: meaningful data on both candidates',

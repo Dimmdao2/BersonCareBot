@@ -541,6 +541,55 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
 // первично выданный тариф работает как настроено» + длительность периода берётся из поля тарифа
 // `billing_period`, а не из числа в коде (§5a item 2.6).
 describe('§5a/7.0: назначение тарифа открывает ОПЛАЧЕННЫЙ ПЕРИОД с концом', () => {
+  it('loads the period catalog before entering the exact-client assignment transaction', async () => {
+    let transactionOpen = false;
+    const listBillingPeriods = vi.fn(async () => {
+      expect(transactionOpen).toBe(false);
+      return DEFAULT_TEST_BILLING_PERIODS;
+    });
+    const transaction: SaasBillingManualAssignmentTransactionPort = {
+      loadManualAssignmentState: async () => ({
+        organization: { tariffId: null },
+        organizationTrialConsumed: true,
+        activeTrial: null,
+        manualSaasBillingSubscription: null,
+      }),
+      requireActiveTariff: async () => ({ billingPeriod: 'month' }),
+      setManualSaasBillingSubscription: async () => {},
+      updateOrganizationTariffAssignment: async () => ({ tariffId: 'tariff-1' }),
+      getActiveTrialPolicy: async () => null,
+      startOrganizationTrial: async () => ({ created: false, endsAt: '' }),
+      endActiveTrial: async () => null,
+      appendManualAssignmentAudit: async () => {},
+    };
+    const service = createSaasBillingService({
+      repository: {
+        listBillingPeriods,
+        runManualAssignmentTransaction: async (
+          work: (input: SaasBillingManualAssignmentTransactionPort) => Promise<unknown>,
+        ) => {
+          transactionOpen = true;
+          try {
+            return await work(transaction);
+          } finally {
+            transactionOpen = false;
+          }
+        },
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({}) as never,
+      now: () => new Date('2026-07-31T09:00:00.000Z'),
+    });
+
+    await service.assignManualTariff({
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      audit: { actorId: 'operator-1', reason: 'serial exact-client transaction' },
+    });
+
+    expect(listBillingPeriods).toHaveBeenCalledOnce();
+  });
+
   function assignmentTransaction(
     billingPeriod: 'day' | 'month' | 'year',
     /** What the organization already has — an unassign has to start from an assigned tariff. */

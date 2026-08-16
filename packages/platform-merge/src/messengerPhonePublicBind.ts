@@ -207,7 +207,8 @@ async function mergePairIfDistinct(
 ): Promise<void> {
   if (idA === idB) return;
   const mergeClient = db as PlatformMergeDbClient;
-  const [a, b] = await Promise.all([loadPickCandidate(db, idA), loadPickCandidate(db, idB)]);
+  const a = await loadPickCandidate(db, idA);
+  const b = await loadPickCandidate(db, idB);
   if (!a || !b) {
     throw new MessengerPhoneLinkError('merge_blocked_ambiguous_candidates', {
       candidateIds: [idA, idB],

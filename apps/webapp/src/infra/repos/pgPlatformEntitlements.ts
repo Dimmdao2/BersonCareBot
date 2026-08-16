@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
@@ -320,57 +320,56 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async listOrganizations() {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
-        const [organizations, trials, overrides, manualSaasBillingRows, paidPolicyRow, subscriptionPeriodRows] =
-          await Promise.all([
-          tx
-            .select({
-              id: beOrganizations.id,
-              title: beOrganizations.title,
-              tariffId: beOrganizations.tariffId,
-              isActive: beOrganizations.isActive,
-            })
-            .from(beOrganizations)
-            .orderBy(beOrganizations.title),
-          tx.select().from(saasOrganizationTrials),
-          tx.select().from(saasOrgEntitlementOverrides),
-          tx
-            .select({
-              organizationId: saasBillingSubscriptions.organizationId,
-              tariffId: saasBillingSubscriptions.tariffId,
-              pendingTariffId: saasBillingSubscriptions.pendingTariffId,
-              currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
-            })
-            .from(saasBillingSubscriptions)
-            .where(
-              and(
-                eq(saasBillingSubscriptions.source, 'manual'),
-                eq(saasBillingSubscriptions.status, 'active'),
-              ),
+        // A transaction is pinned to one exact PostgreSQL client in port-context mode.
+        // Keep its statements sequential: concurrent client.query() calls on the same
+        // client can hang or be rejected by pg and break the whole admin page.
+        const organizations = await tx
+          .select({
+            id: beOrganizations.id,
+            title: beOrganizations.title,
+            tariffId: beOrganizations.tariffId,
+            isActive: beOrganizations.isActive,
+          })
+          .from(beOrganizations)
+          .orderBy(beOrganizations.title);
+        const trials = await tx.select().from(saasOrganizationTrials);
+        const overrides = await tx.select().from(saasOrgEntitlementOverrides);
+        const manualSaasBillingRows = await tx
+          .select({
+            organizationId: saasBillingSubscriptions.organizationId,
+            tariffId: saasBillingSubscriptions.tariffId,
+            pendingTariffId: saasBillingSubscriptions.pendingTariffId,
+            currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+          })
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              inArray(saasBillingSubscriptions.source, ['paid_subscription', 'manual']),
+              eq(saasBillingSubscriptions.status, 'active'),
             ),
-          tx
-            .select({
-              postPaidPeriodBehavior: saasPaidPeriodPolicy.postPaidPeriodBehavior,
-              postPaidPeriodTariffId: saasPaidPeriodPolicy.postPaidPeriodTariffId,
-            })
-            .from(saasPaidPeriodPolicy)
-            .where(
-              and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)),
-            )
-            .limit(1),
-          tx
-            .select({
-              organizationId: saasBillingSubscriptions.organizationId,
-              periodEndsAt: sql<string>`max(${saasBillingSubscriptions.currentPeriodEndsAt})`,
-            })
-            .from(saasBillingSubscriptions)
-            .where(
-              and(
-                inArray(saasBillingSubscriptions.status, ['active', 'expired']),
-                isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
-              ),
-            )
-            .groupBy(saasBillingSubscriptions.organizationId),
-        ]);
+          )
+          .orderBy(saasBillingSubscriptions.organizationId, desc(saasBillingSubscriptions.source));
+        const paidPolicyRow = await tx
+          .select({
+            postPaidPeriodBehavior: saasPaidPeriodPolicy.postPaidPeriodBehavior,
+            postPaidPeriodTariffId: saasPaidPeriodPolicy.postPaidPeriodTariffId,
+          })
+          .from(saasPaidPeriodPolicy)
+          .where(and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)))
+          .limit(1);
+        const subscriptionPeriodRows = await tx
+          .select({
+            organizationId: saasBillingSubscriptions.organizationId,
+            periodEndsAt: sql<string>`max(${saasBillingSubscriptions.currentPeriodEndsAt})`,
+          })
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              inArray(saasBillingSubscriptions.status, ['active', 'expired']),
+              isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
+            ),
+          )
+          .groupBy(saasBillingSubscriptions.organizationId);
         const trialByOrg = new Map(trials.map((trial) => [trial.organizationId, trial]));
         const overridesByOrg = new Map<string, OrgEntitlementOverride[]>();
         for (const override of overrides) {
@@ -381,17 +380,23 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           overridesByOrg.set(override.organizationId, current);
         }
         const now = Date.now();
-        const manualTariffByOrg = new Map(
-          manualSaasBillingRows.map((row) => [row.organizationId, row.tariffId]),
-        );
-        const scheduledTariffByOrg = new Map(
-          manualSaasBillingRows
-            .filter((row) => row.pendingTariffId !== null && row.currentPeriodEndsAt !== null)
-            .map((row) => [
-              row.organizationId,
-              { tariffId: row.pendingTariffId as string, effectiveAt: row.currentPeriodEndsAt as string },
-            ]),
-        );
+        // `paid_subscription` and `manual` are alternative sources for one effective assignment.
+        // Match the mutation path's precedence and keep the first active row per organization.
+        const manualTariffByOrg = new Map<string, string>();
+        const scheduledTariffByOrg = new Map<
+          string,
+          { tariffId: string; effectiveAt: string }
+        >();
+        for (const row of manualSaasBillingRows) {
+          if (manualTariffByOrg.has(row.organizationId)) continue;
+          manualTariffByOrg.set(row.organizationId, row.tariffId);
+          if (row.pendingTariffId !== null && row.currentPeriodEndsAt !== null) {
+            scheduledTariffByOrg.set(row.organizationId, {
+              tariffId: row.pendingTariffId,
+              effectiveAt: row.currentPeriodEndsAt,
+            });
+          }
+        }
         const periodEndsByOrg = new Map(
           subscriptionPeriodRows.map((row) => [row.organizationId, row.periodEndsAt]),
         );

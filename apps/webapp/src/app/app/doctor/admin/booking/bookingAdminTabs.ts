@@ -10,7 +10,7 @@
 // in doctorScreenTitles.ts.
 export const BOOKING_ADMIN_BASE = '/app/admin/booking';
 
-export type BookingAdminTabId = 'overview' | 'form-public' | 'payments';
+export type BookingAdminTabId = 'overview';
 
 export type BookingAdminTab = {
   id: BookingAdminTabId;
@@ -21,17 +21,13 @@ export type BookingAdminTab = {
 
 export const BOOKING_ADMIN_TABS: BookingAdminTab[] = [
   { id: 'overview', label: 'Обзор и настройка', href: BOOKING_ADMIN_BASE },
-  {
-    id: 'form-public',
-    label: 'Форма и публичная запись',
-    href: `${BOOKING_ADMIN_BASE}/form-public`,
-  },
-  { id: 'payments', label: 'Оплата', href: `${BOOKING_ADMIN_BASE}/payments` },
 ];
 
 /** Legacy маршруты → актуальная вкладка (redirect + подсветка nav). */
 const LEGACY_TAB_ALIASES: Record<string, BookingAdminTabId> = {
   [`${BOOKING_ADMIN_BASE}/catalog`]: 'overview',
+  [`${BOOKING_ADMIN_BASE}/form-public`]: 'overview',
+  [`${BOOKING_ADMIN_BASE}/payments`]: 'overview',
 };
 
 export function bookingAdminTabFromPathname(pathname: string): BookingAdminTabId {

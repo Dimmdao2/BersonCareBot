@@ -1882,17 +1882,7 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
   },
 };
 
-const rev10Function = <T extends {
-  owner: string;
-  security: 'DEFINER' | 'INVOKER';
-  returns: string;
-  execute: readonly string[];
-  purpose: string;
-  typedArgs: readonly string[];
-  volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
-  parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
-  proconfig: readonly string[];
-}>(entry: T): T => entry;
+const rev10Function = <T extends DeclaredFunction>(entry: T): T => entry;
 
 const INTEGRATOR_DELIVERY_SOURCES = [
   'delivery-handler',
@@ -2451,13 +2441,13 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_curated_playback_health_pre_0196()'],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
         'app.read_curated_playback_health_pre_0196()'
-      ].relationSurfaces.map((surface) => ({
+      ].relationSurfaces?.map((surface) => ({
         ...surface,
         ...(surface.relation === 'public.media_playback_resolution_events'
           || surface.relation === 'public.media_playback_user_video_first_resolve'
           ? { tableOperations: ['SELECT' as const] }
           : {}),
-      })),
+      })) ?? [],
     },
     'app.resolve_organization_cabinet_access(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_cabinet_access(uuid)'],
@@ -2793,10 +2783,10 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
         'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'
-      ].relationSurfaces.map((surface) => ({
+      ].relationSurfaces?.map((surface) => ({
         ...surface,
         tableOperations: ['SELECT' as const],
-      })),
+      })) ?? [],
     }),
     'app.read_public_runtime_setting(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_public_runtime_setting(text,text)'],
@@ -4507,8 +4497,16 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.be_organizations') return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name) THEN id = app.current_org_id() ELSE false END)";
   if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
   if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
-  if (tableKey.startsWith('public.saas_billing_') && tableKey !== 'public.saas_billing_periods') {
-    return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name, 'app_worker'::name) THEN organization_id = app.current_org_id() ELSE false END)";
+  if (
+    REV10_EXPLICIT_ORG_COLUMN.has(tableKey)
+    && PLATFORM_ROLE_SCOPE.mayTouch.includes(tableKey)
+    && ordinaryRoles.includes('app_platform_settings')
+  ) {
+    const organizationBoundRoles = ordinaryRoles.filter((role) => role !== 'app_platform_settings');
+    const organizationBoundPredicate = organizationBoundRoles.length > 0
+      ? `current_user IN (${organizationBoundRoles.map((role) => `'${role}'::name`).join(', ')})`
+      : 'false';
+    return `(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN ${organizationBoundPredicate} THEN organization_id = app.current_org_id() ELSE false END)`;
   }
   const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
   if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
