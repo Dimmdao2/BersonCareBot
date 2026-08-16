@@ -1,9 +1,7 @@
 DO $$
 DECLARE
   v_default_org_id constant uuid := 'a0000000-0000-4000-8000-000000000001';
-  -- Fresh-PROD cutover consolidates the retired duplicate before this migration. Seed the same
-  -- canonical specialist used by the owner-approved identity/appointment transition.
-  v_primary_specialist_id constant uuid := 'c9515025-7224-4d9b-86b6-9cb7d26ea503';
+  v_primary_specialist_id constant uuid := '518ea988-9b5e-4ad8-8194-a2d98f43bd7b';
   v_org_count integer;
   v_specialist_org_id uuid;
   v_specialist_active boolean;

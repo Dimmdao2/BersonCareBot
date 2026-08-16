@@ -496,9 +496,10 @@ FIO → hash-bound legacy appointment transition → declaration-derived NOLOGIN
 zero/install/catalog closure → runtime gates. The CSV belongs only to the one-time transition; no archived
 Rubitime command, historical migration runner, manual grant/finalizer chain or runtime integration returns.
 
-Fresh-PROD correction: `0143_seed_staff_organization_members` now seeds the canonical specialist retained by
-the preceding owner consolidation instead of the deleted duplicate. `0420_reconcile_canonical_owner_membership_local`
-repairs already-migrated databases and carries the repository's migration-hash reconciliation marker for `0143`.
+Fresh-PROD correction: the atomic A → B cutover carries the canonical specialist membership retained by
+the preceding owner consolidation. Historical migration `0143_seed_staff_organization_members` remains
+byte-for-byte immutable; `0420_reconcile_canonical_owner_membership_local` repairs databases that had already
+run the historical chain before the atomic cutover replaced that deployment path.
 
 ## 8. SUPERSEDED HISTORICAL — pre-A → B blocker inventory
 
