@@ -4,10 +4,7 @@ import { createBookingOnCanonicalEngine } from './canonicalCreate';
 import type { PatientBookingRecord } from './types';
 import type { MembershipsPort } from '@/modules/memberships/ports';
 import { createMembershipsService } from '@/modules/memberships/service';
-import type {
-  PackageUsageRecord,
-  PatientPackageRecord,
-} from '@/modules/memberships/types';
+import type { PackageUsageRecord, PatientPackageRecord } from '@/modules/memberships/types';
 import type { PaymentsService } from '@/modules/payments/service';
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000000001';
@@ -20,9 +17,7 @@ const PACKAGE_ITEM_ID = '00000000-0000-4000-8000-000000000007';
 const SUBSCRIPTION_PACKAGE_ID = '00000000-0000-4000-8000-000000000008';
 const APPOINTMENT_ID = '00000000-0000-4000-8000-000000000009';
 
-function bookingRecord(
-  overrides: Partial<PatientBookingRecord> = {},
-): PatientBookingRecord {
+function bookingRecord(overrides: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
     id: 'booking-1',
     organizationId: ORGANIZATION_ID,
@@ -266,10 +261,7 @@ function membershipsHarness() {
       patientPackage = { ...patientPackage, status, ...patch };
       return patientPackage;
     },
-    async appendHistoryEvent(input: {
-      eventType: string;
-      payloadJson?: Record<string, unknown>;
-    }) {
+    async appendHistoryEvent(input: { eventType: string; payloadJson?: Record<string, unknown> }) {
       history.push({
         id: `history-${history.length + 1}`,
         eventType: input.eventType,
@@ -340,6 +332,43 @@ function membershipsHarness() {
 }
 
 describe('B1.4 catalog removal acceptance', () => {
+  it('refuses an in-person context resolved in a different organization', async () => {
+    const deps = bookingDeps();
+    const otherOrganizationId = '00000000-0000-4000-8000-000000000099';
+    const resolveContext = deps.bookingScheduling!.resolveCanonicalInPersonContext.bind(
+      deps.bookingScheduling,
+    );
+    const getBranch = deps.bookingEngine!.catalog.getBranch.bind(deps.bookingEngine!.catalog);
+    const getService = deps.bookingEngine!.services.getService.bind(deps.bookingEngine!.services);
+    deps.bookingScheduling!.resolveCanonicalInPersonContext = async (input) => ({
+      ...(await resolveContext(input))!,
+      organizationId: otherOrganizationId,
+    });
+    deps.bookingEngine!.catalog.getBranch = async (id) => ({
+      ...(await getBranch(id))!,
+      organizationId: otherOrganizationId,
+    });
+    deps.bookingEngine!.services.getService = async (id) => ({
+      ...(await getService(id))!,
+      organizationId: otherOrganizationId,
+    });
+
+    await expect(
+      createBookingOnCanonicalEngine(deps, {
+        type: 'in_person',
+        userId: PATIENT_ID,
+        organizationId: ORGANIZATION_ID,
+        branchId: BRANCH_ID,
+        serviceId: SERVICE_ID,
+        cityCode: 'msk',
+        slotStart: '2027-03-10T09:00:00.000Z',
+        slotEnd: '2027-03-10T10:00:00.000Z',
+        contactName: 'Пациент',
+        contactPhone: '+79990000000',
+      }),
+    ).rejects.toThrow('ambiguous_booking_tenant');
+  });
+
   it('creates an in-person doctor booking without a catalog purchase', async () => {
     const booking = await createBookingOnCanonicalEngine(bookingDeps(), {
       type: 'in_person',

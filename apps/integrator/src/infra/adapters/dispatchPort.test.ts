@@ -71,6 +71,25 @@ function queuedClinicBroadcastIntent(): OutgoingIntent {
 }
 
 describe('D20 item 17: a failed delivery-attempt audit write must not cause a duplicate send', () => {
+  it('records the successful provider attempt once', async () => {
+    const send = vi.fn(async () => ({ telegramMessageId: 42 }));
+    const writeDb = vi.fn(async () => undefined);
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      writePort: { writeDb },
+    });
+
+    await port.dispatchOutgoing(messageSendIntent());
+
+    expect(writeDb).toHaveBeenCalledTimes(1);
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({ channel: 'telegram', status: 'success', attempt: 1 }),
+      }),
+    );
+  });
+
   it('returns the real send result even when the audit write throws (send is not retried, outcome is not swallowed)', async () => {
     const send = vi.fn(async () => ({ telegramMessageId: 42 }));
     const adapter: DeliveryAdapter = { canHandle: () => true, send };

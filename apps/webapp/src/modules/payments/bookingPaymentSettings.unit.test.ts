@@ -3,8 +3,36 @@ import {
   mergeBookingPaymentProvidersSecretsRetain,
   parseBookingPaymentSettingsValue,
 } from './bookingPaymentSettings';
+import { buildBookingPaymentReceipt } from './fiscalReceipt';
 
 describe('booking payment fiscal settings', () => {
+  it('fails closed when merchant VAT or customer contact is absent', () => {
+    const settings = {
+      enabled: true,
+      defaultProviderId: 'yookassa',
+      providers: [],
+    };
+
+    expect(() =>
+      buildBookingPaymentReceipt({
+        settings,
+        providerId: 'yookassa',
+        customerEmail: 'patient@example.test',
+        description: 'Приём',
+        amountMinor: 5_000,
+      }),
+    ).toThrow('booking_payment_receipt_vat_code_missing');
+    expect(() =>
+      buildBookingPaymentReceipt({
+        settings: { ...settings, fiscalVatCode: '1' },
+        providerId: 'yookassa',
+        customerEmail: null,
+        description: 'Приём',
+        amountMinor: 5_000,
+      }),
+    ).toThrow('booking_payment_receipt_customer_email_missing');
+  });
+
   it('parses only valid YooKassa fiscal codes', () => {
     expect(
       parseBookingPaymentSettingsValue({
