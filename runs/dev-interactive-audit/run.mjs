@@ -1344,7 +1344,7 @@ async function auditRole(label, scenario, expectedOrganizationId) {
         run_id: auditRunId,
         base_url: baseUrl,
         mutations_enabled: mutationsEnabled,
-        organization_id: expectedOrganizationId,
+        organization_id: identityAssertion.organization_id,
         started_at: new Date().toISOString(),
       },
       authentication,
@@ -1377,15 +1377,11 @@ async function main() {
   mkdirSync(outDir, { recursive: true });
   const startedAt = new Date().toISOString();
   const results = [];
-  let expectedOrganizationId = configuredOrganizationId;
   for (const label of requestedRoles) {
     const scenario = ROLE_SCENARIOS[label];
     try {
-      const result = await auditRole(label, scenario, expectedOrganizationId);
+      const result = await auditRole(label, scenario, configuredOrganizationId);
       results.push(result);
-      if (label === 'doctor' && !expectedOrganizationId && result.identity_assertion?.pass) {
-        expectedOrganizationId = result.identity_assertion.organization_id;
-      }
     } catch (error) {
       results.push({
         role: label,
@@ -1412,7 +1408,7 @@ async function main() {
     expected: {
       base_url: baseUrl,
       mutations_enabled: mutationsEnabled,
-      organization_id: expectedOrganizationId,
+      organization_id: configuredOrganizationId,
       run_id: auditRunId,
     },
   });
@@ -1426,7 +1422,7 @@ async function main() {
     mutations_enabled: mutationsEnabled,
     requested_roles: requestedRoles,
     aggregate_artifacts: aggregateArtifacts,
-    expected_organization_id: expectedOrganizationId,
+    expected_organization_id: aggregated.organization_id,
     binary_gate: gate,
     control_adapter_matrix: CONTROL_ADAPTER_MATRIX,
     results,

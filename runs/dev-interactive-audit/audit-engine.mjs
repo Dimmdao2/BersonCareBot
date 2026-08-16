@@ -155,29 +155,33 @@ function routeSegments(path) {
   return path.split('/').filter(Boolean);
 }
 
-function pageRoute(path) {
+function routeModuleRoute(path) {
   const marker = '/src/app/';
   const offset = path.replaceAll('\\', '/').indexOf(marker);
-  if (offset < 0 || !/\/page\.[cm]?[jt]sx?$/.test(path)) return null;
-  return routeSegments(path.slice(offset + marker.length).replace(/\/page\.[cm]?[jt]sx?$/, ''))
+  if (offset < 0 || !/\/(?:page|layout|route)\.[cm]?[jt]sx?$/.test(path)) return null;
+  return routeSegments(path.slice(offset + marker.length).replace(/\/(?:page|layout|route)\.[cm]?[jt]sx?$/, ''))
     .filter((segment) => !/^\(.+\)$/.test(segment));
 }
 
-function routeOwnsPage(template, page) {
+function routeOwnsModule(template, routeModule) {
   const route = routePath(template);
-  if (!route || !page) return false;
+  if (!route || !routeModule) return false;
   const expected = routeSegments(route);
-  for (let index = 0; index < page.length; index += 1) {
-    const segment = page[index];
+  for (let index = 0; index < routeModule.length; index += 1) {
+    const segment = routeModule[index];
     if (/^\[\.\.\./.test(segment)) return index < expected.length;
     if (index >= expected.length || (!/^\[.+\]$/.test(segment) && segment !== expected[index])) return false;
   }
-  return page.length === expected.length;
+  return routeModule.length === expected.length;
 }
 
-function importedPaths(record, recordsByPath) {
-  const imported = [...record.source.matchAll(/(?:from\s*|import\s*\(|export\s+[^;]*?from\s*)["']([^"']+)["']/g)]
-    .map((match) => match[1]);
+function isRouteModule(record) {
+  return routeModuleRoute(record.path) !== null;
+}
+
+function importedPaths(record, recordsByPath, rootPaths) {
+  const imported = [...record.source.matchAll(/\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)]
+    .map((match) => match[1] ?? match[2]);
   const resolved = [];
   for (const specifier of imported) {
     const base = specifier.startsWith('@/')
@@ -187,7 +191,7 @@ function importedPaths(record, recordsByPath) {
         : null;
     if (!base) continue;
     for (const candidate of [base, ...SOURCE_EXTENSIONS.map((extension) => `${base}${extension}`), ...SOURCE_EXTENSIONS.map((extension) => `${base}/index${extension}`)]) {
-      if (recordsByPath.has(candidate)) {
+      if (recordsByPath.has(candidate) && (!isRouteModule(recordsByPath.get(candidate)) || rootPaths.has(candidate))) {
         resolved.push(candidate);
         break;
       }
@@ -199,14 +203,12 @@ function importedPaths(record, recordsByPath) {
 function reachableRouteSource(template, records) {
   const recordsByPath = new Map(records.map((record) => [record.path, record]));
   const owners = records
-    .filter((record) => routeOwnsPage(template, pageRoute(record.path)))
-    .sort((left, right) => (pageRoute(left.path)?.filter((segment) => /^\[\.\.\./.test(segment)).length ?? 0)
-      - (pageRoute(right.path)?.filter((segment) => /^\[\.\.\./.test(segment)).length ?? 0));
+    .filter((record) => routeOwnsModule(template, routeModuleRoute(record.path)))
+    .sort((left, right) => (routeModuleRoute(left.path)?.filter((segment) => /^\[\.\.\./.test(segment)).length ?? 0)
+      - (routeModuleRoute(right.path)?.filter((segment) => /^\[\.\.\./.test(segment)).length ?? 0));
   if (!owners.length) return null;
-  const ownerDirectory = owners[0].path.slice(0, owners[0].path.lastIndexOf('/') + 1);
-  const pending = [owners[0].path, ...records
-    .filter((record) => record.path.startsWith(ownerDirectory))
-    .map((record) => record.path)];
+  const rootPaths = new Set(owners.map((record) => record.path));
+  const pending = [...rootPaths];
   const visited = new Set();
   let source = '';
   while (pending.length) {
@@ -216,7 +218,7 @@ function reachableRouteSource(template, records) {
     const record = recordsByPath.get(path);
     if (!record) continue;
     source += `\n${record.source}`;
-    pending.push(...importedPaths(record, recordsByPath));
+    pending.push(...importedPaths(record, recordsByPath, rootPaths));
   }
   return source;
 }

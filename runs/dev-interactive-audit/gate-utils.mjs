@@ -133,13 +133,28 @@ export function aggregateRoleArtifacts({ currentResults, artifacts, requiredRole
       continue;
     }
     for (const [key, value] of Object.entries(expected)) {
+      if (key === 'organization_id') continue;
       if (value !== null && provenance[key] !== value) violations.push(`${result.role}:artifact_${key}_mismatch`);
     }
     if (byRole.has(result.role)) violations.push(`${result.role}:duplicate_role_artifact`);
     byRole.set(result.role, result);
   }
   for (const role of requiredRoles) if (!byRole.has(role)) violations.push(`${role}:missing_role_artifact`);
-  return { results: [...byRole.values()], violations };
+  const globalAdmin = byRole.get('global_admin')?.audit_provenance;
+  if (globalAdmin && globalAdmin.organization_id !== null) {
+    violations.push('global_admin:artifact_organization_id_mismatch');
+  }
+  const tenantRoles = ['doctor', 'patient'].filter((role) => byRole.has(role));
+  const tenantOrganizationIds = tenantRoles.map((role) => byRole.get(role).audit_provenance.organization_id);
+  const expectedOrganizationId = expected.organization_id;
+  const resolvedOrganizationId = expectedOrganizationId ?? tenantOrganizationIds.find((value) => value !== null) ?? null;
+  for (const role of tenantRoles) {
+    const organizationId = byRole.get(role).audit_provenance.organization_id;
+    if (!organizationId || organizationId !== resolvedOrganizationId) {
+      violations.push(`${role}:artifact_organization_id_mismatch`);
+    }
+  }
+  return { results: [...byRole.values()], violations, organization_id: resolvedOrganizationId };
 }
 
 /**

@@ -322,6 +322,36 @@ test('aggregate rejects duplicate, stale or incompatible role artifacts instead 
   ]);
 });
 
+test('aggregate derives the shared tenant from doctor and patient while preserving global-admin null', () => {
+  const provenance = (organization_id) => ({
+    run_id: 'run-current', base_url: 'http://127.0.0.1:5200', mutations_enabled: false, organization_id,
+  });
+  const result = (role, organization_id) => ({ role, audit_provenance: provenance(organization_id) });
+  const aggregate = aggregateRoleArtifacts({
+    currentResults: [result('global_admin', null), result('doctor', 'org-1'), result('patient', 'org-1')],
+    artifacts: [], requiredRoles: ['global_admin', 'doctor', 'patient'],
+    expected: { ...provenance(null) },
+  });
+  assert.deepEqual(aggregate.violations, []);
+  assert.equal(aggregate.organization_id, 'org-1');
+
+  const adminTenantLeak = aggregateRoleArtifacts({
+    currentResults: [result('global_admin', 'org-1'), result('doctor', 'org-1'), result('patient', 'org-1')],
+    artifacts: [], requiredRoles: ['global_admin', 'doctor', 'patient'], expected: { ...provenance(null) },
+  });
+  assert.deepEqual(adminTenantLeak.violations, ['global_admin:artifact_organization_id_mismatch']);
+
+  const explicitTenantMismatch = aggregateRoleArtifacts({
+    currentResults: [result('global_admin', null), result('doctor', 'org-actual'), result('patient', 'org-actual')],
+    artifacts: [], requiredRoles: ['global_admin', 'doctor', 'patient'],
+    expected: { ...provenance('org-required') },
+  });
+  assert.deepEqual(explicitTenantMismatch.violations, [
+    'doctor:artifact_organization_id_mismatch',
+    'patient:artifact_organization_id_mismatch',
+  ]);
+});
+
 test('binary gate rejects an unclassified rendered mutating control', () => {
   const result = {
     role: 'patient', authenticated: true, identity_assertion: { pass: true }, pages: [], action_checks: [],
@@ -381,6 +411,21 @@ test('runner static contract gate rejects a selector exported only by another ro
   assert.deepEqual(staticContractViolations(scenario, sources), [
     'patient:/app/patient/empty:product_semantic_primitive_missing:other-route-anchor',
   ]);
+});
+
+test('runner static contract gate rejects a child-only anchor but reaches an explicitly imported component', () => {
+  const sources = [
+    { path: '/repo/apps/webapp/src/app/app/patient/parent/page.tsx', source: "import ParentPanel from './ParentPanel'; export default function Page() { return <ParentPanel />; }" },
+    { path: '/repo/apps/webapp/src/app/app/patient/parent/ParentPanel.tsx', source: '<section id="parent-component-anchor" />' },
+    { path: '/repo/apps/webapp/src/app/app/patient/parent/child/page.tsx', source: '<section id="child-only-anchor" />' },
+  ];
+  const scenario = (anchor) => ({ patient: { routeClassifications: [{
+    template: '/app/patient/parent', classification: 'substantive', semanticContract: { selectors: [anchor] },
+  }] } });
+  assert.deepEqual(staticContractViolations(scenario('#child-only-anchor'), sources), [
+    'patient:/app/patient/parent:product_semantic_primitive_missing:child-only-anchor',
+  ]);
+  assert.deepEqual(staticContractViolations(scenario('#parent-component-anchor'), sources), []);
 });
 
 test('canonical navigation is distinct from query-state seeds and a missing manifest destination is red', () => {
