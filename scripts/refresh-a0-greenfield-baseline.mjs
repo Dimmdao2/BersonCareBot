@@ -20,7 +20,7 @@ import {
 } from './a0-greenfield-baseline-lib.mjs';
 import {
   assertExactLocalDevDatabaseUrl,
-  parseDatabaseUrlFromDotenv,
+  parseDatabaseUrlKeyFromDotenv,
 } from '../deploy/host/parse-dev-database-url.mjs';
 
 const confirmation = '--confirm-local-dev-schema-refresh';
@@ -194,7 +194,10 @@ try {
     label: 'git_rev_parse',
   }).trim();
   const postgresBinaries = resolveTrustedPostgresBinaries(['psql', 'pg_dump']);
-  assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(readCanonicalEnv(envPath)));
+  assertExactLocalDevDatabaseUrl(
+    parseDatabaseUrlKeyFromDotenv(readCanonicalEnv(envPath), 'DATABASE_URL_STAFF'),
+    'bcb_dev_webapp_staff',
+  );
   const sourceDb = runPostgres(
     postgresBinaries.psql,
     ['-X', '-d', 'bcb_webapp_dev', '-v', 'ON_ERROR_STOP=1', '-Atqc', 'SELECT current_database()'],

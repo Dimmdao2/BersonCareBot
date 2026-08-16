@@ -51,7 +51,7 @@ pnpm run test:saas-a0-signal-cleanup
 
 Refresh разрешён только отдельной schema-stage после проверки, что подготовленная локальная DEV-схема соответствует
 текущей ветке. Это не шаг обычного code deploy и не повод reset/restore рабочей базы. Команда читает только metadata
-точной локальной `bcb_webapp_dev`; URL валидируется, но не печатается. Защищённые `app` tables требуют локального
+точной локальной `bcb_webapp_dev`; target валидируется по `DATABASE_URL_STAFF` канонического port-context DEV env, но URL не печатается. Постоянный legacy `DATABASE_URL` для refresh не нужен. Защищённые `app` tables требуют локального
 read-only `postgres` operator transport для `pg_dump`.
 
 ```bash

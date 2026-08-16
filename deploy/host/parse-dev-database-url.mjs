@@ -9,7 +9,8 @@ function fail(code) {
 }
 
 export function parseDatabaseUrlKeyFromDotenv(text, requestedKey) {
-  if (requestedKey !== 'DATABASE_URL') fail('unsupported_database_url_key');
+  if (!['DATABASE_URL', 'DATABASE_URL_STAFF'].includes(requestedKey))
+    fail('unsupported_database_url_key');
   let databaseUrl;
   for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/u)) {
     const line = rawLine.trim();
@@ -48,7 +49,7 @@ export function parseDatabaseUrlFromDotenv(text) {
   return parseDatabaseUrlKeyFromDotenv(text, 'DATABASE_URL');
 }
 
-export function assertExactLocalDevDatabaseUrl(value) {
+export function assertExactLocalDevDatabaseUrl(value, expectedUser = 'bcb_webapp_dev_user') {
   if (value.includes('?') || value.includes('#')) fail('database_url_query_or_fragment_forbidden');
   let parsed;
   try {
@@ -62,7 +63,7 @@ export function assertExactLocalDevDatabaseUrl(value) {
     fail('non_local_database_host');
   if (parsed.port && parsed.port !== '5432') fail('invalid_database_port');
   if (parsed.pathname !== '/bcb_webapp_dev') fail('invalid_database_name');
-  if (decodeURIComponent(parsed.username) !== 'bcb_webapp_dev_user') fail('invalid_database_user');
+  if (decodeURIComponent(parsed.username) !== expectedUser) fail('invalid_database_user');
   return value;
 }
 
@@ -168,6 +169,16 @@ function selfTest() {
     valid
   ) {
     fail('self_test_valid_failed');
+  }
+  const staff =
+    'postgresql://bcb_dev_webapp_staff:secret@127.0.0.1:5432/bcb_webapp_dev';
+  if (
+    assertExactLocalDevDatabaseUrl(
+      parseDatabaseUrlKeyFromDotenv(`DATABASE_URL_STAFF='${staff}'\n`, 'DATABASE_URL_STAFF'),
+      'bcb_dev_webapp_staff',
+    ) !== staff
+  ) {
+    fail('self_test_staff_valid_failed');
   }
   for (const sample of [
     'DATABASE_URL=x\nDATABASE_URL=y\n',
