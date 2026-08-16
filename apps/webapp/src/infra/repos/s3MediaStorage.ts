@@ -1043,6 +1043,9 @@ export type MediaPlaybackRow = {
   video_processing_status: string | null;
   hls_master_playlist_s3_key: string | null;
   poster_s3_key: string | null;
+  preview_sm_key: string | null;
+  preview_md_key: string | null;
+  preview_status: string | null;
   video_duration_seconds: number | null;
   available_qualities_json: unknown;
   video_delivery_override: string | null;
@@ -1062,6 +1065,7 @@ export async function getMediaRowForPlayback(
     getWebappSqlDb(),
     sql`SELECT id::text, mime_type, s3_key, stored_path,
             video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
+            preview_sm_key, preview_md_key, preview_status,
             video_duration_seconds, available_qualities_json, video_delivery_override,
             usage_purpose, uploaded_by::text
      FROM media_files
@@ -1086,6 +1090,9 @@ export async function getMediaRowForPlayback(
     video_processing_status: platformRow.video_processing_status,
     hls_master_playlist_s3_key: platformRow.hls_master_playlist_s3_key,
     poster_s3_key: platformRow.poster_s3_key,
+    preview_sm_key: platformRow.preview_sm_key,
+    preview_md_key: platformRow.preview_md_key,
+    preview_status: platformRow.preview_status,
     video_duration_seconds: platformRow.video_duration_seconds,
     available_qualities_json: platformRow.available_qualities_json,
     video_delivery_override: platformRow.video_delivery_override,

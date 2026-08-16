@@ -1,0 +1,91 @@
+import { fireEvent, render, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import { ProgramItemDiscussionMessageBody } from './ProgramItemDiscussionMessageBody';
+
+const mediaId = '00000000-0000-4000-8000-000000000099';
+const originalUrl = `/api/media/${mediaId}`;
+const smUrl = `${originalUrl}/preview/sm`;
+const mdUrl = `${originalUrl}/preview/md`;
+
+const message: ProgramItemDiscussionMessage = {
+  id: 'message-1',
+  instanceStageItemId: 'stage-item-1',
+  patientUserId: 'patient-1',
+  senderRole: 'patient',
+  origin: 'patient_observation',
+  body: null,
+  mediaFileId: mediaId,
+  supportMessageId: null,
+  createdAt: '2026-08-16T08:00:00.000Z',
+};
+
+const playback: MediaPlaybackPayload = {
+  mediaId,
+  delivery: 'file',
+  mimeType: 'image/jpeg',
+  durationSeconds: null,
+  posterUrl: null,
+  preview: { status: 'ready', smUrl, mdUrl },
+  hls: null,
+  mp4: { url: originalUrl },
+  fallbackUsed: false,
+  expiresInSeconds: 900,
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('ProgramItemDiscussionMessageBody image delivery', () => {
+  it('renders the generated sm/md previews in the thumbnail and viewer without loading the original', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => playback }),
+    );
+
+    const { container } = render(<ProgramItemDiscussionMessageBody message={message} mine />);
+
+    await waitFor(() => {
+      expect(container.querySelector('img')).toHaveAttribute('src', smUrl);
+    });
+    const thumbnail = container.querySelector('img');
+    expect(thumbnail).toHaveAttribute('srcset', `${smUrl} 1x, ${mdUrl} 2x`);
+    expect(thumbnail).not.toHaveAttribute('src', originalUrl);
+
+    fireEvent.click(container.querySelector('button')!);
+
+    await waitFor(() => {
+      const images = Array.from(document.querySelectorAll('img'));
+      expect(images).toHaveLength(2);
+      for (const image of images) {
+        expect(image).toHaveAttribute('src', smUrl);
+        expect(image).toHaveAttribute('srcset', `${smUrl} 1x, ${mdUrl} 2x`);
+        expect(image).not.toHaveAttribute('src', originalUrl);
+      }
+    });
+  });
+
+  it('shows the unavailable state without issuing an image request when preview generation failed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...playback,
+          preview: { status: 'failed', smUrl: null, mdUrl: null },
+        }),
+      }),
+    );
+
+    const { container, getByText } = render(
+      <ProgramItemDiscussionMessageBody message={message} mine />,
+    );
+
+    await waitFor(() => {
+      expect(getByText('Превью недоступно')).toBeInTheDocument();
+    });
+    expect(container.querySelector('img')).toBeNull();
+  });
+});

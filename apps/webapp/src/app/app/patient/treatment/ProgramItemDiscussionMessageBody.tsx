@@ -9,6 +9,8 @@ import {
 } from '@/shared/ui/patient/primitives/dialog';
 import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
 import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
+import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
+import type { MediaPreviewUiModel } from '@/shared/ui/patient/media/mediaPreviewUiModel';
 import { cn } from '@/lib/utils';
 import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
@@ -20,21 +22,28 @@ export function ProgramItemDiscussionMessageBody(props: {
 }) {
   const { message, mine } = props;
   const [playerOpen, setPlayerOpen] = useState(false);
-  const [playback, setPlayback] = useState<MediaPlaybackPayload | null>(null);
+  const [playbackResult, setPlaybackResult] = useState<{
+    mediaId: string;
+    payload: MediaPlaybackPayload;
+  } | null>(null);
+  const [failedMediaId, setFailedMediaId] = useState<string | null>(null);
   const mediaId = message.mediaFileId;
 
   useEffect(() => {
     if (!mediaId) return;
     let cancelled = false;
     void fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) throw new Error(`media playback metadata: ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (!cancelled && data && typeof data === 'object' && 'mediaId' in data) {
-          setPlayback(data as MediaPlaybackPayload);
+          setPlaybackResult({ mediaId, payload: data as MediaPlaybackPayload });
         }
       })
       .catch(() => {
-        /* ignore */
+        if (!cancelled) setFailedMediaId(mediaId);
       });
     return () => {
       cancelled = true;
@@ -42,8 +51,18 @@ export function ProgramItemDiscussionMessageBody(props: {
   }, [mediaId]);
 
   if (mediaId) {
+    const playback = playbackResult?.mediaId === mediaId ? playbackResult.payload : null;
+    const playbackFailed = failedMediaId === mediaId;
     const isVideo = playback?.delivery === 'mp4' || playback?.delivery === 'hls';
-    const thumbMedia: import('@/modules/recommendations/types').RecommendationMediaItem =
+    const imagePreview: MediaPreviewUiModel = {
+      id: mediaId,
+      kind: 'image',
+      url: '',
+      previewStatus: playbackFailed ? 'failed' : (playback?.preview.status ?? 'pending'),
+      previewSmUrl: playback?.preview.smUrl ?? null,
+      previewMdUrl: playback?.preview.mdUrl ?? null,
+    };
+    const videoThumbMedia: import('@/modules/recommendations/types').RecommendationMediaItem | null =
       isVideo && playback?.posterUrl
         ? {
             mediaType: 'video',
@@ -52,26 +71,32 @@ export function ProgramItemDiscussionMessageBody(props: {
             previewMdUrl: playback.posterUrl,
             sortOrder: 0,
           }
-        : {
-            mediaType: 'image',
-            mediaUrl: `/api/media/${encodeURIComponent(mediaId)}`,
-            previewSmUrl: `/api/media/${encodeURIComponent(mediaId)}`,
-            previewMdUrl: `/api/media/${encodeURIComponent(mediaId)}`,
-            sortOrder: 0,
-          };
+        : null;
 
     return (
       <>
         <button
           type="button"
           className="block max-w-full overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]"
-          onClick={() => setPlayerOpen(true)}
+          onClick={() => {
+            if (playback && (isVideo || imagePreview.previewSmUrl)) setPlayerOpen(true);
+          }}
         >
-          <PatientCatalogMediaStaticThumb
-            media={thumbMedia}
-            frameClassName={cn(isVideo ? 'aspect-video w-44' : 'max-h-48 w-auto')}
-            sizes="176px"
-          />
+          {isVideo ? (
+            <PatientCatalogMediaStaticThumb
+              media={videoThumbMedia}
+              frameClassName="aspect-video w-44"
+              sizes="176px"
+            />
+          ) : (
+            <MediaThumb
+              media={imagePreview}
+              className="max-h-48 w-auto object-cover"
+              imgClassName="max-h-48 w-auto object-cover"
+              sizes="176px"
+              alt=""
+            />
+          )}
         </button>
         <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
           <DialogContent className="sm:max-w-2xl">
@@ -86,11 +111,13 @@ export function ProgramItemDiscussionMessageBody(props: {
                 initialPlayback={playback}
               />
             ) : (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={`/api/media/${encodeURIComponent(mediaId)}`}
-                alt=""
+              <MediaThumb
+                media={imagePreview}
                 className="max-h-[70vh] w-full object-contain"
+                imgClassName="max-h-[70vh] w-full object-contain"
+                sizes="(max-width: 640px) 100vw, 672px"
+                lazy={false}
+                alt=""
               />
             )}
           </DialogContent>

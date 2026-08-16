@@ -61,11 +61,47 @@ describe('resolveMediaPlaybackPayload', () => {
       video_processing_status: 'ready',
       hls_master_playlist_s3_key: `media/other-media/hls/master.m3u8`,
       poster_s3_key: null,
+      preview_sm_key: null,
+      preview_md_key: null,
+      preview_status: 'pending',
       video_duration_seconds: 12,
       available_qualities_json: [],
       video_delivery_override: null,
       usage_purpose: null,
       uploaded_by: 'patient-1',
+    });
+  });
+
+  it('publishes canonical generated-preview routes only for ready image artifacts', async () => {
+    mocks.getRow.mockResolvedValue({
+      mime_type: 'image/jpeg',
+      s3_key: `media/${mediaId}/source.jpg`,
+      stored_path: `media/${mediaId}/source.jpg`,
+      video_processing_status: null,
+      hls_master_playlist_s3_key: null,
+      poster_s3_key: null,
+      preview_sm_key: `previews/sm/${mediaId}.jpg`,
+      preview_md_key: `previews/md/${mediaId}.jpg`,
+      preview_status: 'ready',
+      video_duration_seconds: null,
+      available_qualities_json: null,
+      video_delivery_override: null,
+      usage_purpose: 'program_item_submission',
+      uploaded_by: 'patient-1',
+    });
+
+    await expect(
+      resolveMediaPlaybackPayload({ id: mediaId, session, adminPrefer: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        delivery: 'file',
+        preview: {
+          status: 'ready',
+          smUrl: `/api/media/${mediaId}/preview/sm`,
+          mdUrl: `/api/media/${mediaId}/preview/md`,
+        },
+      },
     });
   });
 
