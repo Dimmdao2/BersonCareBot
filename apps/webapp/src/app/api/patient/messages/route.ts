@@ -74,6 +74,7 @@ export async function POST(request: Request) {
     userId,
     parsed.data.conversationId,
     parsed.data.text,
+    session.user.displayName,
   );
   if (!result.ok) {
     if (result.error === 'not_found') {

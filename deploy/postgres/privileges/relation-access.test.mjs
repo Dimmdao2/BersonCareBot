@@ -267,6 +267,8 @@ test('definer aggregate and ctid scans retain the table-level reads required by 
       'public.auth_rate_limit_events'],
     ['app.read_curated_playback_health_pre_0196()', 'public.media_playback_resolution_events'],
     ['app.read_curated_playback_health_pre_0196()', 'public.media_playback_user_video_first_resolve'],
+    ['app.touch_current_patient_support_conversation_activity(uuid)',
+      'public.support_conversation_messages'],
   ];
   for (const [signature, relation] of expected) {
     const root = declaration.portContext.functions[signature];
@@ -797,7 +799,7 @@ test('runtime settings and account email use semantic row walls without broad pa
       grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
     ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
       'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
-      'patient_phone_trust_at', 'reminder_muted_until'],
+      'is_blocked', 'patient_phone_trust_at', 'reminder_muted_until'],
   );
   const identity = tables['public.user_identity'];
   assert.equal(identity.access.kind, 'direct');
@@ -927,9 +929,10 @@ test('patient page relations have exact self/current-clinic access and published
 
   const media = tables['public.media_files'];
   assert.deepEqual(media.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
-    ['available_qualities_json', 'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id',
-      'original_name', 'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key',
-      'preview_status', 's3_key', 'size_bytes', 'status', 'stored_path', 'uploaded_by',
+    ['available_qualities_json', 'created_at', 'display_name', 'hls_artifact_prefix',
+      'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id', 'original_name',
+      'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status',
+      's3_key', 'size_bytes', 'source_height', 'source_width', 'status', 'stored_path', 'uploaded_by',
       'usage_purpose', 'video_delivery_override', 'video_duration_seconds',
       'video_processing_error', 'video_processing_status']);
   const patientMediaPolicy = media.policies.find((policy) =>

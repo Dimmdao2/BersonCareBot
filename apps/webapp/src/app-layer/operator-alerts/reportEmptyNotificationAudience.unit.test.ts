@@ -1,14 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
+vi.mock('@bersoncare/db-principal', () => ({
+  runWithDbInfraPrincipal: vi.fn(async (_principal, fn: () => Promise<unknown>) => fn()),
+}));
 vi.mock('@/app-layer/logging/logger', () => ({
   logger: { warn: vi.fn() },
 }));
 
 import {
   createEmptyAudienceReporter,
+  reportEmptyNotificationAudience,
   type EmptyAudienceReporterDependencies,
 } from './reportEmptyNotificationAudience';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 
 const NOW = new Date('2026-07-30T08:00:00.000Z');
 
@@ -26,6 +32,31 @@ function createDependencies(
 }
 
 describe('empty notification audience reporter', () => {
+  it('switches from the caller principal to the infra principal before operational reads and writes', async () => {
+    const getOperatorJobStatus = vi.fn().mockResolvedValue({ metaJson: null });
+    const recordOperatorJobTickFailure = vi.fn().mockResolvedValue(undefined);
+    const getSetting = vi.fn().mockResolvedValue(null);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      operatorHealthRead: { getOperatorJobStatus },
+      operatorHealthWrite: { recordOperatorJobTickFailure },
+      systemSettings: { getSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    await reportEmptyNotificationAudience({
+      topic: 'doctor_patient_messages',
+      severity: 'operational',
+      channels: ['telegram'],
+    });
+
+    expect(runWithDbInfraPrincipal).toHaveBeenCalledWith(
+      { source: 'operator-cron-job-status:write' },
+      expect.any(Function),
+    );
+    expect(getOperatorJobStatus).toHaveBeenCalledOnce();
+    expect(recordOperatorJobTickFailure).toHaveBeenCalledOnce();
+    expect(getSetting).toHaveBeenCalledOnce();
+  });
+
   it('records and relays an operational empty audience exactly once without event data', async () => {
     const dependencies = createDependencies();
     const report = createEmptyAudienceReporter(dependencies);

@@ -1344,7 +1344,6 @@ const patientMessagingService = createPatientMessagingService(supportCommunicati
   notifyDoctorOfPatientMessage: async (input) => {
     await notifyDoctorOfPatientMessageImpl({ ...input, source: 'webapp' });
   },
-  resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
 const patientNotificationInboxService =
   createPatientNotificationInboxService(supportCommunicationPort);

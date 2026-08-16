@@ -2457,6 +2457,17 @@ const REV10_CONTEXT = {
         'app_clinic_billing',
       ],
     },
+    'app.touch_current_patient_support_conversation_activity(uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.touch_current_patient_support_conversation_activity(uuid)'],
+      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
+        'app.touch_current_patient_support_conversation_activity(uuid)'
+      ].relationSurfaces?.map((surface) => ({
+        ...surface,
+        ...(surface.relation === 'public.support_conversation_messages'
+          ? { tableOperations: ['SELECT' as const] }
+          : {}),
+      })) ?? [],
+    },
     'app.read_curated_playback_health_pre_0196()': {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_curated_playback_health_pre_0196()'],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
@@ -3861,12 +3872,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       'apps/webapp/src/infra/repos/pgUserByPhone.ts#loadSessionIdentityUser',
       'apps/webapp/src/infra/repos/pgPlatformUserCalendarTimezone.ts',
       'apps/webapp/src/infra/repos/pgReminderRules.ts#setReminderMutedUntil',
+      'apps/webapp/src/infra/repos/pgDoctorClients.ts#isClientMessagingBlocked',
       'apps/webapp/src/app/app/account/page.tsx',
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
           'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
+          'is_blocked',
           'patient_phone_trust_at',
           'reminder_muted_until'] },
       { role: 'app_patient', operations: ['UPDATE'],
@@ -4120,6 +4133,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       'apps/webapp/src/app-layer/health/runOperatorHealthDigestTick.ts',
       'apps/webapp/src/app-layer/health/collectOperatorHealthDigestInput.ts',
       'apps/webapp/src/app-layer/health/deliveryHeartbeatObserver.ts',
+      'apps/webapp/src/app-layer/operator-alerts/reportEmptyNotificationAudience.ts',
     ],
     grants: [
       { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
@@ -4134,7 +4148,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         columns: ['value_json', 'updated_at', 'updated_by'] },
       { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
       { role: 'app_worker', operations: ['SELECT'],
-        columns: ['key', 'scope', 'organization_id', 'value_json'] },
+        columns: ['key', 'scope', 'organization_id', 'value_json', 'updated_at', 'updated_by'] },
     ],
   },
   'public.operator_health_failure_archive': {
