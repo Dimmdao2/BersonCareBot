@@ -46,7 +46,7 @@ export function createRegistryAcquiringGateway(
     const providerCfg = settings.providers.find((p) => p.id === id && p.enabled);
     if (!providerCfg) throw new Error(`payment_provider_unavailable:${id}`);
     const adapter = getPaymentProviderAdapter(id);
-    return { adapter, providerCfg };
+    return { adapter, providerCfg, providerId: id };
   }
 
   return {
@@ -55,8 +55,12 @@ export function createRegistryAcquiringGateway(
         typeof input.metadata?.providerId === 'string' ? input.metadata.providerId : undefined;
       let adapter;
       let providerCfg;
+      let providerId;
       try {
-        ({ adapter, providerCfg } = await resolveProvider(input.organizationId, explicitProvider));
+        ({ adapter, providerCfg, providerId } = await resolveProvider(
+          input.organizationId,
+          explicitProvider,
+        ));
       } catch (err) {
         return {
           ok: false,
@@ -82,6 +86,7 @@ export function createRegistryAcquiringGateway(
         });
         return {
           ok: true,
+          providerId,
           providerPaymentId: result.providerIntentRef,
           redirectUrl: result.checkoutUrl,
         };

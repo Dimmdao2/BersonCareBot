@@ -110,7 +110,7 @@ export type AcquiringChargeInput = {
  * ok=true — платёж создан; ok=false — ошибка (в том числе 'not_implemented').
  */
 export type AcquiringChargeResult =
-  | { ok: true; providerPaymentId: string; redirectUrl?: string }
+  | { ok: true; providerId: string; providerPaymentId: string; redirectUrl?: string }
   | { ok: false; reason: 'not_implemented' | 'provider_error' | string };
 
 /**
@@ -129,7 +129,7 @@ export type AcquiringChargeResult =
 export interface AcquiringGatewayPort {
   /**
    * Инициировать платёж через шлюз.
-   * Returns ok=true with providerPaymentId + redirectUrl on success,
+   * Returns ok=true with the exact selected providerId, providerPaymentId + redirectUrl on success,
    * or ok=false with reason on failure.
    */
   createCharge(input: AcquiringChargeInput): Promise<AcquiringChargeResult>;

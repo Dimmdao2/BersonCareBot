@@ -82,6 +82,7 @@ describe('registry acquiring provider boundary', () => {
       }),
     ).resolves.toEqual({
       ok: true,
+      providerId: 'yookassa',
       providerPaymentId: 'provider-intent-1074',
       redirectUrl: 'https://checkout.example.test/1074',
     });

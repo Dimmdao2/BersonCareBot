@@ -94,18 +94,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     return NextResponse.json({ ok: false, reason: chargeResult.reason }, { status: 503 });
   }
 
-  // Determine which provider was used: the default provider from settings.
-  // The registryAcquiringGateway always uses defaultProviderId unless overridden via metadata.
-  let providerId = 'unknown';
-  try {
-    if (deps.payments) {
-      const settings = await deps.payments.getSettings(gate.ctx.organizationId);
-      providerId = settings.defaultProviderId;
-    }
-  } catch {
-    // Non-fatal: record with "unknown" provider; webhook will still match by providerPaymentId.
-  }
-
   // Record the pending payment in the patient ledger.
   const payment = await withDoctorWorkspacePrincipal(
     gate.ctx,
@@ -117,7 +105,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
         amountMinor,
         currency,
         description: description ?? null,
-        provider: providerId,
+        provider: chargeResult.providerId,
         providerPaymentId: chargeResult.providerPaymentId,
         createdBy: gate.ctx.session.user.userId,
       }),

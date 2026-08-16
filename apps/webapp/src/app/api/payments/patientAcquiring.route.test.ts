@@ -185,6 +185,7 @@ beforeEach(() => {
   fakes.getClientIdentity.mockResolvedValue(clientIdentity);
   fakes.createCharge.mockResolvedValue({
     ok: true,
+    providerId: 'alfabank',
     providerPaymentId: 'provider-payment-1074',
     redirectUrl: 'https://checkout.example.test/1074',
   });
@@ -248,21 +249,32 @@ describe('patient acquiring charge HTTP boundary', () => {
       description: 'Test charge',
       returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
     });
-    expect(fakes.getPaymentSettings).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(fakes.getPaymentSettings).not.toHaveBeenCalled();
   });
 
-  it('uses the doctor workspace provider settings without the route making an external request', async () => {
+  it('keeps the provider selected for the external intent when the clinic default changes', async () => {
+    let defaultProviderId = 'provider-a';
     const getConfig = vi.fn(async (organizationId: string) => {
       expect(organizationId).toBe(ORGANIZATION_ID);
       return {
         enabled: true,
-        defaultProviderId: 'safe-test-provider',
-        providers: [{ id: 'safe-test-provider', label: 'Safe test provider', enabled: true }],
+        defaultProviderId,
+        providers: [
+          { id: 'provider-a', label: 'Provider A', enabled: true },
+          { id: 'provider-b', label: 'Provider B', enabled: true },
+        ],
       };
     });
     const createIntent = vi.fn<PaymentProviderPort['createIntent']>().mockResolvedValue({
       providerIntentRef: 'safe-test-intent-1074',
       checkoutUrl: 'https://checkout.example.test/safe-test-intent-1074',
+    });
+    createIntent.mockImplementationOnce(async () => {
+      defaultProviderId = 'provider-b';
+      return {
+        providerIntentRef: 'intent-created-by-provider-a',
+        checkoutUrl: 'https://checkout.example.test/intent-created-by-provider-a',
+      };
     });
     const adapter: PaymentProviderPort = {
       createIntent,
@@ -283,17 +295,25 @@ describe('patient acquiring charge HTTP boundary', () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      redirectUrl: 'https://checkout.example.test/safe-test-intent-1074',
+      redirectUrl: 'https://checkout.example.test/intent-created-by-provider-a',
     });
     expect(getConfig).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(getConfig).toHaveBeenCalledOnce();
     expect(createIntent).toHaveBeenCalledOnce();
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(fakes.recordAcquiringCharge).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
         organizationId: ORGANIZATION_ID,
-        providerPaymentId: 'safe-test-intent-1074',
-      }),
+        patientUserId: PATIENT_ID,
+        amountMinor: 12_345,
+        currency: 'RUB',
+        description: 'Test charge',
+        provider: 'provider-a',
+        providerPaymentId: 'intent-created-by-provider-a',
+        createdBy: DOCTOR_ID,
+      },
     );
+    expect(fakes.getPaymentSettings).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
 
