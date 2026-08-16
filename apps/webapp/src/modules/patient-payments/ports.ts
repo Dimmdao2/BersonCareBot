@@ -70,8 +70,14 @@ export interface PatientPaymentsPort {
   listPayments(patientUserId: string): Promise<PatientPayment[]>;
   /** Записать ручной платёж наличными (kind='cash', status='paid'). */
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
-  /** Найти запись оплаты по внешнему ID провайдера (для webhook). */
-  findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null>;
+  /**
+   * Find exactly one acquiring ledger row by the provider-owned composite reference.
+   * Returns null for no match and for duplicate same-provider references.
+   */
+  findByProviderPaymentReference(
+    providerId: string,
+    providerPaymentId: string,
+  ): Promise<PatientPayment | null>;
   /**
    * Bootstrap-only webhook resolver. Returns only the owning organization for one exact
    * acquiring lifecycle row; it must not read or return the payment payload.

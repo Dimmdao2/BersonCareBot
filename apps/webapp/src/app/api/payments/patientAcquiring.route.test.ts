@@ -507,7 +507,9 @@ describe('patient acquiring webhook HTTP boundary', () => {
     await expect(response.json()).resolves.toEqual({ ok: true, alreadyProcessed: true });
     expect(verifyWebhook).toHaveBeenCalledOnce();
     expect(fakes.handleWebhook).toHaveBeenCalledWith({
-      eventType: 'payment.succeeded', providerPaymentId: 'provider-payment-1074',
+      eventType: 'payment.succeeded',
+      providerId: 'alfabank',
+      providerPaymentId: 'provider-payment-1074',
     });
   });
 });

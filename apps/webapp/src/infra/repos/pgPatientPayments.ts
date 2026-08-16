@@ -98,14 +98,22 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       return rowToPayment(row);
     },
 
-    async findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null> {
+    async findByProviderPaymentReference(
+      providerId: string,
+      providerPaymentId: string,
+    ): Promise<PatientPayment | null> {
       const db = getDrizzle();
       const rows = await db
         .select()
         .from(patientPayment)
-        .where(eq(patientPayment.providerPaymentId, providerPaymentId))
-        .limit(1);
-      return rows.length > 0 ? rowToPayment(rows[0]) : null;
+        .where(
+          and(
+            eq(patientPayment.kind, 'acquiring'),
+            eq(patientPayment.provider, providerId),
+            eq(patientPayment.providerPaymentId, providerPaymentId),
+          ),
+        );
+      return rows.length === 1 ? rowToPayment(rows[0]) : null;
     },
 
     async resolveAcquiringWebhookOrganization(providerId, providerPaymentId) {

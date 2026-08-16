@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PatientPayment, PatientPaymentsPort } from './ports';
 import { createPatientPaymentsService } from './service';
+import {
+  __resetInMemoryPatientPaymentsForTest,
+  inMemoryPatientPaymentsPort,
+} from '@/infra/repos/inMemoryPatientPayments';
 
 const clinicPayment: PatientPayment = {
   id: 'payment-1074',
@@ -24,7 +28,9 @@ function portWithPayment(payment: PatientPayment | null): PatientPaymentsPort {
     listPayments: vi.fn(),
     addCashPayment: vi.fn(),
     // The pre-principal webhook path must not fall back to the ordinary row reader.
-    findByProviderPaymentId: vi.fn().mockRejectedValue(new Error('ordinary_payment_read_forbidden')),
+    findByProviderPaymentReference: vi.fn().mockRejectedValue(
+      new Error('ordinary_payment_read_forbidden'),
+    ),
     resolveAcquiringWebhookOrganization: vi.fn().mockResolvedValue(payment?.organizationId ?? null),
     updatePatientPaymentStatus: vi.fn(),
     insertAcquiringPending: vi.fn(),
@@ -53,13 +59,14 @@ describe('patient acquiring webhook ownership resolver', () => {
   it('updates only the organization attached to the resolved acquiring payment', async () => {
     const port: PatientPaymentsPort = {
       ...portWithPayment(null),
-      findByProviderPaymentId: vi.fn().mockResolvedValue(clinicPayment),
+      findByProviderPaymentReference: vi.fn().mockResolvedValue(clinicPayment),
     };
     const service = createPatientPaymentsService({ patientPaymentsPort: port });
 
     await expect(
       service.handleAcquiringWebhookEvent({
         eventType: 'payment.succeeded',
+        providerId: 'clinic-provider-b',
         providerPaymentId: 'provider-payment-1074',
       }),
     ).resolves.toEqual({ ok: true });
@@ -68,6 +75,78 @@ describe('patient acquiring webhook ownership resolver', () => {
       clinicPayment.id,
       'paid',
       'clinic-b',
+    );
+  });
+
+  it('updates only the exact provider row when providers share one payment reference', async () => {
+    __resetInMemoryPatientPaymentsForTest();
+    const common = {
+      organizationId: 'clinic-collision',
+      patientUserId: 'patient-collision',
+      amountMinor: 1_000,
+      currency: 'RUB',
+      providerPaymentId: 'collision-ref',
+      createdBy: 'doctor-collision',
+    };
+    await inMemoryPatientPaymentsPort.insertAcquiringPending({ ...common, provider: 'provider-b' });
+    await inMemoryPatientPaymentsPort.insertAcquiringPending({ ...common, provider: 'provider-a' });
+    const service = createPatientPaymentsService({
+      patientPaymentsPort: inMemoryPatientPaymentsPort,
+    });
+
+    await expect(
+      service.handleAcquiringWebhookEvent({
+        eventType: 'payment.succeeded',
+        providerId: 'provider-a',
+        providerPaymentId: 'collision-ref',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    await expect(inMemoryPatientPaymentsPort.listPayments(common.patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ provider: 'provider-a', status: 'paid' }),
+        expect.objectContaining({ provider: 'provider-b', status: 'pending' }),
+      ]),
+    );
+  });
+
+  it('fails closed without an update for missing or ambiguous exact provider references', async () => {
+    __resetInMemoryPatientPaymentsForTest();
+    const common = {
+      organizationId: 'clinic-collision',
+      patientUserId: 'patient-collision',
+      amountMinor: 1_000,
+      currency: 'RUB',
+      provider: 'provider-a',
+      providerPaymentId: 'collision-ref',
+      createdBy: 'doctor-collision',
+    };
+    await inMemoryPatientPaymentsPort.insertAcquiringPending(common);
+    await inMemoryPatientPaymentsPort.insertAcquiringPending(common);
+    const service = createPatientPaymentsService({
+      patientPaymentsPort: inMemoryPatientPaymentsPort,
+    });
+
+    await expect(
+      service.handleAcquiringWebhookEvent({
+        eventType: 'payment.succeeded',
+        providerId: 'provider-c',
+        providerPaymentId: 'collision-ref',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'payment_not_found' });
+    await expect(
+      service.handleAcquiringWebhookEvent({
+        eventType: 'payment.succeeded',
+        providerId: 'provider-a',
+        providerPaymentId: 'collision-ref',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'payment_not_found' });
+
+    await expect(inMemoryPatientPaymentsPort.listPayments(common.patientUserId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ provider: 'provider-a', status: 'pending' }),
+        expect.objectContaining({ provider: 'provider-a', status: 'pending' }),
+      ]),
     );
   });
 });

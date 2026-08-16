@@ -21,6 +21,8 @@ export type PatientPaymentsServiceDeps = {
 export type AcquiringWebhookEvent = {
   /** Provider-level event type string (e.g. "payment.succeeded", "payment.canceled"). */
   eventType: string;
+  /** Verified route provider; together with providerPaymentId it identifies one lifecycle row. */
+  providerId: string;
   /**
    * Provider's payment reference — used to look up the patient_payment row.
    * Corresponds to providerPaymentId stored at charge initiation.
@@ -66,7 +68,10 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
     async handleAcquiringWebhookEvent(
       event: AcquiringWebhookEvent,
     ): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; reason: string }> {
-      const payment = await patientPaymentsPort.findByProviderPaymentId(event.providerPaymentId);
+      const payment = await patientPaymentsPort.findByProviderPaymentReference(
+        event.providerId,
+        event.providerPaymentId,
+      );
       if (!payment) {
         return { ok: false, reason: 'payment_not_found' };
       }

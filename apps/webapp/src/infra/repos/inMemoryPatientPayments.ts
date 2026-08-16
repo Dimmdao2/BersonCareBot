@@ -52,8 +52,17 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     return row;
   },
 
-  async findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null> {
-    return payments.find((p) => p.providerPaymentId === providerPaymentId) ?? null;
+  async findByProviderPaymentReference(
+    providerId: string,
+    providerPaymentId: string,
+  ): Promise<PatientPayment | null> {
+    const matches = payments.filter(
+      (payment) =>
+        payment.kind === 'acquiring' &&
+        payment.provider === providerId &&
+        payment.providerPaymentId === providerPaymentId,
+    );
+    return matches.length === 1 ? matches[0]! : null;
   },
 
   async resolveAcquiringWebhookOrganization(providerId, providerPaymentId): Promise<string | null> {

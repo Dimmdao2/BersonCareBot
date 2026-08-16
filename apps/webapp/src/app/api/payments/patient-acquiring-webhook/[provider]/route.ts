@@ -108,6 +108,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     return deps.patientPayments.handleAcquiringWebhookEvent({
       eventType: verified.eventType,
+      providerId,
       providerPaymentId,
     });
   });
