@@ -79,6 +79,22 @@ export async function enqueueIntegratorPushDefault(input: {
   await enqueueIntegratorPushWithExecutor(getWebappSqlDb(), input);
 }
 
+/**
+ * Patient/staff reminder fallback crosses a database-owned capability.  It never receives an
+ * arbitrary payload, queue kind, or idempotency key from the application role.
+ */
+export async function enqueueCurrentReminderRulePushDefault(
+  integratorRuleId: string,
+): Promise<void> {
+  const result = await runWebappSql<{ enqueued: boolean }>(
+    getWebappSqlDb(),
+    sql`SELECT app.enqueue_current_reminder_rule_push(${integratorRuleId}) AS enqueued`,
+  );
+  if (result.rows[0]?.enqueued !== true) {
+    throw new Error('reminder fallback enqueue was not accepted');
+  }
+}
+
 async function enqueueIntegratorPushWithExecutor(
   d: WebappSqlExecutor,
   input: { kind: IntegratorPushKind; idempotencyKey: string; payload: Record<string, unknown> },

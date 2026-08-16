@@ -50,13 +50,14 @@ fi
 printf '%s\n' "port = $port" "unix_socket_directories = '$data_dir'" >> "$data_dir/postgresql.conf"
 "$pg_bin/pg_ctl" -D "$data_dir" -l "$log_file" start >/dev/null
 "$pg_bin/createdb" -h "$data_dir" -p "$port" -U dev "$db_name"
+psql_admin -c "CREATE ROLE postgres SUPERUSER NOLOGIN" >/dev/null
+node "$repo_root/deploy/postgres/privileges/generate-cli.mjs" --shared-role-baseline | psql_admin -1 >/dev/null
 if [[ "$full_schema_mode" == 1 ]]; then
   # initdb deliberately uses the disposable admin name `dev`, while the real
   # declaration assigns database/default-privilege ownership to `postgres`.
   # Recreate that cluster role before restoring the owner-free schema so the
   # production-shaped privilege artifact is executable without weakening its
   # declared owner.
-  psql_admin -c 'CREATE ROLE postgres SUPERUSER NOLOGIN' >/dev/null
   psql_admin -f "$work_dir/source-roles.sql" >/dev/null
   psql_admin -f "$work_dir/source-schema.sql" >/dev/null
   # A schema-only dump contains the event trigger but not its registry rows.  The canonical
@@ -242,6 +243,109 @@ SELECT count(*) FROM expected
 WHERE pg_has_role(session_login, target_role, 'SET')")" 16
 assert_eq "$(psql_admin -Atc "SELECT pg_has_role('$staff_login','app_tenant_service','SET')")" t
 assert_eq "$(psql_admin -Atc "SELECT pg_has_role('$staff_login','app_service','SET')")" f
+
+# Disposable real-SQL proof for the two recovered capabilities.  This uses the same port-context
+# contract and role catalog as the target, while keeping the tiny fixture independent from a live
+# TEST schema.  The migration itself owns the only patient/staff path into the push queue.
+fallback_org_a=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1
+fallback_org_b=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2
+fallback_user_a=aaaaaaaa-1111-4111-8111-aaaaaaaaaaa1
+fallback_opaque_a=aaaaaaaa-aaaa-4aaa-9aaa-aaaaaaaaaaa1
+psql_admin <<SQL >/dev/null
+CREATE TABLE IF NOT EXISTS public.reminder_rules (
+  integrator_rule_id text PRIMARY KEY, organization_id uuid NOT NULL, platform_user_id uuid NOT NULL,
+  integrator_user_id bigint, category text NOT NULL, is_enabled boolean NOT NULL, interval_minutes integer,
+  window_start_minute integer NOT NULL, window_end_minute integer NOT NULL, days_mask text NOT NULL,
+  timezone text NOT NULL, linked_object_type text, linked_object_id text, custom_title text, custom_text text,
+  schedule_type text NOT NULL, schedule_data jsonb, reminder_intent text, display_title text,
+  display_description text, quiet_hours_start_minute integer, quiet_hours_end_minute integer,
+  notification_topic_code text, updated_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public.integrator_push_outbox (
+  id bigserial PRIMARY KEY, kind text NOT NULL, idempotency_key text NOT NULL UNIQUE, payload jsonb NOT NULL,
+  status text NOT NULL, attempts_done integer NOT NULL DEFAULT 0, next_try_at timestamptz NOT NULL,
+  last_error text, updated_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public.system_settings (
+  key text NOT NULL, scope text NOT NULL, organization_id uuid, value_json jsonb NOT NULL
+);
+INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
+VALUES ('$fallback_user_a', '$fallback_opaque_a') ON CONFLICT (physical_user_id) DO NOTHING;
+INSERT INTO public.reminder_rules(
+  integrator_rule_id, organization_id, platform_user_id, integrator_user_id, category, is_enabled,
+  interval_minutes, window_start_minute, window_end_minute, days_mask, timezone, schedule_type, updated_at
+) VALUES
+  ('fallback-rule-a', '$fallback_org_a', '$fallback_user_a', 42, 'lfk', false, 60, 540, 600, '1111111', 'Europe/Moscow', 'interval_window', now()),
+  ('fallback-rule-b', '$fallback_org_b', '$fallback_user_a', 42, 'lfk', true, 60, 540, 600, '1111111', 'Europe/Moscow', 'interval_window', now());
+INSERT INTO public.system_settings(key, scope, organization_id, value_json) VALUES
+  ('clinic_telegram_bot_token', 'admin', '$fallback_org_a', '{"value":"clinic-a-token"}'::jsonb),
+  ('clinic_telegram_bot_token', 'admin', '$fallback_org_b', '{"value":"clinic-b-token"}'::jsonb);
+SQL
+psql_admin -f "$repo_root/apps/webapp/db/drizzle-migrations/0443_reminder_fallback_and_clinic_credential_capabilities_local.sql" >/dev/null
+psql_admin -c "GRANT EXECUTE ON FUNCTION app.enqueue_current_reminder_rule_push(text) TO app_patient, app_staff" >/dev/null
+psql_admin -c "GRANT EXECUTE ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) TO app_tenant_service" >/dev/null
+
+patient_relation_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$patient_login' AND target_role='app_patient' AND purpose='relation' AND function_identity IS NULL")
+tenant_relation_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$integrator_login' AND target_role='app_tenant_service' AND purpose='relation' AND function_identity IS NULL")
+[[ -n "$patient_relation_capability" && -n "$tenant_relation_capability" ]] || fail 'fallback capability contexts missing'
+relation_hash=0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a
+patient_claims="ROW(1,'patient'::app.port_context_class,'app_patient'::name,'relation',NULL::regprocedure,decode('$relation_hash','hex'),'$fallback_opaque_a'::uuid,'$fallback_opaque_a'::uuid,'$fallback_org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims"
+tenant_claims="ROW(1,'tenant_service'::app.port_context_class,'app_tenant_service'::name,'relation',NULL::regprocedure,decode('$relation_hash','hex'),NULL::uuid,NULL::uuid,'$fallback_org_a'::uuid,NULL::bigint,NULL::uuid)::app.port_context_claims"
+
+psql_admin <<SQL >/dev/null
+SET SESSION AUTHORIZATION $patient_login;
+BEGIN;
+SELECT app.install_port_context('$patient_relation_capability'::uuid, $patient_claims);
+SET LOCAL ROLE app_patient;
+SELECT app.enqueue_current_reminder_rule_push('fallback-rule-a');
+UPDATE public.reminder_rules SET is_enabled = true WHERE integrator_rule_id = 'fallback-rule-a';
+SELECT app.enqueue_current_reminder_rule_push('fallback-rule-a');
+COMMIT;
+RESET SESSION AUTHORIZATION;
+SQL
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM public.integrator_push_outbox WHERE idempotency_key='reminder_rule:fallback-rule-a' AND status='pending'")" 1
+assert_eq "$(psql_admin -Atc "SELECT payload->>'enabled' FROM public.integrator_push_outbox WHERE idempotency_key='reminder_rule:fallback-rule-a'")" true
+assert_eq "$(psql_admin -Atc "SELECT has_table_privilege('app_patient','public.integrator_push_outbox','INSERT')")" f
+if psql_admin <<SQL >"$work_dir/foreign-reminder.out" 2>&1
+SET SESSION AUTHORIZATION $patient_login;
+BEGIN;
+SELECT app.install_port_context('$patient_relation_capability'::uuid, $patient_claims);
+SET LOCAL ROLE app_patient;
+SELECT app.enqueue_current_reminder_rule_push('fallback-rule-b');
+COMMIT;
+SQL
+then fail 'foreign reminder rule enqueue unexpectedly succeeded'; fi
+grep -q 'reminder rule unavailable in current context' "$work_dir/foreign-reminder.out" || fail 'foreign reminder denial was not explicit'
+assert_eq "$(psql_admin -Atc "SELECT count(*) FROM public.integrator_push_outbox")" 1
+if psql_admin -c "SET ROLE app_patient; SELECT app.enqueue_current_reminder_rule_push('fallback-rule-a');" >"$work_dir/no-context-reminder.out" 2>&1; then
+  fail 'no-context reminder enqueue unexpectedly succeeded'
+fi
+grep -q 'accepted organization context required' "$work_dir/no-context-reminder.out" || fail 'no-context reminder denial was not explicit'
+
+credential_value=$(psql_admin -At <<SQL
+SET SESSION AUTHORIZATION $integrator_login;
+BEGIN;
+SELECT app.install_port_context('$tenant_relation_capability'::uuid, $tenant_claims);
+SET LOCAL ROLE app_tenant_service;
+SELECT app.read_integrator_clinic_delivery_credential('clinic_telegram_bot_token', '$fallback_org_a'::uuid)->'value';
+COMMIT;
+SQL
+)
+assert_eq "$(printf '%s\n' "$credential_value" | tail -n 1)" '"clinic-a-token"'
+if psql_admin <<SQL >"$work_dir/foreign-credential.out" 2>&1
+SET SESSION AUTHORIZATION $integrator_login;
+BEGIN;
+SELECT app.install_port_context('$tenant_relation_capability'::uuid, $tenant_claims);
+SET LOCAL ROLE app_tenant_service;
+SELECT app.read_integrator_clinic_delivery_credential('clinic_telegram_bot_token', '$fallback_org_b'::uuid);
+COMMIT;
+SQL
+then fail 'foreign clinic credential read unexpectedly succeeded'; fi
+grep -q 'clinic credential organization context denied' "$work_dir/foreign-credential.out" || fail 'foreign credential denial was not explicit'
+if psql_admin -c "SET ROLE app_tenant_service; SELECT app.read_integrator_clinic_delivery_credential('clinic_telegram_bot_token', '$fallback_org_a'::uuid);" >"$work_dir/no-context-credential.out" 2>&1; then
+  fail 'no-context clinic credential read unexpectedly succeeded'
+fi
+grep -q 'accepted organization context required' "$work_dir/no-context-credential.out" || fail 'no-context credential denial was not explicit'
 
 pnpm --dir "$repo_root/packages/db-principal" run build >/dev/null
 uuid=11111111-1111-4111-8111-111111111111

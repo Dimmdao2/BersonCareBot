@@ -8173,7 +8173,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_integrator_request"
+      "app_tenant_service"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
     "typedArgs": [

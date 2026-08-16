@@ -3081,6 +3081,13 @@
       "when": 1793539230186,
       "tag": "0443_patient_program_description_read_local",
       "breakpoints": true
+    },
+    {
+      "idx": 440,
+      "version": "7",
+      "when": 1793539230187,
+      "tag": "0444_reminder_fallback_and_clinic_credential_capabilities_local",
+      "breakpoints": true
     }
   ]
 }

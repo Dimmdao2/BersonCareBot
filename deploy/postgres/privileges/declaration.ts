@@ -2406,6 +2406,25 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.enqueue_current_reminder_rule_push(text)': rev10Function({
+      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient', 'app_staff'], purpose: 'enqueue only the current patient or staff-org reminder retry',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.reminder_rules', columns: [
+          'integrator_rule_id', 'organization_id', 'platform_user_id', 'integrator_user_id', 'category',
+          'is_enabled', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask',
+          'timezone', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'schedule_type',
+          'schedule_data', 'reminder_intent', 'display_title', 'display_description', 'quiet_hours_start_minute',
+          'quiet_hours_end_minute', 'notification_topic_code', 'updated_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.integrator_push_outbox', columns: [
+          'kind', 'idempotency_key', 'payload', 'status', 'attempts_done', 'next_try_at', 'last_error', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app_ext.digest(text,text)': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea',
       execute: ['app_seam_dedicated_bot_owner', 'app_seam_password_auth_owner'],
