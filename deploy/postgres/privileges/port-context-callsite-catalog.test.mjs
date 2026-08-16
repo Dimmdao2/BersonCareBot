@@ -34,6 +34,36 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'patient.material-rating.snapshot.read', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgMaterialRating.ts',
   },
+  'app.read_current_patient_treatment_program_description(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.program.description.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPatientOrganization.ts',
+  },
+  'app.create_patient_program_submission_media(uuid,text,text,text,bigint)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.media.program-submission.create', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/s3MediaStorage.ts',
+  },
+  'app.confirm_patient_program_submission_media(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.media.program-submission.confirm', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/s3MediaStorage.ts',
+  },
+  'app.abort_patient_program_submission_media(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.media.program-submission.abort', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/s3MediaStorage.ts',
+  },
+  'app.enqueue_media_transcode_job_for_staff(uuid)': {
+    port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
+    purpose: 'media.transcode.enqueue', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
+  },
+  'app.enqueue_media_transcode_job_for_service(uuid)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.enqueue', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
+  },
   'app.resolve_staff_workspace_memberships(uuid)': {
     port: 'webapp', argCount: 1, descriptorCount: 2,
     descriptors: [
@@ -588,27 +618,65 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/internal/operator-health-digest/tick:POST',
     'api/internal/operator-health-critical/tick:POST',
     'api/internal/system-health-guard/tick:POST',
-    'api/internal/product-analytics/retention:POST',
     'api/internal/specialist-task-reminders/tick:POST',
     'api/internal/heartbeat/pipeline_delivery:POST',
     'api/internal/heartbeat/pipeline_delivery:GET',
     'api/internal/heartbeat/digest:POST',
     'api/internal/heartbeat/digest:GET',
+    'operator-cron-job-status:write',
     'webapp-health-check',
     'api/health:GET',
   ],
   'webapp:media_worker': [
     'api/internal/media-worker/control:POST',
-    'api/internal/media-hls-proxy-errors/retention:POST',
-    'api/internal/media-playback-stats/retention:POST',
     'api/internal/media-pending-delete/purge:POST',
     'api/internal/media-multipart/cleanup:POST',
     'api/internal/media-preview/process:POST',
     'api/internal/media-transcode/enqueue:POST',
     'api/internal/media-transcode/reconcile:POST',
   ],
+  'webapp:maintenance': [
+    'api/internal/media-hls-proxy-errors/retention:POST',
+    'api/internal/media-playback-stats/retention:POST',
+    'api/internal/product-analytics/retention:POST',
+    'operator-health-failure-archive:prune',
+  ],
   'webapp:telemetry': ['webapp-saas-isolation-telemetry'],
 }));
+
+function unwrapArrayLiteral(node) {
+  let current = node;
+  while (ts.isAsExpression(current)
+    || ts.isSatisfiesExpression(current)
+    || ts.isTypeAssertionExpression(current)
+    || ts.isParenthesizedExpression(current)) {
+    current = current.expression;
+  }
+  return ts.isArrayLiteralExpression(current) ? current : null;
+}
+
+function resolveExactArgumentTuple(node, callsite) {
+  const direct = unwrapArrayLiteral(node);
+  if (direct) return direct;
+  assert.ok(ts.isIdentifier(node), 'literal named root arguments must be an exact const tuple');
+
+  for (let scope = callsite.parent; scope; scope = scope.parent) {
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)
+        || !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)
+          || declaration.name.text !== node.text
+          || !declaration.initializer) continue;
+        const tuple = unwrapArrayLiteral(declaration.initializer);
+        assert.ok(tuple, `${node.text} must be initialized as an exact const tuple`);
+        return tuple;
+      }
+    }
+  }
+  assert.fail(`${node.text} must resolve to an exact const tuple in the callsite scope`);
+}
 
 function productionSourceFiles(root) {
   const files = [];
@@ -649,10 +717,9 @@ function collectNamedRootCallsites() {
           assert.ok(identity, `${path}:${line}: named root identity is required`);
           assert.ok(typedArgs, `${path}:${line}: typed arguments are required`);
           if (ts.isStringLiteralLike(identity)) {
-            assert.ok(ts.isArrayLiteralExpression(typedArgs),
-              `${path}:${line}: literal named root arguments must be an array literal`);
+            const exactArgs = resolveExactArgumentTuple(typedArgs, node);
             result.push({ kind: 'literal', port, path, line, identity: identity.text,
-              argCount: typedArgs.elements.length });
+              argCount: exactArgs.elements.length });
           } else {
             assert.ok(ts.isIdentifier(identity) && identity.text === 'functionIdentity',
               `${path}:${line}: unexpected dynamic named-root identity`);

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { writePlatformAuditLog } from '@/app-layer/admin/auditLog';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getPool } from '@/app-layer/db/client';
-import { writeAuditLog } from '@/app-layer/admin/auditLog';
 import type { AuthRegistrationContactType } from '@/modules/auth/maskContactHint';
 import { maskContactHint } from '@/modules/auth/maskContactHint';
 import {
@@ -118,8 +117,7 @@ async function writeRegistrationEvent(
     (params.errorClass ?? classifyRegistrationErrorCode(params.errorCode ?? '')) === 'system'
   ) {
     try {
-      const pool = getPool();
-      await writeAuditLog(pool, {
+      await writePlatformAuditLog({
         actorId: null,
         action: 'auth_register_failure',
         targetId: attemptId,
