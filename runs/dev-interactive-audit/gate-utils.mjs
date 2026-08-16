@@ -46,7 +46,9 @@ export function routeContractMatches(actual, expected, allowedFinalTemplates = [
 export function classifyRoute(scenario, input) {
   const template = routeTemplateKey(input);
   const matches = (scenario.routeClassifications ?? []).filter((entry) =>
-    typeof entry.template === 'string' ? entry.template === template : entry.template.test(template),
+    typeof entry.template === 'string'
+      ? routeTemplateKey(entry.template) === template
+      : entry.template.test(template),
   );
   if (matches.length !== 1) {
     return {
@@ -83,7 +85,7 @@ export function isRouteScopedSemanticSelector(selector) {
   const normalized = selector.trim();
   if (!normalized || /^(?:main|form|button|input|textarea|\[role=)/.test(normalized)) return false;
   if (/^\[data-testid=/.test(normalized)) return false;
-  return /(?:^#(?:admin|doctor|patient|booking|account)-|\[aria-label=|article\[id\^=)/.test(normalized);
+  return /(?:^#(?:admin|doctor|patient|booking|account|trial|platform)-|\[aria-label=|article\[id\^=)/.test(normalized);
 }
 
 export function discoverBounded({ knownTemplates, hrefs, scenario, limit }) {
@@ -178,7 +180,9 @@ export function summarizeBinaryGate(results, requiredRoles = []) {
     }
     for (const control of result.rendered_controls ?? []) {
       if (!control.classification || control.classification === 'ambiguous')
-        violations.push(`${result.role}:control_unclassified:${control.id}`);
+        violations.push(`${result.role}:control_unclassified:${control.kind}:${control.identity ?? control.id}`);
+      if (control.duplicate)
+        violations.push(`${result.role}:control_duplicate:${control.kind}:${control.identity}`);
     }
     if ((result.failures ?? []).length > 0) violations.push(`${result.role}:network`);
     if ((result.console_errors ?? []).length > 0) violations.push(`${result.role}:console`);
@@ -192,8 +196,10 @@ export function summarizeBinaryGate(results, requiredRoles = []) {
 export function classifyRenderedControl(control, adapters) {
   const matches = adapters.filter(
     (adapter) =>
+      adapter.role === control.role &&
       routeTemplateKey(adapter.route) === routeTemplateKey(control.route) &&
-      adapter.controlId === control.id &&
+      adapter.controlKind === control.kind &&
+      adapter.controlId === control.identity &&
       adapter.disposition,
   );
   if (matches.length !== 1) return matches.length ? 'ambiguous' : null;
@@ -202,8 +208,8 @@ export function classifyRenderedControl(control, adapters) {
 
 /**
  * Request ownership is fixed when the request starts.  Console/page errors are
- * kept in the current route bucket; an event without a live bucket is a gate
- * violation instead of being silently charged to the next page.
+ * kept only with a provable route origin; an event without one is a gate
+ * violation instead of being silently charged to the current/next page.
  */
 export function createPageEvidenceLedger() {
   const buckets = new Map();
@@ -226,9 +232,9 @@ export function createPageEvidenceLedger() {
       if (!owner || !buckets.has(owner)) unattributed.push(item);
       else buckets.get(owner).failures.push(item);
     },
-    recordConsole(item) {
-      if (!active || !buckets.has(active)) unattributed.push(item);
-      else buckets.get(active).consoleErrors.push(item);
+    recordConsole(item, originRoute) {
+      if (!originRoute || !buckets.has(originRoute)) unattributed.push(item);
+      else buckets.get(originRoute).consoleErrors.push(item);
     },
     snapshot(route) {
       return buckets.get(route) ?? { failures: [], consoleErrors: [] };

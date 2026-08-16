@@ -15,6 +15,11 @@ import {
   summarizeBinaryGate,
 } from './gate-utils.mjs';
 import { ROLE_SCENARIOS } from './scenarios.mjs';
+import {
+  buildTraversalPlan,
+  classifyControlInventory,
+  missingCanonicalNavigation,
+} from './audit-engine.mjs';
 
 test('preserves tab and section query while redacting only entity identifiers', () => {
   const url =
@@ -218,14 +223,14 @@ test('rejects generic message textarea and accepts only the route-specific messa
 
 test('a route adapter cannot classify a different rendered control', () => {
   const adapters = [{
-    route: '/app/patient/reminders', controlId: 'program-reminder-toggle', disposition: 'reversible_adapter',
+    role: 'patient', route: '/app/patient/reminders', controlKind: 'switch', controlId: 'program-reminder-toggle', disposition: 'reversible_adapter',
   }];
   assert.equal(
-    classifyRenderedControl({ route: '/app/patient/reminders', id: 'irreversible-delete' }, adapters),
+    classifyRenderedControl({ role: 'patient', route: '/app/patient/reminders', kind: 'switch', identity: 'irreversible-delete' }, adapters),
     null,
   );
   assert.equal(
-    classifyRenderedControl({ route: '/app/patient/reminders', id: 'program-reminder-toggle' }, adapters),
+    classifyRenderedControl({ role: 'patient', route: '/app/patient/reminders', kind: 'switch', identity: 'program-reminder-toggle' }, adapters),
     'reversible_adapter',
   );
 });
@@ -246,7 +251,7 @@ test('doctor card and program detail require rendered, explicitly contracted dyn
   assert.equal(missingProgram.discovered.some((item) => item.template.includes('/programs/')), false);
 });
 
-test('late request and console evidence stay with page A across navigation to page B', () => {
+test('late request remains with A and console without a proven origin fails globally during B', () => {
   const ledger = createPageEvidenceLedger();
   const request = {};
   ledger.begin('/app/patient/a');
@@ -254,12 +259,12 @@ test('late request and console evidence stay with page A across navigation to pa
   ledger.end();
   ledger.begin('/app/patient/b');
   ledger.recordRequest(request, { kind: 'http', status: 500 });
-  ledger.recordConsole({ message: 'B error' });
+  ledger.recordConsole({ message: 'B error' }, '/app/patient/b');
   assert.deepEqual(ledger.snapshot('/app/patient/a').failures, [{ kind: 'http', status: 500 }]);
   assert.deepEqual(ledger.snapshot('/app/patient/b').failures, []);
   assert.deepEqual(ledger.snapshot('/app/patient/b').consoleErrors, [{ message: 'B error' }]);
   ledger.end();
-  ledger.recordConsole({ message: 'late unknown error' });
+  ledger.recordConsole({ message: 'late unknown error' }, null);
   assert.equal(ledger.unattributed.length, 1);
 });
 
@@ -283,9 +288,43 @@ test('aggregate rejects duplicate, stale or incompatible role artifacts instead 
 test('binary gate rejects an unclassified rendered mutating control', () => {
   const result = {
     role: 'patient', authenticated: true, identity_assertion: { pass: true }, pages: [], action_checks: [],
-    failures: [], console_errors: [], rendered_controls: [{ id: 'purchase', classification: null }],
+    failures: [], console_errors: [], rendered_controls: [{ kind: 'button', identity: 'purchase', classification: null }],
   };
-  assert.deepEqual(summarizeBinaryGate([result]).violations, ['patient:control_unclassified:purchase']);
+  assert.deepEqual(summarizeBinaryGate([result]).violations, ['patient:control_unclassified:button:purchase']);
+});
+
+test('the 64-route census has exactly one explicit, route-specific contract per state', () => {
+  const seeds = Object.values(ROLE_SCENARIOS).flatMap((scenario) => scenario.requiredStateSeeds);
+  assert.equal(seeds.length, 64);
+  for (const scenario of Object.values(ROLE_SCENARIOS)) {
+    for (const route of scenario.requiredStateSeeds) {
+      assert.equal(classifyRoute(scenario, route).pass, true, route);
+    }
+  }
+});
+
+test('canonical navigation is distinct from query-state seeds and a missing manifest destination is red', () => {
+  const scenario = ROLE_SCENARIOS.doctor;
+  const plan = buildTraversalPlan(scenario, 'http://127.0.0.1:5200');
+  assert.equal(plan.canonical.some((route) => route.includes('section=locations')), false);
+  const observed = scenario.canonicalNavigationDestinations.filter((route) => route !== '/app/doctor/lfk-templates');
+  assert.deepEqual(missingCanonicalNavigation(scenario, observed), ['/app/doctor/lfk-templates']);
+  for (const route of scenario.canonicalNavigationDestinations) {
+    assert.equal(classifyRoute(scenario, route).pass, true, `canonical ${route}`);
+  }
+});
+
+test('the runner inventory rejects text/index fallback, duplicates, and every actionable kind', () => {
+  const adapters = [{ role: 'doctor', route: '/app/doctor', controlKind: 'switch', controlId: 'stable-switch', disposition: 'non_mutating' }];
+  const controls = classifyControlInventory([
+    { kind: 'button', id: 'save' }, { kind: 'link', name: 'patient-link' },
+    { kind: 'switch', ariaLabel: 'stable-switch' }, { kind: 'checkbox', id: 'flag' },
+    { kind: 'radio', id: 'choice' }, { kind: 'combobox', id: 'select' },
+    { kind: 'editable', id: 'note' }, { kind: 'editable' }, { kind: 'switch', ariaLabel: 'stable-switch' },
+  ], 'doctor', '/app/doctor', adapters, classifyRenderedControl);
+  assert.equal(controls.filter((control) => control.kind === 'editable').length, 2);
+  assert.equal(controls.find((control) => control.identity === null)?.classification, null);
+  assert.equal(controls.filter((control) => control.identity === 'stable-switch').every((control) => control.duplicate), true);
 });
 
 test('admin discovery starts from clinics and declares every proven alias', () => {

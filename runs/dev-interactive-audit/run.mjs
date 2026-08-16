@@ -5,7 +5,12 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from '../clickthrough/lib/browser.mjs';
-import { CONTROL_ADAPTER_MATRIX, ROLE_SCENARIOS } from './scenarios.mjs';
+import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
+import {
+  buildTraversalPlan,
+  classifyControlInventory,
+  missingCanonicalNavigation,
+} from './audit-engine.mjs';
 import {
   canonicalAuditUrl,
   classifyRenderedControl,
@@ -93,7 +98,8 @@ function attachEvidence(page, evidence, navigationState, ledger) {
     const item = { url: canonicalAuditUrl(page.url()), message: message.text().slice(0, 500) };
     if (message.type() === 'error') {
       evidence.consoleErrors.push(item);
-      ledger.recordConsole(item);
+      const origin = message.location()?.url;
+      ledger.recordConsole(item, origin && sameOrigin(origin) ? canonicalAuditUrl(origin) : null);
     }
     if (message.type() === 'warning') evidence.consoleWarnings.push(item);
   });
@@ -103,7 +109,7 @@ function attachEvidence(page, evidence, navigationState, ledger) {
       message: `pageerror: ${error.message}`.slice(0, 500),
     };
     evidence.consoleErrors.push(item);
-    ledger.recordConsole(item);
+    ledger.recordConsole(item, null);
   });
   page.on('request', (request) => ledger.ownRequest(request));
   page.on('requestfailed', (request) => {
@@ -402,16 +408,36 @@ async function discoverUniqueTemplates(page, scenario, queuedTemplates) {
 }
 
 async function inventoryRenderedControls(page, scenario) {
-  const controls = await page.locator('button, input[type="submit"], [role="button"]').evaluateAll((nodes) =>
-    nodes.map((node, index) => ({
-      id: node.id || node.getAttribute('aria-label') || node.textContent?.trim() || `control-${index}`,
-      route: `${globalThis.location.pathname}${globalThis.location.search}`,
-    })),
-  );
-  return controls.map((control) => ({
-    ...control,
-    classification: classifyRenderedControl(control, CONTROL_ADAPTER_MATRIX),
+  const controls = await page.locator(
+    'button, input[type="submit"], a[href], [role="button"], [role="switch"], input[type="checkbox"], input[type="radio"], select, [role="combobox"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea',
+  ).evaluateAll((nodes) => nodes.filter((node) => {
+    const style = globalThis.getComputedStyle(node);
+    return !node.hasAttribute('disabled') && style.display !== 'none' && style.visibility !== 'hidden';
+  }).map((node) => {
+    const role = node.getAttribute('role');
+    const tag = node.tagName.toLowerCase();
+    const type = node.getAttribute('type');
+    const kind = role === 'switch' ? 'switch'
+      : role === 'combobox' || tag === 'select' ? 'combobox'
+        : type === 'checkbox' ? 'checkbox'
+          : type === 'radio' ? 'radio'
+            : tag === 'textarea' || (tag === 'input' && type !== 'button') ? 'editable'
+              : tag === 'a' ? 'link' : 'button';
+    return {
+      kind,
+      id: node.id,
+      name: node.getAttribute('name'),
+      ariaLabel: node.getAttribute('aria-label'),
+      testId: node.getAttribute('data-testid'),
+    };
   }));
+  return classifyControlInventory(
+    controls,
+    scenario.auditRole,
+    `${await page.url()}`,
+    CONTROL_ADAPTER_MATRIX,
+    classifyRenderedControl,
+  );
 }
 
 function registrationPolicy(body) {
@@ -761,9 +787,23 @@ async function resolveRenderedDoctorPatient(page, navigationState, scenario, evi
 }
 
 async function doctorPatientCardTabs(page, navigationState, patient, scenario, evidence, ledger) {
-  // The only patient sample is a rendered list href.  Its page proof lets BFS
-  // collect program-detail hrefs from the rendered card rather than inventing IDs.
+  // The only patient sample is a rendered list href. Each tab is clicked from
+  // that rendered card; no entity/tab URL is constructed by the harness.
   const card = await pageProof(page, navigationState, patient.href, scenario, evidence, ledger);
+  const tabProofs = [];
+  for (const [tabId, label] of DOCTOR_PATIENT_CARD_TABS) {
+    const tab = await firstVisible(page.getByRole('tab', { name: label, exact: true }))
+      ?? await firstVisible(page.getByRole('button', { name: label, exact: true }));
+    if (!tab) throw new Error(`doctor_patient_tab_absent:${tabId}`);
+    await tab.click();
+    await settlePage(page);
+    const selected = (await tab.getAttribute('aria-selected')) === 'true'
+      || (await tab.getAttribute('data-state')) === 'active'
+      || canonicalAuditUrl(page.url()).includes(`tab=${tabId}`);
+    const header = page.locator('#doctor-patient-card-header');
+    const content = page.locator('main').innerText().then((text) => text.trim().length > 0).catch(() => false);
+    tabProofs.push({ tab: tabId, pass: selected && await header.count() === 1 && await content });
+  }
   const discovered = await discoverUniqueTemplates(
     page,
     scenario,
@@ -774,7 +814,7 @@ async function doctorPatientCardTabs(page, navigationState, patient, scenario, e
   );
   if (discovered.violations.length || program.length !== 1 || !program[0].classification.pass)
     throw new Error('rendered_program_detail_not_bfs_discoverable');
-  return [card, await pageProof(page, navigationState, program[0].href, scenario, evidence, ledger)];
+  return [{ ...card, tabs: tabProofs, pass: card.pass && tabProofs.every((tab) => tab.pass) }, await pageProof(page, navigationState, program[0].href, scenario, evidence, ledger)];
 }
 
 async function doctorCommentsAndPaymentControls(page, navigationState, patient, runPayment) {
@@ -1113,10 +1153,13 @@ async function auditRole(label, scenario, expectedOrganizationId) {
     // Role navigation is rendered from the product's canonical manifest.  The
     // roots enter that manifest; explicit state seeds only cover query-state
     // variants which navigation links cannot represent.
-    const queue = [...scenario.canonicalNavigationRoots, ...scenario.requiredStateSeeds].map((route) =>
-      new URL(route, baseUrl).href,
+    const plan = buildTraversalPlan(scenario, baseUrl);
+    const canonicalTemplates = new Set(
+      (scenario.canonicalNavigationDestinations ?? []).map((route) => routeTemplateKey(route)),
     );
+    const queue = [...plan.canonical, ...plan.stateSeeds.filter((route) => !canonicalTemplates.has(routeTemplateKey(route)))];
     const queuedTemplates = new Set(queue.map((route) => routeTemplateKey(route)));
+    const canonicalNavigationSeen = [...plan.canonical];
     const pages = [];
     const discoveryViolations = [];
     const renderedControls = [];
@@ -1125,9 +1168,12 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       try {
         const cold = await pageProof(page, navigationState, target, scenario, evidence, ledger);
         const discovery = await discoverUniqueTemplates(page, scenario, queuedTemplates);
+        canonicalNavigationSeen.push(
+          ...(await page.locator('a[href]').evaluateAll((anchors) => anchors.map((anchor) => anchor.href))),
+        );
         discoveryViolations.push(...discovery.violations);
         queue.push(...discovery.discovered.map((item) => item.href));
-        renderedControls.push(...(await inventoryRenderedControls(page, scenario)));
+        renderedControls.push(...(await inventoryRenderedControls(page, { ...scenario, auditRole: label })));
         const warm = await pageProof(page, navigationState, target, scenario, evidence, ledger);
         pages.push({
           ...cold,
@@ -1227,6 +1273,11 @@ async function auditRole(label, scenario, expectedOrganizationId) {
         actionChecks.push(await patientChatSend(page, navigationState));
       }
     }
+    discoveryViolations.push(
+      ...missingCanonicalNavigation(scenario, canonicalNavigationSeen).map(
+        (route) => `canonical_navigation_missing:${route}`,
+      ),
+    );
     return {
       role: label,
       audit_provenance: {
