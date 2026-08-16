@@ -33,12 +33,55 @@ export function exactUrlMatches(actual, expected, baseUrl = 'http://127.0.0.1:52
   return canonicalAuditUrl(actual, baseUrl) === canonicalAuditUrl(expected, baseUrl);
 }
 
+/** A redirect is acceptable only when the scenario declares its exact route shape. */
+export function routeContractMatches(actual, expected, allowedFinalTemplates = []) {
+  const finalUrl = canonicalAuditUrl(actual);
+  return (
+    exactUrlMatches(actual, expected) ||
+    allowedFinalTemplates.some((template) => finalUrl === template)
+  );
+}
+
+/**
+ * Keep page acceptance independent from copy.  A route contract names one or
+ * more rendered, unique functional/landmark anchors; a shell cannot satisfy it.
+ */
+export function evaluatePageObservation({
+  responseOk,
+  urlOk,
+  visibleFatal,
+  mainCount,
+  anchors = [],
+  failures = [],
+  consoleErrors = [],
+}) {
+  const reasons = [];
+  if (!responseOk) reasons.push('navigation_not_ok');
+  if (!urlOk) reasons.push('unexpected_final_url');
+  if (visibleFatal) reasons.push('visible_error_boundary');
+  if (mainCount !== 1) reasons.push(`main_count:${mainCount}`);
+  if (!anchors.some((anchor) => anchor.count === 1 && anchor.visible)) {
+    reasons.push(
+      anchors.length === 0
+        ? 'route_semantic_contract_missing'
+        : `functional_anchor_missing_or_ambiguous:${anchors.map((anchor) => anchor.name).join('|')}`,
+    );
+  }
+  if (failures.length) reasons.push(`network_failures:${failures.length}`);
+  if (consoleErrors.length) reasons.push(`console_errors:${consoleErrors.length}`);
+  return { pass: reasons.length === 0, reasons };
+}
+
 export function shouldIgnoreRequestFailure({ errorText, harnessNavigationActive }) {
   return errorText === 'net::ERR_ABORTED' && harnessNavigationActive;
 }
 
-export function summarizeBinaryGate(results) {
+export function summarizeBinaryGate(results, requiredRoles = []) {
   const violations = [];
+  const observedRoles = new Set(results.map((result) => result.role));
+  for (const role of requiredRoles) {
+    if (!observedRoles.has(role)) violations.push(`${role}:missing_role_artifact`);
+  }
   for (const result of results) {
     if (!result.authenticated) violations.push(`${result.role}:authentication`);
     if (!result.identity_assertion?.pass) violations.push(`${result.role}:identity`);

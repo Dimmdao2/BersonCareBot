@@ -3,6 +3,8 @@ import test from 'node:test';
 import {
   canonicalAuditUrl,
   exactUrlMatches,
+  evaluatePageObservation,
+  routeContractMatches,
   routeTemplateKey,
   shouldIgnoreRequestFailure,
   summarizeBinaryGate,
@@ -48,6 +50,68 @@ test('exact URL comparison catches a dropped query parameter', () => {
   );
 });
 
+test('accepts only a declared dynamic route shape, never an arbitrary redirect', () => {
+  assert.equal(
+    routeContractMatches(
+      '/app/doctor/patients/11111111-1111-4111-8111-111111111111/programs/22222222-2222-4222-8222-222222222222',
+      '/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=program',
+      ['/app/doctor/patients/:uuid/programs/:uuid'],
+    ),
+    true,
+  );
+  assert.equal(
+    routeContractMatches(
+      '/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=overview',
+      '/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=program',
+      ['/app/doctor/patients/:uuid/programs/:uuid'],
+    ),
+    false,
+  );
+});
+
+test('rejects a shell-only page and a missing functional anchor', () => {
+  const shellOnly = evaluatePageObservation({
+    responseOk: true,
+    urlOk: true,
+    visibleFatal: false,
+    mainCount: 1,
+    anchors: [],
+  });
+  assert.equal(shellOnly.pass, false);
+  assert.deepEqual(shellOnly.reasons, ['route_semantic_contract_missing']);
+
+  const missingAnchor = evaluatePageObservation({
+    responseOk: true,
+    urlOk: true,
+    visibleFatal: false,
+    mainCount: 1,
+    anchors: [{ name: '#real-control', count: 0, visible: false }],
+  });
+  assert.equal(missingAnchor.pass, false);
+});
+
+test('rejects duplicated controls and captures a real HTTP 5xx on its page', () => {
+  const duplicated = evaluatePageObservation({
+    responseOk: true,
+    urlOk: true,
+    visibleFatal: false,
+    mainCount: 1,
+    anchors: [{ name: '#phone-action', count: 2, visible: false }],
+  });
+  assert.equal(duplicated.pass, false);
+
+  const serverFailure = evaluatePageObservation({
+    responseOk: true,
+    urlOk: true,
+    visibleFatal: false,
+    mainCount: 1,
+    anchors: [{ name: '#payment-form', count: 1, visible: true }],
+    failures: [{ kind: 'http', status: 503 }],
+  });
+  assert.equal(serverFailure.pass, false);
+  assert.deepEqual(serverFailure.reasons, ['network_failures:1']);
+});
+
 test('ignores harness-created aborts only while a harness navigation is active', () => {
   assert.equal(
     shouldIgnoreRequestFailure({ errorText: 'net::ERR_ABORTED', harnessNavigationActive: true }),
@@ -77,4 +141,7 @@ test('binary gate fails for identity, page, action, network, or console evidence
   const broken = structuredClone(clean);
   broken.pages[0].pass = false;
   assert.equal(summarizeBinaryGate([broken]).pass, false);
+  assert.deepEqual(summarizeBinaryGate([clean], ['doctor', 'patient']).violations, [
+    'patient:missing_role_artifact',
+  ]);
 });

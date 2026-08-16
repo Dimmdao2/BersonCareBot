@@ -3,12 +3,13 @@
  * Binary live gate for the already-running canonical DEV server. It neither
  * starts services nor changes schema/grants. Mutation adapters are opt-in.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from '../clickthrough/lib/browser.mjs';
 import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   canonicalAuditUrl,
-  exactUrlMatches,
+  routeContractMatches,
+  evaluatePageObservation,
   routeTemplateKey,
   shouldIgnoreRequestFailure,
   summarizeBinaryGate,
@@ -23,6 +24,18 @@ const mutationsEnabled = process.env.DEV_AUDIT_MUTATE === '1';
 const configuredOrganizationId = process.env.DEV_AUDIT_ORGANIZATION_ID || null;
 const patientName = process.env.DEV_AUDIT_PATIENT_NAME || 'Берсон Дмитрий';
 const patientPhone = '+79189000782';
+const requiredRoles = Object.keys(ROLE_SCENARIOS);
+const requestedRoles = (process.env.DEV_AUDIT_ROLES || requiredRoles.join(','))
+  .split(',')
+  .map((role) => role.trim())
+  .filter(Boolean);
+const aggregateArtifacts = (process.env.DEV_AUDIT_AGGREGATE_ARTIFACTS || '')
+  .split(',')
+  .map((path) => path.trim())
+  .filter(Boolean);
+for (const role of requestedRoles) {
+  if (!ROLE_SCENARIOS[role]) throw new Error(`DEV_AUDIT_ROLES contains unknown role: ${role}`);
+}
 const base = new URL(baseUrl);
 if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1' || base.port !== '5200') {
   throw new Error('DEV_AUDIT_BASE_URL must be the canonical http://127.0.0.1:5200 DEV listener');
@@ -191,7 +204,11 @@ async function assertIdentity(context, evidence, label, scenario, expectedOrgani
 
   let organizationId = null;
   if (label === 'global_admin') {
-    if (me.body?.platformAccess?.tier !== 'global_admin') reasons.push('global_admin_tier_missing');
+    // `/api/me` exposes a patient-only tier. Admin identity is the session role
+    // plus resolved canonical DB role; requiring a fictional global_admin tier
+    // turned a valid global-admin contract into a gate false positive.
+    if (me.body?.platformAccess?.dbRole !== 'admin') reasons.push('global_admin_db_role_mismatch');
+    if (me.body?.platformAccess?.tier !== null) reasons.push('global_admin_tier_not_na');
   } else if (label === 'doctor') {
     const workspace = await requestJson(context, evidence, '/api/doctor/booking-engine/overview');
     organizationId = workspace.body?.organizationId ?? null;
@@ -231,20 +248,27 @@ async function navigate(page, navigationState, target) {
   }
 }
 
-async function visibleMainMarker(page, exactMarker) {
-  const main = await firstVisible(page.locator('main'));
-  if (!main) return { pass: false, marker: null, reason: 'main_absent' };
-  if (exactMarker) {
-    const exact = await firstVisible(main.getByText(exactMarker, { exact: true }));
-    return exact
-      ? { pass: true, marker: exactMarker }
-      : { pass: false, marker: exactMarker, reason: 'exact_marker_absent' };
-  }
-  const heading = await firstVisible(main.getByRole('heading'));
-  const marker = (await heading?.innerText().catch(() => ''))?.replace(/\s+/g, ' ').trim();
-  return marker
-    ? { pass: true, marker }
-    : { pass: false, marker: null, reason: 'unique_main_heading_absent' };
+async function semanticEvidence(page, selectors) {
+  const anchors = await Promise.all(
+    selectors.map(async (selector) => {
+      const locator = page.locator(selector);
+      const count = await locator.count();
+      return {
+        name: selector,
+        count,
+        visible: count === 1 && (await locator.isVisible().catch(() => false)),
+      };
+    }),
+  );
+  return { mainCount: await page.locator('main').count(), anchors };
+}
+
+function selectorsForRoute(scenario, expectedUrl) {
+  const direct = scenario.routeEvidence?.[expectedUrl];
+  if (direct) return direct;
+  // An explicit functional/landmark selector is required for every page. This
+  // fallback is deliberately strict: a naked app shell has none of these.
+  return ['main [data-testid]', 'main [id^="patient-"]', 'main [id^="doctor-"]', 'main form'];
 }
 
 async function clickRequiredTabs(page, labels) {
@@ -279,8 +303,10 @@ async function clickRequiredTabs(page, labels) {
   return proofs;
 }
 
-async function pageProof(page, navigationState, target, scenario) {
+async function pageProof(page, navigationState, target, scenario, evidence) {
   const started = nowMs();
+  const failuresBefore = evidence.failures.length;
+  const consoleBefore = evidence.consoleErrors.length;
   const navigation = await navigate(page, navigationState, target);
   const body = (
     await page
@@ -292,11 +318,10 @@ async function pageProof(page, navigationState, target, scenario) {
     .trim();
   const expectedUrl = canonicalAuditUrl(target);
   const finalUrl = canonicalAuditUrl(page.url());
-  const marker = await visibleMainMarker(page, scenario.routeMarkers?.[expectedUrl]);
-  const allowedFinalPrefix = scenario.allowedFinalPrefixes?.[expectedUrl] ?? null;
-  const exactUrl =
-    exactUrlMatches(page.url(), target) ||
-    (allowedFinalPrefix !== null && finalUrl.startsWith(allowedFinalPrefix));
+  const selectors = selectorsForRoute(scenario, expectedUrl);
+  const semantics = await semanticEvidence(page, selectors);
+  const allowedFinalTemplates = scenario.allowedFinalTemplates?.[expectedUrl] ?? [];
+  const exactUrl = routeContractMatches(page.url(), target, allowedFinalTemplates);
   const visibleFatal = /(?:404|not found|internal server error|application error)/i.test(body);
   const requiredTabs = scenario.requiredTabs?.[expectedUrl] ?? [];
   let tabs = [];
@@ -307,24 +332,25 @@ async function pageProof(page, navigationState, target, scenario) {
     tabFailure = compactError(error);
   }
   const status = navigation.response?.status() ?? null;
-  const pass =
-    Boolean(navigation.response?.ok()) &&
-    exactUrl &&
-    marker.pass &&
-    !visibleFatal &&
-    body.length >= 20 &&
-    !tabFailure &&
-    tabs.every((tab) => tab.pass);
+  const observation = evaluatePageObservation({
+    responseOk: Boolean(navigation.response?.ok()),
+    urlOk: exactUrl,
+    visibleFatal,
+    ...semantics,
+    failures: evidence.failures.slice(failuresBefore),
+    consoleErrors: evidence.consoleErrors.slice(consoleBefore),
+  });
+  const pass = observation.pass && !tabFailure && tabs.every((tab) => tab.pass);
   return {
     url: expectedUrl,
     final_url: finalUrl,
     pass,
     substantive: pass,
     exact_url: exactUrl,
-    ...(allowedFinalPrefix ? { intentional_redirect_prefix: allowedFinalPrefix } : {}),
-    main_marker: marker,
+    ...(allowedFinalTemplates.length ? { intentional_redirect_templates: allowedFinalTemplates } : {}),
+    semantic_evidence: semantics,
+    failure_reasons: [...observation.reasons, ...(tabFailure ? ['required_tab_failure'] : [])],
     navigation_status: status,
-    characters: body.length,
     navigation_ms: Math.round(nowMs() - started),
     domcontentloaded_ms: navigation.domcontentloadedMs,
     settle_ms: navigation.settle_ms,
@@ -718,22 +744,25 @@ async function doctorPatientCardTabs(page, navigationState, patient) {
         .innerText()
         .catch(() => '')
     ).trim();
+    const programRoute = `/app/doctor/patients/:uuid/programs/:uuid`;
+    const urlOk = routeContractMatches(page.url(), target, tabId === 'program' ? [programRoute] : []);
     results.push({
       url: canonicalAuditUrl(target),
       final_url: canonicalAuditUrl(page.url()),
       pass:
         Boolean(navigation.response?.ok()) &&
-        exactUrlMatches(page.url(), target) &&
+        urlOk &&
         (await card.isVisible().catch(() => false)) &&
         activeClass.includes('bg-primary/15') &&
         body.length > 20,
       substantive:
         Boolean(navigation.response?.ok()) &&
-        exactUrlMatches(page.url(), target) &&
+        urlOk &&
         (await card.isVisible().catch(() => false)) &&
         activeClass.includes('bg-primary/15') &&
         body.length > 20,
-      exact_url: exactUrlMatches(page.url(), target),
+      exact_url: urlOk,
+      ...(tabId === 'program' ? { intentional_redirect_templates: [programRoute] } : {}),
       main_marker: { pass: true, marker: `Карточка пациента / ${label}` },
       navigation_status: navigation.response?.status() ?? null,
       characters: body.length,
@@ -752,15 +781,16 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
   let started = nowMs();
   try {
     await navigate(page, navigationState, `${baseUrl}/app/doctor/communications?tab=comments`);
-    const tab = page.getByRole('tab', { name: 'Комментарии', exact: true });
-    if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
-    await page
-      .locator('#doctor-communications-comments')
-      .waitFor({ state: 'visible', timeout: 15_000 });
-    await page
-      .getByText(patientName, { exact: true })
-      .first()
-      .waitFor({ state: 'visible', timeout: 15_000 });
+    const tab = page.getByTestId('btn-comments');
+    if ((await tab.count()) !== 1) throw new Error(`comments_tab_count:${await tab.count()}`);
+    if ((await tab.getAttribute('aria-current')) !== 'page') await tab.click();
+    const comments = page.locator('#doctor-communications-comments');
+    if ((await comments.count()) !== 1) throw new Error(`comments_surface_count:${await comments.count()}`);
+    await comments.waitFor({ state: 'visible', timeout: 15_000 });
+    const patientRows = comments.getByText(patientName, { exact: true });
+    if ((await patientRows.count()) !== 1)
+      throw new Error(`comments_patient_match_count:${await patientRows.count()}`);
+    await patientRows.waitFor({ state: 'visible', timeout: 15_000 });
     results.push({
       id: 'doctor.comments-patient-list',
       pass: true,
@@ -970,12 +1000,19 @@ async function patientWarmupFromHome(page, navigationState) {
       timeout: 20_000,
     });
     await settlePage(page);
-    const main = await visibleMainMarker(page, null);
+    const semantics = await semanticEvidence(page, ['article[id^="patient-content-article-"]']);
+    const observation = evaluatePageObservation({
+      responseOk: true,
+      urlOk: canonicalAuditUrl(page.url()).startsWith('/app/patient/content/'),
+      visibleFatal: false,
+      ...semantics,
+    });
     return {
       id: 'patient.daily-warmup-home-cta',
-      pass: main.pass && canonicalAuditUrl(page.url()).startsWith('/app/patient/content/'),
+      pass: observation.pass,
       final_url: canonicalAuditUrl(page.url()),
-      main_marker: main,
+      semantic_evidence: semantics,
+      failure_reasons: observation.reasons,
       duration_ms: Math.round(nowMs() - started),
     };
   } catch (error) {
@@ -992,11 +1029,13 @@ async function patientPhoneSurface(page, navigationState) {
   const started = nowMs();
   try {
     await navigate(page, navigationState, `${baseUrl}/app/patient/profile`);
-    const section = page
-      .locator('section')
-      .filter({ has: page.getByText('Телефон', { exact: true }) })
-      .first();
-    await section.getByRole('button', { name: /^(Изменить|Привязать)$/ }).click();
+    const phoneLabel = page.getByText('Телефон', { exact: true });
+    if ((await phoneLabel.count()) !== 1) throw new Error(`phone_label_count:${await phoneLabel.count()}`);
+    const phoneRow = phoneLabel.locator('xpath=..');
+    const phoneAction = phoneRow.getByRole('button', { name: /^(Изменить|Привязать)$/ });
+    if ((await phoneAction.count()) !== 1)
+      throw new Error(`phone_action_count:${await phoneAction.count()}`);
+    await phoneAction.click();
     await page.waitForURL((url) => url.pathname === '/app/patient/bind-phone', { timeout: 15_000 });
     const surface = await firstVisible(
       page.locator(
@@ -1075,10 +1114,10 @@ async function auditRole(label, scenario, expectedOrganizationId) {
     while (queue.length > 0 && pages.length < 55) {
       const target = queue.shift();
       try {
-        const cold = await pageProof(page, navigationState, target, scenario);
+        const cold = await pageProof(page, navigationState, target, scenario, evidence);
         const discovered = await discoverUniqueTemplates(page, label, queuedTemplates);
         queue.push(...discovered);
-        const warm = await pageProof(page, navigationState, target, scenario);
+        const warm = await pageProof(page, navigationState, target, scenario, evidence);
         pages.push({
           ...cold,
           pass: cold.pass && warm.pass,
@@ -1207,7 +1246,8 @@ async function main() {
   const startedAt = new Date().toISOString();
   const results = [];
   let expectedOrganizationId = configuredOrganizationId;
-  for (const [label, scenario] of Object.entries(ROLE_SCENARIOS)) {
+  for (const label of requestedRoles) {
+    const scenario = ROLE_SCENARIOS[label];
     try {
       const result = await auditRole(label, scenario, expectedOrganizationId);
       results.push(result);
@@ -1227,13 +1267,24 @@ async function main() {
       });
     }
   }
-  const gate = summarizeBinaryGate(results);
+  const aggregateResults = [...results];
+  for (const artifactPath of aggregateArtifacts) {
+    const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
+    if (!Array.isArray(artifact.results)) throw new Error(`aggregate artifact has no results: ${artifactPath}`);
+    aggregateResults.push(...artifact.results);
+  }
+  // Latest local result wins for a restarted role; missing role artifacts remain a hard failure.
+  const byRole = new Map();
+  for (const result of aggregateResults) byRole.set(result.role, result);
+  const gate = summarizeBinaryGate([...byRole.values()], requiredRoles);
   const finishedAt = new Date().toISOString();
   const report = {
     started_at: startedAt,
     finished_at: finishedAt,
     base_url: baseUrl,
     mutations_enabled: mutationsEnabled,
+    requested_roles: requestedRoles,
+    aggregate_artifacts: aggregateArtifacts,
     expected_organization_id: expectedOrganizationId,
     binary_gate: gate,
     control_adapter_matrix: CONTROL_ADAPTER_MATRIX,

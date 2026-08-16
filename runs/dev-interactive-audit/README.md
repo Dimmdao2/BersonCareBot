@@ -5,7 +5,7 @@ canonical DEV webapp at `http://127.0.0.1:5200`. The executable role/page/contro
 `scenarios.mjs`. Each role runs in a separate Chromium process/context. The gate asserts the exact
 canonical `/api/me` identity/contact/role, the doctor's and patient's exact organization context,
 visits one representative per unique rendered route template, requires the exact final URL (query
-included) and a route-specific main/panel marker, and fails on browser console/page errors, request
+included) and a route-specific unique functional/landmark anchor rather than editorial copy, and fails on browser console/page errors, request
 failures or HTTP 4xx/5xx. Output includes cold/warm navigation and action latency; `out/` is untracked.
 
 Actual doctor/global-admin login needs `DEV_AUDIT_PASSWORD`; the emails default to the canonical owner
@@ -39,6 +39,11 @@ readback`, restores in `finally` after a successful change, and records result a
 stops after the bind-phone surface opens: it never submits a number. Password, deletion, contact-change
 and external-delivery controls remain outside the mutation boundary. The runner rejects every base URL except the canonical
 `http://127.0.0.1:5200`; do not adapt it to TEST or PROD.
+
+To restart DEV between roles, use `DEV_AUDIT_ROLES=global_admin`, `doctor`, or `patient`. A partial
+artifact deliberately remains non-green with `missing_role_artifact`; set
+`DEV_AUDIT_AGGREGATE_ARTIFACTS=artifact-a.json,artifact-b.json` on the final role run to aggregate all
+three role artifacts. Missing roles can never become PASS.
 
 Focused safety test (does not open DEV):
 
