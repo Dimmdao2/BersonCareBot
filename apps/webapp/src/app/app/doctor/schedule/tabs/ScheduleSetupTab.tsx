@@ -68,9 +68,28 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
 
 const DEFAULT_SECTION: SetupSectionId = 'calendar';
 
-function resolveSectionId(raw: string | undefined, paymentsVisible: boolean): SetupSectionId {
-  if (raw === 'payments' && !paymentsVisible) return DEFAULT_SECTION;
-  if (SETUP_SECTIONS.some((s) => s.id === raw)) return raw as SetupSectionId;
+type SetupSectionVisibility = Readonly<{
+  payments: boolean;
+  notifications: boolean;
+  packages: boolean;
+}>;
+
+function sectionIsVisible(section: SetupSectionDef, visibility: SetupSectionVisibility): boolean {
+  if (section.id === 'payments') return visibility.payments;
+  if (section.id === 'notifications') return visibility.notifications;
+  if (section.id === 'packages') return visibility.packages;
+  return true;
+}
+
+function resolveSectionId(
+  raw: string | undefined,
+  visibility: SetupSectionVisibility,
+): SetupSectionId {
+  if (
+    SETUP_SECTIONS.some((section) => section.id === raw && sectionIsVisible(section, visibility))
+  ) {
+    return raw as SetupSectionId;
+  }
   return DEFAULT_SECTION;
 }
 
@@ -147,9 +166,7 @@ function BookingPaymentsSectionLoader({ readOnly }: { readOnly: boolean }) {
 // ---------------------------------------------------------------------------
 
 type RulesSettingsState =
-  | { phase: 'loading' }
-  | { phase: 'error' }
-  | { phase: 'ready'; allowPastUnlink: boolean };
+  { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; allowPastUnlink: boolean };
 
 function BookingRulesLoader() {
   const [state, setState] = useState<RulesSettingsState>({ phase: 'loading' });
@@ -526,7 +543,7 @@ type PackagesState =
   | { phase: 'error'; message: string }
   | { phase: 'ready'; packages: CatalogPackage[]; services: PackageService[] };
 
-function SectionPackages() {
+function SectionPackages({ readOnly }: { readOnly: boolean }) {
   const [state, setState] = useState<PackagesState>({ phase: 'loading' });
   const [, startTransition] = useTransition();
 
@@ -702,135 +719,147 @@ function SectionPackages() {
                     })}
                   </div>
                 </div>
-                <Button type="button" size="sm" variant="outline" onClick={() => toggleActive(pkg)}>
-                  {pkg.isActive ? 'Деактивировать' : 'Активировать'}
-                </Button>
+                {!readOnly && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => toggleActive(pkg)}
+                  >
+                    {pkg.isActive ? 'Деактивировать' : 'Активировать'}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
         )}
       </DoctorSection>
 
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Создать шаблон</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="pkg-tpl-title">Название</Label>
-            <Input
-              id="pkg-tpl-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: Курс 10 занятий"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pkg-tpl-price">Цена, ₽</Label>
-            <Input
-              id="pkg-tpl-price"
-              value={priceRub}
-              onChange={(e) => setPriceRub(e.target.value)}
-              placeholder="5000"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pkg-tpl-days">Срок действия, дней (необязательно)</Label>
-            <Input
-              id="pkg-tpl-days"
-              value={validityDays}
-              onChange={(e) => setValidityDays(e.target.value)}
-              placeholder="30"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Режим списания</Label>
-            <Select
-              value={deductionMode}
-              onValueChange={(v) => setDeductionMode(v as 'auto_on_visit_confirmed' | 'manual')}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto_on_visit_confirmed" label="Автоматически при подтверждении">
-                  Автоматически при подтверждении
-                </SelectItem>
-                <SelectItem value="manual" label="Вручную">
-                  Вручную
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <Label>Позиции (услуга × количество)</Label>
-          {formItems.length > 0 && (
-            <ul className="m-0 list-none space-y-1 p-0">
-              {formItems.map((it, idx) => {
-                const svc = activeServices.find((s) => s.id === it.serviceId);
-                return (
-                  <li key={idx} className="flex items-center justify-between gap-2 text-sm">
-                    <span>
-                      {svc?.title ?? it.serviceId} × {it.quantity}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      className="text-destructive text-xs h-auto p-0"
-                      onClick={() => removeFormItem(idx)}
-                    >
-                      Убрать
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[10rem] flex-1">
-              <Select value={itemServiceId} onValueChange={(v) => setItemServiceId(v ?? '')}>
-                <SelectTrigger
-                  displayLabel={
-                    activeServices.find((s) => s.id === itemServiceId)?.title ?? 'Выберите услугу'
-                  }
-                >
+      {!readOnly && (
+        <DoctorSection>
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Создать шаблон</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="pkg-tpl-title">Название</Label>
+              <Input
+                id="pkg-tpl-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Например: Курс 10 занятий"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pkg-tpl-price">Цена, ₽</Label>
+              <Input
+                id="pkg-tpl-price"
+                value={priceRub}
+                onChange={(e) => setPriceRub(e.target.value)}
+                placeholder="5000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pkg-tpl-days">Срок действия, дней (необязательно)</Label>
+              <Input
+                id="pkg-tpl-days"
+                value={validityDays}
+                onChange={(e) => setValidityDays(e.target.value)}
+                placeholder="30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Режим списания</Label>
+              <Select
+                value={deductionMode}
+                onValueChange={(v) => setDeductionMode(v as 'auto_on_visit_confirmed' | 'manual')}
+              >
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeServices.map((s) => (
-                    <SelectItem key={s.id} value={s.id} label={s.title}>
-                      {s.title}
-                    </SelectItem>
-                  ))}
+                  <SelectItem
+                    value="auto_on_visit_confirmed"
+                    label="Автоматически при подтверждении"
+                  >
+                    Автоматически при подтверждении
+                  </SelectItem>
+                  <SelectItem value="manual" label="Вручную">
+                    Вручную
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-20">
-              <Label htmlFor="pkg-tpl-qty" className="sr-only">
-                Количество
-              </Label>
-              <Input
-                id="pkg-tpl-qty"
-                value={itemQuantity}
-                onChange={(e) => setItemQuantity(e.target.value)}
-                placeholder="1"
-              />
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <Label>Позиции (услуга × количество)</Label>
+            {formItems.length > 0 && (
+              <ul className="m-0 list-none space-y-1 p-0">
+                {formItems.map((it, idx) => {
+                  const svc = activeServices.find((s) => s.id === it.serviceId);
+                  return (
+                    <li key={idx} className="flex items-center justify-between gap-2 text-sm">
+                      <span>
+                        {svc?.title ?? it.serviceId} × {it.quantity}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="text-destructive text-xs h-auto p-0"
+                        onClick={() => removeFormItem(idx)}
+                      >
+                        Убрать
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[10rem] flex-1">
+                <Select value={itemServiceId} onValueChange={(v) => setItemServiceId(v ?? '')}>
+                  <SelectTrigger
+                    displayLabel={
+                      activeServices.find((s) => s.id === itemServiceId)?.title ?? 'Выберите услугу'
+                    }
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeServices.map((s) => (
+                      <SelectItem key={s.id} value={s.id} label={s.title}>
+                        {s.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-20">
+                <Label htmlFor="pkg-tpl-qty" className="sr-only">
+                  Количество
+                </Label>
+                <Input
+                  id="pkg-tpl-qty"
+                  value={itemQuantity}
+                  onChange={(e) => setItemQuantity(e.target.value)}
+                  placeholder="1"
+                />
+              </div>
+              <Button type="button" variant="secondary" size="sm" onClick={addFormItem}>
+                Добавить позицию
+              </Button>
             </div>
-            <Button type="button" variant="secondary" size="sm" onClick={addFormItem}>
-              Добавить позицию
+          </div>
+
+          <div className="mt-4">
+            <Button type="button" size="sm" disabled={formPending} onClick={createPackage}>
+              Создать шаблон
             </Button>
           </div>
-        </div>
-
-        <div className="mt-4">
-          <Button type="button" size="sm" disabled={formPending} onClick={createPackage}>
-            Создать шаблон
-          </Button>
-        </div>
-      </DoctorSection>
+        </DoctorSection>
+      )}
     </div>
   );
 }
@@ -906,14 +935,22 @@ export function ScheduleSetupTab({
   doctorStatisticsEnabled,
   paymentsVisible = true,
   paymentsReadOnly = false,
+  notificationTemplatesVisible = true,
+  packagesVisible = true,
+  packagesReadOnly = false,
 }: ScheduleTabProps) {
+  const sectionVisibility: SetupSectionVisibility = {
+    payments: paymentsVisible,
+    notifications: notificationTemplatesVisible,
+    packages: packagesVisible,
+  };
   const [activeSection, setActiveSectionState] = useState<SetupSectionId>(() =>
-    resolveSectionId(deepLinkParams.section, paymentsVisible),
+    resolveSectionId(deepLinkParams.section, sectionVisibility),
   );
 
-  const visibleSections = paymentsVisible
-    ? SETUP_SECTIONS
-    : SETUP_SECTIONS.filter((section) => section.id !== 'payments');
+  const visibleSections = SETUP_SECTIONS.filter((section) =>
+    sectionIsVisible(section, sectionVisibility),
+  );
 
   const setActiveSection = useCallback(
     (id: SetupSectionId) => {
@@ -958,8 +995,12 @@ export function ScheduleSetupTab({
           <SectionPayments readOnly={paymentsReadOnly} />
         )}
         {activeSection === 'rules' && <SectionRules />}
-        {activeSection === 'notifications' && <SectionNotifications />}
-        {activeSection === 'packages' && <SectionPackages />}
+        {activeSection === 'notifications' && notificationTemplatesVisible && (
+          <SectionNotifications />
+        )}
+        {activeSection === 'packages' && packagesVisible && (
+          <SectionPackages readOnly={packagesReadOnly} />
+        )}
       </div>
     </div>
   );

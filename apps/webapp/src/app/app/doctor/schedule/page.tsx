@@ -50,11 +50,17 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     paymentsMutation,
     appDisplayTimeZone,
     doctorStatisticsVisibility,
+    notificationTemplatesVisibility,
+    packagesVisibility,
+    packagesMutation,
   ] = await Promise.all([
     getMechanicSurfaceVisibility(workspace, 'payments'),
     getMechanicMutationAvailability(workspace, 'payments'),
     getAppDisplayTimeZone(),
     getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
+    getMechanicSurfaceVisibility(workspace, 'branding'),
+    getMechanicSurfaceVisibility(workspace, 'subscriptions'),
+    getMechanicMutationAvailability(workspace, 'subscriptions'),
   ]);
 
   const initialTimeZone = await getDoctorEffectiveCalendarIana(
@@ -108,8 +114,12 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     <DoctorScheduleShell
       initialTab={initialTab}
       initialTimeZone={initialTimeZone}
+      canManageOrganization={workspace.canManageOrganization}
       paymentsVisible={paymentsVisibility.specialistNavigation}
       paymentsReadOnly={!paymentsMutation.available}
+      notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
+      packagesVisible={packagesVisibility.specialistNavigation}
+      packagesReadOnly={!packagesMutation.available}
       scheduleScopeBootstrap={scheduleScopeBootstrap}
       doctorStatisticsEnabled={doctorStatisticsEnabled}
       initialTabData={initialTabData}

@@ -55,10 +55,11 @@ function readDeepLinksFromSearchParams(
 
 type ScheduleTabsNavProps = {
   activeTab: ScheduleTabId;
+  canManageOrganization: boolean;
   onTabClick: (tab: ScheduleTabId) => void;
 };
 
-function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
+function ScheduleTabsNav({ activeTab, canManageOrganization, onTabClick }: ScheduleTabsNavProps) {
   // Табы живут в слоте `tabs` per-page шапки DoctorPageHeader (единый sticky-заголовок,
   // без отдельной липкой полосы и двойного бордера). Здесь — только ряд кнопок.
   return (
@@ -67,7 +68,7 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
       aria-label="Разделы расписания"
       className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {SCHEDULE_TABS.map((tab) => {
+      {SCHEDULE_TABS.filter((tab) => tab.id !== 'setup' || canManageOrganization).map((tab) => {
         const active = tab.id === activeTab;
         return (
           <Button
@@ -96,9 +97,16 @@ export type DoctorScheduleShellProps = {
   initialTab?: ScheduleTabId;
   /** IANA-таймзона из system_settings (от серверной страницы). */
   initialTimeZone?: string;
+  /** Trusted organization-management capability resolved by the server page. */
+  canManageOrganization: boolean;
   /** Tariff-backed visibility and mutability for payment-acceptance controls. */
   paymentsVisible: boolean;
   paymentsReadOnly: boolean;
+  /** Tariff-backed visibility of notification templates. */
+  notificationTemplatesVisible: boolean;
+  /** Tariff-backed visibility and mutability of membership packages. */
+  packagesVisible: boolean;
+  packagesReadOnly: boolean;
   /** Server-resolved schedule permissions and active specialists. */
   scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
   /** Server-resolved visibility of clinic statistics and booking attribution. */
@@ -123,16 +131,27 @@ export type DoctorScheduleShellProps = {
 export function DoctorScheduleShell({
   initialTab,
   initialTimeZone,
+  canManageOrganization,
   paymentsVisible,
   paymentsReadOnly,
+  notificationTemplatesVisible,
+  packagesVisible,
+  packagesReadOnly,
   scheduleScopeBootstrap,
   doctorStatisticsEnabled,
   initialTabData,
 }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
-    if (initialTab) return initialTab;
+    if (initialTab) {
+      return initialTab === 'setup' && !canManageOrganization ? SCHEDULE_DEFAULT_TAB : initialTab;
+    }
     if (typeof window !== 'undefined') {
-      return scheduleTabFromQuery(new URLSearchParams(window.location.search).get('tab'));
+      const fromLocation = scheduleTabFromQuery(
+        new URLSearchParams(window.location.search).get('tab'),
+      );
+      return fromLocation === 'setup' && !canManageOrganization
+        ? SCHEDULE_DEFAULT_TAB
+        : fromLocation;
     }
     return SCHEDULE_DEFAULT_TAB;
   })();
@@ -168,14 +187,16 @@ export function DoctorScheduleShell({
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const tab = scheduleTabFromQuery(params.get('tab'));
+      const requestedTab = scheduleTabFromQuery(params.get('tab'));
+      const tab =
+        requestedTab === 'setup' && !canManageOrganization ? SCHEDULE_DEFAULT_TAB : requestedTab;
       setActiveTab(tab);
       setVisitedTabs((prev) => new Set([...prev, tab]));
       setDeepLinks(readDeepLinksFromSearchParams(params));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [canManageOrganization]);
 
   // ── URL builder ───────────────────────────────────────────────────────────
 
@@ -228,9 +249,16 @@ export function DoctorScheduleShell({
       <DoctorPageHeader
         id="doctor-schedule-header"
         title="Расписание"
-        tabs={<ScheduleTabsNav activeTab={activeTab} onTabClick={handleTabChange} />}
+        tabs={
+          <ScheduleTabsNav
+            activeTab={activeTab}
+            canManageOrganization={canManageOrganization}
+            onTabClick={handleTabChange}
+          />
+        }
       />
       {SCHEDULE_TAB_REGISTRY.map((entry) => {
+        if (entry.id === 'setup' && !canManageOrganization) return null;
         if (!visitedTabs.has(entry.id)) return null;
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
@@ -249,6 +277,9 @@ export function DoctorScheduleShell({
               initialTimeZone={initialTimeZone}
               paymentsVisible={paymentsVisible}
               paymentsReadOnly={paymentsReadOnly}
+              notificationTemplatesVisible={notificationTemplatesVisible}
+              packagesVisible={packagesVisible}
+              packagesReadOnly={packagesReadOnly}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
               doctorStatisticsEnabled={doctorStatisticsEnabled}
             />
