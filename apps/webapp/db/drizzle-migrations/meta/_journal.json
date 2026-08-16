@@ -3088,6 +3088,27 @@
       "when": 1793539230187,
       "tag": "0444_reminder_fallback_and_clinic_credential_capabilities_local",
       "breakpoints": true
+    },
+    {
+      "idx": 441,
+      "version": "7",
+      "when": 1793539230188,
+      "tag": "0445_reminder_fallback_attested_target_role_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 442,
+      "version": "7",
+      "when": 1793539230189,
+      "tag": "0446_pre_session_platform_audit_event_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 443,
+      "version": "7",
+      "when": 1793539230190,
+      "tag": "0447_multi_context_platform_audit_gate_local",
+      "breakpoints": true
     }
   ]
 }

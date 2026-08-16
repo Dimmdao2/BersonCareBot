@@ -2134,6 +2134,9 @@ const REV10_CONTEXT = {
     webapp_platform_audit_event_append: { port: 'webapp', runtimeName: 'platform_audit_event_append',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
+    webapp_pre_session_audit_event_append: { port: 'webapp', runtimeName: 'pre_session_audit_event_append',
+      sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
     webapp_platform_incidents_acknowledge: { port: 'webapp', runtimeName: 'platform_incidents_acknowledge',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.operator-incidents.acknowledge',
@@ -2406,6 +2409,23 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.require_attested_target_role(name,name[])': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'name',
+      execute: ['app_seam_reminder_patient_owner'],
+      purpose: 'return the exact active patient or staff role to the reminder seam',
+      typedArgs: ['name', 'name[]'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], invocation: 'internal' as const,
+      relationSurfaces: [
+        { relation: 'app_ext.accepted_port_contexts', columns: [
+          'database_oid', 'backend_pid', 'transaction_id', 'capability_id', 'session_login', 'port',
+          'target_role', 'context_class', 'purpose', 'function_identity', 'cleared_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'app_ext.port_context_capabilities', columns: [
+          'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose',
+          'function_identity', 'active_from', 'active_until',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.enqueue_current_reminder_rule_push(text)': rev10Function({
       owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'boolean',
       execute: ['app_patient', 'app_staff'], purpose: 'enqueue only the current patient or staff-org reminder retry',
@@ -3349,7 +3369,8 @@ const REV10_CONTEXT = {
     }),
     'app.append_platform_audit_event(text,text,text)': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid',
-      execute: ['app_platform_admin'], purpose: 'append one whitelisted platform operator audit event',
+      execute: ['app_platform_admin', 'app_pre_session'],
+      purpose: 'append one whitelisted platform operator or pre-session auth audit event',
       typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'public.admin_audit_log',

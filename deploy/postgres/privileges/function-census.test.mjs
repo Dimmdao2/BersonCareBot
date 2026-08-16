@@ -51,15 +51,15 @@ const functionsFor = (database) => Object.entries(declaration.portContext.functi
 test('legacy 244/42 census is restored without obsolete context and overlaid by rev10', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 227,
+    functions: 228,
     owners: 40,
-    test: 227,
-    dev: 225,
+    test: 228,
+    dev: 226,
     triggers: 3,
-    relationEdges: 465,
+    relationEdges: 469,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 227);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 227);
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 228);
+  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 228);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -67,6 +67,7 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
     'app.install_port_context(uuid,app.port_context_claims)',
     'app.clear_port_context()',
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)',
+    'app.require_attested_target_role(name,name[])',
     'app.require_platform_principal()',
     'app.current_actor_user_id()',
     'app_ext.resolve_variant_a_identity(uuid)',
@@ -74,10 +75,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 281);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 279);
-  assert.equal(testFunctions.length, 297);
-  assert.equal(devFunctions.length, 295);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 290);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 288);
+  assert.equal(testFunctions.length, 306);
+  assert.equal(devFunctions.length, 304);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -85,7 +86,7 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
   assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 221);
+    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 222);
   assert.deepEqual(proconfigExceptions, [
     ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],

@@ -485,8 +485,13 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     source: 'apps/integrator/src/infra/db/repos/idempotencyKeys.ts',
   },
   'app.append_platform_audit_event(text,text,text)': {
-    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
-    purpose: 'platform.audit-event.append', argCount: 3,
+    port: 'webapp', argCount: 3, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_platform_admin', contextClass: 'platform',
+        purpose: 'platform.audit-event.append' },
+      { targetRole: 'app_pre_session', contextClass: 'pre_session',
+        purpose: 'platform.audit-event.append' },
+    ],
     source: 'apps/webapp/src/infra/adminAuditLog.ts',
   },
   'app.resolve_platform_audit_conflict(uuid)': {

@@ -89,6 +89,13 @@ psql_admin \
   -v integrator_login="$integrator_login" \
   -f "$repo_root/deploy/postgres/port-context/contract.sql" >/dev/null
 
+if [[ "$full_schema_mode" == 0 ]]; then
+  # The lightweight oracle intentionally has no declaration-owned relation-wall registry. Keep the
+  # contract trigger out of the way while the capability table is reconciled; full-schema mode below
+  # proves the wall against the real registry and re-enables it.
+  psql_admin -c 'ALTER EVENT TRIGGER bcb_relation_birth_wall DISABLE' >/dev/null
+fi
+
 if [[ "$full_schema_mode" == 1 ]]; then
   # The declaration registry is populated by the generated privilege artifact below.  Keep the
   # freshly recreated wall disabled only across the schema-only bootstrap that precedes it.
@@ -130,9 +137,38 @@ CREATE OR REPLACE FUNCTION app.read_booking_calendar_latest_staff_comment(uuid) 
 CREATE OR REPLACE FUNCTION app.is_current_patient_self_booking_allowed() RETURNS boolean LANGUAGE sql AS 'SELECT true';
 CREATE OR REPLACE FUNCTION app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone) RETURNS boolean LANGUAGE sql AS 'SELECT true';
 SQL
+
+# The lightweight catalog oracle needs every declared regprocedure identity to exist, but it does
+# not exercise production bodies (the full-schema mode does that).  Create boolean no-op bodies for
+# whichever declared roots are still absent so additions cannot leave this fixture stale one name at
+# a time. Existing contract functions are deliberately preserved.
+psql_admin -c 'CREATE TYPE public.saas_tariffs AS ()' >/dev/null
+node --experimental-strip-types --input-type=module <<'NODE' | psql_admin >/dev/null
+import { declaration } from './deploy/postgres/privileges/declaration.ts';
+
+const literal = (value) => `'${value.replaceAll("'", "''")}'`;
+for (const [signature, contract] of Object.entries(declaration.portContext.functions)) {
+  const returnStatement = ['void', 'event_trigger'].includes(contract.returns)
+    ? 'RETURN;'
+    : 'RETURN NULL;';
+  const createSql = `CREATE FUNCTION ${signature} RETURNS ${contract.returns} LANGUAGE plpgsql AS $$ BEGIN ${returnStatement} END $$`;
+  process.stdout.write(`DO $stub$ BEGIN\n`);
+  process.stdout.write(`  IF to_regprocedure(${literal(signature)}) IS NULL THEN\n`);
+  process.stdout.write(`    EXECUTE ${literal(createSql)};\n`);
+  process.stdout.write(`  END IF;\nEND $stub$;\n`);
+}
+NODE
 fi
 
 psql_admin -1 -f "$repo_root/deploy/postgres/generated/port-context-capabilities.${db_name}.sql" >/dev/null
+if [[ "$full_schema_mode" == 0 ]]; then
+  export BCB_TEST_INTEGRATOR_PASSWORD=disposable-integrator
+  export BCB_TEST_WEBAPP_PATIENT_PASSWORD=disposable-patient
+  export BCB_TEST_WEBAPP_GLOBAL_ADMIN_PASSWORD=disposable-global-admin
+  export BCB_TEST_WEBAPP_STAFF_PASSWORD=disposable-staff
+  node "$repo_root/deploy/postgres/privileges/generate-cli.mjs" --env test --db "$db_name" |
+    psql_admin -1 >/dev/null
+fi
 if [[ "$full_schema_mode" == 1 ]]; then
   psql_admin -1 -f "$repo_root/deploy/postgres/generated/privileges.${db_name}.sql" >/dev/null
   node "$repo_root/deploy/postgres/privileges/generate-cli.mjs" --db "$db_name" --relation-wall-registry |
@@ -281,9 +317,22 @@ INSERT INTO public.system_settings(key, scope, organization_id, value_json) VALU
   ('clinic_telegram_bot_token', 'admin', '$fallback_org_a', '{"value":"clinic-a-token"}'::jsonb),
   ('clinic_telegram_bot_token', 'admin', '$fallback_org_b', '{"value":"clinic-b-token"}'::jsonb);
 SQL
-psql_admin -f "$repo_root/apps/webapp/db/drizzle-migrations/0443_reminder_fallback_and_clinic_credential_capabilities_local.sql" >/dev/null
-psql_admin -c "GRANT EXECUTE ON FUNCTION app.enqueue_current_reminder_rule_push(text) TO app_patient, app_staff" >/dev/null
-psql_admin -c "GRANT EXECUTE ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) TO app_tenant_service" >/dev/null
+psql_admin -f "$repo_root/apps/webapp/db/drizzle-migrations/0444_reminder_fallback_and_clinic_credential_capabilities_local.sql" >/dev/null
+psql_admin -f "$repo_root/apps/webapp/db/drizzle-migrations/0445_reminder_fallback_attested_target_role_local.sql" >/dev/null
+psql_admin -c "ALTER FUNCTION app.require_attested_target_role(name,name[]) OWNER TO app_seam_context_owner" >/dev/null
+psql_admin -c "ALTER FUNCTION app.enqueue_current_reminder_rule_push(text) OWNER TO app_seam_reminder_patient_owner" >/dev/null
+psql_admin -c "ALTER FUNCTION app.read_integrator_clinic_delivery_credential(text,uuid) OWNER TO app_seam_settings_integrator_owner" >/dev/null
+psql_admin -c "REVOKE ALL ON FUNCTION app.require_attested_target_role(name,name[]) FROM PUBLIC; GRANT EXECUTE ON FUNCTION app.require_attested_target_role(name,name[]) TO app_seam_reminder_patient_owner" >/dev/null
+psql_admin -c "REVOKE ALL ON FUNCTION app.enqueue_current_reminder_rule_push(text) FROM PUBLIC; GRANT EXECUTE ON FUNCTION app.enqueue_current_reminder_rule_push(text) TO app_patient, app_staff" >/dev/null
+psql_admin -c "REVOKE ALL ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) FROM PUBLIC; GRANT EXECUTE ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) TO app_tenant_service" >/dev/null
+psql_admin -c 'GRANT USAGE ON SCHEMA public TO app_seam_reminder_patient_owner, app_seam_settings_integrator_owner' >/dev/null
+psql_admin -c 'GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(), app.current_actor_user_id() TO app_seam_reminder_patient_owner; GRANT EXECUTE ON FUNCTION app.current_org_id(), app.require_attested_context_for_roles(name,name[]) TO app_seam_settings_integrator_owner' >/dev/null
+psql_admin -c 'GRANT SELECT (integrator_rule_id,organization_id,platform_user_id,integrator_user_id,category,is_enabled,interval_minutes,window_start_minute,window_end_minute,days_mask,timezone,linked_object_type,linked_object_id,custom_title,custom_text,schedule_type,schedule_data,reminder_intent,display_title,display_description,quiet_hours_start_minute,quiet_hours_end_minute,notification_topic_code,updated_at) ON public.reminder_rules TO app_seam_reminder_patient_owner' >/dev/null
+psql_admin -c 'GRANT SELECT (kind,idempotency_key,payload,status,attempts_done,next_try_at,last_error,updated_at), INSERT (kind,idempotency_key,payload,status,attempts_done,next_try_at,last_error,updated_at), UPDATE (kind,idempotency_key,payload,status,attempts_done,next_try_at,last_error,updated_at) ON public.integrator_push_outbox TO app_seam_reminder_patient_owner' >/dev/null
+psql_admin -c 'GRANT USAGE, SELECT ON SEQUENCE public.integrator_push_outbox_id_seq TO app_seam_reminder_patient_owner' >/dev/null
+psql_admin -c 'GRANT SELECT (key,scope,organization_id,value_json) ON public.system_settings TO app_seam_settings_integrator_owner' >/dev/null
+assert_eq "$(psql_admin -Atc "SELECT has_schema_privilege('app_seam_reminder_patient_owner','app_ext','USAGE')")" f
+assert_eq "$(psql_admin -Atc "SELECT has_table_privilege('app_seam_reminder_patient_owner','app_ext.accepted_port_contexts','SELECT')")" f
 
 patient_relation_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$patient_login' AND target_role='app_patient' AND purpose='relation' AND function_identity IS NULL")
 tenant_relation_capability=$(psql_admin -Atc "SELECT capability_id FROM app_ext.port_context_capabilities WHERE session_login='$integrator_login' AND target_role='app_tenant_service' AND purpose='relation' AND function_identity IS NULL")
@@ -298,7 +347,15 @@ BEGIN;
 SELECT app.install_port_context('$patient_relation_capability'::uuid, $patient_claims);
 SET LOCAL ROLE app_patient;
 SELECT app.enqueue_current_reminder_rule_push('fallback-rule-a');
-UPDATE public.reminder_rules SET is_enabled = true WHERE integrator_rule_id = 'fallback-rule-a';
+COMMIT;
+RESET SESSION AUTHORIZATION;
+SQL
+psql_admin -c "UPDATE public.reminder_rules SET is_enabled = true WHERE integrator_rule_id = 'fallback-rule-a'" >/dev/null
+psql_admin <<SQL >/dev/null
+SET SESSION AUTHORIZATION $patient_login;
+BEGIN;
+SELECT app.install_port_context('$patient_relation_capability'::uuid, $patient_claims);
+SET LOCAL ROLE app_patient;
 SELECT app.enqueue_current_reminder_rule_push('fallback-rule-a');
 COMMIT;
 RESET SESSION AUTHORIZATION;
@@ -331,7 +388,7 @@ SELECT app.read_integrator_clinic_delivery_credential('clinic_telegram_bot_token
 COMMIT;
 SQL
 )
-assert_eq "$(printf '%s\n' "$credential_value" | tail -n 1)" '"clinic-a-token"'
+assert_eq "$(printf '%s\n' "$credential_value" | rg '^"clinic-a-token"$' | tail -n 1)" '"clinic-a-token"'
 if psql_admin <<SQL >"$work_dir/foreign-credential.out" 2>&1
 SET SESSION AUTHORIZATION $integrator_login;
 BEGIN;
