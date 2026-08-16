@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   canonicalAuditUrl,
+  classifyRenderedControl,
   classifyRoute,
+  createPageEvidenceLedger,
   discoverBounded,
   aggregateRoleArtifacts,
   exactUrlMatches,
@@ -183,6 +185,82 @@ test('requires an explicit selector contract and one route classification', () =
     ],
   }, '/app/patient');
   assert.equal(ambiguous.reason, 'route_classification_ambiguous');
+});
+
+test('a state seed without an explicit route disposition and semantic contract is red', () => {
+  const scenario = {
+    requiredStateSeeds: ['/app/patient/messages'],
+    routeClassifications: [],
+  };
+  assert.equal(classifyRoute(scenario, '/app/patient/messages').reason, 'route_unclassified');
+  const noContract = classifyRoute(
+    { routeClassifications: [{ template: '/app/patient/messages', classification: 'substantive' }] },
+    '/app/patient/messages',
+  );
+  assert.equal(noContract.reason, 'route_semantic_contract_missing');
+});
+
+test('rejects generic message textarea and accepts only the route-specific message contract', () => {
+  const generic = classifyRoute(
+    {
+      routeClassifications: [{
+        template: '/app/patient/messages', classification: 'substantive', semanticContract: { selectors: ['textarea'] },
+      }],
+    },
+    '/app/patient/messages',
+  );
+  assert.equal(generic.reason, 'route_semantic_contract_generic');
+  assert.equal(
+    classifyRoute(ROLE_SCENARIOS.patient, '/app/patient/messages').pass,
+    true,
+  );
+});
+
+test('a route adapter cannot classify a different rendered control', () => {
+  const adapters = [{
+    route: '/app/patient/reminders', controlId: 'program-reminder-toggle', disposition: 'reversible_adapter',
+  }];
+  assert.equal(
+    classifyRenderedControl({ route: '/app/patient/reminders', id: 'irreversible-delete' }, adapters),
+    null,
+  );
+  assert.equal(
+    classifyRenderedControl({ route: '/app/patient/reminders', id: 'program-reminder-toggle' }, adapters),
+    'reversible_adapter',
+  );
+});
+
+test('doctor card and program detail require rendered, explicitly contracted dynamic hrefs', () => {
+  const doctor = ROLE_SCENARIOS.doctor;
+  const hrefs = [
+    '/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=overview',
+    '/app/doctor/patients/11111111-1111-4111-8111-111111111111/programs/22222222-2222-4222-8222-222222222222',
+  ];
+  const discovered = discoverBounded({
+    knownTemplates: new Set(['/app/doctor/patients']), hrefs, scenario: doctor, limit: 2,
+  });
+  assert.deepEqual(discovered.discovered.map((item) => item.classification.pass), [true, true]);
+  const missingProgram = discoverBounded({
+    knownTemplates: new Set(['/app/doctor/patients']), hrefs: [hrefs[0]], scenario: doctor, limit: 2,
+  });
+  assert.equal(missingProgram.discovered.some((item) => item.template.includes('/programs/')), false);
+});
+
+test('late request and console evidence stay with page A across navigation to page B', () => {
+  const ledger = createPageEvidenceLedger();
+  const request = {};
+  ledger.begin('/app/patient/a');
+  ledger.ownRequest(request);
+  ledger.end();
+  ledger.begin('/app/patient/b');
+  ledger.recordRequest(request, { kind: 'http', status: 500 });
+  ledger.recordConsole({ message: 'B error' });
+  assert.deepEqual(ledger.snapshot('/app/patient/a').failures, [{ kind: 'http', status: 500 }]);
+  assert.deepEqual(ledger.snapshot('/app/patient/b').failures, []);
+  assert.deepEqual(ledger.snapshot('/app/patient/b').consoleErrors, [{ message: 'B error' }]);
+  ledger.end();
+  ledger.recordConsole({ message: 'late unknown error' });
+  assert.equal(ledger.unattributed.length, 1);
 });
 
 test('aggregate rejects duplicate, stale or incompatible role artifacts instead of last-wins', () => {

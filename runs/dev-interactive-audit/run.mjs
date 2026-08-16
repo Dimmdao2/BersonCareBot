@@ -5,9 +5,11 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from '../clickthrough/lib/browser.mjs';
-import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
+import { CONTROL_ADAPTER_MATRIX, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   canonicalAuditUrl,
+  classifyRenderedControl,
+  createPageEvidenceLedger,
   classifyRoute,
   discoverBounded,
   aggregateRoleArtifacts,
@@ -27,7 +29,6 @@ const allowSynthetic = process.env.DEV_AUDIT_ALLOW_SYNTHETIC === '1';
 const mutationsEnabled = process.env.DEV_AUDIT_MUTATE === '1';
 const configuredOrganizationId = process.env.DEV_AUDIT_ORGANIZATION_ID || null;
 const patientName = process.env.DEV_AUDIT_PATIENT_NAME || 'Берсон Дмитрий';
-const patientPhone = '+79189000782';
 const requiredRoles = Object.keys(ROLE_SCENARIOS);
 const requestedRoles = (process.env.DEV_AUDIT_ROLES || requiredRoles.join(','))
   .split(',')
@@ -87,18 +88,24 @@ async function settlePage(page) {
   return { settle_ms: Math.round(nowMs() - started), network_idle: networkIdle };
 }
 
-function attachEvidence(page, evidence, navigationState) {
+function attachEvidence(page, evidence, navigationState, ledger) {
   page.on('console', (message) => {
     const item = { url: canonicalAuditUrl(page.url()), message: message.text().slice(0, 500) };
-    if (message.type() === 'error') evidence.consoleErrors.push(item);
+    if (message.type() === 'error') {
+      evidence.consoleErrors.push(item);
+      ledger.recordConsole(item);
+    }
     if (message.type() === 'warning') evidence.consoleWarnings.push(item);
   });
-  page.on('pageerror', (error) =>
-    evidence.consoleErrors.push({
+  page.on('pageerror', (error) => {
+    const item = {
       url: canonicalAuditUrl(page.url()),
       message: `pageerror: ${error.message}`.slice(0, 500),
-    }),
-  );
+    };
+    evidence.consoleErrors.push(item);
+    ledger.recordConsole(item);
+  });
+  page.on('request', (request) => ledger.ownRequest(request));
   page.on('requestfailed', (request) => {
     const detail = request.failure()?.errorText ?? 'failed';
     if (
@@ -118,6 +125,7 @@ function attachEvidence(page, evidence, navigationState) {
     };
     evidence.failures.push(item);
     evidence.network.push(item);
+    ledger.recordRequest(request, item);
   });
   page.on('response', (response) => {
     const item = {
@@ -133,6 +141,7 @@ function attachEvidence(page, evidence, navigationState) {
     if (response.status() >= 400) {
       evidence.failures.push({ kind: 'http', ...item });
       evidence.network.push({ kind: 'http', ...item });
+      ledger.recordRequest(response.request(), { kind: 'http', ...item });
     }
   });
 }
@@ -256,6 +265,19 @@ async function navigate(page, navigationState, target) {
 async function semanticEvidence(page, selectors) {
   const anchors = await Promise.all(
     selectors.map(async (selector) => {
+      if (typeof selector === 'object' && selector.kind === 'patient_messages') {
+        const composer = page.getByRole('textbox', { name: 'Текст сообщения', exact: true });
+        const submit = page.getByRole('button', { name: 'Отправить', exact: true });
+        const [composerCount, submitCount] = await Promise.all([composer.count(), submit.count()]);
+        return {
+          name: selector.name,
+          count: composerCount === 1 && submitCount === 1 ? 1 : 0,
+          visible:
+            composerCount === 1 && submitCount === 1 &&
+            (await composer.isVisible().catch(() => false)) &&
+            (await submit.isVisible().catch(() => false)),
+        };
+      }
       const locator = page.locator(selector);
       const count = await locator.count();
       return {
@@ -304,10 +326,10 @@ async function clickRequiredTabs(page, labels) {
   return proofs;
 }
 
-async function pageProof(page, navigationState, target, scenario, evidence) {
+async function pageProof(page, navigationState, target, scenario, evidence, ledger) {
   const started = nowMs();
-  const failuresBefore = evidence.failures.length;
-  const consoleBefore = evidence.consoleErrors.length;
+  const expectedUrl = canonicalAuditUrl(target);
+  ledger.begin(expectedUrl);
   const navigation = await navigate(page, navigationState, target);
   const body = (
     await page
@@ -317,7 +339,6 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   )
     .replace(/\s+/g, ' ')
     .trim();
-  const expectedUrl = canonicalAuditUrl(target);
   const finalUrl = canonicalAuditUrl(page.url());
   const selectors = selectorsForRoute(scenario, expectedUrl);
   const classification = classifyRoute(scenario, target);
@@ -333,14 +354,16 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   } catch (error) {
     tabFailure = compactError(error);
   }
+  const localEvidence = ledger.snapshot(expectedUrl);
+  ledger.end();
   const status = navigation.response?.status() ?? null;
   const observation = evaluatePageObservation({
     responseOk: Boolean(navigation.response?.ok()),
     urlOk: exactUrl,
     visibleFatal,
     ...semantics,
-    failures: evidence.failures.slice(failuresBefore),
-    consoleErrors: evidence.consoleErrors.slice(consoleBefore),
+    failures: localEvidence.failures,
+    consoleErrors: localEvidence.consoleErrors,
   });
   const pass = observation.pass && classification.pass && !tabFailure && tabs.every((tab) => tab.pass);
   return {
@@ -379,18 +402,16 @@ async function discoverUniqueTemplates(page, scenario, queuedTemplates) {
 }
 
 async function inventoryRenderedControls(page, scenario) {
-  const controls = await page.locator('form button, form input[type="submit"], form [role="button"]').evaluateAll((nodes) =>
+  const controls = await page.locator('button, input[type="submit"], [role="button"]').evaluateAll((nodes) =>
     nodes.map((node, index) => ({
       id: node.id || node.getAttribute('aria-label') || node.textContent?.trim() || `control-${index}`,
       route: `${globalThis.location.pathname}${globalThis.location.search}`,
     })),
   );
-  return controls.map((control) => {
-    const known = CONTROL_ADAPTER_MATRIX.some((adapter) =>
-      routeTemplateKey(adapter.route) === routeTemplateKey(control.route),
-    );
-    return { ...control, classification: known ? 'adapter_managed' : null };
-  });
+  return controls.map((control) => ({
+    ...control,
+    classification: classifyRenderedControl(control, CONTROL_ADAPTER_MATRIX),
+  }));
 }
 
 function registrationPolicy(body) {
@@ -720,64 +741,40 @@ async function doctorAvailabilityUiCycle(page, context, evidence, navigationStat
   });
 }
 
-async function resolveActualPatient(context, evidence) {
-  const response = await requestJson(
-    context,
-    evidence,
-    `/api/doctor/clients/search?q=${encodeURIComponent(patientPhone)}&limit=10`,
-  );
-  const exact = (response.body?.clients ?? []).filter(
-    (client) => client.phone === patientPhone && client.displayName === patientName,
-  );
-  if (!response.ok || exact.length !== 1)
-    throw new Error(`actual_patient_match_count:${exact.length}`);
-  return exact[0];
+async function resolveRenderedDoctorPatient(page, navigationState, scenario, evidence, ledger) {
+  await pageProof(page, navigationState, `${baseUrl}/app/doctor/patients`, scenario, evidence, ledger);
+  const links = page.locator('#doctor-patients-list a[href*="/app/doctor/patients/"]');
+  const candidate = links.filter({ hasText: patientName });
+  if ((await candidate.count()) !== 1)
+    throw new Error(`rendered_patient_link_match_count:${await candidate.count()}`);
+  const href = await candidate.getAttribute('href');
+  if (!href) throw new Error('rendered_patient_link_href_missing');
+  const discovery = discoverBounded({
+    knownTemplates: new Set(['/app/doctor/patients']),
+    hrefs: [new URL(href, baseUrl).href],
+    scenario,
+    limit: 1,
+  });
+  if (discovery.violations.length || discovery.discovered.length !== 1 || !discovery.discovered[0].classification.pass)
+    throw new Error('rendered_patient_link_not_bfs_discoverable');
+  return { href: discovery.discovered[0].href };
 }
 
-async function doctorPatientCardTabs(page, navigationState, patient) {
-  const results = [];
-  for (const [tabId, label] of DOCTOR_PATIENT_CARD_TABS) {
-    const target = `${baseUrl}/app/doctor/patients/${patient.id}?tab=${tabId}`;
-    const navigation = await navigate(page, navigationState, target);
-    const button = page.getByRole('button', { name: label, exact: true });
-    const activeClass = (await button.getAttribute('class')) ?? '';
-    const card = page.locator(`[id="doctor-patient-card-header"]`);
-    const body = (
-      await page
-        .locator('main')
-        .innerText()
-        .catch(() => '')
-    ).trim();
-    const programRoute = `/app/doctor/patients/:uuid/programs/:uuid`;
-    const urlOk = routeContractMatches(page.url(), target, tabId === 'program' ? [programRoute] : []);
-    results.push({
-      url: canonicalAuditUrl(target),
-      final_url: canonicalAuditUrl(page.url()),
-      pass:
-        Boolean(navigation.response?.ok()) &&
-        urlOk &&
-        (await card.isVisible().catch(() => false)) &&
-        activeClass.includes('bg-primary/15') &&
-        body.length > 20,
-      substantive:
-        Boolean(navigation.response?.ok()) &&
-        urlOk &&
-        (await card.isVisible().catch(() => false)) &&
-        activeClass.includes('bg-primary/15') &&
-        body.length > 20,
-      exact_url: urlOk,
-      ...(tabId === 'program' ? { intentional_redirect_templates: [programRoute] } : {}),
-      main_marker: { pass: true, marker: `Карточка пациента / ${label}` },
-      navigation_status: navigation.response?.status() ?? null,
-      characters: body.length,
-      navigation_ms: navigation.domcontentloadedMs + navigation.settle_ms,
-      domcontentloaded_ms: navigation.domcontentloadedMs,
-      settle_ms: navigation.settle_ms,
-      network_idle: navigation.network_idle,
-      patient_card_tab: tabId,
-    });
-  }
-  return results;
+async function doctorPatientCardTabs(page, navigationState, patient, scenario, evidence, ledger) {
+  // The only patient sample is a rendered list href.  Its page proof lets BFS
+  // collect program-detail hrefs from the rendered card rather than inventing IDs.
+  const card = await pageProof(page, navigationState, patient.href, scenario, evidence, ledger);
+  const discovered = await discoverUniqueTemplates(
+    page,
+    scenario,
+    new Set([routeTemplateKey(patient.href)]),
+  );
+  const program = discovered.discovered.filter((item) =>
+    /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/.test(item.template),
+  );
+  if (discovered.violations.length || program.length !== 1 || !program[0].classification.pass)
+    throw new Error('rendered_program_detail_not_bfs_discoverable');
+  return [card, await pageProof(page, navigationState, program[0].href, scenario, evidence, ledger)];
 }
 
 async function doctorCommentsAndPaymentControls(page, navigationState, patient, runPayment) {
@@ -813,7 +810,7 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
     await navigate(
       page,
       navigationState,
-      `${baseUrl}/app/doctor/patients/${patient.id}?tab=finances`,
+      new URL('?tab=finances', patient.href).href,
     );
     const amount = page.locator('#acq-amount');
     const submit = page.getByRole('button', { name: 'Создать ссылку на оплату', exact: true });
@@ -828,7 +825,7 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
     } else {
       const response = await waitForPost(
         page,
-        `/api/doctor/patients/${patient.id}/acquiring-charge`,
+        `/api/doctor/patients/${new URL(patient.href).pathname.split('/').at(-1)}/acquiring-charge`,
         () => submit.click(),
       );
       const visible = await page
@@ -1102,7 +1099,8 @@ async function auditRole(label, scenario, expectedOrganizationId) {
     ignoredHarnessAborts: 0,
   };
   const navigationState = { active: false };
-  attachEvidence(page, evidence, navigationState);
+  const ledger = createPageEvidenceLedger();
+  attachEvidence(page, evidence, navigationState, ledger);
   try {
     const authentication = await authenticate(context, label, scenario);
     const identityAssertion = await assertIdentity(
@@ -1125,12 +1123,12 @@ async function auditRole(label, scenario, expectedOrganizationId) {
     while (queue.length > 0) {
       const target = queue.shift();
       try {
-        const cold = await pageProof(page, navigationState, target, scenario, evidence);
+        const cold = await pageProof(page, navigationState, target, scenario, evidence, ledger);
         const discovery = await discoverUniqueTemplates(page, scenario, queuedTemplates);
         discoveryViolations.push(...discovery.violations);
         queue.push(...discovery.discovered.map((item) => item.href));
         renderedControls.push(...(await inventoryRenderedControls(page, scenario)));
-        const warm = await pageProof(page, navigationState, target, scenario, evidence);
+        const warm = await pageProof(page, navigationState, target, scenario, evidence, ledger);
         pages.push({
           ...cold,
           pass: cold.pass && warm.pass,
@@ -1154,8 +1152,8 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       actionChecks.push(...(await commercialUiCycles(page, context, evidence, navigationState)));
     }
     if (label === 'doctor') {
-      const patient = await resolveActualPatient(context, evidence);
-      pages.push(...(await doctorPatientCardTabs(page, navigationState, patient)));
+      const patient = await resolveRenderedDoctorPatient(page, navigationState, scenario, evidence, ledger);
+      pages.push(...(await doctorPatientCardTabs(page, navigationState, patient, scenario, evidence, ledger)));
       actionChecks.push(
         ...(await doctorCommentsAndPaymentControls(
           page,
@@ -1257,6 +1255,7 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       ignored_harness_aborts: evidence.ignoredHarnessAborts,
       discovery_violations: [...new Set(discoveryViolations)],
       rendered_controls: renderedControls,
+      unattributed_page_events: ledger.unattributed,
     };
   } finally {
     await context.close();

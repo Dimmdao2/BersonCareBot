@@ -1,3 +1,6 @@
+const explicitSeedDispositions = (routes) =>
+  routes.map((template) => ({ template, classification: 'substantive' }));
+
 export const ROLE_SCENARIOS = Object.freeze({
   global_admin: {
     syntheticToken: 'admin',
@@ -106,7 +109,24 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/doctor/references': ['#doctor-reference-measure-kinds'],
       '/app/doctor/content/sections/edit/warmups': ['#doctor-content-sections'],
     },
-    routeClassifications: [],
+    routeClassifications: [
+      ...explicitSeedDispositions([
+        '/app/doctor', '/app/doctor/patient-home', '/app/doctor/patients',
+        '/app/doctor/schedule?tab=cal', '/app/doctor/schedule?tab=work',
+        '/app/doctor/schedule?tab=setup&section=calendar', '/app/doctor/schedule?tab=setup&section=locations',
+        '/app/doctor/schedule?tab=setup&section=services', '/app/doctor/schedule?tab=setup&section=specialists',
+        '/app/doctor/schedule?tab=setup&section=form', '/app/doctor/schedule?tab=setup&section=payments',
+        '/app/doctor/schedule?tab=setup&section=rules', '/app/doctor/schedule?tab=setup&section=notifications',
+        '/app/doctor/schedule?tab=setup&section=packages', '/app/doctor/communications', '/app/doctor/exercises',
+        '/app/doctor/lfk-templates', '/app/doctor/clinical-tests', '/app/doctor/test-sets',
+        '/app/doctor/recommendations', '/app/doctor/treatment-program-templates',
+        '/app/doctor/treatment-program-promo', '/app/doctor/references', '/app/doctor/content',
+        '/app/doctor/content/library', '/app/doctor/courses', '/app/settings?tab=organization',
+        '/app/settings?tab=team', '/app/settings?tab=billing', '/app/account',
+      ]),
+      { template: /^\/app\/doctor\/patients\/:uuid\?tab=(?:overview|karta|program|records|files|comms|finances|account)(?:&.*)?$/, classification: 'substantive', semanticContract: { selectors: ['#doctor-patient-card-header'] } },
+      { template: /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/, classification: 'substantive', semanticContract: { selectors: ['#doctor-program-instance-summary'] } },
+    ],
     allowedFinalTemplates: {
       '/app/doctor/references': ['/app/doctor/references/clinical_test_measure_kind'],
     },
@@ -141,7 +161,7 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/patient/treatment': ['#patient-program-current-stage', '#patient-tp-list-hero-title'],
       '/app/patient/diary': ['#patient-diary-wellbeing-week-section'],
       '/app/patient/booking': ['[aria-label="Календарь доступных дат записи"]'],
-      '/app/patient/messages': ['[data-testid="patient-messages-readonly-notice"]', 'textarea'],
+      '/app/patient/messages': [{ kind: 'patient_messages', name: 'patient_messages_thread' }],
       '/app/patient/profile': ['#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'],
       '/app/patient/reminders': ['#patient-reminders-rehab'],
       '/app/patient/content/:slug': ['article[id^="patient-content-article-"]'],
@@ -149,7 +169,13 @@ export const ROLE_SCENARIOS = Object.freeze({
     allowedFinalTemplates: {
       '/app/patient/treatment': ['/app/patient/treatment/:uuid'],
     },
-    routeClassifications: [],
+    routeClassifications: explicitSeedDispositions([
+      '/app/patient', '/app/patient/treatment', '/app/patient/diary', '/app/patient/booking',
+      '/app/patient/messages', '/app/patient/profile', '/app/patient/organizations',
+      '/app/patient/notifications', '/app/patient/notifications/settings', '/app/patient/reminders',
+      '/app/patient/purchases', '/app/patient/courses', '/app/patient/about', '/app/patient/address',
+      '/app/patient/help', '/app/patient/support', '/app/patient/install',
+    ]),
   },
 });
 
@@ -167,6 +193,8 @@ export const DOCTOR_PATIENT_CARD_TABS = Object.freeze([
 export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   {
     id: 'admin.registration-tariff-policy',
+    controlId: 'Сохранить стартовый тариф',
+    disposition: 'reversible_adapter',
     role: 'global_admin',
     route: '/app/admin/commercial',
     contract:
@@ -174,18 +202,24 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'admin.trial-policy',
+    controlId: 'Сохранить правило',
+    disposition: 'reversible_adapter',
     role: 'global_admin',
     route: '/app/admin/commercial',
     contract: 'UI duration +/- 1 day -> save/reload -> GET exact -> UI restore/reload -> GET exact',
   },
   {
     id: 'admin.paid-period-policy',
+    controlId: 'Сохранить правило после оплаты',
+    disposition: 'reversible_adapter',
     role: 'global_admin',
     route: '/app/admin/commercial',
     contract: 'UI toggle isActive -> save/reload -> GET exact -> UI restore/reload -> GET exact',
   },
   {
     id: 'doctor.working-schedule',
+    controlId: 'btn-save',
+    disposition: 'reversible_adapter',
     role: 'doctor',
     route: '/app/doctor/schedule?tab=work',
     contract:
@@ -193,6 +227,8 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'doctor.service-location-availability',
+    controlId: 'service-location-availability-switch',
+    disposition: 'reversible_adapter',
     role: 'doctor',
     route: '/app/doctor/schedule?tab=setup&section=locations',
     contract:
@@ -200,6 +236,8 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'doctor.comments-patient-list',
+    controlId: 'btn-comments',
+    disposition: 'inspected_navigation',
     role: 'doctor',
     route: '/app/doctor/communications?tab=comments',
     contract:
@@ -207,18 +245,24 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'doctor.payment-link-control',
+    controlId: 'Создать ссылку на оплату',
+    disposition: 'retained_dev_action',
     role: 'doctor',
     route: '/app/doctor/patients/:uuid?tab=finances',
     contract: 'fill and submit rendered payment-link form -> require successful link readback',
   },
   {
     id: 'patient.program-reminder-enabled',
+    controlId: 'Включить напоминание программы',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract: 'exact program switch -> inverse -> reload/read -> click restore -> reload/read',
   },
   {
     id: 'patient.program-reminder-time',
+    controlId: 'Изменить расписание',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract:
@@ -226,12 +270,16 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'patient.warmup-reminder-enabled',
+    controlId: 'warmup-reminder-switch',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract: 'exact warmup switch -> inverse -> reload/read -> click restore -> reload/read',
   },
   {
     id: 'patient.warmup-reminder-time',
+    controlId: 'warmup-reminder-schedule',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract:
@@ -239,18 +287,24 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'patient.phone-change-flow',
+    controlId: 'phone-change-action',
+    disposition: 'external_manual_only',
     role: 'patient',
     route: '/app/patient/profile',
     contract: 'open bind-phone flow only; not mutated because it changes identity/contact',
   },
   {
     id: 'patient.daily-warmup-home-cta',
+    controlId: 'daily-warmup-home-cta',
+    disposition: 'inspected_navigation',
     role: 'patient',
     route: '/app/patient',
     contract: 'click rendered home CTA -> require a substantive daily-warmup content page',
   },
   {
     id: 'patient.chat-send',
+    controlId: 'Отправить',
+    disposition: 'retained_dev_action',
     role: 'patient',
     route: '/app/patient/messages',
     contract:

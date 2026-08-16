@@ -48,9 +48,6 @@ export function classifyRoute(scenario, input) {
   const matches = (scenario.routeClassifications ?? []).filter((entry) =>
     typeof entry.template === 'string' ? entry.template === template : entry.template.test(template),
   );
-  if (matches.length === 0 && (scenario.requiredStateSeeds ?? []).some((seed) => routeTemplateKey(seed) === template)) {
-    return { template, pass: true, classification: 'substantive' };
-  }
   if (matches.length !== 1) {
     return {
       template,
@@ -58,12 +55,35 @@ export function classifyRoute(scenario, input) {
       reason: matches.length === 0 ? 'route_unclassified' : 'route_classification_ambiguous',
     };
   }
-  return { template, pass: true, ...matches[0] };
+  const [match] = matches;
+  const selectors = match.semanticContract?.selectors ?? scenario.routeEvidence?.[template];
+  if (!Array.isArray(selectors) || selectors.length === 0) {
+    return { template, pass: false, reason: 'route_semantic_contract_missing' };
+  }
+  if (selectors.some((selector) => !isRouteScopedSemanticSelector(selector))) {
+    return { template, pass: false, reason: 'route_semantic_contract_generic' };
+  }
+  return { template, pass: true, ...match };
 }
 
 /** Explicit, route-scoped contracts prevent an app shell from becoming proof. */
 export function routeSelectors(scenario, input) {
-  return scenario.routeEvidence?.[routeTemplateKey(input)] ?? [];
+  const classified = classifyRoute(scenario, input);
+  return (
+    classified.semanticContract?.selectors ??
+    scenario.routeEvidence?.[classified.template] ??
+    []
+  );
+}
+
+/** Shell/form selectors are not evidence that this particular route rendered its content. */
+export function isRouteScopedSemanticSelector(selector) {
+  if (typeof selector === 'object' && selector?.kind === 'patient_messages') return true;
+  if (typeof selector !== 'string') return false;
+  const normalized = selector.trim();
+  if (!normalized || /^(?:main|form|button|input|textarea|\[role=)/.test(normalized)) return false;
+  if (/^\[data-testid=/.test(normalized)) return false;
+  return /(?:^#(?:admin|doctor|patient|booking|account)-|\[aria-label=|article\[id\^=)/.test(normalized);
 }
 
 export function discoverBounded({ knownTemplates, hrefs, scenario, limit }) {
@@ -157,10 +177,62 @@ export function summarizeBinaryGate(results, requiredRoles = []) {
       violations.push(`${result.role}:${violation}`);
     }
     for (const control of result.rendered_controls ?? []) {
-      if (!control.classification) violations.push(`${result.role}:control_unclassified:${control.id}`);
+      if (!control.classification || control.classification === 'ambiguous')
+        violations.push(`${result.role}:control_unclassified:${control.id}`);
     }
     if ((result.failures ?? []).length > 0) violations.push(`${result.role}:network`);
     if ((result.console_errors ?? []).length > 0) violations.push(`${result.role}:console`);
+    if ((result.unattributed_page_events ?? []).length > 0)
+      violations.push(`${result.role}:unattributed_page_event`);
   }
   return { pass: violations.length === 0, violations };
+}
+
+/** A control disposition is valid only for its exact route template and stable DOM identity. */
+export function classifyRenderedControl(control, adapters) {
+  const matches = adapters.filter(
+    (adapter) =>
+      routeTemplateKey(adapter.route) === routeTemplateKey(control.route) &&
+      adapter.controlId === control.id &&
+      adapter.disposition,
+  );
+  if (matches.length !== 1) return matches.length ? 'ambiguous' : null;
+  return matches[0].disposition;
+}
+
+/**
+ * Request ownership is fixed when the request starts.  Console/page errors are
+ * kept in the current route bucket; an event without a live bucket is a gate
+ * violation instead of being silently charged to the next page.
+ */
+export function createPageEvidenceLedger() {
+  const buckets = new Map();
+  const requestOwners = new WeakMap();
+  let active = null;
+  const unattributed = [];
+  return {
+    begin(route) {
+      active = route;
+      if (!buckets.has(route)) buckets.set(route, { failures: [], consoleErrors: [] });
+    },
+    end() {
+      active = null;
+    },
+    ownRequest(request) {
+      requestOwners.set(request, active);
+    },
+    recordRequest(request, item) {
+      const owner = requestOwners.get(request);
+      if (!owner || !buckets.has(owner)) unattributed.push(item);
+      else buckets.get(owner).failures.push(item);
+    },
+    recordConsole(item) {
+      if (!active || !buckets.has(active)) unattributed.push(item);
+      else buckets.get(active).consoleErrors.push(item);
+    },
+    snapshot(route) {
+      return buckets.get(route) ?? { failures: [], consoleErrors: [] };
+    },
+    unattributed,
+  };
 }
