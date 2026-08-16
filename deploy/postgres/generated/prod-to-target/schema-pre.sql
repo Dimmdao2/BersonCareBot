@@ -12308,6 +12308,43 @@ $_$;
 
 
 --
+-- Name: resolve_patient_acquiring_webhook_organization(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_patient_acquiring_webhook_organization(p_provider_id text, p_provider_payment_id text) RETURNS uuid
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_organization_ids uuid[];
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'patient-payment.webhook.resolve', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.resolve_patient_acquiring_webhook_organization(text,text)'::regprocedure);
+
+  IF p_provider_id IS NULL
+     OR p_provider_payment_id IS NULL
+     OR pg_catalog.btrim(p_provider_id) = ''
+     OR pg_catalog.btrim(p_provider_payment_id) = '' THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT array_agg(payment.organization_id)
+  INTO v_organization_ids
+  FROM public.patient_payment AS payment
+  WHERE payment.kind = 'acquiring'
+    AND payment.provider = p_provider_id
+    AND payment.provider_payment_id = p_provider_payment_id
+    AND payment.status IN ('pending', 'paid', 'failed', 'refunded')
+    AND payment.organization_id IS NOT NULL;
+
+  IF cardinality(v_organization_ids) = 1 THEN
+    RETURN v_organization_ids[1];
+  END IF;
+  RETURN NULL;
+END;
+$_$;
+
+
+--
 -- Name: resolve_payment_webhook_organization(text, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 

@@ -4228,6 +4228,13 @@ CREATE INDEX idx_patient_merge_candidates_org_status ON public.patient_merge_can
 
 
 --
+-- Name: idx_patient_payment_acquiring_webhook_authority; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_patient_payment_acquiring_webhook_authority ON public.patient_payment USING btree (provider, provider_payment_id) WHERE ((kind = 'acquiring'::text) AND (status = ANY (ARRAY['pending'::text, 'paid'::text, 'failed'::text, 'refunded'::text])) AND (organization_id IS NOT NULL));
+
+
+--
 -- Name: idx_patient_payment_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16630,6 +16637,13 @@ CREATE POLICY rev10_named_root_owner_gate_150 ON public.patient_merge_candidates
 
 
 --
+-- Name: patient_payment rev10_named_root_owner_gate_151; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_151 ON public.patient_payment AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+
+
+--
 -- Name: phone_challenges rev10_named_root_owner_gate_154; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -18871,6 +18885,13 @@ CREATE POLICY rev10_seam_business_148 ON public.patient_invites TO app_seam_pati
 --
 
 CREATE POLICY rev10_seam_business_150 ON public.patient_merge_candidates TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
+
+
+--
+-- Name: patient_payment rev10_seam_business_151; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_151 ON public.patient_payment TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
 
 
 --

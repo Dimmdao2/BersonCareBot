@@ -473,6 +473,7 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (472, '31
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (473, '2c4bd7c08a7b50b20e59e23a5f649fb4e60299c5c8f334da168aa773828af891', 1793539230189);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (474, '0fc8292313e5c9abc50b9b5005bdeb25b2ef1071caf0410ec108dd86fa4037d9', 1793539230190);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (475, '1ed05ce811aef1ea91bc68dadf5eed7032741a4044601a1a9367f0c6a9cde3b1', 1793539230191);
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES (476, '8611e5f1983b2eb5fd18af56c55b3b16575174bceb9a838688d34338fb58b058', 1793539230192);
 
 
 --
@@ -629,7 +630,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 475, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 476, true);
 
 
 --
