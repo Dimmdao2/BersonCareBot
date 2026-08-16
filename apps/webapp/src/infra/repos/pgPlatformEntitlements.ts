@@ -732,10 +732,15 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           updatedBy: audit.actorId,
           updatedAt: new Date().toISOString(),
         };
+        const updateValues = {
+          ...policy,
+          updatedBy: audit.actorId,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasTrialPolicy)
           .values(values)
-          .onConflictDoUpdate({ target: saasTrialPolicy.key, set: values })
+          .onConflictDoUpdate({ target: saasTrialPolicy.key, set: updateValues })
           .returning();
         await appendAudit(tx, {
           audit,
@@ -767,10 +772,17 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           updatedBy: audit.actorId,
           updatedAt: new Date().toISOString(),
         };
+        const updateValues = {
+          postPaidPeriodBehavior: policy.postPaidPeriodBehavior,
+          postPaidPeriodTariffId: policy.postPaidPeriodTariffId,
+          isActive: policy.isActive,
+          updatedBy: audit.actorId,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasPaidPeriodPolicy)
           .values(values)
-          .onConflictDoUpdate({ target: saasPaidPeriodPolicy.key, set: values })
+          .onConflictDoUpdate({ target: saasPaidPeriodPolicy.key, set: updateValues })
           .returning();
         await appendAudit(tx, {
           audit,
@@ -798,10 +810,15 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           updatedBy: audit.actorId,
           updatedAt: new Date().toISOString(),
         };
+        const updateValues = {
+          tariffId: policy.tariffId,
+          updatedBy: audit.actorId,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasRegistrationTariffPolicy)
           .values(values)
-          .onConflictDoUpdate({ target: saasRegistrationTariffPolicy.key, set: values })
+          .onConflictDoUpdate({ target: saasRegistrationTariffPolicy.key, set: updateValues })
           .returning();
         await appendAudit(tx, {
           audit,
