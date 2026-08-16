@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   canonicalAuditUrl,
   classifyRenderedControl,
@@ -14,12 +17,25 @@ import {
   shouldIgnoreRequestFailure,
   summarizeBinaryGate,
 } from './gate-utils.mjs';
-import { ROLE_SCENARIOS } from './scenarios.mjs';
+import { DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   buildTraversalPlan,
   classifyControlInventory,
+  initializeRenderedTraversal,
   missingCanonicalNavigation,
+  staticContractViolations,
+  validateDoctorPatientTabTraversal,
 } from './audit-engine.mjs';
+
+const auditDirectory = dirname(fileURLToPath(import.meta.url));
+const productSourceRoot = join(auditDirectory, '../../apps/webapp/src');
+const productSources = (directory) => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+  const path = join(directory, entry.name);
+  if (entry.isDirectory()) return productSources(path);
+  return /\.[cm]?[jt]sx?$/.test(entry.name) && !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
+    ? [readFileSync(path, 'utf8')]
+    : [];
+});
 
 test('preserves tab and section query while redacting only entity identifiers', () => {
   const url =
@@ -303,12 +319,47 @@ test('the 64-route census has exactly one explicit, route-specific contract per 
   }
 });
 
+test('runner static contract gate rejects an invented selector while real contracts map to product primitives', () => {
+  const source = ['<section id="real-product-surface" />'];
+  const invented = {
+    doctor: {
+      routeClassifications: [{
+        template: '/app/doctor/invented',
+        classification: 'substantive',
+        semanticContract: { selectors: ['#invented-route-anchor'] },
+      }],
+    },
+  };
+  assert.deepEqual(staticContractViolations(invented, source), [
+    'doctor:/app/doctor/invented:product_semantic_primitive_missing:invented-route-anchor',
+  ]);
+  assert.deepEqual(staticContractViolations({ doctor: {
+    routeClassifications: [{
+      template: '/app/doctor/real', classification: 'substantive',
+      semanticContract: { selectors: ['#real-product-surface'] },
+    }],
+  } }, source), []);
+  assert.deepEqual(
+    staticContractViolations(ROLE_SCENARIOS, productSources(productSourceRoot), DOCTOR_PATIENT_CARD_TABS),
+    [],
+  );
+});
+
 test('canonical navigation is distinct from query-state seeds and a missing manifest destination is red', () => {
   const scenario = ROLE_SCENARIOS.doctor;
   const plan = buildTraversalPlan(scenario, 'http://127.0.0.1:5200');
-  assert.equal(plan.canonical.some((route) => route.includes('section=locations')), false);
-  const observed = scenario.canonicalNavigationDestinations.filter((route) => route !== '/app/doctor/lfk-templates');
-  assert.deepEqual(missingCanonicalNavigation(scenario, observed), ['/app/doctor/lfk-templates']);
+  assert.equal(plan.stateSeeds.some((route) => route.includes('lfk-templates')), false);
+  assert.equal(plan.stateSeeds.some((route) => route.includes('section=locations')), true);
+  const rendered = scenario.canonicalNavigationDestinations
+    .filter((route) => route !== '/app/doctor/lfk-templates')
+    .map((route) => `http://127.0.0.1:5200${route}`);
+  const traversal = initializeRenderedTraversal({
+    scenario,
+    baseUrl: 'http://127.0.0.1:5200',
+    navigationHrefs: rendered,
+  });
+  assert.equal(traversal.queue.some((route) => route.includes('/app/doctor/lfk-templates')), false);
+  assert.deepEqual(missingCanonicalNavigation(scenario, traversal.canonicalNavigationSeen), ['/app/doctor/lfk-templates']);
   for (const route of scenario.canonicalNavigationDestinations) {
     assert.equal(classifyRoute(scenario, route).pass, true, `canonical ${route}`);
   }
@@ -325,6 +376,48 @@ test('the runner inventory rejects text/index fallback, duplicates, and every ac
   assert.equal(controls.filter((control) => control.kind === 'editable').length, 2);
   assert.equal(controls.find((control) => control.identity === null)?.classification, null);
   assert.equal(controls.filter((control) => control.identity === 'stable-switch').every((control) => control.duplicate), true);
+});
+
+test('a rendered same-origin allowed link is inspected navigation, while external remains manual-only', () => {
+  const scenario = {
+    allowedPathnames: ['/app/patient'],
+    routeClassifications: [{
+      template: '/app/patient/diary', classification: 'substantive',
+      semanticContract: { selectors: ['#patient-diary'] },
+    }],
+  };
+  const controls = classifyControlInventory([
+    { kind: 'link', ariaLabel: 'Дневник', href: 'http://127.0.0.1:5200/app/patient/diary' },
+    { kind: 'link', ariaLabel: 'Сайт', href: 'https://example.test/contact' },
+  ], 'patient', '/app/patient', [], classifyRenderedControl, {
+    scenario,
+    observedTemplates: new Set(['/app/patient/diary']),
+  });
+  assert.deepEqual(controls.map((control) => control.classification), [
+    'inspected_navigation',
+    'external_manual_only',
+  ]);
+});
+
+test('eight patient-card tab contracts and program href are fail-closed at runner engine boundary', () => {
+  const expected = [
+    ['overview'], ['karta'], ['program'], ['records'], ['files'], ['comms'], ['finances'], ['account'],
+  ];
+  const all = expected.map(([tab]) => ({ tab, pass: true }));
+  assert.deepEqual(validateDoctorPatientTabTraversal({
+    expectedTabs: expected,
+    tabProofs: all,
+    programHref: '/app/doctor/patients/11111111-1111-4111-8111-111111111111/programs/22222222-2222-4222-8222-222222222222',
+  }), { pass: true, violations: [] });
+  const lateProgram = validateDoctorPatientTabTraversal({
+    expectedTabs: expected,
+    tabProofs: all.filter((proof) => proof.tab !== 'files'),
+    programHref: null,
+  });
+  assert.deepEqual(lateProgram.violations, [
+    'doctor_patient_tab_missing_or_failed:files',
+    'rendered_program_detail_href_missing_while_program_tab_active',
+  ]);
 });
 
 test('admin discovery starts from clinics and declares every proven alias', () => {

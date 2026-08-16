@@ -81,11 +81,21 @@ export function routeSelectors(scenario, input) {
 /** Shell/form selectors are not evidence that this particular route rendered its content. */
 export function isRouteScopedSemanticSelector(selector) {
   if (typeof selector === 'object' && selector?.kind === 'patient_messages') return true;
+  if (typeof selector === 'object' && selector?.kind === 'text')
+    return typeof selector.text === 'string' && selector.text.trim().length > 0;
+  if (typeof selector === 'object' && selector?.kind === 'compound')
+    return Array.isArray(selector.all)
+      && selector.all.length >= 2
+      && selector.all.every(isRouteScopedSemanticSelector);
   if (typeof selector !== 'string') return false;
   const normalized = selector.trim();
   if (!normalized || /^(?:main|form|button|input|textarea|\[role=)/.test(normalized)) return false;
   if (/^\[data-testid=/.test(normalized)) return false;
-  return /(?:^#(?:admin|doctor|patient|booking|account|trial|platform)-|\[aria-label=|article\[id\^=)/.test(normalized);
+  // Exact IDs are accepted only through the static product-contract gate and
+  // the live uniqueness check; generic document/shell IDs remain forbidden.
+  if (/^#(?:app-root|app-shell-content|app-shell-doctor|app-shell-patient|main)$/.test(normalized)) return false;
+  return /^#[A-Za-z][\w-]*$/.test(normalized)
+    || /(?:\[aria-label=|article\[id\^=)/.test(normalized);
 }
 
 export function discoverBounded({ knownTemplates, hrefs, scenario, limit }) {
@@ -200,6 +210,7 @@ export function classifyRenderedControl(control, adapters) {
       routeTemplateKey(adapter.route) === routeTemplateKey(control.route) &&
       adapter.controlKind === control.kind &&
       adapter.controlId === control.identity &&
+      (!adapter.href || adapter.href === control.href) &&
       adapter.disposition,
   );
   if (matches.length !== 1) return matches.length ? 'ambiguous' : null;

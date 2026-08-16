@@ -1,12 +1,93 @@
-const routeAnchor = (route) => ({
-  template: route,
-  classification: 'substantive',
-  // A route-specific landmark is required; the live runner treats absence or
-  // ambiguity as red.  This is deliberately not a shell/form/testid fallback.
-  semanticContract: { selectors: [`#doctor-route-${route.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-surface`] },
+/**
+ * These are product selectors/semantic primitives, not harness markers.  A
+ * compound contract is used only where a route has no single unique landmark:
+ * every part must be unique and visible in the live page.
+ */
+const semanticText = (text) => ({ kind: 'text', text, exact: true });
+const compound = (...parts) => ({ kind: 'compound', all: parts });
+const explicitRoute = (template, semanticContract, classification = 'substantive') => ({
+  template,
+  classification,
+  semanticContract: { selectors: [semanticContract] },
 });
-const withContracts = (routes, overrides = {}) => routes.map((route) =>
-  overrides[route] ?? routeAnchor(route));
+
+const CONTRACT = Object.freeze({
+  '/app/admin/system-health': '[aria-label="Сигналы изоляции за 7 дней"]',
+  '/app/account?tab=security': '#account-current-password',
+  '/app/doctor/analytics': '#doctor-analytics-tabs',
+  '/app/admin/clinics': '#clinics-filter-q',
+  '/app/admin/commercial': '#trial-duration',
+  '/app/admin/payments': '#platform-payments',
+  '/app/admin/app-settings': '#smtp-host',
+  '/app/admin/auth': '#auth-google-client-id',
+  '/app/admin/booking': '#booking-online-default-color',
+  '/app/admin/integrations': compound(semanticText('Интеграции'), semanticText('Доступность')),
+  '/app/admin/technical': '#error-tracking-dsn',
+  '/app/admin/health-archive': compound(semanticText('Архив сбоев'), semanticText('Загружаем архив…')),
+  '/app/admin/audit-log': '#admin-audit-log',
+  '/app/admin/clinics/:uuid': compound(semanticText('Переопределения'), semanticText('Аккаунты клиники')),
+  '/app/admin/booking/catalog': '#booking-online-default-color',
+  '/app/admin/booking/form-public': '#booking-online-default-color',
+  '/app/admin/booking/payments': '#booking-online-default-color',
+  '/app/admin/promo': compound(semanticText('Промо-программа по умолчанию'), semanticText('Статистика (promo)')),
+
+  '/app/doctor': '#doctor-today-dashboard',
+  '/app/doctor/patient-home': '#patient-home-practice-target-heading',
+  '/app/doctor/patients': '#doctor-patients-list',
+  '/app/doctor/schedule': '#doctor-schedule-tabs',
+  '/app/doctor/schedule?tab=cal': '[aria-label="Календарь"]',
+  '/app/doctor/schedule?tab=work': '[aria-label="Фильтр по филиалу"]',
+  '/app/doctor/schedule?tab=setup&section=calendar': compound(semanticText('Календарь'), semanticText('Окно календаря по умолчанию')),
+  '/app/doctor/schedule?tab=setup&section=locations': '#booking-online-location',
+  '/app/doctor/schedule?tab=setup&section=services': '#booking-online-default-color',
+  '/app/doctor/schedule?tab=setup&section=specialists': '#clinic-member-invite-form',
+  '/app/doctor/schedule?tab=setup&section=form': '#public-book-shell',
+  '/app/doctor/schedule?tab=setup&section=payments': '#saas-yookassa-shop-id',
+  '/app/doctor/schedule?tab=setup&section=rules': '#appointment-reminder-default',
+  '/app/doctor/schedule?tab=setup&section=notifications': '#notification-presentation-title',
+  '/app/doctor/schedule?tab=setup&section=packages': compound(semanticText('Шаблоны абонементов'), semanticText('Создать шаблон')),
+  '/app/doctor/communications': '#doctor-communications-tabs',
+  '/app/doctor/exercises': '#ex-title',
+  '/app/doctor/lfk-templates': '#doctor-lfk-templates-new-link',
+  '/app/doctor/clinical-tests': '#doctor-clinical-tests-create',
+  '/app/doctor/test-sets': '#ts-title',
+  '/app/doctor/recommendations': '#doctor-recommendations-create',
+  '/app/doctor/treatment-program-templates': '#doctor-treatment-program-templates-new',
+  '/app/doctor/treatment-program-promo': compound(semanticText('Промо-программа по умолчанию'), semanticText('Статистика (promo)')),
+  '/app/doctor/references': '#doctor-reference-measure-kinds',
+  '/app/doctor/content': '#doctor-content-header',
+  '/app/doctor/content/library': '#doctor-content-library-section',
+  '/app/doctor/courses': '#course-title',
+  '/app/settings': '#org-brand-name',
+  '/app/settings?tab=organization': '#org-brand-name',
+  '/app/settings?tab=team': '#clinic-member-invite-form',
+  '/app/settings?tab=billing': '#saas-billing-email',
+  '/app/account': '#doctor-account-email',
+
+  '/app/patient': '#patient-home-today-layout',
+  '/app/patient/treatment': compound('#patient-program-current-stage', '#patient-tp-list-hero-title'),
+  '/app/patient/diary': '#patient-diary-wellbeing-week-section',
+  '/app/patient/booking': '[aria-label="Календарь доступных дат записи"]',
+  '/app/patient/messages': { kind: 'patient_messages', name: 'patient_messages_thread' },
+  '/app/patient/profile': compound('#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'),
+  '/app/patient/organizations': '[aria-label="Доступные организации"]',
+  '/app/patient/notifications': compound(semanticText('Уведомления'), semanticText('Настройки уведомлений')),
+  '/app/patient/notifications/settings': compound(semanticText('Настройки уведомлений'), semanticText('Уведомления')),
+  '/app/patient/reminders': '#patient-reminders-rehab',
+  '/app/patient/purchases': compound(semanticText('Мои покупки'), semanticText('Курсы, доступы и подписки')),
+  '/app/patient/courses': compound(semanticText('Курсы'), semanticText('Каталог курсов')),
+  '/app/patient/about': compound(semanticText('О специалисте'), semanticText('на моём сайте')),
+  '/app/patient/address': compound(semanticText('Адрес кабинета'), semanticText('Открыть адрес')),
+  '/app/patient/help': compound(semanticText('Справка'), semanticText('Поддержка')),
+  '/app/patient/support': '#support-message',
+  '/app/patient/install': compound(semanticText('Установить приложение'), semanticText('Установка на устройство')),
+});
+
+const contractsFor = (routes) => routes.map((route) => {
+  const contract = CONTRACT[route];
+  if (!contract) throw new Error(`missing_explicit_route_contract:${route}`);
+  return explicitRoute(route, contract);
+});
 
 export const ROLE_SCENARIOS = Object.freeze({
   global_admin: {
@@ -45,36 +126,16 @@ export const ROLE_SCENARIOS = Object.freeze({
     requiredTabs: {
       '/app/admin/commercial': ['Тарифы', 'Организации', 'Триал', 'Уведомления', 'Рассылки'],
     },
-    // Semantic anchors intentionally avoid translated/editorial headings.
-    routeEvidence: {
-      '/app/admin/system-health': ['[aria-label="Сигналы изоляции за 7 дней"]'],
-      '/app/admin/commercial': ['#trial-duration'],
-      '/app/admin/payments': ['#platform-payments'],
-      '/app/admin/audit-log': ['#admin-audit-log'],
-      '/app/admin/booking': ['#booking-online-default-color'],
-      '/app/admin/booking/catalog': ['#booking-online-default-color'],
-      '/app/admin/booking/form-public': ['#booking-online-default-color'],
-      '/app/admin/booking/payments': ['#booking-online-default-color'],
-      '/app/admin/promo': ['#doctor-treatment-program-promo'],
-      '/app/admin/clinics/:uuid': ['#admin-clinic-detail'],
-    },
     routeClassifications: [
-      ...withContracts([
+      ...contractsFor([
         '/app/admin/system-health', '/app/account?tab=security', '/app/doctor/analytics',
         '/app/admin/clinics', '/app/admin/commercial', '/app/admin/payments', '/app/admin/app-settings',
         '/app/admin/auth', '/app/admin/booking', '/app/admin/integrations', '/app/admin/technical',
         '/app/admin/health-archive', '/app/admin/audit-log', '/app/admin/clinics/:uuid',
-      ], {
-        '/app/admin/system-health': { template: '/app/admin/system-health', classification: 'substantive', semanticContract: { selectors: ['[aria-label="Сигналы изоляции за 7 дней"]'] } },
-        '/app/admin/commercial': { template: '/app/admin/commercial', classification: 'substantive', semanticContract: { selectors: ['#trial-duration'] } },
-        '/app/admin/payments': { template: '/app/admin/payments', classification: 'substantive', semanticContract: { selectors: ['#platform-payments'] } },
-        '/app/admin/audit-log': { template: '/app/admin/audit-log', classification: 'substantive', semanticContract: { selectors: ['#admin-audit-log'] } },
-        '/app/admin/booking': { template: '/app/admin/booking', classification: 'substantive', semanticContract: { selectors: ['#booking-online-default-color'] } },
-        '/app/admin/clinics/:uuid': { template: '/app/admin/clinics/:uuid', classification: 'substantive', semanticContract: { selectors: ['#admin-clinic-detail'] } },
-      }),
+      ]),
       ...['/app/admin/booking/catalog', '/app/admin/booking/form-public', '/app/admin/booking/payments']
-        .map((template) => ({ ...routeAnchor(template), classification: 'redirect', finalTemplate: '/app/admin/booking' })),
-      { ...routeAnchor('/app/admin/promo'), classification: 'redirect', finalTemplate: '/app/doctor/treatment-program-promo' },
+        .map((template) => ({ ...explicitRoute(template, CONTRACT[template]), classification: 'redirect', finalTemplate: '/app/admin/booking' })),
+      { ...explicitRoute('/app/admin/promo', CONTRACT['/app/admin/promo']), classification: 'redirect', finalTemplate: '/app/doctor/treatment-program-promo' },
     ],
     allowedFinalTemplates: {
       '/app/admin/booking/catalog': ['/app/admin/booking'],
@@ -130,15 +191,8 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/settings?tab=billing',
       '/app/account',
     ],
-    routeEvidence: {
-      '/app/doctor': ['#doctor-today-dashboard'],
-      '/app/doctor/communications': ['#doctor-communications-tabs'],
-      '/app/doctor/content': ['#doctor-content-header'],
-      '/app/doctor/references': ['#doctor-reference-measure-kinds'],
-      '/app/doctor/content/sections/edit/warmups': ['#doctor-content-sections'],
-    },
     routeClassifications: [
-      ...withContracts([
+      ...contractsFor([
         '/app/doctor', '/app/doctor/patient-home', '/app/doctor/patients',
         '/app/doctor/schedule', '/app/settings',
         '/app/doctor/schedule?tab=cal', '/app/doctor/schedule?tab=work',
@@ -152,13 +206,7 @@ export const ROLE_SCENARIOS = Object.freeze({
         '/app/doctor/treatment-program-promo', '/app/doctor/references', '/app/doctor/content',
         '/app/doctor/content/library', '/app/doctor/courses', '/app/settings?tab=organization',
         '/app/settings?tab=team', '/app/settings?tab=billing', '/app/account',
-      ], {
-        '/app/doctor': { template: '/app/doctor', classification: 'substantive', semanticContract: { selectors: ['#doctor-today-dashboard'] } },
-        '/app/doctor/patients': { template: '/app/doctor/patients', classification: 'substantive', semanticContract: { selectors: ['#doctor-patients-list'] } },
-        '/app/doctor/communications': { template: '/app/doctor/communications', classification: 'substantive', semanticContract: { selectors: ['#doctor-communications-tabs'] } },
-        '/app/doctor/content': { template: '/app/doctor/content', classification: 'substantive', semanticContract: { selectors: ['#doctor-content-header'] } },
-        '/app/doctor/references': { template: '/app/doctor/references', classification: 'substantive', semanticContract: { selectors: ['#doctor-reference-measure-kinds'] } },
-      }),
+      ]),
       { template: /^\/app\/doctor\/patients\/:uuid\?tab=(?:overview|karta|program|records|files|comms|finances|account)(?:&.*)?$/, classification: 'substantive', semanticContract: { selectors: ['#doctor-patient-card-header'] } },
       { template: /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/, classification: 'substantive', semanticContract: { selectors: ['#doctor-program-instance-summary'] } },
     ],
@@ -192,46 +240,28 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/patient/support',
       '/app/patient/install',
     ],
-    routeEvidence: {
-      '/app/patient': ['#patient-home-today-layout'],
-      '/app/patient/treatment': ['#patient-program-current-stage', '#patient-tp-list-hero-title'],
-      '/app/patient/diary': ['#patient-diary-wellbeing-week-section'],
-      '/app/patient/booking': ['[aria-label="Календарь доступных дат записи"]'],
-      '/app/patient/messages': [{ kind: 'patient_messages', name: 'patient_messages_thread' }],
-      '/app/patient/profile': ['#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'],
-      '/app/patient/reminders': ['#patient-reminders-rehab'],
-      '/app/patient/content/:slug': ['article[id^="patient-content-article-"]'],
-    },
     allowedFinalTemplates: {
       '/app/patient/treatment': ['/app/patient/treatment/:uuid'],
     },
-    routeClassifications: withContracts([
+    routeClassifications: contractsFor([
       '/app/patient', '/app/patient/treatment', '/app/patient/diary', '/app/patient/booking',
       '/app/patient/messages', '/app/patient/profile', '/app/patient/organizations',
       '/app/patient/notifications', '/app/patient/notifications/settings', '/app/patient/reminders',
       '/app/patient/purchases', '/app/patient/courses', '/app/patient/about', '/app/patient/address',
       '/app/patient/help', '/app/patient/support', '/app/patient/install',
-    ], {
-      '/app/patient': { template: '/app/patient', classification: 'substantive', semanticContract: { selectors: ['#patient-home-today-layout'] } },
-      '/app/patient/treatment': { template: '/app/patient/treatment', classification: 'substantive', semanticContract: { selectors: ['#patient-program-current-stage', '#patient-tp-list-hero-title'] } },
-      '/app/patient/diary': { template: '/app/patient/diary', classification: 'substantive', semanticContract: { selectors: ['#patient-diary-wellbeing-week-section'] } },
-      '/app/patient/booking': { template: '/app/patient/booking', classification: 'substantive', semanticContract: { selectors: ['[aria-label="Календарь доступных дат записи"]'] } },
-      '/app/patient/messages': { template: '/app/patient/messages', classification: 'substantive', semanticContract: { selectors: [{ kind: 'patient_messages', name: 'patient_messages_thread' }] } },
-      '/app/patient/profile': { template: '/app/patient/profile', classification: 'substantive', semanticContract: { selectors: ['#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'] } },
-      '/app/patient/reminders': { template: '/app/patient/reminders', classification: 'substantive', semanticContract: { selectors: ['#patient-reminders-rehab'] } },
-    }),
+    ]),
   },
 });
 
 export const DOCTOR_PATIENT_CARD_TABS = Object.freeze([
-  ['overview', 'Обзор'],
-  ['karta', 'Карточка'],
-  ['program', 'Программа'],
-  ['records', 'Визиты'],
-  ['files', 'Файлы'],
-  ['comms', 'Коммуникации'],
-  ['finances', 'Финансы'],
-  ['account', 'Учётка'],
+  ['overview', 'Обзор', compound(semanticText('Актуальные симптомы'), semanticText('Выполнение упражнений'))],
+  ['karta', 'Карточка', compound(semanticText('Симптомы'), semanticText('История визитов'))],
+  ['program', 'Программа', compound(semanticText('Программа лечения'), semanticText('Назначить программу'))],
+  ['records', 'Визиты', compound(semanticText('Визиты'), semanticText('Предстоящие'))],
+  ['files', 'Файлы', compound('#upload-file-input', '#upload-display-name')],
+  ['comms', 'Коммуникации', compound(semanticText('Сообщения'), semanticText('Чат поддержки'))],
+  ['finances', 'Финансы', compound('#cash-amount', '#acq-amount')],
+  ['account', 'Учётка', compound(semanticText('Контакты и каналы'), semanticText('Блокировки и доступ'))],
 ]);
 
 export const CONTROL_ADAPTER_MATRIX = Object.freeze([

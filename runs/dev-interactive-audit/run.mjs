@@ -3,13 +3,18 @@
  * Binary live gate for the already-running canonical DEV server. It neither
  * starts services nor changes schema/grants. Mutation adapters are opt-in.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '../clickthrough/lib/browser.mjs';
 import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   buildTraversalPlan,
   classifyControlInventory,
+  initializeRenderedTraversal,
   missingCanonicalNavigation,
+  staticContractViolations,
+  validateDoctorPatientTabTraversal,
 } from './audit-engine.mjs';
 import {
   canonicalAuditUrl,
@@ -74,6 +79,25 @@ const stats = (numbers) => {
   };
 };
 const equalJson = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+function productSourceFiles(root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) return productSourceFiles(path);
+    return /\.[cm]?[jt]sx?$/.test(entry.name) && !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
+      ? [path]
+      : [];
+  });
+}
+
+function productContractStaticGate() {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '../../apps/webapp/src');
+  return staticContractViolations(
+    ROLE_SCENARIOS,
+    productSourceFiles(root).map((path) => readFileSync(path, 'utf8')),
+    DOCTOR_PATIENT_CARD_TABS,
+  );
+}
 
 async function firstVisible(locator) {
   for (let index = 0; index < (await locator.count()); index += 1) {
@@ -269,30 +293,39 @@ async function navigate(page, navigationState, target) {
 }
 
 async function semanticEvidence(page, selectors) {
-  const anchors = await Promise.all(
-    selectors.map(async (selector) => {
-      if (typeof selector === 'object' && selector.kind === 'patient_messages') {
-        const composer = page.getByRole('textbox', { name: 'Текст сообщения', exact: true });
-        const submit = page.getByRole('button', { name: 'Отправить', exact: true });
-        const [composerCount, submitCount] = await Promise.all([composer.count(), submit.count()]);
-        return {
-          name: selector.name,
-          count: composerCount === 1 && submitCount === 1 ? 1 : 0,
-          visible:
-            composerCount === 1 && submitCount === 1 &&
-            (await composer.isVisible().catch(() => false)) &&
-            (await submit.isVisible().catch(() => false)),
-        };
-      }
-      const locator = page.locator(selector);
-      const count = await locator.count();
+  const evidenceFor = async (selector) => {
+    if (selector?.kind === 'compound') {
+      const parts = await Promise.all(selector.all.map(evidenceFor));
       return {
-        name: selector,
-        count,
-        visible: count === 1 && (await locator.isVisible().catch(() => false)),
+        name: `compound:${parts.map((part) => part.name).join('&')}`,
+        count: parts.every((part) => part.count === 1) ? 1 : 0,
+        visible: parts.every((part) => part.visible),
       };
-    }),
-  );
+    }
+    if (selector?.kind === 'patient_messages') {
+      const composer = page.getByRole('textbox', { name: 'Текст сообщения', exact: true });
+      const submit = page.getByRole('button', { name: 'Отправить', exact: true });
+      const [composerCount, submitCount] = await Promise.all([composer.count(), submit.count()]);
+      return {
+        name: selector.name,
+        count: composerCount === 1 && submitCount === 1 ? 1 : 0,
+        visible:
+          composerCount === 1 && submitCount === 1 &&
+          (await composer.isVisible().catch(() => false)) &&
+          (await submit.isVisible().catch(() => false)),
+      };
+    }
+    const locator = selector?.kind === 'text'
+      ? page.getByText(selector.text, { exact: selector.exact !== false })
+      : page.locator(selector);
+    const count = await locator.count();
+    return {
+      name: typeof selector === 'string' ? selector : `${selector.kind}:${selector.text ?? ''}`,
+      count,
+      visible: count === 1 && (await locator.isVisible().catch(() => false)),
+    };
+  };
+  const anchors = await Promise.all(selectors.map(evidenceFor));
   return { mainCount: await page.locator('main').count(), anchors };
 }
 
@@ -429,6 +462,7 @@ async function inventoryRenderedControls(page, scenario) {
       name: node.getAttribute('name'),
       ariaLabel: node.getAttribute('aria-label'),
       testId: node.getAttribute('data-testid'),
+      href: tag === 'a' ? node.href : null,
     };
   }));
   return classifyControlInventory(
@@ -437,7 +471,15 @@ async function inventoryRenderedControls(page, scenario) {
     `${await page.url()}`,
     CONTROL_ADAPTER_MATRIX,
     classifyRenderedControl,
+    { scenario, observedTemplates: scenario.observedTemplates },
   );
+}
+
+async function renderedNavigationHrefs(page) {
+  return page.locator('nav a[href]').evaluateAll((anchors) => anchors.filter((anchor) => {
+    const style = globalThis.getComputedStyle(anchor);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  }).map((anchor) => anchor.href));
 }
 
 function registrationPolicy(body) {
@@ -791,7 +833,8 @@ async function doctorPatientCardTabs(page, navigationState, patient, scenario, e
   // that rendered card; no entity/tab URL is constructed by the harness.
   const card = await pageProof(page, navigationState, patient.href, scenario, evidence, ledger);
   const tabProofs = [];
-  for (const [tabId, label] of DOCTOR_PATIENT_CARD_TABS) {
+  let programHref = null;
+  for (const [tabId, label, contract] of DOCTOR_PATIENT_CARD_TABS) {
     const tab = await firstVisible(page.getByRole('tab', { name: label, exact: true }))
       ?? await firstVisible(page.getByRole('button', { name: label, exact: true }));
     if (!tab) throw new Error(`doctor_patient_tab_absent:${tabId}`);
@@ -800,21 +843,31 @@ async function doctorPatientCardTabs(page, navigationState, patient, scenario, e
     const selected = (await tab.getAttribute('aria-selected')) === 'true'
       || (await tab.getAttribute('data-state')) === 'active'
       || canonicalAuditUrl(page.url()).includes(`tab=${tabId}`);
-    const header = page.locator('#doctor-patient-card-header');
-    const content = page.locator('main').innerText().then((text) => text.trim().length > 0).catch(() => false);
-    tabProofs.push({ tab: tabId, pass: selected && await header.count() === 1 && await content });
+    const semantics = await semanticEvidence(page, [contract]);
+    const evidencePass = semantics.anchors[0]?.count === 1 && semantics.anchors[0]?.visible;
+    tabProofs.push({ tab: tabId, pass: selected && evidencePass, semantic_evidence: semantics });
+    if (tabId === 'program') {
+      const discoveredWhileProgramActive = await discoverUniqueTemplates(
+        page,
+        scenario,
+        new Set([routeTemplateKey(patient.href)]),
+      );
+      const program = discoveredWhileProgramActive.discovered.filter((item) =>
+        /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/.test(item.template),
+      );
+      if (discoveredWhileProgramActive.violations.length || program.length !== 1 || !program[0].classification.pass)
+        throw new Error('rendered_program_detail_not_bfs_discoverable_while_program_tab_active');
+      programHref = program[0].href;
+    }
   }
-  const discovered = await discoverUniqueTemplates(
-    page,
-    scenario,
-    new Set([routeTemplateKey(patient.href)]),
-  );
-  const program = discovered.discovered.filter((item) =>
-    /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/.test(item.template),
-  );
-  if (discovered.violations.length || program.length !== 1 || !program[0].classification.pass)
-    throw new Error('rendered_program_detail_not_bfs_discoverable');
-  return [{ ...card, tabs: tabProofs, pass: card.pass && tabProofs.every((tab) => tab.pass) }, await pageProof(page, navigationState, program[0].href, scenario, evidence, ledger)];
+  if (!programHref) throw new Error('rendered_program_detail_href_absent_while_program_tab_active');
+  const tabGate = validateDoctorPatientTabTraversal({
+    expectedTabs: DOCTOR_PATIENT_CARD_TABS,
+    tabProofs,
+    programHref,
+  });
+  if (!tabGate.pass) throw new Error(tabGate.violations.join(','));
+  return [{ ...card, tabs: tabProofs, pass: card.pass && tabProofs.every((tab) => tab.pass) }, await pageProof(page, navigationState, programHref, scenario, evidence, ledger)];
 }
 
 async function doctorCommentsAndPaymentControls(page, navigationState, patient, runPayment) {
@@ -1150,30 +1203,35 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       scenario,
       expectedOrganizationId,
     );
-    // Role navigation is rendered from the product's canonical manifest.  The
-    // roots enter that manifest; explicit state seeds only cover query-state
-    // variants which navigation links cannot represent.
-    const plan = buildTraversalPlan(scenario, baseUrl);
-    const canonicalTemplates = new Set(
-      (scenario.canonicalNavigationDestinations ?? []).map((route) => routeTemplateKey(route)),
-    );
-    const queue = [...plan.canonical, ...plan.stateSeeds.filter((route) => !canonicalTemplates.has(routeTemplateKey(route)))];
-    const queuedTemplates = new Set(queue.map((route) => routeTemplateKey(route)));
-    const canonicalNavigationSeen = [...plan.canonical];
     const pages = [];
-    const discoveryViolations = [];
+    const discoveryViolations = [...productContractStaticGate()];
     const renderedControls = [];
+    // The only way canonical nav destinations enter this queue is through a
+    // rendered product <nav>.  The manifest stays an oracle, never a seed.
+    const plan = buildTraversalPlan(scenario, baseUrl);
+    const navigationHrefs = [];
+    for (const root of plan.navigationRoots) {
+      const rootProof = await pageProof(page, navigationState, root, scenario, evidence, ledger);
+      pages.push(rootProof);
+      navigationHrefs.push(...await renderedNavigationHrefs(page));
+    }
+    const traversal = initializeRenderedTraversal({ scenario, baseUrl, navigationHrefs });
+    const queue = traversal.queue;
+    const queuedTemplates = traversal.queuedTemplates;
+    const canonicalNavigationSeen = traversal.canonicalNavigationSeen;
+    discoveryViolations.push(...traversal.violations);
     while (queue.length > 0) {
       const target = queue.shift();
       try {
         const cold = await pageProof(page, navigationState, target, scenario, evidence, ledger);
         const discovery = await discoverUniqueTemplates(page, scenario, queuedTemplates);
-        canonicalNavigationSeen.push(
-          ...(await page.locator('a[href]').evaluateAll((anchors) => anchors.map((anchor) => anchor.href))),
-        );
         discoveryViolations.push(...discovery.violations);
         queue.push(...discovery.discovered.map((item) => item.href));
-        renderedControls.push(...(await inventoryRenderedControls(page, { ...scenario, auditRole: label })));
+        renderedControls.push(...(await inventoryRenderedControls(page, {
+          ...scenario,
+          auditRole: label,
+          observedTemplates: queuedTemplates,
+        })));
         const warm = await pageProof(page, navigationState, target, scenario, evidence, ledger);
         pages.push({
           ...cold,

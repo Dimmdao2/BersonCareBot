@@ -58,15 +58,19 @@ mutation mode, or missing provenance. It never applies a “latest artifact wins
 
 ## What exhaustive means
 
-The runner starts with the rendered role navigation and then performs bounded same-origin role-allowed BFS from
-every substantive page. It preserves query-state route templates, obtains dynamic samples only from rendered links,
+The runner opens each role's navigation root, reads canonical destinations only from rendered `<nav>` containers,
+then performs bounded same-origin role-allowed BFS. The manifest is an oracle, never a queue seed: removing a
+canonical destination from rendered navigation makes the gate red. Explicit query/wizard prerequisites are the only
+non-navigation seeds. It preserves query-state route templates, obtains dynamic samples only from rendered links,
 and fails at the explicit discovery cap rather than truncating. Every seed and discovered template must have exactly
-one disposition and a route-specific, unique functional or landmark selector. A shell, generic form, role-prefixed
-ID, or arbitrary `data-testid` cannot prove a route.
+one disposition and a route-specific functional/landmark contract. Before the live pass, the runner verifies every
+contract (including the eight patient-card tab contracts) against non-test product source; the live unique/visible
+check remains the acceptance truth. A shell, generic form, or arbitrary `data-testid` cannot prove a route.
 
-It inventories rendered form-submit controls. A control is accepted only when a named adapter classifies it as a
-reversible cycle, retained DEV evidence, non-mutating, destructive, or external-provider-dependent; destructive and
-external controls are recorded but never submitted. Thus this proves the currently rendered DEV surface is accounted
+It inventories rendered form-submit controls and exact link hrefs. A same-origin role-allowed link is
+`inspected_navigation` only after its explicitly disposed target was observed/enqueued; links are never mutation
+adapters. A control is accepted only when a named adapter classifies it as a reversible cycle, retained DEV evidence,
+non-mutating, destructive, or external-provider-dependent; destructive and external controls are recorded but never submitted. Thus this proves the currently rendered DEV surface is accounted
 for and that approved reversible controls restore their exact readback. It does not prove unrendered data-dependent
 paths, external provider completion, or production behavior.
 
