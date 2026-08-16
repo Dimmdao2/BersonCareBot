@@ -1,7 +1,7 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0443
 -- BCB-MIGRATION-OWNER: app_seam_patient_program_resolver_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- TEMPORARY LOCAL MIGRATION NUMBER 0443
 -- A patient may read only the description attached to an instance it owns in its current clinic.
 -- The template remains a staff-only aggregate; this root returns one scalar projection.
 

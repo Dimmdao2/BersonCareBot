@@ -113,7 +113,11 @@ function restrictedSingletonPolicyDb() {
     ],
   ]);
   const audits: StoredRow[] = [];
-  const singletonTables = new Set([saasTrialPolicy, saasPaidPeriodPolicy, saasRegistrationTariffPolicy]);
+  const singletonTables = new Set<unknown>([
+    saasTrialPolicy,
+    saasPaidPeriodPolicy,
+    saasRegistrationTariffPolicy,
+  ]);
 
   const select = () => ({
     from: (table: unknown) => ({

@@ -1,7 +1,7 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0444
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- TEMPORARY LOCAL MIGRATION NUMBER 0444
 -- A failed immediate reminder relay may enqueue only the caller's current rule.  The durable
 -- queue remains closed to patient/staff roles; this seam owns the fixed kind and idempotency key.
 CREATE OR REPLACE FUNCTION app.enqueue_current_reminder_rule_push(p_integrator_rule_id text)
@@ -100,6 +100,7 @@ BEGIN
   RETURN true;
 END
 $function$;
+REVOKE ALL ON FUNCTION app.enqueue_current_reminder_rule_push(text) FROM PUBLIC;
 --> statement-breakpoint
 
 -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
@@ -146,7 +147,4 @@ BEGIN
   RETURN v_value;
 END
 $function$;
---> statement-breakpoint
-
-REVOKE ALL ON FUNCTION app.enqueue_current_reminder_rule_push(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) FROM PUBLIC;
