@@ -33,12 +33,11 @@ sudo -n -u postgres "$pg_bin/pg_dump" --schema-only --no-owner --no-privileges -
 sudo -n -u postgres "$pg_bin/psql" -X -At -d postgres -c \
   "SELECT format('CREATE ROLE %I NOLOGIN;', rolname) FROM pg_roles WHERE rolname !~ '^pg_' AND rolname NOT IN ('postgres','dev') AND rolname !~ '^bcb_(dev|test)_(webapp_staff|webapp_patient|webapp_global_admin|integrator)$' ORDER BY rolname" \
   > "$work_dir/source-roles.sql"
-"$pg_bin/initdb" -D "$data_dir" --auth=trust --username=dev >/dev/null
+"$pg_bin/initdb" -D "$data_dir" --auth=trust --username=postgres >/dev/null
 printf '%s\n' "port = $port" "unix_socket_directories = '$data_dir'" "log_min_messages = notice" >> "$data_dir/postgresql.conf"
 "$pg_bin/pg_ctl" -D "$data_dir" -l "$log_file" start >/dev/null
-"$pg_bin/createdb" -h "$data_dir" -p "$port" -U dev "$db_name"
-"$pg_bin/psql" -X -v ON_ERROR_STOP=1 -h "$data_dir" -p "$port" -U dev -d "$db_name" -c 'CREATE ROLE postgres SUPERUSER LOGIN' >/dev/null
-"$pg_bin/psql" -X -v ON_ERROR_STOP=1 -h "$data_dir" -p "$port" -U dev -d "$db_name" -f "$work_dir/source-roles.sql" >/dev/null
+"$pg_bin/createdb" -h "$data_dir" -p "$port" -U postgres "$db_name"
+"$pg_bin/psql" -X -v ON_ERROR_STOP=1 -h "$data_dir" -p "$port" -U postgres -d "$db_name" -f "$work_dir/source-roles.sql" >/dev/null
 admin -f "$work_dir/source.sql" >/dev/null
 {
   printf '\\set DBNAME %s\n' "$db_name"
@@ -79,7 +78,7 @@ grep -q 'BCB_ZERO_STATE_VERIFIED' "$work_dir/first-install.out" || fail 'install
 grep -q 'BCB_ENVIRONMENT_VERIFIED' "$work_dir/first-install.out" || fail 'installer did not execute exact environment verifier'
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolcanlogin AND rolname ~ '^(app_|bcb_|saas_|bersoncarebot_)'")" 4
 assert_eq "$(admin -Atc "SELECT count(*) FROM pg_roles WHERE rolname IN ('bcb_test_webapp_staff','bcb_test_webapp_patient','bcb_test_webapp_global_admin','bcb_test_integrator') AND rolcanlogin")" 4
-assert_eq "$(admin -Atc "SELECT count(*) FROM pg_auth_members WHERE member IN ('bcb_test_webapp_staff'::regrole,'bcb_test_webapp_patient'::regrole,'bcb_test_webapp_global_admin'::regrole,'bcb_test_integrator'::regrole) AND set_option")" 16
+assert_eq "$(admin -Atc "SELECT count(*) FROM pg_auth_members WHERE member IN ('bcb_test_webapp_staff'::regrole,'bcb_test_webapp_patient'::regrole,'bcb_test_webapp_global_admin'::regrole,'bcb_test_integrator'::regrole) AND set_option")" 18
 
 # Ordinary deploy maintenance must repair declaration drift without replaying zero or losing data.
 admin <<'SQL' >/dev/null
@@ -96,9 +95,11 @@ grep -q 'access reconcile committed' "$work_dir/first-reconcile.out" \
 assert_eq "$(admin -Atc "SELECT has_function_privilege('app_service','app.read_integrator_migration_ledger()','EXECUTE')")" t
 assert_eq "$(admin -Atc "SELECT count(*) FROM app_ext.port_context_capabilities WHERE active_from > clock_timestamp() OR active_until IS NOT NULL")" 0
 assert_eq "$(admin -Atc "SELECT count(*) FROM public.system_settings WHERE key='access_reconcile_fixture' AND value_json->>'preserved'='true'")" 1
+first_definer_digest="$(admin -Atc "SELECT md5(string_agg(pg_get_functiondef(p.oid), E'\\n' ORDER BY p.oid::regprocedure::text)) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.prosecdef AND n.nspname IN ('app','public','integrator')")"
 reconcile >"$work_dir/second-reconcile.out" 2>&1 \
   || { cat "$work_dir/second-reconcile.out" >&2; fail 'second repeatable reconcile'; }
 assert_eq "$(admin -Atc "SELECT count(*) FROM public.system_settings WHERE key='access_reconcile_fixture'")" 1
+assert_eq "$(admin -Atc "SELECT md5(string_agg(pg_get_functiondef(p.oid), E'\\n' ORDER BY p.oid::regprocedure::text)) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.prosecdef AND n.nspname IN ('app','public','integrator')")" "$first_definer_digest"
 
 # Per-target reconcile must refuse shared cluster-role drift, not repair it as a
 # side effect of deploying one database/environment.

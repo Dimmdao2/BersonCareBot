@@ -2097,7 +2097,7 @@ INSERT INTO bcb_runtime_definer_gates(signature,mode,gate_expression,expected_to
   ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)', 'attested', 'app.require_attested_context_for_roles(''app_seam_patient_invite_owner''::name, ARRAY[''app_patient''::name]::name[])', ARRAY[]::text[])
 ;
 DO $bcb$
-DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer; guard_source text; statement_prefix text; statement_at integer; missing_token text;
+DECLARE gate record; routine record; definition text; new_source text; source_at integer; guard_at integer; guard_length integer; guard_source text; statement_prefix text; missing_token text;
 BEGIN
   FOR gate IN SELECT * FROM bcb_runtime_definer_gates ORDER BY signature LOOP
     SELECT p.oid, p.prosrc, l.lanname INTO routine
@@ -2125,18 +2125,18 @@ BEGIN
       IF gate.mode<>'exact_existing' THEN guard_source := gate.gate_expression; END IF;
       statement_prefix := substring(pg_catalog.substr(routine.prosrc, 1, guard_at - 1) FROM '((PERFORM|SELECT)[[:space:]]+)$');
       IF statement_prefix IS NULL THEN RAISE EXCEPTION 'existing runtime definer gate is not a standalone statement: %',gate.signature; END IF;
-      statement_at := guard_at - char_length(statement_prefix);
-      new_source := pg_catalog.overlay(routine.prosrc, '', statement_at, guard_at + guard_length - statement_at + 1);
+      new_source := pg_catalog.overlay(routine.prosrc, guard_source, guard_at, guard_length);
     ELSE
       guard_source := gate.gate_expression;
       new_source := routine.prosrc;
+      IF routine.lanname='sql' THEN
+        new_source := 'SELECT ' || guard_source || ';' || E'\n' || new_source;
+      ELSIF routine.lanname='plpgsql' THEN
+        new_source := pg_catalog.regexp_replace(new_source, '(^|\n)([[:space:]]*)BEGIN', E'\\1\\2BEGIN\n\\2  PERFORM ' || guard_source || ';', 1, 1, 'in');
+        IF new_source = routine.prosrc THEN RAISE EXCEPTION 'PL/pgSQL runtime definer has no injectable BEGIN: %',gate.signature; END IF;
+      ELSE RAISE EXCEPTION 'unsupported runtime definer language %: %',routine.lanname,gate.signature; END IF;
     END IF;
-    IF routine.lanname='sql' THEN
-      new_source := 'SELECT ' || guard_source || ';' || E'\n' || new_source;
-    ELSIF routine.lanname='plpgsql' THEN
-      new_source := pg_catalog.regexp_replace(new_source, '(^|\n)([[:space:]]*)BEGIN', E'\\1\\2BEGIN\n\\2  PERFORM ' || guard_source || ';', 1, 1, 'in');
-      IF new_source = routine.prosrc THEN RAISE EXCEPTION 'PL/pgSQL runtime definer has no injectable BEGIN: %',gate.signature; END IF;
-    ELSE RAISE EXCEPTION 'unsupported runtime definer language %: %',routine.lanname,gate.signature; END IF;
+    IF new_source = routine.prosrc THEN CONTINUE; END IF;
     definition := pg_catalog.pg_get_functiondef(routine.oid);
     source_at := position(routine.prosrc IN definition);
     IF source_at=0 THEN RAISE EXCEPTION 'runtime definer source not found in canonical definition: %',gate.signature; END IF;

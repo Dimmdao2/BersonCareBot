@@ -18,7 +18,7 @@ import {
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 90,
+  webapp: 91,
   integrator: 34,
 };
 
@@ -34,8 +34,8 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 124);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 124);
+  assert.equal(rows.length, 125);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 125);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -258,7 +258,7 @@ test('runtime gate reconciliation replaces single gates and validates every mult
   );
   assert.match(
     sql,
-    /guard_at := CASE gate\.mode[\s\S]*statement_at := guard_at - char_length\(statement_prefix\)[\s\S]*regexp_replace\(new_source/,
+    /guard_at := CASE gate\.mode[\s\S]*overlay\(routine\.prosrc, guard_source, guard_at, guard_length\)[\s\S]*IF new_source = routine\.prosrc THEN CONTINUE/,
   );
   assert.match(sql, /runtime definer gate is not a standalone statement/);
   assert.match(sql, /l\.lanname='plpgsql'[\s\S]*\^BEGIN\[\[:space:\]\]\+PERFORM/);
