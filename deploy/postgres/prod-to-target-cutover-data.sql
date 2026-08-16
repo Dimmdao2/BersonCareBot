@@ -240,6 +240,11 @@ BEGIN
 END
 $source_only_disposition_gate$;
 
+-- Reconcile the two exact discussion images whose DB metadata survived but whose original and
+-- generated S3 objects are absent in the current PROD-dump lineage. The included operation is
+-- idempotent and fails before mutation if either identity or its live reference has drifted.
+\ir prod-to-target-cutover-known-missing-media.sql
+
 -- Resolve the complete live platform_users merge graph once. Every source identity must terminate
 -- at exactly one surviving canonical user; a cycle or a dangling merged_into_id aborts the transition.
 CREATE TEMP TABLE cutover_platform_user_canonical_map ON COMMIT DROP AS
