@@ -8,6 +8,10 @@ import { chromium } from '../clickthrough/lib/browser.mjs';
 import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   canonicalAuditUrl,
+  classifyRoute,
+  discoverBounded,
+  aggregateRoleArtifacts,
+  routeSelectors,
   routeContractMatches,
   evaluatePageObservation,
   routeTemplateKey,
@@ -33,6 +37,7 @@ const aggregateArtifacts = (process.env.DEV_AUDIT_AGGREGATE_ARTIFACTS || '')
   .split(',')
   .map((path) => path.trim())
   .filter(Boolean);
+const auditRunId = process.env.DEV_AUDIT_RUN_ID || crypto.randomUUID();
 for (const role of requestedRoles) {
   if (!ROLE_SCENARIOS[role]) throw new Error(`DEV_AUDIT_ROLES contains unknown role: ${role}`);
 }
@@ -264,11 +269,7 @@ async function semanticEvidence(page, selectors) {
 }
 
 function selectorsForRoute(scenario, expectedUrl) {
-  const direct = scenario.routeEvidence?.[expectedUrl];
-  if (direct) return direct;
-  // An explicit functional/landmark selector is required for every page. This
-  // fallback is deliberately strict: a naked app shell has none of these.
-  return ['main [data-testid]', 'main [id^="patient-"]', 'main [id^="doctor-"]', 'main form'];
+  return routeSelectors(scenario, expectedUrl);
 }
 
 async function clickRequiredTabs(page, labels) {
@@ -319,6 +320,7 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   const expectedUrl = canonicalAuditUrl(target);
   const finalUrl = canonicalAuditUrl(page.url());
   const selectors = selectorsForRoute(scenario, expectedUrl);
+  const classification = classifyRoute(scenario, target);
   const semantics = await semanticEvidence(page, selectors);
   const allowedFinalTemplates = scenario.allowedFinalTemplates?.[expectedUrl] ?? [];
   const exactUrl = routeContractMatches(page.url(), target, allowedFinalTemplates);
@@ -340,7 +342,7 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
     failures: evidence.failures.slice(failuresBefore),
     consoleErrors: evidence.consoleErrors.slice(consoleBefore),
   });
-  const pass = observation.pass && !tabFailure && tabs.every((tab) => tab.pass);
+  const pass = observation.pass && classification.pass && !tabFailure && tabs.every((tab) => tab.pass);
   return {
     url: expectedUrl,
     final_url: finalUrl,
@@ -349,7 +351,12 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
     exact_url: exactUrl,
     ...(allowedFinalTemplates.length ? { intentional_redirect_templates: allowedFinalTemplates } : {}),
     semantic_evidence: semantics,
-    failure_reasons: [...observation.reasons, ...(tabFailure ? ['required_tab_failure'] : [])],
+    classification: classification.classification ?? null,
+    failure_reasons: [
+      ...observation.reasons,
+      ...(classification.pass ? [] : [classification.reason]),
+      ...(tabFailure ? ['required_tab_failure'] : []),
+    ],
     navigation_status: status,
     navigation_ms: Math.round(nowMs() - started),
     domcontentloaded_ms: navigation.domcontentloadedMs,
@@ -360,16 +367,7 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   };
 }
 
-async function discoverUniqueTemplates(page, label, queuedTemplates) {
-  const prefixes = {
-    global_admin: ['/app/admin/organizations/'],
-    doctor: [
-      '/app/doctor/content/',
-      '/app/doctor/courses/',
-      '/app/doctor/treatment-program-templates/',
-    ],
-    patient: ['/app/patient/content/', '/app/patient/treatment/program/'],
-  }[label];
+async function discoverUniqueTemplates(page, scenario, queuedTemplates) {
   const hrefs = await page
     .locator('a[href]')
     .evaluateAll((anchors) =>
@@ -377,16 +375,22 @@ async function discoverUniqueTemplates(page, label, queuedTemplates) {
         .map((anchor) => anchor.href)
         .filter((href) => href.startsWith(`${globalThis.location.origin}/app/`)),
     );
-  const found = [];
-  for (const href of hrefs) {
-    const value = new URL(href);
-    if (!prefixes.some((prefix) => value.pathname.startsWith(prefix))) continue;
-    const key = routeTemplateKey(href);
-    if (queuedTemplates.has(key)) continue;
-    queuedTemplates.add(key);
-    found.push(href);
-  }
-  return found;
+  return discoverBounded({ knownTemplates: queuedTemplates, hrefs, scenario, limit: 120 });
+}
+
+async function inventoryRenderedControls(page, scenario) {
+  const controls = await page.locator('form button, form input[type="submit"], form [role="button"]').evaluateAll((nodes) =>
+    nodes.map((node, index) => ({
+      id: node.id || node.getAttribute('aria-label') || node.textContent?.trim() || `control-${index}`,
+      route: `${globalThis.location.pathname}${globalThis.location.search}`,
+    })),
+  );
+  return controls.map((control) => {
+    const known = CONTROL_ADAPTER_MATRIX.some((adapter) =>
+      routeTemplateKey(adapter.route) === routeTemplateKey(control.route),
+    );
+    return { ...control, classification: known ? 'adapter_managed' : null };
+  });
 }
 
 function registrationPolicy(body) {
@@ -1108,15 +1112,24 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       scenario,
       expectedOrganizationId,
     );
-    const queue = scenario.routes.map((route) => new URL(route, baseUrl).href);
+    // Role navigation is rendered from the product's canonical manifest.  The
+    // roots enter that manifest; explicit state seeds only cover query-state
+    // variants which navigation links cannot represent.
+    const queue = [...scenario.canonicalNavigationRoots, ...scenario.requiredStateSeeds].map((route) =>
+      new URL(route, baseUrl).href,
+    );
     const queuedTemplates = new Set(queue.map((route) => routeTemplateKey(route)));
     const pages = [];
-    while (queue.length > 0 && pages.length < 55) {
+    const discoveryViolations = [];
+    const renderedControls = [];
+    while (queue.length > 0) {
       const target = queue.shift();
       try {
         const cold = await pageProof(page, navigationState, target, scenario, evidence);
-        const discovered = await discoverUniqueTemplates(page, label, queuedTemplates);
-        queue.push(...discovered);
+        const discovery = await discoverUniqueTemplates(page, scenario, queuedTemplates);
+        discoveryViolations.push(...discovery.violations);
+        queue.push(...discovery.discovered.map((item) => item.href));
+        renderedControls.push(...(await inventoryRenderedControls(page, scenario)));
         const warm = await pageProof(page, navigationState, target, scenario, evidence);
         pages.push({
           ...cold,
@@ -1218,6 +1231,14 @@ async function auditRole(label, scenario, expectedOrganizationId) {
     }
     return {
       role: label,
+      audit_provenance: {
+        role: label,
+        run_id: auditRunId,
+        base_url: baseUrl,
+        mutations_enabled: mutationsEnabled,
+        organization_id: expectedOrganizationId,
+        started_at: new Date().toISOString(),
+      },
       authentication,
       authenticated: identityAssertion.pass,
       identity_assertion: identityAssertion,
@@ -1234,6 +1255,8 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       console_warnings: evidence.consoleWarnings,
       network_failures: evidence.network,
       ignored_harness_aborts: evidence.ignoredHarnessAborts,
+      discovery_violations: [...new Set(discoveryViolations)],
+      rendered_controls: renderedControls,
     };
   } finally {
     await context.close();
@@ -1267,16 +1290,25 @@ async function main() {
       });
     }
   }
-  const aggregateResults = [...results];
+  const artifactReports = [];
   for (const artifactPath of aggregateArtifacts) {
     const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
     if (!Array.isArray(artifact.results)) throw new Error(`aggregate artifact has no results: ${artifactPath}`);
-    aggregateResults.push(...artifact.results);
+    artifactReports.push(artifact);
   }
-  // Latest local result wins for a restarted role; missing role artifacts remain a hard failure.
-  const byRole = new Map();
-  for (const result of aggregateResults) byRole.set(result.role, result);
-  const gate = summarizeBinaryGate([...byRole.values()], requiredRoles);
+  const aggregated = aggregateRoleArtifacts({
+    currentResults: results,
+    artifacts: artifactReports,
+    requiredRoles,
+    expected: {
+      base_url: baseUrl,
+      mutations_enabled: mutationsEnabled,
+      organization_id: expectedOrganizationId,
+      run_id: auditRunId,
+    },
+  });
+  const summarized = summarizeBinaryGate(aggregated.results, requiredRoles);
+  const gate = { pass: summarized.pass && aggregated.violations.length === 0, violations: [...aggregated.violations, ...summarized.violations] };
   const finishedAt = new Date().toISOString();
   const report = {
     started_at: startedAt,

@@ -40,10 +40,35 @@ stops after the bind-phone surface opens: it never submits a number. Password, d
 and external-delivery controls remain outside the mutation boundary. The runner rejects every base URL except the canonical
 `http://127.0.0.1:5200`; do not adapt it to TEST or PROD.
 
-To restart DEV between roles, use `DEV_AUDIT_ROLES=global_admin`, `doctor`, or `patient`. A partial
-artifact deliberately remains non-green with `missing_role_artifact`; set
-`DEV_AUDIT_AGGREGATE_ARTIFACTS=artifact-a.json,artifact-b.json` on the final role run to aggregate all
-three role artifacts. Missing roles can never become PASS.
+## Role split and aggregation
+
+Run all three roles together when possible. If DEV must be restarted between roles, use one fresh shared
+run ID and preserve the JSON artifact printed by each role:
+
+```sh
+DEV_AUDIT_RUN_ID='2026-08-16-a' DEV_AUDIT_ROLES=global_admin node runs/dev-interactive-audit/run.mjs
+DEV_AUDIT_RUN_ID='2026-08-16-a' DEV_AUDIT_ROLES=doctor node runs/dev-interactive-audit/run.mjs
+DEV_AUDIT_RUN_ID='2026-08-16-a' DEV_AUDIT_ROLES=patient \
+  DEV_AUDIT_AGGREGATE_ARTIFACTS='runs/dev-interactive-audit/out/result-admin.json,runs/dev-interactive-audit/out/result-doctor.json' \
+  node runs/dev-interactive-audit/run.mjs
+```
+
+Aggregation is fail-closed: it rejects duplicate roles, a missing role, a different run ID/base URL/organization/
+mutation mode, or missing provenance. It never applies a “latest artifact wins” rule.
+
+## What exhaustive means
+
+The runner starts with the rendered role navigation and then performs bounded same-origin role-allowed BFS from
+every substantive page. It preserves query-state route templates, obtains dynamic samples only from rendered links,
+and fails at the explicit discovery cap rather than truncating. Every seed and discovered template must have exactly
+one disposition and a route-specific, unique functional or landmark selector. A shell, generic form, role-prefixed
+ID, or arbitrary `data-testid` cannot prove a route.
+
+It inventories rendered form-submit controls. A control is accepted only when a named adapter classifies it as a
+reversible cycle, retained DEV evidence, non-mutating, destructive, or external-provider-dependent; destructive and
+external controls are recorded but never submitted. Thus this proves the currently rendered DEV surface is accounted
+for and that approved reversible controls restore their exact readback. It does not prove unrendered data-dependent
+paths, external provider completion, or production behavior.
 
 Focused safety test (does not open DEV):
 

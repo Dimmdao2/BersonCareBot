@@ -5,7 +5,9 @@ export const ROLE_SCENARIOS = Object.freeze({
     defaultEmail: 'dimmdao@gmail.com',
     identity: { role: 'admin', contactKind: 'email', contactValue: 'dimmdao@gmail.com' },
     elevateAdminMode: false,
-    routes: [
+    allowedPathnames: ['/app/admin/', '/app/account', '/app/doctor/analytics'],
+    canonicalNavigationRoots: ['/app/admin/system-health'],
+    requiredStateSeeds: [
       '/app/admin/system-health',
       '/app/account?tab=security',
       '/app/doctor/analytics',
@@ -19,6 +21,10 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/admin/technical',
       '/app/admin/health-archive',
       '/app/admin/audit-log',
+      '/app/admin/booking/catalog',
+      '/app/admin/booking/form-public',
+      '/app/admin/booking/payments',
+      '/app/admin/promo',
     ],
     requiredTabs: {
       '/app/admin/commercial': ['Тарифы', 'Организации', 'Триал', 'Уведомления', 'Рассылки'],
@@ -30,6 +36,28 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/admin/payments': ['#platform-payments'],
       '/app/admin/audit-log': ['#admin-audit-log'],
       '/app/admin/booking': ['#booking-online-default-color'],
+      '/app/admin/booking/catalog': ['#booking-online-default-color'],
+      '/app/admin/booking/form-public': ['#booking-online-default-color'],
+      '/app/admin/booking/payments': ['#booking-online-default-color'],
+      '/app/admin/promo': ['#doctor-treatment-program-promo'],
+      '/app/admin/clinics/:uuid': ['#admin-clinic-detail'],
+    },
+    routeClassifications: [
+      ...[
+        '/app/admin/system-health', '/app/account?tab=security', '/app/doctor/analytics',
+        '/app/admin/clinics', '/app/admin/commercial', '/app/admin/payments', '/app/admin/app-settings',
+        '/app/admin/auth', '/app/admin/booking', '/app/admin/integrations', '/app/admin/technical',
+        '/app/admin/health-archive', '/app/admin/audit-log', '/app/admin/clinics/:uuid',
+      ].map((template) => ({ template, classification: 'substantive' })),
+      ...['/app/admin/booking/catalog', '/app/admin/booking/form-public', '/app/admin/booking/payments']
+        .map((template) => ({ template, classification: 'redirect', finalTemplate: '/app/admin/booking' })),
+      { template: '/app/admin/promo', classification: 'redirect', finalTemplate: '/app/doctor/treatment-program-promo' },
+    ],
+    allowedFinalTemplates: {
+      '/app/admin/booking/catalog': ['/app/admin/booking'],
+      '/app/admin/booking/form-public': ['/app/admin/booking'],
+      '/app/admin/booking/payments': ['/app/admin/booking'],
+      '/app/admin/promo': ['/app/doctor/treatment-program-promo'],
     },
   },
   doctor: {
@@ -37,7 +65,9 @@ export const ROLE_SCENARIOS = Object.freeze({
     emailEnv: 'DEV_AUDIT_DOCTOR_EMAIL',
     defaultEmail: 'dimmdao@yandex.ru',
     identity: { role: 'doctor', contactKind: 'email', contactValue: 'dimmdao@yandex.ru' },
-    routes: [
+    allowedPathnames: ['/app/doctor', '/app/settings', '/app/account'],
+    canonicalNavigationRoots: ['/app/doctor'],
+    requiredStateSeeds: [
       '/app/doctor',
       '/app/doctor/patient-home',
       '/app/doctor/patients',
@@ -76,6 +106,7 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/doctor/references': ['#doctor-reference-measure-kinds'],
       '/app/doctor/content/sections/edit/warmups': ['#doctor-content-sections'],
     },
+    routeClassifications: [],
     allowedFinalTemplates: {
       '/app/doctor/references': ['/app/doctor/references/clinical_test_measure_kind'],
     },
@@ -84,7 +115,9 @@ export const ROLE_SCENARIOS = Object.freeze({
     syntheticToken: 'client',
     sessionCookieEnv: 'DEV_AUDIT_PATIENT_SESSION_COOKIE',
     identity: { role: 'client', contactKind: 'phone', contactValue: '+79189000782' },
-    routes: [
+    allowedPathnames: ['/app/patient'],
+    canonicalNavigationRoots: ['/app/patient'],
+    requiredStateSeeds: [
       '/app/patient',
       '/app/patient/treatment',
       '/app/patient/diary',
@@ -116,6 +149,7 @@ export const ROLE_SCENARIOS = Object.freeze({
     allowedFinalTemplates: {
       '/app/patient/treatment': ['/app/patient/treatment/:uuid'],
     },
+    routeClassifications: [],
   },
 });
 

@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   canonicalAuditUrl,
+  classifyRoute,
+  discoverBounded,
+  aggregateRoleArtifacts,
   exactUrlMatches,
   evaluatePageObservation,
   routeContractMatches,
@@ -9,6 +12,7 @@ import {
   shouldIgnoreRequestFailure,
   summarizeBinaryGate,
 } from './gate-utils.mjs';
+import { ROLE_SCENARIOS } from './scenarios.mjs';
 
 test('preserves tab and section query while redacting only entity identifiers', () => {
   const url =
@@ -144,4 +148,74 @@ test('binary gate fails for identity, page, action, network, or console evidence
   assert.deepEqual(summarizeBinaryGate([clean], ['doctor', 'patient']).violations, [
     'patient:missing_role_artifact',
   ]);
+});
+
+test('bounded rendered-link discovery fails closed for a new route and for its cap', () => {
+  const scenario = {
+    allowedPathnames: ['/app/patient'],
+    routeClassifications: [{ template: '/app/patient', classification: 'substantive' }],
+  };
+  const first = discoverBounded({
+    knownTemplates: new Set(['/app/patient']),
+    hrefs: ['/app/patient/new-surface'],
+    scenario,
+    limit: 2,
+  });
+  assert.equal(first.discovered[0].classification.pass, false);
+  assert.equal(first.discovered[0].classification.reason, 'route_unclassified');
+  const capped = discoverBounded({
+    knownTemplates: new Set(),
+    hrefs: ['/app/patient/a', '/app/patient/b'],
+    scenario,
+    limit: 1,
+  });
+  assert.deepEqual(capped.violations, ['discovery_cap_exceeded:1']);
+});
+
+test('requires an explicit selector contract and one route classification', () => {
+  assert.deepEqual(classifyRoute({ routeClassifications: [] }, '/app/patient'), {
+    template: '/app/patient', pass: false, reason: 'route_unclassified',
+  });
+  const ambiguous = classifyRoute({
+    routeClassifications: [
+      { template: '/app/patient', classification: 'substantive' },
+      { template: '/app/patient', classification: 'conditional' },
+    ],
+  }, '/app/patient');
+  assert.equal(ambiguous.reason, 'route_classification_ambiguous');
+});
+
+test('aggregate rejects duplicate, stale or incompatible role artifacts instead of last-wins', () => {
+  const result = (role, provenance) => ({ role, audit_provenance: provenance });
+  const expected = { run_id: 'run-current', base_url: 'http://127.0.0.1:5200', mutations_enabled: false, organization_id: 'org-1' };
+  const aggregate = aggregateRoleArtifacts({
+    currentResults: [result('doctor', { ...expected })],
+    artifacts: [{ results: [result('doctor', { ...expected }), result('patient', { ...expected, run_id: 'run-stale', base_url: 'http://bad' })] }],
+    requiredRoles: ['doctor', 'patient', 'global_admin'],
+    expected,
+  });
+  assert.deepEqual(aggregate.violations.sort(), [
+    'doctor:duplicate_role_artifact',
+    'global_admin:missing_role_artifact',
+    'patient:artifact_base_url_mismatch',
+    'patient:artifact_run_id_mismatch',
+  ]);
+});
+
+test('binary gate rejects an unclassified rendered mutating control', () => {
+  const result = {
+    role: 'patient', authenticated: true, identity_assertion: { pass: true }, pages: [], action_checks: [],
+    failures: [], console_errors: [], rendered_controls: [{ id: 'purchase', classification: null }],
+  };
+  assert.deepEqual(summarizeBinaryGate([result]).violations, ['patient:control_unclassified:purchase']);
+});
+
+test('admin discovery starts from clinics and declares every proven alias', () => {
+  const admin = ROLE_SCENARIOS.global_admin;
+  assert.equal(admin.allowedPathnames.includes('/app/admin/organizations/'), false);
+  assert.deepEqual(
+    admin.requiredStateSeeds.filter((route) => route.startsWith('/app/admin/booking/') || route === '/app/admin/promo').sort(),
+    ['/app/admin/booking/catalog', '/app/admin/booking/form-public', '/app/admin/booking/payments', '/app/admin/promo'],
+  );
+  assert.equal(classifyRoute(admin, '/app/admin/clinics/11111111-1111-4111-8111-111111111111').pass, true);
 });
