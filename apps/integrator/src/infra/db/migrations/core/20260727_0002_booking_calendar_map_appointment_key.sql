@@ -28,8 +28,7 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.booking_calendar_map'::regclass
-      AND conname = 'booking_calendar_map_rubitime_record_id_key'
+    WHERE conname = 'booking_calendar_map_rubitime_record_id_key'
   ) THEN
     ALTER TABLE public.booking_calendar_map
       RENAME CONSTRAINT booking_calendar_map_rubitime_record_id_key
@@ -37,9 +36,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.booking_calendar_map'::regclass
-      AND conname = 'booking_calendar_map_appointment_key_key'
+    SELECT 1 FROM pg_constraint WHERE conname = 'booking_calendar_map_appointment_key_key'
   ) THEN
     ALTER TABLE public.booking_calendar_map
       ADD CONSTRAINT booking_calendar_map_appointment_key_key UNIQUE (appointment_key);
