@@ -377,6 +377,7 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
     disposition: 'external_manual_only',
     role: 'patient',
     route: '/app/patient/profile',
+    reason: 'changes identity/contact and is observed only up to the bind-phone surface',
     contract: 'open bind-phone flow only; not mutated because it changes identity/contact',
   },
   {

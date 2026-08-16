@@ -85,10 +85,8 @@ export function classifyInventoryLink({ node, role, route, scenario, observedTem
   }
   const explicit = classify({ role, route: canonicalAuditUrl(route), kind: 'link', identity: stableControlIdentity(node), href }, adapters);
   if (explicit) return explicit;
-  // These schemes leave the audited product or change contact/session state;
-  // record them as manual-only rather than treating them as mutation adapters.
-  if (/^(?:https?:|mailto:|tel:)/i.test(href) || /(?:logout|signout|выход)/i.test(href))
-    return 'external_manual_only';
+  // A link outside this role's bounded traversal is never implicitly safe:
+  // external/contact/session-changing links need a route/control-owned entry.
   return null;
 }
 

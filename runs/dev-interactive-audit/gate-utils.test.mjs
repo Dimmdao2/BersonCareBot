@@ -20,6 +20,7 @@ import {
 import { DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   buildTraversalPlan,
+  classifyInventoryLink,
   classifyControlInventory,
   initializeRenderedTraversal,
   missingCanonicalNavigation,
@@ -415,7 +416,7 @@ test('the runner inventory rejects text/index fallback, duplicates, and every ac
   assert.equal(controls.filter((control) => control.identity === 'stable-switch').every((control) => control.duplicate), true);
 });
 
-test('a rendered same-origin allowed link is inspected navigation, while external remains manual-only', () => {
+test('rendered links require explicit safe disposition before the binary gate accepts them', () => {
   const scenario = {
     allowedPathnames: ['/app/patient'],
     routeClassifications: [{
@@ -425,15 +426,56 @@ test('a rendered same-origin allowed link is inspected navigation, while externa
   };
   const controls = classifyControlInventory([
     { kind: 'link', ariaLabel: 'Дневник', href: 'http://127.0.0.1:5200/app/patient/diary' },
-    { kind: 'link', ariaLabel: 'Сайт', href: 'https://example.test/contact' },
+    { kind: 'link', ariaLabel: 'Evil external', href: 'https://evil.example/app/patient/treatment' },
+    { kind: 'link', ariaLabel: 'Unregistered mail', href: 'mailto:evil@example.test' },
+    { kind: 'link', ariaLabel: 'Unregistered phone', href: 'tel:+79990000000' },
+    { kind: 'link', ariaLabel: 'Cross-role doctor', href: 'http://127.0.0.1:5200/app/doctor' },
+    { kind: 'link', ariaLabel: 'Logout', href: 'http://127.0.0.1:5200/app/logout' },
   ], 'patient', '/app/patient', [], classifyRenderedControl, {
     scenario,
     observedTemplates: new Set(['/app/patient/diary']),
   });
   assert.deepEqual(controls.map((control) => control.classification), [
     'inspected_navigation',
-    'external_manual_only',
+    null,
+    null,
+    null,
+    null,
+    null,
   ]);
+  const binaryResult = (control) => summarizeBinaryGate([{
+    role: 'patient', authenticated: true, identity_assertion: { pass: true }, pages: [], action_checks: [],
+    failures: [], console_errors: [], rendered_controls: [control],
+  }]);
+  for (const control of controls.slice(1)) assert.equal(binaryResult(control).pass, false, control.href);
+
+  const safeManualAdapter = [{
+    id: 'patient.support-phone',
+    role: 'patient',
+    route: '/app/patient/help',
+    controlKind: 'link',
+    controlId: 'Поддержка по телефону',
+    href: 'tel:+78005553535',
+    disposition: 'external_manual_only',
+    reason: 'opens the documented support phone without changing product state',
+  }];
+  const safeManual = classifyInventoryLink({
+    node: { kind: 'link', ariaLabel: 'Поддержка по телефону', href: 'tel:+78005553535' },
+    role: 'patient', route: '/app/patient/help', scenario, observedTemplates: new Set(),
+    adapters: safeManualAdapter, classify: classifyRenderedControl,
+  });
+  assert.equal(safeManual, 'external_manual_only');
+  assert.equal(binaryResult({ kind: 'link', identity: 'Поддержка по телефону', classification: safeManual }).pass, true);
+  assert.equal(classifyInventoryLink({
+    node: { kind: 'link', ariaLabel: 'Поддержка по телефону', href: 'tel:+78005550000' },
+    role: 'patient', route: '/app/patient/help', scenario, observedTemplates: new Set(),
+    adapters: safeManualAdapter, classify: classifyRenderedControl,
+  }), null);
+  assert.equal(classifyInventoryLink({
+    node: { kind: 'link', ariaLabel: 'Поддержка по телефону', href: 'tel:+78005553535' },
+    role: 'patient', route: '/app/patient/help', scenario, observedTemplates: new Set(),
+    adapters: [{ ...safeManualAdapter[0], reason: '' }], classify: classifyRenderedControl,
+  }), null);
 });
 
 test('eight patient-card tab contracts and program href are fail-closed at runner engine boundary', () => {

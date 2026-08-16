@@ -216,7 +216,12 @@ export function classifyRenderedControl(control, adapters) {
       routeTemplateKey(adapter.route) === routeTemplateKey(control.route) &&
       adapter.controlKind === control.kind &&
       adapter.controlId === control.identity &&
-      (!adapter.href || adapter.href === control.href) &&
+      (adapter.href === undefined || adapter.href === control.href) &&
+      (adapter.disposition !== 'external_manual_only' || (
+        typeof adapter.reason === 'string'
+        && adapter.reason.trim().length > 0
+        && (control.kind !== 'link' || adapter.href !== undefined)
+      )) &&
       adapter.disposition,
   );
   if (matches.length !== 1) return matches.length ? 'ambiguous' : null;
