@@ -672,6 +672,12 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           expiresAt: input.expiresAt,
           updatedAt: new Date().toISOString(),
         };
+        const mutableValues = {
+          enabled: values.enabled,
+          quota: values.quota,
+          expiresAt: values.expiresAt,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasOrgEntitlementOverrides)
           .values(values)
@@ -680,7 +686,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
               saasOrgEntitlementOverrides.organizationId,
               saasOrgEntitlementOverrides.mechanic,
             ],
-            set: values,
+            set: mutableValues,
           })
           .returning();
         await appendAudit(tx, {

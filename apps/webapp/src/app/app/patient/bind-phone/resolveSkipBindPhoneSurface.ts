@@ -4,7 +4,9 @@ export function resolveSkipBindPhoneSurface(params: {
   phoneTrustedForPatient?: boolean;
   platformContextFailed?: boolean;
   sessionSnapshotHasPhone: boolean;
+  explicitReplacement?: boolean;
 }): boolean {
+  if (params.explicitReplacement) return false;
   if (!params.databaseUrlSet) {
     return params.sessionSnapshotHasPhone;
   }

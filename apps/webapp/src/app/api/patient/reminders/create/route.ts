@@ -161,14 +161,16 @@ export async function POST(req: Request) {
   );
   if (!warmupEntitlement.ok) return warmupEntitlement.response;
 
-  const res = await deps.reminders.createObjectReminder(userId, {
-    linkedObjectType: linkedObjectType as Exclude<ReminderLinkedObjectType, 'custom'>,
-    linkedObjectId,
-    schedule: sched,
-    enabled,
-    scheduleType,
-    scheduleData: scheduleType === 'slots_v1' ? scheduleData : null,
-  });
+  const res = await warmupEntitlement.runMutation(() =>
+    deps.reminders.createObjectReminder(userId, {
+      linkedObjectType: linkedObjectType as Exclude<ReminderLinkedObjectType, 'custom'>,
+      linkedObjectId,
+      schedule: sched,
+      enabled,
+      scheduleType,
+      scheduleData: scheduleType === 'slots_v1' ? scheduleData : null,
+    }),
+  );
   if (!res.ok) {
     const status = res.error === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: res.error }, { status });

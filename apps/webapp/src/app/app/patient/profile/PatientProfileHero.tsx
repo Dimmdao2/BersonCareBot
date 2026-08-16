@@ -30,7 +30,9 @@ export function PatientProfileHero({
   const router = useRouter();
 
   const goToBindPhone = () => {
-    router.push(`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}`);
+    router.push(
+      `${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}&mode=replace`,
+    );
   };
 
   return (

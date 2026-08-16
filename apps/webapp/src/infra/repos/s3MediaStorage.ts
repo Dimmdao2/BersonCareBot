@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import { and, asc, eq, lte, notExists, sql, type SQL } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -185,6 +188,37 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async getById(id: string) {
       const organizationId = currentPrincipalOrganizationId();
+      const patientRead = getCurrentDbPrincipal()?.kind === 'patient';
+      const query = patientRead
+        ? sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+            NULL::text AS uploaded_by_name,
+            m.created_at,
+            m.preview_status, m.preview_sm_key, m.preview_md_key,
+            m.source_width, m.source_height,
+            m.video_processing_status, m.video_processing_error,
+            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
+            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
+         FROM media_files m
+         WHERE m.id = ${id}::uuid
+           AND m.organization_id = ${organizationId}::uuid
+           AND ${mediaReadableStatusPredicateM}`
+        : sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', COALESCE(ui.first_name, pu.first_name), COALESCE(ui.last_name, pu.last_name))), ''),
+              NULLIF(TRIM(COALESCE(ui.display_name, pu.display_name)), '')
+            ) AS uploaded_by_name,
+            m.created_at,
+            m.preview_status, m.preview_sm_key, m.preview_md_key,
+            m.source_width, m.source_height,
+            m.video_processing_status, m.video_processing_error,
+            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
+            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
+         FROM media_files m
+         LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
+         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
+         WHERE m.id = ${id}::uuid
+           AND m.organization_id = ${organizationId}::uuid
+           AND ${mediaReadableStatusPredicateM}`;
       const res = await runWebappSql<{
         id: string;
         original_name: string;
@@ -209,23 +243,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         video_delivery_override: string | null;
       }>(
         getWebappSqlDb(),
-        sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
-            COALESCE(
-              NULLIF(TRIM(CONCAT_WS(' ', COALESCE(ui.first_name, pu.first_name), COALESCE(ui.last_name, pu.last_name))), ''),
-              NULLIF(TRIM(COALESCE(ui.display_name, pu.display_name)), '')
-            ) AS uploaded_by_name,
-            m.created_at,
-            m.preview_status, m.preview_sm_key, m.preview_md_key,
-            m.source_width, m.source_height,
-            m.video_processing_status, m.video_processing_error,
-            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
-            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
-         FROM media_files m
-         LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
-         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
-         WHERE m.id = ${id}::uuid
-           AND m.organization_id = ${organizationId}::uuid
-           AND ${mediaReadableStatusPredicateM}`,
+        query,
       );
       const row = res.rows[0];
       if (!row) return null;

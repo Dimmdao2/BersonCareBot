@@ -3492,10 +3492,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
-        'enabled', 'expires_at', 'mechanic', 'organization_id', 'quota', 'seat_limit_override', 'updated_at',
+        'created_at', 'enabled', 'expires_at', 'id', 'mechanic', 'organization_id', 'quota',
+        'seat_limit_override', 'updated_at',
       ] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
-        'enabled', 'expires_at', 'mechanic', 'organization_id', 'quota', 'seat_limit_override', 'updated_at',
+        'enabled', 'expires_at', 'quota', 'seat_limit_override', 'updated_at',
       ] },
       { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
     ],
@@ -3526,7 +3527,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
         'discount_window_days', 'duration_days', 'is_active', 'key', 'post_trial_behavior',
-        'post_trial_tariff_id', 'start_event', 'updated_at', 'updated_by',
+        'post_trial_tariff_id', 'start_event', 'created_at', 'updated_at', 'updated_by',
       ] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
         'discount_window_days', 'duration_days', 'is_active', 'post_trial_behavior',
@@ -3540,7 +3541,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
-        'key', 'tariff_id', 'updated_at', 'updated_by',
+        'key', 'tariff_id', 'created_at', 'updated_at', 'updated_by',
       ] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
         'tariff_id', 'updated_at', 'updated_by',
@@ -3960,9 +3961,10 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: [
-        'available_qualities_json', 'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id',
-        'original_name', 'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key',
-        'preview_status', 's3_key', 'size_bytes', 'status', 'stored_path', 'uploaded_by',
+        'available_qualities_json', 'created_at', 'display_name', 'hls_artifact_prefix',
+        'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id', 'original_name',
+        'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status', 's3_key',
+        'size_bytes', 'source_height', 'source_width', 'status', 'stored_path', 'uploaded_by',
         'usage_purpose', 'video_delivery_override', 'video_duration_seconds',
         'video_processing_error', 'video_processing_status',
       ] },
@@ -4177,7 +4179,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'],
         columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
-          'updated_by', 'updated_at'] },
+          'updated_by', 'created_at', 'updated_at'] },
       { role: 'app_platform_settings', operations: ['UPDATE'],
         columns: ['post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
           'updated_by', 'updated_at'] },
