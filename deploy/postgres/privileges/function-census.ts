@@ -10845,6 +10845,45 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.resolve_patient_acquiring_webhook_organization(text,text)": {
+    "owner": "app_seam_payment_webhook_owner",
+    "security": "DEFINER",
+    "returns": "uuid",
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_pre_session"
+    ],
+    "purpose": "patient-payment.webhook.resolve",
+    "typedArgs": [
+      "text",
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.patient_payment",
+        "columns": [
+          "organization_id",
+          "provider",
+          "provider_payment_id",
+          "kind",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.resolve_public_booking_organization(uuid,uuid,uuid)": {
     "owner": "app_seam_public_booking_owner",
     "security": "DEFINER",

@@ -434,6 +434,27 @@ describe('patient acquiring webhook HTTP boundary', () => {
     expect(fakes.handleWebhook).not.toHaveBeenCalled();
   });
 
+  it('rejects a verified callback whose provider reference differs from the inspected reference', async () => {
+    fakes.getPaymentProviderAdapter.mockReturnValue({
+      createIntent: vi.fn(), refund: vi.fn(), inspectWebhook: vi.fn().mockReturnValue({
+        idempotencyKey: 'charge-1074', eventType: 'payment.succeeded',
+        payload: { intentRef: 'provider-payment-1074' }, intentRef: 'provider-payment-1074',
+      }),
+      verifyWebhook: vi.fn().mockResolvedValue({
+        idempotencyKey: 'charge-1074', eventType: 'payment.succeeded',
+        payload: { intentRef: 'different-provider-payment' }, intentRef: 'different-provider-payment',
+      }),
+    });
+
+    const response = await receivePatientWebhook(webhookRequest('reference-substitution'), {
+      params: Promise.resolve({ provider: 'alfabank' }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'webhook_verification_failed' });
+    expect(fakes.handleWebhook).not.toHaveBeenCalled();
+  });
+
   it('ignores an unknown provider payment reference without reading any clinic config', async () => {
     fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(null);
 

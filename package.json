@@ -27,7 +27,7 @@
     "test:webapp:route": "pnpm --dir apps/webapp test:route",
     "test:webapp:ui": "pnpm --dir apps/webapp test:ui",
     "test:webapp:behavior": "pnpm --dir apps/webapp test:behavior",
-    "test:webapp:postgres": "pnpm --dir packages/operator-db-schema run build && pnpm --dir packages/db-principal run build && pnpm --dir packages/platform-merge run build && pnpm --dir packages/error-tracking run build && pnpm --dir apps/webapp test:postgres",
+    "test:webapp:postgres": "pnpm --dir packages/operator-db-schema run build && pnpm --dir packages/db-principal run build && pnpm --dir packages/platform-merge run build && pnpm --dir packages/error-tracking run build && pnpm --dir apps/webapp test:postgres && pnpm --dir apps/webapp test:patient-acquiring-webhook-bootstrap",
     "test:media-worker": "pnpm --dir apps/media-worker test",
     "test:db-principal": "pnpm --dir packages/db-principal test",
     "test:db-zero-state": "bash deploy/postgres/privileges/zero-state.acceptance.sh",

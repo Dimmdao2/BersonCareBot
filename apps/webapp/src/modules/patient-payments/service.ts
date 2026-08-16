@@ -102,32 +102,22 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
       return { ok: true };
     },
 
-    async resolveOrganizationIdByProviderPaymentId(
-      providerPaymentId: string,
-    ): Promise<string | null> {
-      const payment = await patientPaymentsPort.findByProviderPaymentId(providerPaymentId);
-      return payment?.organizationId ?? null;
-    },
-
     /**
      * Resolve only the server-owned clinic for a webhook's untrusted provider reference.
-     * The reference is not an authority: it merely selects the pending ledger row whose
-     * provider and organization will be used to verify the callback.
+     * The reference is not an authority: the DB bootstrap seam selects one exact lifecycle row
+     * and returns only its organization before the clinic principal is installed.
      */
     async resolveAcquiringWebhookOrganization(
       providerPaymentId: string,
       providerId: string,
     ): Promise<string | null> {
-      const payment = await patientPaymentsPort.findByProviderPaymentId(providerPaymentId);
-      if (
-        !payment ||
-        payment.kind !== 'acquiring' ||
-        payment.provider !== providerId ||
-        !payment.organizationId
-      ) {
-        return null;
-      }
-      return payment.organizationId;
+      const exactProviderId = providerId.trim();
+      const exactProviderPaymentId = providerPaymentId.trim();
+      if (!exactProviderId || !exactProviderPaymentId) return null;
+      return patientPaymentsPort.resolveAcquiringWebhookOrganization(
+        exactProviderId,
+        exactProviderPaymentId,
+      );
     },
 
     /**

@@ -72,6 +72,14 @@ export interface PatientPaymentsPort {
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
   /** Найти запись оплаты по внешнему ID провайдера (для webhook). */
   findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null>;
+  /**
+   * Bootstrap-only webhook resolver. Returns only the owning organization for one exact
+   * acquiring lifecycle row; it must not read or return the payment payload.
+   */
+  resolveAcquiringWebhookOrganization(
+    providerId: string,
+    providerPaymentId: string,
+  ): Promise<string | null>;
   /** Обновить статус acquiring-платежа по его ID. */
   updatePatientPaymentStatus(
     id: string,

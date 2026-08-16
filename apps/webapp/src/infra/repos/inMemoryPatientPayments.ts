@@ -56,6 +56,17 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     return payments.find((p) => p.providerPaymentId === providerPaymentId) ?? null;
   },
 
+  async resolveAcquiringWebhookOrganization(providerId, providerPaymentId): Promise<string | null> {
+    const matches = payments.filter(
+      (payment) =>
+        payment.kind === 'acquiring' &&
+        payment.provider === providerId &&
+        payment.providerPaymentId === providerPaymentId &&
+        payment.organizationId !== null,
+    );
+    return matches.length === 1 ? matches[0]!.organizationId : null;
+  },
+
   async updatePatientPaymentStatus(
     id: string,
     status: PatientPaymentStatus,

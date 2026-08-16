@@ -2180,6 +2180,9 @@ const REV10_CONTEXT = {
       runtimeName: 'saas_billing_refund_webhook_resolve', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'billing.webhook.refund.resolve',
       functionIdentity: 'app.resolve_saas_billing_refund_for_webhook(text,text)' },
+    patient_acquiring_webhook_resolve: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'patient-payment.webhook.resolve',
+      functionIdentity: 'app.resolve_patient_acquiring_webhook_organization(text,text)' },
     saas_billing_provider_preauth_read: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'billing.webhook.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_preauth()' },
@@ -2973,6 +2976,12 @@ const REV10_CONTEXT = {
       owner: 'app_seam_payment_webhook_owner', execute: ['app_worker'],
       purpose: 'billing.webhook.refund.resolve', typedArgs: ['text', 'text'], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.resolve_patient_acquiring_webhook_organization(text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_patient_acquiring_webhook_organization(text,text)'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_pre_session'],
+      purpose: 'patient-payment.webhook.resolve', typedArgs: ['text', 'text'], volatility: 'STABLE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
     }),
     'app.read_saas_billing_payment_provider_preauth()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_saas_billing_payment_provider_preauth()'],

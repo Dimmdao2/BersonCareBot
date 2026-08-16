@@ -9,8 +9,9 @@ import {
   getCurrentDbPrincipalOrganizationId,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
-import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { withTransaction } from '@/infra/db/withClient';
+import { sql } from 'drizzle-orm';
 import type {
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
@@ -105,6 +106,19 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
         .where(eq(patientPayment.providerPaymentId, providerPaymentId))
         .limit(1);
       return rows.length > 0 ? rowToPayment(rows[0]) : null;
+    },
+
+    async resolveAcquiringWebhookOrganization(providerId, providerPaymentId) {
+      const result = await runWebappNamedRoot<{ organization_id: string | null }>(
+        getWebappSqlDb(),
+        'app.resolve_patient_acquiring_webhook_organization(text,text)',
+        [providerId, providerPaymentId],
+        sql`SELECT app.resolve_patient_acquiring_webhook_organization(
+          ${providerId}::text,
+          ${providerPaymentId}::text
+        )::text AS organization_id`,
+      );
+      return result.rows[0]?.organization_id ?? null;
     },
 
     async updatePatientPaymentStatus(
