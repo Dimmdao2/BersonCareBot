@@ -3,7 +3,7 @@ export const ROLE_SCENARIOS = Object.freeze({
     syntheticToken: 'admin',
     emailEnv: 'DEV_AUDIT_ADMIN_EMAIL',
     defaultEmail: 'dimmdao@gmail.com',
-    elevateAdminMode: true,
+    elevateAdminMode: false,
     routes: [
       '/app/admin/system-health',
       '/app/account?tab=security',

@@ -1430,6 +1430,7 @@ const mediaService = createMediaService(mediaStoragePort);
 const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
   contentPages: contentPagesPort,
+  loadMediaById: (id) => mediaService.getById(id),
 });
 
 const smsPort =

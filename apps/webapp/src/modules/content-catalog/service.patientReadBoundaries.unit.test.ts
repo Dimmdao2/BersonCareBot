@@ -60,14 +60,33 @@ describe('content catalog patient media enrichment', () => {
     expect(loadMediaById).toHaveBeenCalledWith(MEDIA_ID);
   });
 
-  it('uses the raw /api/media URL without asking a metadata loader on the patient path', async () => {
+  it('attaches ready preview metadata for a patient CMS image', async () => {
+    const loadMediaById = vi.fn().mockResolvedValue({
+      id: MEDIA_ID,
+      kind: 'image',
+      mimeType: 'image/png',
+      filename: 'recovery.png',
+      size: 1024,
+      createdAt: '2026-08-16T00:00:00.000Z',
+      url: `/api/media/${MEDIA_ID}`,
+      previewStatus: 'ready',
+      previewSmUrl: `/api/media/${MEDIA_ID}/preview?size=sm`,
+      previewMdUrl: `/api/media/${MEDIA_ID}/preview?size=md`,
+    });
     const resolver = createContentCatalogResolver({
       contentPages: contentPagesWith(CONTENT_PAGE),
+      loadMediaById,
     });
 
     await expect(resolver.getBySlug('recovery')).resolves.toMatchObject({
       slug: 'recovery',
       imageUrl: `/api/media/${MEDIA_ID}`,
+      imageLibraryMedia: {
+        id: MEDIA_ID,
+        previewStatus: 'ready',
+        previewSmUrl: `/api/media/${MEDIA_ID}/preview?size=sm`,
+      },
     });
+    expect(loadMediaById).toHaveBeenCalledWith(MEDIA_ID);
   });
 });
