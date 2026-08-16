@@ -13,7 +13,7 @@ Authority: `full-control-pass-brief.md`. Executable declarations: `scenarios.mjs
 - `patient` (actual phone `+79189000782`, supplied as an already-minted DEV session cookie): 19
   declared roots, all five primary-nav roots, profile/organization/notification/reminder/purchase
   surfaces, CMS/help/support/install pages, daily-warmup deep link, and runtime program/item/journal
-links discovered from rendered pages.
+  links discovered from rendered pages.
 
 Those counts come from:
 
@@ -21,35 +21,39 @@ Those counts come from:
 node --input-type=module -e "import {ROLE_SCENARIOS} from './runs/dev-interactive-audit/scenarios.mjs'; for (const [role,v] of Object.entries(ROLE_SCENARIOS)) console.log(role, v.routes.length)"
 ```
 
-Each page records final URL, substantive body proof, cold and warm navigation latency, all rendered
-tabs, same-origin HTTP failures, non-navigation request failures, console errors/warnings and API
-responses. `net::ERR_ABORTED` is excluded because this harness itself causes those aborts when moving
-to the next page.
+Each page records final URL, substantive body proof, navigation status, DOM/cold and warm settled
+latency, all rendered tabs and their action latency, browser console/page errors, request failures,
+same-origin API responses and all HTTP 4xx/5xx (including redirected media hosts). Only aborted document
+navigations caused by the harness moving to the next page are excluded.
 
-## Reversible controls ready to run
+## Control checks ready to run
 
-| Adapter | Mutation/readback/restore contract |
-|---|---|
-| global admin registration tariff | current tariff/null → alternate → exact GET → original → exact GET |
-| global admin trial | current duration → ±1 day → exact GET → original → exact GET |
-| global admin paid-period policy | current `isActive` → inverse → exact GET → original → exact GET |
-| doctor location/service availability | one existing active service+location+specialist tuple → inverse → overview readback → original → overview readback |
-| patient reminder enabled | rendered switch value → inverse → reload/read → original → reload/read |
+| Adapter                              | Mutation/readback/restore contract                                                                                    |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| global admin registration tariff     | current tariff/null → alternate → exact GET → original → exact GET                                                    |
+| global admin trial                   | current duration → ±1 day → exact GET → original → exact GET                                                          |
+| global admin paid-period policy      | current `isActive` → inverse → exact GET → original → exact GET                                                       |
+| doctor weekly working schedule       | own active row start minute → +1 → exact GET → original → exact GET                                                   |
+| doctor location/service availability | one existing active service+location+specialist tuple → inverse → overview readback → original → overview readback    |
+| patient reminder enabled             | rendered switch value → inverse → reload/read → original → reload/read                                                |
+| patient reminder time                | rendered schedule time → ±1 minute → save/reopen/read → original → save/reopen/read                                   |
+| patient chat                         | rendered composer → append labelled DEV audit message → require visible readback; row remains by append-only contract |
+| patient daily warmup                 | `/go/daily-warmup` → require substantive `/content/*` target                                                          |
+| patient phone change                 | profile action → require bind-phone surface; stop before number submission                                            |
 
-The phone-change flow is page/open-only. Password, contact, deletion, payment, external delivery,
-registration, chat append and exercise-comment append are deliberately not mutated because they do
-not have a deletion/restore contract. A time-schedule adapter is specified in `scenarios.mjs` but is
-not yet implemented: its UI can be restored, but the runner needs a stable actual-patient session
-and a rule-specific selector before it can safely distinguish interval and exact-slot schedules.
+The phone-change flow is page/open-only. Password, deletion, payment, external delivery, registration
+and exercise-comment controls are deliberately not mutated. Reminder time mutation supports both
+interval-window and exact-slot schedules and restores through the same rendered dialog. Chat is the
+single explicit append-only exception authorized for DEV and is marked as retained in the artifact.
 
-## Authentication facts and current blocker
+## Authentication and execution state
 
 The harness now rejects synthetic fixtures by default. Doctor/global admin use the real
 email-password route; patient requires `DEV_AUDIT_PATIENT_SESSION_COOKIE`. Synthetic dev-bypass is
 available only with explicit `DEV_AUDIT_ALLOW_SYNTHETIC=1` and may not be reported as coverage of
 the real migrated data.
 
-Attempted command on the running DEV listener:
+The first pre-cache-rebuild diagnostic attempt was:
 
 ```sh
 DEV_AUDIT_PASSWORD='<owner-provided DEV password>' node runs/dev-interactive-audit/run.mjs
@@ -68,8 +72,9 @@ LISTEN 127.0.0.1:5200 next-server PID 960392
 GET /app status=200 total=0.405426s
 ```
 
-The same current server log also contains live `404` responses for
+That historical server log also contained `404` responses for
 `/api/admin/booking-engine/overview`, `/api/doctor/booking-engine/services`, working-hours,
 working-days, packages and patient unread-count, plus `403` for doctor notification templates.
-Therefore a mutation pass must not start yet: the relevant route handlers are currently absent from
-the running Next route graph. This is a named runtime blocker, not a harness skip or PASS.
+The stale Turbopack route graph was subsequently rebuilt by the orchestrator; this artifact is not
+current evidence and is not a PASS. The expanded write-enabled pass remains intentionally unexecuted
+until the orchestrator serializes it with other work on the shared DEV listener.

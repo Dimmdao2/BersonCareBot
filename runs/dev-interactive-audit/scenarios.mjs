@@ -90,12 +90,13 @@ export const ROLE_SCENARIOS = Object.freeze({
   },
 });
 
-export const REVERSIBLE_ADAPTER_MATRIX = Object.freeze([
+export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   {
     id: 'admin.registration-tariff-policy',
     role: 'global_admin',
     route: '/app/admin/commercial',
-    contract: 'GET policy -> set alternate tariff/null -> GET exact -> restore original -> GET exact',
+    contract:
+      'GET policy -> set alternate tariff/null -> GET exact -> restore original -> GET exact',
   },
   {
     id: 'admin.trial-policy',
@@ -110,10 +111,18 @@ export const REVERSIBLE_ADAPTER_MATRIX = Object.freeze([
     contract: 'GET policy -> toggle isActive -> GET exact -> restore original -> GET exact',
   },
   {
+    id: 'doctor.working-schedule',
+    role: 'doctor',
+    route: '/app/doctor/schedule?tab=work',
+    contract:
+      'GET own active weekly row -> shift start by one minute -> GET exact -> restore -> GET exact',
+  },
+  {
     id: 'doctor.service-location-availability',
     role: 'doctor',
     route: '/app/doctor/schedule?tab=setup&section=locations',
-    contract: 'GET overview -> invert one active service/location pair -> GET exact -> restore -> GET exact',
+    contract:
+      'GET overview -> invert one active service/location pair -> GET exact -> restore -> GET exact',
   },
   {
     id: 'patient.reminder-enabled',
@@ -125,12 +134,27 @@ export const REVERSIBLE_ADAPTER_MATRIX = Object.freeze([
     id: 'patient.reminder-time',
     role: 'patient',
     route: '/app/patient/reminders',
-    contract: 'open schedule -> read time -> +/- 1 minute -> save/reopen/read -> restore/save/reopen/read',
+    contract:
+      'open schedule -> read time -> +/- 1 minute -> save/reopen/read -> restore/save/reopen/read',
   },
   {
     id: 'patient.phone-change-flow',
     role: 'patient',
     route: '/app/patient/profile',
     contract: 'open bind-phone flow only; not mutated because it changes identity/contact',
+  },
+  {
+    id: 'patient.daily-warmup-deep-link',
+    role: 'patient',
+    route: '/app/patient/go/daily-warmup',
+    contract:
+      'open deep-link -> follow redirect -> require a substantive daily-warmup content page',
+  },
+  {
+    id: 'patient.chat-send',
+    role: 'patient',
+    route: '/app/patient/messages',
+    contract:
+      'send one labelled DEV audit message through the rendered composer -> require visible readback; retained because chat is append-only',
   },
 ]);
