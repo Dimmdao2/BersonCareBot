@@ -2098,6 +2098,14 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.material-rating.snapshot.read',
       functionIdentity: 'app.read_current_patient_material_rating_snapshot(text,uuid)' },
+    patient_practice_completion_record: { port: 'webapp', runtimeName: 'patient_practice_completion_record',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.practice-completion.record',
+      functionIdentity: 'app.record_current_patient_practice_completion(uuid,text,integer)' },
+    patient_material_rating_upsert: { port: 'webapp', runtimeName: 'patient_material_rating_upsert',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.material-rating.upsert',
+      functionIdentity: 'app.upsert_current_patient_material_rating(text,uuid,integer)' },
     patient_program_description_read: { port: 'webapp', runtimeName: 'patient_program_description_read',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.program.description.read',
@@ -3801,6 +3809,31 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'public.material_ratings',
         columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.record_current_patient_practice_completion(uuid,text,integer)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_patient'], purpose: 'record one completion only for the current enrolled patient',
+      typedArgs: ['uuid', 'text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_practice_completions', columns: [
+          'id', 'organization_id', 'user_id', 'content_page_id', 'source', 'feeling', 'notes',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.upsert_current_patient_material_rating(text,uuid,integer)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      execute: ['app_patient'], purpose: 'upsert one material rating only for the current enrolled patient',
+      typedArgs: ['text', 'uuid', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.material_ratings', columns: [
+          'organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at',
+        ], operations: ['INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
       owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',

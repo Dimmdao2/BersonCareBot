@@ -88,6 +88,34 @@ if (invalidSnapshots.length > 0) {
   throw new Error(`pre-B0 or orphan Drizzle snapshots are forbidden: ${invalidSnapshots.join(',')}`);
 }
 
+// The maintained migration surface is B0 + forwards only.  This checks executable topology
+// (not prose wording): an A0/disposable bootstrap or a prebuilt PROD target is an alternate
+// migration path even when no migration journal references it.
+const forbiddenExecutablePaths = [
+  'deploy/postgres/generated/prod-to-target',
+  'deploy/postgres/prod-to-target-cutover.sql',
+  'deploy/postgres/prod-to-target-cutover-data.sql',
+  'scripts/prod-to-target-cutover-executable-gate.mjs',
+  'apps/integrator/src/infra/scripts/d30DisposablePostgres.ts',
+  'apps/webapp/scripts/patient-invites-disposable-proof.mjs',
+];
+const presentForbiddenPaths = forbiddenExecutablePaths.filter((path) => {
+  try {
+    readdirSync(resolve(root, path));
+    return true;
+  } catch {
+    try {
+      readFileSync(resolve(root, path));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+});
+if (presentForbiddenPaths.length > 0) {
+  throw new Error(`B0 checkout contains an alternate executable migration path: ${presentForbiddenPaths.join(', ')}`);
+}
+
 console.log(
   `check-b0-migration-baseline: OK (B0 roots + ${entries.length - 1} webapp and ${integratorSql.length - 1} integrator forward migrations; no legacy chain)`,
 );

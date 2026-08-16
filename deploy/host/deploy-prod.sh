@@ -182,12 +182,10 @@ set -a
 source "${WEBAPP_ENV_FILE}"
 set +a
 
-# Backup before migrations: write to pre-migrations folder (run as root).
-# Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
-sudo -n "${BACKUP_SCRIPT}" pre-migrations
-
-pnpm migrate
-pnpm --dir apps/webapp run migrate
+# B0 owner ruling: the future PROD A→B0 migration is deliberately not implemented here.
+# This deploy is code-only until DEV and named TEST have completed their full green runtime passes.
+# In particular it must never invoke the DEV-only `migrate-dev.sh` wrapper.
+node scripts/check-b0-migration-baseline.mjs
 
 # 0328 commits first; this hot-table index must run as a separate autocommit psql operation.
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \

@@ -99,6 +99,13 @@
       "when": 1800000013000,
       "tag": "0013_integrator_support_delivery_attempt_capability",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1800000014000,
+      "tag": "0014_patient_practice_and_material_rating_capabilities",
+      "breakpoints": true
     }
   ]
 }

@@ -69,7 +69,7 @@
     "audit": "node scripts/check-saas-db-regression.mjs && pnpm run check:saas-product-smoke-contract && node scripts/registry-prod-audit.mjs",
     "audit:cve": "pnpm audit --audit-level=high",
     "format": "prettier -w .",
-    "migrate": "bash deploy/host/migrate-dev.sh --execute",
+    "migrate:dev": "bash deploy/host/migrate-dev.sh --execute",
     "migrate:webapp": "pnpm --dir apps/webapp run migrate",
     "db:migrate": "pnpm --dir apps/integrator run db:migrate",
     "db:migrate:prod": "pnpm --dir apps/integrator run db:migrate:prod",

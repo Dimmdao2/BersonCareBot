@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientPracticeCompletions } from '../../../db/schema';
@@ -9,6 +9,7 @@ import type {
   RecordPracticeInput,
 } from '@/modules/patient-practice/types';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 function mapRow(row: typeof patientPracticeCompletions.$inferSelect): PatientPracticeCompletionRow {
   return {
@@ -25,20 +26,17 @@ function mapRow(row: typeof patientPracticeCompletions.$inferSelect): PatientPra
 export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
   return {
     async record(input: RecordPracticeInput) {
-      const organizationId = getCurrentDbPrincipalOrganizationId();
-      if (!organizationId) throw new Error('organization_principal_required');
-      const db = getDrizzle();
-      const [row] = await db
-        .insert(patientPracticeCompletions)
-        .values({
-          organizationId,
-          userId: input.userId,
-          contentPageId: input.contentPageId,
-          source: input.source,
-          feeling: input.feeling ?? null,
-          notes: input.notes ?? '',
-        })
-        .returning({ id: patientPracticeCompletions.id });
+      const result = await runWebappNamedRoot<{ id: string }>(
+        getWebappSqlDb(),
+        'app.record_current_patient_practice_completion(uuid,text,integer)',
+        [input.contentPageId, input.source, input.feeling ?? null],
+        sql`SELECT id FROM app.record_current_patient_practice_completion(
+          ${input.contentPageId}::uuid,
+          ${input.source}::text,
+          ${input.feeling ?? null}::integer
+        )`,
+      );
+      const row = result.rows[0];
       if (!row) throw new Error('patient_practice_completions insert returned no row');
       return { id: row.id };
     },

@@ -30,8 +30,9 @@ fail() {
 start_transcript() {
   sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 0750 "$TRANSCRIPT_DIR" ||
     fail "cannot create TEST deploy transcript directory"
-  TRANSCRIPT="$TRANSCRIPT_DIR/deploy-test.$(date -u +%Y%m%dT%H%M%SZ).log"
-  : > "$TRANSCRIPT" && chmod 0640 "$TRANSCRIPT" || fail "cannot create TEST deploy transcript"
+  TRANSCRIPT="$(mktemp "$TRANSCRIPT_DIR/deploy-test.$(date -u +%Y%m%dT%H%M%SZ).XXXXXX.log")" ||
+    fail "cannot allocate TEST deploy transcript"
+  chmod 0640 "$TRANSCRIPT" || fail "cannot secure TEST deploy transcript"
   exec > >(tee -a "$TRANSCRIPT") 2>&1
   printf 'deploy-test transcript: %s\n' "$TRANSCRIPT"
 }
@@ -49,7 +50,6 @@ cleanup() {
 trap cleanup EXIT
 
 [[ "$(id -u)" -ne 0 ]] || fail 'run as the non-root repository owner'
-start_transcript
 [[ "$(realpath "$SRC_REPO")" == /home/dev/dev-projects/BersonCareBot ]] || fail 'source repository path guard failed'
 [[ -d "$DEPLOY_REPO/.git" ]] || fail 'TEST deploy checkout is missing'
 for command in curl flock git mktemp node pnpm realpath sudo systemctl; do
@@ -66,6 +66,7 @@ done
 
 exec 9>/tmp/bcb-test-deploy.lock
 flock -n 9 || fail 'another TEST deploy is already running'
+start_transcript
 
 for env_file in "$API_ENV" "$WEBAPP_ENV"; do
   mode="$(sudo -u deploy bash -lc "set -a; . '$env_file'; set +a; printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-missing}\"")"

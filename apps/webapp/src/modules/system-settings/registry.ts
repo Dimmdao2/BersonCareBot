@@ -77,7 +77,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   error_tracking_dsn: runtime('admin', 'global', 'server', 'url', ''),
   platform_user_merge_v2_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   /** Platform-wide product switch, deliberately not a per-tariff mechanic. */
-  material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
+  material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'true'),
   patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты'),
   sms_fallback_enabled: restricted(
     'doctor',

@@ -37,28 +37,17 @@ function buildDistributionFromRow(r: {
 export function createPgMaterialRatingPort(): MaterialRatingPort {
   return {
     async upsertRating(input) {
-      const db = getDrizzle();
-      const now = new Date().toISOString();
-      const [row] = await db
-        .insert(materialRatings)
-        .values({
-          organizationId: input.organizationId,
-          userId: input.userId,
-          targetKind: input.targetKind,
-          targetId: input.targetId,
-          stars: input.stars,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [materialRatings.userId, materialRatings.targetKind, materialRatings.targetId],
-          set: {
-            stars: input.stars,
-            updatedAt: now,
-          },
-          where: eq(materialRatings.organizationId, input.organizationId),
-        })
-        .returning({ userId: materialRatings.userId });
-      if (!row) throw new Error('material_rating organization mismatch');
+      const result = await runWebappNamedRoot<{ updated: boolean }>(
+        getWebappSqlDb(),
+        'app.upsert_current_patient_material_rating(text,uuid,integer)',
+        [input.targetKind, input.targetId, input.stars],
+        sql`SELECT updated FROM app.upsert_current_patient_material_rating(
+          ${input.targetKind}::text,
+          ${input.targetId}::uuid,
+          ${input.stars}::integer
+        )`,
+      );
+      if (!result.rows[0]?.updated) throw new Error('material_rating organization mismatch');
     },
 
     async getMyRating(input) {
