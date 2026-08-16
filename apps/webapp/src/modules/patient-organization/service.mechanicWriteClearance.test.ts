@@ -27,6 +27,7 @@ function buildService() {
     hasSchedulableClientRelationship: vi.fn(async () => false),
     createManualOrganizationClient,
     findTreatmentProgramOrganizationForPatient: vi.fn(async () => null),
+    findTreatmentProgramDescriptionForPatient: vi.fn(async () => null),
   } satisfies PatientOrganizationPort;
   const service = createPatientOrganizationService({
     port,

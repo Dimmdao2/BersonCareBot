@@ -151,6 +151,9 @@ export function createPatientOrganizationService(deps: {
         verifiedTargetOrganizationId: targetOrganizationId,
       });
     },
+    async getTreatmentProgramDescriptionForPatient(platformUserId: string, instanceId: string) {
+      return deps.port.findTreatmentProgramDescriptionForPatient(platformUserId, instanceId);
+    },
   };
 }
 

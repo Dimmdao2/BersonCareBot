@@ -15,9 +15,14 @@ async function attachImageLibraryMedia(
   if (!loadMediaById || !item.imageUrl?.trim()) return item;
   const id = parseMediaFileIdFromAppUrl(item.imageUrl);
   if (!id) return item;
-  const row = await loadMediaById(id);
-  if (!row) return item;
-  return { ...item, imageLibraryMedia: row };
+  try {
+    const row = await loadMediaById(id);
+    if (!row) return item;
+    return { ...item, imageLibraryMedia: row };
+  } catch {
+    // Media preview is optional enrichment. The persisted CMS row remains the authority.
+    return item;
+  }
 }
 
 export function createContentCatalogResolver(options: {

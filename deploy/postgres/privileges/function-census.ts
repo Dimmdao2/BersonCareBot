@@ -10381,6 +10381,78 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.read_current_patient_treatment_program_description(uuid)": {
+    "owner": "app_seam_patient_program_resolver_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "return one template description only for the current patient's owned instance in its current clinic",
+    "typedArgs": [
+      "uuid"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "organization_id",
+          "platform_user_id",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.treatment_program_instances",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "template_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.treatment_program_templates",
+        "columns": [
+          "id",
+          "organization_id",
+          "description"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.resolve_operator_probe_incidents(text)": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",

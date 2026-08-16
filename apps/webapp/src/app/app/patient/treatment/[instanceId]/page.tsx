@@ -118,16 +118,12 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
     detail.assignmentSource,
   );
 
-  let programDescription: string | null = null;
-  if (detail.templateId) {
-    try {
-      const tpl = await deps.treatmentProgram.getTemplate(detail.templateId);
-      const d = tpl.description?.trim();
-      programDescription = d || null;
-    } catch {
-      programDescription = null;
-    }
-  }
+  const programDescription = deps.patientOrganization
+    ? await deps.patientOrganization.getTreatmentProgramDescriptionForPatient(
+        session.user.userId,
+        instanceId,
+      )
+    : null;
 
   const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
   const calendarDateKey = DateTime.now().setZone(resolvedIana).toISODate()!;

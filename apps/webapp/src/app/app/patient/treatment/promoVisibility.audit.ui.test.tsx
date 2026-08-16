@@ -96,6 +96,7 @@ function depsWith(programSource: 'promo' | 'doctor' = 'promo') {
       resolveTreatmentProgramOrganizationForPatient: vi
         .fn()
         .mockResolvedValue({ ok: true, organizationId: ORGANIZATION_ID }),
+      getTreatmentProgramDescriptionForPatient: vi.fn().mockResolvedValue(null),
     },
     treatmentProgramInstance: {
       getInstanceForPatient: vi.fn().mockResolvedValue(detail(programSource)),
@@ -124,6 +125,42 @@ beforeEach(() => {
 });
 
 describe('promo direct patient surfaces', () => {
+  it('reads an owned program description through the patient seam, never the staff template aggregate', async () => {
+    const deps = depsWith('doctor');
+    const description = deps.patientOrganization.getTreatmentProgramDescriptionForPatient;
+    fakes.buildAppDeps.mockReturnValue(deps);
+
+    await expect(
+      PatientTreatmentProgramDetailPage({
+        params: Promise.resolve({ instanceId: INSTANCE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    ).resolves.toBeTruthy();
+
+    expect(description).toHaveBeenCalledWith(USER_ID, INSTANCE_ID);
+    expect(deps.treatmentProgram.getTemplate).not.toHaveBeenCalled();
+  });
+
+  it('keeps a foreign instance invisible before the patient description seam can run', async () => {
+    const deps = depsWith('doctor');
+    deps.patientOrganization.resolveTreatmentProgramOrganizationForPatient.mockResolvedValue({
+      ok: false,
+      reason: 'organization_target_not_authorized',
+    });
+    fakes.buildAppDeps.mockReturnValue(deps);
+
+    await expect(
+      PatientTreatmentProgramDetailPage({
+        params: Promise.resolve({ instanceId: INSTANCE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+
+    expect(
+      deps.patientOrganization.getTreatmentProgramDescriptionForPatient,
+    ).not.toHaveBeenCalled();
+  });
+
   it('closes both legacy promo links before redirecting or materializing when disabled', async () => {
     await expect(PatientTreatmentPromoDefaultPage()).rejects.toThrow('NEXT_NOT_FOUND');
     await expect(

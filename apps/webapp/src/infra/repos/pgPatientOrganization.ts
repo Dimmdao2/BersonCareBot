@@ -273,5 +273,15 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
       );
       return result.rows[0]?.organization_id ?? null;
     },
+    async findTreatmentProgramDescriptionForPatient(platformUserId, instanceId) {
+      void platformUserId;
+      const result = await runWebappNamedRoot<{ description: string | null }>(
+        getWebappSqlDb(),
+        'app.read_current_patient_treatment_program_description(uuid)',
+        [instanceId],
+        sql`SELECT app.read_current_patient_treatment_program_description(${instanceId}::uuid) AS description`,
+      );
+      return result.rows[0]?.description ?? null;
+    },
   };
 }

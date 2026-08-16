@@ -64,4 +64,9 @@ export type PatientOrganizationPort = {
     platformUserId: string,
     instanceId: string,
   ): Promise<string | null>;
+  /** Narrow patient projection; never returns the staff template aggregate. */
+  findTreatmentProgramDescriptionForPatient(
+    platformUserId: string,
+    instanceId: string,
+  ): Promise<string | null>;
 };
