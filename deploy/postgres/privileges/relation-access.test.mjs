@@ -1122,6 +1122,20 @@ test('patient page relations have exact self/current-clinic access and published
     'public.treatment_program_instance_stages': ['SELECT', 'UPDATE'],
     'public.treatment_program_instances': ['SELECT', 'UPDATE'],
   };
+
+  const patientSupport = tables['public.doctor_patient_support'];
+  assert.deepEqual(
+    patientSupport.access.grants.find((grant) => grant.role === 'app_patient')?.operations,
+    ['SELECT'],
+  );
+  const patientSupportPolicy = patientSupport.policies.find((policy) =>
+    policy.to.includes('app_patient') && !policy.name.startsWith('rev10_context_gate_'));
+  assert.match(
+    patientSupportPolicy?.using ?? '',
+    /"patient_user_id" = app\.current_patient_user_id\(\)/u,
+  );
+  assert.match(patientSupportPolicy?.using ?? '', /"organization_id" = app\.current_org_id\(\)/u);
+
   for (const [relation, operations] of Object.entries(patientProgramOperations)) {
     const patientGrants = tables[relation].access.grants.filter((grant) => grant.role === 'app_patient');
     assert.deepEqual(patientGrants.flatMap((grant) => grant.operations).sort(), operations, relation);

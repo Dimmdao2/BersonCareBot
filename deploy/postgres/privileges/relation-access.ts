@@ -3559,12 +3559,20 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "purpose": "Флаги сопровождения пациента — определяет, ведёт ли врач клиента и открыты ли ему чат/медиа",
     "codePaths": [
       "apps/integrator/src/integrations/google-calendar/calendarDescription.ts",
+      "apps/webapp/src/app/app/patient/treatment/loadPatientProgramInteractionBundle.ts",
       "apps/webapp/src/infra/repos/pgDoctorClients.ts",
       "apps/webapp/src/infra/repos/pgDoctorPatientSupport.ts",
       "apps/webapp/src/modules/doctor-clients/ports.ts",
       "apps/webapp/src/modules/doctor-clients/supportPolicy.ts"
     ],
     "grants": [
+      {
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
       {
         "role": "app_staff",
         "operations": [

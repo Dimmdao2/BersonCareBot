@@ -15663,7 +15663,7 @@ END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412
 -- Name: doctor_patient_support rev10_context_gate_92; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_92 ON public.doctor_patient_support AS RESTRICTIVE TO app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_92 ON public.doctor_patient_support AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (app.require_accepted_context(CURRENT_USER, CURRENT_USER,
 CASE
     WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
     WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -17750,7 +17750,17 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.doctor_notes TO app_staff 
 -- Name: doctor_patient_support rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.doctor_patient_support TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.doctor_patient_support TO app_patient, app_staff USING (
+CASE
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = app.current_org_id()) AND (patient_user_id = app.current_patient_user_id())))
+    ELSE false
+END) WITH CHECK (
+CASE
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = app.current_org_id()) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = app.current_org_id()) AND (patient_user_id = app.current_patient_user_id())))
+    ELSE false
+END);
 
 
 --
