@@ -30,6 +30,11 @@ function safeInlineJson(value: unknown): string {
 export function buildClientBootWatchdogScript(input: {
   entrySurface: 'tg' | 'max' | 'browser';
   client: ClientEnvironmentTelemetry;
+  /**
+   * A development compiler can keep the client module pending for an unbounded time.
+   * Only production may classify a missing acknowledgement by elapsed time alone.
+   */
+  failureTimeoutEnabled: boolean;
   timeoutMs?: number;
 }): string {
   const config = safeInlineJson({
@@ -38,7 +43,7 @@ export function buildClientBootWatchdogScript(input: {
     activeContentId: CLIENT_BOOT_ACTIVE_CONTENT_ID,
     entrySurface: input.entrySurface,
     client: input.client,
-    timeoutMs: input.timeoutMs ?? CLIENT_BOOT_WATCHDOG_MS,
+    timeoutMs: input.failureTimeoutEnabled ? (input.timeoutMs ?? CLIENT_BOOT_WATCHDOG_MS) : null,
   });
 
   return `(function(){
@@ -58,7 +63,7 @@ if(navigator.storage&&typeof navigator.storage.estimate==='function'&&w.Promise)
 var payload={entrySurface:surface(),correlationId:correlationId(),timingMs:Math.min(60000,Math.max(0,Date.now()-started)),client:cfg.client,failureSignals:{moduleExecuted:moduleExecuted,reactMounted:reactMounted,failureKind:moduleExecuted?'module_executed_not_mounted':'module_never_executed',capturedError:capturedError,swState:swState,storageBucket:storageBucket,featureProbes:probes}};
 function finish(){payload.failureSignals.swState=swState;payload.failureSignals.storageBucket=storageBucket;if(!settled&&pending===0){settled=true;send(payload);}}
 w.setTimeout(function(){if(!settled){settled=true;payload.failureSignals.swState=swState;payload.failureSignals.storageBucket=storageBucket;send(payload);}},500);finish();}
-w.__bcBootWatch={ok:ok};if(w.addEventListener){w.addEventListener('error',onError,true);w.addEventListener('unhandledrejection',onRejection);}timer=w.setTimeout(fail,cfg.timeoutMs);
+w.__bcBootWatch={ok:ok};if(w.addEventListener){w.addEventListener('error',onError,true);w.addEventListener('unhandledrejection',onRejection);}if(cfg.timeoutMs!==null){timer=w.setTimeout(fail,cfg.timeoutMs);}
 }());`;
 }
 

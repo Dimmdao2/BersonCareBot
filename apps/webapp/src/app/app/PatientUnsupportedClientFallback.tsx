@@ -19,16 +19,19 @@ import {
 export function PatientUnsupportedClientFallback({
   client,
   entrySurface,
+  failureTimeoutEnabled,
   supportContactHref,
 }: {
   client: ParsedClientEnvironment;
   entrySurface: 'tg' | 'max' | 'browser';
+  failureTimeoutEnabled: boolean;
   supportContactHref: string;
 }) {
   const clientFact = formatClientEnvironmentFact(client);
   const watchdogScript = buildClientBootWatchdogScript({
     entrySurface,
     client: toClientEnvironmentTelemetry(client),
+    failureTimeoutEnabled,
   });
 
   return (

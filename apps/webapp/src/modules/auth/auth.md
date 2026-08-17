@@ -132,7 +132,10 @@ Tier **`patient`** (доступ к основному пациентскому 
   `patient_unsupported_client_fallback_enabled` вставляет скрытую SSR-заглушку и classic ES5-safe watchdog.
   Дефолт флага — `false`; TEST/PROD-активация и реальное окно сбора остаются отдельным owner gate.
 - Раннее исполнение client-модуля отмечает `module_executed`, mount `AuthBootstrap` — `react_mounted`; здоровый mount
-  отменяет watchdog. Существующие `MESSENGER_*` таймауты остаются отдельным auth-flow и не считаются boot failure.
+  отменяет watchdog. В `development` временная классификация не вооружается: ожидание DEV-компилятора не имеет
+  верхней границы и само по себе не доказывает несовместимость клиента. В `production` сохраняется 10-секундный
+  timeout для настоящего no-module/hard-failure. Существующие `MESSENGER_*` таймауты остаются отдельным auth-flow и
+  не считаются boot failure.
 - `POST /api/patient-app/client-boot-report` принимает только bounded/minimized strict payload, лимитируется по
   доверенному `X-Real-IP` через DB sliding-window port и пишет только structured `info`/`warn` с
   `scope=patient_client_env`, `event=unsupported_client_boot`. Raw UA/stack/body/tokens/account ids не принимаются;
