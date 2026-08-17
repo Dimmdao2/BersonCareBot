@@ -74,3 +74,31 @@ test('rejects case, spacing and alternate include equivalents', () => {
     expectKilled(path, source);
   }
 });
+
+test('rejects database DDL passed to a client through a local variable', () => {
+  expectKilled(
+    'tools/__named_dev_variable_db_ddl.mjs',
+    "const client = getClient();\nconst statement = 'CREATE DATABASE bcb_throwaway';\nawait client.query(statement);\n",
+  );
+});
+
+test('rejects history replay piped into psql stdin', () => {
+  expectKilled(
+    'scripts/__named_dev_pipe_history.sh',
+    '#!/bin/sh\ncat apps/webapp/db/history.sql | psql "$DATABASE_URL"\n',
+  );
+});
+
+test('rejects history replay through a psql heredoc with an arbitrary delimiter', () => {
+  expectKilled(
+    'scripts/__named_dev_heredoc_history.sh',
+    '#!/bin/sh\npsql "$DATABASE_URL" <<\'EOF\'\n\\i apps/webapp/db/history.sql\nEOF\n',
+  );
+});
+
+test('rejects history replay supplied to a psql child process through stdin', () => {
+  expectKilled(
+    'tools/__named_dev_spawn_stdin.mjs',
+    "import { readFileSync } from 'node:fs';\nimport { spawnSync } from 'node:child_process';\nspawnSync('psql', [], { input: readFileSync('apps/webapp/db/history.sql') });\n",
+  );
+});
