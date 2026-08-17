@@ -3,6 +3,9 @@ export type ManualInvoiceFailure = Readonly<{
   error: string;
 }>;
 
+import { PaymentProviderTransportError } from '@/modules/payments/providerPort';
+import { ExternalFetchTimeoutError } from '@/shared/lib/externalFetch';
+
 const DATABASE_UNAVAILABLE_CODES = new Set([
   '40001',
   '40P01',
@@ -19,19 +22,56 @@ const DATABASE_UNAVAILABLE_CODES = new Set([
   'ETIMEDOUT',
 ]);
 
+type TrustedInfrastructureFailure = Readonly<{
+  code: string | null;
+}>;
+
+const trustedInfrastructureFailures = new WeakMap<Error, TrustedInfrastructureFailure>();
+
 function rawErrorCode(error: unknown): string | null {
   if (typeof error !== 'object' || error === null || !('code' in error)) return null;
   const code = (error as { code?: unknown }).code;
   return typeof code === 'string' && code.trim() ? code.trim().slice(0, 32) : null;
 }
 
-function errorCode(error: unknown): string | null {
-  const code = rawErrorCode(error);
-  if (!code) return null;
-  // A five-character shape is not proof that a code came from PostgreSQL: providers and
-  // arbitrary thrown values use the same public `code` property. Keep only codes whose
-  // classification is explicit here so untrusted provider/customer values never reach logs.
-  return DATABASE_UNAVAILABLE_CODES.has(code) ? code : null;
+function trustedInfrastructureFailure(error: unknown): TrustedInfrastructureFailure | null {
+  return error instanceof Error ? (trustedInfrastructureFailures.get(error) ?? null) : null;
+}
+
+function markTrustedInfrastructureFailure(error: unknown, code: string | null): Error {
+  const failure = new Error('saas_billing_database_unavailable', { cause: error });
+  trustedInfrastructureFailures.set(failure, { code });
+  return failure;
+}
+
+export async function withManualInvoiceDatabaseBoundary<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const code = rawErrorCode(error);
+    if (code && DATABASE_UNAVAILABLE_CODES.has(code)) {
+      throw markTrustedInfrastructureFailure(error, code);
+    }
+    throw error;
+  }
+}
+
+export async function withManualInvoiceProviderTransportBoundary<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof PaymentProviderTransportError) {
+      throw markTrustedInfrastructureFailure(error, error.transportCode);
+    }
+    if (error instanceof ExternalFetchTimeoutError) {
+      throw markTrustedInfrastructureFailure(error, 'ETIMEDOUT');
+    }
+    throw error;
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -40,10 +80,7 @@ function errorMessage(error: unknown): string {
 
 function diagnosticRoot(error: unknown): string {
   const message = errorMessage(error);
-  const code = errorCode(error);
-  if (code && (DATABASE_UNAVAILABLE_CODES.has(code) || code.startsWith('08'))) {
-    return 'database_unavailable';
-  }
+  if (trustedInfrastructureFailure(error)) return 'database_unavailable';
   if (message === 'organization_not_found') return 'organization_not_found';
   if (message.startsWith('saas_billing_receipt_') || message.startsWith('payment_receipt_')) {
     return 'fiscal_data_invalid';
@@ -75,18 +112,18 @@ function diagnosticRoot(error: unknown): string {
 
 /** Redacted root cause only: no raw provider response, fiscal fields, or customer data. */
 export function manualInvoiceFailureDiagnostic(error: unknown) {
+  const infrastructureFailure = trustedInfrastructureFailure(error);
   return {
     event: 'saas_billing_manual_invoice_failed',
     errorName: error instanceof Error ? 'Error' : 'NonError',
-    errorCode: errorCode(error),
+    errorCode: infrastructureFailure?.code ?? null,
     root: diagnosticRoot(error),
   } as const;
 }
 
 export function mapManualInvoiceFailure(error: unknown): ManualInvoiceFailure {
   const message = errorMessage(error);
-  const code = errorCode(error);
-  if (code && (DATABASE_UNAVAILABLE_CODES.has(code) || code.startsWith('08'))) {
+  if (trustedInfrastructureFailure(error)) {
     return { status: 503, error: 'saas_billing_database_unavailable' };
   }
   if (message === 'organization_not_found') {

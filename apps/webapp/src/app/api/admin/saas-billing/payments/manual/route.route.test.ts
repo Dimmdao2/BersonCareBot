@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseError } from 'pg';
+import { PaymentProviderTransportError } from '@/modules/payments/providerPort';
+import {
+  withManualInvoiceDatabaseBoundary,
+  withManualInvoiceProviderTransportBoundary,
+} from '@/modules/saas-billing/manualInvoiceFailure';
 
 const fakes = vi.hoisted(() => ({
   gate: vi.fn(),
@@ -147,7 +152,9 @@ describe('manual SaaS invoice HTTP mapping', () => {
     const rawMessage = 'permission denied: db-customer-secret@example.test';
     const databaseError = new DatabaseError(rawMessage, rawMessage.length, 'error');
     databaseError.code = '42501';
-    fakes.createManualInvoice.mockRejectedValue(databaseError);
+    fakes.createManualInvoice.mockImplementation(() =>
+      withManualInvoiceDatabaseBoundary(() => Promise.reject(databaseError)),
+    );
 
     const response = await POST(request());
     const body = await response.json();
@@ -163,14 +170,12 @@ describe('manual SaaS invoice HTTP mapping', () => {
 
   it('preserves a bounded database-unavailable mapping for a transport-shaped connect failure', async () => {
     const rawMessage = 'connect refused: transport-customer-secret@example.test';
-    const transportError = Object.assign(new Error(rawMessage), {
-      code: 'ECONNREFUSED',
-      errno: -111,
-      syscall: 'connect',
-      address: '127.0.0.1',
-      port: 5432,
+    const transportError = new PaymentProviderTransportError('ECONNREFUSED', {
+      cause: new Error(rawMessage),
     });
-    fakes.createManualInvoice.mockRejectedValue(transportError);
+    fakes.createManualInvoice.mockImplementation(() =>
+      withManualInvoiceProviderTransportBoundary(() => Promise.reject(transportError)),
+    );
 
     const response = await POST(request());
     const body = await response.json();
@@ -251,8 +256,10 @@ describe('manual SaaS invoice HTTP mapping', () => {
     'does not let a plain external error forge trusted provenance with error.code=%s',
     async (spoofedTrustedCode) => {
       const rawMessage = `provider-controlled:${spoofedTrustedCode}:customer-secret`;
-      fakes.createManualInvoice.mockRejectedValue(
-        Object.assign(new Error(rawMessage), { code: spoofedTrustedCode }),
+      fakes.createManualInvoice.mockImplementation(() =>
+        withManualInvoiceProviderTransportBoundary(() =>
+          Promise.reject(Object.assign(new Error(rawMessage), { code: spoofedTrustedCode })),
+        ),
       );
 
       const response = await POST(request());

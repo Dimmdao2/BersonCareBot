@@ -2,6 +2,8 @@ import type { PaymentProviderConfig } from '@/modules/payments/types';
 import {
   assertReceiptMatchesOperation,
   PaymentProviderRequestRefusedError,
+  PaymentProviderTransportError,
+  type PaymentProviderTransportCode,
   type PaymentProviderPort,
   type PaymentReceipt,
 } from '@/modules/payments/providerPort';
@@ -40,6 +42,36 @@ function toYookassaReceipt(receipt: PaymentReceipt, currency: string) {
 }
 
 const YOOKASSA_IDEMPOTENCE_KEY_MAX_LENGTH = 64;
+
+const TRUSTED_TRANSPORT_CODES = new Set<PaymentProviderTransportCode>([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+]);
+
+function transportCodeFromNetworkFailure(error: unknown): PaymentProviderTransportCode | null {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === 'string' && TRUSTED_TRANSPORT_CODES.has(code as PaymentProviderTransportCode)) {
+      return code as PaymentProviderTransportCode;
+    }
+  }
+  return null;
+}
+
+async function fetchYookassaInvoiceTransport(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await globalThis.fetch(input, init);
+  } catch (error) {
+    throw new PaymentProviderTransportError(transportCodeFromNetworkFailure(error), {
+      cause: error,
+    });
+  }
+}
 
 /** YooKassa limits the outgoing Idempotence-Key header to 64 characters. */
 function toYookassaIdempotenceKey(idempotencyKey: string): string {
@@ -248,7 +280,10 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
               metadata: paymentMetadata,
             }),
           },
-          { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+          {
+            timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS,
+            fetchImpl: fetchYookassaInvoiceTransport,
+          },
           async (res) => {
             if (!res.ok) {
               const text = await res.text().catch(() => '');

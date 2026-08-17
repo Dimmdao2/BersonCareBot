@@ -43,6 +43,27 @@ export class PaymentProviderRequestRefusedError extends Error {
   }
 }
 
+export type PaymentProviderTransportCode =
+  | 'ECONNREFUSED'
+  | 'ECONNRESET'
+  | 'ENOTFOUND'
+  | 'ETIMEDOUT';
+
+/**
+ * The provider adapter creates this only when its own network call rejects before a response
+ * exists. Provider response bodies and adapter callbacks must stay plain/domain errors: a public
+ * `error.code` is not transport provenance.
+ */
+export class PaymentProviderTransportError extends Error {
+  constructor(
+    readonly transportCode: PaymentProviderTransportCode | null,
+    options?: ErrorOptions,
+  ) {
+    super('payment_provider_transport_unavailable', options);
+    this.name = 'PaymentProviderTransportError';
+  }
+}
+
 /** An unfiscalized payment is worse than a loud failure. */
 export function assertReceiptSupported(
   receipt: PaymentReceipt | undefined,
