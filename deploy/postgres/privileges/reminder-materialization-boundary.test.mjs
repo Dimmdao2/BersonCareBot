@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const migration = readFileSync(
-  new URL(
-    '../../../apps/webapp/db/drizzle-migrations/0019_patient_reminder_materialization_runtime_capabilities.sql',
-    import.meta.url,
-  ),
-  'utf8',
-);
+// These gates belong to whichever migration currently DEFINES the roots, not to the file that first
+// introduced them: a forward migration that replaces a body must inherit every gate, and pinning the
+// introducing file would leave the live definition unguarded from the next migration onwards.
+const migrationsDir = new URL('../../../apps/webapp/db/drizzle-migrations/', import.meta.url);
+const migrationSources = readdirSync(migrationsDir)
+  .filter((file) => file.endsWith('.sql'))
+  .sort()
+  .map((file) => readFileSync(new URL(file, migrationsDir), 'utf8'));
+const ledger = migrationSources.join('\n');
+const migration = migrationSources
+  .filter((source) => source.includes('CREATE OR REPLACE FUNCTION app.commit_patient_reminder_materialization'))
+  .at(-1);
+assert(migration, 'no migration defines app.commit_patient_reminder_materialization');
 const repository = readFileSync(
   new URL('../../../apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts', import.meta.url),
   'utf8',
@@ -129,11 +135,11 @@ test('materialization roots reject wrong organization and wrong patient identity
 
 test('retired split mutation roots cannot be executed by runtime roles', () => {
   assert.match(
-    migration,
+    ledger,
     /REVOKE ALL ON FUNCTION app\.upsert_patient_reminder_occurrence_plan[\s\S]*FROM PUBLIC, app_staff, app_tenant_service/,
   );
   assert.match(
-    migration,
+    ledger,
     /REVOKE ALL ON FUNCTION app\.mark_patient_reminder_occurrence_queued[\s\S]*FROM PUBLIC, app_staff, app_tenant_service/,
   );
 });

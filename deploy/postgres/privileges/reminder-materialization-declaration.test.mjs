@@ -23,6 +23,32 @@ test('current reminder materialization roots have one owner and no PUBLIC execut
   }
 });
 
+// The live 42501 of 17.08 was "permission denied for table user_reminder_occurrences" raised inside
+// the snapshot root: its body read the whole occurrence row while the seam owner holds only the
+// narrow per-column grants declared below. The tempting repair is to widen this surface until the
+// error goes away, which hands the reminder seam the delivery-outcome columns it never reads and
+// makes deploy/postgres/privileges/reminder-materialization-snapshot.acceptance.sh pass for the
+// wrong reason. Delivery outcome belongs to the delivery seams, not to materialization.
+const DELIVERY_OUTCOME_COLUMNS = ['sent_at', 'failed_at', 'delivery_channel', 'delivery_job_id', 'error_code'];
+
+test('materialization seam never reads occurrence delivery outcome and never takes the whole table', () => {
+  for (const signature of CURRENT_MATERIALIZATION_ROOTS) {
+    const surface = (functions[signature].relationSurfaces ?? [])
+      .find((entry) => entry.relation === 'integrator.user_reminder_occurrences');
+    if (!surface) continue;
+    assert(
+      Array.isArray(surface.columns) && surface.columns.length > 0,
+      `${signature} must keep a column-narrowed occurrence surface, not a table-wide one`,
+    );
+    for (const column of DELIVERY_OUTCOME_COLUMNS) {
+      assert(
+        !surface.columns.includes(column),
+        `${signature} must not read occurrence delivery outcome column ${column}`,
+      );
+    }
+  }
+});
+
 test('runtime roles cannot bypass materialization writes or the queue root', () => {
   const occurrence = database.tables['integrator.user_reminder_occurrences']?.grants ?? {};
   assert.deepEqual(occurrence.app_staff?.privs ?? [], ['SELECT']);
