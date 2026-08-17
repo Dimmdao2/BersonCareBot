@@ -63,6 +63,47 @@ function requireCommitBoundary(source) {
   ]) assert.ok(commit.includes(invariant), `missing delivery-envelope invariant: ${invariant}`);
 }
 
+function requireOccurrenceConvergence(source) {
+  const commit = source.slice(
+    source.indexOf('CREATE OR REPLACE FUNCTION app.commit_patient_reminder_materialization'),
+  );
+  const occurrence = commit.slice(
+    commit.indexOf('INSERT INTO integrator.user_reminder_occurrences'),
+    commit.indexOf('FOR v_delivery IN SELECT value FROM jsonb_array_elements'),
+  );
+  for (const invariant of [
+    'ON CONFLICT (occurrence_key) DO NOTHING',
+    'WHERE candidate.occurrence_key = p_occurrence_key',
+    'FOR UPDATE',
+    'v_existing.rule_id IS DISTINCT FROM p_rule_id',
+    'v_existing.organization_id IS DISTINCT FROM v_org',
+    'v_existing.platform_user_id IS DISTINCT FROM p_platform_user_id',
+    "v_existing.status NOT IN ('planned', 'queued')",
+    'v_existing.id IS DISTINCT FROM p_occurrence_id',
+    'v_existing.delivery_generation IS DISTINCT FROM p_delivery_generation',
+  ]) assert.ok(occurrence.includes(invariant), `missing occurrence convergence invariant: ${invariant}`);
+}
+
+function requireUnavailablePatientGate(source) {
+  const commit = source.slice(
+    source.indexOf('CREATE OR REPLACE FUNCTION app.commit_patient_reminder_materialization'),
+  );
+  const availability = commit.slice(
+    commit.indexOf('SELECT rule.notification_topic_code'),
+    commit.indexOf('INSERT INTO integrator.user_reminder_occurrences'),
+  );
+  for (const invariant of [
+    'rule.organization_id = v_org',
+    'rule.platform_user_id = p_platform_user_id',
+    'rule.is_enabled = true',
+    "enrollment.status = 'active'",
+    'patient.is_blocked = false',
+    'patient.is_archived = false',
+    'patient.merged_into_id IS NULL',
+    "RETURN jsonb_build_object('ok', true, 'outcome', 'not_actionable')",
+  ]) assert.ok(availability.includes(invariant), `missing patient availability invariant: ${invariant}`);
+}
+
 test('reminder occurrence and queue state have one atomic mutation root', () => {
   const commit = migration.slice(
     migration.indexOf('CREATE OR REPLACE FUNCTION app.commit_patient_reminder_materialization'),
@@ -131,5 +172,40 @@ test('queue conflict and envelope static gate kills cross-org, terminal and nest
     const mutated = migration.replaceAll(from, to);
     assert.notEqual(mutated, migration, `mutation fixture did not apply: ${name}`);
     assert.throws(() => requireCommitBoundary(mutated), undefined, name);
+  }
+});
+
+test('occurrence convergence and unavailable-patient gates kill their historical regressions', () => {
+  requireOccurrenceConvergence(migration);
+  requireUnavailablePatientGate(migration);
+  for (const [name, from, to, oracle] of [
+    [
+      'occurrence-key conflict inserts a second row',
+      'ON CONFLICT (occurrence_key) DO NOTHING',
+      'ON CONFLICT (occurrence_key) DO UPDATE SET updated_at = statement_timestamp()',
+      requireOccurrenceConvergence,
+    ],
+    [
+      'concurrent winner is not locked',
+      'WHERE candidate.occurrence_key = p_occurrence_key\n  FOR UPDATE',
+      'WHERE candidate.occurrence_key = p_occurrence_key',
+      requireOccurrenceConvergence,
+    ],
+    [
+      'blocked patient is materializable',
+      'patient.is_blocked = false',
+      'TRUE',
+      requireUnavailablePatientGate,
+    ],
+    [
+      'inactive enrollment is materializable',
+      "enrollment.status = 'active'",
+      'TRUE',
+      requireUnavailablePatientGate,
+    ],
+  ]) {
+    const mutated = migration.replaceAll(from, to);
+    assert.notEqual(mutated, migration, `mutation fixture did not apply: ${name}`);
+    assert.throws(() => oracle(mutated), undefined, name);
   }
 });
