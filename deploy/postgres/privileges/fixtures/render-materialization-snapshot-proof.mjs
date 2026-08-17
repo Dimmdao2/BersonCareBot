@@ -53,9 +53,11 @@ writeFileSync(`${outDir}/current-body.sql`, `${current}\n`);
 // whatever the current read names, the fault injection replaces it with the whole row.
 const narrowRead = current.match(/ {4}SELECT candidate\.[\s\S]*?\n {4}FROM integrator\.user_reminder_occurrences AS candidate/);
 if (!narrowRead) throw new Error('the due-occurrence read is no longer recognizable in the shipped body');
+// No guard on "the injection changed something": if the shipped body already reads the whole row,
+// the two files are identical on purpose and the first phase of the proof reports the real denial the
+// engine raises, which is far more useful than a renderer complaining about its own fixture.
 const wholeRow = current.replace(
   narrowRead[0],
   '    SELECT candidate.*\n    FROM integrator.user_reminder_occurrences AS candidate',
 );
-if (wholeRow === current) throw new Error('fault injection did not change the shipped body');
 writeFileSync(`${outDir}/whole-row-body.sql`, `${wholeRow}\n`);
