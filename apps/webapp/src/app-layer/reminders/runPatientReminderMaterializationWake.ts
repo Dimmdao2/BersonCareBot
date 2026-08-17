@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { env } from '@/config/env';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { planDueReminderOccurrences } from '@/modules/reminders/planDueReminderOccurrences';
 import { materializePatientReminderDeliveries } from '@/modules/reminders/materializePatientReminderDeliveries';
 import type { PatientReminderMaterializationPort } from '@/modules/reminders/patientReminderMaterializationPort';
 import { createPgPatientReminderMaterializationPort } from '@/infra/repos/pgPatientReminderMaterialization';
+import { resolvePatientNotificationChannels } from '@/modules/patient-notifications/resolveNotificationChannels';
 
 export type PatientReminderMaterializationWakeResult = {
   rules: number;
@@ -18,8 +19,9 @@ export async function runPatientReminderMaterializationWake(
   now = new Date(),
   port: PatientReminderMaterializationPort = createPgPatientReminderMaterializationPort(),
 ): Promise<PatientReminderMaterializationWakeResult> {
-  const rules = await port.listEnabledRules(organizationId);
-  const duePlanned = await port.listDuePlannedOccurrences(organizationId, now.toISOString());
+  const nowIso = now.toISOString();
+  const snapshot = await port.readSnapshot(organizationId, nowIso);
+  const { rules, dueOccurrences: duePlanned } = snapshot;
   const rulesById = new Map(rules.map((rule) => [rule.id, rule]));
   const result: PatientReminderMaterializationWakeResult = {
     rules: rules.length,
@@ -32,48 +34,65 @@ export async function runPatientReminderMaterializationWake(
   const work = [
     ...duePlanned.flatMap((item) => {
       const rule = rulesById.get(item.ruleId);
-      return rule ? [{ rule, draft: item.draft }] : [];
+      return rule ? [{ rule, draft: item.draft, occurrence: item.occurrence }] : [];
     }),
     ...rules.flatMap((rule) =>
-      planDueReminderOccurrences(rule, now.toISOString())
+      planDueReminderOccurrences(rule, nowIso)
         .filter((draft) => !dueKeys.has(draft.occurrenceKey))
-        .map((draft) => ({ rule, draft })),
+        .map((draft) => ({
+          rule,
+          draft,
+          occurrence: { id: randomUUID(), deliveryGeneration: 0, plannedAt: draft.plannedAt },
+        })),
     ),
   ];
-  const linkedTitles = new Map<string, string | null>();
-  for (const { rule, draft } of work) {
-    let linkedTitle = linkedTitles.get(rule.id);
-    if (linkedTitle === undefined) {
-      linkedTitle = await port.resolveLinkedTitle(rule);
-      linkedTitles.set(rule.id, linkedTitle);
-    }
+  for (const { rule, draft, occurrence } of work) {
     result.occurrences += 1;
-    const outcome = await port.materializeOccurrence(rule, draft, async (occurrence) => {
-      const topic = rule.notificationTopicCode?.trim() || undefined;
-      if (!topic) return [];
-      const targets = await buildAppDeps().deliveryTargetsApi.getTargets({
-        organizationId,
-        platformUserId: rule.platformUserId,
-        ...(rule.integratorUserId ? { integratorUserId: rule.integratorUserId } : {}),
-        topic,
-      });
-      const resolution = targets?.resolution;
-      if (!targets || !resolution) return [];
-      return materializePatientReminderDeliveries({
-        rule,
-        occurrence,
-        appBaseUrl: env.APP_BASE_URL,
-        linkedTitle,
-        targets: {
-          selectedChannels: resolution.selectedChannels,
-          ...(targets.channelBindings.telegramId
-            ? { telegramId: targets.channelBindings.telegramId }
-            : {}),
-          ...(targets.channelBindings.maxId ? { maxId: targets.channelBindings.maxId } : {}),
-          ...(targets.emailRecipient ? { emailRecipient: targets.emailRecipient } : {}),
-        },
-      });
-    });
+    const topic = rule.notificationTopicCode?.trim();
+    const targets =
+      topic && rule.integratorUserId
+        ? await port.readDeliveryTargetSnapshot({
+            organizationId,
+            platformUserId: rule.platformUserId,
+            integratorUserId: rule.integratorUserId,
+            topicCode: topic,
+            nowIso,
+          })
+        : null;
+    const resolution =
+      targets && topic
+        ? resolvePatientNotificationChannels({
+            topicCode: topic,
+            availability: {
+              hasTelegram: Boolean(targets.telegramId),
+              hasMax: Boolean(targets.maxId),
+              hasEmail: Boolean(targets.emailRecipient),
+              emailVerified: targets.emailVerified,
+              hasWebPushSubscription: targets.hasWebPushSubscription,
+              vapidConfigured: targets.vapidConfigured,
+              smtpConfigured: targets.smtpConfigured,
+            },
+            channelPrefs: targets.channelPreferences,
+            topicChannelRows: targets.topicChannelRows,
+            gate: { muted: targets.muted, topicMasterEnabled: targets.topicMasterEnabled },
+          })
+        : null;
+    const deliveries =
+      targets && resolution
+        ? materializePatientReminderDeliveries({
+            rule,
+            occurrence,
+            appBaseUrl: env.APP_BASE_URL,
+            linkedTitle: rule.linkedTitle,
+            targets: {
+              selectedChannels: resolution.selectedChannels,
+              ...(targets.telegramId ? { telegramId: targets.telegramId } : {}),
+              ...(targets.maxId ? { maxId: targets.maxId } : {}),
+              ...(targets.emailRecipient ? { emailRecipient: targets.emailRecipient } : {}),
+            },
+          })
+        : [];
+    const outcome = await port.materializeOccurrence(rule, draft, occurrence, deliveries);
     if (outcome === 'materialized') result.materialized += 1;
     else if (outcome === 'dedup') result.deduplicated += 1;
     else result.skipped += 1;

@@ -134,6 +134,13 @@
       "when": 1800000018000,
       "tag": "0018_clinic_owner_tariff_branch_quotas",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1800000019000,
+      "tag": "0019_patient_reminder_materialization_runtime_capabilities",
+      "breakpoints": true
     }
   ]
 }

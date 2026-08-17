@@ -1885,6 +1885,21 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
 
 const rev10Function = <T extends DeclaredFunction>(entry: T): T => entry;
 
+function retainFunctionSurfaceOperationsWithTableRequirements(
+  identity: string,
+  requiredByRelation: Readonly<Record<string, readonly Privilege[]>>,
+): readonly FunctionRelationSurface[] {
+  return (BUSINESS_SEAM_FUNCTIONS[identity]?.relationSurfaces ?? []).map((surface) => {
+    const required = requiredByRelation[surface.relation] ?? [];
+    for (const operation of required) {
+      if (!surface.operations.includes(operation)) {
+        throw new Error(`${identity}:${surface.relation} table operation ${operation} is absent from the canonical function surface`);
+      }
+    }
+    return { ...surface, ...(required.length > 0 ? { tableOperations: required } : {}) };
+  });
+}
+
 const patientSelfCapability = (purpose: string, functionIdentity: string) => ({
   port: 'webapp' as const,
   sessionRole: 'app_patient',
@@ -2689,6 +2704,18 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.reminder-occurrence-finalized.record',
       functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
+    patient_reminder_materialization_snapshot_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.snapshot.read',
+      functionIdentity: 'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)' },
+    patient_reminder_materialization_targets_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.targets.read',
+      functionIdentity: 'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)' },
+    patient_reminder_materialization_commit: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.commit',
+      functionIdentity: 'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)' },
     integrator_web_push_subscriptions_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.web-push-subscriptions.read',
@@ -3443,12 +3470,10 @@ const REV10_CONTEXT = {
       typedArgs: ['text', 'text', 'integer', 'integer', 'text', 'integer', 'integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
-      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
-        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'
-      ].relationSurfaces?.map((surface) => ({
-        ...surface,
-        tableOperations: ['SELECT' as const],
-      })) ?? [],
+      relationSurfaces: retainFunctionSurfaceOperationsWithTableRequirements(
+        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)',
+        { 'public.auth_rate_limit_events': ['SELECT', 'DELETE'] },
+      ),
     }),
     'app.read_public_runtime_setting(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_public_runtime_setting(text,text)'],
