@@ -12,8 +12,8 @@ export async function GET(request: Request) {
     {
       ok: true,
       adminMessengerTargets: {
-        telegram: targets.telegram,
-        max: targets.max,
+        telegramUserIds: targets.telegram,
+        maxUserIds: targets.max,
       },
     },
     { status: 200 },

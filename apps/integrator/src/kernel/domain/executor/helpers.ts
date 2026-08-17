@@ -470,7 +470,11 @@ export async function resolveGenericMessageParams(input: {
 
 export async function resolveTargets(
   params: Record<string, unknown>,
-  opts?: { readPort?: DbReadPort; deliveryTargetsPort?: DeliveryTargetsPort | null },
+  opts?: {
+    readPort?: DbReadPort;
+    deliveryTargetsPort?: DeliveryTargetsPort | null;
+    organizationId?: string;
+  },
 ): Promise<Array<{ resource: string; address: Record<string, unknown> }>> {
   const explicitTargetsRaw = params.targets;
   if (Array.isArray(explicitTargetsRaw)) {
@@ -499,7 +503,15 @@ export async function resolveTargets(
 
   const deliveryTargetsPort = opts?.deliveryTargetsPort;
   if (deliveryTargetsPort) {
-    const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
+    const organizationId = asString(opts.organizationId);
+    if (!organizationId) {
+      return [
+        { resource: explicitResource ?? channels[0] ?? 'phone', address: { phoneNormalized } },
+      ];
+    }
+    const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized, {
+      organizationId,
+    });
     const bindings = fetched?.channelBindings;
     if (bindings && typeof bindings === 'object') {
       const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];
@@ -622,9 +634,15 @@ export async function buildMessageDeliverJob(input: {
     : undefined;
   const firstBackoff =
     typeof firstBackoffRaw === 'number' ? Math.max(0, Math.trunc(firstBackoffRaw)) : 0;
-  const opts: { readPort?: DbReadPort; deliveryTargetsPort?: DeliveryTargetsPort | null } = {};
+  const opts: {
+    readPort?: DbReadPort;
+    deliveryTargetsPort?: DeliveryTargetsPort | null;
+    organizationId?: string;
+  } = {};
   if (input.readPort !== undefined) opts.readPort = input.readPort;
   if (input.deliveryTargetsPort !== undefined) opts.deliveryTargetsPort = input.deliveryTargetsPort;
+  const organizationId = asString(input.ctx.base.actor.tenantId);
+  if (organizationId) opts.organizationId = organizationId;
   const targets = await resolveTargets(resolvedParams, opts);
 
   return {

@@ -37,17 +37,20 @@ async function fetchAdminMessengerTargets(
     });
     const data = (await res.json().catch(() => ({}))) as {
       ok?: boolean;
-      adminMessengerTargets?: { telegram?: unknown; max?: unknown };
+      adminMessengerTargets?: {
+        telegramUserIds?: unknown;
+        maxUserIds?: unknown;
+      };
     };
     if (!res.ok || data.ok !== true || !data.adminMessengerTargets) return null;
-    const strings = (value: unknown): string[] =>
-      Array.isArray(value)
-        ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-          .map((item) => item.trim())
-        : [];
+    const { telegramUserIds, maxUserIds } = data.adminMessengerTargets;
+    const isStringArray = (value: unknown): value is string[] =>
+      Array.isArray(value) &&
+      value.every((item) => typeof item === 'string' && item.trim().length > 0);
+    if (!isStringArray(telegramUserIds) || !isStringArray(maxUserIds)) return null;
     return {
-      telegram: strings(data.adminMessengerTargets.telegram),
-      max: strings(data.adminMessengerTargets.max),
+      telegram: telegramUserIds.map((item) => item.trim()),
+      max: maxUserIds.map((item) => item.trim()),
     };
   } catch {
     return null;
@@ -108,15 +111,14 @@ export function createDeliveryTargetsPort(deps: {
   return {
     async getTargetsByPhone(
       phoneNormalized: string,
-      options?: DeliveryTargetsFetchOptions,
+      options: DeliveryTargetsFetchOptions,
     ): Promise<DeliveryTargetsFetchResult | null> {
-      if (!phoneNormalized || !phoneNormalized.trim()) return null;
+      const organizationId = options?.organizationId?.trim();
+      if (!phoneNormalized || !phoneNormalized.trim() || !organizationId) return null;
       const topic = options?.topic?.trim();
       return fetchDeliveryTargets(getAppBaseUrl, {
         phone: phoneNormalized.trim(),
-        ...(options?.organizationId?.trim()
-          ? { organizationId: options.organizationId.trim() }
-          : {}),
+        organizationId,
         ...(topic ? { topic } : {}),
         ...(options?.integratorUserId ? { integratorUserId: options.integratorUserId } : {}),
       });

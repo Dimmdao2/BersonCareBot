@@ -52,8 +52,8 @@ describe('GET /api/integrator/admin-notification-targets', () => {
     await expect(response.json()).resolves.toEqual({
       ok: true,
       adminMessengerTargets: {
-        telegram: ['global-telegram'],
-        max: ['global-max'],
+        telegramUserIds: ['global-telegram'],
+        maxUserIds: ['global-max'],
       },
     });
   });

@@ -162,8 +162,13 @@ export type JobQueuePort = {
 
 /** Порт запроса дополнительного контекста для оркестратора. */
 export type ContextQuery =
-  | { type: 'channel.lookupByPhone'; phoneNormalized: string; resource?: string }
-  | { type: 'subscriptions.forUser'; userId: string }
+  | {
+      type: 'channel.lookupByPhone';
+      phoneNormalized: string;
+      organizationId: string;
+      resource?: string;
+    }
+  | { type: 'subscriptions.forUser'; userId: string; organizationId: string }
   | { type: 'user.identityLinks'; userId: string }
   | { type: 'bookings.forUser'; userId: string }
   | { type: 'booking.recordByExternalId'; recordId: string }
@@ -433,11 +438,11 @@ export type DeliveryTargetsChannelBindings = Record<string, string>;
 
 export type { DeliveryTargetsFetchResult } from './notificationChannels.js';
 
-/** Optional query for webapp `GET /api/integrator/delivery-targets` (per-topic prefs). */
+/** Tenant-scoped query for webapp `GET /api/integrator/delivery-targets` (per-topic prefs). */
 export type DeliveryTargetsFetchOptions = {
+  organizationId: string;
   topic?: string;
   integratorUserId?: string;
-  organizationId?: string;
 };
 
 export type AdminMessengerTargets = { telegram: string[]; max: string[] };
@@ -446,7 +451,7 @@ export type AdminMessengerTargets = { telegram: string[]; max: string[] };
 export type DeliveryTargetsPort = {
   getTargetsByPhone(
     phoneNormalized: string,
-    options?: DeliveryTargetsFetchOptions,
+    options: DeliveryTargetsFetchOptions,
   ): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
   getAdminMessengerTargets(): Promise<AdminMessengerTargets | null>;
   getTargetsByChannelBinding(params: {

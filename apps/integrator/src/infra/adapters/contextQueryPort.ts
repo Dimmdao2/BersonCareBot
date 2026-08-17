@@ -67,13 +67,18 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
       switch (query.type) {
         case 'channel.lookupByPhone': {
           const phoneNormalized = normalizePhoneForLookup(query.phoneNormalized);
-          if (!phoneNormalized) return { type: 'channel.lookupByPhone', item: null };
+          const organizationId = query.organizationId?.trim();
+          if (!phoneNormalized || !organizationId) {
+            return { type: 'channel.lookupByPhone', item: null };
+          }
           const resource =
             typeof query.resource === 'string' && query.resource.trim().length > 0
               ? query.resource
               : 'telegram';
           if (deliveryTargetsPort) {
-            const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
+            const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized, {
+              organizationId,
+            });
             const item = bindingsToLookupItem(fetched?.channelBindings ?? null, resource);
             return { type: 'channel.lookupByPhone', item };
           }
@@ -108,7 +113,8 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
         }
         case 'subscriptions.forUser': {
           const userId = query.userId;
-          if (!userId) return { type: 'subscriptions.forUser', items: [] };
+          const organizationId = query.organizationId?.trim();
+          if (!userId || !organizationId) return { type: 'subscriptions.forUser', items: [] };
           if (deliveryTargetsPort) {
             const trimmed = userId.trim();
             const fromDb = await input.readPort.readDb<string | null>({
@@ -124,7 +130,9 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
               if (digits.length >= 10) phoneForTargets = asPhone;
             }
             if (!phoneForTargets) return { type: 'subscriptions.forUser', items: [] };
-            const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneForTargets);
+            const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneForTargets, {
+              organizationId,
+            });
             const bindings = fetched?.channelBindings;
             const items: Array<{
               kind: string;
