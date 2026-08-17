@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Platform quota usage: patients and files — independent audit
 
 ## Blind kill-set (recorded before reading candidate tests)
@@ -52,7 +54,7 @@ No product fix was made, as required by the audit brief.
 
 - Candidate scope: `git diff --stat a9228257b^ a9228257b` → 7 files changed, 149 insertions, 28 deletions. `git diff --name-status 0e2b09745..HEAD` → only `docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md` and the audit brief; candidate product files did not change after the named merge.
 - Focused tests: `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgOrgEntitlements.test.ts src/modules/org-entitlements/service.test.ts src/app/app/settings/BillingSection.ui.test.tsx` → 3 files passed, 55 tests passed, exit 0.
-- Real disposable PostgreSQL: `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → `CMS pages quota race proof: OK`, exit 0.
+- Real disposable PostgreSQL: `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` → `CMS pages quota race proof: OK`, exit 0.
 - Scoped ESLint: `pnpm --dir apps/webapp exec eslint scripts/check-cms-pages-quota-race.mjs src/infra/repos/pgOrgEntitlements.ts src/infra/repos/pgOrgEntitlements.test.ts src/modules/org-entitlements/service.test.ts src/app/app/settings/BillingSection.ui.test.tsx` → exit 0.
 - Scoped typecheck: `pnpm --dir apps/webapp run typecheck` → exit 0.
 - Raw-SQL gate: `node scripts/check-no-new-raw-sql.mjs` → exit 0; command reported 7 integrator manifest files and 21 webapp manifest files.
@@ -65,7 +67,7 @@ Every mutation below was temporary and was reverted before the restored-tree gat
 
 1. Platform mapping: removed `patient_count` from `getEnforcedQuotaUsage`, then ran `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgOrgEntitlements.test.ts` → 1 failed / 3 passed; the exact platform-usage equality missed `patient_count: 7`.
 2. Existing branch mapping: removed `branches` from `getEnforcedQuotaUsage`, then ran the same command → 1 failed / 3 passed; the equality missed `branches: 2`.
-3. Organization filter: changed the enrollment predicate from `organization_id = p_organization_id` to non-null, then ran `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → exit 1; accessor returned `patient_count_used: 3` instead of 2.
+3. Organization filter: changed the enrollment predicate from `organization_id = p_organization_id` to non-null, then ran `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` → exit 1; accessor returned `patient_count_used: 3` instead of 2.
 4. Invited/active semantics: changed the accepted statuses to `active` only, then ran the same PostgreSQL command → exit 1; accessor returned `patient_count_used: 1` instead of 2.
 5. File-byte aggregation: replaced `sum(size_bytes)` with `count(*)`, then ran the same PostgreSQL command → exit 1; accessor returned `files_used: "2"` instead of `"1000"`. The restored baseline also asserts the empty organization returns `"0"`.
 6. Direct table privilege: temporarily granted `app_platform_settings` direct SELECT on `org_enrollments` in the disposable fixture, then ran the same PostgreSQL command → exit 1 with `platform role retained direct sensitive row SELECT beside the count-only accessor`.

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # S5 Settings Root Split — execution log
 
 ## 2026-07-23 — Track B restricted SMTP accessor code handoff
@@ -132,7 +134,7 @@ files were left unchanged. No DB, env, deploy, TEST/DEV/PROD action or full CI w
 - PASS: targeted ESLint for `appRuntimeSettings.ts` and `appRuntimeSettings.s5Contract.test.ts`.
 - PASS: `pnpm --dir apps/webapp typecheck`. The worktree has safe symlinks only to already-installed package-level
   `node_modules` in the sibling checkout; no dependency installation or lockfile change was made.
-- PASS: `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — private PostgreSQL 16 cluster created
+- PASS: `node apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs` — private PostgreSQL 16 cluster created
   under a unique `/tmp/bcb_s5_1_runtime_settings_scratch_*` directory with a private socket, reserved ephemeral
   port and uniquely named scratch DB. The runner supplies a minimal synthetic predecessor (`0186`) and fixture,
   applies `0209` twice, and removes the whole cluster in `finally`. It does not read application env or connect to
@@ -195,7 +197,7 @@ application DB, alter env, deploy, provision TEST credentials or run full CI.
 
 - PASS: `pnpm run check:saas-db-regression`, including the descriptor/tier/accessor/chokepoint suite, 166-target
   FORCE/locked-policy checks and the dedicated S5-2 generated-artifact checker.
-- PASS: `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` on a private disposable PostgreSQL
+- PASS: `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-s5-2-settings-security.mjs` on a private disposable PostgreSQL
   16 cluster. The real-role matrix proves staff/patient/config-reader positive and negative access,
   missing/wrong-org denial, audit/restricted denial, SET ROLE denial, zero clinical privileges and membership closure.
   Its bootstrap positive case is deliberately only an RLS-policy probe with a local scratch grant: the real
@@ -279,7 +281,7 @@ src/app/api/admin/settings/route.test.ts` — 4 files, 118 tests.
   existing dependency store; no install, lockfile or application environment change.
 - PASS: `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
 - PASS: `CHECK_SYSTEM_SETTINGS_ACCESSORS_SELF_TEST=1 node apps/webapp/scripts/check-system-settings-accessors.mjs`.
-- PASS: `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — unique private `/tmp`
+- PASS: `node apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs` — unique private `/tmp`
   PostgreSQL 16 cluster; applies `0210` twice; proves trigger-owned safe VAPID/payment projection with one runtime
   audit and no credential fields, OAuth/SMS continuity, explicit runtime dual-write one-audit behavior, rollback and
   manual/ops legacy triggering. It cleans up in `finally` and emits only its fixed aggregate result.

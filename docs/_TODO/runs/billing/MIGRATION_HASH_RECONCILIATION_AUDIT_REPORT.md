@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Все пропущенные DEV-миграции — независимая приёмка
 
 **Вердикт: FAIL.** Аудитировался `ee6f582fb860266ed366678a0cf446f4a5389506`; фактический `feat` в момент
@@ -90,14 +92,14 @@ bash apps/webapp/scripts/check-drizzle-journal-sync.sh
 bash apps/webapp/scripts/check-legacy-migrations-frozen.sh
 → exit 0
 
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --static-only
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only
 → smoke-phase3-specialist-signup-provisioning: static guards OK
 
 git diff --check
 → exit 0
 ```
 
-`node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` намеренно не запускался: он создаёт private
+`node apps/webapp/scripts/check-access-ladder-transitions.mjs` намеренно не запускался: он создаёт private
 PostgreSQL cluster, что прямо запрещено audit brief; кроме того, он извлекает тело из `0320`, а не проверяет итог после
 `0326`.
 

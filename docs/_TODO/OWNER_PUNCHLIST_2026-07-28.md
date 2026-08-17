@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Пунш-лист владельца 28.07.2026 — аудит причин и план починки
 
 Источник: 9 пунктов, названных владельцем 28.07 в чате (8 списком + платформенная консоль отдельным
@@ -414,7 +416,7 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
 `current`/`alias` и смену `organization_id` у них. Рефакторингом приложения это не обойти.
 
 Первоначально не было **механической проверки**: единственный скрипт, поднимающий реальную базу и проверяющий
-инвариант (`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`), не был подключён
+инвариант (`docs/_TODO/SAAS_FOUNDATION/scripts/smoke-u6b-organization-slug-invariants.mjs`), не был подключён
 ни к `package.json`, ни к CI и накатывал только `0218` — то есть проверял устаревшую версию триггера (без 0255 и
 0257). Это исправлено в `ac31cdc94`: скрипт зарегистрирован в `package.json` и отдельной CI-job, а текущий стек
 миграций — `0218 → 0255 → 0257 → 0269 → 0271`. Остальные тесты по-прежнему доказывают не то:
@@ -591,7 +593,7 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
 - [x] **10.2** Первый срез end-to-end на ОДНОЙ механике (`exercise_packages` или `cms_pages`) по образцу
       курсов: триггер, тег в реестре, ошибка в роуте, аналог `check-c5a-courses-quota-race.mjs`.
       Доказательство: `0270_cms_pages_snapshot_quota.sql:44-112` (xact-lock → recount → BEFORE INSERT),
-      `actions.ts:210-220` (видимый отказ), `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — OK.
+      `actions.ts:210-220` (видимый отказ), `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` — OK.
       **⛔ РАЗВЕДКА ПЕРЕД СТРОЙКОЙ (владелец 28.07, дословно):** «прежде чем строить надо исследовать, что и как
       ограничивать квотами с точки зрения ЛОГИКИ. И да — как это делают в мировой практике». Плюс к этому его
       правило §32: сначала искать готовое, а не писать своё. Признано лидом: существующий дизайн

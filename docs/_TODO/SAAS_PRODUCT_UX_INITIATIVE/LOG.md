@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Log — SaaS Product UX Initiative
 
 ## 2026-07-23 — U5A TEST lifecycle harness audit correction (`#796`)
@@ -3482,7 +3484,7 @@ start, taskdb change or full CI was performed.
   "service unavailable" default) — the same fallback the pre-existing `seat_limit_reached` code already uses; left
   as-is to avoid unrelated UI scope.
 - **P1 validation gap — concurrency was asserted structurally, not executed.** Added
-  `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` (new package script
+  `apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` (new package script
   `check:c4a-843-clinic-invite-concurrency`), following the private `/tmp` PostgreSQL 16 pattern from
   `smoke-s5-1-runtime-settings-contract.mjs`: owns a disposable cluster/socket/database, reads no application env
   and never touches DEV/TEST/PROD, aggregate-only output, guaranteed stop+cleanup in `finally`. It applies the
@@ -3506,7 +3508,7 @@ repos/pgOrganizationInvites.test.ts` keeps its static SQL-shape contract role; i
   hold the org-wide advisory lock open past the point of real work, deadlocking a sibling that's genuinely blocked
   waiting on that same lock.
 
-**Validation.** `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --self-test` and the full run
+**Validation.** `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs --self-test` and the full run
 (private PostgreSQL 16 cluster) both pass, all four scenarios above green. Targeted Vitest re-run across the nine
 affected files: `9` files / `49` tests pass (`route.test.ts`, `route.entitlement.test.ts`, `accept/confirm/
 route.test.ts`, `pgOrganizationInvites.test.ts`, `organization-invites/service.test.ts`, `clinic-seats/
@@ -3690,7 +3692,7 @@ paths, only by lighter-weight unit tests that don't need it. Left untouched per 
 `apps/webapp/src/infra/repos/pgOrganizationInvites.ts`, `apps/webapp/src/infra/repos/pgOrganizationInvites.test.ts`,
 `apps/webapp/src/modules/clinic-seats/service.ts`, `apps/webapp/src/modules/clinic-seats/service.test.ts`,
 `apps/webapp/src/modules/organization-invites/ports.ts`, `deploy/postgres/organization-member-invites-rls.sql`,
-`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` (new, untracked),
+`apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` (new, untracked),
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/LOG.md`.
 
 ## 2026-07-21 — U3B manual patient + walk-in closure (`#801`)

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 ## ИТОГ
 
 Item 3.1c реализован и закоммичен: `a43352274` (`fix(entitlements): centralize lifecycle door #1069`). Push/merge не выполнялись.
@@ -18,7 +20,7 @@ Item 3.1c реализован и закоммичен: `a43352274` (`fix(entitl
 - Добавлены три обязательных SELECT-гранта `app_owner`.
 - Добавлена двусторонняя exact-ACL проверка owner/security-definer/EXECUTE-набора: [deploy-test-saas.sh](/home/dev/dev-projects/bcb-wt-tariff/deploy/host/deploy-test-saas.sh:1526).
 - Два процессных поведенческих контракта обновлены: [webapp](/home/dev/dev-projects/bcb-wt-[redacted-token].test.ts:90) и [integrator](/home/dev/dev-projects/bcb-wt-[redacted-token].test.ts:42).
-- Частная PostgreSQL-репетиция проверяет principal refusal, `терпение`, terminal deny и exact ACL: [rehearsal](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:242).
+- Частная PostgreSQL-репетиция проверяет principal refusal, `терпение`, terminal deny и exact ACL: [rehearsal](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs:242).
 
 ### Мутация
 

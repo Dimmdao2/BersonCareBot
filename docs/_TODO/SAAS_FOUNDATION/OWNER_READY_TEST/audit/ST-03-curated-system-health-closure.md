@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # ST-03 — curated System Health read closure
 
 Date: 2026-07-16
@@ -19,7 +21,7 @@ return row identifiers, tenant identifiers, recipients, payloads, error text, or
 ## Evidence
 
 - `node docs/_TODO/SAAS_FOUNDATION/scripts/check-curated-system-health-diagnostics.mjs` — PASS.
-- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — PASS.
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-curated-system-health-diagnostics.mjs` — PASS.
   The disposable PostgreSQL proof verifies staff denial, protected execute, direct-table denial,
   FORCE-RLS cross-tenant aggregation, exact aggregate counts, and sentinel non-disclosure.
 - Targeted Vitest: 9 files / 41 tests — PASS, including global-admin route guard and error semantics.

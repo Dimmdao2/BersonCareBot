@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Ч7 — blind audit значений runtime-настроек в БД
 
 **Роль:** `auditor-live`
@@ -103,7 +105,7 @@ pnpm --dir apps/webapp exec tsx -e "import {readFileSync} from 'node:fs'; import
 ожидает сохранения всех трёх ранее заданных runtime values.
 
 ```text
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs
 → exit 1
   freshGlobalRowCounts="39|28"
   existingRuntimeValuesPreserved="true|false|false"
@@ -124,7 +126,7 @@ admin values.
 **Команда / oracle:** тот же disposable acceptance-test удаляет `smsc_api_key` после migration.
 
 ```text
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs
 → missingSmsRow="f"; oracle expected runtime_setting_unavailable.
 ```
 
@@ -159,10 +161,10 @@ PostgreSQL накатывает миграции по порядку. Факти
 старый smoke зелёный.
 
 ```text
-rg -n "0300|0301|0302|apply\(" docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+rg -n "0300|0301|0302|apply\(" apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs
 → apply sites только для 0186, 0209, 0228, 0210; совпадений 0300/0301/0302 нет.
 
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs
 → S5 runtime settings private PostgreSQL migration proof: OK (aggregate-only).
 ```
 
@@ -265,7 +267,7 @@ DEV/TEST/PROD базы и сервер не использовались. Produc
 
 ## Оставленные audit artifacts
 
-- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — disposable migration/ACL acceptance;
+- `apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs` — disposable migration/ACL acceptance;
 - audit tests в `configAdapter.unit.test.ts`, `runtimeSettingsNoSubstitution.unit.test.ts`,
   `adminSettingsData.unit.test.ts`, `publicAuthPolicy.unit.test.ts`, `passwordAuth.route.test.ts`,
   `platformPolicy.unit.test.ts`, `operatorHeartbeatConfig.unit.test.ts`;

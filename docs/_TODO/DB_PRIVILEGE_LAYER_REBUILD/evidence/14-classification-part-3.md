@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # 14 — Классификация таблиц, срез 3 (slice-02), 2026-08-08
 
 **Срез:** 58 таблиц схемы `public` базы `bersoncarebot_test`, от `media_playback_user_video_first_resolve`
@@ -126,7 +128,7 @@
 
 | Таблица | Что внутри | Кто пользуется (READ/WRITE) | Зачем | Нужные стены | Сейчас | Вердикт |
 |---|---|---|---|---|---|---|
-| `public.reference_catalog_baselines` | версионированные глобальные шаблоны справочников: `version`, `definition_json`, `created_at`. Комментарий таблицы дословно: *«Versioned global templates copied once into a new organization. Existing organization catalogs are never synchronized from this table.»* | НЕ приложение: `deploy/postgres/reference-catalog-rls.sql`, `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`, `scripts/a0-greenfield-baseline-lib.mjs`, миграция `0182_reference_catalog_snapshots.sql`; чтение — из `app.seed_reference_catalog_snapshot(uuid)` (SECURITY DEFINER) | без неё новая клиника создаётся с пустыми справочниками | глобальный справочник — арендной стены НЕ нужно; нужен запрет записи из рантайма | rls=false/force=false, pol=0, org=false; ACL: только `app_owner` — `SELECT` (и мигратор) | OK — единственный грант рантайму это `SELECT` у `app_owner`, который и владеет засевочной definer-функцией. Записи из рантайма нет |
+| `public.reference_catalog_baselines` | версионированные глобальные шаблоны справочников: `version`, `definition_json`, `created_at`. Комментарий таблицы дословно: *«Versioned global templates copied once into a new organization. Existing organization catalogs are never synchronized from this table.»* | НЕ приложение: `deploy/postgres/reference-catalog-rls.sql`, `deploy/postgres/smoke-reference-catalog-force-rls.sql`, `scripts/a0-greenfield-baseline-lib.mjs`, миграция `0182_reference_catalog_snapshots.sql`; чтение — из `app.seed_reference_catalog_snapshot(uuid)` (SECURITY DEFINER) | без неё новая клиника создаётся с пустыми справочниками | глобальный справочник — арендной стены НЕ нужно; нужен запрет записи из рантайма | rls=false/force=false, pol=0, org=false; ACL: только `app_owner` — `SELECT` (и мигратор) | OK — единственный грант рантайму это `SELECT` у `app_owner`, который и владеет засевочной definer-функцией. Записи из рантайма нет |
 
 ---
 

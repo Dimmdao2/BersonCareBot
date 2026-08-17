@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # MISSION: adversarial audit of a PLAN (read-only, no file changes)
 
 You audit a plan document, not code. Verdict must be PASS or FAIL with numbered findings.
@@ -14,7 +16,7 @@ You audit a plan document, not code. Verdict must be PASS or FAIL with numbered 
 5. **Reality of the code** (verify claims, do not trust the plan): `apps/webapp/src/modules/org-entitlements/types.ts`,
    `.../service.ts`, `apps/webapp/src/app-layer/guards/requireEntitlement.ts`,
    `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts`, `apps/webapp/db/schema/saasEntitlements.ts`,
-   `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`, `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`.
+   `apps/webapp/scripts/check-c5a-courses-quota-race.mjs`, `apps/webapp/scripts/check-cms-pages-quota-race.mjs`.
 
 ## What to check — in this order
 

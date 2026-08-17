@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 ## ИТОГ
 
 Исправления закоммичены: `ccbe94538` (`fix(entitlements): make lifecycle door migration reachable #1069`). Push, merge и live DEV/TEST migration не выполнялись.
@@ -35,11 +37,11 @@
 
 **Изменено:**
 
-- Применение новой миграции и повторная идемпотентная установка: [rehearsal:194](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:194).
-- Отсутствующий и mismatched principal: [rehearsal:255](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:255).
-- `payments`/`branding` проходят full → grace → read-only → disabled: [rehearsal:312](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:312).
-- Read-only возвращает строку, но `mutation_allowed=false`: [rehearsal:380](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:380).
-- `patient_card` остаётся full-access при сохранённом `false`: [rehearsal:445](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:445).
+- Применение новой миграции и повторная идемпотентная установка: [rehearsal:194](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs:194).
+- Отсутствующий и mismatched principal: [rehearsal:255](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs:255).
+- `payments`/`branding` проходят full → grace → read-only → disabled: [rehearsal:312](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs:312).
+- Read-only возвращает строку, но `mutation_allowed=false`: [rehearsal:380](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs:380).
+- `patient_card` остаётся full-access при сохранённом `false`: [rehearsal:445](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs:445).
 
 Mutation-прогоны дали ожидаемые ошибки:
 

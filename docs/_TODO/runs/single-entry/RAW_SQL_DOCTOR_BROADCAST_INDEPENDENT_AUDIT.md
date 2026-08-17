@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Independent audit — doctor broadcast SQL batch
 
 **Verdict: FAIL** for candidate `eca66ee45` (`wt/sql-text-census`). Scope is only
@@ -23,7 +25,7 @@ candidate tests:
 ## Result
 
 The new disposable-PostgreSQL acceptance test is
-`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`.
+`apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.postgres.integration.test.ts`.
 It reuses `vitest.postgres.config.ts`; no harness, schema, migration, port or
 source-text test was added. Its temporary RLS disablement and fault trigger are
 restored in teardown/finally inside the disposable clone.

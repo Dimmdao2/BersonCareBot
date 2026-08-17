@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Тариф 2.13 — независимый аудит migration 0305: PASS
 
 Кандидат: `b3df61d01`. Аудит только migration fix; продукт, plan/taskdb и окружения не менялись.
@@ -11,7 +13,7 @@
    ```bash
    bash apps/webapp/scripts/check-drizzle-journal-sync.sh
    DATABASE_URL='postgres://audit_no_connect@127.0.0.1:1/audit_no_connect' pnpm --dir apps/webapp exec drizzle-kit check
-   node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+   node apps/webapp/scripts/check-access-ladder-transitions.mjs
    pnpm --dir apps/webapp lint
    pnpm --dir apps/webapp typecheck
    ```

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Phase 3 orchestration — onboarding/provisioning
 
 Status: closed through M4 scratch/static evidence on 2026-07-12. Phase 4 disposable prod-copy/live rehearsal
@@ -34,7 +36,7 @@ Validation, 2026-07-12:
 - `node scripts/check-saas-db-regression.mjs`
 - `node --check` for changed SaaS descriptor/check scripts
 - `git diff --check`
-- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` (private scratch-cluster proof against the current U3S contract: locked self-principal provisioning, exactly one organization + owner membership with deferred specialist binding, replay/concurrency convergence, foreign-UUID and second-organization denial, then exact-organization idempotent binding through the production repository; never targets DEV/TEST/PROD)
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` (private scratch-cluster proof against the current U3S contract: locked self-principal provisioning, exactly one organization + owner membership with deferred specialist binding, replay/concurrency convergence, foreign-UUID and second-organization denial, then exact-organization idempotent binding through the production repository; never targets DEV/TEST/PROD)
 
 Audit:
 

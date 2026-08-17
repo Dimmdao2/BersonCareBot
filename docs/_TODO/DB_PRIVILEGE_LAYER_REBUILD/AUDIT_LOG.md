@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # DB privilege layer rebuild — единый журнал аудитов
 
 Этот файл — append-only история audit-pass инициативы. Он отвечает на три вопроса: что нашли, что ещё открыто и
@@ -1130,7 +1132,7 @@ control + internal secret и отсутствие DB credential.
 
 ### Что подтверждено и сохраняется
 
-- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → exit `0`; расширенный disposable PostgreSQL 16 proof
+- `node deploy/host/retire-media-db-login.test.mjs` → exit `0`; расширенный disposable PostgreSQL 16 proof
   подтвердил отзыв membership/table/column/schema/sequence/function/type/default ACL, rollback при cross-database
   dependency, owned-object abort и идемпотентность.
 - `node scripts/check-db-chokepoint.mjs`, его self-test, shell/MJS syntax, build и diff-check прошли.

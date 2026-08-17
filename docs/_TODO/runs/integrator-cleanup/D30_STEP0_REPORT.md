@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # D30 · Ш0 — отчёт: замок планировщика и гейт решений (тесты и защита)
 
 (run: worker-d30-step0)
@@ -19,7 +21,7 @@
 - `apps/integrator/src/infra/scripts/check-d30-scheduler-lock-concurrency.ts` — новый скрипт-доказательство.
 - `apps/integrator/src/infra/scripts/d30DisposablePostgres.ts` — общий хелпер: одноразовый PostgreSQL 16
   (`initdb`/`pg_ctl`/`createdb` в `/tmp`, только unix-сокет), тот же приём, что уже есть в репозитории
-  (`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`,
+  (`apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs`,
   `apps/webapp/scripts/patient-invites-disposable-proof.mjs`).
 - Команда: `pnpm --dir apps/integrator run check:d30-scheduler-lock-concurrency`.
 

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # evidence/24 — НЕЗАВИСИМЫЙ АДВЕРСАРНЫЙ АУДИТ декларации (Opus)
 
 **Что проверялось:** `deploy/postgres/privileges/declaration.ts` (1867 строк) + `types.ts` (478 строк)
@@ -93,9 +95,9 @@ node --experimental-strip-types -e "import('./deploy/postgres/privileges/declara
 комментарии:
 
 ```bash
-grep -n "_login" docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+grep -n "_login" deploy/postgres/privileges/fixtures/generated/privileges.bcb_privproof.sql
 # 111:-- CONNECT bcb_proof_staff_login: логин — статья в env-рендере (§A.1/§D.1).
-grep -n "REVOKE ALL PRIVILEGES ON TABLE" docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+grep -n "REVOKE ALL PRIVILEGES ON TABLE" deploy/postgres/privileges/fixtures/generated/privileges.bcb_privproof.sql
 # 152:… FROM "app_migration_phase", "app_owner", "app_patient", "app_staff";   ← только кластерные роли
 ```
 

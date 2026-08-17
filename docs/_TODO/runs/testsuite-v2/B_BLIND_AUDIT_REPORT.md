@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Слепой аудит блока Б — одноразовая PostgreSQL и ревизия 22 файлов
 
 **Run:** `audit-b-disposable-pg` · роль `auditor-live` · клон `bcb-wt-portsmoke` · ветка `codex/orch-port-smoke`
@@ -128,7 +130,7 @@ CREATE DATABASE
 |---|---|
 | `scripts/verify-a0-greenfield-baseline.mjs:137-220` | `resolveTrustedPostgresBinaries(['initdb','pg_ctl','psql'])` → `initdb` во временный каталог → `pg_ctl start` → `CREATE DATABASE … OWNER …` |
 | `scripts/verify-a1-rls-conformance.mjs:140-249` | то же самое, для проверки RLS |
-| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:15,183` | то же самое, для гонок брони |
+| `scripts/verify-b3-booking-concurrency.mjs:15,183` | то же самое, для гонок брони |
 
 И резолвер бинарей отрабатывает в этой самой песочнице:
 

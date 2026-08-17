@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Б1 harness — убрать четыре прямых `.query` из pilot-теста (#1081/#1082)
 
 ## Роль и authority
@@ -12,7 +14,7 @@ Target — текущая `wt/single-entry-integration`, где merge harness с
 ```text
 node scripts/check-no-new-raw-sql.mjs
 New raw .query(...) SQL outside the frozen D18c debt list:
-docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:40,45,53,63
+apps/webapp/src/app-layer/testing/pgDisposableHarness.postgres.integration.test.ts:40,45,53,63
 ```
 
 Источник оракула: пункт 1 требует «к базе — только через порт приложения на Drizzle; новый сырой SQL и
@@ -21,7 +23,7 @@ docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:40,45,53,63
 
 ## Scope
 
-Измени только `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` и при
+Измени только `apps/webapp/src/app-layer/testing/pgDisposableHarness.postgres.integration.test.ts` и при
 необходимости его существующий harness report. Используй уже приземлённый pattern из
 `saasBillingTariffSnapshot.devDbProof.test.ts`: один dedicated `PoolClient`,
 `getWebappSqlFromPgClient(client)` и параметризованные Drizzle `sql` fragments/`.execute()`. Освободи client и pool

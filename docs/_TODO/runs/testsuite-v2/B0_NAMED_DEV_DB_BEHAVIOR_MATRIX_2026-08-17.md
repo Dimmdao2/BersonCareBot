@@ -105,14 +105,30 @@ this static oracle does not claim live catalog PASS.
 The journey rows are non-overlapping and sum to `25 + 29 + 9 + 11 + 20 = 94`. No cell becomes PASS until the
 serialized live command records its exact durable readback.
 
-## Active-reference and B0 retirement gate
+## Complete 123-path inventory
 
-The 123 removed paths are registered only in the non-routable archive at
-`docs/archive/2026-08-no-disposable-db-retirement/retired-executor-paths.json`. Active `docs/**` and `.cursor/**`
-contain zero exact references; historical instructions point to the archive retirement note instead. The B0 gate
-scans the full active repository and rejects database/server creation, PostgreSQL containers, SQL include/file/stdin
-replay, JS database-client `CREATE/DROP DATABASE`, shell/JS/Python process variants and `psql -c '\\i/\\ir'`, while
-leaving inert prose and archives alone.
+Deletion is not a disposition. The executable inventory check now accounts for the whole removed set:
+
+```bash
+node scripts/check-retired-db-consequence-inventory.mjs
+# 123 paths = 35 product oracles / 121 declarations + 55 independent oracles + 29 support + 4 history
+```
+
+The exact source-path and consequence text is preserved in
+`docs/archive/2026-08-no-disposable-db-retirement/retired-executor-consequences.json`. The 29 support rows are
+harness/config/fixture inputs and do not independently prove product behavior. The 4 history rows are obsolete
+pre-B0 replay. The 55 independent-oracle rows are not collapsed into either bucket: their product/security
+consequences remain an explicit replacement queue until a current static or named-DEV application-port oracle is
+attached. This is a classification record, not a claim that those consequences passed.
+
+## Historical references and B0 retirement gate
+
+The 123 removed paths are registered in the non-routable archive. Historical records preserve the command they
+actually ran instead of attributing old output to a Markdown file. Each affected record starts with an exact notice
+that those paths are historical and non-runnable. An unmarked active instruction naming a retired path fails the B0
+gate. The gate also rejects database/server creation, PostgreSQL containers, SQL include/file/stdin replay,
+database-client `CREATE/DROP DATABASE` including a local-variable payload, shell/JS/Python process variants,
+`cat history.sql | psql`, and a `psql` child fed a SQL file through `input`.
 
 ```bash
 node scripts/check-b0-migration-baseline.mjs

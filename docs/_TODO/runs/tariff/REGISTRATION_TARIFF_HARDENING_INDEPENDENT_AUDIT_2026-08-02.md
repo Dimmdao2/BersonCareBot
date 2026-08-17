@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Registration tariff hardening — independent audit
 
 Candidate: `8c7e5d9db` (`fix(saas): preserve configured registration tariff (#1057 #1069)`).
@@ -38,7 +40,7 @@ without a shared lock with `archiveTariff`; archive's policy lookup can observe 
 set commits. The red command is:
 
 ```bash
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs
 ```
 
 Observed terminal assertion:
@@ -50,7 +52,7 @@ concurrent registration policy set and tariff archive committed an inactive poli
 The non-race portion is green with:
 
 ```bash
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --skip-registration-policy-race
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --skip-registration-policy-race
 ```
 
 It proves legal NULL/missing policy with disabled trial, stable stale-reference error, and rollback of intent,
@@ -73,10 +75,10 @@ organization and membership. It completed `OK` on the candidate.
 ```bash
 pnpm --dir apps/webapp exec vitest run src/modules/org-entitlements/service.test.ts
 # 48 passed
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --static-only
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only
 # static guards OK
 bash -n deploy/host/deploy-prod.sh
-node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs
 pnpm --dir packages/platform-merge run build
 pnpm --dir packages/error-tracking run build
 pnpm --dir apps/webapp run typecheck

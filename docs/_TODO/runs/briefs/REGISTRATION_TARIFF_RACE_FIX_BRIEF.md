@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Registration tariff policy race — bounded fix brief
 
 ## Authority and oracle
@@ -30,7 +32,7 @@ they are unless a strict typing change is mechanically required.
 Run the exact saved PostgreSQL command until it is green:
 
 ```bash
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs
 ```
 
 Also rerun the focused org-entitlements suite, static-only smoke, typecheck, scoped ESLint, raw-SQL gate and

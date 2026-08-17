@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Этап 5, остаток — предел ОБЪЁМА файлов (run: worker-tariff-storage)
 
 **План (authority):** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md`, §5a, этап 5 (пункты 5.4, 5.7).
@@ -11,7 +13,7 @@
 
 Две числовые механики из трёх УЖЕ сделаны и сведены в ветку (`fa15dc5ac`): число пациентов и число филиалов.
 Общий образец — `apps/webapp/src/infra/repos/stockQuotaCheck.ts` (`assertStockQuotaAvailable`), доказательства
-гонки — `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` и `check-branches-quota-race.mjs`. **Следуй
+гонки — `apps/webapp/scripts/check-patient-count-quota-race.mjs` и `check-branches-quota-race.mjs`. **Следуй
 этому образцу, не изобретай свой.**
 
 ⚠️ Предыдущий прогон успел пометить механику файлов как `application_transaction_snapshot` в
@@ -32,7 +34,7 @@
 
 ## Доказательство гонки (пункт 5.7, обязательно)
 
-`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` по образцу двух существующих: настоящий одноразовый
+`apps/webapp/scripts/check-storage-quota-race.mjs` по образцу двух существующих: настоящий одноразовый
 PostgreSQL, две одновременные загрузки на последние свободные байты — проходит ровно одна. Извлекать настоящий
 SQL из исходников и сторожить решающие строки, как это делают образцы (иначе доказательство протухает молча).
 

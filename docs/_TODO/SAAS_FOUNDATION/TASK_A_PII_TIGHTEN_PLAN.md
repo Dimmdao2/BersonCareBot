@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # TASK A — Tighten PII bootstrap-hybrid tables (plan + checklist)
 
 > **2026-07-27 — было → стало → почему.** Было: файл показывал 25 открытых боксов, что читалось как «почти
@@ -162,7 +164,7 @@ OR
       `check-phase4-locked-policy-artifact: OK (168 policies...)`).
 - [x] **4b. R2 isolation smoke: `smoke-r2-real-policy-isolation.mjs` green + extended to prove the 2 PII tables:
       staff clinic-walled on org rows; NULL rows NOT visible to staff; bootstrap CAN read/write NULL.** — script
-      contains exactly these assertions for both tables (`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`:
+      contains exactly these assertions for both tables (`docs/_TODO/SAAS_FOUNDATION/scripts/smoke-r2-real-policy-isolation.mjs`:
       `staff_puc_org_a_ok`/`staff_puc_null_hidden_ok`/`staff_uph_null_hidden_ok` around lines 479-496;
       `bootstrap_puc_null_visible_ok`/`bootstrap_puc_org_a_hidden_ok`/`bootstrap_uph_null_visible_ok`/
       `bootstrap_uph_null_write_ok` around lines 608-634); `node --check` syntax-clean 2026-07-27. Not re-executed

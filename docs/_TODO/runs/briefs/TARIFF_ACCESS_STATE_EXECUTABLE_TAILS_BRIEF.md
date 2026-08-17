@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Тариф 2.13 — три исполняемых хвоста снесённой колонки (#1069)
 
 Прочитать `AGENTS.md`, особенно §9, §10 и §24. Authority:
@@ -13,9 +15,9 @@
 
 Исправить ровно три названных места на текущем `feat`:
 
-1. `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — читать фактическую migration `0297`, не старый номер.
+1. `apps/webapp/scripts/check-access-ladder-transitions.mjs` — читать фактическую migration `0297`, не старый номер.
 2. `apps/webapp/src/infra/repos/saasBillingTariffSnapshot.devDbProof.test.ts` — fixture без удалённой колонки.
-3. `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — доказательство тарифа и
+3. `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` — доказательство тарифа и
    активного trial без чтения колонки и без требования старого column grant.
 
 Не возвращать колонку, состояние или grant; не переписывать продукт, не добавлять migration/helper/test. Сохранить

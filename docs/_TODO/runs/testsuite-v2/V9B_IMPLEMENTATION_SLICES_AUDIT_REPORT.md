@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # В9б — независимый аудит исполнимой декомпозиции tenant-wall
 
 Дата аудита: 2026-08-01
@@ -184,7 +186,7 @@ git ls-tree -r --name-only ff443a4a4 -- \
   apps/webapp/src/app-layer/di/di.md \
   docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs \
   deploy/postgres/p0-5b-grants.sql \
-  docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md \
+  docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs \
   apps/webapp/src/infra/repos/pgPatientBookings.ts \
   apps/webapp/src/infra/repos/pgAppointmentProjection.ts \
   apps/webapp/src/modules/patient-booking/canonicalCreate.ts \

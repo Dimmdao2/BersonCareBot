@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Ч7 — fix-round по blind audit `ed4a9170f`
 
 ## Роль и authority
@@ -44,7 +46,7 @@ platform enforcement этим round не меняются.
 
 Сначала прогнать оставленные audit tests/scripts красными, затем после fix теми же командами зелёными:
 
-- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — fresh counts, existing empty/non-empty
+- `apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs` — fresh counts, existing empty/non-empty
   preservation, missing accessor unavailable, ACL shape;
 - `adminSettingsData.unit.test.ts`, `runtimeSettingsNoSubstitution.unit.test.ts`,
   `operatorHeartbeatConfig.unit.test.ts`, `passwordAuth.route.test.ts`;

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 Definitive: **no shell exists anywhere in this session.** I could not execute a single one of the mandated runs. Here is the audit, with a hard line between what I verified and what I could not.
 
 ---
@@ -41,7 +43,7 @@ Every migration hit except line 34 is a **read** of owner data: `(policy ->> 'gr
 
 ## MUST FIX
 
-1. **Run the mandated verification before this is treated as audited.** Webapp `typecheck`/`lint`, integrator checks, `vitest run` on `apps/webapp/src/modules/org-entitlements/service.test.ts`, `[redacted-token].test.ts`, `[redacted-token].test.ts`, and `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`. The worker's reported `14 passed / 3 passed / 3 passed / rehearsal PASS` is **unverified by this audit**. The rehearsal matters most: it is the only evidence that a real `app_owner` SECURITY DEFINER read works against FORCE-RLS tables, which no mock test can show — both contract tests are mock-based (`writeDiaryLfkDirect.test.ts:15-37` stubs `db.query` by SQL substring).
+1. **Run the mandated verification before this is treated as audited.** Webapp `typecheck`/`lint`, integrator checks, `vitest run` on `apps/webapp/src/modules/org-entitlements/service.test.ts`, `[redacted-token].test.ts`, `[redacted-token].test.ts`, and `node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs`. The worker's reported `14 passed / 3 passed / 3 passed / rehearsal PASS` is **unverified by this audit**. The rehearsal matters most: it is the only evidence that a real `app_owner` SECURITY DEFINER read works against FORCE-RLS tables, which no mock test can show — both contract tests are mock-based (`writeDiaryLfkDirect.test.ts:15-37` stubs `db.query` by SQL substring).
 
 ## For the lead on live DEV
 

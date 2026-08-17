@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # SaaS seat billing 0308 — independent audit — 2026-08-02
 
 ## Authority and boundary
@@ -85,14 +87,14 @@ the existing source-marker substrings where applicable, so the run tested behavi
 
 | Named class | Temporary product fault | Exact command and observed result | Result |
 |---|---|---|---|
-| Always-promote kind switch | `pgSaasBilling`: made the `seat_overage` branch unreachable with `&& false`, so the seat invoice fell into tariff promotion | `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts && node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → 24/24 and smoke `OK`, exit 0 | **UNCAUGHT** |
-| Price-based accept | `organization-member-invites-rls.sql`: restored the legacy shortcut that accepts over-capacity when a unit price exists | `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → exit 1, `legacy unpaid overage was accepted merely because a seat price exists` | caught |
-| Pending-count | `pgOrganizationInvites`: multiplied the pending-invite contribution by zero | `pnpm --dir apps/webapp exec vitest run src/app/api/clinic/invites/route.route.test.ts src/app/app/settings/TeamSection.ui.test.tsx && node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → 7/7 and smoke `OK`, exit 0 | **UNCAUGHT** |
+| Always-promote kind switch | `pgSaasBilling`: made the `seat_overage` branch unreachable with `&& false`, so the seat invoice fell into tariff promotion | `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts && node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` → 24/24 and smoke `OK`, exit 0 | **UNCAUGHT** |
+| Price-based accept | `organization-member-invites-rls.sql`: restored the legacy shortcut that accepts over-capacity when a unit price exists | `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` → exit 1, `legacy unpaid overage was accepted merely because a seat price exists` | caught |
+| Pending-count | `pgOrganizationInvites`: multiplied the pending-invite contribution by zero | `pnpm --dir apps/webapp exec vitest run src/app/api/clinic/invites/route.route.test.ts src/app/app/settings/TeamSection.ui.test.tsx && node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` → 7/7 and smoke `OK`, exit 0 | **UNCAUGHT** |
 | Omit paid allowance from create capacity | `pgOrganizationInvites`: multiplied persisted paid allowance by zero | Same exact 7-test + smoke command as the preceding row → 7/7 and smoke `OK`, exit 0 | **UNCAUGHT** |
-| Omit renewal seat component | `pgSaasBilling`: multiplied the renewal seat component by zero while retaining the marker expression | `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts && node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → 24/24 and smoke `OK`, exit 0 | **UNCAUGHT** |
-| Missing decisive lock | `pgOrganizationInvites`: guarded the advisory lock by impossible `organizationId === ''` | `pnpm --dir apps/webapp exec vitest run src/app/api/clinic/invites/route.route.test.ts && node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → 3/3 and smoke `OK`, exit 0 | **UNCAUGHT** |
+| Omit renewal seat component | `pgSaasBilling`: multiplied the renewal seat component by zero while retaining the marker expression | `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts && node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` → 24/24 and smoke `OK`, exit 0 | **UNCAUGHT** |
+| Missing decisive lock | `pgOrganizationInvites`: guarded the advisory lock by impossible `organizationId === ''` | `pnpm --dir apps/webapp exec vitest run src/app/api/clinic/invites/route.route.test.ts && node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` → 3/3 and smoke `OK`, exit 0 | **UNCAUGHT** |
 | Unusable draft replay | `saas-billing/service`: returned an existing draft before retrying the PSP | `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts` → exit 1; decisive assertion: `expected createIntent to be called once, but got 0 times` | caught |
-| Reject first NULL-boundary payment | `pgSaasBilling.promotePaidInvoice`: rejected every subscription whose `currentPeriodEndsAt` is NULL | `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts && node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → 31/31 and smoke `OK`, exit 0 | **UNCAUGHT** |
+| Reject first NULL-boundary payment | `pgSaasBilling.promotePaidInvoice`: rejected every subscription whose `currentPeriodEndsAt` is NULL | `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts && node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` → 31/31 and smoke `OK`, exit 0 | **UNCAUGHT** |
 
 ## View-only gates
 
@@ -140,7 +142,7 @@ pnpm --dir apps/webapp exec vitest run \
   src/app-layer/guards/cabinetAccessLadder.test.ts
 # 5 files passed; 51 tests passed
 
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs
 # exit 0 (but F1 limits what this proves)
 
 pnpm --dir apps/webapp exec tsc --noEmit

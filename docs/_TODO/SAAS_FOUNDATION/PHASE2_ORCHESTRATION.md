@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Phase 2 orchestration — enforce-ready RLS + #664
 
 Status: closed for static/scratch Phase 2 proof package on 2026-07-12. Phase 4 disposable prod-copy/live
@@ -71,7 +73,7 @@ Current artifact slice:
   tables, signed setter, helper functions, role-derived `app.is_staff()`, revokes/grants, and down
   mode. Real signing secret is supplied by psql variable, not committed.
 - `docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`: DB-free static guard.
-- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`: scratch-only live proof
+- `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`: scratch-only live proof
   applying the reusable artifact.
 - `scripts/check-saas-db-regression.mjs`: static guard wired into the standard SaaS regression gate.
 
@@ -79,10 +81,10 @@ Validation:
 
 - `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
 - `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
-- `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+- `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`
 - `pnpm --dir packages/db-principal run typecheck`
-- `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md scripts/check-saas-db-regression.mjs`
+- `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs scripts/check-saas-db-regression.mjs`
 - `git diff --check`
 - `pnpm run check:saas-db-regression`
 
@@ -130,7 +132,7 @@ Goal:
 
 Status:
 
-- Worker added `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`.
+- Worker added `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs`.
 - The smoke creates a disposable `bcb_saas_*_scratch_*` database and owner/staff/patient roles, applies
   `deploy/postgres/p2-b-protected-principal-context.sql` with a random signing secret, then imports the
   built `packages/db-principal/dist/index.js` runtime and exercises:
@@ -140,7 +142,7 @@ Status:
 
 Validation command:
 
-- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs`
   (the script builds `packages/db-principal` before importing its generated runtime).
 
 Residual:
@@ -176,9 +178,9 @@ Required before completion:
 
 - Repeatable proof package runner:
   - Default static-only package, DB-free:
-    `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+    `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
   - Explicit scratch-smoke package:
-    `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --with-scratch-smokes`
+    `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs --with-scratch-smokes`
 - Static-only package proves:
   - `node --check` passes for the P2-D runner, `scripts/check-saas-db-regression.mjs`, and the P2-B/C1/C2/C3
     static/smoke scripts.
@@ -205,12 +207,12 @@ Status:
 
 - P2-D proof package runner added by worker Newton for taskdb `#685`.
 - Lead validation passed on 2026-07-12:
-  - PASS `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+  - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
   - PASS expected-fail safety check:
-    `env DATABASE_URL='postgres://user:secret@127.0.0.1:5432/bcb_webapp_dev' node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --with-scratch-smokes`
+    `env DATABASE_URL='postgres://user:secret@127.0.0.1:5432/bcb_webapp_dev' node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs --with-scratch-smokes`
     failed before package steps and printed only the database name, not the URL secret.
-  - PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-  - PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --with-scratch-smokes`
+  - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
+  - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs --with-scratch-smokes`
     on disposable `bcb_saas_*_scratch_*` databases only; no prod/test/dev database touched.
   - PASS `git diff --check`
 - Independent Claude Opus audit
@@ -230,7 +232,7 @@ Residuals:
 
 Status:
 
-- Closeout smoke added: `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`.
+- Closeout smoke added: `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-composed-rls-grants-value-guards.mjs`.
 - The P2-D scratch package now includes this smoke and `node --check` covers it.
 - Claude Opus verifier via `agent-port` (`20260712-080701-verifier`) verdict: PASS WITH RISKS; no
   blocking findings, only low/informational residuals.
@@ -295,13 +297,13 @@ Validation:
 
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
 - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
-- PASS `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs`
 - PASS `node --check scripts/check-saas-db-regression.mjs`
 - PASS `pnpm --dir apps/webapp exec eslint src/infra/repos/pgTreatmentProgramEvents.ts`
 - PASS `pnpm --dir apps/webapp run typecheck`
 - PASS `node scripts/check-saas-db-regression.mjs`
 - PASS `git diff --check`
-- PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` on
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs` on
   scratch DB `bcb_saas_p2_c1_value_guard_scratch_*`; no prod/test/dev DB touched.
 
 Audit:
@@ -358,14 +360,14 @@ Validation evidence:
 
 - Static guard: `docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs` wired
   into `scripts/check-saas-db-regression.mjs`.
-- Scratch-only smoke: `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+- Scratch-only smoke: `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`
   creates and drops only `bcb_saas_p2_c2_value_guard_scratch_*`.
 - Lead validation after latest worker fix passed:
   `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`,
   `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`,
-  `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`,
+  `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`,
   `git diff --check`,
-  `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`, and
+  `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`, and
   `node scripts/check-saas-db-regression.mjs`.
 
 Batch P2-C3 — booking lifecycle and LFK org stamp:
@@ -414,14 +416,14 @@ Validation:
 
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs`
 - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs`
-- PASS `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-- PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` on
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c3-patient-booking-lfk-guards.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c3-patient-booking-lfk-guards.mjs` on
   scratch DB `bcb_saas_p2_c3_booking_lfk_scratch_*`; no prod/test/dev DB touched. The smoke now also
   proves C3 functions have no PUBLIC EXECUTE and do have explicit EXECUTE for the disposable
   app-staff/app-patient roles.
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs`
-- PASS `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-- PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` on scratch DB
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs` on scratch DB
   `bcb_saas_p0_5b_grants_scratch_*`.
 - PASS `git diff --check`
 - PASS `node scripts/check-saas-db-regression.mjs`
@@ -461,14 +463,14 @@ Validation:
 - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`
 - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs`
-- PASS `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-- PASS `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-- PASS `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-- PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` on scratch DB
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs`
+- PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs` on scratch DB
   `bcb_saas_p2_b_context_scratch_*`.
-- PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` on scratch DB
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs` on scratch DB
   `bcb_saas_p2_c1_value_guard_scratch_*`.
-- PASS `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` on scratch DB
+- PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs` on scratch DB
   `bcb_saas_p2_c2_value_guard_scratch_*`.
 - PASS `node --check scripts/check-saas-db-regression.mjs`
 - PASS `node scripts/check-saas-db-regression.mjs`

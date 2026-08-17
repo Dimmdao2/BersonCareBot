@@ -191,9 +191,16 @@ function executableViolation(rel, source) {
   if (isSql && /\b(?:create|drop)\s+database\b/i.test(source)) {
     return 'CREATE/DROP DATABASE SQL';
   }
+  const databaseDdlVariableNames = new Set(
+    [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*['"`]\s*(?:create|drop)\s+database\b/gi)]
+      .map((match) => match[1]),
+  );
   const databaseDdlThroughClient =
     (isJavaScriptLike &&
-      /\.\s*query\s*\(\s*['"`]\s*(?:create|drop)\s+database\b/i.test(source)) ||
+      (/\.\s*query\s*\(\s*['"`]\s*(?:create|drop)\s+database\b/i.test(source) ||
+        [...databaseDdlVariableNames].some((name) =>
+          new RegExp(`\\.\\s*query\\s*\\(\\s*${name.replaceAll('$', '\\$')}\\s*[,)]`).test(source),
+        ))) ||
     (isPython &&
       /\.\s*(?:execute|query)\s*\(\s*(?:[rubf]{0,2})?['"]\s*(?:create|drop)\s+database\b/i.test(source));
   if (databaseDdlThroughClient) return 'CREATE/DROP DATABASE through a database client';
@@ -206,11 +213,13 @@ function executableViolation(rel, source) {
 
   const shellReplay = isShellLike &&
     (/(?:^|[;&|(\s])(?:sudo(?:\s+-\S+)*\s+)?psql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<>&])|<<\s*['"]?SQL\b)/im.test(shell) ||
-      /\bpsql\b[^\n]*\s(?:-c|--command(?:=|\s))\s*['"]?\\+(?:i|ir)\s+/im.test(shell));
+      /\bpsql\b[^\n]*\s(?:-c|--command(?:=|\s))\s*['"]?\\+(?:i|ir)\s+/im.test(shell) ||
+      /\b(?:cat|head|tail|sed|awk)\b[^\n|]*\.(?:sql|psql)\b[^\n|]*\|\s*(?:sudo(?:\s+-\S+)*\s+)?psql\b/im.test(shell));
   const childReplay = isJavaScriptLike &&
-    /\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`]psql['"`][\s\S]{0,800}?(?:['"`](?:-f|--file)['"`]|['"`](?:-c|--command)['"`][\s\S]{0,200}?['"`]\\\\+(?:i|ir)(?:\s|['"`])|['"`]\\\\+(?:i|ir)(?:\s|['"`]))/i.test(
+    (/\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`]psql['"`][\s\S]{0,800}?(?:['"`](?:-f|--file)['"`]|['"`](?:-c|--command)['"`][\s\S]{0,200}?['"`]\\\\+(?:i|ir)(?:\s|['"`])|['"`]\\\\+(?:i|ir)(?:\s|['"`]))/i.test(
       source,
-    );
+    ) ||
+      /\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`]psql['"`][\s\S]{0,1200}?\binput\s*:\s*readFileSync\s*\([^)]*\.(?:sql|psql)['"`][^)]*\)/i.test(source));
   const shellChildReplay = isJavaScriptLike &&
     /\b(?:exec|execSync)\s*\(\s*['"`][\s\S]{0,800}?\bpsql\b[\s\S]{0,500}?(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<&])|\\\\i\s)/i.test(
       source,
@@ -283,6 +292,13 @@ const retiredDocReferences = repositoryInventory
   })
   .flatMap((path) => {
     const source = readFileSync(path, 'utf8');
+    if (
+      source.startsWith(
+        '> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence;',
+      )
+    ) {
+      return [];
+    }
     return retiredExecutorRegistry
       .filter((retiredPath) => source.includes(retiredPath))
       .map((retiredPath) => `${relative(path)} -> ${retiredPath}`);

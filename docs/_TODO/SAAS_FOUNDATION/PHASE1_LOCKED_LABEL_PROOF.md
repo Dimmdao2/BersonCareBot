@@ -1,16 +1,18 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Phase 1 locked-label proof
 
 Scratch-only proof script:
 
 ```bash
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs
 ```
 
 Phase 2 reusable artifact successor:
 
 ```bash
 deploy/postgres/p2-b-protected-principal-context.sql
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs
 ```
 
 The Phase 1 script remains the original scratch proof and source assertion matrix. P2-B moves the
@@ -53,8 +55,8 @@ Validation run:
 
 - `pnpm --dir packages/db-principal run build`
 - `pnpm --dir packages/db-principal run typecheck`
-- `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
-- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+- `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs`
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs`
 - targeted webapp, integrator, and media-worker DB checkout/reset tests
 - `pnpm --dir apps/webapp typecheck`
 - `pnpm --dir apps/integrator typecheck`

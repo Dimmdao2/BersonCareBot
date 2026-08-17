@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # V9б S01 — независимый аудит удаления legacy booking projections
 
 Дата: 2026-08-02
@@ -47,7 +49,7 @@ pnpm --dir apps/webapp exec eslint db/schema/schema.ts db/schema/relations.ts sr
 pnpm --dir apps/webapp lint
 pnpm --dir apps/webapp typecheck
 node docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs | cmp -s - deploy/postgres/p0-5b-grants.sql
-node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
+node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs
 ```
 
 Observed exits: raw-SQL `0`; journal `0`; scoped lint `0`; full webapp lint `0` (two pre-existing

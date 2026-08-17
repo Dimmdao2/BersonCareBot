@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # DROP 2FA ENFORCEMENT — перенос поверх принятого Ч7 (#1082)
 
 ## Итог
@@ -37,7 +39,7 @@ status, verify и защита merge старого аккаунта остаю�
 ### НЕ ПРОВЕРЕНО / внешние blockers
 
 - `bash apps/webapp/scripts/check-drizzle-journal-sync.sh` — FAIL уже на принятом `c921cafa4`: `0299_reference_catalog_seed_owner_local` имеет `idx: 299` при array-position `298`. Эта bounded-задача не меняет `0299`; новая `0303` имеет требуемые `idx: 303`, tag и `when: 1793539230004`.
-- `pnpm --dir apps/webapp lint` — FAIL до затронутых файлов на предсуществующем raw-SQL gate: `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:40,45,53,63` (файл есть в `c921cafa4`). ESLint дополнительно выводит две предсуществующие warnings в clinic billing и YooKassa provider. Полный lint поэтому **НЕ ПРОВЕРЕНО** как зелёный.
+- `pnpm --dir apps/webapp lint` — FAIL до затронутых файлов на предсуществующем raw-SQL gate: `apps/webapp/src/app-layer/testing/pgDisposableHarness.postgres.integration.test.ts:40,45,53,63` (файл есть в `c921cafa4`). ESLint дополнительно выводит две предсуществующие warnings в clinic billing и YooKassa provider. Полный lint поэтому **НЕ ПРОВЕРЕНО** как зелёный.
 
 ## Не проверено
 

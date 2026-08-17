@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # P0.5b-v2 / B5 — app_staff / app_patient table GRANTs
 
 Status: dormant materialized ops artifact. No runtime role flip, no DATABASE_URL change, no RLS/policy
@@ -385,7 +387,7 @@ UPDATE`). No patient-facing route/caller was found anywhere in `apps/webapp/src`
 
 ## Live proof
 
-`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` (scratch DB only) proves, after applying
+`docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs` (scratch DB only) proves, after applying
 `p0-5b-role-split-staff-patient.sql` then the real per-table + column-level privilege strings this
 generator computes:
 

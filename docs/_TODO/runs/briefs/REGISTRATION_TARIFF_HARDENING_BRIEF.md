@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Регистрация клиники не теряет настроенный тариф
 
 Роль: worker. Единственный канон правил — `AGENTS.md`; прочитать §1, §4a, §5, §9–§10 и §24. Authority —
@@ -28,7 +30,7 @@ PROD deploy не применяет уже существующий `deploy/post
 4. Включить существующий C5A overlay в `deploy/host/deploy-prod.sh` в корректной post-migration последовательности;
    добавить fail-fast `require_file`. PROD не запускать.
 5. Переиспользовать существующие route/service tests и
-   `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`; расширить их только
+   `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs`; расширить их только
    недостающими guarantees: archive/update refusal, NULL остаётся legal, inactive reference rolls back, deploy
    действительно применяет C5A до зависящего provisioning overlay. Новой DB test infrastructure не создавать.
 
@@ -39,7 +41,7 @@ PROD deploy не применяет уже существующий `deploy/post
 - существующие ближайшие tests в `apps/webapp/src/**`
 - `deploy/postgres/c5a-platform-operations-runtime.sql`
 - `deploy/host/deploy-prod.sh`
-- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+- `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs`
 - один worker report под `docs/_TODO/runs/tariff/`
 
 Без migration/journal/schema, без новых env/role/queue/harness, без DEV/TEST/PROD mutation, без unrelated 5.1/5.5/

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Б1 — независимый blind audit disposable PostgreSQL harness `5bc9a7018`
 
 ## Роль, порядок, границы
@@ -35,7 +37,7 @@ cluster из target-кода в guarded `/tmp/pbt_cluster_*`. Продуктов
    если target заявляет signal handling. До/после снять exact private-cluster database list и `/tmp/pbt_cluster_*`.
 7. Pilot виден `vitest list` и общему runner-visibility gate, но обычный DB-free unit project его не запускает.
 8. Все 22 `*.devDb.integration.test.ts` сохранены без изменений; Б3 не выполнялся. Упрощённая owner-role модель
-   не выдаётся за A1/RLS. Existing `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` не превращён во вторую
+   не выдаётся за A1/RLS. Existing `apps/webapp/src/app-layer/testing/pg-harness.ts` не превращён во вторую
    конкурирующую lifecycle implementation.
 9. Проверь race/error paths глазами: teardown ordering между workers/globalSetup, `process.on('exit')`, активные
    connections к template/clone, partial initdb/pg_ctl failure, duplicate event handlers. Finding существует

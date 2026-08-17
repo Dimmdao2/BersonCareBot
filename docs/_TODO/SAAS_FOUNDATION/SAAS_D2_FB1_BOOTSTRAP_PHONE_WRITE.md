@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 > RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 # D2 FB#1 bootstrap phone-write closure
@@ -43,7 +45,7 @@ Application repository path:
   `app.close_active_user_phone_history($1::uuid)` when `DB_PRINCIPAL_CONTEXT_MODE=locked`, then
   inserts the new active row with `organization_id` from `getCurrentDbPrincipalOrganizationId()`
   or NULL for bootstrap.
-- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` now has an owner-authorized
+- `docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs` now has an owner-authorized
   full-rehearsal app smoke that calls `applyPlatformUserPhoneHistoryTransition` through
   `withTransaction` under locked mode for:
   - pre-existing org-stamped active row -> org-stamped new active row;

@@ -21,9 +21,10 @@ This correction did not contact or mutate DEV, TEST, or PROD.
   not installed catalog state; live catalog equality remains for canonical named-environment reconcile.
 - The B0 gate kills the saved 18/18 faults plus 7/7 newly named JS DB-client, `psql -c` include, Python and
   case/spacing equivalents. It still accepts inert prose and excludes the archive.
-- All 123 deleted paths are registered in the non-routable retirement archive. Exact active-reference recount over
-  1,184 Markdown files is 0 references / 0 documents (from 106 unique document/path pairs in 60 documents; 192
-  repeated textual occurrences were mechanically relinked to the retirement note).
+- Round-2 re-audit invalidated the mechanical reference rewrite in this report. The 60 affected documents now
+  preserve their actual historical command/result text and start with an exact non-runnable retired-path notice.
+  The 86 invented `node .../RETIREMENT.md` commands were removed; the re-audit itself retains one such line only as
+  truthful evidence of the failed command. Unmarked active instructions remain rejected by the executable B0 gate.
 
 ## Verification
 

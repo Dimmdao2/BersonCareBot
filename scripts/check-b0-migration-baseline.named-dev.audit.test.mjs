@@ -102,3 +102,23 @@ test('rejects history replay supplied to a psql child process through stdin', ()
     "import { readFileSync } from 'node:fs';\nimport { spawnSync } from 'node:child_process';\nspawnSync('psql', [], { input: readFileSync('apps/webapp/db/history.sql') });\n",
   );
 });
+
+test('rejects an unmarked active-doc reference but permits a truthful historical notice', () => {
+  const retired = 'apps/webapp/scripts/check-branches-quota-race.mjs';
+  expectKilled(
+    'docs/__named_dev_active_instruction.md',
+    `Run \`node ${retired}\` before merging.\n`,
+  );
+  const marked = resolve(root, 'docs/__named_dev_historical_record.md');
+  writeFileSync(
+    marked,
+    '> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).\n\n' +
+      `Historical command: \`node ${retired}\` — PASS in 2026-07.\n`,
+  );
+  try {
+    const result = runGate();
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  } finally {
+    rmSync(marked, { force: true });
+  }
+});

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Полный аудит decision-policy — Claude Opus 5 — 2026-07-30
 
 Источник: `/home/dev/brain/runs/agent-port/claude-auditor-adhoc-2026-07-29T22-46-49-169Z.json`
@@ -46,7 +48,7 @@
 Тот же класс:
 - `check:saas-a0-greenfield-baseline` (`package.json:35`) — **отсутствует** в `.github/workflows/ci.yml` (полный набор гейтов: `:19`, `:28`, `:37`, `:58`, `:83`, `:94`, `:110`, `:119`, `:129`, `:139`), хотя `docs/ARCHITECTURE/DB_DUMPS/a0-greenfield/README.md:30,34,42` называет его гейтом;
 - `check:new-table-rls-coverage` (`package.json:43`) — не в CI;
-- скрипты гонок `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`, `check-cms-pages-quota-race.mjs`, `check-b1-payment-capture-replay.mjs`, `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:253` — сироты без вызывающего; `check-c4a-843-clinic-invite-concurrency.mjs` имеет алиас (`apps/webapp/package.json:12`), но не в CI;
+- скрипты гонок `apps/webapp/scripts/check-c5a-courses-quota-race.mjs`, `check-cms-pages-quota-race.mjs`, `check-b1-payment-capture-replay.mjs`, `scripts/verify-b3-booking-concurrency.mjs:253` — сироты без вызывающего; `check-c4a-843-clinic-invite-concurrency.mjs` имеет алиас (`apps/webapp/package.json:12`), но не в CI;
 - `.github/workflows/zap.yml:42,123` — отключён по умолчанию, `TODO(owner)` на `:78,109`;
 - `packages/db-principal/test/*.test.mjs` — есть скрипт (`packages/db-principal/package.json:18`), но корневой `test` гонит только integrator, `pnpm -r run test` отсутствует → не исполняются.
 

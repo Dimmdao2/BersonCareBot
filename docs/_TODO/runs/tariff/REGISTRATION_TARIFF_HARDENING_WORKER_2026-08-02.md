@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # #1057 / #1069 — registration tariff hardening
 
 Worker evidence only; it is not an independent audit and did not touch DEV, TEST, or PROD.
@@ -10,9 +12,9 @@ Implemented:
 
 | Command | Result |
 | --- | --- |
-| `bash -n deploy/host/deploy-prod.sh && node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md && node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --static-only` | PASS. Static contract includes deploy order and invalid-reference source guard. |
+| `bash -n deploy/host/deploy-prod.sh && node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only` | PASS. Static contract includes deploy order and invalid-reference source guard. |
 | `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run src/modules/org-entitlements/service.test.ts src/app/api/admin/commercial/route.route.test.ts"` | PASS — 2 files, 49 tests. |
-| `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` | PASS — private disposable PostgreSQL only; proves NULL policy provisions without tariff/trial and invalid non-NULL reference raises the stable error with no organization or membership left. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` | PASS — private disposable PostgreSQL only; proves NULL policy provisions without tariff/trial and invalid non-NULL reference raises the stable error with no organization or membership left. |
 | `pnpm --dir apps/webapp exec eslint src/infra/repos/pgPlatformEntitlements.ts src/infra/repos/inMemoryPlatformEntitlements.ts src/modules/org-entitlements/service.test.ts` | PASS. |
 | `pnpm --dir apps/webapp typecheck` | PASS. |
 | `node scripts/check-no-new-raw-sql.mjs && git diff --check` | PASS. |
@@ -29,9 +31,9 @@ observes the winner's committed state and returns the existing domain error.
 
 | Command | Result |
 | --- | --- |
-| `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` | PASS — the saved disposable PostgreSQL race acceptance is green. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` | PASS — the saved disposable PostgreSQL race acceptance is green. |
 | `pnpm --dir apps/webapp exec vitest run src/modules/org-entitlements/service.test.ts` | PASS — 1 file, 48 tests. |
-| `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --static-only && bash -n deploy/host/deploy-prod.sh && node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` | PASS. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only && bash -n deploy/host/deploy-prod.sh && node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` | PASS. |
 | `pnpm --dir packages/platform-merge run build && pnpm --dir packages/error-tracking run build && pnpm --dir apps/webapp run typecheck` | PASS. |
 | `pnpm --dir apps/webapp exec eslint src/infra/repos/inMemoryPlatformEntitlements.ts src/infra/repos/pgPlatformEntitlements.ts src/modules/org-entitlements/service.test.ts && node scripts/check-no-new-raw-sql.mjs && git diff --check` | PASS — raw-SQL gate: integrator manifest files 7; webapp manifest files 21. |
 
