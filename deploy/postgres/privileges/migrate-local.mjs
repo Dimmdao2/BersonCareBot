@@ -40,6 +40,18 @@ function sqlLiteral(value) {
 
 const useSudoPostgres = process.argv.includes('--sudo-postgres');
 const rollbackOnly = process.argv.includes('--rollback-only');
+// Rollback validation accepts only the canonical Drizzle journal. Legacy includes can perform
+// external side effects that a PostgreSQL ROLLBACK cannot undo.
+const rollbackOnlyLegacyOptions = ['--step', '--owner', '--migration', '--backfill', '--post']
+  .filter((option) => process.argv.includes(option));
+if (rollbackOnly && rollbackOnlyLegacyOptions.length > 0) {
+  throw new Error(
+    `--rollback-only cannot be combined with legacy execution option(s): ${rollbackOnlyLegacyOptions.join(', ')}`,
+  );
+}
+if (rollbackOnly && !process.argv.includes('--drizzle-folder')) {
+  throw new Error('--rollback-only is supported only with --drizzle-folder');
+}
 
 function spawnPsql(args, options = {}) {
   return useSudoPostgres
@@ -97,9 +109,6 @@ let steps = values('step').map((step) => {
 const drizzleFolder = process.argv.includes('--drizzle-folder')
   ? realpathSync(resolve(value('drizzle-folder')))
   : null;
-if (rollbackOnly && !drizzleFolder) {
-  throw new Error('--rollback-only is supported only with --drizzle-folder');
-}
 let drizzleSummary = null;
 if (drizzleFolder) {
   if (steps.length > 0 || legacyOwners.length > 0 || legacyMigration) {
