@@ -39,6 +39,19 @@ function sqlLiteral(value) {
 }
 
 const useSudoPostgres = process.argv.includes('--sudo-postgres');
+const rollbackOnly = process.argv.includes('--rollback-only');
+// Rollback validation accepts only the canonical Drizzle journal. Legacy includes can perform
+// external side effects that a PostgreSQL ROLLBACK cannot undo.
+const rollbackOnlyLegacyOptions = ['--step', '--owner', '--migration', '--backfill', '--post']
+  .filter((option) => process.argv.includes(option));
+if (rollbackOnly && rollbackOnlyLegacyOptions.length > 0) {
+  throw new Error(
+    `--rollback-only cannot be combined with legacy execution option(s): ${rollbackOnlyLegacyOptions.join(', ')}`,
+  );
+}
+if (rollbackOnly && !process.argv.includes('--drizzle-folder')) {
+  throw new Error('--rollback-only is supported only with --drizzle-folder');
+}
 
 function spawnPsql(args, options = {}) {
   return useSudoPostgres
@@ -192,7 +205,7 @@ const statements = [
      END IF;
    END $$;`,
   ...(post ? [`\\i ${post}`] : []),
-  'COMMIT;',
+  rollbackOnly ? 'ROLLBACK;' : 'COMMIT;',
 ].join('\n');
 
 const result = spawnPsql(['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1'], { input: statements, encoding: 'utf8' });
@@ -200,7 +213,13 @@ process.stdout.write(result.stdout ?? '');
 process.stderr.write(result.stderr ?? '');
 if (result.status !== 0) process.exit(result.status ?? 1);
 if (drizzleSummary) {
-  console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total}`);
+  if (rollbackOnly) {
+    console.log(
+      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total}`,
+    );
+  } else {
+    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total}`);
+  }
 } else {
   console.log(`revision-10 migration committed for ${qDb} with temporary ${qMigrator} owner memberships revoked`);
 }

@@ -49,14 +49,15 @@ port-context к ней ведут четыре URL с разными логин�
 | Изменился только код/UI, схема уже актуальна                          | build/restart/dev server; DB-команда не нужна                                                    | Ничего                                                            |
 | В текущей ветке есть pending migrations для уже подготовленной DEV-БД | `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute` | Существующие данные сохраняются; применяются pending migrations   |
 
-`migrate-dev.sh` принимает только exact local post-cutover `bcb_webapp_dev`, сначала выполняет read-only preflight
-и не читает `/opt/env`, TEST или PROD. `--execute` применяет integrator-миграции через локальный PostgreSQL admin
-с `SET ROLE app_object_owner`, а webapp Drizzle — через NOLOGIN `bcb_dev_migrator` и exact владельцев, объявленных
-в самих pending statements. После миграций wrapper обязательно выполняет declaration reconcile вместе с catalog
-audit и атомарно синхронизирует declaration-owned capability JSON в `.env`/`apps/webapp/.env.dev`; deploy-only
-мигратор остаётся без LOGIN, пароля, BYPASSRLS и постоянных membership. Wrapper не управляет
-процессами: перед `--execute` оператор отдельно координирует единственный DEV server/writer и не поднимает второй
-Next server.
+`migrate-dev.sh` принимает только exact local post-cutover `bcb_webapp_dev`. `--preflight` исполняет pending webapp
+DDL через NOLOGIN `bcb_dev_migrator` и объявленных владельцев в одной транзакции с обязательным `ROLLBACK`: так
+PostgreSQL заранее компилирует тела функций и проверяет зависимости/права, но ledger, схема, роли и данные не
+изменяются. Wrapper не читает `/opt/env`, TEST или PROD. `--execute` применяет integrator-миграции через локальный
+PostgreSQL admin с `SET ROLE app_object_owner`, а webapp Drizzle — через тот же owner-aware путь. После миграций
+wrapper обязательно выполняет declaration reconcile вместе с catalog audit и атомарно синхронизирует
+declaration-owned capability JSON в `.env`/`apps/webapp/.env.dev`; deploy-only мигратор остаётся без LOGIN, пароля,
+BYPASSRLS и постоянных membership. Wrapper не управляет процессами: перед `--execute` оператор отдельно
+координирует единственный DEV server/writer и не поднимает второй Next server.
 
 TEST→DEV destructive refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. Обычная разработка
 не копирует TEST, не пересоздаёт DEV и не запускает полный аудит стен. Security/RLS acceptance остаётся в
