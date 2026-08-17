@@ -16,7 +16,10 @@
 # to unlock.
 set -uo pipefail
 
-PROD_IP="${BCB_PROD_IP:?BCB_PROD_IP is required — tang answers only to the production host}"
+# Read, not required, at this point: the --confirm path below only cancels a timer and must work when the
+# operator has nothing but a shell. Requiring the production address there meant the one command standing
+# between the host and an automatic firewall rollback refused to run.
+PROD_IP="${BCB_PROD_IP:-}"
 TANG_PORT="${BCB_TANG_PORT:-7500}"
 SSH_PORT="${BCB_SSH_PORT:-22}"
 ROLLBACK_MIN="${BCB_ROLLBACK_MIN:-10}"
@@ -35,6 +38,8 @@ if [ "${1:-}" = "--confirm" ]; then
   log "rollback timer cancelled; the ruleset is now permanent"
   exit 0
 fi
+
+[ -n "$PROD_IP" ] || die "BCB_PROD_IP is required — tang answers only to the production host"
 
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends nftables fail2ban tang jose
@@ -127,9 +132,17 @@ EOF
 systemctl daemon-reload
 systemctl enable --now tangd.socket >/dev/null 2>&1 || true
 
-# Key material is generated on first start. It is not a copy of anything on the production host: losing it
-# means production can no longer unlock itself automatically, which is why the passphrase slot stays.
+# The package ships no keys and generates none on first start — the socket comes up "listening" while tang
+# answers nothing, which reads as working until the day production reboots. Keys are created explicitly.
 install -d -m 700 -o root -g root /var/db/tang 2>/dev/null || true
+if ! ls /var/db/tang/*.jwk >/dev/null 2>&1; then
+  log "generating tang key material"
+  KEYGEN=$(command -v tangd-keygen || echo /usr/libexec/tangd-keygen)
+  "$KEYGEN" /var/db/tang >/dev/null 2>&1 || die "could not generate tang keys"
+  systemctl restart tangd.socket
+fi
+# Losing these keys means production can no longer unlock itself automatically — which is exactly why the
+# passphrase slot in LUKS stays, and why this host is not the only way in.
 
 # ---------------------------------------------------------------- verify
 log "verifying"
@@ -149,6 +162,7 @@ vcheck "tang socket active"            'systemctl is-active tangd.socket >/dev/n
 vcheck "tang listens on its port"      "ss -tlnH | grep -q ':$TANG_PORT'"
 vcheck "tang advertises keys"          "curl -sf --max-time 5 http://127.0.0.1:$TANG_PORT/adv | grep -q payload"
 vcheck "tang key dir is root-only"     '[ "$(stat -c %a /var/db/tang)" = 700 ]'
+vcheck "tang key material exists"      'ls /var/db/tang/*.jwk >/dev/null 2>&1'
 vcheck "rollback armed"                '[ -f /run/bcb-nft-pending ]'
 
 [ "$vfail" = 0 ] || die "secondary host setup incomplete"
