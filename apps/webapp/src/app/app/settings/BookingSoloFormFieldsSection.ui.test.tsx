@@ -66,7 +66,9 @@ describe('booking form questions', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
 
-    expect(await screen.findByDisplayValue('Жалоба пациента')).toBeInTheDocument();
+    // The patient preview lists saved questions as text; the «Текст вопроса» box only holds an
+    // input value, so a question that was never stored cannot satisfy this.
+    expect(await screen.findByText('Жалоба пациента')).toBeInTheDocument();
     expect(stored).toHaveLength(1);
   });
 
@@ -81,7 +83,7 @@ describe('booking form questions', () => {
         target: { value: label },
       });
       fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
-      expect(await screen.findByDisplayValue(label)).toBeInTheDocument();
+      expect(await screen.findByText(label)).toBeInTheDocument();
     }
 
     expect(stored.map((f) => f.fieldKey)).toHaveLength(2);
