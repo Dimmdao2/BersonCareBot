@@ -168,6 +168,28 @@ test('complete relation APIs leave no generation gap', () => {
   }
 });
 
+test('targeted diary snapshot conflict declares only its two-key SELECT surface', () => {
+  const signature = 'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)';
+  const surface = declaration.portContext.functions[signature].relationSurfaces.find(
+    (candidate) => candidate.relation === 'public.patient_diary_day_snapshots',
+  );
+  assert.ok(surface, signature);
+  assert.deepEqual(surface.operations, ['SELECT', 'INSERT']);
+  assert.deepEqual(surface.operationColumns, {
+    SELECT: ['platform_user_id', 'local_date'],
+  });
+
+  for (const database of DATABASES) {
+    const generated = generateFunctionCensusSql(declaration, database);
+    assert.ok(generated.includes(
+      `('${signature}', 'public.patient_diary_day_snapshots', `
+      + "ARRAY['organization_id', 'platform_user_id', 'local_date', 'iana', 'warmup_slot_limit', "
+      + "'warmup_done_count', 'warmup_all_done', 'plan_instance_id', 'plan_item_ids', 'plan_done_mask']::text[], "
+      + "ARRAY['SELECT', 'INSERT']::text[])",
+    ), database);
+  }
+});
+
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);

@@ -4280,7 +4280,9 @@ const REV10_CONTEXT = {
         { relation: 'public.patient_diary_day_snapshots', columns: [
           'organization_id', 'platform_user_id', 'local_date', 'iana', 'warmup_slot_limit', 'warmup_done_count',
           'warmup_all_done', 'plan_instance_id', 'plan_item_ids', 'plan_done_mask',
-        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          operationColumns: { SELECT: ['platform_user_id', 'local_date'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.set_current_patient_notification_topic(text,boolean)': rev10Function({
