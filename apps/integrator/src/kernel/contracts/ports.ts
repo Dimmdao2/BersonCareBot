@@ -437,7 +437,10 @@ export type { DeliveryTargetsFetchResult } from './notificationChannels.js';
 export type DeliveryTargetsFetchOptions = {
   topic?: string;
   integratorUserId?: string;
+  organizationId?: string;
 };
+
+export type AdminMessengerTargets = { telegram: string[]; max: string[] };
 
 /** Port to resolve delivery targets (linked channels) for a user by phone or channel binding. Used for reminder/booking fan-out. */
 export type DeliveryTargetsPort = {
@@ -445,6 +448,7 @@ export type DeliveryTargetsPort = {
     phoneNormalized: string,
     options?: DeliveryTargetsFetchOptions,
   ): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
+  getAdminMessengerTargets(): Promise<AdminMessengerTargets | null>;
   getTargetsByChannelBinding(params: {
     telegramId?: string;
     maxId?: string;

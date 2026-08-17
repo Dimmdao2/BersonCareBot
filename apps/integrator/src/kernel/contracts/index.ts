@@ -102,6 +102,7 @@ export type {
   DeliveryTargetsPort,
   DeliveryTargetsFetchOptions,
   DeliveryTargetsChannelBindings,
+  AdminMessengerTargets,
   RemindersReadsPort,
   RemindersWebappWritesPort,
   ReminderRuleListItem,

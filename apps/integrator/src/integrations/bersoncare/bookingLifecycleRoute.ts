@@ -175,6 +175,7 @@ function doctorRescheduledText(
 async function sendLinkedChannelMessage(input: {
   dispatchPort: DispatchPort;
   phoneNormalized: string | null;
+  organizationId: string | undefined;
   text: string;
   eventId: string;
 }): Promise<void> {
@@ -182,7 +183,9 @@ async function sendLinkedChannelMessage(input: {
   const deliveryTargets = createDeliveryTargetsPort({
     getAppBaseUrl: async () => env.APP_BASE_URL,
   });
-  const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
+  const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
+    ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+  });
   const bindings = fetched?.channelBindings;
   if (!bindings) {
     // D-b: пустая аудитория не бывает тихим успехом. Счётчик живёт в webapp и отсюда
@@ -236,7 +239,7 @@ async function sendDoctorMessage(
   text: string,
   eventId: string,
 ): Promise<void> {
-  const recipients = await loadAdminMessengerIdLists(createDbPort());
+  const recipients = await loadAdminMessengerIdLists();
   for (const chatId of recipients.telegram) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
@@ -516,6 +519,7 @@ export async function handleBookingLifecycleEvent(
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
+        organizationId: payload.organizationId,
         text: patientText,
         eventId: `booking-created:${bookingId}`,
       });
@@ -566,6 +570,7 @@ export async function handleBookingLifecycleEvent(
         await sendLinkedChannelMessage({
           dispatchPort,
           phoneNormalized: contactPhone,
+          organizationId: payload.organizationId,
           text: patientText,
           eventId: `booking-cancelled:${bookingId}`,
         });
@@ -598,6 +603,7 @@ export async function handleBookingLifecycleEvent(
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
+        organizationId: payload.organizationId,
         text: patientText,
         eventId: `booking-rescheduled:${bookingId}`,
       });
@@ -666,6 +672,7 @@ export async function handleBookingLifecycleEvent(
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
+        organizationId: payload.organizationId,
         text: patientText,
         eventId: `booking-payment:${bookingId}`,
       });

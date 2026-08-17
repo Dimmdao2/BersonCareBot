@@ -19,6 +19,7 @@
  * ответ. У каждого `it` — свой арбитр, прогнан руками; вывод — в отчёте.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHmac } from 'node:crypto';
 
 const { integratorWebhookSecretMock } = vi.hoisted(() => ({
   integratorWebhookSecretMock: vi.fn<() => string>(() => 'test-shared-secret'),
@@ -65,6 +66,22 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     const result = await port.getTargetsByPhone('+79180000001');
 
     expect(result).toEqual({ channelBindings: {}, tenantDenied: true });
+  });
+
+  it('includes the exact organization identity in phone lookup URL and HMAC canonical input', async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(200, { ok: true, channelBindings: {} }));
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+
+    await port.getTargetsByPhone('+79180000001', {
+      organizationId: '10000000-0000-4000-8000-000000000001',
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain(
+      'phone=%2B79180000001&organizationId=10000000-0000-4000-8000-000000000001',
+    );
+    expect((init?.headers as Record<string, string>)['X-Bersoncare-Signature']).toMatch(/^[\w-]+$/);
   });
 
   it('дано: вебапп ответил 500 → когда резолв → тогда null (МЫ НЕ СМОГЛИ спросить), а не тихое «каналов нет»', async () => {
@@ -175,6 +192,60 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     const calledUrl = String(vi.mocked(fetch).mock.calls[0]![0]);
     expect(calledUrl).toContain('telegramId=111');
     expect(calledUrl).not.toContain('maxId=');
+  });
+});
+
+describe('createDeliveryTargetsPort — global admin targets M2M boundary', () => {
+  beforeEach(() => {
+    integratorWebhookSecretMock.mockReturnValue('test-shared-secret');
+    vi.stubGlobal('fetch', vi.fn());
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+  });
+
+  it('uses the dedicated global-admin route and signs its exact identity', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        adminMessengerTargets: { telegram: [' 101 ', ''], max: ['202'] },
+      }),
+    );
+    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal/' });
+
+    const targets = await port.getAdminMessengerTargets();
+
+    expect(targets).toEqual({ telegram: ['101'], max: ['202'] });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe(
+      'https://webapp.internal/api/integrator/admin-notification-targets',
+    );
+    const timestamp = '1700000000';
+    const expectedSignature = createHmac('sha256', 'test-shared-secret')
+      .update(`${timestamp}.GET /api/integrator/admin-notification-targets`)
+      .digest('base64url');
+    expect(init).toMatchObject({
+      method: 'GET',
+      headers: {
+        'X-Bersoncare-Timestamp': timestamp,
+        'X-Bersoncare-Signature': expectedSignature,
+      },
+    });
+  });
+
+  it('returns an explicit empty global audience from a successful response', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(200, { ok: true, adminMessengerTargets: { telegram: [], max: [] } }),
+    );
+    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+
+    await expect(port.getAdminMessengerTargets()).resolves.toEqual({ telegram: [], max: [] });
+  });
+
+  it('does not issue an unsigned global-audience request', async () => {
+    integratorWebhookSecretMock.mockReturnValue('');
+    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+
+    await expect(port.getAdminMessengerTargets()).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

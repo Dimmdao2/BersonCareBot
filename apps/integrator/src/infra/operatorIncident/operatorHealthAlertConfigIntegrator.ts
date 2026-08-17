@@ -1,11 +1,11 @@
-import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   extractSystemSettingInnerValue,
   fetchIntegratorRuntimeSettingValueJson,
 } from '../db/publicSystemSettings.js';
-import { runIntegratorSql } from '../db/runIntegratorSql.js';
-import type { DbPort } from '../../kernel/contracts/index.js';
+import type { DbPort, DeliveryTargetsPort } from '../../kernel/contracts/index.js';
+import { createDeliveryTargetsPort } from '../adapters/deliveryTargetsPort.js';
+import { env } from '../../config/env.js';
 
 const DEFAULT_CHANNELS = { telegram: true, max: true, web_push: true };
 
@@ -167,38 +167,18 @@ export async function loadOperatorHealthAlertConfigIntegrator(
   return parseLegacyConfig(legacyJson);
 }
 
-type AdminNotificationTargetRow = { channel_code: string | null; external_id: string | null };
-
 /**
- * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md, webapp repo): recipients are resolved
- * from WHO ACTUALLY HOLDS THE ADMIN ROLE right now (`platform_users.role='admin'` joined to their
- * bound messenger channels), never from the `admin_telegram_ids`/`admin_max_ids` DB-resident address
- * lists — those no longer confer any role either (webapp `envRole.ts`) and are not read here
- * anymore. Mirrors `apps/webapp/src/infra/repos/pgAdminNotificationTargets.ts`; kept as a separate
- * query here because the integrator's DB access goes through `DbPort`/`runIntegratorSql`, not the
- * webapp's Drizzle pool. The integrator's login role already has SELECT on both tables
- * (`deploy/postgres/integrator-login-public-identity-grants.sql`) — no new grant needed.
+ * Webapp owns the global platform-admin recipient resolution. The integrator asks its signed M2M
+ * port; a failed/unavailable lookup is an empty audience and never falls back to a direct
+ * identity-table query under the integrator principal.
  */
 export async function loadAdminMessengerIdLists(
-  db: DbPort,
+  deliveryTargets: Pick<DeliveryTargetsPort, 'getAdminMessengerTargets'> = createDeliveryTargetsPort({
+    getAppBaseUrl: async () => env.APP_BASE_URL,
+  }),
 ): Promise<{ telegram: string[]; max: string[] }> {
-  const res = await runIntegratorSql<AdminNotificationTargetRow>(
-    db,
-    sql`SELECT ucb.channel_code, ucb.external_id
-          FROM public.platform_users pu
-          JOIN public.user_channel_bindings ucb
-            ON ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
-         WHERE pu.role = 'admin'
-           AND pu.merged_into_id IS NULL
-           AND pu.is_archived = FALSE`,
-  );
-  const telegram = new Set<string>();
-  const max = new Set<string>();
-  for (const row of res.rows) {
-    const id = row.external_id?.trim();
-    if (!id) continue;
-    if (row.channel_code === 'telegram') telegram.add(id);
-    if (row.channel_code === 'max') max.add(id);
-  }
-  return { telegram: [...telegram], max: [...max] };
+  return (await deliveryTargets.getAdminMessengerTargets()) ?? {
+    telegram: [],
+    max: [],
+  };
 }
