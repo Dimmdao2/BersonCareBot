@@ -51,7 +51,7 @@ const probeSchema = z.object({
   timeoutMs: z.number().int().min(1_000).max(60_000),
   consecutiveFailures: z.number().int().min(2).max(10),
 });
-const configSchema = z.object({
+export const operatorHealthProbeConfigSchema = z.object({
   max: probeSchema,
   telegram: probeSchema,
   google_calendar: probeSchema,
@@ -70,7 +70,10 @@ const configSchema = z.object({
       retentionMs: 604_800_000,
       cleanupIntervalMs: 86_400_000,
     }),
-  quietWindowMaxDurationMs: z.number().int().min(60_000).max(604_800_000).default(86_400_000),
+  // Решение владельца 17.08.2026: «максимум сутки, по умолчанию 2 часа». Верхняя граница здесь обязана
+  // совпадать с webapp (`QUIET_WINDOW_CAP_MAX_MS` в operatorHealthProbeConfig.ts = 24 ч), иначе настройка,
+  // отвергнутая одним приложением, принимается другим и предохранитель превращается в выключатель.
+  quietWindowMaxDurationMs: z.number().int().min(60_000).max(86_400_000).default(86_400_000),
   quietUntil: z.string().datetime({ offset: true }).nullable(),
 });
 
@@ -100,7 +103,9 @@ export async function getOperatorHealthProbeConfig(): Promise<OperatorHealthProb
     // the only path — for the scheduler tick and for the operator-health route alike.
     const valueJson = await fetchOperatorHealthProbeConfigValueJson(createDbPort());
     const parsed =
-      valueJson === null ? null : parseSystemSettingInnerWithSchema(valueJson, configSchema);
+      valueJson === null
+        ? null
+        : parseSystemSettingInnerWithSchema(valueJson, operatorHealthProbeConfigSchema);
     return parsed ?? DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG;
   } catch (err) {
     logger.warn(
