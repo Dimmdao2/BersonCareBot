@@ -146,7 +146,7 @@ export function renderPatientPredicate({
 // forged by the session that holds it: `SET ROLE app_staff` / `SET SESSION AUTHORIZATION app_staff`
 // issued by a session authenticated as `app_patient` is rejected by Postgres itself, because
 // `app_patient` is deliberately NOT granted membership in `app_staff` — proven live by
-// docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-roles-1-staff-role-boundary.mjs.
+// named-DEV staff-role boundary verification.
 export function renderStaffActorCheck() {
   return 'app.is_staff()';
 }
@@ -222,7 +222,7 @@ export function renderNullableSharedPatientPredicate({
 // -> public.support_conversations).
 // Rendered as a single EXISTS with a chain of INNER JOINs (not nested EXISTS) so a broken/NULL hop
 // anywhere in the chain naturally fails the join and denies (fail-closed), matching the shape
-// already proven live in smoke-p0-13-db-isolation.mjs for user_reminder_delivery_logs.
+// verified live on named DEV for user_reminder_delivery_logs.
 //
 // `hops` is ordered from the OUTER (policy) row down to the terminal identity-owning table:
 //   hops[0].localFk is a column on the OUTER row that equals hops[0].alias.parentPk.

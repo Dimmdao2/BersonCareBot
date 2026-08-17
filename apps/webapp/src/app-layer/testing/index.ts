@@ -7,7 +7,3 @@ export {
 } from '@/app-layer/testing/arbitraries';
 export { Factory } from '@/app-layer/testing/builders';
 export { fixedClock, type TestClock } from '@/app-layer/testing/clock';
-export {
-  disposablePostgresHarness,
-  type DisposablePostgresHarness,
-} from '@/app-layer/testing/pg-harness';

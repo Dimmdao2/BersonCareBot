@@ -178,7 +178,8 @@ verified email **тому же** placeholder user и активирует то �
 `claimVerifiedEmail`, FK rebind или duplicate identity. Если email уже принадлежит другому активному канону, функция
 возвращает `conflicting_identity`, не меняет patient/enrollment/invite и создаёт дедуплированный exact-org
 `patient_merge_candidates(reason='invite_redeem_identity_conflict')`. Миграция `0222` сохраняет старый
-`bound_email` путь `0220`; disposable proof проверяет обе ветки, concurrent claim/issue и registration-vs-claim race.
+`bound_email` путь `0220`; обе ветки, concurrent claim/issue и registration-vs-claim race проверяются
+unit/static gates и живым named-DEV проходом.
 
 Якоря: `modules/patient-invites/*`, `infra/repos/pgPatientInvites.ts`, `app/api/join/*`,
 `app/join/*`, `app-layer/doctor/createDoctorClient.ts`, `app-layer/doctor/createScheduledManualPatientVisit.ts`,

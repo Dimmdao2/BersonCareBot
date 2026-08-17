@@ -21,8 +21,6 @@ ca_file=
 crl_file=
 server_cert_file=
 server_key_file=
-data_dir=
-admin_user=postgres
 psql_bin=psql
 port=5432
 probe_command=
@@ -40,10 +38,6 @@ The script obtains hba_file/config_file from PostgreSQL, backs both up, atomical
 installs the exact first-match HBA block plus TLS verifier settings, reloads, and
 rolls both exact files back if PostgreSQL rejects the change.  It refuses PROD and
 all hosts other than the documented 151.241.228.122 DEV/TEST host.
-
-Disposable acceptance only: BCB_PG_MTLS_SELFTEST=1 --environment disposable
---data-dir PGDATA --admin-user USER --psql PATH.  This mode never accepts a path
-outside the disposable work directory and is not a host deployment mode.
 
 Readiness is deliberately behavioural.  It additionally requires a root-owned,
 mode-safe --probe-command and --auth-refusal-journal.  The command is invoked for
@@ -64,13 +58,9 @@ while (($#)); do
     --preflight) mode=preflight ;;
     --apply) mode=apply ;;
     --readiness) mode=readiness ;;
-    --environment|--database|--staff-login|--patient-login|--global-admin-login|--integrator-login|--secondary-database|--secondary-staff-login|--secondary-patient-login|--secondary-global-admin-login|--secondary-integrator-login|--ca-file|--crl-file|--server-cert-file|--server-key-file|--data-dir|--admin-user|--psql|--port|--probe-command|--auth-refusal-journal)
+    --environment|--database|--staff-login|--patient-login|--global-admin-login|--integrator-login|--secondary-database|--secondary-staff-login|--secondary-patient-login|--secondary-global-admin-login|--secondary-integrator-login|--ca-file|--crl-file|--server-cert-file|--server-key-file|--port|--probe-command|--auth-refusal-journal)
       (($# >= 2)) || die "missing value for $1"
-      if [[ "$1" == --psql ]]; then
-        psql_bin=$2
-      else
-        key=${1#--}; key=${key//-/_}; printf -v "$key" '%s' "$2"
-      fi
+      key=${1#--}; key=${key//-/_}; printf -v "$key" '%s' "$2"
       shift ;;
     --help) usage; exit 0 ;;
     *) die "unknown argument $1" ;;
@@ -90,34 +80,17 @@ for path in "$ca_file" "$crl_file" "$server_cert_file" "$server_key_file"; do
   [[ -n "$path" && "$path" = /* && "$path" != *$'\n'* && "$path" != *"'"* ]] || die 'TLS material paths must be absolute and contain neither newline nor quote'
 done
 
-is_within() {
-  local child=$1 parent=$2
-  [[ "$(realpath -m -- "$child")" == "$(realpath -m -- "$parent")"/* ]]
-}
-
-if [[ "$environment" == disposable ]]; then
-  [[ "${BCB_PG_MTLS_SELFTEST:-}" == 1 && -n "$data_dir" ]] || die 'disposable mode is reserved for BCB_PG_MTLS_SELFTEST=1 with --data-dir'
-  disposable_root=$(dirname "$(realpath -m -- "$data_dir")")
-  for path in "$ca_file" "$crl_file" "$server_cert_file" "$server_key_file"; do is_within "$path" "$disposable_root" || die "disposable TLS path escapes the disposable work directory: $path"; done
-  [[ -x "$psql_bin" ]] || die "disposable --psql must name the PG16 psql binary"
+[[ "$environment" == dev || "$environment" == test || "$environment" == dev-test ]] || die 'only documented dev, test, or shared dev-test hosts are eligible; PROD is always refused'
+if (( shared_mode == 1 )); then
+  [[ "$environment" == dev-test ]] || die 'host shared mode requires --environment dev-test'
 else
-  [[ "$environment" == dev || "$environment" == test || "$environment" == dev-test ]] || die 'only documented dev, test, or shared dev-test hosts are eligible; PROD is always refused'
-  if (( shared_mode == 1 )); then
-    [[ "$environment" == dev-test ]] || die 'host shared mode requires --environment dev-test'
-  else
-    [[ "$environment" != dev-test ]] || die '--environment dev-test requires the complete secondary target'
-  fi
-  hostname -I | tr ' ' '\n' | grep -Fxq '151.241.228.122' || die 'refusing: this is not the documented DEV/TEST host 151.241.228.122'
-  [[ $EUID -eq 0 ]] || die 'host apply/preflight must run as root so backup and atomic replacement preserve PostgreSQL ownership'
-  admin_user=postgres
+  [[ "$environment" != dev-test ]] || die '--environment dev-test requires the complete secondary target'
 fi
+hostname -I | tr ' ' '\n' | grep -Fxq '151.241.228.122' || die 'refusing: this is not the documented DEV/TEST host 151.241.228.122'
+[[ $EUID -eq 0 ]] || die 'host apply/preflight must run as root so backup and atomic replacement preserve PostgreSQL ownership'
 
 run_psql() {
-  if [[ "$environment" == disposable ]]; then
-    "$psql_bin" -X -v ON_ERROR_STOP=1 -h "$data_dir" -p "$port" -U "$admin_user" -d postgres "$@"
-  else
-    runuser -u postgres -- "$psql_bin" -X -v ON_ERROR_STOP=1 -d postgres "$@"
-  fi
+  runuser -u postgres -- "$psql_bin" -X -v ON_ERROR_STOP=1 -d postgres "$@"
 }
 
 scalar() { run_psql -Atqc "$1"; }
@@ -143,11 +116,6 @@ require_tls_material() {
 hba_file=$(scalar 'SHOW hba_file;')
 config_file=$(scalar 'SHOW config_file;')
 [[ -n "$hba_file" && -n "$config_file" && -f "$hba_file" && -f "$config_file" ]] || die 'PostgreSQL did not report readable hba_file/config_file'
-if [[ "$environment" == disposable ]]; then
-  is_within "$hba_file" "$data_dir" || die 'disposable hba_file escapes PGDATA'
-  is_within "$config_file" "$data_dir" || die 'disposable config_file escapes PGDATA'
-fi
-
 render_args=(--database "$database" --staff-login "$staff_login" --patient-login "$patient_login" --global-admin-login "$global_admin_login" --integrator-login "$integrator_login")
 if (( shared_mode == 1 )); then
   render_args+=(--secondary-database "$secondary_database" --secondary-staff-login "$secondary_staff_login" --secondary-patient-login "$secondary_patient_login" --secondary-global-admin-login "$secondary_global_admin_login" --secondary-integrator-login "$secondary_integrator_login")
@@ -189,9 +157,7 @@ run_readiness_probes() {
   local probe_mode_bits
   probe_mode_bits=$((8#$(stat -c '%a' -- "$probe_command")))
   (( (probe_mode_bits & 022) == 0 )) || die 'readiness probe command must not be writable by group or other'
-  if [[ "$environment" != disposable ]]; then
-    [[ "$(stat -c '%u' -- "$probe_command")" == 0 ]] || die 'host readiness probe command must be owned by root'
-  fi
+  [[ "$(stat -c '%u' -- "$probe_command")" == 0 ]] || die 'host readiness probe command must be owned by root'
   local probe_mode mode expected offset fresh_journal
   offset=$(wc -c < "$auth_refusal_journal")
   run_target_probes() {
@@ -296,9 +262,6 @@ chown --reference="$config_file" "$config_candidate"
 chmod --reference="$config_file" "$config_candidate"
 mv -f -- "$hba_candidate" "$hba_file"
 mv -f -- "$config_candidate" "$config_file"
-if [[ "$environment" == disposable && "${BCB_PG_MTLS_INJECT_FAULT:-}" == reload_failure ]]; then
-  die 'injected disposable reload failure'
-fi
 run_psql -qAtc 'SELECT pg_reload_conf()' >/dev/null
 verify_loaded_configuration
 rollback_needed=0

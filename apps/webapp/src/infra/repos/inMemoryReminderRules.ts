@@ -77,7 +77,9 @@ export function createInMemoryReminderRulesPort(
     },
 
     async create(input) {
-      const id = `wp-${randomUUID()}`;
+      const id = input.integratorRuleId ?? `wp-${randomUUID()}`;
+      const existing = store.get(id);
+      if (existing && ruleOwnedByPlatformUser(existing, input.platformUserId)) return existing;
       const category = mapLinkedTypeToCategory(input.linkedObjectType);
       const scheduleType = input.scheduleType ?? 'interval_window';
       let scheduleData: SlotsV1ScheduleData | null = input.scheduleData ?? null;

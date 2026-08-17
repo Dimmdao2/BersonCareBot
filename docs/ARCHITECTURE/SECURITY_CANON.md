@@ -152,36 +152,24 @@ RLS-политика на `platform_users` по той же схеме, что �
   (наблюдаемость) — `not-started` по таблице статусов (хотя в тексте фазы 3 подпункта отмечены `[x]` —
   расхождение внутри самого файла, не наше). `SEQUENCE.md:57` подтверждает: D3 упирается в этап 5
   (разбиение settings-root).
-- ✅ **04.08: матричный CI-тест добавлен.**
-  `apps/webapp/src/infra/repos/tenantIsolationMatrix.postgres.integration.test.ts` (тот же CI job
-  `test-webapp-postgres`, что и остальные `*.postgres.integration.test.ts`) — специалист клиники A
+- OWNER-SUPERSEDED 16.08.2026: прежний disposable PostgreSQL CI project и его матричный файл удалены.
+  Сохранённый исторический результат проверял специалиста клиники A
   и пациент клиники A против чужой строки в `org_enrollments`/`clinical_visit`, под реальным
   `locked`-режимом принципала (подписанный `app.principal_context`, не голый GUC — см. §2), с
   парным позитивом и контрольным прогоном (стена временно снята → тест краснеет → стена возвращена).
   Полная матрица 155 RLS-таблиц и непокрытые классы —
   `docs/_TODO/SAAS_FOUNDATION/TENANT_ISOLATION_MATRIX_2026-08-04.md`.
-- Точечные тесты («чужая организация → отказ», напр.
-  `saasBillingPaidTariffApplyAccessor.postgres.integration.test.ts:223`) и отдельный скрипт
-  `docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs` (не подключён ни к
-  `pnpm run ci`, ни к workflow — полный host-rehearsal, не CI-масштаба) остаются как есть.
-- 🔴 **Найдено при этой работе, не связано с изоляцией: `test-webapp-postgres` CI job сейчас красный
-  для ЛЮБОГО PR в `feat/doctor-ui-rebuild`.** Миграция `0346_saas_trial_grace_discount_window_local.sql`
-  ловит `sqlstate=2BP01` при from-zero сборке (postgres-integration harness и любой будущий
-  greenfield-рестор) — причина и уже написанный, но не туда подключённый фикс задокументированы в
-  `0349_saas_trial_grace_discount_window_reconcile_local.sql:70-77` самим автором той работы. Детали
-  — `TENANT_ISOLATION_MATRIX_2026-08-04.md` §4. Не чинится этим изменением (billing/trial домен,
-  другая ветка) — строка отчёта.
+- Точечные pre-B0 disposable тесты и host-rehearsal удалены. Актуальная трассировка изоляции находится в
+  `docs/_TODO/runs/testsuite-v2/B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md`; доказательство выполняется только
+  через сериализованный named-DEV application port.
+- OWNER-SUPERSEDED 16.08.2026: прежняя краснота disposable CI job и from-zero migration replay больше не
+  является активным блокером или маршрутом. Исторические детали остаются в Git history.
 
-**Что делать:** закрыть D3 (упирается в разбиение settings-root, отдельный трек, не про этот тест).
-Почитать матричный тест выше как начало систематического покрытия, не итог — непокрытые классы
-(`denorm_org_column` не проверен отдельно, `fk_path`, `polymorphic_resolver`, bootstrap-таблицы,
-`platform_users`) названы в `TENANT_ISOLATION_MATRIX_2026-08-04.md` §5. Почистить `0346`/`0349`
-(перенумерование или объединение) отдельной работой — иначе CI этого job'а остаётся красным для
-всех.
+**Что делать:** не восстанавливать прежний job или цепочку. Непокрытые классы переносить в named-DEV
+application-port matrix, не в from-zero/disposable replay.
 
-**Состояние:** 🟡 частично. Жёсткие гейты деплоя работают и валят выкатку по FORCE RLS. Матричный тест в CI
-есть (04.08, representative-покрытие двух доменов из 155 таблиц, не все классы). CI job сам сейчас
-красный по несвязанному багу миграции (см. выше). D3/D4/E1/E2/G1 роадмапа — не готовы.
+**Состояние:** 🟡 частично. Исторический disposable CI proof удалён; актуальная named-DEV матрица пока не закрыта.
+D3/D4/E1/E2/G1 роадмапа — не готовы.
 
 ---
 
@@ -334,7 +322,7 @@ S3 — Selectel, не `fs.bersonservices.ru` — и явный запрет тр
 объектов не выполнялось — решение по ним за владельцем.
 
 **Состояние:** закрыто по коду и тестам (unit + postgres-integration; полный прогон postgres-integration
-заблокирован уже существующей в этой ветке поломкой миграционной цепочки disposable-DB харнесса,
+проверяется живым named-DEV проходом и named-TEST release gate; прежний disposable-DB harness удалён,
 не связанной с этим изменением — воспроизводится и на немодифицированном `platformUserFullPurge.postgres.integration.test.ts`).
 
 ---

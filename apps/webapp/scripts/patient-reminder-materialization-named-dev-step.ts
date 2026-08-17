@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { Client } from 'pg';
 import type { PatientReminderReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import type {
   PatientReminderMaterializationSnapshot,
@@ -66,10 +67,16 @@ export function assertCanonicalNamedDevTarget(apiSource: string, webappSource: s
       ['postgres:', 'postgresql:'].includes(parsed.protocol),
       `${label} must be a PostgreSQL URL`,
     );
-    assert.equal(parsed.hostname, CANONICAL_HOST, `${label} must target canonical named DEV host`);
-    assert.equal(parsed.port, CANONICAL_PORT, `${label} must target canonical named DEV port`);
     assert.equal(
-      decodeURIComponent(parsed.pathname.replace(/^\//u, '')),
+      parsed.searchParams.size,
+      0,
+      `${label} must not contain PostgreSQL connection parameter overrides`,
+    );
+    const client = new Client({ connectionString: raw });
+    assert.equal(client.host, CANONICAL_HOST, `${label} must target canonical named DEV host`);
+    assert.equal(client.port, Number(CANONICAL_PORT), `${label} must target canonical named DEV port`);
+    assert.equal(
+      client.database,
       CANONICAL_DATABASE,
       `${label} must target canonical named DEV database`,
     );

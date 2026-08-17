@@ -18,7 +18,18 @@ CI guardrail: `check-legacy-migrations-frozen.sh` блокирует добав�
 - Карта trusted writers в коде и контекст: [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](../../../docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8.
 - Управление пользователем по номеру (очистка, перенос, integrator): **[user-phone-admin.ts](user-phone-admin.ts)** (в шапке — команды и переменные окружения).
 
-Patient-invite disposable proof retired with the B0 baseline; no disposable bootstrap is an active script path.
+Все disposable/private-PostgreSQL proofs (quota/payment/invite/settings и общий postgres-integration harness)
+удалены вместе с A0. Реальное DB-поведение нельзя объявлять заменённым unit/static gate: для именованного DEV есть
+один fail-closed product-path runner `pnpm --dir apps/webapp run test:db-behavior:named-dev`. Он не принимает URL
+или target, читает только канонические `/home/dev/dev-projects/BersonCareBot/.env` и
+`/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev`, требует все четыре port-context URL к exact
+`bcb_webapp_dev` и обращается к БД только через штатные HTTP/application/Drizzle ports общего сервера `:5200`.
+Runner сериализован, использует парные DEV-роли для tenant-negative checks, откатывает обратимые настройки и
+завершает созданные сущности только штатными cancel/delete; retained audit/history/message rows получают
+unique run tag. Self-test проверяет реальные канонические env-файлы и отказ от подмены target, но не подключается
+к БД, не обращается к webapp и ничего не меняет:
+`pnpm --dir apps/webapp run test:db-behavior:named-dev:self-test`. Точный coverage/blocker census ведётся в
+[`B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md`](../../../docs/_TODO/runs/testsuite-v2/B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md).
 
 ## Прочие файлы
 

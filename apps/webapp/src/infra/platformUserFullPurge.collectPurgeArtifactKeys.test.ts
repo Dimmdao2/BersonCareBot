@@ -2,7 +2,7 @@
  * Fast unit coverage for `collectPurgeArtifactKeys`'s `patient_files` handling (UZ3 backlog #987,
  * item 15) -- mocks the SQL boundary instead of a live Postgres so it runs in the default suite.
  * Real-Postgres proof of the same behavior lives in
- * `platformUserFullPurge.patientFiles.postgres.integration.test.ts` (`pnpm test:postgres`).
+ * the named-DEV full-purge flow.
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { PoolClient } from 'pg';

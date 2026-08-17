@@ -10,7 +10,7 @@
 --         below) — this is the actual security boundary the old app.actor='staff' GUC lacked. A
 --         session authenticated as app_patient cannot `SET ROLE app_staff` / `SET SESSION
 --         AUTHORIZATION app_staff` to escalate itself; Postgres itself rejects that (proven live by
---         docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-roles-1-staff-role-boundary.mjs).
+--         named-DEV role-boundary verification).
 --   - both roles are LOGIN (capable of being connected to directly once ops provisions a credential
 --     — this script does NOT set a password for either role, see "Dormant boundary" below) and
 --     NOBYPASSRLS (RLS enforcement applies to them exactly like p0-5-role-split.sql's app role).

@@ -10,10 +10,9 @@ function usage() {
     `  node ${scriptPath}`,
     `  node ${scriptPath} --self-test`,
     `  node ${scriptPath} --print-sql`,
-    `  node ${scriptPath} --execute --database-url='<disposable-fresh-copy-runtime-url>' [--required-current-user='<owner-role>']`,
     `  node ${scriptPath} --execute --allow-test-target --database-url='<owner-authorized-test-url>' --required-current-user='bersoncarebot_test'`,
     '',
-    'Safety: execution refuses prod/test/dev-shaped DB names and requires scratch/rehearsal/copy in the DB name.',
+    'Safety: execution accepts only the named bersoncarebot_test database with explicit TEST authorization.',
   ].join('\n');
 }
 
@@ -106,36 +105,11 @@ function databaseNameFromUrl(value) {
 
 function unsafeDbNameReason(name, options = {}) {
   const normalized = name.toLowerCase();
-  const allowTestTarget = options.allowTestTarget === true;
-  if (
-    allowTestTarget &&
-    (normalized === 'bersoncarebot_test' || normalized === 'bcb_webapp_test')
-  ) {
+  if (options.allowTestTarget === true && normalized === 'bersoncarebot_test') {
     return null;
   }
-  const forbiddenExact = new Set([
-    'bcb_webapp_prod',
-    'bcb_webapp_test',
-    'bcb_webapp_dev',
-    'bersoncarebot',
-    'bersoncarebot_prod',
-    'bersoncarebot_test',
-    'bersoncarebot_dev',
-    'production',
-    'prod',
-    'test',
-    'dev',
-  ]);
-
   if (!normalized) return 'empty database name';
-  if (forbiddenExact.has(normalized)) return `forbidden database name ${name}`;
-  if (/(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/.test(normalized)) {
-    return `prod/test/dev-shaped database name ${name}`;
-  }
-  if (!/(^|[_-])(scratch|rehearsal|copy)([_-]|$)/.test(normalized)) {
-    return `database name must include scratch/rehearsal/copy, got ${name}`;
-  }
-  return null;
+  return `only named bersoncarebot_test is allowed, got ${name}`;
 }
 
 function assertSafeDatabaseUrl(databaseUrl, options = {}) {
@@ -315,13 +289,13 @@ function runPsql(databaseUrl) {
 }
 
 function runSelfTest() {
-  const disposableUrl = 'postgres://user:pass@localhost/bcb_saas_rehearsal_20260714';
+  const namedTestUrl = 'postgres://user:pass@localhost/bersoncarebot_test';
   assert(
-    parseArgs(['--execute', `--database-url=${disposableUrl}`]).databaseUrl === disposableUrl,
+    parseArgs(['--execute', `--database-url=${namedTestUrl}`]).databaseUrl === namedTestUrl,
     'self-test expected --database-url=<url> parsing',
   );
   assert(
-    parseArgs(['--execute', '--database-url', disposableUrl]).databaseUrl === disposableUrl,
+    parseArgs(['--execute', '--database-url', namedTestUrl]).databaseUrl === namedTestUrl,
     'self-test expected --database-url <url> parsing',
   );
   const testTargetOptions = parseArgs([
@@ -365,11 +339,8 @@ function runSelfTest() {
     'self-test expected explicit test allow',
   );
   assert(unsafeDbNameReason('bcb_webapp_dev'), 'self-test expected dev DB refusal');
-  assert(
-    !unsafeDbNameReason('bcb_saas_rehearsal_20260714'),
-    'self-test expected rehearsal DB allow',
-  );
-  assert(!unsafeDbNameReason('bcb_saas_scratch_b1'), 'self-test expected scratch DB allow');
+  assert(unsafeDbNameReason('bcb_saas_rehearsal_20260714'), 'self-test expected rehearsal DB refusal');
+  assert(unsafeDbNameReason('bcb_saas_scratch_b1'), 'self-test expected scratch DB refusal');
 
   const okFacts = {
     doctorLiveRows: 1,

@@ -74,12 +74,6 @@ const checks = [
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-json-payloads.mjs',
   ],
   [
-    'SAAS P0.13 synthetic fixture generator',
-    'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-synthetic-fixtures.mjs',
-  ],
-  // #1074 step 1 keeps the dormant-smoke harness but unhooks it until the five removed
-  // app-level target tests are rebuilt under the new suite contract.
-  [
     'SAAS Phase 4 generated locked-policy artifact',
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-locked-policy-artifact.mjs',
   ],

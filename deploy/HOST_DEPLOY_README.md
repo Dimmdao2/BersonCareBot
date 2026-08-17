@@ -229,8 +229,8 @@ retirement перед запуском media-worker. Скрипт до любы�
 в argv/SQL text/temp/output; он передаётся bind-параметром в фиксированную временную server-side функцию, где
 идентификатор и значение цитируются через `format(%I, %L)`. До secret-bearing bind сессия отключает statement,
 duration, parameter, error-context и optional pgAudit logging, а driver/server diagnostics закрыты общей ошибкой без секрета.
-PTY/non-TTY, повторная ротация и отсутствие утечки проверяются disposable-скриптом
-`deploy/host/smoke-set-postgres-role-password.sh`. Затем provision применяет
+PTY/non-TTY, повторная ротация и отсутствие утечки проверяются статическими/unit-гейтами helper-а и
+живым named-environment readiness. Затем provision применяет
 `deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres`
 и запускает readiness трёх различных DB login и authenticated media HTTP control. Обычный
 `deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
@@ -687,7 +687,7 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
   получает LOGIN, пароль, BYPASSRLS или постоянное membership; runtime URL нужны только как защищённый источник
   уже действующих четырёх паролей для повторного reconcile.
 - TEST→DEV refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. DEV не копирует TEST и не
-  пересоздаётся для обычной разработки; RLS/security acceptance выполняется отдельно в disposable PostgreSQL и TEST.
+  пересоздаётся для обычной разработки; RLS/security acceptance выполняется на именованных DEV и TEST.
 
 Wrapper не останавливает и не запускает процессы. Перед `migrate-dev.sh --execute` оператор должен отдельно
 скоординировать единственный DEV writer/server; нельзя поднимать второй Next server.

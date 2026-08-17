@@ -1,10 +1,15 @@
 # Patient reminder materialization: B0 replacement evidence (2026-08-17)
 
+> **Integration correction.** The standalone live entrypoint from `ff2c19445` is now an internal step of the one
+> canonical `pnpm --dir apps/webapp run test:db-behavior:named-dev` command. Combined audit one also invalidated and
+> removed the SQL-source boundary test; consequences 4 and 5 below remain open current-port behavior work.
+
 ## Decision
 
 The retired eight-case PostgreSQL oracle is not repaired or replayed. It targeted four split functions and a
-disposable historical-migration harness that are not part of the B0 runtime. Its eight assertions are replaced by
-the current atomic capability, maintained executable gates, and one rollback-only named-DEV behavior step.
+disposable historical-migration harness that are not part of the B0 runtime. Three consequences have a current
+rollback-only named-DEV behavior step, one has a current application behavior test, two are declaration/security
+facts, and two remain explicitly unproved instead of being represented by SQL-source matching.
 
 The live auditor supplies one non-secret organization UUID obtained from an authenticated real-account context; the
 step does not use a dev-bypass or perform login. All database calls go through
@@ -12,9 +17,8 @@ step does not use a dev-bypass or perform login. All database calls go through
 migration, use raw SQL, disable RLS, or leave a fixture:
 
 ```bash
-pnpm --dir apps/webapp run test:db-behavior:patient-reminder-materialization:named-dev:self-test
-pnpm --dir apps/webapp run test:db-behavior:patient-reminder-materialization:named-dev -- \
-  --organization-id <authenticated-organization-uuid>
+pnpm --dir apps/webapp run test:db-behavior:named-dev:self-test
+pnpm --dir apps/webapp run test:db-behavior:named-dev
 ```
 
 The second command is a named-DEV runtime step and was intentionally not run while preparing this correction. It
@@ -24,11 +28,11 @@ refuses any target except the four canonical loopback URLs for `bcb_webapp_dev` 
 
 | # | Retired consequence | Current executable replacement |
 | ---: | --- | --- |
-| 1 | A tenant cannot materialize another tenant's reminder. | The named-DEV step calls the current atomic port with a foreign organization and requires PostgreSQL `42501`. `reminder-materialization-boundary.test.mjs` also kills removal of the organization predicate. |
+| 1 | A tenant cannot materialize another tenant's reminder. | The named-DEV step calls the current atomic port with a foreign organization and requires PostgreSQL `42501`. |
 | 2 | A queue-side failure rolls back the occurrence. | The named-DEV step sends one valid delivery followed by a deliberately invalid second envelope. PostgreSQL has already inserted the first queue leg when it raises `22023`; two attempts must both leave the exact occurrence id/key absent from `readSnapshot`. |
-| 3 | An unavailable patient is not materialized. | The named-DEV step passes an unknown patient identity and requires `not_actionable`. The boundary gate requires active enrollment and non-blocked, non-archived, non-merged patient predicates and kills their removal. |
-| 4 | Queue event/generation/recipient evidence is exact and stale delivery is stopped. | The boundary gate checks event, generation, payload, status and nested recipient invariants with fault injection. `outgoingDeliveryWorker.reminderGeneration.d21.test.ts` executes the worker decision for stale generation, terminal action, mute, topic and channel disable without a provider call. |
-| 5 | Concurrent calls converge on one occurrence key. | The boundary gate requires `ON CONFLICT (occurrence_key) DO NOTHING`, exact-key `FOR UPDATE`, winner identity/generation checks and kills removal of the conflict/lock invariants. The live rollback step repeats the same stable id/key and proves no partial row survives either attempt. |
+| 3 | An unavailable patient is not materialized. | The named-DEV step passes an unknown patient identity and requires `not_actionable`. |
+| 4 | Queue event/generation/recipient evidence is exact and stale delivery is stopped. | **Required current oracle.** The worker test covers the later stale-delivery decision, but no surviving behavior oracle proves the atomic database binding itself. |
+| 5 | Concurrent calls converge on one occurrence key. | **Required current oracle.** Repeated rollback proves absence after a forced failure, not successful concurrent convergence; this consequence remains open. |
 | 6 | An old wake cannot reset a snoozed generation. | `runPatientReminderMaterializationWake.audit.unit.test.ts` executes a generation-1 planned snooze after the original slot and requires it to be passed unchanged to the atomic port. |
 | 7 | Materialization functions are owned by the isolated definer owner. | `reminder-materialization-declaration.test.mjs` reads the current declaration and requires all three current roots to be `SECURITY DEFINER` under `app_seam_reminder_materialization_owner`. |
 | 8 | Runtime roles have only exact EXECUTE capabilities and no direct table bypass. | The same declaration test requires only `app_tenant_service` execution, forbids `PUBLIC`, requires the exact current occurrence read/cancel grants (with no occurrence `INSERT`/`UPDATE`), and forbids direct queue grants for staff, tenant service, patient and public roles. |
@@ -36,7 +40,6 @@ refuses any target except the four canonical loopback URLs for `bcb_webapp_dev` 
 ## Gates
 
 ```bash
-node --test deploy/postgres/privileges/reminder-materialization-boundary.test.mjs
 node --experimental-strip-types --test deploy/postgres/privileges/reminder-materialization-declaration.test.mjs
 pnpm --dir apps/webapp exec vitest --run \
   src/app-layer/reminders/runPatientReminderMaterializationWake.audit.unit.test.ts \
@@ -49,8 +52,8 @@ pnpm --dir apps/integrator exec vitest --run \
   src/infra/adapters/webappEventsClient.materializeWake.test.ts
 ```
 
-The mapping does not claim that a static gate is a live database run. The named-DEV step supplies the real atomic
-rollback evidence; the declaration and worker tests cover the non-fixture ownership and delivery-decision contracts.
+The mapping does not claim that a static declaration gate is a live database run. The named-DEV step supplies the
+real rollback evidence; the declaration and worker tests cover only their exact non-fixture contracts.
 
 ## Preparation result
 
@@ -60,12 +63,9 @@ The replacement was prepared from production correction parent
 proved that their two required migration inputs and package entrypoint no longer existed, so none of their database
 assertions could execute.
 
-All non-live preparation gates above passed. The named-DEV step self-test passed `4/4`; the expanded declaration and
-boundary gates passed `7/7`; the full capability suite passed `84/84`; targeted webapp tests passed `10/10`; targeted
-integrator tests passed `16/16`; both application typechecks, four workspace package builds, ESLint, generator
-byte-identity, B0 baseline, raw-SQL and diff checks passed. The boundary and self-tests include adversarial mutations
-that prove target refusal, leak detection, occurrence convergence and unavailable-patient assertions turn red when
-their protected invariant is removed.
+The original preparation gates passed at their recorded SHA, but combined audit one established that the boundary
+gate inspected SQL source and therefore did not prove product behavior. That test is removed. The retained self-test
+has adversarial target-refusal and leak-detection cases; occurrence convergence stays in the required queue.
 
 No database, DEV, TEST, PROD, deploy, migration or reconcile command was run in this preparation branch. The live
 command remains an explicit audit step against named DEV after an authenticated organization UUID is supplied.

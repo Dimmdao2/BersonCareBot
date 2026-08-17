@@ -4,10 +4,8 @@
 -- migration/deploy path must run this file after migrations and reviewed policy overlays, before runtime
 -- services restart. It is idempotent and fail-closed.
 --
--- DB-name gate, plain-language: by default this file ONLY runs against `bersoncarebot_test` (or, with
--- `-v test_allow_disposable_database=1`, a `bcb_saas_*_scratch_*`/`bcb_saas_*_rehearsal_*` disposable copy
--- that does not look like prod/test/dev). Passing no extra flag => refuses any prod-named database exactly as
--- before this header was added; nothing below changes that path.
+-- DB-name gate, plain-language: by default this file ONLY runs against the named
+-- `bersoncarebot_test` database. No scratch/rehearsal/ephemeral target is accepted.
 --
 -- PROD CUTOVER (owner-gated, one-off): the real production cutover runs this exact file against the real
 -- prod database. That requires an EXPLICIT extra flag, `-v allow_authorized_prod_target=1`, in addition to
@@ -43,27 +41,15 @@ SELECT 1 / 0 AS test_expected_database_missing;
 
 SELECT 1 / (current_database() = :'test_expected_database')::int AS test_database_is_expected;
 
-\if :{?test_allow_disposable_database}
-\else
-\set test_allow_disposable_database 0
-\endif
-
 \if :{?allow_authorized_prod_target}
 \else
 \set allow_authorized_prod_target 0
 \endif
 
-SELECT 1 / (:'test_allow_disposable_database' IN ('0', '1'))::int
-  AS test_allow_disposable_database_is_valid;
 SELECT 1 / (:'allow_authorized_prod_target' IN ('0', '1'))::int
   AS allow_authorized_prod_target_is_valid;
 SELECT 1 / (
   current_database() = 'bersoncarebot_test'
-  OR (
-    :'test_allow_disposable_database' = '1'
-    AND current_database() ~ '^bcb_saas_[a-z0-9_]*(scratch|rehearsal)_[a-z0-9_]+$'
-    AND current_database() !~ '(prod|test|dev)'
-  )
   OR (
     -- PROD cutover unlock (owner-gated). Requires the explicit flag AND an exact match against the
     -- operator-supplied expected DB name (already hard-asserted above as `test_database_is_expected`,
@@ -71,7 +57,7 @@ SELECT 1 / (
     :'allow_authorized_prod_target' = '1'
     AND current_database() = :'test_expected_database'
   )
-)::int AS test_database_is_canonical_test_or_explicit_disposable_or_authorized_prod;
+)::int AS test_database_is_canonical_test_or_authorized_prod;
 
 \if :{?phase4_bootstrap_base_role}
 \else

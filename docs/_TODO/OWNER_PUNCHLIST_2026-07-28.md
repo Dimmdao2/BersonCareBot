@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Пунш-лист владельца 28.07.2026 — аудит причин и план починки
 
 Источник: 9 пунктов, названных владельцем 28.07 в чате (8 списком + платформенная консоль отдельным

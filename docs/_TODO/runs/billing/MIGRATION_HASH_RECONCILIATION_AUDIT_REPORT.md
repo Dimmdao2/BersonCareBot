@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Все пропущенные DEV-миграции — независимая приёмка
 
 **Вердикт: FAIL.** Аудитировался `ee6f582fb860266ed366678a0cf446f4a5389506`; фактический `feat` в момент
