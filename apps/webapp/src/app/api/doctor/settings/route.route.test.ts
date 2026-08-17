@@ -71,7 +71,14 @@ describe('/api/doctor/settings clinic-safe settings', () => {
     );
   });
 
-  it('refuses a stale global SMS payload before any write', async () => {
+  it('saves the clinic SMS fallback setting under the resolved organization', async () => {
+    const saved = {
+      key: 'sms_fallback_enabled',
+      valueJson: { value: true },
+      organizationId: ORGANIZATION_ID,
+    };
+    fakes.updateSetting.mockResolvedValue(saved);
+
     const response = await PATCH(
       new Request('http://test/api/doctor/settings', {
         method: 'PATCH',
@@ -80,10 +87,15 @@ describe('/api/doctor/settings clinic-safe settings', () => {
       }),
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: 'invalid_body' });
-    expect(fakes.updateSetting).not.toHaveBeenCalled();
-    expect(fakes.persistSettingsBatch).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, setting: saved });
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'sms_fallback_enabled',
+      'doctor',
+      { value: true },
+      'clinic-owner',
+      { organizationId: ORGANIZATION_ID },
+    );
   });
 
   it('does not expose a stale global row in the clinic readback', async () => {

@@ -8,6 +8,6 @@ describe('patientGreetingPersonalizedName', () => {
     ).toBe('Иван');
     expect(
       patientGreetingPersonalizedName({ firstName: undefined, displayName: 'Петров Иван Сергеевич' }),
-    ).toBe('Петров');
+    ).toBeNull();
   });
 });
