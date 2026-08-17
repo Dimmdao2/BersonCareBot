@@ -233,11 +233,6 @@ function staticJavaScriptString(node, bindings) {
   return typeof value === 'string' ? value : null;
 }
 
-function staticJavaScriptStringList(node, bindings) {
-  const value = staticJavaScriptValue(node, bindings);
-  return Array.isArray(value) ? value : null;
-}
-
 // An argument list is still readable when one of its elements is dynamic: `['-f', resolve(…)]` is a
 // file replay whatever the path folds to. Unresolvable elements become `null` placeholders so the
 // positions of the static ones are preserved, and the whole list is never discarded.
