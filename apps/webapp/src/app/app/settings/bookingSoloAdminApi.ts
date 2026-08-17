@@ -1,4 +1,6 @@
 import { apiJson } from '@/shared/lib/apiJson';
+import { transliterateCyrillic } from '@/shared/lib/cyrillicTransliteration';
+import { BOOKING_FORM_FIELD_KEY_PATTERN } from '@/modules/booking-form/fieldTypes';
 export { apiJson } from '@/shared/lib/apiJson';
 
 const BASE = '/api/admin/booking-engine';
@@ -194,14 +196,22 @@ export function timeLabelToMinute(value: string): number {
   return h * 60 + m;
 }
 
+/**
+ * Machine key for a new booking form question, derived from its human label. Labels here are
+ * normally Russian while the server contract (`BOOKING_FORM_FIELD_KEY_PATTERN`) is latin, so the
+ * label is transliterated instead of being passed through with its Cyrillic letters intact.
+ */
 export function slugFieldKey(label: string, existing: string[]): string {
-  const base =
-    label
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9а-яё]+/gi, '_')
-      .replace(/^_|_$/g, '')
-      .slice(0, 40) || 'field';
+  const latin = transliterateCyrillic(label)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40);
+  // The key must start with a latin letter, so a label made only of digits — or of characters
+  // with no latin equivalent — still has to produce a key the server accepts.
+  const candidate = /^[a-z]/.test(latin) ? latin : `field_${latin}`.slice(0, 40);
+  const base = BOOKING_FORM_FIELD_KEY_PATTERN.test(candidate) ? candidate : 'field';
   let key = base;
   let i = 2;
   while (existing.includes(key)) {
