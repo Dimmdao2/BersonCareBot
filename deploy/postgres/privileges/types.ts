@@ -299,6 +299,8 @@ export interface DeclaredFunction {
   security: 'DEFINER' | 'INVOKER';
   /** Exact SQL result type, compared against pg_proc.prorettype. */
   returns: string;
+  /** Exact set-returning flag, compared independently against pg_proc.proretset. */
+  returnsSet: boolean;
   /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
   volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
   parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';

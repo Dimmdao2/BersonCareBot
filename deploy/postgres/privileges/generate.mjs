@@ -743,6 +743,9 @@ export function collectGaps(declaration, dbName) {
       if (typeof fn.returns !== 'string' || fn.returns.length === 0) {
         add(`portContext.functions.${signature}`, 'function lacks exact result type');
       }
+      if (typeof fn.returnsSet !== 'boolean') {
+        add(`portContext.functions.${signature}`, 'function lacks exact set-returning flag');
+      }
       if (!['DEFINER', 'INVOKER'].includes(fn.security)
         || !['IMMUTABLE', 'STABLE', 'VOLATILE'].includes(fn.volatility)
         || !['SAFE', 'RESTRICTED', 'UNSAFE'].includes(fn.parallel)
@@ -1593,29 +1596,33 @@ export function generateFunctionCensusSql(declaration, dbName, options = {}) {
     }
   }
   const rows = databaseFunctions.map(([signature, fn]) =>
-    `(${lit(signature)}, ${lit(fn.owner)}, ${lit(fn.returns)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${functionExecute(db, fn).map(lit).join(', ')}]::name[])`);
+    `(${lit(signature)}, ${lit(fn.owner)}::name, ${lit(fn.returns)}, ${fn.returnsSet}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}::"char", ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}::"char", ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${functionExecute(db, fn).map(lit).join(', ')}]::name[])`);
   out.push(
     '-- Bilateral catalog check for every declared signature, every direct EXECUTE grantee, and every managed-schema definer.',
-    'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
-    '  WITH expected(sig, owner_name, result_type, is_definer, volatility, parallelism, config, execute_roles) AS (VALUES',
+    'CREATE TEMP TABLE bcb_expected_functions(signature text PRIMARY KEY, owner_name name NOT NULL, result_type text NOT NULL, returns_set boolean NOT NULL, is_definer boolean NOT NULL, volatility "char" NOT NULL, parallelism "char" NOT NULL, config text[] NOT NULL, execute_roles name[] NOT NULL) ON COMMIT DROP;',
+    'INSERT INTO bcb_expected_functions(signature,owner_name,result_type,returns_set,is_definer,volatility,parallelism,config,execute_roles) VALUES',
     rows.map((row) => `    ${row}`).join(',\n'),
-    '  ) SELECT e.sig INTO bad FROM expected e LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure(e.sig)',
-    '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR pg_catalog.format_type(p.prorettype, NULL) <> e.result_type OR p.prosecdef <> e.is_definer',
-    '         OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism',
-    "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config",
-    "         OR EXISTS (SELECT 1 FROM unnest(e.execute_roles) r WHERE r <> e.owner_name::name AND NOT EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a JOIN pg_catalog.pg_roles granted ON granted.oid = a.grantee WHERE a.privilege_type = 'EXECUTE' AND granted.rolname = r))",
-    "         OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a LEFT JOIN pg_catalog.pg_roles granted ON granted.oid = a.grantee WHERE a.privilege_type = 'EXECUTE' AND a.grantee <> p.proowner AND (a.grantee = 0 OR granted.rolname IS NULL OR NOT granted.rolname = ANY(e.execute_roles)))",
-    '       LIMIT 1;',
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'function census catalog mismatch: %', bad; END IF;",
-    "  WITH expected(sig) AS (VALUES",
-    databaseFunctions.map(([signature]) => `    (${lit(signature)})`).join(',\n'),
-    "  ) SELECT pg_catalog.format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes), ', ', ',')) INTO bad",
+    ';',
+    'CREATE TEMP TABLE bcb_function_catalog_gaps(message text PRIMARY KEY) ON COMMIT DROP;',
+    'INSERT INTO bcb_function_catalog_gaps(message)',
+    "SELECT e.signature || ': missing declared function' FROM bcb_expected_functions e WHERE pg_catalog.to_regprocedure(e.signature) IS NULL;",
+    'INSERT INTO bcb_function_catalog_gaps(message)',
+    "SELECT e.signature || ': metadata actual=' || pg_catalog.concat_ws('/', pg_catalog.pg_get_userbyid(p.proowner), pg_catalog.format_type(p.prorettype,NULL), CASE WHEN p.proretset THEN 'set' ELSE 'scalar' END, CASE WHEN p.prosecdef THEN 'definer' ELSE 'invoker' END, p.provolatile::text, p.proparallel::text, coalesce(p.proconfig,ARRAY[]::text[])::text) || ' expected=' || pg_catalog.concat_ws('/', e.owner_name, e.result_type, CASE WHEN e.returns_set THEN 'set' ELSE 'scalar' END, CASE WHEN e.is_definer THEN 'definer' ELSE 'invoker' END, e.volatility::text, e.parallelism::text, e.config::text)",
+    '  FROM bcb_expected_functions e JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(e.signature)',
+    ' WHERE pg_catalog.pg_get_userbyid(p.proowner)<>e.owner_name OR pg_catalog.format_type(p.prorettype,NULL)<>e.result_type OR p.proretset<>e.returns_set OR p.prosecdef<>e.is_definer OR p.provolatile<>e.volatility OR p.proparallel<>e.parallelism OR coalesce(p.proconfig,ARRAY[]::text[]) IS DISTINCT FROM e.config;',
+    'INSERT INTO bcb_function_catalog_gaps(message)',
+    "SELECT e.signature || ': missing EXECUTE ' || r FROM bcb_expected_functions e JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(e.signature) CROSS JOIN pg_catalog.unnest(e.execute_roles) r WHERE r<>e.owner_name AND NOT EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a JOIN pg_catalog.pg_roles granted ON granted.oid=a.grantee WHERE a.privilege_type='EXECUTE' AND granted.rolname=r);",
+    'INSERT INTO bcb_function_catalog_gaps(message)',
+    "SELECT e.signature || ': extra EXECUTE ' || coalesce(granted.rolname,'PUBLIC') FROM bcb_expected_functions e JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(e.signature) CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a LEFT JOIN pg_catalog.pg_roles granted ON granted.oid=a.grantee WHERE a.privilege_type='EXECUTE' AND a.grantee<>p.proowner AND (a.grantee=0 OR granted.rolname IS NULL OR NOT granted.rolname=ANY(e.execute_roles));",
+    'INSERT INTO bcb_function_catalog_gaps(message)',
+    "SELECT 'undeclared SECURITY DEFINER function: ' || pg_catalog.format('%I.%I(%s)',n.nspname,p.proname,pg_catalog.replace(pg_catalog.oidvectortypes(p.proargtypes),', ',','))",
     '      FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
     `     WHERE p.prosecdef AND n.nspname IN (${managedSchemasSql})`,
     "       AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid = 'pg_proc'::pg_catalog.regclass AND d.objid = p.oid AND d.deptype = 'e')",
-    "       AND NOT EXISTS (SELECT 1 FROM expected e WHERE p.oid = pg_catalog.to_regprocedure(e.sig))",
-    '     LIMIT 1;',
-    "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'undeclared SECURITY DEFINER function: %', bad; END IF;",
+    '       AND NOT EXISTS (SELECT 1 FROM bcb_expected_functions e WHERE p.oid=pg_catalog.to_regprocedure(e.signature));',
+    'DO $bcb$ DECLARE gap_list text; BEGIN',
+    "  SELECT pg_catalog.string_agg(message,E'\\n' ORDER BY message) INTO gap_list FROM bcb_function_catalog_gaps;",
+    "  IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function census catalog mismatch:%', E'\\n'||gap_list; END IF;",
     'END', '$bcb$;', '',
   );
   return out.join('\n');

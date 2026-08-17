@@ -1896,11 +1896,12 @@ const patientSelfCapability = (purpose: string, functionIdentity: string) => ({
 
 const patientSelfFunction = (
   returns: string,
+  returnsSet: boolean,
   typedArgs: readonly string[],
   purpose: string,
   relationSurfaces: readonly FunctionRelationSurface[],
 ): DeclaredFunction => rev10Function({
-  owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns,
+  owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns, returnsSet,
   execute: ['app_patient'], purpose, typedArgs, volatility: 'VOLATILE', parallel: 'UNSAFE',
   proconfig: ['search_path=pg_catalog'], relationSurfaces,
 });
@@ -2992,7 +2993,7 @@ const REV10_CONTEXT = {
       delegatesTo: ['app.password_login_read_altcha_secret_impl()'],
     },
     'app.require_attested_target_role(name,name[])': rev10Function({
-      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'name',
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'name', returnsSet: false,
       execute: ['app_seam_reminder_patient_owner'],
       purpose: 'return the exact active patient or staff role to the reminder seam',
       typedArgs: ['name', 'name[]'], volatility: 'VOLATILE', parallel: 'UNSAFE',
@@ -3009,7 +3010,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.enqueue_current_reminder_rule_push(text)': rev10Function({
-      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient', 'app_staff'], purpose: 'enqueue only the current patient or staff-org reminder retry',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3028,21 +3029,21 @@ const REV10_CONTEXT = {
       ],
     }),
     'app_ext.digest(text,text)': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea',
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false,
       execute: ['app_seam_dedicated_bot_owner', 'app_seam_password_auth_owner'],
       purpose: 'private pgcrypto digest dependency of the dedicated-bot and password-auth seams',
       typedArgs: ['text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
       invocation: 'internal' as const,
     }),
     'app_ext.hmac(text,text,text)': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea',
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false,
       execute: ['app_seam_patient_invite_owner'],
       purpose: 'private pgcrypto HMAC dependency of the patient-invite seam',
       typedArgs: ['text', 'text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
       invocation: 'internal' as const,
     }),
     'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': rev10Function({
-      owner: 'app_seam_telemetry_exclusion_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_telemetry_exclusion_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_platform_settings'], purpose: 'return only sanitized registration-funnel events to platform operations',
       typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text', 'text',
         'integer', 'integer'], volatility: 'STABLE', parallel: 'RESTRICTED',
@@ -3059,7 +3060,7 @@ const REV10_CONTEXT = {
       ],
     },
     'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_operational_delivery_worker'], purpose: 'enqueue one failed accepted-event messenger reply',
       typedArgs: ['text', 'text', 'text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3159,7 +3160,7 @@ const REV10_CONTEXT = {
       ],
     },
     'app.email_password_find_reset_candidate(text)': rev10Function({
-      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'uuid',
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_pre_session'], purpose: 'auth.password.reset-candidate', typedArgs: ['text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3170,7 +3171,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.challenge.start',
       typedArgs: ['uuid', 'text', 'text', 'bigint', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
@@ -3191,7 +3192,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.email_otp_public_find_or_create_user(text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.user.find-or-create', typedArgs: ['text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.platform_users', columns: [
@@ -3199,7 +3200,7 @@ const REV10_CONTEXT = {
       ], operations: ['SELECT', 'INSERT'], evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.email_otp_public_find_user_by_email(text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'uuid',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'uuid', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.user.find', typedArgs: ['text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.platform_users',
@@ -3207,7 +3208,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.email_otp_public_register_patient(text,text,text,text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.registration.create',
       typedArgs: ['text', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
@@ -3220,7 +3221,7 @@ const REV10_CONTEXT = {
       ], operations: ['SELECT', 'INSERT'], evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.email_otp_public_consume_latest_challenge(text,text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.challenge.consume', typedArgs: ['text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3239,7 +3240,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.email_otp_public_find_email_send_cooldown_by_email(text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'timestamp with time zone',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'timestamp with time zone', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.cooldown.read', typedArgs: ['text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.email_send_cooldowns',
@@ -3279,7 +3280,7 @@ const REV10_CONTEXT = {
       purpose: 'private implementation behind exact-gated app.password_login_read_altcha_secret',
     },
     'app_control.enforce_relation_birth_wall()': rev10Function({
-      owner: 'postgres', security: 'DEFINER', returns: 'event_trigger', execute: [],
+      owner: 'postgres', security: 'DEFINER', returns: 'event_trigger', returnsSet: false, execute: [],
       purpose: 'reject unknown managed table DDL and force a closed RLS baseline before commit',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app_control, pg_temp'],
@@ -3287,55 +3288,55 @@ const REV10_CONTEXT = {
       bodyRelationSurfaceContract: 'relation-birth-wall' as const,
     }),
     'app.assert_organization_slug_alias_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'deferred organization slug alias completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.assert_organization_slug_rename_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'deferred organization slug rename completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.enforce_lfk_child_owner()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'LFK child ownership integrity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_clinic_directory_current_slug()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'clinic directory current-slug integrity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_org_brand_revision()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'organization brand revision monotonicity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_organization_slug_claim_mutation()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'organization slug claim mutation guard trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_organization_slug_rename_event_mutation()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'organization slug rename audit mutation guard trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.reject_staff_commercial_organization_update()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'staff commercial-organization update rejection trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'public.audit_app_runtime_settings_change()': rev10Function({
-      owner: 'app_object_owner', security: 'DEFINER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'application runtime-settings audit trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, public, pg_temp'], invocation: 'trigger' as const,
@@ -3344,22 +3345,22 @@ const REV10_CONTEXT = {
           'updated_by'], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'public.media_folders_enforce_depth()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder maximum-depth integrity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
     'public.media_folders_prevent_cycle()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder cycle prevention trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
     'public.sync_registered_app_runtime_setting()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'registered runtime-setting projection trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
     'public.system_settings_test_lock_guard()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'system-setting protected-key lock trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
@@ -3394,7 +3395,7 @@ const REV10_CONTEXT = {
       parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
     'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.phone-messenger-bind.secret',
       typedArgs: ['text', 'text', 'uuid', 'text', 'text', 'text', 'uuid', 'text', 'text',
         'timestamp with time zone'], volatility: 'VOLATILE', parallel: 'UNSAFE',
@@ -3406,7 +3407,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.phone_messenger_bind_completion_state(text,text,text,text)': rev10Function({
-      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.phone-messenger-bind.completion-state',
       typedArgs: ['text', 'text', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3580,7 +3581,7 @@ const REV10_CONTEXT = {
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
     'app.list_saas_billing_period_catalog()': rev10Function({
-      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_clinic_billing'], purpose: 'return the fixed billing-period arithmetic catalog',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3589,7 +3590,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.list_saas_billing_period_catalog_platform()': rev10Function({
-      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_platform_settings'], purpose: 'return the fixed billing-period arithmetic catalog',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3604,14 +3605,14 @@ const REV10_CONTEXT = {
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
     'app.read_integrator_migration_ledger()': rev10Function({
-      owner: 'app_seam_catalog_admin_owner', security: 'DEFINER', returns: 'record', execute: ['app_service'],
+      owner: 'app_seam_catalog_admin_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_service'],
       purpose: 'read the exact integrator startup migration ledger without relation ACL', typedArgs: [],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.schema_migrations', columns: ['version', 'applied_at'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_integrator_projection_health(integer)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'record', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_service'],
       purpose: 'return only aggregate projection-delivery health without exposing event payloads',
       typedArgs: ['integer'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
@@ -3620,7 +3621,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.list_integration_webhook_burst_signals(integer,integer)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_worker'],
       purpose: 'return only aggregated webhook error bursts for operator health', typedArgs: ['integer', 'integer'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.integration_webhook_error_events',
@@ -3628,7 +3629,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.prune_integration_webhook_error_events(integer)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', execute: ['app_worker'],
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: ['app_worker'],
       purpose: 'delete only webhook error events older than the attested retention window', typedArgs: ['integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.integration_webhook_error_events', columns: ['occurred_at'],
@@ -3652,7 +3653,7 @@ const REV10_CONTEXT = {
       execute: ['app_service'], purpose: 'return only the global SMTP envelope to the integrator service',
     }),
     'app.try_acquire_integrator_idempotency(text,integer)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: ['app_service'],
       purpose: 'atomically acquire exactly one attested integrator idempotency key', typedArgs: ['text', 'integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.idempotency_keys',
@@ -3661,14 +3662,14 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.release_integrator_idempotency(text)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_service'],
       purpose: 'release exactly one attested integrator idempotency key', typedArgs: ['text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.idempotency_keys', columns: ['key'],
         operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'integer', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'integer', returnsSet: false, execute: ['app_service'],
       purpose: 'upsert only the exact attested data-quality incident tuple',
       typedArgs: ['text', 'text', 'text', 'text', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
@@ -3679,7 +3680,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_patient_telegram_display_handle(uuid)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'text', execute: ['app_staff'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_staff'],
       purpose: 'return one Telegram display handle only for an active patient of the current organization',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3693,7 +3694,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_canonical_appointment_by_external_id(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_worker'],
       purpose: 'return one canonical appointment for an HMAC-authenticated integrator external id',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3708,7 +3709,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.list_active_canonical_appointments_by_phone(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_worker'],
       purpose: 'return only active canonical appointments for an HMAC-authenticated integrator phone lookup',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3718,7 +3719,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.count_active_canonical_appointments()': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'bigint', execute: ['app_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: ['app_service'],
       purpose: 'return only the global active appointment count for the integrator admin dashboard',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3727,7 +3728,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.get_google_calendar_event_id(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'read one Google event id after proving appointment organization', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3736,7 +3737,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.upsert_google_calendar_event_id(uuid,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'atomically upsert calendar mapping and patient-booking mirror after organization proof', typedArgs: ['uuid', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3746,7 +3747,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.delete_google_calendar_event_id(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'atomically delete calendar mapping and clear patient-booking mirror after organization proof', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3756,7 +3757,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_booking_calendar_patient_profile(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_tenant_service'],
       purpose: 'calendar enrichment returns only the problem flag and note for the appointment patient', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3765,7 +3766,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_booking_calendar_latest_staff_comment(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'calendar enrichment returns only the latest staff comment body for one appointment', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3774,7 +3775,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.is_current_patient_self_booking_allowed()': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only whether the current patient may self-book, never sensitive profile fields', typedArgs: [],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.be_patient_booking_profiles',
@@ -3782,7 +3783,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_current_patient_booking_runtime_integer(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'integer', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'integer', returnsSet: false, execute: ['app_patient'],
       purpose: 'return one allowlisted booking integer for the current enrolled patient organization',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3795,7 +3796,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_slot_snapshot(uuid,uuid,text,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_seam_patient_booking_owner'],
       purpose: 'return only the current enrolled patient booking context, schedule and busy intervals',
       typedArgs: ['uuid', 'uuid', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
@@ -3839,7 +3840,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return the patient slot snapshot with the exact public catalog fields needed for creation',
       typedArgs: ['uuid', 'uuid', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog'],
@@ -3861,7 +3862,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_payment_setting(text)': rev10Function({
-      owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only booking payment config for a current enrolled patient server command',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3872,7 +3873,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_prepayment_policy(uuid,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
       purpose: 'return one prepayment policy for a current enrolled patient booking selection',
       typedArgs: ['uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3885,7 +3886,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_busy_intervals(uuid,uuid,timestamp with time zone,timestamp with time zone,uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
       purpose: 'return only busy intervals for the current enrolled patient organization',
       typedArgs: ['uuid', 'uuid', 'timestamp with time zone', 'timestamp with time zone', 'uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
@@ -3905,7 +3906,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_form_fields()': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
       purpose: 'return only active patient-visible booking form fields for the current enrolled organization',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3918,7 +3919,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.save_current_patient_booking_form_answers(uuid,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_patient'],
       purpose: 'upsert only patient-visible form answers on the current patient own appointment',
       typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3935,7 +3936,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_packages(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return active current-patient packages with a remaining balance for the selected service',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3958,7 +3959,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.create_current_patient_booking_pending(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'create only an enrolled current patient own in-person booking projection placeholder',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -3975,7 +3976,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.mutate_current_patient_booking(uuid,text,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'apply the bounded lifecycle mutation to the current patient own booking projection',
       typedArgs: ['uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -3993,7 +3994,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.create_current_patient_booking_appointments(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'atomically create one validated current-patient appointment or consecutive chain with audit rows',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4030,7 +4031,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_appointment(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only the current patient own non-deleted canonical appointment',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4046,7 +4047,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.set_current_patient_booking_reminder_preset(uuid,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: ['app_patient'],
       purpose: 'update only the current patient own active appointment reminder preset to an allowed value',
       typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4061,7 +4062,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.current_patient_lfk_sessions(text,text)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_patient'], purpose: 'read and mutate only the current enrolled patient own LFK diary sessions',
       typedArgs: ['text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4078,7 +4079,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_staff_notification_profiles(uuid,text)': rev10Function({
-      owner: 'app_seam_reminder_specialist_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_reminder_specialist_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_patient'], purpose: 'resolve delivery profiles only for active staff in the current enrolled patient organization',
       typedArgs: ['uuid', 'text'], volatility: 'STABLE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4101,7 +4102,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_integrator_web_push_subscriptions(uuid,uuid)': rev10Function({
-      owner: 'app_seam_reminder_specialist_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_reminder_specialist_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return web-push subscriptions only for a user active in the attested organization',
       typedArgs: ['uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
@@ -4116,7 +4117,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_integrator_web_push_delivery_settings(uuid)': rev10Function({
-      owner: 'app_seam_settings_integrator_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_settings_integrator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return global VAPID plus a derived public contact only; SMTP credentials never cross this seam',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
@@ -4126,7 +4127,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'idempotently record one delivery result inside the attested organization',
       typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'integer', 'text', 'text', 'timestamp with time zone'],
@@ -4140,7 +4141,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_row(uuid,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only the current patient own booking projection by booking or canonical appointment id',
       typedArgs: ['uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4157,7 +4158,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_policies(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return current-organization booking policies needed to evaluate patient lifecycle actions',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4179,7 +4180,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_booking_reschedules(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only lifecycle reschedules for the current patient own appointment',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4196,7 +4197,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.apply_current_patient_booking_reschedule(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'apply an already policy-evaluated same-catalog reschedule to the current patient own appointment',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4225,7 +4226,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.apply_current_patient_booking_cancellation(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'apply an already policy-evaluated cancellation to the current patient own appointment',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4253,7 +4254,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.patch_current_patient_booking_notifications(uuid,text,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_patient'],
       purpose: 'patch the latest lifecycle notification outcome for the current patient own appointment',
       typedArgs: ['uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4271,7 +4272,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.reserve_current_patient_booking_package(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'reserve one available service unit from the current patient own active package',
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4296,7 +4297,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_material_rating_snapshot(text,uuid)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_patient'], purpose: 'patient.material-rating.snapshot.read', typedArgs: ['text', 'uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4305,7 +4306,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.record_current_patient_practice_completion(uuid,text,integer)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'uuid', returnsSet: true,
       execute: ['app_patient'], purpose: 'record one completion only for the current enrolled patient',
       typedArgs: ['uuid', 'text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4326,7 +4327,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: true,
       execute: ['app_patient'], purpose: 'upsert one material rating only for the current enrolled patient',
       typedArgs: ['text', 'uuid', 'integer', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4355,7 +4356,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_current_patient_fio()': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_patient'], purpose: 'read canonical structured FIO for the current patient only',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4368,7 +4369,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.update_current_patient_fio(text,text,text)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_patient'], purpose: 'update canonical FIO, compatibility mirror and audit for the current patient only',
       typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4388,7 +4389,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.update_current_patient_practice_completion_feeling(uuid,integer)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'update only the current patient own warmup completion feeling',
       typedArgs: ['uuid', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4400,7 +4401,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'save only a visible daily-warmup presentation for the current patient',
       typedArgs: ['uuid', 'timestamp with time zone', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4423,7 +4424,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.record_current_patient_daily_warmup_video_view(uuid)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'record a view only for the current patient presented daily warmup',
       typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4439,7 +4440,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'uuid',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_patient'], purpose: 'record rating feedback for one visible current-clinic page as current patient',
       typedArgs: ['uuid', 'integer', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4463,7 +4464,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.record_current_patient_playback_client_event(uuid,text,text,text,text)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'record bounded playback diagnostics for media visible to the current patient',
       typedArgs: ['uuid', 'text', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4491,7 +4492,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.record_current_patient_playback_first_resolve(uuid)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'record one first-resolve marker for media visible to the current patient',
       typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4521,7 +4522,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'capture one verified past diary-day snapshot for the current patient',
       typedArgs: ['text', 'text', 'integer', 'integer', 'boolean', 'uuid', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'], relationSurfaces: [
@@ -4550,7 +4551,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.set_current_patient_notification_topic(text,boolean)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'set one supported notification topic for the current patient',
       typedArgs: ['text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4567,7 +4568,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.set_current_patient_notification_topic_channel(text,text,boolean)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'set one supported notification topic channel for the current patient',
       typedArgs: ['text', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -4584,127 +4585,127 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.create_current_patient_reminder_rule(text,text)': patientSelfFunction(
-      'jsonb', ['text', 'text'], 'patient.reminder-rule.create', exactPatientSurfaces(
+      'jsonb', false, ['text', 'text'], 'patient.reminder-rule.create', exactPatientSurfaces(
         [...PATIENT_REMINDER_CORE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
         PATIENT_ROOT_OPERATIONS.create_current_patient_reminder_rule)),
     'app.update_current_patient_reminder_rule(text,text)': patientSelfFunction(
-      'jsonb', ['text', 'text'], 'patient.reminder-rule.update', exactPatientSurfaces(
+      'jsonb', false, ['text', 'text'], 'patient.reminder-rule.update', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.update_current_patient_reminder_rule)),
     'app.delete_current_patient_reminder_rule(text)': patientSelfFunction(
-      'boolean', ['text'], 'patient.reminder-rule.delete', exactPatientSurfaces(
+      'boolean', false, ['text'], 'patient.reminder-rule.delete', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_reminder_rule)),
     'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientSelfFunction(
-      'uuid', ['text', 'text', 'text', 'timestamp with time zone', 'text'],
+      'uuid', false, ['text', 'text', 'text', 'timestamp with time zone', 'text'],
       'patient.reminder-journal.record', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_reminder_journal_action)),
     'app.mark_current_patient_reminder_history_seen(text)': patientSelfFunction(
-      'integer', ['text'], 'patient.reminder-history.seen', exactPatientSurfaces(
+      'integer', false, ['text'], 'patient.reminder-history.seen', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_reminder_history_seen)),
     'app.mark_all_current_patient_reminder_history_seen()': patientSelfFunction(
-      'integer', [], 'patient.reminder-history.seen-all', exactPatientSurfaces(
+      'integer', false, [], 'patient.reminder-history.seen-all', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_all_current_patient_reminder_history_seen)),
     'app.set_current_patient_reminder_muted_until(timestamp with time zone)': patientSelfFunction(
-      'boolean', ['timestamp with time zone'], 'patient.reminder.mute', exactPatientSurfaces(
+      'boolean', false, ['timestamp with time zone'], 'patient.reminder.mute', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.set_current_patient_reminder_muted_until)),
     'app.ensure_current_patient_support_conversation()': patientSelfFunction(
-      'jsonb', [], 'patient.support-conversation.ensure', exactPatientSurfaces(
+      'jsonb', false, [], 'patient.support-conversation.ensure', exactPatientSurfaces(
         [...PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
         PATIENT_ROOT_OPERATIONS.ensure_current_patient_support_conversation)),
     'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'text', 'text', 'text', 'timestamp with time zone', 'text', 'text'],
+      'jsonb', false, ['uuid', 'text', 'text', 'text', 'timestamp with time zone', 'text', 'text'],
       'patient.support-message.append', exactPatientSurfaces(
         PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.append_current_patient_support_message)),
     'app.mark_current_patient_support_conversation_read(uuid)': patientSelfFunction(
-      'integer', ['uuid'], 'patient.support-conversation.read', exactPatientSurfaces(
+      'integer', false, ['uuid'], 'patient.support-conversation.read', exactPatientSurfaces(
         PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_conversation_read)),
     'app.mark_current_patient_support_messages_read(text)': patientSelfFunction(
-      'integer', ['text'], 'patient.support-messages.read', exactPatientSurfaces(
+      'integer', false, ['text'], 'patient.support-messages.read', exactPatientSurfaces(
         PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_messages_read)),
     'app.mark_current_patient_support_notifications_read()': patientSelfFunction(
-      'integer', [], 'patient.support-notifications.read', exactPatientSurfaces(
+      'integer', false, [], 'patient.support-notifications.read', exactPatientSurfaces(
         PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_notifications_read)),
     'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)': patientSelfFunction(
-      'jsonb', ['text', 'text', 'uuid'], 'patient.symptom-system-tracking.ensure', exactPatientSurfaces(
+      'jsonb', false, ['text', 'text', 'uuid'], 'patient.symptom-system-tracking.ensure', exactPatientSurfaces(
         PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.ensure_current_patient_system_symptom_tracking)),
     'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
+      'jsonb', false, ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
       'patient.symptom-entry.record', exactPatientSurfaces(
         PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_symptom_entry)),
     'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
+      'jsonb', false, ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
       'patient.symptom-entry.update', exactPatientSurfaces(
         PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.update_current_patient_symptom_entry)),
     'app.delete_current_patient_symptom_entry(uuid)': patientSelfFunction(
-      'boolean', ['uuid'], 'patient.symptom-entry.delete', exactPatientSurfaces(
+      'boolean', false, ['uuid'], 'patient.symptom-entry.delete', exactPatientSurfaces(
         PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_symptom_entry)),
     'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)': patientSelfFunction(
-      'boolean', ['uuid', 'text', 'boolean'], 'patient.symptom-tracking.configure', exactPatientSurfaces(
+      'boolean', false, ['uuid', 'text', 'boolean'], 'patient.symptom-tracking.configure', exactPatientSurfaces(
         PATIENT_SYMPTOM_CORE_SURFACES,
         PATIENT_ROOT_OPERATIONS.configure_current_patient_assigned_symptom_tracking)),
     'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)': patientSelfFunction(
-      'boolean', ['uuid', 'integer', 'uuid', 'text', 'uuid', 'text'],
+      'boolean', false, ['uuid', 'integer', 'uuid', 'text', 'uuid', 'text'],
       'patient.warmup-feeling.apply', exactPatientSurfaces(
         PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.apply_current_patient_warmup_feeling)),
     'app.save_current_patient_channel_preference(text,boolean,boolean)': patientSelfFunction(
-      'jsonb', ['text', 'boolean', 'boolean'], 'patient.channel-preference.save', exactPatientSurfaces(
+      'jsonb', false, ['text', 'boolean', 'boolean'], 'patient.channel-preference.save', exactPatientSurfaces(
         PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_channel_preference)),
     'app.set_current_patient_preferred_auth_channel(text)': patientSelfFunction(
-      'boolean', ['text'], 'patient.preferred-auth-channel.set', exactPatientSurfaces(
+      'boolean', false, ['text'], 'patient.preferred-auth-channel.set', exactPatientSurfaces(
         PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.set_current_patient_preferred_auth_channel)),
     'app.save_current_patient_web_push_subscription(text,text,text,text)': patientSelfFunction(
-      'boolean', ['text', 'text', 'text', 'text'], 'patient.web-push-subscription.save', exactPatientSurfaces(
+      'boolean', false, ['text', 'text', 'text', 'text'], 'patient.web-push-subscription.save', exactPatientSurfaces(
         PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_web_push_subscription)),
     'app.remove_current_patient_web_push_subscription(text)': patientSelfFunction(
-      'boolean', ['text'], 'patient.web-push-subscription.remove', exactPatientSurfaces(
+      'boolean', false, ['text'], 'patient.web-push-subscription.remove', exactPatientSurfaces(
         PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.remove_current_patient_web_push_subscription)),
     'app.remove_all_current_patient_web_push_subscriptions()': patientSelfFunction(
-      'integer', [], 'patient.web-push-subscriptions.remove-all', exactPatientSurfaces(
+      'integer', false, [], 'patient.web-push-subscriptions.remove-all', exactPatientSurfaces(
         PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.remove_all_current_patient_web_push_subscriptions)),
     'app.touch_current_patient_program_item(uuid,uuid)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid'], 'patient.program-item.touch', exactPatientSurfaces(
+      'jsonb', false, ['uuid', 'uuid'], 'patient.program-item.touch', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.touch_current_patient_program_item)),
     'app.complete_current_patient_program_item(uuid,uuid,integer,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'integer', 'text'], 'patient.program-item.complete', exactPatientSurfaces(
+      'jsonb', false, ['uuid', 'uuid', 'integer', 'text'], 'patient.program-item.complete', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.complete_current_patient_program_item)),
     'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'uuid', 'text'], 'patient.program-completion.enrich', exactPatientSurfaces(
+      'jsonb', false, ['uuid', 'uuid', 'uuid', 'text'], 'patient.program-completion.enrich', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.enrich_current_patient_program_completion)),
     'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'text', 'uuid', 'text', 'text'], 'patient.program-action.record',
+      'jsonb', false, ['uuid', 'uuid', 'text', 'uuid', 'text', 'text'], 'patient.program-action.record',
       exactPatientSurfaces(PATIENT_PROGRAM_CORE_SURFACES,
         PATIENT_ROOT_OPERATIONS.record_current_patient_program_action)),
     'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)': patientSelfFunction(
-      'integer', ['uuid', 'uuid', 'timestamp with time zone', 'timestamp with time zone', 'boolean'],
+      'integer', false, ['uuid', 'uuid', 'timestamp with time zone', 'timestamp with time zone', 'boolean'],
       'patient.program-actions.delete-window', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES,
         PATIENT_ROOT_OPERATIONS.delete_current_patient_program_actions_in_window)),
     'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'text', 'text', 'uuid', 'text', 'text'], 'patient.program-event.append',
+      'jsonb', false, ['uuid', 'text', 'text', 'uuid', 'text', 'text'], 'patient.program-event.append',
       exactPatientSurfaces(PATIENT_PROGRAM_CORE_SURFACES,
         PATIENT_ROOT_OPERATIONS.append_current_patient_program_event)),
     'app.mark_current_patient_program_item_viewed(uuid,uuid)': patientSelfFunction(
-      'boolean', ['uuid', 'uuid'], 'patient.program-item.viewed', exactPatientSurfaces(
+      'boolean', false, ['uuid', 'uuid'], 'patient.program-item.viewed', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_program_item_viewed)),
     'app.append_current_patient_program_discussion(uuid,text,uuid)': patientSelfFunction(
-      'jsonb', ['uuid', 'text', 'uuid'], 'patient.program-discussion.append', exactPatientSurfaces(
+      'jsonb', false, ['uuid', 'text', 'uuid'], 'patient.program-discussion.append', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.append_current_patient_program_discussion)),
     'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)': patientSelfFunction(
-      'boolean', ['uuid', 'timestamp with time zone'], 'patient.program-discussion.read', exactPatientSurfaces(
+      'boolean', false, ['uuid', 'timestamp with time zone'], 'patient.program-discussion.read', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_program_discussion_read)),
     'app.ensure_current_patient_test_attempt(uuid)': patientSelfFunction(
-      'jsonb', ['uuid'], 'patient.test-attempt.ensure', exactPatientSurfaces(
+      'jsonb', false, ['uuid'], 'patient.test-attempt.ensure', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.ensure_current_patient_test_attempt)),
     'app.start_current_patient_test_attempt(uuid,uuid)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid'], 'patient.test-attempt.start', exactPatientSurfaces(
+      'jsonb', false, ['uuid', 'uuid'], 'patient.test-attempt.start', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.start_current_patient_test_attempt)),
     'app.save_current_patient_test_result(uuid,uuid,text,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'text', 'text'], 'patient.test-result.save', exactPatientSurfaces(
+      'jsonb', false, ['uuid', 'uuid', 'text', 'text'], 'patient.test-result.save', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_test_result)),
     'app.submit_current_patient_test_attempt(uuid)': patientSelfFunction(
-      'boolean', ['uuid'], 'patient.test-attempt.submit', exactPatientSurfaces(
+      'boolean', false, ['uuid'], 'patient.test-attempt.submit', exactPatientSurfaces(
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.submit_current_patient_test_attempt)),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_seam_patient_lfk_media_owner'],
       purpose: 'private idempotent media transcode producer shared by exact patient/staff/service roots',
       typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
@@ -4722,7 +4723,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.create_patient_program_submission_media(uuid,text,text,text,bigint)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'patient.media.program-submission.create',
       typedArgs: ['uuid', 'text', 'text', 'text', 'bigint'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4745,7 +4746,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.confirm_patient_program_submission_media(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'patient.media.program-submission.confirm', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4755,7 +4756,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.abort_patient_program_submission_media(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'patient.media.program-submission.abort', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4765,7 +4766,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.enqueue_media_transcode_job_for_staff(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_staff'], purpose: 'media.transcode.enqueue', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4774,14 +4775,14 @@ const REV10_CONTEXT = {
       delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
     }),
     'app.enqueue_media_transcode_job_for_service(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_operational_media_worker'], purpose: 'media.transcode.enqueue', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [], delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
     }),
     'app.resolve_active_organization_for_integrator_user_id(bigint)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.user-organization.resolve',
       typedArgs: ['bigint'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4795,7 +4796,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.integrator_upsert_channel_identity(text,text,text)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.channel-identity.upsert',
       typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4820,7 +4821,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)': rev10Function({
-      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.bootstrap-phone-bind',
       typedArgs: ['text', 'text', 'text', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -4858,21 +4859,21 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
+    'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', returnsSet: false, loginExecute: true as const,
       execute: [], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       bodyRelationSurfaceContract: 'port-context' as const }),
-    'app.clear_port_context()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
+    'app.clear_port_context()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', returnsSet: false, loginExecute: true as const,
       execute: [], purpose: 'clear', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       bodyRelationSurfaceContract: 'port-context' as const }),
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
-      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       bodyRelationSurfaceContract: 'port-context' as const }),
     'app.require_attested_context_for_roles(name,name[])': rev10Function({
-      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_SEAM_OWNERS],
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_SEAM_OWNERS],
       purpose: 'verify one current transaction-bound port context before an ordinary definer body',
       typedArgs: ['name', 'name[]'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], invocation: 'internal' as const,
@@ -4887,11 +4888,11 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.require_platform_principal()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean',
+    'app.require_platform_principal()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_platform_settings', 'saas_telemetry_operator', ...REV10_SEAM_OWNERS], purpose: 'platform', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
     'app.resolve_platform_audit_conflict(uuid)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'text',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'resolve one whitelisted platform audit conflict', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.admin_audit_log',
@@ -4899,7 +4900,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.append_platform_audit_event(text,text,text)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_platform_admin', 'app_pre_session'],
       purpose: 'append one whitelisted platform operator or pre-session auth audit event',
       typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
@@ -4909,7 +4910,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.acknowledge_open_outbound_provider_incidents()': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'acknowledge all open outbound-provider incidents', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.operator_incidents',
@@ -4917,7 +4918,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.resolve_all_open_operator_incidents()': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'resolve all open platform operator incidents', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.operator_incidents',
@@ -4925,7 +4926,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_tenant_isolation_canary()': rev10Function({
-      owner: 'saas_system_health_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'saas_system_health_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['saas_telemetry_operator'],
       purpose: 'return a bounded organization/member-count snapshot for the critical isolation canary',
       typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
@@ -4937,7 +4938,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_platform_admin'], purpose: 'list only sanitized platform health archive fields',
       typedArgs: ['text', 'integer', 'timestamp with time zone', 'uuid'], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
@@ -4947,7 +4948,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.archive_operator_health_failures(text,integer,uuid)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_platform_admin'], purpose: 'archive and remove one sanitized non-clinical dead queue batch',
       typedArgs: ['text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
@@ -4975,27 +4976,27 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
-    'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
-    'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
-    'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
-    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
-    'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
-    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false, execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
     'app_ext.resolve_variant_a_physical(uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_seam_context_owner'],
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
       purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.pre_session_resolve_identity(uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_pre_session', 'app_platform_admin'],
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_pre_session', 'app_platform_admin'],
       purpose: 'exact physical-to-opaque handoff before a human transaction', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
     }),
     'app.auth_channel_binding_session(text,text)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'resolve one verified messenger binding into session-only identity data',
       typedArgs: ['text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -5012,7 +5013,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.resolve_staff_workspace_memberships(uuid)': rev10Function({
-      owner: 'app_seam_org_directory_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_org_directory_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session', 'app_staff'], purpose: 'resolve active organization memberships before staff routing and revalidate self after routing',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
