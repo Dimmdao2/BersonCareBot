@@ -45,17 +45,23 @@ function parseStockQuota(value: unknown): StockQuota | null {
   return { kind: quota.kind, limit: typeof quota.limit === 'number' ? quota.limit : null };
 }
 
-/** Pure decision shared by every numeric stock write after its transaction-scoped recount. */
+/**
+ * Pure decision shared by every numeric stock write after its transaction-scoped recount.
+ *
+ * Owner 18.08 (L-1): «ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА для всех таких механик с лимитом». A ceiling
+ * exists only where the tariff named a number; everything else — no quota key at all, an explicit
+ * `unlimited`, or a row carrying no number — is «без лимита» and allows the write. Only a real
+ * number refuses, and it refuses at exactly that number (so `limit: 0` permits nothing).
+ */
 export function decideStockQuota(input: {
   quota: unknown;
   used: number;
   increment: number;
 }): StockQuotaDecision {
   const quota = parseStockQuota(input.quota);
-  if (!quota) return 'reached';
-  if (quota.kind === 'unlimited') return 'allowed';
-  if (quota.limit === null) return 'reached';
-  return input.used + input.increment > quota.limit ? 'reached' : 'allowed';
+  const limit = quota?.kind === 'numeric' ? quota.limit : null;
+  if (limit === null) return 'allowed';
+  return input.used + input.increment > limit ? 'reached' : 'allowed';
 }
 
 /** Pure decision shared by the transaction-scoped clinic-team seat recount. */

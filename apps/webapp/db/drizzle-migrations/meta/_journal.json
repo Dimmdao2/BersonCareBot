@@ -155,6 +155,13 @@
       "when": 1800000021000,
       "tag": "0021_patient_program_item_narrow_column_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1800000022000,
+      "tag": "0022_quota_mechanics_have_no_off_state",
+      "breakpoints": true
     }
   ]
 }

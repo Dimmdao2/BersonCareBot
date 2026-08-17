@@ -279,17 +279,25 @@ const ACCESS_TERMINAL_STATE_LABELS: Record<AccessTerminalState, string> = {
  * §5a item 2.6a — `warnable` says whether this mechanic has an early-warning threshold at all.
  * The owner named exactly two (patients and file volume); branches have none, so the field is not
  * rendered rather than rendered and ignored.
+ *
+ * Owner 18.08 (L-1): «ТАМ НЕ НАДО ВООБЩЕ СТАВИТЬ ВАРИАНТ ВЫКЛЮЧЕН — ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА для
+ * всех таких механик с лимитом». Inside a TARIFF the picker therefore offers exactly two choices
+ * (`unsettable={false}`): an empty value there used to mean «механика выключена», which is the
+ * state he ruled out. The per-organization exception editor keeps «Не настроено», where it means
+ * «числом не переопределяю» and the neighbouring «Разрешено» checkbox carries presence.
  */
 function NumericLimitEditor({
   label,
   unit,
   warnable,
+  unsettable = true,
   quota,
   onChange,
 }: {
   label: string;
   unit: TariffQuota['unit'];
   warnable: boolean;
+  unsettable?: boolean;
   quota: TariffQuota | null;
   onChange: (quota: TariffQuota | null) => void;
 }) {
@@ -309,16 +317,18 @@ function NumericLimitEditor({
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <Select
-        value={quota?.kind ?? 'none'}
+        // Owner 18.08: inside a tariff an empty quota IS «без ограничения», so that is what the
+        // picker shows for a tariff that never named a number — there is no third state to show.
+        value={quota?.kind ?? (unsettable ? 'none' : 'unlimited')}
         onValueChange={(value) => {
           if (value === 'none' || value === 'numeric' || value === 'unlimited') changeKind(value);
         }}
       >
-        <SelectTrigger>
+        <SelectTrigger aria-label={`${label}: лимит`}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Не настроено</SelectItem>
+          {unsettable ? <SelectItem value="none">Не настроено</SelectItem> : null}
           <SelectItem value="numeric">Число</SelectItem>
           <SelectItem value="unlimited">Без ограничения</SelectItem>
         </SelectContent>
@@ -1004,6 +1014,7 @@ export function CommercialConstructorClient() {
                   label="Файлы пациентов"
                   unit="bytes"
                   warnable={quotaMechanicSupportsWarning('files')}
+                  unsettable={false}
                   quota={tariff.quotas.files ?? null}
                   onChange={(nextQuota) => {
                     if (nextQuota && nextQuota.unit !== 'bytes') return;
@@ -1024,6 +1035,7 @@ export function CommercialConstructorClient() {
                     label={MECHANIC_REGISTRY[mechanic].label}
                     unit="items"
                     warnable={quotaMechanicSupportsWarning(mechanic)}
+                    unsettable={false}
                     quota={tariff.quotas[mechanic] ?? null}
                     onChange={(nextQuota) => {
                       if (nextQuota && nextQuota.unit !== 'items') return;

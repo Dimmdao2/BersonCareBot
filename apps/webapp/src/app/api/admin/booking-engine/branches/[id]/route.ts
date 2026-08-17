@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  quotaLimitReachedRefusalMessage,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementBookingEngine } from '../../_requireClinicManagementBookingEngine';
 
 /** Thrown by the infra atomic quota port; compared by message, not class, to keep this route free of an infra import. */
@@ -74,7 +77,12 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   } catch (error) {
     if (error instanceof Error && error.message === BRANCHES_QUOTA_REACHED_MESSAGE) {
       return NextResponse.json(
-        { ok: false, error: 'branch_quota_reached', mechanic: 'branches' },
+        {
+          ok: false,
+          error: 'branch_quota_reached',
+          mechanic: 'branches',
+          message: quotaLimitReachedRefusalMessage('branches', 'сохранить локацию'),
+        },
         { status: 409 },
       );
     }
