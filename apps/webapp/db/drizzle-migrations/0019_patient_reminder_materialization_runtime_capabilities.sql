@@ -1,7 +1,7 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0019
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- TEMPORARY LOCAL MIGRATION NUMBER 0019
 --
 -- The scheduler wake is an organization-attested webapp operation. It receives exactly three
 -- capabilities: one rule/due/title snapshot, one delivery-target snapshot, and one atomic write
@@ -121,6 +121,7 @@ END
 $function$;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 CREATE OR REPLACE FUNCTION app.read_patient_reminder_delivery_target_snapshot(
   p_organization_id uuid,
   p_platform_user_id uuid,
@@ -263,6 +264,7 @@ END
 $function$;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 -- This helper is private to the two reminder-materialization roots. Its previous operational
 -- scheduler EXECUTE was unnecessary and made a nested call depend on the wrong accepted context.
 CREATE OR REPLACE FUNCTION app.patient_reminder_materialization_fingerprint(
@@ -351,11 +353,13 @@ AS $function$
 $function$;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 REVOKE ALL ON FUNCTION app.patient_reminder_materialization_fingerprint(text,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.patient_reminder_materialization_fingerprint(text,text)
   FROM app_operational_scheduler, app_staff, app_tenant_service;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 CREATE OR REPLACE FUNCTION app.commit_patient_reminder_materialization(
   p_organization_id uuid,
   p_occurrence_id text,
@@ -700,6 +704,7 @@ END
 $function$;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 -- The old two-step mutation functions remain only as private rollback-compatible catalog objects.
 -- No runtime role can execute them; new application code has exactly one mutation callsite.
 REVOKE ALL ON FUNCTION app.upsert_patient_reminder_occurrence_plan(
