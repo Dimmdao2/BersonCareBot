@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import test from 'node:test';
 import path from 'node:path';
@@ -19,6 +20,12 @@ import {
   latestArtifactFunctions,
   parseExecutableFunctions,
 } from './function-body-surface.mjs';
+import {
+  compareDeclaredFunctionReturnShapes,
+  extractFunctionReturnShapes,
+  latestFunctionReturnShapes,
+  parseReturnShape,
+} from './function-return-shape.mjs';
 
 const PRIVILEGES_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CURRENT_PATIENT_MIGRATIONS = [
@@ -29,6 +36,9 @@ const B0_FORWARD_MIGRATIONS = fs.readdirSync(path.resolve(PRIVILEGES_DIR, '../..
   .filter((file) => /^\d{4}_.+\.sql$/.test(file))
   .sort()
   .map((file) => path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations', file));
+const B0_EVIDENCE_COMMIT = '2e8ffe851a404da1894cb20b5b9d27e2dd409394';
+const B0_EVIDENCE_PATH = 'deploy/postgres/generated/prod-to-target/schema-pre.sql';
+const REPOSITORY_ROOT = path.resolve(PRIVILEGES_DIR, '../../..');
 
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
 const TEST_ONLY = [
@@ -86,6 +96,75 @@ test('all latest active B0-forward definers have exact executable relation-opera
     assert.equal(candidates[0][1].security, 'DEFINER', candidates[0][0]);
   }
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
+});
+
+test('all 384 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+  const sources = [{
+    source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
+    text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
+      cwd: REPOSITORY_ROOT, encoding: 'utf8', maxBuffer: 100 * 1024 * 1024,
+    }),
+  }, ...B0_FORWARD_MIGRATIONS.map((file) => ({ source: path.relative(REPOSITORY_ROOT, file), text: fs.readFileSync(file, 'utf8') })), {
+    source: 'deploy/postgres/port-context/contract.sql',
+    text: fs.readFileSync(path.resolve(REPOSITORY_ROOT, 'deploy/postgres/port-context/contract.sql'), 'utf8'),
+  }, {
+    source: 'deploy/postgres/test-saas-isolation-telemetry-fixtures.sql',
+    text: fs.readFileSync(path.resolve(REPOSITORY_ROOT, 'deploy/postgres/test-saas-isolation-telemetry-fixtures.sql'), 'utf8'),
+  }];
+  const canonical = latestFunctionReturnShapes(sources);
+  const external = {
+    'app_ext.digest(text,text)': { returns: 'bytea', returnsSet: false },
+    'app_ext.hmac(text,text,text)': { returns: 'bytea', returnsSet: false },
+  };
+  assert.equal(canonical.size, 382);
+  assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
+  const forms = [...canonical.values()].reduce((counts, row) => {
+    counts[row.form] = (counts[row.form] ?? 0) + 1;
+    return counts;
+  }, {});
+  assert.deepEqual(forms, { SCALAR: 258, TABLE: 120, SETOF: 4 });
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 260);
+
+  const practice = structuredClone(declaration.portContext.functions);
+  practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
+  assert.deepEqual(compareDeclaredFunctionReturnShapes(practice, canonical, external), [
+    'app.record_current_patient_practice_completion(uuid,text,integer): actual=uuid/set declared=record/set',
+  ]);
+  const rating = structuredClone(declaration.portContext.functions);
+  rating['app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)'].returns = 'record';
+  assert.deepEqual(compareDeclaredFunctionReturnShapes(rating, canonical, external), [
+    'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid): actual=boolean/set declared=record/set',
+  ]);
+  const tableToScalar = structuredClone(declaration.portContext.functions);
+  tableToScalar['app.accept_org_invite(text,uuid,text)'].returnsSet = false;
+  assert.deepEqual(compareDeclaredFunctionReturnShapes(tableToScalar, canonical, external), [
+    'app.accept_org_invite(text,uuid,text): actual=record/set declared=record/scalar',
+  ]);
+  const scalarToSet = structuredClone(declaration.portContext.functions);
+  scalarToSet['app.abort_patient_program_submission_media(uuid)'].returnsSet = true;
+  assert.deepEqual(compareDeclaredFunctionReturnShapes(scalarToSet, canonical, external), [
+    'app.abort_patient_program_submission_media(uuid): actual=boolean/scalar declared=boolean/set',
+  ]);
+});
+
+test('return-shape parser covers TABLE, SETOF, OUT, dollar tags, defaults and comments', () => {
+  assert.deepEqual(parseReturnShape('', ' RETURNS TABLE(id uuid) LANGUAGE sql '),
+    { returns: 'uuid', returnsSet: true, form: 'TABLE' });
+  assert.deepEqual(parseReturnShape('', ' RETURNS TABLE(id uuid, label text) LANGUAGE sql '),
+    { returns: 'record', returnsSet: true, form: 'TABLE' });
+  assert.deepEqual(parseReturnShape('', ' RETURNS SETOF public.saas_tariffs LANGUAGE sql '),
+    { returns: 'saas_tariffs', returnsSet: true, form: 'SETOF' });
+  assert.deepEqual(parseReturnShape('IN value integer, OUT id uuid', ' LANGUAGE sql '),
+    { returns: 'uuid', returnsSet: false, form: 'OUT' });
+  assert.deepEqual(parseReturnShape('OUT id uuid, OUT label text', ' LANGUAGE sql '),
+    { returns: 'record', returnsSet: false, form: 'OUT' });
+  const rows = extractFunctionReturnShapes('probe.sql', `
+    -- CREATE FUNCTION app.ignored() RETURNS SETOF uuid AS $$ SELECT NULL::uuid $$;
+    CREATE FUNCTION app.probe(value text DEFAULT ') RETURNS SETOF boolean')
+    RETURNS TABLE(id uuid) LANGUAGE sql AS $shape$ SELECT NULL::uuid $shape$;
+  `);
+  assert.deepEqual(rows, [{ name: 'app.probe', source: 'probe.sql', returns: 'uuid', returnsSet: true, form: 'TABLE' }]);
 });
 
 test('function parser removes real comments without truncating comment markers inside literals', () => {
@@ -321,6 +400,13 @@ test('complete relation APIs leave no generation gap', () => {
     const gaps = collectGaps(declaration, database);
     assert.equal(gaps.length, 0);
   }
+  const missingShape = structuredClone(declaration);
+  delete missingShape.portContext.functions['app.accept_org_invite(text,uuid,text)'].returnsSet;
+  for (const database of DATABASES) {
+    assert.ok(collectGaps(missingShape, database).some((gap) =>
+      gap.site === 'portContext.functions.app.accept_org_invite(text,uuid,text)'
+      && gap.reason === 'function lacks exact set-returning flag'), database);
+  }
 });
 
 test('special body relation contracts are an exact closed set and arbitrary bypasses fail', () => {
@@ -412,6 +498,9 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     );
     assert.equal(generateFunctionCensusSql(declaration, database), first);
     assert.match(first, /function census catalog mismatch/);
+    assert.match(first, /p\.proretset<>e\.returns_set/);
+    assert.match(first, /CREATE TEMP TABLE bcb_function_catalog_gaps/);
+    assert.match(first, /string_agg\(message,E'\\n' ORDER BY message\)/);
     assert.match(first, /n\.nspname IN \('public', 'app', 'integrator', 'app_ext', 'app_control', 'drizzle'\)/);
     assert.match(first, /am\.member = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /am\.roleid = 'app_seam_dedicated_bot_owner'::regrole/);
@@ -453,4 +542,14 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
       else assert.equal(first.includes(`ALTER FUNCTION ${signature} OWNER TO`), false, signature);
     }
   }
+});
+
+test('a TEST-only return-shape drift is rendered only into the TEST catalog universe', () => {
+  const signature = 'app.read_saas_isolation_test_scenario_fixture_counts()';
+  const mutated = structuredClone(declaration);
+  mutated.portContext.functions[signature].returnsSet = false;
+  const testSql = generateFunctionCensusSql(mutated, 'bersoncarebot_test');
+  const devSql = generateFunctionCensusSql(mutated, 'bcb_webapp_dev');
+  assert.ok(testSql.includes(`('${signature}', 'saas_telemetry_owner'::name, 'record', false`));
+  assert.equal(devSql.includes(signature), false);
 });

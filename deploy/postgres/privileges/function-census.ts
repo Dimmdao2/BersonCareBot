@@ -22,6 +22,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "RESTRICTED",
     "proconfig": [
@@ -168,6 +169,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_appointment_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -214,6 +216,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -281,6 +284,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_specialist_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -334,6 +338,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -369,6 +374,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -405,6 +411,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -441,6 +448,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -481,6 +489,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -523,6 +532,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_login_token_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -561,6 +571,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_login_token_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -604,6 +615,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_login_token_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -638,6 +650,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_login_token_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -675,6 +688,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_login_token_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -716,6 +730,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_oauth_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -754,6 +769,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_oauth_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -790,6 +806,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_oauth_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -831,6 +848,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -869,6 +887,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -909,6 +928,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -953,6 +973,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -993,6 +1014,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_self_security_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1028,6 +1050,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1072,6 +1095,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1219,6 +1243,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1356,6 +1381,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_binding_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1393,6 +1419,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1440,6 +1467,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1477,6 +1505,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1521,6 +1550,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1561,6 +1591,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1606,6 +1637,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_org_projection_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1655,6 +1687,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1688,6 +1721,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_oauth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1722,6 +1756,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1771,6 +1806,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1806,6 +1842,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1841,6 +1878,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1922,6 +1960,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -1963,6 +2002,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2003,6 +2043,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "bigint",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2038,6 +2079,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2075,6 +2117,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2112,6 +2155,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2153,6 +2197,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2195,6 +2240,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2231,6 +2277,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2274,6 +2321,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "bigint",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2312,6 +2360,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2347,6 +2396,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2386,6 +2436,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2423,6 +2474,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2462,6 +2514,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2502,6 +2555,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2562,6 +2616,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2600,6 +2655,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2635,6 +2691,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2676,6 +2733,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2717,6 +2775,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2753,6 +2812,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_email_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2800,6 +2860,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2838,6 +2899,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2886,6 +2948,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2921,6 +2984,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -2982,6 +3046,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3020,6 +3085,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3096,6 +3162,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_identity_lookup_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3147,6 +3214,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3190,6 +3258,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3235,6 +3304,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_identity_lookup_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3273,6 +3343,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_preauth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3310,6 +3381,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_catalog_public_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3345,6 +3417,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3389,6 +3462,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3433,6 +3507,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3467,6 +3542,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_preauth_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3502,6 +3578,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_delivery_scope_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3540,6 +3617,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_delivery_scope_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3604,6 +3682,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3668,6 +3747,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_media_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3722,6 +3802,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_exclusion_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3793,6 +3874,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_preauth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3828,6 +3910,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_public_slug_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3862,6 +3945,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_exclusion_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3923,6 +4007,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_preauth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3958,6 +4043,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_preauth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -3993,6 +4079,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_preauth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4029,6 +4116,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_catalog_public_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4066,6 +4154,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4102,6 +4191,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_directory_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4158,6 +4248,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_materialization_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4205,6 +4296,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_materialization_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4255,6 +4347,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4333,6 +4426,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4390,6 +4484,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4426,6 +4521,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_materialization_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4503,6 +4599,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4551,6 +4648,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4579,6 +4677,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4614,6 +4713,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4675,6 +4775,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4738,6 +4839,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4774,6 +4876,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4811,6 +4914,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4860,6 +4964,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4898,6 +5003,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4932,6 +5038,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -4975,6 +5082,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_passkey_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5026,6 +5134,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5102,6 +5211,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5179,6 +5289,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5276,6 +5387,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5349,6 +5461,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5430,6 +5543,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5465,6 +5579,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5503,6 +5618,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5646,6 +5762,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5779,6 +5896,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_materialization_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -5964,6 +6082,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6030,6 +6149,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6094,6 +6214,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6144,6 +6265,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6267,6 +6389,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6400,6 +6523,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6435,6 +6559,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "bigint",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6470,6 +6595,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "bigint",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6509,6 +6635,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6544,6 +6671,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6579,6 +6707,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6614,6 +6743,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6652,6 +6782,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6692,6 +6823,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6738,6 +6870,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6795,6 +6928,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_phone_otp_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6855,6 +6989,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6907,6 +7042,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_self_security_owner",
     "security": "DEFINER",
     "returns": "trigger",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -6940,6 +7076,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7087,6 +7224,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_system_health_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7144,6 +7282,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_system_health_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7177,6 +7316,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_system_health_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7420,6 +7560,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_system_health_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7497,6 +7638,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7531,6 +7673,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_org_projection_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7580,6 +7723,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_booking_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7684,6 +7828,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_booking_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7778,6 +7923,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_booking_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -7946,6 +8092,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_org_projection_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8040,6 +8187,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_runtime_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8092,6 +8240,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_runtime_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8130,6 +8279,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8167,6 +8317,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8205,6 +8356,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8243,6 +8395,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8278,6 +8431,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8315,6 +8469,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8352,6 +8507,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8387,6 +8543,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_telemetry_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8425,6 +8582,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_runtime_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8463,6 +8621,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8498,6 +8657,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8531,6 +8691,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_org_projection_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8568,6 +8729,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8644,6 +8806,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8678,6 +8841,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_integrator_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8713,6 +8877,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_lfk_media_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8798,6 +8963,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_lfk_media_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8865,6 +9031,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_lfk_media_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -8956,6 +9123,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_lfk_media_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9008,6 +9176,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_runtime_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9047,6 +9216,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_email_cooldown_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9083,6 +9253,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "RESTRICTED",
     "proconfig": [
@@ -9118,6 +9289,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "RESTRICTED",
     "proconfig": ["search_path=pg_catalog"],
@@ -9137,6 +9309,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "RESTRICTED",
     "proconfig": ["search_path=pg_catalog"],
@@ -9156,6 +9329,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_telemetry_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9195,6 +9369,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_telemetry_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9247,6 +9422,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_telemetry_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9280,6 +9456,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_preauth_owner",
     "security": "DEFINER",
     "returns": "jsonb",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9317,6 +9494,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_settings_runtime_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9356,6 +9534,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_patient_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9460,6 +9639,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_patient_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9585,6 +9765,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "timestamp with time zone",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9621,6 +9802,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_media_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9674,6 +9856,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9726,6 +9909,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9782,6 +9966,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9845,6 +10030,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9893,6 +10079,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_email_cooldown_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9931,6 +10118,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_telemetry_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -9994,6 +10182,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10115,6 +10304,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_specialist_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10156,6 +10346,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10196,6 +10387,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_telemetry_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10261,6 +10453,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10286,6 +10479,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_dedicated_bot_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10324,6 +10518,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_program_resolver_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10385,6 +10580,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_program_resolver_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10457,6 +10653,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10494,6 +10691,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10597,6 +10795,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10716,6 +10915,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_delivery_scope_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10798,6 +10998,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10849,6 +11050,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10888,6 +11090,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_public_booking_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -10968,6 +11171,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_public_slug_owner",
     "security": "DEFINER",
     "returns": "uuid",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11010,6 +11214,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_public_slug_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11070,6 +11275,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "RESTRICTED",
     "proconfig": [
@@ -11110,6 +11316,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_payment_webhook_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "RESTRICTED",
     "proconfig": ["search_path=pg_catalog, app, public, pg_temp"],
@@ -11130,6 +11337,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_appointment_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11271,6 +11479,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_materialization_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11434,6 +11643,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_specialist_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11475,6 +11685,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11512,6 +11723,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "saas_tariffs",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11542,6 +11754,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_org_commerce_owner",
     "security": "DEFINER",
     "returns": "saas_tariffs",
+    "returnsSet": true,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11610,6 +11823,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_staff_security_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11650,6 +11864,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "trigger",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11672,6 +11887,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "integer",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11749,6 +11965,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_self_actions_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11802,6 +12019,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "saas_telemetry_owner",
     "security": "DEFINER",
     "returns": "void",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11876,6 +12094,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -11913,6 +12132,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_specialist_owner",
     "security": "DEFINER",
     "returns": "text",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12049,6 +12269,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_password_auth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12083,6 +12304,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_oauth_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "STABLE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12118,6 +12340,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12196,6 +12419,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_specialist_provision_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12310,6 +12534,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_dedicated_bot_owner",
     "security": "DEFINER",
     "returns": "trigger",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12346,6 +12571,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_self_actions_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12399,6 +12625,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_self_actions_owner",
     "security": "DEFINER",
     "returns": "boolean",
+    "returnsSet": false,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12470,6 +12697,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_reminder_materialization_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
@@ -12552,6 +12780,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
+    "returnsSet": true,
     "volatility": "VOLATILE",
     "parallel": "UNSAFE",
     "proconfig": [
