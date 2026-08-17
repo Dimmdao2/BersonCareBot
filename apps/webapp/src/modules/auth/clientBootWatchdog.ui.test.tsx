@@ -131,6 +131,28 @@ describe('unsupported client boot watchdog', () => {
     expect(FakeXhr.bodies).toEqual([]);
   });
 
+  it('reports a production module that executed but never mounted React', () => {
+    evaluateWatchdog({ failureTimeoutEnabled: true, timeoutMs: 10_000 });
+    window.__bcBootWatch?.ok('module_executed');
+
+    vi.advanceTimersByTime(10_000);
+
+    expect(document.getElementById(CLIENT_BOOT_FALLBACK_ID)).not.toHaveAttribute('hidden');
+    expect(document.getElementById(CLIENT_BOOT_ACTIVE_CONTENT_ID)).toHaveAttribute('hidden');
+    const report = JSON.parse(FakeXhr.bodies[0] ?? '{}') as {
+      failureSignals?: {
+        moduleExecuted?: boolean;
+        reactMounted?: boolean;
+        failureKind?: string;
+      };
+    };
+    expect(report.failureSignals).toMatchObject({
+      moduleExecuted: true,
+      reactMounted: false,
+      failureKind: 'module_executed_not_mounted',
+    });
+  });
+
   it('renders the fallback hidden in server markup before any script executes', () => {
     const html = renderToStaticMarkup(
       <PatientUnsupportedClientFallback
@@ -141,7 +163,10 @@ describe('unsupported client boot watchdog', () => {
       />,
     );
 
-    expect(html).toContain(`id="${CLIENT_BOOT_FALLBACK_ID}"`);
-    expect(html).toContain('hidden');
+    document.body.innerHTML = html;
+    const fallback = document.getElementById(CLIENT_BOOT_FALLBACK_ID);
+
+    expect(fallback).not.toBeNull();
+    expect(fallback).toHaveAttribute('hidden');
   });
 });
