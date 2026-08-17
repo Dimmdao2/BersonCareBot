@@ -159,8 +159,13 @@ test('return-shape parser covers TABLE, SETOF, OUT, dollar tags, defaults and co
     { returns: 'uuid', returnsSet: false, form: 'OUT' });
   assert.deepEqual(parseReturnShape('OUT id uuid, OUT label text', ' LANGUAGE sql '),
     { returns: 'record', returnsSet: false, form: 'OUT' });
+  assert.deepEqual(parseReturnShape('', ' RETURNS numeric(12, 4) LANGUAGE sql '),
+    { returns: 'numeric', returnsSet: false, form: 'SCALAR' });
+  assert.deepEqual(parseReturnShape('', ' RETURNS TABLE(label character varying(63)) LANGUAGE sql '),
+    { returns: 'character varying', returnsSet: true, form: 'TABLE' });
   const rows = extractFunctionReturnShapes('probe.sql', `
     -- CREATE FUNCTION app.ignored() RETURNS SETOF uuid AS $$ SELECT NULL::uuid $$;
+    /* CREATE FUNCTION app.also_ignored() RETURNS TABLE(id uuid) AS $$ SELECT NULL::uuid $$; */
     CREATE FUNCTION app.probe(value text DEFAULT ') RETURNS SETOF boolean')
     RETURNS TABLE(id uuid) LANGUAGE sql AS $shape$ SELECT NULL::uuid $shape$;
   `);
