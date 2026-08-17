@@ -1,4 +1,4 @@
-# D15b/1 — живой замер идентичности перед переносом (03.08.2026)
+# D15b/1 — живой замер идентичности перед переносом (03.08.2026; архив)
 
 Полномочие: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` D15b/1, схема —
 `docs/_TODO/runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md` §2b/§2c. Только измерение: ни одна

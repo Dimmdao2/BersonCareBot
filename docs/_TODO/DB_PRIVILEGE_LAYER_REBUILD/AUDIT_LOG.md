@@ -790,7 +790,7 @@ Committed mutations используют соседний `DO RAISE`, production
 
 - **TRUST-005 ИСПРАВЛЕНО.** Старый relation exploit с фактическим `current_user=app_staff` и подложным
   effective seam-owner теперь получает `42501`; relation positive даёт `app_staff|true|tenant-a`.
-- Committed acceptance: `bash deploy/postgres/port-context/acceptance.sh` → exit `0`;
+- Historical acceptance used a pre-B0 disposable shell that is now retired to Git history; it is not an active command.
   `rg -c '^FAULT' /tmp/portctx-audit3-acceptance.log` → `14`. `wrong_role` и `wrong_effective_role` дают разные
   behavioral FAULT, `physical_ids_in_context_refs=0`, `fallback_root_owners=0`.
 - Прямой named-root gate с exact owner/regprocedure может вернуть stateless boolean, но не повышает полномочия
@@ -798,9 +798,8 @@ Committed mutations используют соседний `DO RAISE`, production
   проходит. Login без `SET ROLE` не имеет EXECUTE общего gate.
 - Rotation/log: revoked certificate → exit `2`; новый сертификат подключился; PostgreSQL log содержит
   `certificate revoked=1`, administrative termination `=2`, context denials `=5`; старых staff backend `=0`.
-- После merge audited SQL/acceptance-файлы не изменены:
-  `git diff --quiet 992b90add HEAD -- deploy/postgres/port-context/contract.sql deploy/postgres/port-context/acceptance.sh`
-  → exit `0`.
+- The historical candidate preserved its then-audited contract and disposable acceptance artifact. This is evidence
+  about that SHA only, not a current readiness command.
 
 ## Audit POSTDROP-REGISTRY-R2-2026-08-11 — stale `e99950c236`, current `3a89dcb66`
 
@@ -923,7 +922,7 @@ DEV+TEST login одновременно, candidate правильно ренде
 
 **ОТКРЫТО — ДО DEV/TEST.** `rg` на current `feat` находит exact
 `hostssl ... scram-sha-256 clientcert=verify-full clientname=CN` только в `SCHEME.md` и
-`deploy/postgres/port-context/acceptance.sh`; deploy/host не содержит renderer/install/readiness HBA/CA/CRL contract.
+the now-retired pre-B0 disposable acceptance shell; deploy/host did not yet contain renderer/install/readiness HBA/CA/CRL contract.
 Следовательно два порта доказаны на одноразовом PG16, но DEV/TEST host ещё не переведён и не защищён этим HBA.
 Нужны штатный host apply/preflight/rollback, per-port env certificate paths и live positive/negative probes.
 

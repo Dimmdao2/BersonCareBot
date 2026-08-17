@@ -1,4 +1,4 @@
-# Блок Б — одноразовая PostgreSQL: отчёт (#1081)
+# Блок Б — одноразовая PostgreSQL: исторический отчёт (#1081; архив)
 
 Run: `worker-b-disposable-pg`, клон `bcb-wt-portsmoke`. Дата: 2026-08-01.
 

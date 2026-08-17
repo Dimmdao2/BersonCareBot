@@ -1,4 +1,4 @@
-# Disposable PostgreSQL product pilot — Б1/Б3 (#1081)
+# Disposable PostgreSQL product pilot — Б1/Б3 (#1081; historical archive)
 
 Date: 2026-08-02. Product base: `wt/disposable-pg-product-pilot`, descendant of accepted harness commit
 `30411dbc4`; no DEV/TEST/PROD database, deploy, taskdb or push was used.

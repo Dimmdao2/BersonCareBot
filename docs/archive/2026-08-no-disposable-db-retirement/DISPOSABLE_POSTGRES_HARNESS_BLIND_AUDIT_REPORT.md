@@ -1,4 +1,4 @@
-# Blind audit disposable PostgreSQL harness — Б1
+# Blind audit disposable PostgreSQL harness — Б1 (historical archive)
 
 - Роль: `auditor-live`
 - Authority: `docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md`, Б1

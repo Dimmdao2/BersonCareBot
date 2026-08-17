@@ -119,7 +119,7 @@ SQLSTATE 42P01 — CREATE TABLE telegram_state (identity_id BIGINT ... REFERENCE
 существует с марта 2026, к сносу отношения не имеет и правкой применённой истории не лечится.
 
 Поэтому «от нуля» берётся в том виде, в каком его определяет сам репозиторий
-(`docs/ARCHITECTURE/DB_DUMPS/a0-greenfield/README.md`, `apps/webapp/scripts/postgres-integration/harness-lib.ts`):
+(`docs/ARCHITECTURE/DB_DUMPS/a0-greenfield/README.md`, `retired pre-B0 disposable harness (Git history only)`):
 
 1. восстановить структурный baseline `a0-greenfield` (`schema.sql`, только DDL, **ноль строк** — проверено:
    census 241 таблица);

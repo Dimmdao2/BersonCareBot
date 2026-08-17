@@ -1,4 +1,4 @@
-# Б1 — перенос общего disposable PostgreSQL harness
+# Б1 — перенос общего disposable PostgreSQL harness (historical archive)
 
 Дата: 2026-08-01. Worktree: `wt/testsuite-b-current`, HEAD до коммита: `39d8eebb4`.
 

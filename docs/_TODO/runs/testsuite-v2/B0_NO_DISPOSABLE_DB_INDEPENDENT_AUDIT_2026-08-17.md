@@ -87,7 +87,7 @@ Concrete active examples:
   `tenantIsolationMatrix.postgres.integration.test.ts` is a CI test and the deleted
   `rehearse-multitenant-isolation.mjs` remains available. This is now a false readiness record.
 - `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/AUDIT_LOG.md:793` still presents the deleted
-  `deploy/postgres/port-context/acceptance.sh` as a committed acceptance command.
+  pre-B0 port-context acceptance shell as a committed acceptance command.
 
 Historical result logs can remain historical evidence only if they are unambiguously archived/non-routable. Active
 preflights, canons, plans and handoffs must be superseded or moved out of the active route, and the B0 gate must reject
@@ -156,6 +156,16 @@ name the exact surviving oracle. Do not silently redirect destructive setup to D
   TEST rejected without flag and accepted with flag; PROD rejected.
 - `deploy/postgres/test-strict-rls-finalizer.sql` now accepts named TEST by default and no longer accepts a disposable
   override; its separate future owner-gated PROD path remains explicit.
+
+## Worker correction status
+
+- MUST FIX 1: corrected after this audit; repository-wide callable inventory now kills the saved `12/12` faults
+  plus six case/spacing/version/child-process/include equivalents.
+- MUST FIX 2: corrected after this audit; the exact active reference query now returns `0` (previously `24`), and
+  five historical result reports were moved under `docs/archive/2026-08-no-disposable-db-retirement/`.
+- MUST FIX 3: still open. The exact replacement census is
+  `B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md`: `2/130` exact surviving static oracles, `128/130` requiring a
+  serialized named-DEV application-port proof. This correction must not be presented as an overall PASS.
 
 ## Validation executed
 
