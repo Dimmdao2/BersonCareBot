@@ -5,6 +5,7 @@ import type {
   PatientNotificationTopicsPort,
 } from '@/modules/patient-notifications/patientNotificationTopicsPort';
 import { userNotificationTopics } from '../../../db/schema/schema';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 export function createPgPatientNotificationTopicsPort(): PatientNotificationTopicsPort {
   return {
@@ -25,22 +26,17 @@ export function createPgPatientNotificationTopicsPort(): PatientNotificationTopi
       );
     },
     async setTopicEnabled(userId, topicCode, isEnabled) {
-      const db = getDrizzle();
-      await db
-        .insert(userNotificationTopics)
-        .values({
-          userId,
-          topicCode: topicCode.trim(),
-          isEnabled,
-          updatedAt: sql`now()` as unknown as string,
-        })
-        .onConflictDoUpdate({
-          target: [userNotificationTopics.userId, userNotificationTopics.topicCode],
-          set: {
-            isEnabled,
-            updatedAt: sql`now()` as unknown as string,
-          },
-        });
+      const result = await runWebappNamedRoot<{ saved: boolean }>(
+        getWebappSqlDb(),
+        'app.set_current_patient_notification_topic(text,boolean)',
+        [topicCode.trim(), isEnabled],
+        sql`SELECT app.set_current_patient_notification_topic(
+          ${topicCode.trim()}::text,
+          ${isEnabled}::boolean
+        ) AS saved`,
+      );
+      void userId;
+      if (result.rows[0]?.saved !== true) throw new Error('notification_topic_rejected');
     },
   };
 }

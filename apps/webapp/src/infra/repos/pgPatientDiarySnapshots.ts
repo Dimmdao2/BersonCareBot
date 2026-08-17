@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, min } from 'drizzle-orm';
+import { and, asc, eq, gte, lte, min, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   patientDiaryDaySnapshots,
@@ -6,22 +6,38 @@ import {
   type PatientDiaryDaySnapshotRow,
 } from '../../../db/schema/patientDiarySnapshots';
 import type { PatientDiarySnapshotsPort } from '@/modules/patient-diary/ports';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 export function createPgPatientDiarySnapshotsPort(): PatientDiarySnapshotsPort {
   return {
     async insertIfMissing(row: PatientDiaryDaySnapshotInsert): Promise<boolean> {
-      const organizationId = row.organizationId ?? getCurrentDbPrincipalOrganizationId();
-      if (!organizationId) throw new Error('organization_principal_required');
-      const db = getDrizzle();
-      const inserted = await db
-        .insert(patientDiaryDaySnapshots)
-        .values({ ...row, organizationId })
-        .onConflictDoNothing({
-          target: [patientDiaryDaySnapshots.platformUserId, patientDiaryDaySnapshots.localDate],
-        })
-        .returning({ platformUserId: patientDiaryDaySnapshots.platformUserId });
-      return inserted.length > 0;
+      const result = await runWebappNamedRoot<{ inserted: boolean }>(
+        getWebappSqlDb(),
+        'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)',
+        [
+          row.localDate,
+          row.iana,
+          row.warmupSlotLimit,
+          row.warmupDoneCount,
+          row.warmupAllDone,
+          row.planInstanceId ?? null,
+          JSON.stringify(row.planItemIds),
+          JSON.stringify(row.planDoneMask),
+        ],
+        sql`SELECT app.capture_current_patient_diary_day_snapshot(
+          ${row.localDate}::text,
+          ${row.iana}::text,
+          ${row.warmupSlotLimit}::integer,
+          ${row.warmupDoneCount}::integer,
+          ${row.warmupAllDone}::boolean,
+          ${row.planInstanceId ?? null}::uuid,
+          ${JSON.stringify(row.planItemIds)}::text,
+          ${JSON.stringify(row.planDoneMask)}::text
+        ) AS inserted`,
+      );
+      void row.organizationId;
+      void row.platformUserId;
+      return result.rows[0]?.inserted === true;
     },
 
     async listForUserDateRange(

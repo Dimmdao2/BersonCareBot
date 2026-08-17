@@ -171,18 +171,17 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
     },
 
     async updateFeelingById(completionId, userId, feeling) {
-      const db = getDrizzle();
-      const updated = await db
-        .update(patientPracticeCompletions)
-        .set({ feeling })
-        .where(
-          and(
-            eq(patientPracticeCompletions.id, completionId),
-            eq(patientPracticeCompletions.userId, userId),
-          ),
-        )
-        .returning({ id: patientPracticeCompletions.id });
-      return updated.length > 0;
+      const result = await runWebappNamedRoot<{ updated: boolean }>(
+        getWebappSqlDb(),
+        'app.update_current_patient_practice_completion_feeling(uuid,integer)',
+        [completionId, feeling],
+        sql`SELECT app.update_current_patient_practice_completion_feeling(
+          ${completionId}::uuid,
+          ${feeling}::integer
+        ) AS updated`,
+      );
+      void userId;
+      return result.rows[0]?.updated === true;
     },
   };
 }

@@ -2105,7 +2105,43 @@ const REV10_CONTEXT = {
     patient_material_rating_upsert: { port: 'webapp', runtimeName: 'patient_material_rating_upsert',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.material-rating.upsert',
-      functionIdentity: 'app.upsert_current_patient_material_rating(text,uuid,integer)' },
+      functionIdentity: 'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)' },
+    patient_practice_completion_feeling_update: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.practice-completion.feeling.update',
+      functionIdentity: 'app.update_current_patient_practice_completion_feeling(uuid,integer)' },
+    patient_daily_warmup_presentation_save: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.daily-warmup.presentation.save',
+      functionIdentity: 'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)' },
+    patient_daily_warmup_video_view_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.daily-warmup.video-view.record',
+      functionIdentity: 'app.record_current_patient_daily_warmup_video_view(uuid)' },
+    patient_content_rating_feedback_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.material-rating.feedback.record',
+      functionIdentity: 'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)' },
+    patient_playback_client_event_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.media.playback-client-event.record',
+      functionIdentity: 'app.record_current_patient_playback_client_event(uuid,text,text,text,text)' },
+    patient_playback_first_resolve_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.media.playback-first-resolve.record',
+      functionIdentity: 'app.record_current_patient_playback_first_resolve(uuid)' },
+    patient_diary_day_snapshot_capture: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.diary-day.snapshot.capture',
+      functionIdentity: 'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)' },
+    patient_notification_topic_set: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.notification-topic.set',
+      functionIdentity: 'app.set_current_patient_notification_topic(text,boolean)' },
+    patient_notification_topic_channel_set: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.notification-topic-channel.set',
+      functionIdentity: 'app.set_current_patient_notification_topic_channel(text,text,boolean)' },
     patient_self_fio_read: { port: 'webapp', runtimeName: 'patient_self_fio_read',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.identity.self.read',
@@ -3825,18 +3861,46 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_block_items', columns: [
+          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.patient_practice_completions', columns: [
           'id', 'organization_id', 'user_id', 'content_page_id', 'source', 'feeling', 'notes',
         ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.upsert_current_patient_material_rating(text,uuid,integer)': rev10Function({
+    'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)': rev10Function({
       owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
       execute: ['app_patient'], purpose: 'upsert one material rating only for the current enrolled patient',
-      typedArgs: ['text', 'uuid', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      typedArgs: ['text', 'uuid', 'integer', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_block_items', columns: [
+          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: [
+          'id', 'organization_id', 'patient_user_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: [
+          'id', 'organization_id', 'instance_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: [
+          'id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.material_ratings', columns: [
           'organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at',
         ], operations: ['INSERT' as const, 'UPDATE' as const],
@@ -3849,7 +3913,10 @@ const REV10_CONTEXT = {
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.platform_users',
-          columns: ['id', 'role', 'merged_into_id', 'last_name', 'first_name', 'patronymic', 'display_name'],
+          columns: ['id', 'role', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity',
+          columns: ['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -3867,6 +3934,157 @@ const REV10_CONTEXT = {
         { relation: 'public.admin_audit_log',
           columns: ['organization_id', 'actor_id', 'action', 'target_id', 'details'],
           operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.update_current_patient_practice_completion_feeling(uuid,integer)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'update only the current patient own warmup completion feeling',
+      typedArgs: ['uuid', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.patient_practice_completions', columns: [
+          'id', 'organization_id', 'user_id', 'feeling',
+        ], operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'save only a visible daily-warmup presentation for the current patient',
+      typedArgs: ['uuid', 'timestamp with time zone', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_block_items', columns: [
+          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_daily_warmup_presentations', columns: [
+          'organization_id', 'user_id', 'content_page_id', 'last_rotation_at',
+          'skip_next_scheduled_rotation', 'updated_at',
+        ], operations: ['INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_daily_warmup_video_view(uuid)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'record a view only for the current patient presented daily warmup',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_daily_warmup_presentations', columns: [
+          'organization_id', 'user_id', 'content_page_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_daily_warmup_video_views', columns: [
+          'organization_id', 'user_id', 'content_page_id',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'uuid',
+      execute: ['app_patient'], purpose: 'record rating feedback for one visible current-clinic page as current patient',
+      typedArgs: ['uuid', 'integer', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_content_rating_feedback', columns: [
+          'id', 'organization_id', 'user_id', 'content_page_id', 'rating_value', 'reason_codes', 'comment',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_playback_client_event(uuid,text,text,text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'record bounded playback diagnostics for media visible to the current patient',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.media_files', columns: [
+          'id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_client_events', columns: [
+          'organization_id', 'media_id', 'user_id', 'event_class', 'delivery', 'error_detail', 'user_agent',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_playback_first_resolve(uuid)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'record one first-resolve marker for media visible to the current patient',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_files', columns: [
+          'id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_user_video_first_resolve', columns: [
+          'organization_id', 'user_id', 'media_id',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'capture one verified past diary-day snapshot for the current patient',
+      typedArgs: ['text', 'text', 'integer', 'integer', 'boolean', 'uuid', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'calendar_timezone'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: ['id', 'organization_id', 'patient_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: ['id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: ['id', 'organization_id', 'stage_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_action_log', columns: [
+          'organization_id', 'patient_user_id', 'instance_id', 'instance_stage_item_id', 'action_type', 'created_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_practice_completions', columns: [
+          'organization_id', 'user_id', 'source', 'completed_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_diary_day_snapshots', columns: [
+          'organization_id', 'platform_user_id', 'local_date', 'iana', 'warmup_slot_limit', 'warmup_done_count',
+          'warmup_all_done', 'plan_instance_id', 'plan_item_ids', 'plan_done_mask',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.set_current_patient_notification_topic(text,boolean)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'set one supported notification topic for the current patient',
+      typedArgs: ['text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topics', columns: [
+          'user_id', 'topic_code', 'is_enabled', 'updated_at',
+        ], operations: ['INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.set_current_patient_notification_topic_channel(text,text,boolean)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_patient'], purpose: 'set one supported notification topic channel for the current patient',
+      typedArgs: ['text', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topic_channels', columns: [
+          'user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at',
+        ], operations: ['INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
@@ -4190,6 +4408,32 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 );
 
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
+
+const REV10_PATIENT_NAMED_WRITE_OPERATIONS: Readonly<Record<string, readonly Privilege[]>> = {
+  'public.material_ratings': ['INSERT', 'UPDATE'],
+  'public.media_playback_client_events': ['INSERT'],
+  'public.media_playback_user_video_first_resolve': ['INSERT'],
+  'public.patient_content_rating_feedback': ['INSERT'],
+  'public.patient_daily_warmup_presentations': ['INSERT', 'UPDATE'],
+  'public.patient_daily_warmup_video_views': ['INSERT'],
+  'public.patient_diary_day_snapshots': ['INSERT'],
+  'public.patient_practice_completions': ['INSERT'],
+  'public.user_notification_topic_channels': ['INSERT', 'UPDATE'],
+  'public.user_notification_topics': ['INSERT', 'UPDATE'],
+};
+
+function withoutConvertedPatientWrites(
+  tableKey: string,
+  grants: readonly Extract<RelationAccess, { kind: 'direct' }>['grants'][number][],
+): Extract<RelationAccess, { kind: 'direct' }>['grants'] {
+  const converted = new Set(REV10_PATIENT_NAMED_WRITE_OPERATIONS[tableKey] ?? []);
+  if (converted.size === 0) return [...grants];
+  return grants.flatMap((grant) => {
+    if (grant.role !== 'app_patient') return [grant];
+    const operations = grant.operations.filter((operation) => !converted.has(operation));
+    return operations.length > 0 ? [{ ...grant, operations }] : [];
+  });
+}
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.admin_audit_log': {
@@ -4988,16 +5232,22 @@ function revision10RelationAccess(tableKey: string, dbName: string): RelationAcc
   const seams = revision10RelationSeams(tableKey, dbName);
   const clinical = REV10_CLINICAL_ACCESS[tableKey];
   const systemDirect = REV10_SYSTEM_DIRECT_ACCESS[tableKey];
-  if (clinical?.kind === 'direct' && systemDirect) return {
-    kind: 'direct',
-    purpose: `${clinical.purpose}; ${systemDirect.purpose}`,
+  const finalizeDirect = (seed: DirectAccessSeed): RelationAccess => {
+    const grants = withoutConvertedPatientWrites(tableKey, seed.grants);
+    if (grants.length > 0) return { ...seed, grants, seams };
+    if (seams.length > 0) return {
+      kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}`,
+    };
+    return { kind: 'unresolved', reason: 'converted direct writes lack an exact named seam', codePaths: seed.codePaths };
+  };
+  if (clinical?.kind === 'direct' && systemDirect) return finalizeDirect({
+    kind: 'direct', purpose: `${clinical.purpose}; ${systemDirect.purpose}`,
     codePaths: [...new Set([...clinical.codePaths, ...systemDirect.codePaths])],
     grants: [...clinical.grants, ...systemDirect.grants],
-    seams,
-  };
-  if (clinical?.kind === 'direct') return { ...clinical, seams };
+  });
+  if (clinical?.kind === 'direct') return finalizeDirect(clinical);
   if (clinical?.kind === 'no-runtime-surface') return clinical;
-  if (systemDirect) return { ...systemDirect, seams };
+  if (systemDirect) return finalizeDirect(systemDirect);
   const noRuntime = REV10_NO_RUNTIME_ACCESS[tableKey];
   if (noRuntime) return noRuntime;
   if (seams.length > 0) return { kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}` };

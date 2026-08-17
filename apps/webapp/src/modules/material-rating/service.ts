@@ -270,6 +270,8 @@ export function createMaterialRatingService(deps: {
           targetKind: input.targetKind,
           targetId: input.targetId,
           stars: input.stars,
+          programInstanceId: input.programInstanceId ?? null,
+          programStageItemId: input.programStageItemId ?? null,
         });
         const snap = await snapshotAfterWrite();
         return { ok: true, ...snap };
@@ -305,6 +307,8 @@ export function createMaterialRatingService(deps: {
         targetKind: input.targetKind,
         targetId: input.targetId,
         stars: input.stars,
+        programInstanceId: input.programInstanceId,
+        programStageItemId: input.programStageItemId,
       });
       const snap = await snapshotAfterWrite();
       return { ok: true, ...snap };

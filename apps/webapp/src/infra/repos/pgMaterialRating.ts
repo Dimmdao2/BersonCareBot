@@ -39,12 +39,20 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
     async upsertRating(input) {
       const result = await runWebappNamedRoot<{ updated: boolean }>(
         getWebappSqlDb(),
-        'app.upsert_current_patient_material_rating(text,uuid,integer)',
-        [input.targetKind, input.targetId, input.stars],
+        'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)',
+        [
+          input.targetKind,
+          input.targetId,
+          input.stars,
+          input.programInstanceId ?? null,
+          input.programStageItemId ?? null,
+        ],
         sql`SELECT updated FROM app.upsert_current_patient_material_rating(
           ${input.targetKind}::text,
           ${input.targetId}::uuid,
-          ${input.stars}::integer
+          ${input.stars}::integer,
+          ${input.programInstanceId ?? null}::uuid,
+          ${input.programStageItemId ?? null}::uuid
         )`,
       );
       if (!result.rows[0]?.updated) throw new Error('material_rating organization mismatch');
