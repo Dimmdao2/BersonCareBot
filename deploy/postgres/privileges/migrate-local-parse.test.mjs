@@ -64,34 +64,52 @@ test('a pure backfill emits no untyped empty owner-membership array', () => {
   assert.doesNotMatch(assertion ?? '', /ARRAY\[\]/u);
 });
 
-test('clinic owner tariff migration follows the B0-forward owner-ordered deploy path', () => {
-  const source = fs.readFileSync(
-    path.join(
-      repoRoot,
-      'apps/webapp/db/drizzle-migrations/0018_clinic_owner_tariff_branch_quotas.sql',
-    ),
-    'utf8',
+test('the active B0-forward journal is executable through the owner-ordered migration parser', () => {
+  const migrationRoot = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations');
+  const journal = JSON.parse(
+    fs.readFileSync(path.join(migrationRoot, 'meta/_journal.json'), 'utf8'),
   );
-  const steps = parseOwnerStatements(
-    source,
-    '0018_clinic_owner_tariff_branch_quotas',
+  const parsedByTag = new Map(
+    journal.entries.slice(1).map(({ tag }) => {
+      const source = fs.readFileSync(path.join(migrationRoot, `${tag}.sql`), 'utf8');
+      return [tag, parseOwnerStatements(source, tag)];
+    }),
   );
 
-  assert.deepEqual(
-    steps.map(({ owner, schemaCreate, languageUsage }) => ({
+  const migrationShape = (tag) =>
+    parsedByTag.get(tag).map(({ owner, backfill, schemaCreate, languageUsage }) => ({
       owner,
+      backfill,
       schemaCreate,
       languageUsage,
-    })),
+    }));
+
+  const patientOwnerStep = {
+    owner: 'app_seam_patient_self_actions_owner',
+    backfill: false,
+    schemaCreate: 'app',
+    languageUsage: 'plpgsql',
+  };
+  assert.deepEqual(migrationShape('0016_patient_self_action_capabilities'), [patientOwnerStep]);
+  assert.deepEqual(migrationShape('0017_patient_shared_core_capabilities'), [patientOwnerStep]);
+  assert.deepEqual(
+    migrationShape('0018_clinic_owner_tariff_branch_quotas'),
     [
-      { owner: null, schemaCreate: null, languageUsage: null },
+      {
+        owner: null,
+        backfill: true,
+        schemaCreate: null,
+        languageUsage: null,
+      },
       {
         owner: 'app_seam_payment_webhook_owner',
+        backfill: false,
         schemaCreate: 'app',
         languageUsage: 'plpgsql',
       },
       {
         owner: 'app_seam_payment_webhook_owner',
+        backfill: false,
         schemaCreate: 'app',
         languageUsage: 'plpgsql',
       },

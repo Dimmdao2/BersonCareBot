@@ -1,7 +1,7 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0016
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- TEMPORARY LOCAL MIGRATION NUMBER 0016
 
 CREATE OR REPLACE FUNCTION app.record_current_patient_practice_completion(
   p_content_page_id uuid,

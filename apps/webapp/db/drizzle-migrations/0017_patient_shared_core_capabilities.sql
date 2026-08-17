@@ -1,3 +1,6 @@
+-- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- TEMPORARY LOCAL MIGRATION NUMBER 0017
 -- Patient/B0 shared-core: every patient mutation is a use-case root which derives the
 -- physical patient and current organization from the attested port context.
