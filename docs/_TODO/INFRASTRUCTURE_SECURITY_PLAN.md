@@ -188,6 +188,10 @@ plans либо текущему отдельному DB privilege plan. В эт�
 
 - [x] **IS-I5-01. Secret scanning.** Gitleaks проверяет full history на PR/push рабочих веток, fail-closed на новой
       находке, использует точечный fingerprint baseline и имеет synthetic negative self-test.
+- [ ] **IS-I5-01A. Historical credential closure.** Для пяти exact fingerprint baseline-записей старых
+      Rubitime/Telegram конфигов оператор без публикации значений подтверждает владельца секрета, выполняет
+      rotation/revocation у провайдера и фиксирует дату/ссылку на provider-side evidence; наличие fingerprint в
+      `.gitleaksignore` не считается доказательством безопасности или ротации.
 - [x] **IS-I5-02. SAST.** Semgrep запускается с pinned image/config, ERROR валит job, generated/vendor paths
       исключены точечно, отчёт сохраняется артефактом.
 - [x] **IS-I5-03. Repository vulnerability scan.** Trivy filesystem scan проверяет vulnerabilities,

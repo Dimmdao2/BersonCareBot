@@ -65,4 +65,21 @@ describe('postProgramItemComplete', () => {
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
     );
   });
+
+  it('returns a visible failure and no completion when the complete request rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network')));
+
+    await expect(postProgramItemComplete({ base: '/items', itemId: 'item-id' })).resolves.toEqual({
+      ok: false,
+      error: 'Не удалось отметить выполнение',
+    });
+  });
+
+  it('returns a visible failure when the exact completion metrics PATCH rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network')));
+
+    await expect(patchProgramItemCompletionMetrics({
+      base: '/items', itemId: 'item-id', completionId: 'completion-id', payload: {},
+    })).resolves.toEqual({ ok: false, error: 'Не удалось сохранить параметры' });
+  });
 });

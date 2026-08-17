@@ -1,6 +1,10 @@
 import { and, count, desc, eq, gte, lt, max, or, isNull, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
   getDrizzleOrMutationTx,
   runDrizzleMutationTransaction,
@@ -36,9 +40,91 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   return principalOrganizationId ?? fallbackOrganizationId;
 }
 
+async function deleteCurrentPatientActionsInWindow(params: {
+  instanceId: string;
+  instanceStageItemId: string;
+  windowStartIso: string;
+  windowEndIso: string;
+  includeSpecial: boolean;
+}): Promise<void> {
+  const args = [
+    params.instanceId,
+    params.instanceStageItemId,
+    params.windowStartIso,
+    params.windowEndIso,
+    params.includeSpecial,
+  ] as const;
+  await runWebappNamedRoot(
+    getWebappSqlDb(),
+    'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)',
+    args,
+    sql`SELECT app.delete_current_patient_program_actions_in_window(
+      ${params.instanceId}::uuid,
+      ${params.instanceStageItemId}::uuid,
+      ${params.windowStartIso}::timestamptz,
+      ${params.windowEndIso}::timestamptz,
+      ${params.includeSpecial}::boolean
+    ) AS affected`,
+  );
+}
+
 export function createPgProgramActionLogPort(): ProgramActionLogPort {
   return {
+    async completeCurrentPatientSimpleItem(params) {
+      const metrics = JSON.stringify(params.metrics);
+      const result = await runWebappNamedRoot<{
+        completion: { id: string; createdAt: string };
+      }>(
+        getWebappSqlDb(),
+        'app.complete_current_patient_program_item(uuid,uuid,integer,text)',
+        [
+          params.instanceId,
+          params.instanceStageItemId,
+          params.repeatCooldownMinutes,
+          metrics,
+        ],
+        sql`SELECT app.complete_current_patient_program_item(
+          ${params.instanceId}::uuid,
+          ${params.instanceStageItemId}::uuid,
+          ${params.repeatCooldownMinutes}::integer,
+          ${metrics}::text
+        ) AS completion`,
+      );
+      const completion = result.rows[0]?.completion;
+      if (!completion?.id || !completion.createdAt) throw new Error('Не удалось сохранить');
+      return { id: completion.id, createdAt: completion.createdAt };
+    },
+
     async insertAction(input: ProgramActionLogInsert) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const payload = JSON.stringify(input.payload ?? {});
+        const args = [
+          input.instanceId,
+          input.instanceStageItemId,
+          input.actionType,
+          input.sessionId ?? null,
+          payload,
+          input.note ?? null,
+        ] as const;
+        const result = await runWebappNamedRoot<{
+          action: { id: string; created_at: string };
+        }>(
+          getWebappSqlDb(),
+          'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)',
+          args,
+          sql`SELECT app.record_current_patient_program_action(
+            ${input.instanceId}::uuid,
+            ${input.instanceStageItemId}::uuid,
+            ${input.actionType}::text,
+            ${input.sessionId ?? null}::uuid,
+            ${payload}::text,
+            ${input.note ?? null}::text
+          ) AS action`,
+        );
+        const row = result.rows[0]?.action;
+        if (!row) throw new Error('insert program_action_log failed');
+        return { id: row.id, createdAt: row.created_at };
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const inst = await tx.query.treatmentProgramInstances.findFirst({
           where: eq(instTable.id, input.instanceId),
@@ -135,6 +221,30 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     },
 
     async updateSimpleDonePayload(params) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const metrics = JSON.stringify(params.metrics);
+        const args = [
+          params.completionId,
+          params.instanceId,
+          params.instanceStageItemId,
+          metrics,
+        ] as const;
+        const result = await runWebappNamedRoot<{
+          completion: { id: string; created_at: string; payload: Record<string, unknown> | null };
+        }>(
+          getWebappSqlDb(),
+          'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)',
+          args,
+          sql`SELECT app.enrich_current_patient_program_completion(
+            ${params.completionId}::uuid,
+            ${params.instanceId}::uuid,
+            ${params.instanceStageItemId}::uuid,
+            ${metrics}::text
+          ) AS completion`,
+        );
+        const row = result.rows[0]?.completion;
+        return row ? { id: row.id, createdAt: row.created_at, payload: row.payload } : null;
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const [row] = await tx
           .update(logTable)
@@ -159,6 +269,10 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     },
 
     async deleteSimpleDoneInWindow(params) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await deleteCurrentPatientActionsInWindow({ ...params, includeSpecial: false });
+        return;
+      }
       await runDrizzleMutationTransaction(async (tx) => {
         await tx
           .delete(logTable)
@@ -180,6 +294,10 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     },
 
     async deleteAllDoneInWindow(params) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await deleteCurrentPatientActionsInWindow({ ...params, includeSpecial: true });
+        return;
+      }
       await runDrizzleMutationTransaction(async (tx) => {
         await tx
           .delete(logTable)

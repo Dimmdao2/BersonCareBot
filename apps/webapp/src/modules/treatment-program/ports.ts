@@ -331,6 +331,11 @@ export type TreatmentProgramInstancePort = {
 
   /** A5: пациент открыл экран программы (Today-бейдж «План обновлён»). */
   touchPatientPlanLastOpenedAt(patientUserId: string, instanceId: string): Promise<void>;
+  /** Exact patient root used by PG; in-memory implementations keep the service fallback. */
+  touchCurrentPatientProgramItem?(
+    instanceId: string,
+    stageItemId: string,
+  ): Promise<{ updatedStage: boolean }>;
   /**
    * A5: первая отметка «элемент открыт» — только если `last_viewed_at IS NULL` (идемпотентно).
    * Возвращает `updated: true`, если строка изменилась.
@@ -420,6 +425,18 @@ export type TreatmentProgramTestAttemptsPort = {
 };
 
 export type ProgramActionLogPort = {
+  /** Atomic patient root: derives subject/org, locks the exact item and uses server time. */
+  completeCurrentPatientSimpleItem?(params: {
+    instanceId: string;
+    instanceStageItemId: string;
+    repeatCooldownMinutes: number;
+    metrics: {
+      perceivedDifficulty?: 'easy' | 'medium' | 'hard';
+      reps?: number;
+      sets?: number;
+      weightKg?: number;
+    };
+  }): Promise<{ id: string; createdAt: string }>;
   insertAction(input: ProgramActionLogInsert): Promise<{ id: string; createdAt: string }>;
   lockSimpleCompletionTargetAndGetLatest(params: {
     instanceId: string;

@@ -1,14 +1,10 @@
 #!/usr/bin/env node
-// Derives the REAL set of base tables that exist in the running application
+// Derives the REAL set of base tables that exist in the accepted B0 application
 // schema, by reading the source-of-truth artifacts directly:
-//   - every `pgTable(...)` declaration in apps/webapp/db/schema/*.ts
+//   - the generated database-local access contract (schema-qualified current
+//     relation catalog, rendered from the canonical privilege declaration);
 //   - every `CREATE TABLE` in apps/webapp/db/drizzle-migrations/*.sql
 //     (minus any table with a later `DROP TABLE`)
-//   - every `CREATE TABLE` in apps/webapp/migrations/*.sql — the legacy
-//     pre-drizzle webapp migration runner. Per
-//     docs/ARCHITECTURE/DB_STRUCTURE.md it is "not a normal deploy step"
-//     anymore, but it is what originally created most of the baseline
-//     `public.*` schema, and those tables are still live today.
 //   - every `CREATE TABLE` under the integrator migration runner's actual
 //     discovery globs (mirrors `discoverMigrations()` in
 //     apps/integrator/src/infra/db/migrate.ts):
@@ -41,12 +37,11 @@ import { basename, join } from 'node:path';
 export const sourceDirs = Object.freeze({
   webappSchema: 'apps/webapp/db/schema',
   webappMigrations: 'apps/webapp/db/drizzle-migrations',
-  webappLegacyMigrations: 'apps/webapp/migrations',
+  webappAccessContract: 'deploy/postgres/generated/privileges.bcb_webapp_dev.sql',
   integratorCoreMigrations: 'apps/integrator/src/infra/db/migrations/core',
   integratorIntegrationsRoot: 'apps/integrator/src/integrations',
 });
 
-const PG_TABLE_RE = /pgTable\(\s*["'`]([a-zA-Z0-9_]+)["'`]/g;
 // Table name, optionally prefixed by a schema-qualifier (`public.` / `"public".`)
 // which we deliberately discard here — schema placement is decided by which
 // migrations directory (webapp vs integrator) the CREATE TABLE came from,
@@ -61,6 +56,7 @@ const QUALIFIED_DROP_TABLE_RE =
   /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?"?([a-zA-Z0-9_]+)"?\."?([a-zA-Z0-9_]+)"?/gi;
 const RENAME_TABLE_RE =
   /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?\s+RENAME\s+TO\s+(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
+const ACCESS_CONTRACT_TABLE_RE = /\bTABLE\s+"(public|integrator)"\."([a-zA-Z0-9_]+)"/g;
 
 // Base tables whose existence is real but whose CREATE TABLE is never a
 // tracked .sql migration file or a Drizzle `pgTable()` declaration — they
@@ -119,18 +115,6 @@ function discoverIntegratorMigrationFiles(repoRoot) {
   return files.sort((a, b) => basename(a).localeCompare(basename(b)));
 }
 
-function extractAll(content, sourceRegex) {
-  const re = new RegExp(sourceRegex.source, sourceRegex.flags);
-  const out = new Set();
-  let match;
-
-  while ((match = re.exec(content)) !== null) {
-    out.add(match[1]);
-  }
-
-  return out;
-}
-
 // Returns every CREATE/DROP/RENAME table statement in a file, in the order
 // they occur in the text (statement order matters: e.g. a single migration
 // file dropping and immediately recreating the same table must net to
@@ -168,19 +152,12 @@ function stripSqlLineComments(content) {
     .join('\n');
 }
 
-function readSchemaDeclaredTables(repoRoot) {
+function readAccessContractTables(repoRoot) {
   const tables = new Set();
-  const schemaDir = join(repoRoot, sourceDirs.webappSchema);
-  const schemaFiles = readdirSync(schemaDir).filter((name) => name.endsWith('.ts'));
-
-  for (const file of schemaFiles) {
-    const content = readFileSync(join(schemaDir, file), 'utf8');
-
-    for (const table of extractAll(content, PG_TABLE_RE)) {
-      tables.add(table);
-    }
+  const source = readFileSync(join(repoRoot, sourceDirs.webappAccessContract), 'utf8');
+  for (const match of source.matchAll(ACCESS_CONTRACT_TABLE_RE)) {
+    tables.add(`${match[1]}.${match[2]}`);
   }
-
   return tables;
 }
 
@@ -203,21 +180,6 @@ function readMigrationCreatedTables(dirFiles) {
         tables.delete(event.from);
         tables.add(event.to);
       }
-    }
-  }
-
-  return tables;
-}
-
-function readMigrationEverCreatedTables(dirFiles) {
-  const tables = new Set();
-
-  for (const file of dirFiles) {
-    const content = stripSqlLineComments(readFileSync(file, 'utf8'));
-
-    for (const event of extractOrderedStatements(content)) {
-      if (event.kind === 'create') tables.add(event.table);
-      if (event.kind === 'rename') tables.add(event.to);
     }
   }
 
@@ -272,20 +234,21 @@ function readQualifiedMigrationTables(files, schema) {
  * (`public.<table>` / `integrator.<table>`). No live DB access.
  */
 export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
-  const schemaDeclaredTables = readSchemaDeclaredTables(repoRoot);
+  const accessContractTables = readAccessContractTables(repoRoot);
+  const contractIntegratorNames = new Set(
+    Array.from(accessContractTables)
+      .filter((table) => table.startsWith('integrator.'))
+      .map((table) => table.slice('integrator.'.length)),
+  );
 
   // Chronological order matters (CREATE/RENAME/DROP are replayed in file
-  // order): the legacy pre-drizzle runner established the baseline schema
-  // before `drizzle-migrations` took over, so it must be processed first.
-  const webappMigrationFiles = [
-    ...listSqlFiles(join(repoRoot, sourceDirs.webappLegacyMigrations)),
-    ...listSqlFiles(join(repoRoot, sourceDirs.webappMigrations)),
-  ];
+  // order). The maintained webapp ledger starts at the complete B0 baseline.
+  const webappMigrationFiles = listSqlFiles(join(repoRoot, sourceDirs.webappMigrations));
   const webappCreatedTables = readMigrationCreatedTables(webappMigrationFiles);
 
   const integratorMigrationFiles = discoverIntegratorMigrationFiles(repoRoot);
   const integratorTables = readMigrationCreatedTables(integratorMigrationFiles);
-  const integratorEverCreatedTables = readMigrationEverCreatedTables(integratorMigrationFiles);
+  for (const table of contractIntegratorNames) integratorTables.add(table);
   const explicitlyPublicIntegratorTables = readQualifiedMigrationTables(
     integratorMigrationFiles,
     'public',
@@ -304,11 +267,11 @@ export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
   // its own migrations, or declared in schema.ts with no integrator origin
   // (baseline/pre-migration-era tables, `public.be_*`, etc.) — is public.
   const publicTables = new Set([
+    ...Array.from(accessContractTables)
+      .filter((table) => table.startsWith('public.'))
+      .map((table) => table.slice('public.'.length)),
     ...webappCreatedTables,
     ...explicitlyPublicIntegratorTables,
-    ...Array.from(schemaDeclaredTables).filter(
-      (table) => !integratorEverCreatedTables.has(table),
-    ),
   ]);
 
   return [

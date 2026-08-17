@@ -68,7 +68,7 @@ import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../..
 import type {
   AcceptanceInvariant, CodeChange, DatabaseDecl, DeclaredFunction, DefinerException, DefinerExceptionsSection, GrantDecl, LoginRecord,
   OwnerDecision, OwnerGate, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
-  NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
+  FunctionRelationSurface, NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
 } from './types.ts';
 
 /* ============================================================================================
@@ -1885,6 +1885,136 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
 
 const rev10Function = <T extends DeclaredFunction>(entry: T): T => entry;
 
+const patientSelfCapability = (purpose: string, functionIdentity: string) => ({
+  port: 'webapp' as const,
+  sessionRole: 'app_patient',
+  targetRole: 'app_patient',
+  contextClass: 'patient' as const,
+  purpose,
+  functionIdentity,
+});
+
+const patientSelfFunction = (
+  returns: string,
+  typedArgs: readonly string[],
+  purpose: string,
+  relationSurfaces: readonly FunctionRelationSurface[],
+): DeclaredFunction => rev10Function({
+  owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns,
+  execute: ['app_patient'], purpose, typedArgs, volatility: 'VOLATILE', parallel: 'UNSAFE',
+  proconfig: ['search_path=pg_catalog'], relationSurfaces,
+});
+
+const patientSurface = (
+  relation: string,
+  columns: readonly string[],
+  operations: readonly Privilege[],
+): FunctionRelationSurface => ({
+  relation, columns, operations, evidence: 'pg16-function-body-lexical-upper-bound',
+});
+
+const PATIENT_REMINDER_CORE_SURFACES = [
+  patientSurface('public.reminder_rules', [
+    'id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category',
+    'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute',
+    'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type',
+    'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title',
+    'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+  patientSurface('public.reminder_journal', [
+    'id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at',
+  ], ['INSERT']),
+  patientSurface('public.reminder_occurrence_history', [
+    'integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.platform_users', [
+    'id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at',
+  ], ['UPDATE']),
+] as const;
+
+const PATIENT_SUPPORT_CORE_SURFACES = [
+  patientSurface('public.support_conversations', [
+    'id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source',
+    'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code',
+    'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.support_conversation_messages', [
+    'id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text',
+    'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url',
+    'media_type', 'read_at', 'delivered_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+] as const;
+
+const PATIENT_SYMPTOM_CORE_SURFACES = [
+  patientSurface('public.reference_categories', ['id', 'code'], ['SELECT']),
+  patientSurface('public.reference_items', ['id', 'category_id', 'organization_id', 'is_active'], ['SELECT']),
+  patientSurface('public.symptom_trackings', [
+    'id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active',
+    'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text',
+    'diagnosis_ref_id', 'stage_ref_id', 'deleted_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.symptom_entries', [
+    'id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type',
+    'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+  patientSurface('public.patient_practice_completions', [
+    'id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling',
+  ], ['SELECT', 'UPDATE']),
+] as const;
+
+const PATIENT_CHANNEL_CORE_SURFACES = [
+  patientSurface('public.user_channel_preferences', [
+    'id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages',
+    'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.user_channel_bindings', ['user_id', 'channel_code'], ['SELECT']),
+  patientSurface('public.platform_users', ['id', 'email_verified_at'], ['SELECT']),
+  patientSurface('public.user_phone_history', ['platform_user_id', 'valid_to'], ['SELECT']),
+  patientSurface('public.user_web_push_subscriptions', [
+    'id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+] as const;
+
+const PATIENT_PROGRAM_CORE_SURFACES = [
+  patientSurface('public.treatment_program_instances', [
+    'id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at',
+    'patient_plan_last_opened_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.treatment_program_instance_stages', [
+    'id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.treatment_program_instance_stage_items', [
+    'id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot',
+    'completed_at', 'last_viewed_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.treatment_program_events', [
+    'id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload',
+    'reason', 'created_at',
+  ], ['INSERT']),
+  patientSurface('public.program_action_log', [
+    'id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id',
+    'action_type', 'payload', 'note', 'created_at',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+  patientSurface('public.media_files', [
+    'id', 'organization_id', 'uploaded_by', 'usage_purpose',
+  ], ['SELECT']),
+  patientSurface('public.program_item_discussion_messages', [
+    'id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body',
+    'media_file_id', 'support_message_id', 'created_at',
+  ], ['INSERT']),
+  patientSurface('public.program_item_discussion_reads', [
+    'organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at',
+  ], ['INSERT', 'UPDATE']),
+  patientSurface('public.test_attempts', [
+    'id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at',
+    'accepted_at', 'accepted_by',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.test_results', [
+    'id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by',
+    'created_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+] as const;
+
 const INTEGRATOR_DELIVERY_SOURCES = [
   'delivery-handler',
   'max-webhook:record-outcome',
@@ -2142,6 +2272,80 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.notification-topic-channel.set',
       functionIdentity: 'app.set_current_patient_notification_topic_channel(text,text,boolean)' },
+    patient_reminder_rule_create: patientSelfCapability('patient.reminder-rule.create',
+      'app.create_current_patient_reminder_rule(text,text)'),
+    patient_reminder_rule_update: patientSelfCapability('patient.reminder-rule.update',
+      'app.update_current_patient_reminder_rule(text,text)'),
+    patient_reminder_rule_delete: patientSelfCapability('patient.reminder-rule.delete',
+      'app.delete_current_patient_reminder_rule(text)'),
+    patient_reminder_journal_record: patientSelfCapability('patient.reminder-journal.record',
+      'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)'),
+    patient_reminder_history_seen: patientSelfCapability('patient.reminder-history.seen',
+      'app.mark_current_patient_reminder_history_seen(text)'),
+    patient_reminder_history_seen_all: patientSelfCapability('patient.reminder-history.seen-all',
+      'app.mark_all_current_patient_reminder_history_seen()'),
+    patient_reminder_mute: patientSelfCapability('patient.reminder.mute',
+      'app.set_current_patient_reminder_muted_until(timestamp with time zone)'),
+    patient_support_conversation_ensure: patientSelfCapability('patient.support-conversation.ensure',
+      'app.ensure_current_patient_support_conversation()'),
+    patient_support_message_append: patientSelfCapability('patient.support-message.append',
+      'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)'),
+    patient_support_conversation_read: patientSelfCapability('patient.support-conversation.read',
+      'app.mark_current_patient_support_conversation_read(uuid)'),
+    patient_support_messages_read: patientSelfCapability('patient.support-messages.read',
+      'app.mark_current_patient_support_messages_read(text)'),
+    patient_support_notifications_read: patientSelfCapability('patient.support-notifications.read',
+      'app.mark_current_patient_support_notifications_read()'),
+    patient_symptom_system_tracking_ensure: patientSelfCapability('patient.symptom-system-tracking.ensure',
+      'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)'),
+    patient_symptom_entry_record: patientSelfCapability('patient.symptom-entry.record',
+      'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'),
+    patient_symptom_entry_update: patientSelfCapability('patient.symptom-entry.update',
+      'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'),
+    patient_symptom_entry_delete: patientSelfCapability('patient.symptom-entry.delete',
+      'app.delete_current_patient_symptom_entry(uuid)'),
+    patient_symptom_tracking_configure: patientSelfCapability('patient.symptom-tracking.configure',
+      'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)'),
+    patient_warmup_feeling_apply: patientSelfCapability('patient.warmup-feeling.apply',
+      'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)'),
+    patient_channel_preference_save: patientSelfCapability('patient.channel-preference.save',
+      'app.save_current_patient_channel_preference(text,boolean,boolean)'),
+    patient_preferred_auth_channel_set: patientSelfCapability('patient.preferred-auth-channel.set',
+      'app.set_current_patient_preferred_auth_channel(text)'),
+    patient_web_push_subscription_save: patientSelfCapability('patient.web-push-subscription.save',
+      'app.save_current_patient_web_push_subscription(text,text,text,text)'),
+    patient_web_push_subscription_remove: patientSelfCapability('patient.web-push-subscription.remove',
+      'app.remove_current_patient_web_push_subscription(text)'),
+    patient_web_push_subscriptions_remove_all: patientSelfCapability('patient.web-push-subscriptions.remove-all',
+      'app.remove_all_current_patient_web_push_subscriptions()'),
+    patient_plan_touch: patientSelfCapability('patient.program.touch',
+      'app.touch_current_patient_plan_last_opened(uuid)'),
+    patient_program_item_touch: patientSelfCapability('patient.program-item.touch',
+      'app.touch_current_patient_program_item(uuid,uuid)'),
+    patient_program_item_complete: patientSelfCapability('patient.program-item.complete',
+      'app.complete_current_patient_program_item(uuid,uuid,integer,text)'),
+    patient_program_completion_enrich: patientSelfCapability('patient.program-completion.enrich',
+      'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)'),
+    patient_program_action_record: patientSelfCapability('patient.program-action.record',
+      'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)'),
+    patient_program_actions_delete_window: patientSelfCapability('patient.program-actions.delete-window',
+      'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)'),
+    patient_program_event_append: patientSelfCapability('patient.program-event.append',
+      'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)'),
+    patient_program_item_viewed: patientSelfCapability('patient.program-item.viewed',
+      'app.mark_current_patient_program_item_viewed(uuid,uuid)'),
+    patient_program_discussion_append: patientSelfCapability('patient.program-discussion.append',
+      'app.append_current_patient_program_discussion(uuid,text,uuid)'),
+    patient_program_discussion_read: patientSelfCapability('patient.program-discussion.read',
+      'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)'),
+    patient_test_attempt_ensure: patientSelfCapability('patient.test-attempt.ensure',
+      'app.ensure_current_patient_test_attempt(uuid)'),
+    patient_test_attempt_start: patientSelfCapability('patient.test-attempt.start',
+      'app.start_current_patient_test_attempt(uuid,uuid)'),
+    patient_test_result_save: patientSelfCapability('patient.test-result.save',
+      'app.save_current_patient_test_result(uuid,uuid,text,text)'),
+    patient_test_attempt_submit: patientSelfCapability('patient.test-attempt.submit',
+      'app.submit_current_patient_test_attempt(uuid)'),
     patient_self_fio_read: { port: 'webapp', runtimeName: 'patient_self_fio_read',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.identity.self.read',
@@ -4087,6 +4291,86 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    'app.create_current_patient_reminder_rule(text,text)': patientSelfFunction(
+      'jsonb', ['text', 'text'], 'patient.reminder-rule.create', PATIENT_REMINDER_CORE_SURFACES),
+    'app.update_current_patient_reminder_rule(text,text)': patientSelfFunction(
+      'jsonb', ['text', 'text'], 'patient.reminder-rule.update', PATIENT_REMINDER_CORE_SURFACES),
+    'app.delete_current_patient_reminder_rule(text)': patientSelfFunction(
+      'boolean', ['text'], 'patient.reminder-rule.delete', PATIENT_REMINDER_CORE_SURFACES),
+    'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientSelfFunction(
+      'uuid', ['text', 'text', 'text', 'timestamp with time zone', 'text'],
+      'patient.reminder-journal.record', PATIENT_REMINDER_CORE_SURFACES),
+    'app.mark_current_patient_reminder_history_seen(text)': patientSelfFunction(
+      'integer', ['text'], 'patient.reminder-history.seen', PATIENT_REMINDER_CORE_SURFACES),
+    'app.mark_all_current_patient_reminder_history_seen()': patientSelfFunction(
+      'integer', [], 'patient.reminder-history.seen-all', PATIENT_REMINDER_CORE_SURFACES),
+    'app.set_current_patient_reminder_muted_until(timestamp with time zone)': patientSelfFunction(
+      'boolean', ['timestamp with time zone'], 'patient.reminder.mute', PATIENT_REMINDER_CORE_SURFACES),
+    'app.ensure_current_patient_support_conversation()': patientSelfFunction(
+      'jsonb', [], 'patient.support-conversation.ensure', PATIENT_SUPPORT_CORE_SURFACES),
+    'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'text', 'text', 'text', 'timestamp with time zone', 'text', 'text'],
+      'patient.support-message.append', PATIENT_SUPPORT_CORE_SURFACES),
+    'app.mark_current_patient_support_conversation_read(uuid)': patientSelfFunction(
+      'integer', ['uuid'], 'patient.support-conversation.read', PATIENT_SUPPORT_CORE_SURFACES),
+    'app.mark_current_patient_support_messages_read(text)': patientSelfFunction(
+      'integer', ['text'], 'patient.support-messages.read', PATIENT_SUPPORT_CORE_SURFACES),
+    'app.mark_current_patient_support_notifications_read()': patientSelfFunction(
+      'integer', [], 'patient.support-notifications.read', PATIENT_SUPPORT_CORE_SURFACES),
+    'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)': patientSelfFunction(
+      'jsonb', ['text', 'text', 'uuid'], 'patient.symptom-system-tracking.ensure', PATIENT_SYMPTOM_CORE_SURFACES),
+    'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
+      'patient.symptom-entry.record', PATIENT_SYMPTOM_CORE_SURFACES),
+    'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
+      'patient.symptom-entry.update', PATIENT_SYMPTOM_CORE_SURFACES),
+    'app.delete_current_patient_symptom_entry(uuid)': patientSelfFunction(
+      'boolean', ['uuid'], 'patient.symptom-entry.delete', PATIENT_SYMPTOM_CORE_SURFACES),
+    'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)': patientSelfFunction(
+      'boolean', ['uuid', 'text', 'boolean'], 'patient.symptom-tracking.configure', PATIENT_SYMPTOM_CORE_SURFACES),
+    'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)': patientSelfFunction(
+      'boolean', ['uuid', 'integer', 'uuid', 'text', 'uuid', 'text'],
+      'patient.warmup-feeling.apply', PATIENT_SYMPTOM_CORE_SURFACES),
+    'app.save_current_patient_channel_preference(text,boolean,boolean)': patientSelfFunction(
+      'jsonb', ['text', 'boolean', 'boolean'], 'patient.channel-preference.save', PATIENT_CHANNEL_CORE_SURFACES),
+    'app.set_current_patient_preferred_auth_channel(text)': patientSelfFunction(
+      'boolean', ['text'], 'patient.preferred-auth-channel.set', PATIENT_CHANNEL_CORE_SURFACES),
+    'app.save_current_patient_web_push_subscription(text,text,text,text)': patientSelfFunction(
+      'boolean', ['text', 'text', 'text', 'text'], 'patient.web-push-subscription.save', PATIENT_CHANNEL_CORE_SURFACES),
+    'app.remove_current_patient_web_push_subscription(text)': patientSelfFunction(
+      'boolean', ['text'], 'patient.web-push-subscription.remove', PATIENT_CHANNEL_CORE_SURFACES),
+    'app.remove_all_current_patient_web_push_subscriptions()': patientSelfFunction(
+      'integer', [], 'patient.web-push-subscriptions.remove-all', PATIENT_CHANNEL_CORE_SURFACES),
+    'app.touch_current_patient_program_item(uuid,uuid)': patientSelfFunction(
+      'jsonb', ['uuid', 'uuid'], 'patient.program-item.touch', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.complete_current_patient_program_item(uuid,uuid,integer,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'uuid', 'integer', 'text'], 'patient.program-item.complete', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'uuid', 'uuid', 'text'], 'patient.program-completion.enrich', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'uuid', 'text', 'uuid', 'text', 'text'],
+      'patient.program-action.record', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)': patientSelfFunction(
+      'integer', ['uuid', 'uuid', 'timestamp with time zone', 'timestamp with time zone', 'boolean'],
+      'patient.program-actions.delete-window', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'text', 'text', 'uuid', 'text', 'text'],
+      'patient.program-event.append', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.mark_current_patient_program_item_viewed(uuid,uuid)': patientSelfFunction(
+      'boolean', ['uuid', 'uuid'], 'patient.program-item.viewed', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.append_current_patient_program_discussion(uuid,text,uuid)': patientSelfFunction(
+      'jsonb', ['uuid', 'text', 'uuid'], 'patient.program-discussion.append', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)': patientSelfFunction(
+      'boolean', ['uuid', 'timestamp with time zone'], 'patient.program-discussion.read', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.ensure_current_patient_test_attempt(uuid)': patientSelfFunction(
+      'jsonb', ['uuid'], 'patient.test-attempt.ensure', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.start_current_patient_test_attempt(uuid,uuid)': patientSelfFunction(
+      'jsonb', ['uuid', 'uuid'], 'patient.test-attempt.start', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.save_current_patient_test_result(uuid,uuid,text,text)': patientSelfFunction(
+      'jsonb', ['uuid', 'uuid', 'text', 'text'], 'patient.test-result.save', PATIENT_PROGRAM_CORE_SURFACES),
+    'app.submit_current_patient_test_attempt(uuid)': patientSelfFunction(
+      'boolean', ['uuid'], 'patient.test-attempt.submit', PATIENT_PROGRAM_CORE_SURFACES),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
       owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
       execute: ['app_seam_patient_lfk_media_owner'],
@@ -4417,7 +4701,7 @@ const REV10_PATIENT_NAMED_WRITE_OPERATIONS: Readonly<Record<string, readonly Pri
   'public.patient_daily_warmup_presentations': ['INSERT', 'UPDATE'],
   'public.patient_daily_warmup_video_views': ['INSERT'],
   'public.patient_diary_day_snapshots': ['INSERT'],
-  'public.patient_practice_completions': ['INSERT'],
+  'public.patient_practice_completions': ['INSERT', 'UPDATE'],
   'public.user_notification_topic_channels': ['INSERT', 'UPDATE'],
   'public.user_notification_topics': ['INSERT', 'UPDATE'],
 };
@@ -4568,9 +4852,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_patient', operations: ['SELECT'],
         columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'] },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['id', 'organization_id', 'stars', 'target_id', 'target_kind', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['stars', 'updated_at'] },
     ],
   },
   'public.patient_content_rating_feedback': {
@@ -4578,9 +4859,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: ['id'] },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['comment', 'content_page_id', 'created_at', 'id', 'organization_id', 'rating_value',
-          'reason_codes', 'user_id'] },
     ],
   },
   'public.patient_home_block_items': {
@@ -4598,21 +4876,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgReminderRules.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'category', 'content_mode', 'custom_text', 'custom_title', 'days_mask', 'display_description',
-        'display_title', 'integrator_rule_id', 'integrator_user_id', 'interval_minutes', 'is_enabled',
-        'linked_object_id', 'linked_object_type', 'notification_topic_code', 'organization_id',
-        'platform_user_id', 'quiet_hours_end_minute', 'quiet_hours_start_minute', 'reminder_intent',
-        'schedule_data', 'schedule_type', 'timezone', 'updated_at', 'window_end_minute', 'window_start_minute',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: [
-        'category', 'content_mode', 'custom_text', 'custom_title', 'days_mask', 'display_description',
-        'display_title', 'integrator_user_id', 'interval_minutes', 'is_enabled', 'linked_object_id',
-        'linked_object_type', 'notification_topic_code', 'organization_id', 'platform_user_id',
-        'quiet_hours_end_minute', 'quiet_hours_start_minute', 'reminder_intent', 'schedule_data',
-        'schedule_type', 'timezone', 'updated_at', 'window_end_minute', 'window_start_minute',
-      ] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.reminder_journal': {
@@ -4620,8 +4883,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgReminderJournal.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['action', 'occurrence_id', 'rule_id', 'skip_reason', 'snooze_until'] },
     ],
   },
   'public.reminder_occurrence_history': {
@@ -4630,7 +4891,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgReminderProjection.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['seen_at'] },
     ],
   },
   'public.support_conversation_messages': {
@@ -4638,12 +4898,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSupportCommunication.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'conversation_id', 'created_at', 'delivered_at', 'delivery_status', 'external_chat_id',
-        'external_message_id', 'integrator_message_id', 'media_type', 'media_url', 'message_type',
-        'organization_id', 'sender_role', 'source', 'text',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['read_at'] },
     ],
   },
   'public.support_conversations': {
@@ -4651,11 +4905,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSupportCommunication.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'admin_scope', 'integrator_conversation_id', 'integrator_user_id', 'last_message_at', 'opened_at',
-        'organization_id', 'platform_user_id', 'source', 'status',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['organization_id', 'platform_user_id', 'updated_at'] },
     ],
   },
   'public.symptom_entries': {
@@ -4663,13 +4912,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSymptomDiary.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'entry_type', 'notes', 'patient_practice_completion_id', 'platform_user_id', 'recorded_at',
-        'source', 'tracking_id', 'user_id', 'value_0_10',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['entry_type', 'notes', 'recorded_at', 'value_0_10'] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.symptom_trackings': {
@@ -4677,16 +4919,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSymptomDiary.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'diagnosis_ref_id', 'diagnosis_text', 'is_active', 'organization_id', 'platform_user_id',
-        'region_ref_id', 'side', 'stage_ref_id', 'symptom_key', 'symptom_title', 'symptom_type_ref_id',
-        'updated_at', 'user_id',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: [
-        'deleted_at', 'diagnosis_ref_id', 'diagnosis_text', 'is_active', 'region_ref_id', 'side',
-        'stage_ref_id', 'symptom_title', 'symptom_type_ref_id', 'updated_at',
-      ] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.treatment_program_instances': {
@@ -4694,7 +4926,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['updated_at'] },
     ],
   },
   'public.treatment_program_instance_stages': {
@@ -4702,7 +4933,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['skip_reason', 'started_at', 'status'] },
     ],
   },
   'public.treatment_program_instance_stage_items': {
@@ -4710,7 +4940,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['completed_at', 'last_viewed_at'] },
     ],
   },
   'public.treatment_program_instance_stage_groups': {
@@ -4723,10 +4952,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'actor_id', 'created_at', 'event_type', 'id', 'instance_id', 'organization_id', 'payload', 'reason',
-        'target_id', 'target_type',
-      ] },
     ],
   },
   'public.program_action_log': {
@@ -4734,11 +4959,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgProgramActionLog.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'action_type', 'created_at', 'id', 'instance_id', 'instance_stage_item_id', 'note', 'organization_id',
-        'patient_user_id', 'payload', 'session_id',
-      ] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.test_attempts': {
@@ -4746,11 +4966,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'accepted_at', 'accepted_by', 'id', 'instance_stage_item_id', 'organization_id', 'patient_user_id',
-        'started_at', 'submitted_at',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['submitted_at'] },
     ],
   },
   'public.test_results': {
@@ -4758,11 +4973,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'attempt_id', 'created_at', 'decided_by', 'id', 'normalized_decision', 'organization_id', 'raw_value',
-        'test_id',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['decided_by', 'normalized_decision', 'raw_value'] },
     ],
   },
   'public.program_item_discussion_messages': {
@@ -4770,10 +4980,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'body', 'created_at', 'id', 'instance_stage_item_id', 'media_file_id', 'organization_id', 'origin',
-        'patient_user_id', 'sender_role', 'support_message_id',
-      ] },
     ],
   },
   'public.program_item_discussion_reads': {
@@ -4781,9 +4987,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['instance_stage_item_id', 'last_read_at', 'organization_id', 'patient_user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['last_read_at'] },
     ],
   },
   'public.reference_categories': {
@@ -4860,8 +5063,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
           'is_blocked',
           'patient_phone_trust_at',
           'reminder_muted_until'] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['calendar_timezone', 'reminder_muted_until', 'updated_at'] },
       { role: 'app_platform_settings', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone'] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: ['calendar_timezone', 'updated_at'] },
@@ -4886,11 +5087,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['auth', 'endpoint', 'p256dh', 'updated_at', 'user_agent', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['auth', 'p256dh', 'updated_at', 'user_agent', 'user_id'] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.user_channel_preferences': {
@@ -4899,13 +5095,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgChannelPreferences.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications',
-          'is_preferred_for_auth', 'platform_user_id', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth',
-          'platform_user_id', 'updated_at'] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.user_notification_topics': {
@@ -4914,9 +5103,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgPatientNotificationTopics.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['is_enabled', 'topic_code', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['is_enabled', 'updated_at'] },
     ],
   },
   'public.user_notification_topic_channels': {
@@ -4925,9 +5111,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTopicChannelPrefs.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['channel_code', 'is_enabled', 'topic_code', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['is_enabled', 'updated_at'] },
     ],
   },
   'public.user_phone_history': {
@@ -4993,21 +5176,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
   },
   'public.media_playback_client_events': {
-    kind: 'direct', purpose: 'patient appends only its own current-clinic browser playback failures',
+    kind: 'direct', purpose: 'patient appends playback failures only through the exact visibility-checked root',
     codePaths: ['apps/webapp/src/app-layer/media/playbackClientEvents.ts#recordPlaybackClientEvent'],
-    grants: [{ role: 'app_patient', operations: ['INSERT'], columns: [
-      'created_at', 'delivery', 'error_detail', 'event_class', 'id', 'media_id', 'organization_id',
-      'user_agent', 'user_id',
-    ] }],
+    grants: [],
   },
   'public.media_playback_user_video_first_resolve': {
-    kind: 'direct', purpose: 'patient records and returns only its own current-clinic first-view marker',
+    kind: 'direct', purpose: 'patient reads its own marker and records it only through the exact visibility-checked root',
     codePaths: ['apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: ['media_id', 'user_id'] },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'first_resolved_at', 'media_id', 'organization_id', 'user_id',
-      ] },
     ],
   },
   'public.media_transcode_jobs': {

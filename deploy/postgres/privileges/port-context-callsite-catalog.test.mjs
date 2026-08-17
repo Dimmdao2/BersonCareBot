@@ -13,6 +13,10 @@ const PRODUCTION_SOURCE_ROOTS = [
 const EXCLUDED_DIRECTORIES = new Set(['.next', 'coverage', 'dist', 'generated', '__generated__', 'node_modules']);
 const TEST_FILE_RE = /(?:^|\.)(?:test|spec|unit|integration|e2e)\.[cm]?[jt]sx?$/;
 
+const patientRoot = (purpose, argCount, source) => ({
+  port: 'webapp', targetRole: 'app_patient', contextClass: 'patient', purpose, argCount, source,
+});
+
 const EXPECTED_ROOTS = new Map(Object.entries({
   'app.password_login_acquire(text,text,uuid,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
@@ -714,6 +718,106 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'booking.patient-package.reserve', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgMemberships.ts',
   },
+  'app.record_current_patient_practice_completion(uuid,text,integer)': patientRoot(
+    'patient.practice-completion.record', 3, 'apps/webapp/src/infra/repos/pgPatientPracticeCompletions.ts'),
+  'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)': patientRoot(
+    'patient.material-rating.upsert', 5, 'apps/webapp/src/infra/repos/pgMaterialRating.ts'),
+  'app.update_current_patient_practice_completion_feeling(uuid,integer)': patientRoot(
+    'patient.practice-completion.feeling.update', 2, 'apps/webapp/src/infra/repos/pgPatientPracticeCompletions.ts'),
+  'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)': patientRoot(
+    'patient.daily-warmup.presentation.save', 3, 'apps/webapp/src/infra/repos/pgPatientDailyWarmupPresentation.ts'),
+  'app.record_current_patient_daily_warmup_video_view(uuid)': patientRoot(
+    'patient.daily-warmup.video-view.record', 1, 'apps/webapp/src/infra/repos/pgPatientDailyWarmupVideoView.ts'),
+  'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)': patientRoot(
+    'patient.material-rating.feedback.record', 4, 'apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts'),
+  'app.record_current_patient_playback_client_event(uuid,text,text,text,text)': patientRoot(
+    'patient.media.playback-client-event.record', 5, 'apps/webapp/src/app-layer/media/playbackClientEvents.ts'),
+  'app.record_current_patient_playback_first_resolve(uuid)': patientRoot(
+    'patient.media.playback-first-resolve.record', 1, 'apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts'),
+  'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)': patientRoot(
+    'patient.diary-day.snapshot.capture', 8, 'apps/webapp/src/infra/repos/pgPatientDiarySnapshots.ts'),
+  'app.set_current_patient_notification_topic(text,boolean)': patientRoot(
+    'patient.notification-topic.set', 2, 'apps/webapp/src/infra/repos/pgPatientNotificationTopics.ts'),
+  'app.set_current_patient_notification_topic_channel(text,text,boolean)': patientRoot(
+    'patient.notification-topic-channel.set', 3, 'apps/webapp/src/infra/repos/pgTopicChannelPrefs.ts'),
+  'app.read_current_patient_fio()': patientRoot(
+    'patient.identity.self.read', 0, 'apps/webapp/src/infra/repos/pgUserProjection.ts'),
+  'app.update_current_patient_fio(text,text,text)': patientRoot(
+    'patient.identity.self.update', 3, 'apps/webapp/src/infra/repos/pgUserProjection.ts'),
+  'app.create_current_patient_reminder_rule(text,text)': patientRoot(
+    'patient.reminder-rule.create', 2, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.update_current_patient_reminder_rule(text,text)': patientRoot(
+    'patient.reminder-rule.update', 2, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.delete_current_patient_reminder_rule(text)': patientRoot(
+    'patient.reminder-rule.delete', 1, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientRoot(
+    'patient.reminder-journal.record', 5, 'apps/webapp/src/infra/repos/pgReminderJournal.ts'),
+  'app.mark_current_patient_reminder_history_seen(text)': patientRoot(
+    'patient.reminder-history.seen', 1, 'apps/webapp/src/infra/repos/pgReminderProjection.ts'),
+  'app.mark_all_current_patient_reminder_history_seen()': patientRoot(
+    'patient.reminder-history.seen-all', 0, 'apps/webapp/src/infra/repos/pgReminderProjection.ts'),
+  'app.set_current_patient_reminder_muted_until(timestamp with time zone)': patientRoot(
+    'patient.reminder.mute', 1, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.ensure_current_patient_support_conversation()': patientRoot(
+    'patient.support-conversation.ensure', 0, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)': patientRoot(
+    'patient.support-message.append', 7, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.mark_current_patient_support_conversation_read(uuid)': patientRoot(
+    'patient.support-conversation.read', 1, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.mark_current_patient_support_messages_read(text)': patientRoot(
+    'patient.support-messages.read', 1, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.mark_current_patient_support_notifications_read()': patientRoot(
+    'patient.support-notifications.read', 0, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)': patientRoot(
+    'patient.symptom-system-tracking.ensure', 3, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientRoot(
+    'patient.symptom-entry.record', 5, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientRoot(
+    'patient.symptom-entry.update', 5, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.delete_current_patient_symptom_entry(uuid)': patientRoot(
+    'patient.symptom-entry.delete', 1, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)': patientRoot(
+    'patient.symptom-tracking.configure', 3, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)': patientRoot(
+    'patient.warmup-feeling.apply', 6, 'apps/webapp/src/infra/repos/pgWarmupFeelingCompletion.ts'),
+  'app.save_current_patient_channel_preference(text,boolean,boolean)': patientRoot(
+    'patient.channel-preference.save', 3, 'apps/webapp/src/infra/repos/pgChannelPreferences.ts'),
+  'app.set_current_patient_preferred_auth_channel(text)': patientRoot(
+    'patient.preferred-auth-channel.set', 1, 'apps/webapp/src/infra/repos/pgChannelPreferences.ts'),
+  'app.save_current_patient_web_push_subscription(text,text,text,text)': patientRoot(
+    'patient.web-push-subscription.save', 4, 'apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts'),
+  'app.remove_current_patient_web_push_subscription(text)': patientRoot(
+    'patient.web-push-subscription.remove', 1, 'apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts'),
+  'app.remove_all_current_patient_web_push_subscriptions()': patientRoot(
+    'patient.web-push-subscriptions.remove-all', 0, 'apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts'),
+  'app.touch_current_patient_plan_last_opened(uuid)': patientRoot(
+    'patient.program.touch', 1, 'apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'),
+  'app.touch_current_patient_program_item(uuid,uuid)': patientRoot(
+    'patient.program-item.touch', 2, 'apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'),
+  'app.complete_current_patient_program_item(uuid,uuid,integer,text)': patientRoot(
+    'patient.program-item.complete', 4, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)': patientRoot(
+    'patient.program-completion.enrich', 4, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)': patientRoot(
+    'patient.program-action.record', 6, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)': patientRoot(
+    'patient.program-actions.delete-window', 5, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)': patientRoot(
+    'patient.program-event.append', 6, 'apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts'),
+  'app.mark_current_patient_program_item_viewed(uuid,uuid)': patientRoot(
+    'patient.program-item.viewed', 2, 'apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'),
+  'app.append_current_patient_program_discussion(uuid,text,uuid)': patientRoot(
+    'patient.program-discussion.append', 3, 'apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'),
+  'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)': patientRoot(
+    'patient.program-discussion.read', 2, 'apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'),
+  'app.ensure_current_patient_test_attempt(uuid)': patientRoot(
+    'patient.test-attempt.ensure', 1, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
+  'app.start_current_patient_test_attempt(uuid,uuid)': patientRoot(
+    'patient.test-attempt.start', 2, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
+  'app.save_current_patient_test_result(uuid,uuid,text,text)': patientRoot(
+    'patient.test-result.save', 4, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
+  'app.submit_current_patient_test_attempt(uuid)': patientRoot(
+    'patient.test-attempt.submit', 1, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
   'app.pre_session_resolve_identity(uuid)': {
     port: 'webapp', contextClass: 'pre_session',
     purpose: 'identity.variant-a.resolve', argCount: 1, descriptorCount: 3,

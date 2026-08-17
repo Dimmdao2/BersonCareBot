@@ -7,20 +7,20 @@ import { declaration } from './declaration.ts';
 import {
   generateCatalogClosureVerifierSql,
   generateEnvLoginVariableSql,
-  generateEnvironmentVerifierSql,
   generatePortContextCapabilitySeedSql,
   generatePrivilegesSql,
   generateSharedRoleVerifierSql,
-  generateZeroStateClusterSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
   resolvePortContextCapabilities,
 } from './generate.mjs';
 
 const EXPECTED = {
-  webapp: 137,
+  webapp: 174,
   integrator: 34,
 };
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 test('the generator library refuses a mistaken direct CLI invocation', () => {
   const result = spawnSync(process.execPath, [
@@ -34,8 +34,8 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 171);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 171);
+  assert.equal(rows.length, 208);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 208);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -86,7 +86,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 156);
+  assert.equal(roots.length, 193);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
@@ -101,7 +101,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   for (const row of rows) {
     assert.match(seed, new RegExp(row.capabilityId));
     if (row.functionIdentity) {
-      assert.match(seed, new RegExp(row.functionIdentity.replace(/[()]/g, '\\$&')));
+      assert.match(seed, new RegExp(escapeRegExp(row.functionIdentity)));
     }
   }
   assert.equal((seed.match(/NULL::regprocedure/g) ?? []).length, rows.length - roots.length);
@@ -298,27 +298,4 @@ test('catalog closure requires one exact owner policy on every private relation'
     assert.match(sql, new RegExp(relation.owner));
   }
   assert.match(sql, /private relation owner policy missing or non-exact/);
-});
-
-test('retired roles are controlled by cluster cleanup and quarantined while dependencies remain', () => {
-  const retired = [
-    'app_identity_bootstrap',
-    'app_migrator',
-    'app_operational_diagnostic',
-    'app_operational_web_push_reminder',
-    'app_phone_bind_completion',
-    'app_web_push_reminder_discovery_definer',
-  ];
-  const cleanup = generateZeroStateClusterSql(declaration, { source: 'test' });
-  const verifier = generateEnvironmentVerifierSql(declaration, 'dev', 'bcb_webapp_dev');
-  for (const role of retired) {
-    assert.ok(declaration.zeroState.legacyRoles.includes(role), role);
-    assert.match(cleanup, new RegExp(role));
-    assert.match(verifier, new RegExp(role));
-  }
-  assert.match(verifier, /undeclared managed BCB role survived/);
-  assert.match(verifier, /retained legacy role is not quarantined NOLOGIN/);
-  assert.match(verifier, /retained legacy role still has membership/);
-  assert.match(verifier, /retained legacy role can CONNECT target/);
-  assert.match(verifier, /retained legacy role has target schema USAGE/);
 });

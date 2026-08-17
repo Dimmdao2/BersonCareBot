@@ -91,7 +91,13 @@ if (invalidSnapshots.length > 0) {
 // The maintained migration surface is B0 + forwards only.  This checks executable topology
 // (not prose wording): an A0/disposable bootstrap or a prebuilt PROD target is an alternate
 // migration path even when no migration journal references it.
-const executableRoots = ['scripts', 'deploy/host', 'apps/webapp/scripts', 'apps/integrator/src/infra/scripts'];
+const executableRoots = [
+  'scripts',
+  'deploy/host',
+  'deploy/postgres/privileges',
+  'apps/webapp/scripts',
+  'apps/integrator/src/infra/scripts',
+];
 const executableFiles = executableRoots.flatMap((directory) =>
   readdirSync(resolve(root, directory), { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile() && /\.(?:sh|mjs|cjs|js|ts)$/.test(entry.name))
@@ -100,7 +106,11 @@ const executableFiles = executableRoots.flatMap((directory) =>
 const forbiddenName = /(?:stage13|zero-state|prod-to-target|disposable)/i;
 const alternateExecutors = executableFiles.filter((path) => {
   const rel = relative(path);
-  if (/\.(?:test|spec)\.[^.]+$/.test(rel) || rel === 'scripts/check-b0-migration-baseline.mjs') {
+  if (
+    /\.(?:test|spec)\.[^.]+$/.test(rel)
+    || /\.acceptance\.sh$/.test(rel)
+    || rel === 'scripts/check-b0-migration-baseline.mjs'
+  ) {
     return false;
   }
   if (forbiddenName.test(rel)) return true;

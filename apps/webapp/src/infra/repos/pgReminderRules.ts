@@ -4,8 +4,16 @@
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappSql,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import type { ReminderRulesPort } from '@/modules/reminders/ports';
 import type {
   ReminderCategory,
@@ -137,6 +145,26 @@ const SELECT_COLS = `
 
 type RuleRow = Parameters<typeof toRule>[0];
 
+function isPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function updateCurrentPatientRule(
+  ruleIntegratorId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const payload = JSON.stringify(patch);
+  const result = await runWebappNamedRoot<{ rule: RuleRow }>(
+    getWebappSqlDb(),
+    'app.update_current_patient_reminder_rule(text,text)',
+    [ruleIntegratorId, payload],
+    sql`SELECT app.update_current_patient_reminder_rule(
+      ${ruleIntegratorId}::text, ${payload}::text
+    ) AS rule`,
+  );
+  if (!result.rows[0]?.rule) throw new Error('reminder_rules update returned no row');
+}
+
 function currentPrincipalOrganizationId(): string | null {
   return getCurrentDbPrincipalOrganizationId() ?? null;
 }
@@ -229,6 +257,40 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
         reminderIntent,
       });
       const scheduleDataJson = scheduleData ? JSON.stringify(scheduleData) : null;
+      if (isPatientPrincipal()) {
+        const payload = JSON.stringify({
+          category,
+          enabled: input.enabled,
+          scheduleType,
+          timezone: tz,
+          intervalMinutes: input.schedule.intervalMinutes,
+          windowStartMinute: input.schedule.windowStartMinute,
+          windowEndMinute: input.schedule.windowEndMinute,
+          daysMask: input.schedule.daysMask,
+          linkedObjectType: input.linkedObjectType,
+          linkedObjectId: input.linkedObjectId,
+          customTitle: input.customTitle,
+          customText: input.customText,
+          scheduleData,
+          reminderIntent,
+          displayTitle: input.displayTitle ?? null,
+          displayDescription: input.displayDescription ?? null,
+          quietHoursStartMinute: input.quietHoursStartMinute ?? null,
+          quietHoursEndMinute: input.quietHoursEndMinute ?? null,
+          notificationTopicCode,
+        });
+        const result = await runWebappNamedRoot<{ rule: RuleRow }>(
+          getWebappSqlDb(),
+          'app.create_current_patient_reminder_rule(text,text)',
+          [integratorRuleId, payload],
+          sql`SELECT app.create_current_patient_reminder_rule(
+            ${integratorRuleId}::text, ${payload}::text
+          ) AS rule`,
+        );
+        const row = result.rows[0]?.rule;
+        if (!row) throw new Error('reminder_rules insert returned no row');
+        return toRule(row);
+      }
       const r = await runWebappSql<RuleRow>(
         getWebappSqlDb(),
         sql`INSERT INTO reminder_rules (
@@ -280,6 +342,15 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async delete(ruleIntegratorId, platformUserId) {
+      if (isPatientPrincipal()) {
+        const result = await runWebappNamedRoot<{ deleted: boolean }>(
+          getWebappSqlDb(),
+          'app.delete_current_patient_reminder_rule(text)',
+          [ruleIntegratorId],
+          sql`SELECT app.delete_current_patient_reminder_rule(${ruleIntegratorId}::text) AS deleted`,
+        );
+        return result.rows[0]?.deleted === true;
+      }
       try {
         return await runWebappTransaction(async (tx) => {
           const own = await runWebappSql<{ id: string; integrator_rule_id: string }>(
@@ -318,6 +389,10 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async updateEnabled(ruleIntegratorId, enabled) {
+      if (isPatientPrincipal()) {
+        await updateCurrentPatientRule(ruleIntegratorId, { enabled });
+        return;
+      }
       const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
@@ -329,6 +404,15 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async updateSchedule(ruleIntegratorId, schedule) {
+      if (isPatientPrincipal()) {
+        await updateCurrentPatientRule(ruleIntegratorId, {
+          intervalMinutes: schedule.intervalMinutes,
+          windowStartMinute: schedule.windowStartMinute,
+          windowEndMinute: schedule.windowEndMinute,
+          daysMask: schedule.daysMask,
+        });
+        return;
+      }
       const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
@@ -344,6 +428,19 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     async updateScheduleAndType(ruleIntegratorId, params) {
       const principalOrganizationId = currentPrincipalOrganizationId();
       const scheduleDataJson = params.scheduleData ? JSON.stringify(params.scheduleData) : null;
+      if (isPatientPrincipal()) {
+        await updateCurrentPatientRule(ruleIntegratorId, {
+          scheduleType: params.scheduleType,
+          intervalMinutes: params.intervalMinutes,
+          windowStartMinute: params.windowStartMinute,
+          windowEndMinute: params.windowEndMinute,
+          daysMask: params.daysMask,
+          scheduleData: params.scheduleData,
+          quietHoursStartMinute: params.quietHoursStartMinute,
+          quietHoursEndMinute: params.quietHoursEndMinute,
+        });
+        return;
+      }
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE reminder_rules
@@ -363,6 +460,10 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async updateCustomTexts(ruleIntegratorId, customTitle, customText) {
+      if (isPatientPrincipal()) {
+        await updateCurrentPatientRule(ruleIntegratorId, { customTitle, customText });
+        return;
+      }
       const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
@@ -375,6 +476,10 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async updateDisplayTexts(ruleIntegratorId, displayTitle, displayDescription) {
+      if (isPatientPrincipal()) {
+        await updateCurrentPatientRule(ruleIntegratorId, { displayTitle, displayDescription });
+        return;
+      }
       const principalOrganizationId = currentPrincipalOrganizationId();
       await runWebappSql(
         getWebappSqlDb(),
@@ -387,6 +492,18 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async setReminderMutedUntil(platformUserId, untilIso) {
+      if (isPatientPrincipal()) {
+        const result = await runWebappNamedRoot<{ updated: boolean }>(
+          getWebappSqlDb(),
+          'app.set_current_patient_reminder_muted_until(timestamp with time zone)',
+          [untilIso],
+          sql`SELECT app.set_current_patient_reminder_muted_until(
+            ${untilIso}::timestamptz
+          ) AS updated`,
+        );
+        if (result.rows[0]?.updated !== true) throw new Error('reminder mute update rejected');
+        return;
+      }
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE platform_users SET reminder_muted_until = ${untilIso}::timestamptz, updated_at = now()

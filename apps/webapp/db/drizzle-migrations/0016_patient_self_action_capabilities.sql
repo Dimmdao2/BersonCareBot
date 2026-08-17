@@ -1,3 +1,4 @@
+-- TEMPORARY LOCAL MIGRATION NUMBER 0016
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
@@ -406,11 +407,41 @@ BEGIN
      )
      OR (p_delivery IS NOT NULL AND p_delivery NOT IN ('hls', 'mp4', 'file'))
      OR NOT EXISTS (
-       SELECT 1 FROM public.media_files m
+       SELECT 1
+       FROM public.media_files m
        WHERE m.id = p_media_id
          AND m.organization_id = v_org
-         AND m.owner_kind = 'organization'
-         AND (m.usage_purpose IS DISTINCT FROM 'program_item_submission' OR m.uploaded_by = v_patient)
+         AND (
+           (m.usage_purpose = 'program_item_submission' AND m.uploaded_by = v_patient)
+           OR EXISTS (
+             SELECT 1 FROM public.content_pages p
+             WHERE p.organization_id = v_org
+               AND p.is_published AND p.archived_at IS NULL AND p.deleted_at IS NULL
+               AND (p.video_url LIKE '%' || p_media_id::text || '%'
+                    OR p.image_url LIKE '%' || p_media_id::text || '%'
+                    OR p.body_md LIKE '%' || p_media_id::text || '%'
+                    OR p.body_html LIKE '%' || p_media_id::text || '%')
+           )
+           OR EXISTS (
+             SELECT 1
+             FROM public.treatment_program_instance_stage_items si
+             JOIN public.treatment_program_instance_stages s ON s.id = si.stage_id
+             JOIN public.treatment_program_instances i ON i.id = s.instance_id
+             WHERE i.organization_id = v_org AND i.patient_user_id = v_patient
+               AND i.status = 'active' AND si.status <> 'disabled'
+               AND si.snapshot::text LIKE '%' || p_media_id::text || '%'
+           )
+           OR EXISTS (
+             SELECT 1
+             FROM public.program_item_discussion_messages dm
+             JOIN public.treatment_program_instance_stage_items si
+               ON si.id = dm.instance_stage_item_id
+             JOIN public.treatment_program_instance_stages s ON s.id = si.stage_id
+             JOIN public.treatment_program_instances i ON i.id = s.instance_id
+             WHERE dm.media_file_id = p_media_id AND dm.organization_id = v_org
+               AND i.organization_id = v_org AND i.patient_user_id = v_patient
+           )
+         )
      ) THEN
     RETURN false;
   END IF;
@@ -443,11 +474,41 @@ BEGIN
     ARRAY['app_patient'::name]::name[]
   );
   IF v_org IS NULL OR v_patient IS NULL OR NOT EXISTS (
-    SELECT 1 FROM public.media_files m
+    SELECT 1
+    FROM public.media_files m
     WHERE m.id = p_media_id
       AND m.organization_id = v_org
-      AND m.owner_kind = 'organization'
-      AND (m.usage_purpose IS DISTINCT FROM 'program_item_submission' OR m.uploaded_by = v_patient)
+      AND (
+        (m.usage_purpose = 'program_item_submission' AND m.uploaded_by = v_patient)
+        OR EXISTS (
+          SELECT 1 FROM public.content_pages p
+          WHERE p.organization_id = v_org
+            AND p.is_published AND p.archived_at IS NULL AND p.deleted_at IS NULL
+            AND (p.video_url LIKE '%' || p_media_id::text || '%'
+                 OR p.image_url LIKE '%' || p_media_id::text || '%'
+                 OR p.body_md LIKE '%' || p_media_id::text || '%'
+                 OR p.body_html LIKE '%' || p_media_id::text || '%')
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM public.treatment_program_instance_stage_items si
+          JOIN public.treatment_program_instance_stages s ON s.id = si.stage_id
+          JOIN public.treatment_program_instances i ON i.id = s.instance_id
+          WHERE i.organization_id = v_org AND i.patient_user_id = v_patient
+            AND i.status = 'active' AND si.status <> 'disabled'
+            AND si.snapshot::text LIKE '%' || p_media_id::text || '%'
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM public.program_item_discussion_messages dm
+          JOIN public.treatment_program_instance_stage_items si
+            ON si.id = dm.instance_stage_item_id
+          JOIN public.treatment_program_instance_stages s ON s.id = si.stage_id
+          JOIN public.treatment_program_instances i ON i.id = s.instance_id
+          WHERE dm.media_file_id = p_media_id AND dm.organization_id = v_org
+            AND i.organization_id = v_org AND i.patient_user_id = v_patient
+        )
+      )
   ) THEN
     RETURN false;
   END IF;
@@ -588,9 +649,10 @@ BEGIN
           WHERE s.key = 'notifications_topics'
             AND s.scope = 'admin'
             AND s.audience = 'authenticated_client'
-            AND s.organization_id = v_org
+            AND (s.organization_id = v_org OR s.organization_id IS NULL)
+          ORDER BY s.organization_id NULLS LAST
           LIMIT 1),
-         '[{"id":"warmup_reminders"},{"id":"training_reminders"},{"id":"appointment_reminders"},{"id":"patient_news"},{"id":"specialist_messages"},{"id":"support_messages"},{"id":"important_broadcasts"}]'::jsonb
+         '[]'::jsonb
        )) topic(value)
        WHERE btrim(topic.value->>'id') = v_topic
      ) THEN
@@ -639,9 +701,10 @@ BEGIN
           WHERE s.key = 'notifications_topics'
             AND s.scope = 'admin'
             AND s.audience = 'authenticated_client'
-            AND s.organization_id = v_org
+            AND (s.organization_id = v_org OR s.organization_id IS NULL)
+          ORDER BY s.organization_id NULLS LAST
           LIMIT 1),
-         '[{"id":"warmup_reminders"},{"id":"training_reminders"},{"id":"appointment_reminders"},{"id":"patient_news"},{"id":"specialist_messages"},{"id":"support_messages"},{"id":"important_broadcasts"}]'::jsonb
+         '[]'::jsonb
        )) topic(value)
        WHERE btrim(topic.value->>'id') = v_topic
      )

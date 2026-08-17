@@ -38,7 +38,6 @@ import {
   generatePrivilegesSql,
   generateSharedRoleBaselineSql,
   generateSharedRoleVerifierSql,
-  generateTargetLoginCleanupSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
 } from './generate.mjs';
@@ -54,7 +53,7 @@ function parseArgs(argv) {
   const knownFlags = new Set([
     'all', 'check', 'gaps', 'census', 'stdout', 'no-allowlist', 'port-context-only',
     'port-context-verify',
-    'env-login-shells', 'env-login-variables', 'env-verify', 'shared-role-baseline', 'shared-role-verify', 'target-login-cleanup',
+    'env-login-shells', 'env-login-variables', 'env-verify', 'shared-role-baseline', 'shared-role-verify',
     'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry', 'target-access-only',
   ]);
   const knownValues = new Set(['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env']);
@@ -225,10 +224,6 @@ async function main() {
     }
     if (args.flags.has('env-login-variables')) {
       process.stdout.write(generateEnvLoginVariableSql(declaration, env, args.values.get('db')));
-      return;
-    }
-    if (args.flags.has('target-login-cleanup')) {
-      process.stdout.write(generateTargetLoginCleanupSql(declaration, env, args.values.get('db')));
       return;
     }
     if (args.flags.has('env-verify')) {

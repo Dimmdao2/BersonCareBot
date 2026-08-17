@@ -237,6 +237,12 @@ export function createTreatmentProgramProgressService(deps: {
     assertUuid(input.patientUserId);
     assertUuid(input.instanceId);
     assertUuid(input.stageItemId);
+    if (instances.touchCurrentPatientProgramItem) {
+      await instances.touchCurrentPatientProgramItem(input.instanceId, input.stageItemId);
+      const next = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!next) throw new Error('Программа не найдена');
+      return next;
+    }
     const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
     if (!detail) throw new Error('Программа не найдена');
     const { stage } = resolveItemAndStage(detail, input.stageItemId);
@@ -261,13 +267,19 @@ export function createTreatmentProgramProgressService(deps: {
     return next;
   }
 
+  function runPatientMutation<T>(fn: () => Promise<T>): Promise<T> {
+    return instances.touchCurrentPatientProgramItem
+      ? fn()
+      : instances.runInMutationTransaction(fn);
+  }
+
   return {
     async patientTouchStageItem(input: {
       patientUserId: string;
       instanceId: string;
       stageItemId: string;
     }): Promise<TreatmentProgramInstanceDetail> {
-      return instances.runInMutationTransaction(() => patientTouchStageItemInner(input));
+      return runPatientMutation(() => patientTouchStageItemInner(input));
     },
 
     async patientCompleteSimpleItem(input: {
@@ -285,7 +297,21 @@ export function createTreatmentProgramProgressService(deps: {
       item: TreatmentProgramInstanceDetail;
       completion: { id: string; createdAt: string };
     }> {
-      return instances.runInMutationTransaction(async () => {
+      if (actionLog.completeCurrentPatientSimpleItem) {
+        assertUuid(input.patientUserId);
+        assertUuid(input.instanceId);
+        assertUuid(input.stageItemId);
+        const completion = await actionLog.completeCurrentPatientSimpleItem({
+          instanceId: input.instanceId,
+          instanceStageItemId: input.stageItemId,
+          repeatCooldownMinutes: input.repeatCooldownMinutes,
+          metrics: input.completion ?? {},
+        });
+        const item = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+        if (!item) throw new Error('Программа не найдена');
+        return { item, completion };
+      }
+      return runPatientMutation(async () => {
         assertUuid(input.patientUserId);
         assertUuid(input.instanceId);
         assertUuid(input.stageItemId);
@@ -436,7 +462,7 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       stageItemId: string;
     }) {
-      return instances.runInMutationTransaction(async () => {
+      return runPatientMutation(async () => {
         assertUuid(input.patientUserId);
         assertUuid(input.instanceId);
         assertUuid(input.stageItemId);
@@ -465,7 +491,7 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       stageItemId: string;
     }): Promise<TreatmentProgramTestAttemptRow> {
-      return instances.runInMutationTransaction(async () => {
+      return runPatientMutation(async () => {
         assertUuid(input.patientUserId);
         assertUuid(input.instanceId);
         assertUuid(input.stageItemId);
@@ -499,7 +525,7 @@ export function createTreatmentProgramProgressService(deps: {
       rawValue: Record<string, unknown>;
       normalizedDecision?: NormalizedTestDecision;
     }): Promise<TreatmentProgramInstanceDetail> {
-      return instances.runInMutationTransaction(async () => {
+      return runPatientMutation(async () => {
         assertUuid(input.patientUserId);
         assertUuid(input.instanceId);
         assertUuid(input.stageItemId);

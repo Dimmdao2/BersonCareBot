@@ -1,9 +1,13 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import {
   getDrizzleOrMutationTx as getDrizzle,
   runDrizzleMutationTransaction,
 } from '@/infra/db/drizzleMutationTx';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { clinicalTests } from '../../../db/schema/clinicalTests';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
@@ -48,6 +52,46 @@ function mapResult(row: typeof resultTable.$inferSelect): TreatmentProgramTestRe
     normalizedDecision: row.normalizedDecision as NormalizedTestDecision,
     decidedBy: row.decidedBy ?? null,
     createdAt: row.createdAt,
+  };
+}
+
+function mapAttemptJson(row: {
+  id: string;
+  instance_stage_item_id: string;
+  patient_user_id: string;
+  started_at: string;
+  submitted_at: string | null;
+  accepted_at: string | null;
+  accepted_by: string | null;
+}): TreatmentProgramTestAttemptRow {
+  return {
+    id: row.id,
+    instanceStageItemId: row.instance_stage_item_id,
+    patientUserId: row.patient_user_id,
+    startedAt: row.started_at,
+    submittedAt: row.submitted_at,
+    acceptedAt: row.accepted_at,
+    acceptedBy: row.accepted_by,
+  };
+}
+
+function mapResultJson(row: {
+  id: string;
+  attempt_id: string;
+  test_id: string;
+  raw_value: Record<string, unknown>;
+  normalized_decision: string;
+  decided_by: string | null;
+  created_at: string;
+}): TreatmentProgramTestResultRow {
+  return {
+    id: row.id,
+    attemptId: row.attempt_id,
+    testId: row.test_id,
+    rawValue: row.raw_value ?? {},
+    normalizedDecision: row.normalized_decision as NormalizedTestDecision,
+    decidedBy: row.decided_by,
+    createdAt: row.created_at,
   };
 }
 
@@ -125,6 +169,19 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
     },
 
     async createAttempt(input: { stageItemId: string; patientUserId: string }) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{
+          attempt: Parameters<typeof mapAttemptJson>[0];
+        }>(
+          getWebappSqlDb(),
+          'app.ensure_current_patient_test_attempt(uuid)',
+          [input.stageItemId],
+          sql`SELECT app.ensure_current_patient_test_attempt(${input.stageItemId}::uuid) AS attempt`,
+        );
+        const row = result.rows[0]?.attempt;
+        if (!row) throw new Error('insert attempt failed');
+        return mapAttemptJson(row);
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const existingRow = await tx.query.treatmentProgramTestAttempts.findFirst({
           where: and(
@@ -151,6 +208,15 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
     },
 
     async markAttemptSubmitted(attemptId: string) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{ submitted: boolean }>(
+          getWebappSqlDb(),
+          'app.submit_current_patient_test_attempt(uuid)',
+          [attemptId],
+          sql`SELECT app.submit_current_patient_test_attempt(${attemptId}::uuid) AS submitted`,
+        );
+        return { didTransitionToSubmitted: result.rows[0]?.submitted === true };
+      }
       const now = new Date().toISOString();
       return runDrizzleMutationTransaction(async (tx) => {
         const updated = await tx
@@ -236,6 +302,21 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       stageItemId: string;
       patientUserId: string;
     }): Promise<TreatmentProgramTestAttemptRow> {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{
+          attempt: Parameters<typeof mapAttemptJson>[0];
+        }>(
+          getWebappSqlDb(),
+          'app.start_current_patient_test_attempt(uuid,uuid)',
+          [input.instanceId, input.stageItemId],
+          sql`SELECT app.start_current_patient_test_attempt(
+            ${input.instanceId}::uuid, ${input.stageItemId}::uuid
+          ) AS attempt`,
+        );
+        const row = result.rows[0]?.attempt;
+        if (!row) throw new Error('insert attempt failed');
+        return mapAttemptJson(row);
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const meta = await tx
           .select({ item: itemTable, inst: instanceTable })
@@ -311,6 +392,32 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       normalizedDecision: NormalizedTestDecision;
       decidedBy: string | null;
     }) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        if (input.decidedBy !== null) throw new Error('patient_test_decider_rejected');
+        const rawValue = JSON.stringify(input.rawValue);
+        const args = [
+          input.attemptId,
+          input.testId,
+          rawValue,
+          input.normalizedDecision,
+        ] as const;
+        const result = await runWebappNamedRoot<{
+          result: Parameters<typeof mapResultJson>[0];
+        }>(
+          getWebappSqlDb(),
+          'app.save_current_patient_test_result(uuid,uuid,text,text)',
+          args,
+          sql`SELECT app.save_current_patient_test_result(
+            ${input.attemptId}::uuid,
+            ${input.testId}::uuid,
+            ${rawValue}::text,
+            ${input.normalizedDecision}::text
+          ) AS result`,
+        );
+        const row = result.rows[0]?.result;
+        if (!row) throw new Error('insert result failed');
+        return mapResultJson(row);
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const existing = await tx.query.treatmentProgramTestResults.findFirst({
           where: and(

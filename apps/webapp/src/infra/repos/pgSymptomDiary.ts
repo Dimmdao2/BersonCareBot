@@ -2,8 +2,16 @@
  * PostgreSQL implementation of SymptomDiaryPort.
  * Tables: symptom_trackings, symptom_entries (see webapp/migrations/004_symptom_trackings_and_entries.sql).
  */
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import {
   type DrizzleTxExecute,
@@ -96,8 +104,49 @@ function userMatchSql(tableAlias: string | null, userParamIndex: number): string
   return `(${p}platform_user_id = $${userParamIndex}::uuid OR (${p}platform_user_id IS NULL AND ${p}user_id = $${userParamIndex}::text))`;
 }
 
+function isPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function ensureCurrentPatientSystemTracking(params: {
+  symptomKey: 'general_wellbeing' | 'warmup_feeling';
+  symptomTitle: string;
+  symptomTypeRefId: string;
+}): Promise<SymptomTracking> {
+  const args = [params.symptomKey, params.symptomTitle, params.symptomTypeRefId] as const;
+  const result = await runWebappNamedRoot<{ tracking: SymptomTrackingRow }>(
+    getWebappSqlDb(),
+    'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)',
+    args,
+    sql`SELECT app.ensure_current_patient_system_symptom_tracking(
+      ${params.symptomKey}::text, ${params.symptomTitle}::text, ${params.symptomTypeRefId}::uuid
+    ) AS tracking`,
+  );
+  const row = result.rows[0]?.tracking;
+  if (!row) throw new Error('current_patient_system_symptom_tracking_rejected');
+  return rowToTracking(row);
+}
+
+async function configureCurrentPatientAssignedTracking(params: {
+  trackingId: string;
+  title: string | null;
+  isActive: boolean | null;
+}): Promise<void> {
+  const args = [params.trackingId, params.title, params.isActive] as const;
+  const result = await runWebappNamedRoot<{ updated: boolean }>(
+    getWebappSqlDb(),
+    'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)',
+    args,
+    sql`SELECT app.configure_current_patient_assigned_symptom_tracking(
+      ${params.trackingId}::uuid, ${params.title}::text, ${params.isActive}::boolean
+    ) AS updated`,
+  );
+  if (result.rows[0]?.updated !== true) throw new Error('assigned_symptom_tracking_rejected');
+}
+
 export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async createTracking(params) {
+    if (isPatientPrincipal()) throw new Error('patient_self_create_disabled');
     const now = new Date();
     const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
     const result = await runWebappPgText<SymptomTrackingRow>(
@@ -125,6 +174,13 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async ensureGeneralWellbeingTracking(params) {
+    if (isPatientPrincipal()) {
+      return ensureCurrentPatientSystemTracking({
+        symptomKey: 'general_wellbeing',
+        symptomTitle: params.symptomTitle,
+        symptomTypeRefId: params.symptomTypeRefId,
+      });
+    }
     const now = new Date();
     const result = await runWebappPgText<SymptomTrackingRow>(
       `INSERT INTO symptom_trackings (
@@ -145,6 +201,13 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async ensureWarmupFeelingTracking(params) {
+    if (isPatientPrincipal()) {
+      return ensureCurrentPatientSystemTracking({
+        symptomKey: 'warmup_feeling',
+        symptomTitle: params.symptomTitle,
+        symptomTypeRefId: params.symptomTypeRefId,
+      });
+    }
     const now = new Date();
     const result = await runWebappPgText<SymptomTrackingRow>(
       `INSERT INTO symptom_trackings (
@@ -182,6 +245,34 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
 
   async addEntry(params) {
     const recordedAt = new Date(params.recordedAt);
+    if (isPatientPrincipal()) {
+      const args = [
+        params.trackingId,
+        params.value0_10,
+        params.entryType,
+        recordedAt,
+        params.notes ?? null,
+      ] as const;
+      const result = await runWebappNamedRoot<{ entry: SymptomEntryRow }>(
+        getWebappSqlDb(),
+        'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)',
+        args,
+        sql`SELECT app.record_current_patient_symptom_entry(
+          ${params.trackingId}::uuid,
+          ${params.value0_10}::integer,
+          ${params.entryType}::text,
+          ${recordedAt}::timestamptz,
+          ${params.notes ?? null}::text
+        ) AS entry`,
+      );
+      const row = result.rows[0]?.entry;
+      if (!row) throw new Error('current_patient_symptom_entry_rejected');
+      const tracking = await runWebappPgText<{ symptom_title: string }>(
+        `SELECT symptom_title FROM symptom_trackings WHERE id = $1`,
+        [params.trackingId],
+      );
+      return rowToEntry({ ...row, symptom_title: tracking.rows[0]?.symptom_title });
+    }
     const ppcId = params.patientPracticeCompletionId ?? null;
     const result =
       ppcId != null && ppcId !== ''
@@ -313,6 +404,29 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async updateEntry(params) {
+    if (isPatientPrincipal()) {
+      const args = [
+        params.entryId,
+        params.value0_10,
+        params.entryType,
+        params.recordedAt,
+        params.notes,
+      ] as const;
+      const result = await runWebappNamedRoot<{ entry: SymptomEntryRow }>(
+        getWebappSqlDb(),
+        'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)',
+        args,
+        sql`SELECT app.update_current_patient_symptom_entry(
+          ${params.entryId}::uuid,
+          ${params.value0_10}::integer,
+          ${params.entryType}::text,
+          ${params.recordedAt}::timestamptz,
+          ${params.notes}::text
+        ) AS entry`,
+      );
+      if (!result.rows[0]?.entry) throw new Error('current_patient_symptom_entry_not_editable');
+      return;
+    }
     await runWebappPgText(
       `UPDATE symptom_entries e
        SET value_0_10 = $3, entry_type = $4, recorded_at = $5::timestamptz, notes = $6
@@ -330,6 +444,18 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async deleteEntry(params) {
+    if (isPatientPrincipal()) {
+      const result = await runWebappNamedRoot<{ deleted: boolean }>(
+        getWebappSqlDb(),
+        'app.delete_current_patient_symptom_entry(uuid)',
+        [params.entryId],
+        sql`SELECT app.delete_current_patient_symptom_entry(${params.entryId}::uuid) AS deleted`,
+      );
+      if (result.rows[0]?.deleted !== true) {
+        throw new Error('current_patient_symptom_entry_not_editable');
+      }
+      return;
+    }
     await runWebappPgText(
       `DELETE FROM symptom_entries e
        USING symptom_trackings t
@@ -339,6 +465,14 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async updateTrackingTitle(params) {
+    if (isPatientPrincipal()) {
+      await configureCurrentPatientAssignedTracking({
+        trackingId: params.trackingId,
+        title: params.symptomTitle,
+        isActive: null,
+      });
+      return;
+    }
     await runWebappPgText(
       `UPDATE symptom_trackings SET symptom_title = $3, updated_at = now()
        WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
@@ -347,6 +481,14 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async setTrackingActive(params) {
+    if (isPatientPrincipal()) {
+      await configureCurrentPatientAssignedTracking({
+        trackingId: params.trackingId,
+        title: null,
+        isActive: params.isActive,
+      });
+      return;
+    }
     await runWebappPgText(
       `UPDATE symptom_trackings SET is_active = $3, updated_at = now()
        WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
@@ -355,6 +497,14 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   },
 
   async softDeleteTracking(params) {
+    if (isPatientPrincipal()) {
+      await configureCurrentPatientAssignedTracking({
+        trackingId: params.trackingId,
+        title: null,
+        isActive: false,
+      });
+      return;
+    }
     await runWebappPgText(
       `UPDATE symptom_trackings SET is_active = false, deleted_at = now(), updated_at = now()
        WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,

@@ -147,7 +147,7 @@ type ItemDiscussionSummary = {
 export type CompletionDifficulty = 'easy' | 'medium' | 'hard';
 
 export type CompletionMetricsDraft = {
-  perceivedDifficulty: CompletionDifficulty;
+  perceivedDifficulty?: CompletionDifficulty;
   repsRaw: string;
   setsRaw: string;
   weightRaw: string;
@@ -156,14 +156,14 @@ export type CompletionMetricsDraft = {
 };
 
 export type CompletionMetricsPayload = {
-  perceivedDifficulty: CompletionDifficulty;
+  perceivedDifficulty?: CompletionDifficulty;
   reps?: number;
   sets?: number;
   weightKg?: number;
 };
 
 export const DEFAULT_COMPLETION_METRICS_DRAFT: CompletionMetricsDraft = {
-  perceivedDifficulty: 'medium',
+  perceivedDifficulty: undefined,
   repsRaw: '',
   setsRaw: '',
   weightRaw: '',
@@ -217,7 +217,7 @@ export function metricNumberToInput(v: number | null | undefined, decimal = fals
 
 export function draftToPayload(draft: CompletionMetricsDraft): CompletionMetricsPayload {
   return {
-    perceivedDifficulty: draft.perceivedDifficulty,
+    ...(draft.perceivedDifficulty ? { perceivedDifficulty: draft.perceivedDifficulty } : {}),
     reps: optionalPositiveInt(draft.repsRaw),
     sets: optionalPositiveInt(draft.setsRaw),
     weightKg: optionalWeight(draft.weightRaw),
