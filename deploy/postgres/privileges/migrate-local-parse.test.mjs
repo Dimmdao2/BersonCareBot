@@ -10,6 +10,34 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
+function requireDerivedDdlMetadata(source, tag) {
+  const rawStatements = source.split('--> statement-breakpoint');
+  const parsedStatements = parseOwnerStatements(source, tag);
+  assert.equal(parsedStatements.length, rawStatements.length);
+
+  rawStatements.forEach((statement, index) => {
+    const createdSchemas = [...statement.matchAll(
+      /^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([A-Za-z_][A-Za-z0-9_]*)\./gimu,
+    )].map((match) => match[1]);
+    const languages = [...statement.matchAll(
+      /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/gimu,
+    )].map((match) => match[1].toLowerCase());
+    assert.ok(createdSchemas.length <= 1, `statement ${index + 1} creates multiple function schemas`);
+    assert.ok(languages.length <= 1, `statement ${index + 1} uses multiple function languages`);
+    assert.deepEqual(
+      {
+        schemaCreate: parsedStatements[index].schemaCreate,
+        languageUsage: parsedStatements[index].languageUsage,
+      },
+      {
+        schemaCreate: createdSchemas[0] ?? null,
+        languageUsage: languages[0] ?? null,
+      },
+      `statement ${index + 1} DDL metadata must match its executable SQL`,
+    );
+  });
+}
+
 test('parses owner DDL and a reusable local-postgres backfill without duplicating the migration path', () => {
   const steps = parseOwnerStatements(`
 -- BCB-MIGRATION-OWNER: app_probe_owner
@@ -124,12 +152,36 @@ test('the active B0-forward journal is executable through the owner-ordered migr
         schemaCreate: 'app',
         languageUsage: 'plpgsql',
       },
-      ...Array.from({ length: 5 }, () => ({
+      {
+        owner: 'app_seam_reminder_materialization_owner',
+        backfill: false,
+        schemaCreate: 'app',
+        languageUsage: 'plpgsql',
+      },
+      {
+        owner: 'app_seam_reminder_materialization_owner',
+        backfill: false,
+        schemaCreate: 'app',
+        languageUsage: 'sql',
+      },
+      {
         owner: 'app_seam_reminder_materialization_owner',
         backfill: false,
         schemaCreate: null,
         languageUsage: null,
-      })),
+      },
+      {
+        owner: 'app_seam_reminder_materialization_owner',
+        backfill: false,
+        schemaCreate: 'app',
+        languageUsage: 'plpgsql',
+      },
+      {
+        owner: 'app_seam_reminder_materialization_owner',
+        backfill: false,
+        schemaCreate: null,
+        languageUsage: null,
+      },
     ],
   );
 });
@@ -142,6 +194,7 @@ test('every statement in reminder materialization migration keeps its owner mark
 
   assert.equal(statements.length, 6);
   assert.equal(parseOwnerStatements(source, tag).length, 6);
+  requireDerivedDdlMetadata(source, tag);
 
   statements.forEach((statement, index) => {
     const displaced = statement.replace(
@@ -153,6 +206,49 @@ test('every statement in reminder materialization migration keeps its owner mark
     assert.throws(
       () => parseOwnerStatements(mutated, tag),
       new RegExp(`statement ${index + 1} has neither BCB-MIGRATION-OWNER nor BCB-MIGRATION-BACKFILL`, 'u'),
+    );
+  });
+});
+
+test('every reminder function statement declares its exact executable language', () => {
+  const tag = '0019_patient_reminder_materialization_runtime_capabilities';
+  const migrationPath = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations', `${tag}.sql`);
+  const source = fs.readFileSync(migrationPath, 'utf8');
+  const statements = source.split('--> statement-breakpoint');
+  const functionStatementIndexes = statements
+    .map((statement, index) => (/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+/imu.test(statement) ? index : -1))
+    .filter((index) => index >= 0);
+
+  assert.deepEqual(functionStatementIndexes, [0, 1, 2, 4]);
+  functionStatementIndexes.forEach((index) => {
+    const expectedLanguage = /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/imu.exec(statements[index])?.[1];
+    assert.ok(expectedLanguage, `statement ${index + 1} has no executable language`);
+
+    const withoutLanguage = statements[index].replace(
+      /^\s*-- BCB-MIGRATION-LANGUAGE-USAGE:[^\n]+\n/mu,
+      '',
+    );
+    assert.notEqual(withoutLanguage, statements[index], `language removal did not apply to statement ${index + 1}`);
+    assert.throws(
+      () => requireDerivedDdlMetadata(
+        statements.with(index, withoutLanguage).join('--> statement-breakpoint'),
+        tag,
+      ),
+      /DDL metadata must match its executable SQL/u,
+    );
+
+    const wrongLanguage = expectedLanguage === 'sql' ? 'plpgsql' : 'sql';
+    const withWrongLanguage = statements[index].replace(
+      /(-- BCB-MIGRATION-LANGUAGE-USAGE:)\s*[A-Za-z_][A-Za-z0-9_]*/u,
+      `$1 ${wrongLanguage}`,
+    );
+    assert.notEqual(withWrongLanguage, statements[index], `language rewrite did not apply to statement ${index + 1}`);
+    assert.throws(
+      () => requireDerivedDdlMetadata(
+        statements.with(index, withWrongLanguage).join('--> statement-breakpoint'),
+        tag,
+      ),
+      /DDL metadata must match its executable SQL/u,
     );
   });
 });
