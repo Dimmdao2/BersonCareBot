@@ -5,6 +5,9 @@ const fakes = vi.hoisted(() => ({
   gate: vi.fn(),
   listSettingsByScope: vi.fn(),
   persistErrorTrackingConfig: vi.fn(),
+  loggerError: vi.fn(),
+  loggerWarn: vi.fn(),
+  loggerInfo: vi.fn(),
 }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
@@ -17,6 +20,13 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       persistErrorTrackingConfig: fakes.persistErrorTrackingConfig,
     },
   }),
+}));
+vi.mock('@/app-layer/logging/logger', () => ({
+  logger: {
+    error: fakes.loggerError,
+    warn: fakes.loggerWarn,
+    info: fakes.loggerInfo,
+  },
 }));
 
 import { GET, PUT } from './route';
@@ -72,6 +82,31 @@ describe('platform error-tracking API', () => {
       ok: true,
       config: { enabled: true, hasStoredDsn: true },
     });
+  });
+
+  it('never emits a submitted DSN through structured or console logs', async () => {
+    const dsn = 'https://audit-secret-key@errors.example.test/42';
+    const consoleSpies = [
+      vi.spyOn(console, 'error').mockImplementation(() => undefined),
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined),
+      vi.spyOn(console, 'info').mockImplementation(() => undefined),
+      vi.spyOn(console, 'log').mockImplementation(() => undefined),
+    ];
+
+    try {
+      const response = await put({ enabled: true, dsn });
+
+      expect(response.status).toBe(200);
+      const emitted = JSON.stringify([
+        fakes.loggerError.mock.calls,
+        fakes.loggerWarn.mock.calls,
+        fakes.loggerInfo.mock.calls,
+        ...consoleSpies.map((spy) => spy.mock.calls),
+      ]);
+      expect(emitted).not.toContain(dsn);
+    } finally {
+      for (const spy of consoleSpies) spy.mockRestore();
+    }
   });
 
   it('refuses a malformed DSN without touching the settings transaction', async () => {

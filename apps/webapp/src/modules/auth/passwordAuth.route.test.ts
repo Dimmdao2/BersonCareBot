@@ -475,6 +475,7 @@ describe('password change HTTP boundary', () => {
     expect(fakes.setSession).toHaveBeenCalledWith(adminUser, {
       staffSecurity: session.staffSecurity,
     });
+    expect(fakes.setSession).toHaveBeenCalledOnce();
   });
 
   it('reports a missing verified email as password-login unavailable, not role-disabled', async () => {

@@ -182,6 +182,33 @@ describe('global-admin settings HTTP boundary', () => {
     expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 
+  it('persists and reads back the enabled global material-ratings switch for platform operations', async () => {
+    const saved = {
+      key: 'material_ratings_enabled',
+      scope: 'admin',
+      organizationId: null,
+      valueJson: { value: true },
+      updatedAt: '2026-08-17T00:00:00.000Z',
+      updatedBy: platformSession.user.userId,
+    };
+    fakes.updateSetting.mockResolvedValue(saved);
+
+    const response = await patch({ key: 'material_ratings_enabled', value: true });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, setting: saved });
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'material_ratings_enabled',
+      'admin',
+      { value: true },
+      platformSession.user.userId,
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+    );
+
+    fakes.listSettingsByScope.mockResolvedValueOnce([saved]).mockResolvedValueOnce([]);
+    await expect((await GET()).json()).resolves.toMatchObject({ ok: true, settings: [saved] });
+  });
+
   it('keeps clinic-owned patient booking writes scoped to the resolved organization', async () => {
     const doctorSession = {
       ...platformSession,

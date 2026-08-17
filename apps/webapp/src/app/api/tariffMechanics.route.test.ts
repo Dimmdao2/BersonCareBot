@@ -887,7 +887,7 @@ describe('tariff and platform mutation gates', () => {
       'admin',
       { value: true },
       USER_ID,
-      { organizationId: null },
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
     );
   });
 

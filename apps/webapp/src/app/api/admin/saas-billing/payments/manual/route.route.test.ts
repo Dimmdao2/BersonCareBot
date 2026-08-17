@@ -168,4 +168,19 @@ describe('manual SaaS invoice HTTP mapping', () => {
       '[saas-billing/manual-invoice] creation failed',
     );
   });
+
+  it('does not trust an arbitrary five-character error code as a safe SQLSTATE', async () => {
+    const attackerControlledCode = 'PWN42';
+    fakes.createManualInvoice.mockRejectedValue(
+      Object.assign(new Error('unexpected internal failure'), { code: attackerControlledCode }),
+    );
+
+    await POST(request());
+
+    expect(JSON.stringify(fakes.loggerError.mock.calls)).not.toContain(attackerControlledCode);
+    expect(fakes.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: null }),
+      '[saas-billing/manual-invoice] creation failed',
+    );
+  });
 });

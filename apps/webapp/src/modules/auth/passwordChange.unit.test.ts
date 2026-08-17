@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPasswordChangeService } from './passwordChange';
+import { canAccessDoctor } from '@/modules/roles/service';
 
 const userId = '00000000-0000-4000-8000-000000000017';
 
 describe('authenticated password change lifecycle', () => {
+  it('keeps the existing global-admin role eligible for the staff security boundary', () => {
+    expect(canAccessDoctor('admin')).toBe(true);
+  });
+
   it('replaces the verified credential, revokes old sessions, and returns the rotated admin user', async () => {
     let storedPassword = 'current-password';
     let sessionEpoch = 7;
@@ -99,6 +104,43 @@ describe('authenticated password change lifecycle', () => {
       }),
     ).resolves.toEqual({ ok: false, error: 'password_login_unavailable' });
     expect(updatePasswordHash).not.toHaveBeenCalled();
+    expect(invalidateSessionsForSelf).not.toHaveBeenCalled();
+  });
+
+  it('refuses a wrong current password before credential or session mutation', async () => {
+    const updatePasswordHash = vi.fn();
+    const invalidateSessionsForSelf = vi.fn();
+    const revokeSessions = vi.fn();
+    const service = createPasswordChangeService({
+      credentials: {
+        tryVerifyLogin: async () => ({
+          ok: false,
+          attempts: 1,
+          retryAfterSeconds: 0,
+          captchaRequired: false,
+          captchaRefreshRequired: false,
+          locked: false,
+        }),
+        updatePasswordHash,
+      },
+      users: {
+        getVerifiedEmailForUser: async () => 'admin@example.test',
+        invalidateSessionsForSelf,
+        findByUserId: vi.fn(),
+      },
+      staffSecurity: { getStatus: vi.fn(), revokeSessions },
+      hashPassword: vi.fn(),
+    });
+
+    await expect(
+      service.changePassword({
+        userId,
+        currentPassword: 'wrong-password',
+        newPassword: 'new-password-1074',
+      }),
+    ).resolves.toMatchObject({ ok: false, error: 'wrong_current_password' });
+    expect(updatePasswordHash).not.toHaveBeenCalled();
+    expect(revokeSessions).not.toHaveBeenCalled();
     expect(invalidateSessionsForSelf).not.toHaveBeenCalled();
   });
 
