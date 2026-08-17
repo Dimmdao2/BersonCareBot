@@ -44,6 +44,63 @@ describe('BookingPoliciesSection empty organization state', () => {
   it('offers a real organization reschedule draft in the same empty state', async () => {
     render(<BookingPoliciesSection defaultKind="reschedule" lockKind />);
 
-    expect(await screen.findByRole('button', { name: 'Сохранить перенос' })).toBeEnabled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Сохранить перенос' }));
+
+    await waitFor(() =>
+      expect(fakes.apiJson).toHaveBeenCalledWith(
+        '/api/admin/booking-engine/policies',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    );
+    const post = fakes.apiJson.mock.calls.find((call) => call[1]?.method === 'POST');
+    const body = JSON.parse(String(post?.[1]?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      kind: 'reschedule',
+      scopeLevel: 'organization',
+      scopeEntityId: null,
+      title: 'Правила переноса клиники',
+    });
+    expect(body).not.toHaveProperty('id');
+  });
+
+  it('reloads the created policy and sends its persisted id on a later edit', async () => {
+    let savedPolicy: Record<string, unknown> | null = null;
+    fakes.apiJson.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.endsWith('/overview')) return { ok: true, specialists: [], services: [] };
+      if (options?.method === 'POST') {
+        const submitted = JSON.parse(String(options.body)) as Record<string, unknown>;
+        savedPolicy = {
+          ...submitted,
+          id: 'saved-cancellation-policy',
+          organizationId: '11111111-1111-4111-8111-111111111111',
+          scopeEntityId: '11111111-1111-4111-8111-111111111111',
+          freeCancelHoursBefore: submitted.id ? submitted.freeCancelHoursBefore : 96,
+        };
+        return { ok: true, policy: savedPolicy };
+      }
+      return {
+        ok: true,
+        cancellationPolicies: savedPolicy ? [savedPolicy] : [],
+        reschedulePolicies: [],
+      };
+    });
+
+    render(<BookingPoliciesSection defaultKind="cancellation" lockKind />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Сохранить отмену' }));
+    await waitFor(() => expect(screen.getByRole('spinbutton')).toHaveValue(96));
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '48' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить отмену' }));
+
+    await waitFor(() => {
+      const posts = fakes.apiJson.mock.calls.filter((call) => call[1]?.method === 'POST');
+      expect(posts).toHaveLength(2);
+      expect(JSON.parse(String(posts[1]?.[1]?.body))).toMatchObject({
+        id: 'saved-cancellation-policy',
+        kind: 'cancellation',
+        freeCancelHoursBefore: 48,
+      });
+    });
   });
 });
