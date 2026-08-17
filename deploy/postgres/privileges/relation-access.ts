@@ -7451,13 +7451,18 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "additional_seat_quantity",
           "amount_minor",
+          "created_at",
           "currency",
           "description",
           "expires_at",
+          "id",
           "invoice_kind",
           "organization_id",
+          "paid_at",
+          "provider_checkout_url",
           "provider_id",
           "provider_idempotency_key",
+          "provider_invoice_ref",
           "saas_billing_account_id",
           "saas_billing_subscription_id",
           "service_period_ends_at",
@@ -7466,7 +7471,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "tariff_billing_period",
           "tariff_id",
           "tariff_name",
-          "tariff_snapshot"
+          "tariff_snapshot",
+          "updated_at"
         ]
       },
       {
