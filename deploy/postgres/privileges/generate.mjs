@@ -36,6 +36,16 @@ export const GENERATOR_VERSION = 1;
 /** Канонический порядок привилегий (стабильный дифф). */
 const PRIV_ORDER = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
 const MANAGED_APPLICATION_SCHEMAS = ['public', 'app', 'integrator', 'app_ext', 'app_control', 'drizzle'];
+const SPECIAL_BODY_RELATION_SURFACE_CONTRACTS = Object.freeze({
+  'app_control.enforce_relation_birth_wall()': 'relation-birth-wall',
+  'app.install_port_context(uuid,app.port_context_claims)': 'port-context',
+  'app.clear_port_context()': 'port-context',
+  'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': 'port-context',
+  'app.current_org_id()': 'port-context',
+  'app.current_actor_user_id()': 'port-context',
+  'app.current_patient_user_id()': 'port-context',
+  'app.current_integrator_user_id()': 'port-context',
+});
 
 /** Ошибка «декларация неполна» — несёт перечень мест. */
 export class DeclarationGapError extends Error {
@@ -712,6 +722,12 @@ export function collectGaps(declaration, dbName) {
 
   const context = declaration.portContext;
   if (context) {
+    for (const [signature, expectedContract] of Object.entries(SPECIAL_BODY_RELATION_SURFACE_CONTRACTS)) {
+      if (context.functions[signature]?.bodyRelationSurfaceContract !== expectedContract) {
+        add(`portContext.functions.${signature}.bodyRelationSurfaceContract`,
+          `exact special contract must be '${expectedContract}'`);
+      }
+    }
     for (const [name, relation] of Object.entries(context.privateRelations)) {
       if (!known(relation.owner)) add(`portContext.privateRelations.${name}`, `неизвестный владелец '${relation.owner}'`);
       if (relation.columns.length === 0) add(`portContext.privateRelations.${name}`, 'private relation has no exact columns');
@@ -743,6 +759,16 @@ export function collectGaps(declaration, dbName) {
       }
       if (fn.invocation === 'trigger' && fn.execute.length !== 0) {
         add(`portContext.functions.${signature}.execute`, 'trigger root must not have a runtime EXECUTE grantee');
+      }
+      if (fn.bodyRelationSurfaceContract && (fn.security !== 'DEFINER'
+        || (fn.relationSurfaces?.length ?? 0) > 0 || (fn.delegatesTo?.length ?? 0) > 0)) {
+        add(`portContext.functions.${signature}.bodyRelationSurfaceContract`,
+          'special body relation contract is only valid for a DEFINER without ordinary surfaces or delegates');
+      }
+      if (fn.bodyRelationSurfaceContract
+        && SPECIAL_BODY_RELATION_SURFACE_CONTRACTS[signature] !== fn.bodyRelationSurfaceContract) {
+        add(`portContext.functions.${signature}.bodyRelationSurfaceContract`,
+          'function is not in the exact special body relation contract allowlist');
       }
       for (const [index, surface] of (fn.relationSurfaces ?? []).entries()) {
         const ssite = `portContext.functions.${signature}.relationSurfaces[${index}]`;
@@ -1417,6 +1443,9 @@ function generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions) {
 
 function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
   const functionRows = databaseFunctions.map(([signature]) => `  (${lit(signature)})`);
+  const specialContractRows = databaseFunctions
+    .filter(([, fn]) => fn.bodyRelationSurfaceContract)
+    .map(([signature, fn]) => `  (${lit(signature)}, ${lit(fn.bodyRelationSurfaceContract)})`);
   const rows = databaseFunctions.flatMap(([signature, fn]) =>
     (fn.relationSurfaces ?? []).map((surface) =>
       `  (${lit(signature)}, ${lit(surface.relation)}, ARRAY[${surface.columns.map(lit).join(', ')}]::text[], ARRAY[${surface.operations.map(lit).join(', ')}]::text[])`));
@@ -1425,13 +1454,19 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     '-- Function-body relation-operation verifier: the declaration must cover PostgreSQL statement semantics.',
     'CREATE TEMP TABLE bcb_function_surface_functions(signature text PRIMARY KEY) ON COMMIT DROP;',
     'INSERT INTO bcb_function_surface_functions(signature) VALUES', functionRows.join(',\n'), ';',
+    'CREATE TEMP TABLE bcb_function_surface_special_contracts(signature text PRIMARY KEY, contract text NOT NULL) ON COMMIT DROP;',
+    ...(specialContractRows.length > 0 ? [
+      'INSERT INTO bcb_function_surface_special_contracts(signature,contract) VALUES',
+      specialContractRows.join(',\n'),
+      ';',
+    ] : []),
     'CREATE TEMP TABLE bcb_function_relation_surfaces(signature text NOT NULL, relation_name text NOT NULL, columns text[] NOT NULL, operations text[] NOT NULL) ON COMMIT DROP;',
     'INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,operations) VALUES',
     rows.join(',\n'),
     ';',
     'CREATE TEMP TABLE bcb_function_surface_gaps(message text PRIMARY KEY) ON COMMIT DROP;',
     'DO $bcb$',
-    'DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text;',
+    'DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text; actual_select boolean; actual_insert boolean; actual_update boolean; actual_delete boolean;',
     'BEGIN',
     "  IF 'insert into x(id) values (1) on conflict do nothing' ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M' THEN RAISE EXCEPTION 'targetless ON CONFLICT DO NOTHING was classified as requiring SELECT'; END IF;",
     "  IF NOT ('insert into x(id) values (1) on conflict (id) do nothing' ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M') THEN RAISE EXCEPTION 'indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;",
@@ -1439,9 +1474,9 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     '  FOR function_row IN SELECT * FROM bcb_function_surface_functions ORDER BY signature LOOP',
     '    SELECT pg_catalog.lower(p.prosrc) INTO source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(function_row.signature);',
     "    IF source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body surface target missing: '||function_row.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;",
-    "    FOR relation_row IN SELECT 'public.'||c.relname AS relation_name FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f') ORDER BY c.relname LOOP",
+    `    FOR relation_row IN SELECT n.nspname||'.'||c.relname AS relation_name FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN (${MANAGED_APPLICATION_SCHEMAS.map(lit).join(', ')}) AND c.relkind IN ('r','p','v','m','f') ORDER BY n.nspname,c.relname LOOP`,
     "      relation_pattern := pg_catalog.replace(relation_row.relation_name, '.', '\\.');",
-    "      IF (source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M') OR source ~ ('\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mselect\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mfrom\\M[^;]*,[[:space:]]*'||relation_pattern||'\\M') OR source ~ ('\\m(join|using)[[:space:]]+'||relation_pattern||'\\M')) AND NOT EXISTS (SELECT 1 FROM bcb_function_relation_surfaces declared WHERE declared.signature=function_row.signature AND declared.relation_name=relation_row.relation_name) THEN",
+    "      IF (source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M') OR source ~ ('\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\m(select|perform)\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mupdate\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mdelete\\M[^;]*\\musing[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mfrom\\M[^;]*,[[:space:]]*'||relation_pattern||'\\M') OR source ~ ('\\mjoin[[:space:]]+'||relation_pattern||'\\M')) AND NOT EXISTS (SELECT 1 FROM bcb_function_relation_surfaces declared WHERE declared.signature=function_row.signature AND declared.relation_name=relation_row.relation_name) AND NOT EXISTS (SELECT 1 FROM bcb_function_surface_special_contracts special WHERE special.signature=function_row.signature) THEN",
     "        INSERT INTO bcb_function_surface_gaps VALUES ('function body relation surface absent: '||function_row.signature||' -> '||relation_row.relation_name) ON CONFLICT DO NOTHING;",
     '      END IF;',
     '    END LOOP;',
@@ -1451,10 +1486,14 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     "    IF source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body surface target missing: '||surface.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;",
     "    relation_pattern := pg_catalog.replace(surface.relation_name, '.', '\\.');",
     "    column_pattern := pg_catalog.array_to_string(surface.columns, '|');",
+    "    actual_insert := source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M');",
+    "    actual_update := source ~ ('\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M') OR source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M[^;]*\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M');",
+    "    actual_delete := source ~ ('\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M');",
+    "    actual_select := source ~ ('\\m(select|perform)\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mupdate\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mdelete\\M[^;]*\\musing[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mfrom\\M[^;]*,[[:space:]]*'||relation_pattern||'\\M') OR source ~ ('\\mjoin[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M[^;]*(\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M|\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M|\\mreturning\\M)') OR source ~ ('\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M[^;]*\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M') OR source ~ ('\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M[^;]*\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M');",
     "    IF source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M') AND NOT ('INSERT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared INSERT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    IF source ~ ('\\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\\M') AND NOT ('UPDATE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared UPDATE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    IF source ~ ('\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M') AND NOT ('DELETE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared DELETE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
-    "    IF (source ~ ('\\mselect\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mfrom\\M[^;]*,[[:space:]]*'||relation_pattern||'\\M') OR source ~ ('\\m(join|using)[[:space:]]+'||relation_pattern||'\\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
+    "    IF (source ~ ('\\m(select|perform)\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mupdate\\M[^;]*\\mfrom[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mdelete\\M[^;]*\\musing[[:space:]]+'||relation_pattern||'\\M') OR source ~ ('\\mfrom\\M[^;]*,[[:space:]]*'||relation_pattern||'\\M') OR source ~ ('\\mjoin[[:space:]]+'||relation_pattern||'\\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    mutation := (pg_catalog.regexp_match(source, '(\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M[^;]*)'))[1];",
     "    IF mutation ~ '\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M' AND NOT ('UPDATE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('ON CONFLICT DO UPDATE requires undeclared UPDATE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    IF mutation ~ '\\mon[[:space:]]+conflict\\M[^;]*\\mdo[[:space:]]+update\\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('ON CONFLICT DO UPDATE requires undeclared SELECT for conflict/update row: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
@@ -1464,10 +1503,14 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     "    IF (mutation ~ '\\mreturning[[:space:]]+[*]' OR mutation ~ ('\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('UPDATE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    mutation := (pg_catalog.regexp_match(source, '(\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M[^;]*)'))[1];",
     "    IF (mutation ~ '\\mreturning[[:space:]]+[*]' OR mutation ~ ('\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('DELETE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
+    "    IF 'SELECT'=ANY(surface.operations) AND NOT actual_select THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared SELECT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
+    "    IF 'INSERT'=ANY(surface.operations) AND NOT actual_insert THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared INSERT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
+    "    IF 'UPDATE'=ANY(surface.operations) AND NOT actual_update THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared UPDATE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
+    "    IF 'DELETE'=ANY(surface.operations) AND NOT actual_delete THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared DELETE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     '  END LOOP;',
     "  SELECT pg_catalog.string_agg(message, E'\\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;",
     "  IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;",
-    `  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=${rows.length}';`,
+    `  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=${databaseFunctions.length} rows=${rows.length} special_contracts=${specialContractRows.length}';`,
     'END',
     '$bcb$;',
     '',
@@ -1529,7 +1572,9 @@ export function generateFunctionCensusSql(declaration, dbName, options = {}) {
     out.push('-- Target-only reconcile: shared seam-owner memberships are verified, not mutated.', '');
   }
   out.push(generateRuntimeDefinerGateSql(declaration, dbName, databaseFunctions));
-  out.push(generateFunctionBodySurfaceVerifySql(databaseFunctions));
+  out.push(generateFunctionBodySurfaceVerifySql(
+    databaseFunctions.filter(([, fn]) => fn.security === 'DEFINER'),
+  ));
   for (const [signature, fn] of databaseFunctions) {
     out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
     out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);

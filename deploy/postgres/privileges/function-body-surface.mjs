@@ -1,25 +1,70 @@
 import fs from 'node:fs';
 
 const OPERATION_ORDER = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+const RELATION_SCHEMAS = ['app', 'app_ext', 'integrator', 'public'];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const stripSqlComments = (sql) => sql
-  .replace(/\/\*[\s\S]*?\*\//g, ' ')
-  .replace(/--[^\n]*/g, ' ');
+const stripSqlComments = (sql) => {
+  let output = '';
+  let index = 0;
+  while (index < sql.length) {
+    const quote = sql[index];
+    if (quote === "'" || quote === '"') {
+      const start = index;
+      index += 1;
+      while (index < sql.length) {
+        if (sql[index] === quote && sql[index + 1] === quote) { index += 2; continue; }
+        if (sql[index] === quote) { index += 1; break; }
+        index += 1;
+      }
+      output += sql.slice(start, index);
+      continue;
+    }
+    const dollar = sql.slice(index).match(/^\$[a-z_0-9]*\$/i);
+    if (dollar) {
+      const close = sql.indexOf(dollar[0], index + dollar[0].length);
+      const end = close < 0 ? index + dollar[0].length : close + dollar[0].length;
+      output += sql.slice(index, end);
+      index = end;
+      continue;
+    }
+    if (sql.startsWith('--', index)) {
+      const newline = sql.indexOf('\n', index + 2);
+      index = newline < 0 ? sql.length : newline;
+      output += ' ';
+      continue;
+    }
+    if (sql.startsWith('/*', index)) {
+      const close = sql.indexOf('*/', index + 2);
+      index = close < 0 ? sql.length : close + 2;
+      output += ' ';
+      continue;
+    }
+    output += sql[index];
+    index += 1;
+  }
+  return output;
+};
 
 export function parseExecutableFunctions(sql) {
   const functions = [];
-  const pattern = /create\s+or\s+replace\s+function\s+(app\.[a-z_][a-z0-9_]*)\s*\([\s\S]*?\)\s*returns\s+[\s\S]*?\bas\s+\$function\$([\s\S]*?)\$function\$\s*;/gi;
+  const pattern = /create\s+(?:or\s+replace\s+)?function\s+((?:app|app_ext|integrator|public)\.[a-z_][a-z0-9_]*)\s*\([\s\S]*?\)\s*([\s\S]*?)\bas\s+(\$[a-z_][a-z0-9_]*\$|\$\$)([\s\S]*?)\3\s*;/gi;
   for (const match of sql.matchAll(pattern)) {
-    functions.push({ name: match[1].toLowerCase(), body: stripSqlComments(match[2]).toLowerCase() });
+    functions.push({
+      name: match[1].toLowerCase(),
+      securityDefiner: /\bsecurity\s+definer\b/i.test(match[2]),
+      body: stripSqlComments(match[4]).toLowerCase(),
+    });
   }
   return functions;
 }
 
-export function extractPublicRelationOperations(body) {
-  const relationNames = [...new Set([...body.matchAll(/\bpublic\.([a-z_][a-z0-9_]*)\b/g)]
-    .map((match) => `public.${match[1]}`))].sort();
+export function extractRelationOperations(body) {
+  const schemaPattern = RELATION_SCHEMAS.join('|');
+  const relationNames = [...new Set([...body.matchAll(
+    new RegExp(`\\b(${schemaPattern})\\.([a-z_][a-z0-9_]*)\\b`, 'g'),
+  )].map((match) => `${match[1]}.${match[2]}`))].sort();
   const result = new Map();
 
   for (const relation of relationNames) {
@@ -65,8 +110,19 @@ export function extractPublicRelationOperations(body) {
   return result;
 }
 
+export const extractPublicRelationOperations = extractRelationOperations;
+
 export function currentPatientArtifactFunctions(paths) {
   return paths.flatMap((file) => parseExecutableFunctions(fs.readFileSync(file, 'utf8')));
+}
+
+/** Latest active B0-forward definition for every function name in migration order. */
+export function latestArtifactFunctions(paths) {
+  const latest = new Map();
+  for (const file of paths) {
+    for (const fn of parseExecutableFunctions(fs.readFileSync(file, 'utf8'))) latest.set(fn.name, fn);
+  }
+  return [...latest.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function compareFunctionSurfaces(functions, declaredFunctions) {
@@ -79,7 +135,7 @@ export function compareFunctionSurfaces(functions, declaredFunctions) {
       continue;
     }
     const [signature, declaration] = candidates[0];
-    const actual = extractPublicRelationOperations(fn.body);
+    const actual = extractRelationOperations(fn.body);
     const declared = new Map((declaration.relationSurfaces ?? [])
       .map((surface) => [surface.relation, [...surface.operations].sort()]));
     for (const relation of [...new Set([...actual.keys(), ...declared.keys()])].sort()) {

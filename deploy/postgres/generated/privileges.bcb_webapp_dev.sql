@@ -2333,8 +2333,6 @@ END $bcb$;
 CREATE TEMP TABLE bcb_function_surface_functions(signature text PRIMARY KEY) ON COMMIT DROP;
 INSERT INTO bcb_function_surface_functions(signature) VALUES
   ('app_control.enforce_relation_birth_wall()'),
-  ('app_ext.digest(text,text)'),
-  ('app_ext.hmac(text,text,text)'),
   ('app_ext.resolve_variant_a_identity(uuid)'),
   ('app_ext.resolve_variant_a_physical(uuid)'),
   ('app.abort_patient_program_submission_media(uuid)'),
@@ -2351,8 +2349,6 @@ INSERT INTO bcb_function_surface_functions(signature) VALUES
   ('app.apply_paid_saas_billing_tariff(uuid,uuid)'),
   ('app.apply_specialist_task_reminder_success_outcome(uuid)'),
   ('app.archive_operator_health_failures(text,integer,uuid)'),
-  ('app.assert_organization_slug_alias_complete()'),
-  ('app.assert_organization_slug_rename_complete()'),
   ('app.auth_channel_binding_session(text,text)'),
   ('app.auth_channel_link_lock_unused_secret(uuid)'),
   ('app.auth_channel_link_mark_secret_used_if_unused(uuid)'),
@@ -2435,7 +2431,6 @@ INSERT INTO bcb_function_surface_functions(signature) VALUES
   ('app.email_password_find_reset_candidate(text)'),
   ('app.email_password_find_user_id_by_email_challenge(uuid)'),
   ('app.email_password_register_pending(text,text,text,text,text,text)'),
-  ('app.enforce_lfk_child_owner()'),
   ('app.enqueue_current_reminder_rule_push(text)'),
   ('app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)'),
   ('app.enqueue_media_transcode_job_core(uuid)'),
@@ -2458,11 +2453,6 @@ INSERT INTO bcb_function_surface_functions(signature) VALUES
   ('app.get_staff_security_profile()'),
   ('app.get_staff_security_session_state()'),
   ('app.get_web_push_vapid_public_key()'),
-  ('app.guard_clinic_directory_current_slug()'),
-  ('app.guard_org_brand_revision()'),
-  ('app.guard_organization_slug_claim_mutation()'),
-  ('app.guard_organization_slug_rename_event_mutation()'),
-  ('app.hash_port_typed_args(app.port_typed_arg[])'),
   ('app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)'),
   ('app.install_port_context(uuid,app.port_context_claims)'),
   ('app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)'),
@@ -2476,7 +2466,6 @@ INSERT INTO bcb_function_surface_functions(signature) VALUES
   ('app.is_platform_registration_analytics_user_excluded(uuid)'),
   ('app.is_sms_provider_configured()'),
   ('app.is_smtp_outbound_configured()'),
-  ('app.is_staff()'),
   ('app.is_telegram_login_configured()'),
   ('app.list_active_booking_cities()'),
   ('app.list_active_canonical_appointments_by_phone(text)'),
@@ -2638,7 +2627,6 @@ INSERT INTO bcb_function_surface_functions(signature) VALUES
   ('app.record_saas_isolation_coverage(uuid,text,timestamp with time zone,timestamp with time zone,text[],integer,integer)'),
   ('app.redeem_patient_invite_email(text)'),
   ('app.refresh_specialist_task_reminder_materialization(text)'),
-  ('app.reject_staff_commercial_organization_update()'),
   ('app.release_integrator_idempotency(text)'),
   ('app.remove_all_current_patient_web_push_subscriptions()'),
   ('app.remove_current_patient_web_push_subscription(text)'),
@@ -2709,11 +2697,18 @@ INSERT INTO bcb_function_surface_functions(signature) VALUES
   ('app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)'),
   ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)'),
   ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)'),
-  ('public.audit_app_runtime_settings_change()'),
-  ('public.media_folders_enforce_depth()'),
-  ('public.media_folders_prevent_cycle()'),
-  ('public.sync_registered_app_runtime_setting()'),
-  ('public.system_settings_test_lock_guard()')
+  ('public.audit_app_runtime_settings_change()')
+;
+CREATE TEMP TABLE bcb_function_surface_special_contracts(signature text PRIMARY KEY, contract text NOT NULL) ON COMMIT DROP;
+INSERT INTO bcb_function_surface_special_contracts(signature,contract) VALUES
+  ('app_control.enforce_relation_birth_wall()', 'relation-birth-wall'),
+  ('app.clear_port_context()', 'port-context'),
+  ('app.current_actor_user_id()', 'port-context'),
+  ('app.current_integrator_user_id()', 'port-context'),
+  ('app.current_org_id()', 'port-context'),
+  ('app.current_patient_user_id()', 'port-context'),
+  ('app.install_port_context(uuid,app.port_context_claims)', 'port-context'),
+  ('app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)', 'port-context')
 ;
 CREATE TEMP TABLE bcb_function_relation_surfaces(signature text NOT NULL, relation_name text NOT NULL, columns text[] NOT NULL, operations text[] NOT NULL) ON COMMIT DROP;
 INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,operations) VALUES
@@ -2759,11 +2754,11 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.apply_paid_saas_billing_tariff(uuid,uuid)', 'public.saas_organization_trials', ARRAY['id', 'organization_id', 'tariff_id', 'status', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'kind', 'payload_json', 'status', 'sent_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_specialist_task_reminder_success_outcome(uuid)', 'public.specialist_tasks', ARRAY['id', 'reminder_sent_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'organization_id', 'status', 'failure_class', 'kind', 'channel', 'payload_json', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'UPDATE', 'DELETE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['id', 'organization_id', 'status', 'failure_class', 'kind', 'channel', 'payload_json', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.broadcast_audit', ARRAY['id', 'organization_id', 'actor_id', 'message_title']::text[], ARRAY['SELECT']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.platform_users', ARRAY['id', 'display_name', 'first_name', 'last_name', 'phone_normalized']::text[], ARRAY['SELECT']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.integrator_push_outbox', ARRAY['id', 'kind', 'status', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'UPDATE', 'DELETE']::text[]),
-  ('app.archive_operator_health_failures(text,integer,uuid)', 'integrator.projection_outbox', ARRAY['id', 'event_type', 'idempotency_key', 'status', 'attempts_done', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'UPDATE', 'DELETE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'public.integrator_push_outbox', ARRAY['id', 'kind', 'status', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.archive_operator_health_failures(text,integer,uuid)', 'integrator.projection_outbox', ARRAY['id', 'event_type', 'idempotency_key', 'status', 'attempts_done', 'last_error', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
   ('app.archive_operator_health_failures(text,integer,uuid)', 'public.operator_health_failure_archive', ARRAY['organization_id', 'archived_by_user_id', 'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json', 'raw_error_truncated']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.auth_channel_binding_session(text,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code', 'external_id']::text[], ARRAY['SELECT']::text[]),
   ('app.auth_channel_binding_session(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
@@ -2828,7 +2823,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.create_current_patient_booking_appointments(text)', 'public.be_branches', ARRAY['id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
   ('app.create_current_patient_booking_appointments(text)', 'public.be_clinic_services', ARRAY['id', 'organization_id', 'is_active', 'public_widget_visible', 'admin_manual_only']::text[], ARRAY['SELECT']::text[]),
   ('app.create_current_patient_booking_appointments(text)', 'public.patient_specialist_links', ARRAY['organization_id', 'patient_user_id', 'specialist_id', 'status', 'created_via']::text[], ARRAY['INSERT']::text[]),
-  ('app.create_current_patient_booking_appointments(text)', 'public.be_appointments', ARRAY['id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id', 'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized', 'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id', 'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at']::text[], ARRAY['INSERT']::text[]),
+  ('app.create_current_patient_booking_appointments(text)', 'public.be_appointments', ARRAY['id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id', 'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized', 'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id', 'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.create_current_patient_booking_appointments(text)', 'public.be_appointment_history_events', ARRAY['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at']::text[], ARRAY['INSERT']::text[]),
   ('app.create_current_patient_booking_appointments(text)', 'public.be_patient_timeline_events', ARRAY['organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type', 'linked_object_id', 'payload', 'occurred_at']::text[], ARRAY['INSERT']::text[]),
   ('app.create_current_patient_booking_pending(text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
@@ -2869,7 +2864,6 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.email_auth_find_email_challenge_for_confirm(uuid,uuid)', 'public.email_challenges', ARRAY['id', 'user_id', 'email', 'code_hash', 'expires_at', 'attempts', 'purpose']::text[], ARRAY['SELECT']::text[]),
   ('app.email_auth_find_email_challenge_for_consume(uuid,uuid)', 'public.email_challenges', ARRAY['id', 'user_id', 'code_hash', 'expires_at', 'attempts', 'purpose']::text[], ARRAY['SELECT']::text[]),
   ('app.email_auth_find_email_otp_lock(uuid)', 'public.email_otp_locks', ARRAY['user_id', 'locked_until']::text[], ARRAY['SELECT']::text[]),
-  ('app.email_auth_find_email_owner_conflict(uuid,text)', 'public.platform_users', ARRAY['id', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT']::text[]),
   ('app.email_auth_find_email_send_cooldown(uuid,text)', 'public.email_send_cooldowns', ARRAY['user_id', 'email_normalized', 'last_sent_at']::text[], ARRAY['SELECT']::text[]),
   ('app.email_auth_find_latest_email_challenge_for_user(uuid,bigint)', 'public.email_challenges', ARRAY['id', 'user_id', 'code_hash', 'expires_at', 'attempts', 'created_at', 'purpose']::text[], ARRAY['SELECT']::text[]),
   ('app.email_auth_find_latest_pending_email_challenge_for_user(uuid,bigint)', 'public.email_challenges', ARRAY['id', 'user_id', 'email', 'code_hash', 'expires_at', 'attempts', 'created_at', 'purpose']::text[], ARRAY['SELECT']::text[]),
@@ -2905,6 +2899,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'organization_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.enqueue_media_transcode_job_core(uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'mime_type', 's3_key', 'status', 'hls_master_playlist_s3_key', 'video_processing_status', 'video_processing_error']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.enqueue_media_transcode_job_core(uuid)', 'public.media_transcode_jobs', ARRAY['id', 'media_id', 'organization_id', 'status', 'attempts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.enqueue_media_transcode_job_for_staff(uuid)', 'public.media_files', ARRAY['id']::text[], ARRAY['SELECT']::text[]),
   ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
   ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
@@ -3028,30 +3023,19 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.password_login_acquire_impl(text,text,uuid,text)', 'public.password_login_identifier_protection', ARRAY['identifier_key', 'failed_attempts', 'next_allowed_at', 'locked_until', 'verification_lease_token', 'verification_lease_until', 'leased_user_id', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
   ('app.password_login_acquire_impl(text,text,uuid,text)', 'public.platform_users', ARRAY['id', 'updated_at', 'email', 'email_verified_at', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT']::text[]),
   ('app.password_login_acquire_impl(text,text,uuid,text)', 'public.user_password_credentials', ARRAY['user_id', 'password_hash', 'updated_at', 'failed_attempts', 'locked_until', 'next_allowed_at', 'verification_lease_token', 'verification_lease_until']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.password_login_acquire(text,text,uuid,text)', 'public.password_altcha_challenges', ARRAY['challenge_id', 'identifier_key', 'purpose', 'challenge_digest', 'expires_at', 'consumed_at']::text[], ARRAY['SELECT', 'UPDATE', 'DELETE']::text[]),
-  ('app.password_login_acquire(text,text,uuid,text)', 'public.password_login_identifier_protection', ARRAY['identifier_key', 'failed_attempts', 'next_allowed_at', 'locked_until', 'verification_lease_token', 'verification_lease_until', 'leased_user_id', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.password_login_acquire(text,text,uuid,text)', 'public.platform_users', ARRAY['id', 'updated_at', 'email', 'email_verified_at', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT']::text[]),
-  ('app.password_login_acquire(text,text,uuid,text)', 'public.user_password_credentials', ARRAY['user_id', 'password_hash', 'updated_at', 'failed_attempts', 'locked_until', 'next_allowed_at', 'verification_lease_token', 'verification_lease_until']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.password_login_complete_impl(uuid,boolean)', 'public.password_login_identifier_protection', ARRAY['identifier_key', 'failed_attempts', 'next_allowed_at', 'locked_until', 'verification_lease_token', 'verification_lease_until', 'leased_user_id', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.password_login_complete_impl(uuid,boolean)', 'public.platform_users', ARRAY['id', 'updated_at', 'email_verified_at', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
   ('app.password_login_complete_impl(uuid,boolean)', 'public.user_password_credentials', ARRAY['user_id', 'updated_at', 'failed_attempts', 'locked_until', 'next_allowed_at', 'verification_lease_token', 'verification_lease_until']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.password_login_complete(uuid,boolean)', 'public.password_login_identifier_protection', ARRAY['identifier_key', 'failed_attempts', 'next_allowed_at', 'locked_until', 'verification_lease_token', 'verification_lease_until', 'leased_user_id', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.password_login_complete(uuid,boolean)', 'public.platform_users', ARRAY['id', 'updated_at', 'email_verified_at', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
-  ('app.password_login_complete(uuid,boolean)', 'public.user_password_credentials', ARRAY['user_id', 'updated_at', 'failed_attempts', 'locked_until', 'next_allowed_at', 'verification_lease_token', 'verification_lease_until']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.password_altcha_challenges', ARRAY['challenge_id', 'identifier_key', 'purpose', 'challenge_digest', 'expires_at', 'consumed_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.password_login_identifier_protection', ARRAY['identifier_key', 'failed_attempts', 'locked_until']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.platform_users', ARRAY['id', 'email', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT']::text[]),
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.user_password_credentials', ARRAY['user_id', 'failed_attempts', 'locked_until']::text[], ARRAY['SELECT']::text[]),
-  ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)', 'public.password_altcha_challenges', ARRAY['challenge_id', 'identifier_key', 'purpose', 'challenge_digest', 'expires_at', 'consumed_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
-  ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)', 'public.password_login_identifier_protection', ARRAY['identifier_key', 'failed_attempts', 'locked_until']::text[], ARRAY['SELECT', 'INSERT']::text[]),
-  ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)', 'public.platform_users', ARRAY['id', 'email', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT']::text[]),
-  ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)', 'public.user_password_credentials', ARRAY['user_id', 'failed_attempts', 'locked_until']::text[], ARRAY['SELECT']::text[]),
   ('app.password_login_read_altcha_secret_impl()', 'public.system_settings', ARRAY['key', 'scope', 'value_json', 'organization_id']::text[], ARRAY['SELECT']::text[]),
-  ('app.password_login_read_altcha_secret()', 'public.system_settings', ARRAY['key', 'scope', 'value_json', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.patch_current_patient_booking_notifications(uuid,text,text)', 'public.be_appointments', ARRAY['id', 'organization_id', 'platform_user_id', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.patch_current_patient_booking_notifications(uuid,text,text)', 'public.be_appointment_reschedules', ARRAY['id', 'organization_id', 'appointment_id', 'created_at', 'notifications_sent']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.patch_current_patient_booking_notifications(uuid,text,text)', 'public.be_appointment_cancellations', ARRAY['id', 'organization_id', 'appointment_id', 'created_at', 'notifications_sent']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.patient_cancel_pending_reminder_occurrences(text)', 'integrator.user_reminder_occurrences', ARRAY['rule_id', 'status', 'organization_id', 'platform_user_id']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.patient_cancel_pending_reminder_occurrences(text)', 'public.reminder_rules', ARRAY['integrator_rule_id', 'organization_id', 'platform_user_id']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_disable_reminder_messenger_topic(text,text)', 'public.org_enrollments', ARRAY['id', 'organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_disable_reminder_messenger_topic(text,text)', 'public.platform_users', ARRAY['id', 'updated_at', 'integrator_user_id', 'email', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_disable_reminder_messenger_topic(text,text)', 'public.reminder_occurrence_history', ARRAY['id', 'integrator_occurrence_id', 'integrator_rule_id', 'integrator_user_id', 'category', 'status', 'organization_id', 'platform_user_id']::text[], ARRAY['SELECT']::text[]),
@@ -3118,7 +3102,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.prepare_organization_lifecycle_notification_context(uuid)', 'public.saas_organization_trials', ARRAY['id', 'organization_id', 'started_at', 'ends_at', 'updated_at', 'discount_ends_at']::text[], ARRAY['SELECT']::text[]),
   ('app.propagate_staff_session_version_to_session_epoch()', 'public.platform_users', ARRAY['id', 'updated_at', 'session_epoch']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.provision_specialist_owner(uuid)', 'public.be_organization_members', ARRAY['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.provision_specialist_owner(uuid)', 'public.be_organizations', ARRAY['id', 'title', 'is_active', 'sort_order', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.provision_specialist_owner(uuid)', 'public.be_organizations', ARRAY['id', 'title', 'is_active', 'sort_order', 'created_at', 'updated_at']::text[], ARRAY['INSERT']::text[]),
   ('app.provision_specialist_owner(uuid)', 'public.be_specialists', ARRAY['id', 'organization_id', 'full_name', 'is_active', 'sort_order', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.provision_specialist_owner(uuid)', 'public.clinic_public_directory_entries', ARRAY['organization_id', 'slug', 'display_name', 'is_published', 'published_at', 'created_at', 'updated_at']::text[], ARRAY['INSERT']::text[]),
   ('app.provision_specialist_owner(uuid)', 'public.organization_slug_claims', ARRAY['id', 'slug', 'kind', 'organization_id', 'created_by_platform_user_id', 'created_at', 'updated_at']::text[], ARRAY['INSERT']::text[]),
@@ -3223,6 +3207,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.read_current_patient_organization_entitlements()', 'public.saas_billing_subscriptions', ARRAY['id', 'organization_id', 'tariff_id', 'status', 'current_period_ends_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_organization_entitlements()', 'public.saas_org_entitlement_overrides', ARRAY['id', 'organization_id', 'mechanic', 'enabled', 'seat_limit_override', 'quota', 'expires_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_organization_entitlements()', 'public.saas_organization_trials', ARRAY['id', 'organization_id', 'tariff_id', 'ends_at', 'post_trial_behavior', 'post_trial_tariff_id', 'status', 'created_by']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_organization_entitlements()', 'public.saas_paid_period_policy', ARRAY['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_staff_notification_profiles(uuid,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_staff_notification_profiles(uuid,text)', 'public.be_organization_members', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_staff_notification_profiles(uuid,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
@@ -3507,8 +3492,8 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.touch_current_patient_support_conversation_activity(uuid)', 'public.support_conversation_messages', ARRAY['id', 'conversation_id', 'sender_role', 'text', 'source', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.touch_current_patient_support_conversation_activity(uuid)', 'public.support_conversations', ARRAY['id', 'platform_user_id', 'source', 'admin_scope', 'status', 'last_message_at', 'closed_at', 'updated_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.try_acquire_integrator_idempotency(text,integer)', 'integrator.idempotency_keys', ARRAY['key', 'request_hash', 'status', 'response_body', 'expires_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.update_current_patient_fio(text,text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
-  ('app.update_current_patient_fio(text,text,text)', 'public.user_identity', ARRAY['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
+  ('app.update_current_patient_fio(text,text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.update_current_patient_fio(text,text,text)', 'public.user_identity', ARRAY['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.update_current_patient_fio(text,text,text)', 'public.admin_audit_log', ARRAY['organization_id', 'actor_id', 'action', 'target_id', 'details']::text[], ARRAY['INSERT']::text[]),
   ('app.update_current_patient_practice_completion_feeling(uuid,integer)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.update_current_patient_reminder_rule(text,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -3535,7 +3520,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
 ;
 CREATE TEMP TABLE bcb_function_surface_gaps(message text PRIMARY KEY) ON COMMIT DROP;
 DO $bcb$
-DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text;
+DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text; actual_select boolean; actual_insert boolean; actual_update boolean; actual_delete boolean;
 BEGIN
   IF 'insert into x(id) values (1) on conflict do nothing' ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M' THEN RAISE EXCEPTION 'targetless ON CONFLICT DO NOTHING was classified as requiring SELECT'; END IF;
   IF NOT ('insert into x(id) values (1) on conflict (id) do nothing' ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M') THEN RAISE EXCEPTION 'indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;
@@ -3543,9 +3528,9 @@ BEGIN
   FOR function_row IN SELECT * FROM bcb_function_surface_functions ORDER BY signature LOOP
     SELECT pg_catalog.lower(p.prosrc) INTO source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(function_row.signature);
     IF source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body surface target missing: '||function_row.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;
-    FOR relation_row IN SELECT 'public.'||c.relname AS relation_name FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f') ORDER BY c.relname LOOP
+    FOR relation_row IN SELECT n.nspname||'.'||c.relname AS relation_name FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'app_control', 'drizzle') AND c.relkind IN ('r','p','v','m','f') ORDER BY n.nspname,c.relname LOOP
       relation_pattern := pg_catalog.replace(relation_row.relation_name, '.', '\.');
-      IF (source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') OR source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mselect\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M') OR source ~ ('\m(join|using)[[:space:]]+'||relation_pattern||'\M')) AND NOT EXISTS (SELECT 1 FROM bcb_function_relation_surfaces declared WHERE declared.signature=function_row.signature AND declared.relation_name=relation_row.relation_name) THEN
+      IF (source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') OR source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\m(select|perform)\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mupdate\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mdelete\M[^;]*\musing[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M') OR source ~ ('\mjoin[[:space:]]+'||relation_pattern||'\M')) AND NOT EXISTS (SELECT 1 FROM bcb_function_relation_surfaces declared WHERE declared.signature=function_row.signature AND declared.relation_name=relation_row.relation_name) AND NOT EXISTS (SELECT 1 FROM bcb_function_surface_special_contracts special WHERE special.signature=function_row.signature) THEN
         INSERT INTO bcb_function_surface_gaps VALUES ('function body relation surface absent: '||function_row.signature||' -> '||relation_row.relation_name) ON CONFLICT DO NOTHING;
       END IF;
     END LOOP;
@@ -3555,10 +3540,14 @@ BEGIN
     IF source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body surface target missing: '||surface.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;
     relation_pattern := pg_catalog.replace(surface.relation_name, '.', '\.');
     column_pattern := pg_catalog.array_to_string(surface.columns, '|');
+    actual_insert := source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M');
+    actual_update := source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') OR source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M[^;]*\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M');
+    actual_delete := source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M');
+    actual_select := source ~ ('\m(select|perform)\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mupdate\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mdelete\M[^;]*\musing[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M') OR source ~ ('\mjoin[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M[^;]*(\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M|\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M|\mreturning\M)') OR source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M[^;]*\m(where|returning)\M[^;]*\m('||column_pattern||')\M') OR source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M[^;]*\m(where|returning)\M[^;]*\m('||column_pattern||')\M');
     IF source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M') AND NOT ('INSERT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared INSERT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     IF source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') AND NOT ('UPDATE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared UPDATE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     IF source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M') AND NOT ('DELETE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared DELETE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
-    IF (source ~ ('\mselect\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M') OR source ~ ('\m(join|using)[[:space:]]+'||relation_pattern||'\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF (source ~ ('\m(select|perform)\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mupdate\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mdelete\M[^;]*\musing[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M') OR source ~ ('\mjoin[[:space:]]+'||relation_pattern||'\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     mutation := (pg_catalog.regexp_match(source, '(\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
     IF mutation ~ '\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M' AND NOT ('UPDATE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('ON CONFLICT DO UPDATE requires undeclared UPDATE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     IF mutation ~ '\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('ON CONFLICT DO UPDATE requires undeclared SELECT for conflict/update row: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
@@ -3568,10 +3557,14 @@ BEGIN
     IF (mutation ~ '\mreturning[[:space:]]+[*]' OR mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('UPDATE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     mutation := (pg_catalog.regexp_match(source, '(\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
     IF (mutation ~ '\mreturning[[:space:]]+[*]' OR mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('DELETE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'SELECT'=ANY(surface.operations) AND NOT actual_select THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared SELECT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'INSERT'=ANY(surface.operations) AND NOT actual_insert THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared INSERT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'UPDATE'=ANY(surface.operations) AND NOT actual_update THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared UPDATE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'DELETE'=ANY(surface.operations) AND NOT actual_delete THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared DELETE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=815';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=366 rows=805 special_contracts=8';
 END
 $bcb$;
 
@@ -9690,7 +9683,6 @@ GRANT UPDATE ("attempts_done", "last_error", "next_try_at", "status", "updated_a
 GRANT SELECT ("attempts_done", "next_try_at", "status", "updated_at") ON TABLE "integrator"."projection_outbox" TO "app_seam_delivery_scope_owner";
 GRANT DELETE ON TABLE "integrator"."projection_outbox" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("attempts_done", "created_at", "event_type", "id", "idempotency_key", "last_error", "status") ON TABLE "integrator"."projection_outbox" TO "app_seam_telemetry_operator_owner";
-GRANT UPDATE ("attempts_done", "created_at", "event_type", "id", "idempotency_key", "last_error", "status") ON TABLE "integrator"."projection_outbox" TO "app_seam_telemetry_operator_owner";
 -- последовательности integrator.projection_outbox: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
@@ -9706,7 +9698,6 @@ BEGIN
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_integrator_request"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_operational_delivery_worker"', s);
-    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_telemetry_operator_owner"', s);
   END LOOP;
 END
 $bcb$;
@@ -10787,7 +10778,6 @@ GRANT SELECT ("id", "is_active") ON TABLE "public"."be_organizations" TO "app_se
 GRANT SELECT ("id", "is_active") ON TABLE "public"."be_organizations" TO "app_seam_public_slug_owner";
 GRANT SELECT ("id", "is_active", "tariff_id", "updated_at") ON TABLE "public"."be_organizations" TO "app_seam_specialist_provision_owner";
 GRANT SELECT ("created_at", "id", "is_active") ON TABLE "public"."be_organizations" TO "app_seam_specialist_provision_owner";
-GRANT SELECT ("created_at", "id", "is_active", "sort_order", "title", "updated_at") ON TABLE "public"."be_organizations" TO "app_seam_specialist_provision_owner";
 GRANT INSERT ("created_at", "id", "is_active", "sort_order", "title", "updated_at") ON TABLE "public"."be_organizations" TO "app_seam_specialist_provision_owner";
 GRANT UPDATE ("id", "is_active", "tariff_id", "updated_at") ON TABLE "public"."be_organizations" TO "app_seam_specialist_provision_owner";
 GRANT SELECT ON TABLE "public"."be_organizations" TO "app_staff";
@@ -13232,7 +13222,6 @@ GRANT INSERT ("attempts_done", "idempotency_key", "kind", "last_error", "next_tr
 GRANT UPDATE ("attempts_done", "idempotency_key", "kind", "last_error", "next_try_at", "payload", "status", "updated_at") ON TABLE "public"."integrator_push_outbox" TO "app_seam_reminder_patient_owner";
 GRANT DELETE ON TABLE "public"."integrator_push_outbox" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("created_at", "id", "kind", "last_error", "status") ON TABLE "public"."integrator_push_outbox" TO "app_seam_telemetry_operator_owner";
-GRANT UPDATE ("created_at", "id", "kind", "last_error", "status") ON TABLE "public"."integrator_push_outbox" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("created_at", "id", "kind", "next_try_at", "status", "updated_at") ON TABLE "public"."integrator_push_outbox" TO "saas_system_health_owner";
 -- последовательности public.integrator_push_outbox: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
@@ -13248,7 +13237,6 @@ BEGIN
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_reminder_patient_owner"', s);
-    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_telemetry_operator_owner"', s);
   END LOOP;
 END
 $bcb$;
@@ -13754,6 +13742,7 @@ GRANT SELECT ("available_qualities_json", "created_at", "display_name", "hls_art
 GRANT SELECT ("id", "organization_id", "status", "uploaded_by", "usage_purpose") ON TABLE "public"."media_files" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT ("id", "mime_type", "organization_id", "status", "uploaded_by", "usage_purpose") ON TABLE "public"."media_files" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT ("hls_master_playlist_s3_key", "id", "mime_type", "organization_id", "s3_key", "status", "video_processing_error", "video_processing_status") ON TABLE "public"."media_files" TO "app_seam_patient_lfk_media_owner";
+GRANT SELECT ("id") ON TABLE "public"."media_files" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT ("created_at", "id", "organization_id", "owner_kind", "preview_md_key", "preview_sm_key", "preview_status") ON TABLE "public"."media_files" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT ("id", "organization_id", "owner_kind", "status") ON TABLE "public"."media_files" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT ("available_qualities_json", "hls_master_playlist_s3_key", "id", "mime_type", "organization_id", "owner_kind", "poster_s3_key", "preview_md_key", "preview_sm_key", "preview_status", "s3_key", "status", "stored_path", "uploaded_by", "usage_purpose", "video_delivery_override", "video_duration_seconds", "video_processing_status") ON TABLE "public"."media_files" TO "app_seam_patient_lfk_media_owner";
@@ -14851,7 +14840,6 @@ GRANT UPDATE ("id", "kind", "last_error", "next_retry_at", "payload_json", "stat
 GRANT DELETE ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("channel", "created_at", "failure_class", "id", "kind", "last_error", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("channel", "event_id", "kind", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
-GRANT UPDATE ("channel", "created_at", "failure_class", "id", "kind", "last_error", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("channel", "created_at", "failure_class", "id", "kind", "next_retry_at", "organization_id", "sent_at", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "saas_system_health_owner";
 GRANT SELECT ("channel", "created_at", "kind", "sent_at", "status") ON TABLE "public"."outgoing_delivery_queue" TO "saas_system_health_owner";
 -- последовательности public.outgoing_delivery_queue: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
@@ -14873,7 +14861,6 @@ BEGIN
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_reminder_appointment_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_reminder_materialization_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_reminder_specialist_owner"', s);
-    EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_seam_telemetry_operator_owner"', s);
   END LOOP;
 END
 $bcb$;
@@ -15845,11 +15832,11 @@ GRANT SELECT ("calendar_timezone", "display_name", "email", "email_verified_at",
 GRANT SELECT ("calendar_timezone", "email", "email_verified_at", "id") ON TABLE "public"."platform_users" TO "app_platform_settings";
 GRANT UPDATE ("calendar_timezone", "updated_at") ON TABLE "public"."platform_users" TO "app_platform_settings";
 GRANT DELETE ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
-GRANT SELECT ("email_normalized", "id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
 GRANT SELECT ("email", "email_normalized", "email_verified_at", "id", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
 GRANT SELECT ("birth_date", "blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "created_at", "display_name", "email", "email_normalized", "email_verified_at", "first_name", "gender", "height_cm", "id", "integrator_user_id", "is_archived", "is_blocked", "last_name", "merged_at", "merged_into_id", "patient_phone_trust_at", "patronymic", "phone_normalized", "reminder_muted_until", "role", "session_epoch", "updated_at", "weight_kg") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
 GRANT SELECT ("email_verified_at", "id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
 GRANT SELECT ("created_at", "display_name", "email", "email_normalized", "id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
+GRANT SELECT ("email_normalized", "id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
 GRANT INSERT ("created_at", "display_name", "email", "email_normalized", "id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
 GRANT INSERT ("birth_date", "blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "created_at", "display_name", "email", "email_normalized", "email_verified_at", "first_name", "gender", "height_cm", "id", "integrator_user_id", "is_archived", "is_blocked", "last_name", "merged_at", "merged_into_id", "patient_phone_trust_at", "patronymic", "phone_normalized", "reminder_muted_until", "role", "session_epoch", "updated_at", "weight_kg") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
 GRANT UPDATE ("email", "email_normalized", "email_verified_at", "id", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_email_otp_owner";
@@ -16691,6 +16678,7 @@ GRANT SELECT ("created_at", "custom_text", "custom_title", "display_title", "id"
 GRANT SELECT ("id", "integrator_rule_id", "is_enabled", "notification_topic_code", "organization_id", "platform_user_id") ON TABLE "public"."reminder_rules" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("created_at", "id", "integrator_rule_id", "is_enabled", "notification_topic_code", "organization_id", "platform_user_id", "updated_at") ON TABLE "public"."reminder_rules" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("category", "custom_text", "custom_title", "days_mask", "display_description", "display_title", "integrator_rule_id", "integrator_user_id", "interval_minutes", "is_enabled", "linked_object_id", "linked_object_type", "notification_topic_code", "organization_id", "platform_user_id", "quiet_hours_end_minute", "quiet_hours_start_minute", "reminder_intent", "schedule_data", "schedule_type", "timezone", "updated_at", "window_end_minute", "window_start_minute") ON TABLE "public"."reminder_rules" TO "app_seam_reminder_patient_owner";
+GRANT SELECT ("integrator_rule_id", "organization_id", "platform_user_id") ON TABLE "public"."reminder_rules" TO "app_seam_reminder_patient_owner";
 GRANT SELECT ("category", "id", "integrator_rule_id", "integrator_user_id", "is_enabled", "linked_object_type", "notification_topic_code", "organization_id", "platform_user_id", "reminder_intent", "updated_at") ON TABLE "public"."reminder_rules" TO "app_seam_reminder_patient_owner";
 GRANT SELECT ("category", "created_at", "id", "integrator_rule_id", "integrator_user_id", "organization_id", "platform_user_id") ON TABLE "public"."reminder_rules" TO "app_seam_reminder_patient_owner";
 GRANT SELECT ("category", "id", "integrator_rule_id", "integrator_user_id", "organization_id", "platform_user_id", "updated_at") ON TABLE "public"."reminder_rules" TO "app_seam_reminder_patient_owner";
@@ -17255,6 +17243,7 @@ GRANT SELECT ON TABLE "public"."saas_paid_period_policy" TO "app_platform_settin
 GRANT INSERT ("created_at", "is_active", "key", "post_paid_period_behavior", "post_paid_period_tariff_id", "updated_at", "updated_by") ON TABLE "public"."saas_paid_period_policy" TO "app_platform_settings";
 GRANT UPDATE ("is_active", "post_paid_period_behavior", "post_paid_period_tariff_id", "updated_at", "updated_by") ON TABLE "public"."saas_paid_period_policy" TO "app_platform_settings";
 GRANT SELECT ("created_at", "is_active", "key", "post_paid_period_behavior", "post_paid_period_tariff_id") ON TABLE "public"."saas_paid_period_policy" TO "app_seam_org_commerce_owner";
+GRANT SELECT ("is_active", "key", "post_paid_period_behavior", "post_paid_period_tariff_id") ON TABLE "public"."saas_paid_period_policy" TO "app_seam_patient_org_projection_owner";
 GRANT SELECT ("is_active", "key", "post_paid_period_behavior", "post_paid_period_tariff_id") ON TABLE "public"."saas_paid_period_policy" TO "app_staff";
 -- последовательности public.saas_paid_period_policy: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
@@ -17284,8 +17273,8 @@ END
 $bcb$;
 CREATE POLICY "rev10_context_gate_187" ON "public"."saas_paid_period_policy" AS RESTRICTIVE FOR ALL TO "app_clinic_billing", "app_platform_settings", "app_staff" USING (app.require_accepted_context(current_user::name, current_user::name, CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','app_platform_admin','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_maintenance','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END, 'relation', decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex'), NULL::regprocedure)) WITH CHECK (app.require_accepted_context(current_user::name, current_user::name, CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','app_platform_admin','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_maintenance','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END, 'relation', decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex'), NULL::regprocedure));
 CREATE POLICY "rev10_direct_business_187" ON "public"."saas_paid_period_policy" AS PERMISSIVE FOR ALL TO "app_clinic_billing", "app_platform_settings", "app_staff" USING ((current_user = 'app_clinic_billing'::name OR current_user = 'app_platform_settings'::name OR current_user = 'app_staff'::name)) WITH CHECK ((current_user = 'app_clinic_billing'::name OR current_user = 'app_platform_settings'::name OR current_user = 'app_staff'::name));
-CREATE POLICY "rev10_named_root_owner_gate_187" ON "public"."saas_paid_period_policy" AS RESTRICTIVE FOR ALL TO "app_seam_org_commerce_owner" USING (current_user = 'app_seam_org_commerce_owner'::name) WITH CHECK (current_user = 'app_seam_org_commerce_owner'::name);
-CREATE POLICY "rev10_seam_business_187" ON "public"."saas_paid_period_policy" AS PERMISSIVE FOR ALL TO "app_seam_org_commerce_owner" USING ((current_user = 'app_seam_org_commerce_owner'::name)) WITH CHECK ((current_user = 'app_seam_org_commerce_owner'::name));
+CREATE POLICY "rev10_named_root_owner_gate_187" ON "public"."saas_paid_period_policy" AS RESTRICTIVE FOR ALL TO "app_seam_org_commerce_owner", "app_seam_patient_org_projection_owner" USING (current_user = 'app_seam_org_commerce_owner'::name OR current_user = 'app_seam_patient_org_projection_owner'::name) WITH CHECK (current_user = 'app_seam_org_commerce_owner'::name OR current_user = 'app_seam_patient_org_projection_owner'::name);
+CREATE POLICY "rev10_seam_business_187" ON "public"."saas_paid_period_policy" AS PERMISSIVE FOR ALL TO "app_seam_org_commerce_owner", "app_seam_patient_org_projection_owner" USING ((current_user = 'app_seam_org_commerce_owner'::name OR current_user = 'app_seam_patient_org_projection_owner'::name)) WITH CHECK ((current_user = 'app_seam_org_commerce_owner'::name OR current_user = 'app_seam_patient_org_projection_owner'::name));
 
 -- ── public.saas_registration_tariff_policy (org=undefined, rls=force) ──
 ALTER TABLE "public"."saas_registration_tariff_policy" OWNER TO "app_object_owner";
@@ -18853,6 +18842,7 @@ GRANT SELECT ("display_name", "platform_user_id") ON TABLE "public"."user_identi
 GRANT INSERT ("display_name", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("display_name", "first_name", "last_name", "patronymic", "platform_user_id") ON TABLE "public"."user_identity" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT ("display_name", "first_name", "last_name", "patronymic", "platform_user_id") ON TABLE "public"."user_identity" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("platform_user_id") ON TABLE "public"."user_identity" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("display_name", "first_name", "last_name", "patronymic", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("display_name", "first_name", "last_name", "patronymic", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("birth_date", "first_name", "last_name", "patronymic", "platform_user_id") ON TABLE "public"."user_identity" TO "app_seam_phone_binding_owner";

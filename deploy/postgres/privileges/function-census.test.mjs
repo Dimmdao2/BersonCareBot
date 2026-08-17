@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,8 @@ import {
   compareFunctionSurfaces,
   currentPatientArtifactFunctions,
   extractPublicRelationOperations,
+  latestArtifactFunctions,
+  parseExecutableFunctions,
 } from './function-body-surface.mjs';
 
 const PRIVILEGES_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +25,10 @@ const CURRENT_PATIENT_MIGRATIONS = [
   path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0016_patient_self_action_capabilities.sql'),
   path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0017_patient_shared_core_capabilities.sql'),
 ];
+const B0_FORWARD_MIGRATIONS = fs.readdirSync(path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations'))
+  .filter((file) => /^\d{4}_.+\.sql$/.test(file))
+  .sort()
+  .map((file) => path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations', file));
 
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
 const TEST_ONLY = [
@@ -68,6 +75,85 @@ test('all 47 current-patient B0-forward roots have exact executable relation-ope
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
+test('all latest active B0-forward definers have exact executable relation-operation surfaces', () => {
+  const functions = latestArtifactFunctions(B0_FORWARD_MIGRATIONS);
+  assert.equal(functions.length, 78);
+  assert.equal(functions.every((fn) => fn.securityDefiner), true);
+  for (const fn of functions) {
+    const candidates = Object.entries(declaration.portContext.functions)
+      .filter(([signature]) => signature.startsWith(`${fn.name}(`));
+    assert.equal(candidates.length, 1, fn.name);
+    assert.equal(candidates[0][1].security, 'DEFINER', candidates[0][0]);
+  }
+  assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
+});
+
+test('function parser removes real comments without truncating comment markers inside literals', () => {
+  const [fn] = parseExecutableFunctions(`
+    CREATE FUNCTION app.fixture_comment_parser() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER AS $body$
+    BEGIN
+      PERFORM 'literal -- is data';
+      PERFORM 'literal /* is data */';
+      INSERT INTO public.fixture_live (value) VALUES ('--');
+      -- SELECT * FROM public.fixture_line_comment;
+      /* SELECT * FROM public.fixture_block_comment; */
+    END
+    $body$;
+  `);
+  assert.equal(fn.securityDefiner, true);
+  assert.deepEqual([...extractPublicRelationOperations(fn.body)], [
+    ['public.fixture_live', ['INSERT']],
+  ]);
+});
+
+test('aggregated runtime surface findings separate invoker triggers from exact definer corrections', () => {
+  const invokerTriggers = [
+    'app.assert_organization_slug_alias_complete()',
+    'app.assert_organization_slug_rename_complete()',
+    'app.enforce_lfk_child_owner()',
+    'app.guard_clinic_directory_current_slug()',
+    'app.guard_org_brand_revision()',
+    'public.sync_registered_app_runtime_setting()',
+  ];
+  for (const signature of invokerTriggers) {
+    const fn = declaration.portContext.functions[signature];
+    assert.equal(fn.security, 'INVOKER', signature);
+    assert.equal(fn.invocation, 'trigger', signature);
+    assert.equal(fn.relationSurfaces, undefined, signature);
+  }
+
+  const surface = (signature, relation) => declaration.portContext.functions[signature]
+    .relationSurfaces.find((candidate) => candidate.relation === relation);
+  assert.deepEqual(surface('app.create_current_patient_booking_appointments(text)', 'public.be_appointments').operations,
+    ['SELECT', 'INSERT']);
+  assert.deepEqual(surface('app.update_current_patient_fio(text,text,text)', 'public.platform_users').operationColumns,
+    { SELECT: ['id', 'role', 'merged_into_id'] });
+  assert.deepEqual(surface('app.update_current_patient_fio(text,text,text)', 'public.user_identity').operationColumns,
+    { SELECT: ['platform_user_id'] });
+  assert.deepEqual(surface('app.patient_cancel_pending_reminder_occurrences(text)', 'public.reminder_rules'), {
+    relation: 'public.reminder_rules',
+    columns: ['integrator_rule_id', 'organization_id', 'platform_user_id'],
+    operations: ['SELECT'],
+    evidence: 'pg16-function-body-lexical-upper-bound',
+  });
+  assert.deepEqual(surface('app.read_current_patient_organization_entitlements()', 'public.saas_paid_period_policy'), {
+    relation: 'public.saas_paid_period_policy',
+    columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active'],
+    operations: ['SELECT'],
+    evidence: 'pg16-function-body-lexical-upper-bound',
+  });
+  assert.deepEqual(surface('app.enqueue_media_transcode_job_for_staff(uuid)', 'public.media_files'), {
+    relation: 'public.media_files', columns: ['id'], operations: ['SELECT'],
+    evidence: 'pg16-function-body-lexical-upper-bound',
+  });
+  assert.deepEqual(declaration.portContext.functions['app.enqueue_media_transcode_job_for_staff(uuid)'].delegatesTo,
+    ['app.enqueue_media_transcode_job_core(uuid)']);
+  const serviceEnqueue = declaration.portContext.functions['app.enqueue_media_transcode_job_for_service(uuid)'];
+  assert.deepEqual(serviceEnqueue.relationSurfaces, []);
+  assert.deepEqual(serviceEnqueue.delegatesTo, ['app.enqueue_media_transcode_job_core(uuid)']);
+});
+
 test('current-patient surface gate catches missing operation, absent relation, and overbroad SELECT together', () => {
   const functions = [{
     name: 'app.fixture_current_patient_root',
@@ -78,6 +164,14 @@ test('current-patient surface gate catches missing operation, absent relation, a
       delete from public.fixture_history where id = 1;
       select x.id from public.fixture_read x, public.fixture_comma c
       join public.fixture_joined j on j.id = x.id;
+      select q.id from integrator.fixture_queue q;
+      perform 1 from public.fixture_perform p where p.id = 1;
+      return query select r.id from public.fixture_return_query r;
+      with cte as (select c.id from public.fixture_cte c) select id from cte;
+      update public.fixture_update_target t set value = s.value
+        from public.fixture_update_source s where t.id = s.id;
+      delete from public.fixture_delete_target t
+        using public.fixture_delete_source s where t.id = s.id;
     `,
   }];
   const declaredFunctions = {
@@ -88,14 +182,22 @@ test('current-patient surface gate catches missing operation, absent relation, a
         { relation: 'public.fixture_read', operations: ['SELECT'] },
         { relation: 'public.fixture_returning', operations: ['INSERT'] },
         { relation: 'public.fixture_write', operations: ['SELECT', 'INSERT'] },
+        { relation: 'public.fixture_update_target', operations: ['SELECT', 'UPDATE'] },
+        { relation: 'public.fixture_delete_target', operations: ['SELECT', 'DELETE'] },
       ],
     },
   };
   assert.deepEqual(compareFunctionSurfaces(functions, declaredFunctions), [
+    'app.fixture_current_patient_root() -> integrator.fixture_queue: executable relation surface is absent; actual=SELECT',
     'app.fixture_current_patient_root() -> public.fixture_comma: executable relation surface is absent; actual=SELECT',
+    'app.fixture_current_patient_root() -> public.fixture_cte: executable relation surface is absent; actual=SELECT',
+    'app.fixture_current_patient_root() -> public.fixture_delete_source: executable relation surface is absent; actual=SELECT',
     'app.fixture_current_patient_root() -> public.fixture_joined: executable relation surface is absent; actual=SELECT',
+    'app.fixture_current_patient_root() -> public.fixture_perform: executable relation surface is absent; actual=SELECT',
+    'app.fixture_current_patient_root() -> public.fixture_return_query: executable relation surface is absent; actual=SELECT',
     'app.fixture_current_patient_root() -> public.fixture_returning: actual=INSERT,SELECT declared=INSERT',
     'app.fixture_current_patient_root() -> public.fixture_target: actual=INSERT,SELECT declared=INSERT',
+    'app.fixture_current_patient_root() -> public.fixture_update_source: executable relation surface is absent; actual=SELECT',
     'app.fixture_current_patient_root() -> public.fixture_write: actual=INSERT declared=INSERT,SELECT',
   ]);
   assert.deepEqual(extractPublicRelationOperations(functions[0].body).get('public.fixture_history'),
@@ -221,6 +323,63 @@ test('complete relation APIs leave no generation gap', () => {
   }
 });
 
+test('special body relation contracts are an exact closed set and arbitrary bypasses fail', () => {
+  const expected = {
+    'app_control.enforce_relation_birth_wall()': 'relation-birth-wall',
+    'app.install_port_context(uuid,app.port_context_claims)': 'port-context',
+    'app.clear_port_context()': 'port-context',
+    'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': 'port-context',
+    'app.current_org_id()': 'port-context',
+    'app.current_actor_user_id()': 'port-context',
+    'app.current_patient_user_id()': 'port-context',
+    'app.current_integrator_user_id()': 'port-context',
+  };
+  assert.deepEqual(Object.fromEntries(Object.entries(declaration.portContext.functions)
+    .filter(([, fn]) => fn.bodyRelationSurfaceContract)
+    .map(([signature, fn]) => [signature, fn.bodyRelationSurfaceContract])), expected);
+
+  const mutated = structuredClone(declaration);
+  mutated.portContext.functions['app.require_platform_principal()'].bodyRelationSurfaceContract = 'port-context';
+  assert.ok(collectGaps(mutated, 'bcb_webapp_dev').some((gap) =>
+    gap.site === 'portContext.functions.app.require_platform_principal().bodyRelationSurfaceContract'
+    && gap.reason.includes('not in the exact special body relation contract allowlist')));
+});
+
+test('full-body overdeclaration corrections preserve only executable operations', () => {
+  const functions = declaration.portContext.functions;
+  const wrapperDelegates = {
+    'app.email_auth_find_email_owner_conflict(uuid,text)':
+      'app.find_platform_user_ids_by_any_confirmed_email(text)',
+    'app.password_login_acquire(text,text,uuid,text)':
+      'app.password_login_acquire_impl(text,text,uuid,text)',
+    'app.password_login_complete(uuid,boolean)':
+      'app.password_login_complete_impl(uuid,boolean)',
+    'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)':
+      'app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)',
+    'app.password_login_read_altcha_secret()': 'app.password_login_read_altcha_secret_impl()',
+  };
+  for (const [signature, delegated] of Object.entries(wrapperDelegates)) {
+    assert.deepEqual(functions[signature].relationSurfaces, [], signature);
+    assert.deepEqual(functions[signature].delegatesTo, [delegated], signature);
+  }
+
+  const provisionOrganization = functions['app.provision_specialist_owner(uuid)'].relationSurfaces
+    .find((surface) => surface.relation === 'public.be_organizations');
+  assert.deepEqual(provisionOrganization.operations, ['INSERT']);
+  const archive = functions['app.archive_operator_health_failures(text,integer,uuid)'];
+  for (const relation of [
+    'public.outgoing_delivery_queue',
+    'public.integrator_push_outbox',
+    'integrator.projection_outbox',
+  ]) {
+    assert.deepEqual(archive.relationSurfaces.find((surface) => surface.relation === relation).operations,
+      ['SELECT', 'DELETE'], relation);
+  }
+  assert.deepEqual(functions['app.start_provisioned_organization_trial()'].relationSurfaces
+    .find((surface) => surface.relation === 'public.saas_organization_trials').operations,
+  ['SELECT', 'INSERT']);
+});
+
 test('targeted diary snapshot conflict declares only its two-key SELECT surface', () => {
   const signature = 'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)';
   const surface = declaration.portContext.functions[signature].relationSurfaces.find(
@@ -246,13 +405,31 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
+    const expectedDefiners = database === 'bersoncarebot_test' ? 368 : 366;
+    const surfaceVerifier = first.slice(
+      first.indexOf('-- Function-body relation-operation verifier:'),
+      first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),
+    );
     assert.equal(generateFunctionCensusSql(declaration, database), first);
     assert.match(first, /function census catalog mismatch/);
     assert.match(first, /n\.nspname IN \('public', 'app', 'integrator', 'app_ext', 'app_control', 'drizzle'\)/);
     assert.match(first, /am\.member = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /am\.roleid = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /REVOKE ALL ON FUNCTION app\.resolve_clinic_dedicated_bot_organization\(text,text\) FROM PUBLIC/);
-    assert.match(first, /BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=/);
+    assert.ok(surfaceVerifier.includes(`BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=${expectedDefiners}`));
+    assert.ok(surfaceVerifier.includes('special_contracts=8'));
+    assert.match(surfaceVerifier, /CREATE TEMP TABLE bcb_function_surface_special_contracts/);
+    assert.ok(surfaceVerifier.includes("('app_control.enforce_relation_birth_wall()', 'relation-birth-wall')"));
+    assert.ok(surfaceVerifier.includes("('app.install_port_context(uuid,app.port_context_claims)', 'port-context')"));
+    assert.ok(surfaceVerifier.includes("('public.audit_app_runtime_settings_change()')"));
+    assert.ok(surfaceVerifier.includes("('app.password_login_acquire_impl(text,text,uuid,text)')"));
+    assert.equal(surfaceVerifier.includes("('app.assert_organization_slug_alias_complete()')"), false);
+    assert.equal(surfaceVerifier.includes("('public.sync_registered_app_runtime_setting()')"), false);
+    assert.ok(surfaceVerifier.includes("('app.enqueue_media_transcode_job_for_staff(uuid)', 'public.media_files'"));
+    assert.ok(surfaceVerifier.includes(
+      "('app.read_current_patient_organization_entitlements()', 'public.saas_paid_period_policy'",
+    ));
+    assert.match(surfaceVerifier, /n\.nspname IN \('public', 'app', 'integrator', 'app_ext', 'app_control', 'drizzle'\)/);
     assert.match(first, /ON CONFLICT DO UPDATE requires undeclared UPDATE/);
     assert.match(first, /ON CONFLICT DO UPDATE requires undeclared SELECT for conflict\/update row/);
     assert.match(first, /targeted ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row/);
@@ -260,6 +437,10 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT/);
     assert.match(first, /constrained ON CONFLICT DO NOTHING was not classified as requiring SELECT/);
     assert.match(first, /UPDATE predicate\/RETURNING requires undeclared SELECT/);
+    assert.match(first, /declared SELECT has no executable relation operation/);
+    assert.match(first, /declared INSERT has no executable relation operation/);
+    assert.match(first, /declared UPDATE has no executable relation operation/);
+    assert.match(first, /declared DELETE has no executable relation operation/);
     assert.match(first, /CREATE TEMP TABLE bcb_function_surface_gaps/);
     assert.match(first, /function body relation surface absent/);
     assert.match(first, /string_agg\(message, E'\\n' ORDER BY message\)/);

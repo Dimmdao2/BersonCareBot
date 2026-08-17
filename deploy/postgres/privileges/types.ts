@@ -311,6 +311,8 @@ export interface DeclaredFunction {
   /** Omitted means both declared databases; otherwise this is the exact per-DB presence set. */
   databases?: readonly string[];
   relationSurfaces?: readonly FunctionRelationSurface[];
+  /** Relation access is verified by the named non-ACL contract, not by ordinary owner grants. */
+  bodyRelationSurfaceContract?: 'port-context' | 'relation-birth-wall';
   /** Exact same-seam/context roots used when this wrapper has no direct relation access. */
   delegatesTo?: readonly string[];
   invocation?: 'runtime' | 'trigger' | 'internal';
