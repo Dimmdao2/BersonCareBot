@@ -115,4 +115,44 @@ test('the active B0-forward journal is executable through the owner-ordered migr
       },
     ],
   );
+  assert.deepEqual(
+    migrationShape('0019_patient_reminder_materialization_runtime_capabilities'),
+    [
+      {
+        owner: 'app_seam_reminder_materialization_owner',
+        backfill: false,
+        schemaCreate: 'app',
+        languageUsage: 'plpgsql',
+      },
+      ...Array.from({ length: 5 }, () => ({
+        owner: 'app_seam_reminder_materialization_owner',
+        backfill: false,
+        schemaCreate: null,
+        languageUsage: null,
+      })),
+    ],
+  );
+});
+
+test('every statement in reminder materialization migration keeps its owner marker first', () => {
+  const tag = '0019_patient_reminder_materialization_runtime_capabilities';
+  const migrationPath = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations', `${tag}.sql`);
+  const source = fs.readFileSync(migrationPath, 'utf8');
+  const statements = source.split('--> statement-breakpoint');
+
+  assert.equal(statements.length, 6);
+  assert.equal(parseOwnerStatements(source, tag).length, 6);
+
+  statements.forEach((statement, index) => {
+    const displaced = statement.replace(
+      /^(\s*)(-- BCB-MIGRATION-OWNER:[^\n]+\n)/u,
+      '$1-- marker displaced before owner\n$2',
+    );
+    assert.notEqual(displaced, statement, `owner marker mutation did not apply to statement ${index + 1}`);
+    const mutated = statements.with(index, displaced).join('--> statement-breakpoint');
+    assert.throws(
+      () => parseOwnerStatements(mutated, tag),
+      new RegExp(`statement ${index + 1} has neither BCB-MIGRATION-OWNER nor BCB-MIGRATION-BACKFILL`, 'u'),
+    );
+  });
 });
