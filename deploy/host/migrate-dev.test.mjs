@@ -54,13 +54,6 @@ function createRuntime({ migratorState } = {}) {
   writeFileSync(join(root, 'deploy/postgres/privileges/reconcile-access.mjs'), '');
   writeFileSync(join(root, 'deploy/postgres/privileges/generate-cli.mjs'), '');
   writeFileSync(join(root, 'deploy/host/update-dev-port-context-env.mjs'), '');
-  writeFileSync(
-    join(
-      root,
-      'deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql',
-    ),
-    '\\set ON_ERROR_STOP on\nSELECT 1;\n',
-  );
   writeFileSync(join(root, '.env'), `INTEGRATOR_DB_URL=${urls.integrator}\n`, { mode: 0o600 });
   writeFileSync(
     join(root, 'apps/webapp/.env.dev'),
@@ -186,7 +179,11 @@ test('reconcile env shell-quotes a password without executing or corrupting it',
 
 test('runtime capability env replacement is exact and rejects duplicate keys', () => {
   assert.equal(
-    upsertExactEnvValue("A='kept'\nWEBAPP_PORT_CONTEXT_CAPABILITIES_JSON='old'\n", 'WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON', '{"new":true}'),
+    upsertExactEnvValue(
+      "A='kept'\nWEBAPP_PORT_CONTEXT_CAPABILITIES_JSON='old'\n",
+      'WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON',
+      '{"new":true}',
+    ),
     "A='kept'\nWEBAPP_PORT_CONTEXT_CAPABILITIES_JSON='{\"new\":true}'\n",
   );
   assert.throws(() =>
@@ -221,21 +218,39 @@ test('migrate-dev rejects a LOGIN/BYPASS/member migrator before any migration', 
   );
 });
 
-test('migrate-dev executes owner-scoped migrations before mandatory reconcile', () => {
+test('migrate-dev executes the canonical B0-forward owner order before mandatory reconcile', () => {
   const runtime = createRuntime();
   const result = runWrapper(runtime, '--execute');
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /declaration reconciled and catalog-audited/u);
   const calls = readFileSync(runtime.capture, 'utf8');
-  const firstIntegrator = calls.indexOf('migrate-integrator-local.mjs');
-  const webapp = calls.indexOf('migrate-local.mjs');
-  const secondIntegrator = calls.indexOf('migrate-integrator-local.mjs', firstIntegrator + 1);
-  const onlineIndex = calls.indexOf('d30-outgoing-delivery-queue');
-  const reconcile = calls.indexOf('RECONCILE_ENV');
-  const runtimeEnv = calls.indexOf('update-dev-port-context-env.mjs');
-  assert.ok(firstIntegrator >= 0 && webapp > firstIntegrator && secondIntegrator > webapp);
-  assert.ok(onlineIndex > secondIntegrator && reconcile > onlineIndex);
-  assert.ok(runtimeEnv > reconcile);
+  const callLines = calls.trimEnd().split('\n');
+  const sharedRoleBaseline = callLines.findIndex((line) =>
+    line.includes('<--shared-role-baseline>'),
+  );
+  const sharedRoleVerify = callLines.findIndex((line) => line.includes('<--shared-role-verify>'));
+  const firstIntegrator = callLines.findIndex((line) =>
+    line.includes('migrate-integrator-local.mjs'),
+  );
+  const webapp = callLines.findIndex((line) => line.includes('migrate-local.mjs'));
+  const secondIntegrator = callLines.findIndex(
+    (line, index) => index > firstIntegrator && line.includes('migrate-integrator-local.mjs'),
+  );
+  const reconcile = callLines.findIndex((line) => line.includes('RECONCILE_ENV'));
+  const runtimeEnv = callLines.findIndex((line) =>
+    line.includes('update-dev-port-context-env.mjs'),
+  );
+  assert.ok(
+    sharedRoleBaseline >= 0 &&
+      sharedRoleVerify > sharedRoleBaseline &&
+      firstIntegrator > sharedRoleVerify &&
+      webapp > firstIntegrator &&
+      secondIntegrator > webapp &&
+      reconcile > secondIntegrator &&
+      runtimeEnv > reconcile,
+  );
+  assert.match(callLines[firstIntegrator], /<--before-date> <20260708>/u);
+  assert.doesNotMatch(callLines[secondIntegrator], /<--before-date>/u);
   assert.match(calls, /--migrator> <bcb_dev_migrator>.*--drizzle-folder>.*--sudo-postgres>/su);
   assert.match(calls, /--owner> <app_object_owner>/u);
   assert.doesNotMatch(calls, /bcb_webapp_dev_user|pnpm run migrate/u);
