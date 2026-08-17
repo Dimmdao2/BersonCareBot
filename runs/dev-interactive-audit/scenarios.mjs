@@ -27,7 +27,14 @@ export const ROLE_SCENARIOS = Object.freeze({
     routeEvidence: {
       '/app/admin/system-health': ['#system-health-root'],
       '/app/account?tab=security': ['#account-current-password'],
-      '/app/doctor/analytics': ['#doctor-analytics-tabs'],
+      // `/app/doctor/analytics` resolves to the platform stub
+      // `app/app/(global-admin)/doctor/analytics/page.tsx` (requirePlatformOperationsPage), which
+      // is deliberately aggregate-only and currently renders header + empty state — the clinical
+      // `DoctorAnalyticsShell` (`#doctor-analytics-tabs`) must never be composed under it. The
+      // platform menu still points here (platformNavLinks.ts, slices 5-7 will move the href), so
+      // the route stays in the gate; the anchor pins "the platform page shell rendered", while the
+      // final-URL / error-boundary / console checks catch the guard redirect and render failures.
+      '/app/doctor/analytics': ['[data-doctor-page-header]'],
       '/app/admin/clinics': ['#clinics-filter-q'],
       '/app/admin/commercial': ['[role="tab"][aria-selected="true"]'],
       '/app/admin/payments': ['#platform-payments'],
