@@ -317,7 +317,7 @@ const patientOwnedColumns = new Map([
   // public.* bridge tables that store the INTEGRATOR bigint id directly (no platform_users uuid
   // column at all) — verified against apps/webapp/migrations/012_subscription_mailing.sql.
   // castType: "bigint" reads the DEDICATED integrator identity GUC `app.integrator_user_id`
-  // (P0.13/T0.4 convention — see smoke-p0-13-db-isolation.mjs), never `app.patient_user_id`.
+  // (P0.13/T0.4 convention, verified on named DEV), never `app.patient_user_id`.
   // public.* denorm_org_column (P0.8.4) with a direct patient column already on the child row
   ['public.broadcast_audit_recipients', { column: 'platform_user_id' }],
   ['public.notification_delivery_attempts', { column: 'user_id' }],

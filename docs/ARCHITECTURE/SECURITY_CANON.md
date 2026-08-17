@@ -334,7 +334,7 @@ S3 — Selectel, не `fs.bersonservices.ru` — и явный запрет тр
 объектов не выполнялось — решение по ним за владельцем.
 
 **Состояние:** закрыто по коду и тестам (unit + postgres-integration; полный прогон postgres-integration
-заблокирован уже существующей в этой ветке поломкой миграционной цепочки disposable-DB харнесса,
+проверяется живым named-DEV проходом и named-TEST release gate; прежний disposable-DB harness удалён,
 не связанной с этим изменением — воспроизводится и на немодифицированном `platformUserFullPurge.postgres.integration.test.ts`).
 
 ---

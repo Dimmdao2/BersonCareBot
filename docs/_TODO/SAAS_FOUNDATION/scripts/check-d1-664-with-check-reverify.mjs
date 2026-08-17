@@ -1,17 +1,9 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
-const scratchSmokeScripts = [
-  'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs',
-  'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs',
-  'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-composed-rls-grants-value-guards.mjs',
-];
-
 function fail(message) {
   throw new Error(message);
 }
@@ -41,34 +33,6 @@ function assertExactColumns(label, actual, expected) {
       `${label} columns mismatch. actual=${JSON.stringify(actual)} expected=${JSON.stringify(expected)}`,
     );
   }
-}
-
-function sanitizedChildEnv() {
-  const env = { ...process.env };
-  for (const key of [
-    'DATABASE_URL',
-    'PGDATABASE',
-    'PGHOST',
-    'PGPASSWORD',
-    'PGPASSFILE',
-    'PGPORT',
-    'PGSERVICE',
-    'PGSERVICEFILE',
-    'PGUSER',
-  ]) {
-    delete env[key];
-  }
-  return env;
-}
-
-function runNodeScript(relativePath) {
-  const result = spawnSync('node', [relativePath], {
-    cwd: repoRoot,
-    env: sanitizedChildEnv(),
-    stdio: 'inherit',
-  });
-  if (result.error) fail(`${relativePath} failed to start: ${result.error.message}`);
-  if (result.status !== 0) fail(`${relativePath} failed with ${result.status ?? 'unknown status'}`);
 }
 
 async function loadGrantMetadata() {
@@ -140,9 +104,6 @@ async function assertGrantMetadata(metadata) {
 
 try {
   await assertGrantMetadata(await loadGrantMetadata());
-  if (process.argv.includes('--run-scratch-smokes')) {
-    for (const script of scratchSmokeScripts) runNodeScript(script);
-  }
   console.log('check-d1-664-with-check-reverify: grant metadata OK');
 } catch (error) {
   console.error(

@@ -94,36 +94,60 @@ if (invalidSnapshots.length > 0) {
 const executableRoots = [
   'scripts',
   'deploy/host',
-  'deploy/postgres/privileges',
+  'deploy/postgres',
   'apps/webapp/scripts',
   'apps/integrator/src/infra/scripts',
+  'docs/_TODO/SAAS_FOUNDATION/scripts',
 ];
 const executableFiles = executableRoots.flatMap((directory) =>
   readdirSync(resolve(root, directory), { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile() && /\.(?:sh|mjs|cjs|js|ts)$/.test(entry.name))
+    .filter((entry) => entry.isFile() && /\.(?:sh|mjs|mts|cjs|js|ts|tsx|sql)$/.test(entry.name))
     .map((entry) => resolve(entry.parentPath, entry.name)),
 );
-const forbiddenName = /(?:stage13|zero-state|prod-to-target|disposable)/i;
+const forbiddenName =
+  /(?:stage13|zero-state|prod-to-target|pre-migration-target-bridge|offline-legacy|a0-greenfield|disposable|(?:^|[-_])a0(?:[-_.]|$))/i;
+const forbiddenExecutorContent =
+  /\b(?:initdb|createdb|dropdb|pg_ctl)\b|postgres:16|a0-greenfield|\bA0\b|SCRATCH_DATABASE_URL|\b(?:CREATE|DROP)\s+DATABASE\b/;
 const alternateExecutors = executableFiles.filter((path) => {
   const rel = relative(path);
-  if (
-    /\.(?:test|spec)\.[^.]+$/.test(rel)
-    || /\.acceptance\.sh$/.test(rel)
-    || rel === 'scripts/check-b0-migration-baseline.mjs'
-  ) {
+  if (rel === 'scripts/check-b0-migration-baseline.mjs') {
     return false;
   }
   if (forbiddenName.test(rel)) return true;
   const source = readFileSync(path, 'utf8');
   const activeLines = source
     .split('\n')
-    .filter((line) => !/^\s*(?:#|\/\/)/.test(line))
+    .filter((line) => !/^\s*(?:#|\/\/|\*)/.test(line))
     .join('\n');
-  return /^\s*(?:sudo\s+[^\n]*\s+)?psql\b[^\n]*(?:\s-f\s|--file(?:=|\s))/m.test(activeLines);
+  return (
+    forbiddenExecutorContent.test(activeLines) ||
+    /^\s*(?:sudo\s+[^\n]*\s+)?psql\b[^\n]*(?:\s-f\s|--file(?:=|\s))/m.test(activeLines)
+  );
 });
 if (alternateExecutors.length > 0) {
   throw new Error(
     `B0 checkout contains an alternate executable migration path: ${alternateExecutors.map(relative).join(', ')}`,
+  );
+}
+
+const activeManifests = [
+  resolve(root, 'package.json'),
+  resolve(root, 'apps/webapp/package.json'),
+  resolve(root, 'apps/integrator/package.json'),
+];
+const forbiddenManifestCommands = activeManifests.flatMap((path) => {
+  const scripts = JSON.parse(readFileSync(path, 'utf8')).scripts ?? {};
+  return Object.entries(scripts)
+    .filter(([, command]) =>
+      /\bA0\b|a0-greenfield|offline-legacy|disposable|SCRATCH_DATABASE_URL|vitest\.postgres|postgres-integration/i.test(
+        String(command),
+      ),
+    )
+    .map(([name]) => `${relative(path)}#scripts.${name}`);
+});
+if (forbiddenManifestCommands.length > 0) {
+  throw new Error(
+    `B0 checkout exposes a retired database command: ${forbiddenManifestCommands.join(', ')}`,
   );
 }
 

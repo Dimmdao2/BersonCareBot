@@ -18,7 +18,8 @@ CI guardrail: `check-legacy-migrations-frozen.sh` блокирует добав�
 - Карта trusted writers в коде и контекст: [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](../../../docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8.
 - Управление пользователем по номеру (очистка, перенос, integrator): **[user-phone-admin.ts](user-phone-admin.ts)** (в шапке — команды и переменные окружения).
 
-Patient-invite disposable proof retired with the B0 baseline; no disposable bootstrap is an active script path.
+Все disposable/private-PostgreSQL proofs (quota/payment/invite/settings и общий postgres-integration harness)
+удалены вместе с A0. Реальные DB-пути проверяются unit/static gates и живым проходом именованного DEV, затем TEST.
 
 ## Прочие файлы
 

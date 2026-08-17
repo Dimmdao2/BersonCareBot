@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Operator client for the ephemeral U5A shared-patient TEST capability.
+ * Operator client for the U5A shared-patient capability on the named TEST database.
  *
  * The root-only host wrapper installs and removes the closed SECURITY DEFINER function. This client
  * first verifies the exact database and the sanctioned operator login using pg_catalog only, then

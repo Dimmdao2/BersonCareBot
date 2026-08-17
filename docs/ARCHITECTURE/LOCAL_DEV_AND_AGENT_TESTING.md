@@ -59,8 +59,8 @@ audit и атомарно синхронизирует declaration-owned capabil
 Next server.
 
 TEST→DEV destructive refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. Обычная разработка
-не копирует TEST, не пересоздаёт DEV и не запускает полный аудит стен. Security/RLS acceptance остаётся в
-disposable PostgreSQL tests и TEST release gates.
+не копирует TEST, не пересоздаёт DEV и не запускает полный аудит стен. Security/RLS и DB-behavior проверяются
+живым проходом именованного DEV, затем release-gates именованного TEST; отдельной временной PostgreSQL нет.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 

@@ -3,10 +3,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const SAFE_DISPOSABLE_DATABASE_PATTERN =
-  /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
-const UNSAFE_DATABASE_TOKEN_PATTERN =
-  /(^|[_-])(prod|production|prd|live|main|bersoncare|bersoncarebot|test|testing|dev|development)([_-]|$)/i;
 const FORBIDDEN_TARGET_QUERY_KEYS = new Set([
   'host',
   'hostaddr',
@@ -19,20 +15,6 @@ const FORBIDDEN_TARGET_QUERY_KEYS = new Set([
   'sslcert',
   'sslkey',
 ]);
-const FORBIDDEN_PRODUCTION_HOSTS = new Set([
-  '135.106.162.170',
-  'adelaide',
-  'bersoncare.ru',
-  'www.bersoncare.ru',
-  'bersonservices.ru',
-  'www.bersonservices.ru',
-  'tgcarebot.bersonservices.ru',
-  'bcb-prod',
-  'prod',
-  'production',
-  'bersoncarebot-prod',
-]);
-const LOCAL_DATABASES = new Set(['bcb_webapp_dev', 'bersoncarebot_test']);
 
 function fail(message) {
   throw new Error(message);
@@ -40,14 +22,6 @@ function fail(message) {
 
 export function normalizeDatabaseHostname(value) {
   return value.trim().toLowerCase().replace(/\.+$/u, '');
-}
-
-function isForbiddenProductionHostname(hostname) {
-  return (
-    FORBIDDEN_PRODUCTION_HOSTS.has(hostname) ||
-    hostname.endsWith('.bersoncare.ru') ||
-    hostname.endsWith('.bersonservices.ru')
-  );
 }
 
 function assertRawAuthorityPort(value) {
@@ -122,37 +96,6 @@ export function assertCanonicalLocalDatabaseUrl(value, expectedDatabase) {
   return target;
 }
 
-function normalizedAllowedHosts(rawValue) {
-  return new Set(
-    String(rawValue ?? '')
-      .split(',')
-      .map(normalizeDatabaseHostname)
-      .filter(Boolean),
-  );
-}
-
-export function classifyNoEnvMigrationDatabaseUrl(value, allowedHostsValue) {
-  const target = parseGuardedPostgresUrl(value);
-  const localHost = target.host === '127.0.0.1' || target.host === 'localhost';
-  if (LOCAL_DATABASES.has(target.database)) {
-    if (!localHost) fail('DEV/TEST runtime database must use local PostgreSQL');
-    return 'runtime';
-  }
-  if (
-    !SAFE_DISPOSABLE_DATABASE_PATTERN.test(target.database) ||
-    UNSAFE_DATABASE_TOKEN_PATTERN.test(target.database)
-  ) {
-    fail('database name is not an allowed disposable scratch/rehearsal target');
-  }
-  if (isForbiddenProductionHostname(target.host)) {
-    fail('production-shaped disposable host is forbidden');
-  }
-  if (!localHost && !normalizedAllowedHosts(allowedHostsValue).has(target.host)) {
-    fail('remote disposable host is not explicitly allowed');
-  }
-  return 'disposable';
-}
-
 function readStdin() {
   return readFileSync(0, 'utf8').trim();
 }
@@ -166,13 +109,7 @@ function runCli(argv) {
     assertCanonicalLocalDatabaseUrl(value, expectedDatabase);
     return;
   }
-  if (mode === 'no-env') {
-    process.stdout.write(
-      `${classifyNoEnvMigrationDatabaseUrl(value, process.env.SAAS_DISPOSABLE_ALLOWED_HOSTS)}\n`,
-    );
-    return;
-  }
-  fail('mode must be canonical or no-env');
+  fail('mode must be canonical');
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -1523,7 +1523,7 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
 /* ─────────────────────────── генерация SQL ─────────────────────────── */
 
 /**
- * Exact per-database function closure. It is exported separately so a disposable PostgreSQL 16
+ * Exact per-database function closure. It is exported separately so a named-environment catalog
  * catalog can prove the census even while unrelated relation-access gaps keep the full artifact
  * fail-closed.
  */

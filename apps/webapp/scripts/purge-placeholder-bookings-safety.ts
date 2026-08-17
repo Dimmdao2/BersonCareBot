@@ -1,6 +1,6 @@
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 const UNSAFE_DATABASE_TOKEN = /(^|[_-])(prod|production|live)($|[_-])/i;
-const DEV_OR_REHEARSAL_DATABASE = /(^|[_-])(dev|rehearsal)($|[_-])/i;
+const DEV_DATABASE = 'bcb_webapp_dev';
 const TEST_DATABASE = /(^|[_-])test($|[_-])/i;
 
 export function assertAllowedPurgeDatabaseTarget(input: {
@@ -50,7 +50,7 @@ export function assertAllowedPurgeDatabaseTarget(input: {
     if (!input.allowTestTarget) throw new Error('refusing_test_database_without_allow_flag');
     return;
   }
-  if (!DEV_OR_REHEARSAL_DATABASE.test(input.currentDatabase)) {
-    throw new Error('refusing_non_disposable_database_name');
+  if (input.currentDatabase !== DEV_DATABASE) {
+    throw new Error('refusing_non_named_dev_database');
   }
 }

@@ -9,7 +9,6 @@
     "dev:turbo": "bash ../../scripts/kill-local-dev-ports.sh && next dev -H 127.0.0.1 -p 5200",
     "dev:visual": "bash ../../scripts/kill-local-dev-ports.sh && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack -H 127.0.0.1 -p 5200",
     "lint": "eslint . && node ../../scripts/check-no-new-raw-sql.mjs && node ../../scripts/check-webapp-infra-import-boundary.mjs && node ../../scripts/check-webapp-infra-import-boundary.mjs --self-test && node ../../scripts/check-media-delivery-chokepoint.mjs && node ../../scripts/check-transaction-quota-port-boundary.mjs && node ../../scripts/check-transaction-quota-port-boundary.mjs --self-test && bash scripts/check-legacy-migrations-frozen.sh && bash scripts/check-drizzle-journal-sync.sh && node scripts/check-media-upload-door.mjs && node scripts/check-media-upload-door.mjs --self-test",
-    "check:c4a-843-clinic-invite-concurrency": "node scripts/check-c4a-843-clinic-invite-concurrency.mjs",
     "build": "rm -rf .next/standalone && NODE_OPTIONS=\"${NODE_OPTIONS:---max-old-space-size=4096}\" NODE_ENV=production next build && bash ../../deploy/host/sync-webapp-standalone-assets.sh",
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start -H 127.0.0.1 -p 6200",

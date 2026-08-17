@@ -26,8 +26,8 @@ if (process.env.DB_PRINCIPAL_CONTEXT_MODE !== 'locked') {
 const databaseUrl = process.env.DATABASE_URL_NONSTAFF ?? process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL_NONSTAFF or DATABASE_URL is required');
 const databaseName = new URL(databaseUrl).pathname.slice(1);
-if (databaseName !== 'bersoncarebot_test' && !databaseName.includes('scratch')) {
-  throw new Error('refusing patient history locked read outside TEST/scratch database');
+if (databaseName !== 'bersoncarebot_test') {
+  throw new Error('refusing patient history locked read outside named TEST database');
 }
 
 const port = createPgClientHistoryPort();
