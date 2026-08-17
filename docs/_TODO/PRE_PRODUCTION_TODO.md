@@ -25,10 +25,17 @@ Anything added here needs: what, why it can only be done at cutover, and who/wha
 - Applied on TEST 2026-07-28 (see runbook for the measured numbers). PROD: pending cutover.
 - Depends on: nothing.
 
-## 1. Notify the messenger-only users before the bot is removed — OWNER-ORDERED
+## 1. ~~Notify the messenger-only users before the bot is removed~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 17.08.2026
 
-**Owner, 2026-07-26:** «11 человек живут только внутри бота — ничего, перед выкаткой на деплой мы сделаем
-им рассылку. Там больше чем 11.»
+**ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 17.08.2026:** «письмо тем у кого вход через мессенджер — бред, похоже не актуальные
+задачи вообще». Основание: пункт существовал только под сценарий «бот вырезается из сборки», а решение
+владельца 26.07 — «пока делаем гибко настраиваемыми через глобал админку все механизмы, ничего не вырезаем из
+кода». Бот не удаляется, значит предупреждать некого. Более позднее решение заменяет более раннее; если
+удаление бота вернётся в скоуп, пункт возвращается вместе с ним. Та же отмена — в
+`NIGHT_PLAN_2026-07-26.md` E-3.
+
+~~**Owner, 2026-07-26:** «11 человек живут только внутри бота — ничего, перед выкаткой на деплой мы сделаем
+им рассылку. Там больше чем 11.»~~
 
 - Telegram (and now MAX, also being cut) is the **only** identity and the **only** delivery channel for a
   set of accounts. Measured on the DEV copy of TEST: **22 platform accounts** hold a Telegram binding with
@@ -130,6 +137,32 @@ them means creating an account somewhere.
    monitor owner, admin location, probe inventory and backup/restore procedure without storing notification
    secrets in the repository. Uptime Kuma is the initial implementation, not a permanent vendor lock-in;
    Healthchecks.io or an equivalent independent service satisfies the same gate.
+
+5. **Четыре недостающие проверки живости — ПЕРЕНЕСЕНО 17.08 из `NIGHT_PLAN_2026-07-26.md` D-1, владелец 17.08:
+   «надо сделать, в чём проблема».** Сегодня планировщик проверяет ровно три канала: `max`, `telegram`,
+   `google_calendar` (`apps/webapp/src/modules/system-settings/operatorHealthProbeConfig.ts:28`, зеркало
+   `apps/integrator/src/app/operatorHealthProbeSettings.ts`). Отсутствуют:
+   - [ ] почтовый сервер: соединение + вход (поля почтового ящика уже заведены в настройках — адрес, логин,
+         пароль в защищённом виде, `email`-блок в дефолте реестра; самой проверки нет);
+   - [ ] ежедневная реальная тестовая отправка письма с проверкой доставки в пределах `roundTripDeadlineMs`;
+   - [ ] остаток на счету SMS-провайдера;
+   - [ ] доставка уведомлений в браузере.
+   **Почему это первое по важности в разделе:** июльский суточный простой почты остался незамеченным именно
+   потому, что живость почты никто не проверяет. Владелец 17.08: адрес для почтовой проверки настроит сам на
+   TEST и PROD после того, как закончится DEV.
+6. **Окно тишины проверок — РЕШЕНИЕ ВЛАДЕЛЬЦА 17.08.2026, дословно:** «максимум сутки, по умолчанию 2 часа».
+   Про действовавшие значения (по умолчанию сутки, потолок неделя) — «это бред и вредительство… я три раза
+   заставлял агента переделать». Значения живут в трёх местах и правятся вместе:
+   `operatorHealthProbeConfig.ts` (`OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_MAX_DURATION_MS`), дефолт
+   `operator_health_probe_config` в реестре настроек и зеркало интегратора. Решение записано здесь, потому
+   что оно уже трижды терялось между агентами.
+7. **Тишина на время выкладки — ЗАКРЫТО 17.08 как неактуальное, инженерное решение.** Требование
+   «выкладка выпускает собственную короткую самоистекающую тишину» появилось под сценарий
+   stop-migrate-build-restart с многоминутным окном. При blue/green (§2) переключение занимает секунды, а
+   тревога поднимается только после `consecutiveFailures` подряд неудачных проверок при интервале от пяти
+   минут — окно переключения физически не набирает порог. Ручной механизм тишины остаётся и после правки
+   пункта 6 ограничен сутками. Если blue/green не состоится и вернётся длинное окно выкладки — пункт
+   возвращается вместе с ним.
 
 Also carried forward from the same work, deliberately deferred: the operator alert path currently shares
 transport and credentials with patient mail. Decision **D-c** in `NOTIFICATION_ALERTING_DESIGN_2026-07-26.md`
