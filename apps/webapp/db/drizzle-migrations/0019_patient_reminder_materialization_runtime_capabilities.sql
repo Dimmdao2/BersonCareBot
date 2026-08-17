@@ -379,6 +379,14 @@ DECLARE
   v_delivery jsonb;
   v_existing integrator.user_reminder_occurrences%ROWTYPE;
   v_topic_code text;
+  v_integrator_user_id text;
+  v_event_id text;
+  v_channel text;
+  v_external_id text;
+  v_log_text text;
+  v_intent jsonb;
+  v_intent_payload jsonb;
+  v_queue_payload jsonb;
   v_event_ids text[] := ARRAY[]::text[];
   v_affected integer := 0;
   v_row_count integer;
@@ -416,17 +424,24 @@ BEGIN
   EXCEPTION WHEN invalid_text_representation THEN
     RAISE EXCEPTION 'invalid patient reminder deliveries json' USING ERRCODE = '22023';
   END;
-  IF jsonb_typeof(v_deliveries) IS DISTINCT FROM 'array'
-     OR jsonb_array_length(v_deliveries) NOT BETWEEN 1 AND 4 THEN
+  IF jsonb_typeof(v_deliveries) IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'invalid patient reminder deliveries envelope' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(v_deliveries) = 0 THEN
     RETURN jsonb_build_object('ok', true, 'outcome', 'no_channels');
   END IF;
+  IF jsonb_array_length(v_deliveries) > 4 THEN
+    RAISE EXCEPTION 'too many patient reminder deliveries' USING ERRCODE = '22023';
+  END IF;
 
-  SELECT rule.notification_topic_code INTO v_topic_code
+  SELECT rule.notification_topic_code, rule.integrator_user_id::text
+  INTO v_topic_code, v_integrator_user_id
   FROM public.reminder_rules AS rule
   WHERE rule.integrator_rule_id = p_rule_id
     AND rule.organization_id = v_org
     AND rule.platform_user_id = p_platform_user_id
     AND rule.is_enabled = true
+    AND rule.integrator_user_id IS NOT NULL
     AND rule.notification_topic_code IS NOT NULL
     AND EXISTS (
       SELECT 1 FROM public.org_enrollments AS enrollment
@@ -475,77 +490,173 @@ BEGIN
   END IF;
 
   FOR v_delivery IN SELECT value FROM jsonb_array_elements(v_deliveries) AS item(value) LOOP
+    IF jsonb_typeof(v_delivery) IS DISTINCT FROM 'object'
+       OR pg_catalog.octet_length(v_delivery::text) > 65536
+       OR jsonb_typeof(v_delivery -> 'organizationId') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'eventId') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'kind') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'channel') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'occurrenceId') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'deliveryGeneration') IS DISTINCT FROM 'number'
+       OR jsonb_typeof(v_delivery -> 'topicCode') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'externalId') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'logText') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'platformUserId') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'maxAttempts') IS DISTINCT FROM 'number'
+       OR jsonb_typeof(v_delivery -> 'nextRetryAt') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_delivery -> 'intent') IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION 'invalid patient reminder delivery scalar types' USING ERRCODE = '22023';
+    END IF;
+
+    v_event_id := v_delivery ->> 'eventId';
+    v_channel := v_delivery ->> 'channel';
+    v_external_id := v_delivery ->> 'externalId';
+    v_log_text := v_delivery ->> 'logText';
+    v_intent := v_delivery -> 'intent';
+    v_intent_payload := v_intent -> 'payload';
+
     IF v_delivery ->> 'organizationId' IS DISTINCT FROM v_org::text
        OR v_delivery ->> 'occurrenceId' IS DISTINCT FROM v_existing.id
-       OR COALESCE((v_delivery ->> 'deliveryGeneration')::integer, -1) <> v_existing.delivery_generation
+       OR (v_delivery ->> 'deliveryGeneration') !~ '^[0-9]+$'
+       OR (v_delivery ->> 'deliveryGeneration')::integer <> v_existing.delivery_generation
        OR v_delivery ->> 'platformUserId' IS DISTINCT FROM p_platform_user_id::text
        OR v_delivery ->> 'topicCode' IS DISTINCT FROM v_topic_code
+       OR pg_catalog.length(v_delivery ->> 'topicCode') NOT BETWEEN 1 AND 128
        OR v_delivery ->> 'kind' IS DISTINCT FROM 'reminder_dispatch'
-       OR v_delivery ->> 'channel' NOT IN ('telegram', 'max', 'email', 'web_push')
-       OR v_delivery ->> 'eventId' IS DISTINCT FROM concat(
-         'rem:', v_existing.id, ':g', v_existing.delivery_generation::text, ':', v_delivery ->> 'channel'
+       OR v_channel NOT IN ('telegram', 'max', 'email', 'web_push')
+       OR pg_catalog.length(v_event_id) NOT BETWEEN 1 AND 512
+       OR v_event_id IS DISTINCT FROM concat(
+         'rem:', v_existing.id, ':g', v_existing.delivery_generation::text, ':', v_channel
        )
-       OR v_delivery #>> '{intent,type}' IS DISTINCT FROM 'message.send'
-       OR v_delivery #>> '{intent,meta,eventId}' IS DISTINCT FROM v_delivery ->> 'eventId'
-       OR COALESCE((v_delivery ->> 'maxAttempts')::integer, 0) NOT BETWEEN 1 AND 20
+       OR pg_catalog.btrim(v_external_id) IS DISTINCT FROM v_external_id
+       OR pg_catalog.length(v_external_id) NOT BETWEEN 1 AND 512
+       OR pg_catalog.length(v_log_text) NOT BETWEEN 1 AND 16000
+       OR (v_delivery ->> 'maxAttempts') !~ '^[0-9]+$'
+       OR (v_delivery ->> 'maxAttempts')::integer NOT BETWEEN 1 AND 20
        OR (v_delivery ->> 'nextRetryAt')::timestamptz IS DISTINCT FROM p_planned_at THEN
       RAISE EXCEPTION 'invalid patient reminder ready delivery' USING ERRCODE = '22023';
     END IF;
-    IF (v_delivery ->> 'eventId') = ANY(v_event_ids) THEN
+
+    IF jsonb_typeof(v_intent -> 'meta') IS DISTINCT FROM 'object'
+       OR jsonb_typeof(v_intent_payload) IS DISTINCT FROM 'object'
+       OR jsonb_typeof(v_intent #> '{meta,eventId}') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_intent #> '{meta,occurredAt}') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_intent #> '{meta,source}') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_intent #> '{meta,userId}') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_intent #> '{meta,outboundMessageClass}') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_intent #> '{meta,outboundCapability}') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(v_intent_payload -> 'recipient') IS DISTINCT FROM 'object'
+       OR jsonb_typeof(v_intent_payload -> 'message') IS DISTINCT FROM 'object'
+       OR jsonb_typeof(v_intent_payload #> '{message,text}') IS DISTINCT FROM 'string'
+       OR v_intent ->> 'type' IS DISTINCT FROM 'message.send'
+       OR v_intent #>> '{meta,eventId}' IS DISTINCT FROM v_event_id
+       OR pg_catalog.length(v_intent #>> '{meta,occurredAt}') NOT BETWEEN 20 AND 40
+       OR (v_intent #>> '{meta,occurredAt}')::timestamptz IS NULL
+       OR v_intent #>> '{meta,source}' IS DISTINCT FROM v_channel
+       OR v_intent #>> '{meta,userId}' IS DISTINCT FROM v_integrator_user_id
+       OR v_intent #>> '{meta,outboundMessageClass}' IS DISTINCT FROM 'routine_product'
+       OR v_intent #>> '{meta,outboundCapability}' IS DISTINCT FROM
+          CASE WHEN v_channel = 'web_push' THEN 'app_push' ELSE 'essential_delivery' END
+       OR pg_catalog.length(v_intent_payload #>> '{message,text}') NOT BETWEEN 1 AND 65536
+       OR jsonb_typeof(v_intent_payload -> 'delivery') IS DISTINCT FROM 'object'
+       OR v_intent_payload #> '{delivery,channels}' IS DISTINCT FROM jsonb_build_array(v_channel)
+       OR jsonb_typeof(v_intent_payload #> '{delivery,maxAttempts}') IS DISTINCT FROM 'number'
+       OR v_intent_payload #>> '{delivery,maxAttempts}' IS DISTINCT FROM '1' THEN
+      RAISE EXCEPTION 'invalid patient reminder intent envelope' USING ERRCODE = '22023';
+    END IF;
+
+    IF (v_channel = 'telegram' AND (
+          jsonb_typeof(v_intent_payload #> '{recipient,chatId}') IS DISTINCT FROM 'string'
+          OR v_intent_payload #>> '{recipient,chatId}' IS DISTINCT FROM v_external_id
+        ))
+       OR (v_channel = 'max' AND (
+          jsonb_typeof(v_intent_payload #> '{recipient,userId}') IS DISTINCT FROM 'string'
+          OR v_intent_payload #>> '{recipient,userId}' IS DISTINCT FROM v_external_id
+        ))
+       OR (v_channel = 'email' AND (
+          jsonb_typeof(v_intent_payload #> '{recipient,email}') IS DISTINCT FROM 'string'
+          OR v_intent_payload #>> '{recipient,email}' IS DISTINCT FROM v_external_id
+          OR v_intent_payload #>> '{message,text}' IS DISTINCT FROM v_log_text
+          OR jsonb_typeof(v_intent_payload -> 'subject') IS DISTINCT FROM 'string'
+          OR pg_catalog.length(v_intent_payload ->> 'subject') NOT BETWEEN 1 AND 200
+        ))
+       OR (v_channel = 'web_push' AND (
+          jsonb_typeof(v_intent_payload #> '{recipient,pushUserId}') IS DISTINCT FROM 'string'
+          OR v_intent_payload #>> '{recipient,pushUserId}' IS DISTINCT FROM v_external_id
+          OR v_external_id IS DISTINCT FROM p_platform_user_id::text
+          OR v_intent_payload #>> '{message,text}' IS DISTINCT FROM v_log_text
+          OR jsonb_typeof(v_intent_payload -> 'title') IS DISTINCT FROM 'string'
+          OR pg_catalog.length(v_intent_payload ->> 'title') NOT BETWEEN 1 AND 200
+        )) THEN
+      RAISE EXCEPTION 'invalid patient reminder channel recipient' USING ERRCODE = '22023';
+    END IF;
+
+    IF v_event_id = ANY(v_event_ids) THEN
       RAISE EXCEPTION 'duplicate patient reminder delivery event' USING ERRCODE = '22023';
     END IF;
-    v_event_ids := array_append(v_event_ids, v_delivery ->> 'eventId');
+    v_event_ids := array_append(v_event_ids, v_event_id);
+
+    v_queue_payload := jsonb_build_object(
+      'occurrenceId', v_existing.id,
+      'deliveryGeneration', v_existing.delivery_generation,
+      'topicCode', v_topic_code,
+      'channel', v_channel,
+      'deliveryLogId', concat('rdl:', v_existing.id, ':g', v_existing.delivery_generation::text, ':', v_channel),
+      'externalId', v_external_id,
+      'logText', v_log_text,
+      'platformUserId', p_platform_user_id,
+      'intent', v_intent
+    );
 
     INSERT INTO public.outgoing_delivery_queue (
       organization_id, event_id, kind, channel, payload_json, status, attempt_count,
       max_attempts, next_retry_at, last_error, dead_at, priority, created_at, updated_at
     ) VALUES (
       v_org,
-      v_delivery ->> 'eventId',
+      v_event_id,
       'reminder_dispatch',
-      v_delivery ->> 'channel',
-      jsonb_build_object(
-        'occurrenceId', v_existing.id,
-        'deliveryGeneration', v_existing.delivery_generation,
-        'topicCode', v_topic_code,
-        'channel', v_delivery ->> 'channel',
-        'deliveryLogId', concat('rdl:', v_existing.id, ':g', v_existing.delivery_generation::text, ':', v_delivery ->> 'channel'),
-        'externalId', v_delivery ->> 'externalId',
-        'logText', v_delivery ->> 'logText',
-        'platformUserId', p_platform_user_id,
-        'intent', v_delivery -> 'intent'
-      ),
+      v_channel,
+      v_queue_payload,
       'pending', 0, (v_delivery ->> 'maxAttempts')::integer,
       (v_delivery ->> 'nextRetryAt')::timestamptz, NULL, NULL, 0,
       statement_timestamp(), statement_timestamp()
     )
-    ON CONFLICT (event_id) DO UPDATE SET
-      organization_id = EXCLUDED.organization_id,
-      kind = EXCLUDED.kind,
-      channel = EXCLUDED.channel,
-      payload_json = EXCLUDED.payload_json,
-      status = EXCLUDED.status,
-      attempt_count = EXCLUDED.attempt_count,
-      max_attempts = EXCLUDED.max_attempts,
-      next_retry_at = EXCLUDED.next_retry_at,
-      last_error = NULL,
-      dead_at = NULL,
-      updated_at = statement_timestamp()
-    WHERE outgoing_delivery_queue.status IN ('pending', 'failed_retryable');
+    ON CONFLICT (event_id) DO NOTHING;
     GET DIAGNOSTICS v_row_count = ROW_COUNT;
-    v_affected := v_affected + v_row_count;
-
-    IF NOT EXISTS (
-      SELECT 1 FROM public.outgoing_delivery_queue AS queued
-      WHERE queued.event_id = v_delivery ->> 'eventId'
+    IF v_row_count = 0 THEN
+      PERFORM 1
+      FROM public.outgoing_delivery_queue AS queued
+      WHERE queued.event_id = v_event_id
         AND queued.organization_id = v_org
         AND queued.kind = 'reminder_dispatch'
-        AND queued.channel = v_delivery ->> 'channel'
-        AND queued.payload_json ->> 'occurrenceId' = v_existing.id
-        AND (queued.payload_json ->> 'deliveryGeneration')::integer = v_existing.delivery_generation
-    ) THEN
-      RAISE EXCEPTION 'patient reminder queue conflict' USING ERRCODE = '23505';
+        AND queued.channel = v_channel
+        AND queued.status IN ('pending', 'failed_retryable')
+        AND queued.max_attempts = (v_delivery ->> 'maxAttempts')::integer
+        AND (queued.payload_json - 'materializationFingerprint') = v_queue_payload
+      FOR UPDATE;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'patient reminder queue conflict' USING ERRCODE = '23505';
+      END IF;
+
+      UPDATE public.outgoing_delivery_queue AS queued
+      SET status = 'pending',
+          attempt_count = 0,
+          next_retry_at = (v_delivery ->> 'nextRetryAt')::timestamptz,
+          last_error = NULL,
+          dead_at = NULL,
+          updated_at = statement_timestamp()
+      WHERE queued.event_id = v_event_id
+        AND queued.organization_id = v_org
+        AND queued.kind = 'reminder_dispatch'
+        AND queued.channel = v_channel
+        AND queued.status IN ('pending', 'failed_retryable')
+        AND (queued.payload_json - 'materializationFingerprint') = v_queue_payload;
+      GET DIAGNOSTICS v_row_count = ROW_COUNT;
+      IF v_row_count <> 1 THEN
+        RAISE EXCEPTION 'patient reminder queue conflict' USING ERRCODE = '23505';
+      END IF;
     END IF;
+    v_affected := v_affected + v_row_count;
   END LOOP;
 
   FOR v_delivery IN SELECT value FROM jsonb_array_elements(v_deliveries) AS item(value) LOOP
@@ -559,7 +670,17 @@ BEGIN
     UPDATE public.outgoing_delivery_queue AS queued
     SET payload_json = jsonb_set(queued.payload_json, '{materializationFingerprint}', to_jsonb(v_fingerprint), true),
         updated_at = statement_timestamp()
-    WHERE queued.event_id = v_delivery ->> 'eventId';
+    WHERE queued.event_id = v_delivery ->> 'eventId'
+      AND queued.organization_id = v_org
+      AND queued.kind = 'reminder_dispatch'
+      AND queued.channel = v_delivery ->> 'channel'
+      AND queued.payload_json ->> 'occurrenceId' = v_existing.id
+      AND queued.payload_json ->> 'deliveryGeneration' = v_existing.delivery_generation::text
+      AND queued.status IN ('pending', 'failed_retryable');
+    GET DIAGNOSTICS v_row_count = ROW_COUNT;
+    IF v_row_count <> 1 THEN
+      RAISE EXCEPTION 'patient reminder fingerprint queue conflict' USING ERRCODE = '23505';
+    END IF;
   END LOOP;
 
   UPDATE integrator.user_reminder_occurrences AS occurrence

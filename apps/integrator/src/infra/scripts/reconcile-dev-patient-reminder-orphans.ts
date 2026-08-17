@@ -8,6 +8,7 @@ import { closeDb, createDbPort } from '../db/client.js';
 import { getIntegratorDrizzleSession } from '../db/drizzle.js';
 import { reminderRules } from '../db/schema/integratorPublicProduct.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
+import { reconcileExactPatientReminderOrphans } from './reconcile-dev-patient-reminder-orphans-core.js';
 
 const ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
 const ORPHAN_RULE_IDS = [
@@ -32,8 +33,8 @@ async function main(): Promise<void> {
     throw new Error(`reconcile_refuses_database:${databaseName || 'unknown'}`);
   }
   const db = createDbPort();
-  const candidates = await runWithOrganizationPrincipal(ORGANIZATION_ID, () =>
-    getIntegratorDrizzleSession(db)
+  const listExactActiveOrphans = (session: ReturnType<typeof getIntegratorDrizzleSession>) =>
+    session
       .select({ id: reminderRules.integratorRuleId })
       .from(reminderRules)
       .where(
@@ -43,37 +44,45 @@ async function main(): Promise<void> {
           isNull(reminderRules.platformUserId),
           eq(reminderRules.isEnabled, true),
         ),
-      ),
-  );
-  console.log(JSON.stringify({ databaseName, mode: execute ? 'execute' : 'dry-run', candidates }));
-  if (!execute) return;
-  if (candidates.length !== ORPHAN_RULE_IDS.length) {
-    throw new Error(
-      `reconcile_expected_${ORPHAN_RULE_IDS.length}_active_orphans_found_${candidates.length}`,
+      );
+  if (!execute) {
+    const candidates = await runWithOrganizationPrincipal(ORGANIZATION_ID, () =>
+      listExactActiveOrphans(getIntegratorDrizzleSession(db)),
     );
+    console.log(JSON.stringify({ databaseName, mode: 'dry-run', candidates }));
+    return;
   }
-  const updated = await runWithOrganizationPrincipal(ORGANIZATION_ID, () =>
-    db.tx(async (tx) =>
-      getIntegratorDrizzleSession(tx)
-        .update(reminderRules)
-        .set({ isEnabled: false, updatedAt: new Date().toISOString() })
-        .where(
-          and(
-            eq(reminderRules.organizationId, ORGANIZATION_ID),
-            inArray(reminderRules.integratorRuleId, [...ORPHAN_RULE_IDS]),
-            isNull(reminderRules.platformUserId),
-            eq(reminderRules.isEnabled, true),
-          ),
-        )
-        .returning({ id: reminderRules.integratorRuleId }),
+
+  const result = await runWithOrganizationPrincipal(ORGANIZATION_ID, () =>
+    reconcileExactPatientReminderOrphans(
+      {
+        tx: (work) =>
+          db.tx(async (tx) => {
+            const session = getIntegratorDrizzleSession(tx);
+            return work({
+              listExactActiveOrphans: () => listExactActiveOrphans(session),
+              disableExactActiveOrphans: () =>
+                session
+                  .update(reminderRules)
+                  .set({ isEnabled: false, updatedAt: new Date().toISOString() })
+                  .where(
+                    and(
+                      eq(reminderRules.organizationId, ORGANIZATION_ID),
+                      inArray(reminderRules.integratorRuleId, [...ORPHAN_RULE_IDS]),
+                      isNull(reminderRules.platformUserId),
+                      eq(reminderRules.isEnabled, true),
+                    ),
+                  )
+                  .returning({ id: reminderRules.integratorRuleId }),
+            });
+          }),
+      },
+      ORPHAN_RULE_IDS,
     ),
   );
-  if (updated.length !== ORPHAN_RULE_IDS.length) {
-    throw new Error(
-      `reconcile_atomic_update_expected_${ORPHAN_RULE_IDS.length}_updated_${updated.length}`,
-    );
-  }
-  console.log(JSON.stringify({ reconciled: updated }));
+  console.log(
+    JSON.stringify({ databaseName, mode: 'execute', candidates: result.candidates, reconciled: result.updated }),
+  );
 }
 
 main()

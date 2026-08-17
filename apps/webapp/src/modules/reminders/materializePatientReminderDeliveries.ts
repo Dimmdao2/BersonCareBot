@@ -118,13 +118,15 @@ export function materializePatientReminderDeliveries(input: {
   const { rule, occurrence, targets } = input;
   const topicCode = reminderOccurrenceTopicCode(rule, rule.category);
   if (!topicCode) return [];
-  const title =
+  const title = (
     rule.customTitle?.trim() ||
     input.linkedTitle?.trim() ||
     rule.displayTitle?.trim() ||
     DEFAULT_TITLES[rule.category] ||
-    'Напоминание';
-  const body = rule.customText?.trim() || title;
+    'Напоминание'
+  ).slice(0, 200);
+  const customText = rule.customText?.trim().slice(0, 8000) || '';
+  const body = customText || title;
   const openUrl = buildReminderDeepLink({
     appBaseUrl: input.appBaseUrl,
     linkedObjectType: rule.linkedObjectType,
@@ -158,7 +160,7 @@ export function materializePatientReminderDeliveries(input: {
       deliveryGeneration: occurrence.deliveryGeneration,
       topicCode,
       externalId,
-      logText: channel === 'email' ? `${body}\n\n${openUrl}` : body,
+      logText: (channel === 'email' ? `${body}\n\n${openUrl}` : body).slice(0, 16000),
       platformUserId: rule.platformUserId,
       intent: intent({
         eventId: id,
@@ -174,7 +176,7 @@ export function materializePatientReminderDeliveries(input: {
       append(channel, targets.telegramId.trim(), {
         recipient: { chatId: targets.telegramId.trim() },
         message: {
-          text: `<b>${escapeHtml(title)}</b>${rule.customText?.trim() ? `\n\n${escapeHtml(rule.customText.trim())}` : ''}`,
+          text: `<b>${escapeHtml(title)}</b>${customText ? `\n\n${escapeHtml(customText)}` : ''}`,
         },
         replyMarkup: keyboard,
         parse_mode: 'HTML',
@@ -184,7 +186,7 @@ export function materializePatientReminderDeliveries(input: {
       append(channel, targets.maxId.trim(), {
         recipient: { userId: targets.maxId.trim() },
         message: {
-          text: `<b>${escapeHtml(title)}</b>${rule.customText?.trim() ? `\n\n${escapeHtml(rule.customText.trim())}` : ''}`,
+          text: `<b>${escapeHtml(title)}</b>${customText ? `\n\n${escapeHtml(customText)}` : ''}`,
         },
         replyMarkup: keyboard,
         parse_mode: 'HTML',
