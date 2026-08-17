@@ -763,6 +763,15 @@ export function collectGaps(declaration, dbName) {
       if (fn.invocation === 'trigger' && fn.execute.length !== 0) {
         add(`portContext.functions.${signature}.execute`, 'trigger root must not have a runtime EXECUTE grantee');
       }
+      // A declared relation surface is what makes the generator grant the OWNER column access and
+      // write the owner's seam RLS policies. A SECURITY INVOKER body never assumes that owner, so
+      // those grants land on a role the function never runs as while the body keeps the privileges
+      // of whoever happened to call it. Under a deferred constraint trigger that caller is the bare
+      // login role at COMMIT, and the check dies with 42501 instead of deciding anything.
+      if ((fn.relationSurfaces?.length ?? 0) > 0 && fn.security !== 'DEFINER') {
+        add(`portContext.functions.${signature}.security`,
+          'a declared relation surface is reachable only through SECURITY DEFINER');
+      }
       if (fn.bodyRelationSurfaceContract && (fn.security !== 'DEFINER'
         || (fn.relationSurfaces?.length ?? 0) > 0 || (fn.delegatesTo?.length ?? 0) > 0)) {
         add(`portContext.functions.${signature}.bodyRelationSurfaceContract`,
