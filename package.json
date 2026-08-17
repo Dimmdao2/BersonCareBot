@@ -59,7 +59,6 @@
     "ci:resume:after-typecheck": "pnpm test && pnpm test:db-principal && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-test": "pnpm test:db-principal && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-test-db-principal": "pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
-    "ci:resume:after-test-db-zero-state": "pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-test-webapp": "pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-test-media-worker": "pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-build": "pnpm build:webapp && pnpm run audit",
@@ -88,8 +87,7 @@
     "stage7-gate": "node scripts/stage7-release-gate.mjs",
     "stage9-gate": "node scripts/stage9-release-gate.mjs",
     "stage11-gate": "node scripts/stage11-release-gate.mjs",
-    "stage12-gate": "node scripts/stage12-release-gate.mjs",
-    "stage13-gate": "node scripts/stage13-release-gate.mjs"
+    "stage12-gate": "node scripts/stage12-release-gate.mjs"
   },
   "engines": {
     "node": ">=22"

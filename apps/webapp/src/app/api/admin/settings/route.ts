@@ -79,6 +79,7 @@ import {
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   'booking_allow_doctor_unlink_past_package_sessions',
   'booking_calendar_show_working_hours',
+  'booking_allow_doctor_unlink_past_package_sessions',
   'booking_payment_enabled',
   'material_ratings_enabled',
   'specialist_signup_enabled',
@@ -515,6 +516,7 @@ export async function PATCH(request: Request) {
         const settings = redactAdminSettingsForClient(
           await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId, {
             organizationId,
+            ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
           }),
         );
         return NextResponse.json({ ok: true, settings });
@@ -956,7 +958,10 @@ export async function PATCH(request: Request) {
       settingScope,
       normalizedValue,
       session.user.userId,
-      { organizationId },
+      {
+        organizationId,
+        ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
+      },
     );
   } catch (error) {
     const errResponse = systemSettingsOrgContextErrorResponse(error);

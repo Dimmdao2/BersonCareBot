@@ -309,10 +309,8 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 
 **Post-migrate schema guardrail (production):** после успешного migrate каждый из deploy-скриптов вызывает **`deploy/host/webapp-post-migrate-schema-check.sh`** (тот же файл в обоих путях). **`deploy-prod.sh`** — после **`pnpm migrate`** (integrator + webapp Drizzle); **`deploy-webapp-prod.sh`** — после **`pnpm --dir apps/webapp run migrate`** (только webapp Drizzle, без integrator). Проверяется набор критичных колонок в `public` (список в комментарии в начале скрипта: treatment-program guardrails, media pipeline, integrator outbox, `system_settings`, `platform_users.calendar_timezone`). При отсутствии любой колонки процесс завершается с ошибкой **до** `systemctl restart` — чтобы не поднять сервисы на рассинхронизированной схеме.
 
-Оба production deploy-пути после Drizzle migration и до schema guardrail обязательно применяют
-`deploy/postgres/patient-invites-rls.sql`. Это code-only strict runtime overlay: он включает FORCE RLS, закрывает
-прямой доступ `app_patient`, назначает узкие invite-функции существующему `app_owner` и не выполняет backfill,
-restore/reset или отправку приглашений.
+Production deploy не исполняет отдельные SQL overlays. Схема и capability-функции доставляются только
+B0-forward миграциями; schema guardrail остаётся read-only проверкой перед restart.
 
 **Webapp Drizzle и порядок относительно билда:** канонический прогон — `pnpm --dir apps/webapp run migrate` с `DATABASE_URL` из `webapp.prod`. Для ручного прогона integrator + webapp на host достаточно **`pnpm migrate`**: скрипт `scripts/migrate-all.sh` автоматически подгружает `api.prod` и `webapp.prod` (если файлы существуют). Если новый билд webapp расширяет `SELECT` по `media_files` новыми колонками (например VIDEO_HLS_DELIVERY, миграция `0018_media_files_hls_foundation`), **применить миграции до или в одном окне с первым запуском этого билда**, иначе возможна ошибка PostgreSQL `column does not exist`.
 
@@ -737,41 +735,14 @@ bash deploy/host/deploy-webapp-prod.sh
 - `pnpm install --frozen-lockfile`
 - `pnpm --dir apps/webapp build`
 - перед миграциями: вызов backup (`BACKUP_SCRIPT` pre-migrations). Требуется наличие скрипта и sudo-прав (см. Sudoers). Скрипт backup должен быть тем же, что в full prod deploy (`/opt/backups/scripts/postgres-backup.sh`), или эквивалентным; контракт аргумента и каталога см. в разделе «Backup contract (pre-migrations)» ниже.
-- `pnpm --dir apps/webapp run migrate` (канонически: **только** Drizzle из `apps/webapp/db/drizzle-migrations`). **Обычный production deploy не выполняет legacy-SQL.** Каталог `apps/webapp/migrations/*.sql` применяется вручную только вне цикла `deploy-prod.sh` / `deploy-webapp-prod.sh`: `WEBAPP_LEGACY_MIGRATIONS_MODE=bootstrap|emergency pnpm --dir apps/webapp run migrate:legacy` — **аварийный / исторический / bootstrap** путь (новая БД без baseline, восстановление после частично применённого DDL, локальная отладка). См. `docs/archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/LOG.md` (Stage D).
+- `pnpm --dir apps/webapp run migrate` применяет только B0-forward Drizzle из `apps/webapp/db/drizzle-migrations`. Historical/legacy/bootstrap replay не является активным операторским путём.
 - после migrate: **`deploy/host/webapp-post-migrate-schema-check.sh`** (тот же вызов, что и в full prod — расширенный список колонок в комментарии скрипта); при отсутствии колонок деплой падает **до** `systemctl restart` webapp
 - restart webapp
 - health check `http://127.0.0.1:6200/api/health`
 
-### Перенос данных при первом деплое / cutover
+### Исторический cutover
 
-Для first cutover есть отдельный скрипт:
-
-```bash
-cd /opt/projects/bersoncarebot
-bash deploy/host/run-stage13-cutover.sh
-```
-
-Режим без записей (только проверки и dry-run):
-
-```bash
-bash deploy/host/run-stage13-cutover.sh --dry-run-only
-```
-
-Также cutover можно включить автоматически в full deploy через флаг:
-
-```bash
-RUN_STAGE13_CUTOVER=1 bash deploy/host/deploy-prod.sh
-```
-
-Только dry-run в рамках full deploy:
-
-```bash
-RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy-prod.sh
-```
-
-По умолчанию full deploy не запускает cutover-скрипт (чтобы не делать тяжёлый backfill на каждом релизе). Для порядка и проверки целостности ориентир:
-
-- **[DATA_MIGRATION_CHECKLIST.md](DATA_MIGRATION_CHECKLIST.md)** — порядок backfill (person, communication, reminders, appointments, subscription_mailing), reconcile и stage13-gate.
+**УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026:** Stage13, disposable и PROD A→B0 execution paths удалены. Текущий deploy принимает только уже подготовленную B0-базу и B0-forward миграции.
 
 ### Bootstrap systemd
 

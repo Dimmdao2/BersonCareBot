@@ -4,22 +4,49 @@ import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program
 export async function postProgramItemComplete(params: {
   base: string;
   itemId: string;
-  payload?: ProgramItemCompleteDialogPayload;
 }): Promise<
-  { ok: true; item: TreatmentProgramInstanceDetail | null } | { ok: false; error: string }
+  | {
+      ok: true;
+      item: TreatmentProgramInstanceDetail | null;
+      completion: { id: string; createdAt: string };
+    }
+  | { ok: false; error: string }
 > {
   const res = await fetch(`${params.base}/${encodeURIComponent(params.itemId)}/progress/complete`, {
     method: 'POST',
-    headers: params.payload ? { 'Content-Type': 'application/json' } : undefined,
-    body: params.payload ? JSON.stringify(params.payload) : undefined,
   });
   const data = (await res.json().catch(() => null)) as {
     ok?: boolean;
     error?: string;
     item?: TreatmentProgramInstanceDetail | null;
+    completion?: { id?: string; createdAt?: string };
   } | null;
-  if (!res.ok || !data?.ok) {
+  if (!res.ok || !data?.ok || !data.completion?.id || !data.completion.createdAt) {
     return { ok: false, error: data?.error ?? 'Ошибка' };
   }
-  return { ok: true, item: data.item ?? null };
+  return {
+    ok: true,
+    item: data.item ?? null,
+    completion: { id: data.completion.id, createdAt: data.completion.createdAt },
+  };
+}
+
+export async function patchProgramItemCompletionMetrics(params: {
+  base: string;
+  itemId: string;
+  completionId: string;
+  payload: ProgramItemCompleteDialogPayload;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch(
+    `${params.base}/${encodeURIComponent(params.itemId)}/progress/complete/${encodeURIComponent(params.completionId)}/metrics`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params.payload),
+    },
+  );
+  const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  return res.ok && data?.ok
+    ? { ok: true }
+    : { ok: false, error: data?.error ?? 'Ошибка' };
 }

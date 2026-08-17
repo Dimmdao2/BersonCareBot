@@ -14,6 +14,13 @@ pnpm-debug.log*
 runs/dev-interactive-audit/out/
 runs/dev-interactive-audit/runs/
 runs/orchestration/
+runs/clickthrough/screenshots/
+runs/g4_app_walk/
+runs/screenshots/
+runs/lead-*.stamp
+runs/lead-*.head
+runs/lead-*.empty
+runs/lead-session.id
 
 # Logs
 logs/

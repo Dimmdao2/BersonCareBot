@@ -10,6 +10,7 @@ import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
   runWebappSql,
+  runWebappNamedRoot,
   webappSqlFromPgText,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
@@ -252,6 +253,53 @@ export const pgUserProjectionPort: UserProjectionPort = {
     };
   },
 
+  async getCurrentPatientFio() {
+    const result = await runWebappNamedRoot<{
+      last_name: string | null;
+      first_name: string | null;
+      patronymic: string | null;
+      display_name: string;
+    }>(
+      getWebappSqlDb(),
+      'app.read_current_patient_fio()',
+      [],
+      sql`SELECT * FROM app.read_current_patient_fio()`,
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          lastName: row.last_name,
+          firstName: row.first_name,
+          patronymic: row.patronymic,
+          displayName: row.display_name,
+        }
+      : null;
+  },
+
+  async updateCurrentPatientFio(params) {
+    const args = [params.lastName, params.firstName, params.patronymic ?? ''] as const;
+    const result = await runWebappNamedRoot<{
+      last_name: string;
+      first_name: string;
+      patronymic: string | null;
+      display_name: string;
+    }>(
+      getWebappSqlDb(),
+      'app.update_current_patient_fio(text,text,text)',
+      args,
+      sql`SELECT * FROM app.update_current_patient_fio(${args[0]}, ${args[1]}, ${args[2]})`,
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          lastName: row.last_name,
+          firstName: row.first_name,
+          patronymic: row.patronymic,
+          displayName: row.display_name,
+        }
+      : null;
+  },
+
   async clearStaffAccountEmail(platformUserId) {
     const db = getWebappSqlDb();
     const current = await db
@@ -425,6 +473,8 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertNotificationTopics: async () => {},
   updateRole: async () => {},
   getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
+  getCurrentPatientFio: async () => null,
+  updateCurrentPatientFio: async (params) => ({ ...params, displayName: '' }),
   clearStaffAccountEmail: async () => ({ ok: true as const }),
   patchAdminClientProfile: async () => ({ ok: true as const }),
   findPlatformUserIdWithEmailConflict: async () => null,

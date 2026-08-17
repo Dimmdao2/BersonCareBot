@@ -11,6 +11,7 @@ import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
 import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
 import { MaterialRatingNativeStars } from './MaterialRatingNativeStars';
+import { usePatientRuntimeFeatures } from '@/shared/ui/patient/PatientRuntimeFeaturesContext';
 
 export type MaterialRatingBlockProps = {
   targetKind: MaterialRatingTargetKind;
@@ -96,7 +97,7 @@ class MaterialRatingSmastromBoundary extends React.Component<
   }
 }
 
-export function MaterialRatingBlock({
+function EnabledMaterialRatingBlock({
   targetKind,
   targetId,
   programInstanceId,
@@ -343,4 +344,10 @@ export function MaterialRatingBlock({
       ) : null}
     </div>
   );
+}
+
+export function MaterialRatingBlock(props: MaterialRatingBlockProps) {
+  const { materialRatingsEnabled } = usePatientRuntimeFeatures();
+  if (!materialRatingsEnabled && props.variant !== 'doctorCompact') return null;
+  return <EnabledMaterialRatingBlock {...props} />;
 }

@@ -91,29 +91,30 @@ if (invalidSnapshots.length > 0) {
 // The maintained migration surface is B0 + forwards only.  This checks executable topology
 // (not prose wording): an A0/disposable bootstrap or a prebuilt PROD target is an alternate
 // migration path even when no migration journal references it.
-const forbiddenExecutablePaths = [
-  'deploy/postgres/generated/prod-to-target',
-  'deploy/postgres/prod-to-target-cutover.sql',
-  'deploy/postgres/prod-to-target-cutover-data.sql',
-  'scripts/prod-to-target-cutover-executable-gate.mjs',
-  'apps/integrator/src/infra/scripts/d30DisposablePostgres.ts',
-  'apps/webapp/scripts/patient-invites-disposable-proof.mjs',
-];
-const presentForbiddenPaths = forbiddenExecutablePaths.filter((path) => {
-  try {
-    readdirSync(resolve(root, path));
-    return true;
-  } catch {
-    try {
-      readFileSync(resolve(root, path));
-      return true;
-    } catch {
-      return false;
-    }
+const executableRoots = ['scripts', 'deploy/host', 'apps/webapp/scripts', 'apps/integrator/src/infra/scripts'];
+const executableFiles = executableRoots.flatMap((directory) =>
+  readdirSync(resolve(root, directory), { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.(?:sh|mjs|cjs|js|ts)$/.test(entry.name))
+    .map((entry) => resolve(entry.parentPath, entry.name)),
+);
+const forbiddenName = /(?:stage13|zero-state|prod-to-target|disposable)/i;
+const alternateExecutors = executableFiles.filter((path) => {
+  const rel = relative(path);
+  if (/\.(?:test|spec)\.[^.]+$/.test(rel) || rel === 'scripts/check-b0-migration-baseline.mjs') {
+    return false;
   }
+  if (forbiddenName.test(rel)) return true;
+  const source = readFileSync(path, 'utf8');
+  const activeLines = source
+    .split('\n')
+    .filter((line) => !/^\s*(?:#|\/\/)/.test(line))
+    .join('\n');
+  return /^\s*(?:sudo\s+[^\n]*\s+)?psql\b[^\n]*(?:\s-f\s|--file(?:=|\s))/m.test(activeLines);
 });
-if (presentForbiddenPaths.length > 0) {
-  throw new Error(`B0 checkout contains an alternate executable migration path: ${presentForbiddenPaths.join(', ')}`);
+if (alternateExecutors.length > 0) {
+  throw new Error(
+    `B0 checkout contains an alternate executable migration path: ${alternateExecutors.map(relative).join(', ')}`,
+  );
 }
 
 console.log(

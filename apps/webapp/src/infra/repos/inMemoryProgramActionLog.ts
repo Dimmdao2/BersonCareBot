@@ -41,6 +41,10 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       return { id, createdAt };
     },
 
+    async lockSimpleCompletionTargetAndGetLatest(params) {
+      return this.getLatestSimpleDonePayload(params);
+    },
+
     async getLatestSimpleDonePayload(params) {
       const found = [...rows]
         .filter(
@@ -53,7 +57,22 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         )
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))[0];
       if (!found) return null;
-      return { createdAt: found.createdAt, payload: found.payload ?? null };
+      return { id: found.id, createdAt: found.createdAt, payload: found.payload ?? null };
+    },
+
+    async updateSimpleDonePayload(params) {
+      const found = rows.find(
+        (r) =>
+          r.id === params.completionId &&
+          r.instanceId === params.instanceId &&
+          r.patientUserId === params.patientUserId &&
+          r.instanceStageItemId === params.instanceStageItemId &&
+          r.actionType === 'done' &&
+          r.payload?.source === 'simple_item_complete',
+      );
+      if (!found) return null;
+      found.payload = { ...(found.payload ?? {}), ...params.metrics };
+      return { id: found.id, createdAt: found.createdAt, payload: found.payload };
     },
 
     async deleteSimpleDoneInWindow(params) {

@@ -675,6 +675,8 @@ export type LfkPostSessionDifficulty = 'easy' | 'medium' | 'hard';
  * Поля `reps`, `weightKg`, `sets`, `difficulty` — null, если не зафиксированы.
  */
 export type ExerciseMetricPoint = {
+  /** Stable action-log identifier used to enrich this exact completion. */
+  completionId: string;
   /** ISO-строка `created_at` из `program_action_log`. */
   at: string;
   reps: number | null;

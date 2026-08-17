@@ -1,6 +1,8 @@
 'use client';
 
-import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
+import { Cell, Pie, PieChart } from 'recharts';
 import type { HourlyClockSlice } from '@/app-layer/stats/reminderHourlyClock';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
@@ -29,7 +31,7 @@ export function ReminderSendsHourlyClockChart({ slices }: { slices: HourlyClockS
   return (
     <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-4">
       <div className="relative shrink-0" style={{ width: CHART_SIZE, height: CHART_SIZE }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <PositiveSizeResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={pieData}
@@ -54,7 +56,7 @@ export function ReminderSendsHourlyClockChart({ slices }: { slices: HourlyClockS
               }}
             />
           </PieChart>
-        </ResponsiveContainer>
+        </PositiveSizeResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
           <span className="text-base font-semibold tabular-nums leading-none">{totalSent}</span>
           <span className="mt-0.5 text-[10px] text-muted-foreground">за 24 ч</span>

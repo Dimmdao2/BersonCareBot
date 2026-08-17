@@ -37,6 +37,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
+  const deps = buildAppDeps();
+  const ratingsEnabled = await deps.runtimeConfig.getServerBoolean('material_ratings_enabled');
+  if (!ratingsEnabled) {
+    return NextResponse.json({ ok: false, error: 'material_ratings_disabled' }, { status: 403 });
+  }
   const session = await getOptionalPatientSession();
   let userId: string | null = null;
   if (session) {
@@ -48,7 +53,6 @@ export async function GET(req: Request) {
     ? await resolvePatientCanViewAuthOnlyContent(session)
     : false;
 
-  const deps = buildAppDeps();
   if (!session) {
     return NextResponse.json({ ok: false, error: 'organization_required' }, { status: 403 });
   }

@@ -1,7 +1,10 @@
 import { and, count, desc, eq, gte, lt, max, or, isNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import {
+  getDrizzleOrMutationTx,
+  runDrizzleMutationTransaction,
+} from '@/infra/db/drizzleMutationTx';
 import { programActionLog as logTable } from '../../../db/schema/programActionLog';
 import {
   treatmentProgramInstanceStageItems as itemTable,
@@ -75,10 +78,44 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       });
     },
 
+    async lockSimpleCompletionTargetAndGetLatest(params) {
+      const db = getDrizzleOrMutationTx();
+      const [target] = await db
+        .select({ id: itemTable.id })
+        .from(itemTable)
+        .innerJoin(stageTable, eq(stageTable.id, itemTable.stageId))
+        .innerJoin(instTable, eq(instTable.id, stageTable.instanceId))
+        .where(
+          and(
+            eq(itemTable.id, params.instanceStageItemId),
+            eq(stageTable.instanceId, params.instanceId),
+            eq(instTable.patientUserId, params.patientUserId),
+          ),
+        )
+        .limit(1)
+        .for('update');
+      if (!target) throw new Error('Элемент не найден');
+      const [row] = await db
+        .select({ id: logTable.id, createdAt: logTable.createdAt, payload: logTable.payload })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.instanceId, params.instanceId),
+            eq(logTable.patientUserId, params.patientUserId),
+            eq(logTable.instanceStageItemId, params.instanceStageItemId),
+            eq(logTable.actionType, 'done'),
+            sql`coalesce(${logTable.payload}->>'source', '') = 'simple_item_complete'`,
+          ),
+        )
+        .orderBy(desc(logTable.createdAt), desc(logTable.id))
+        .limit(1);
+      return row ? { id: row.id, createdAt: row.createdAt, payload: row.payload ?? null } : null;
+    },
+
     async getLatestSimpleDonePayload(params) {
       const db = getDrizzle();
       const [row] = await db
-        .select({ createdAt: logTable.createdAt, payload: logTable.payload })
+        .select({ id: logTable.id, createdAt: logTable.createdAt, payload: logTable.payload })
         .from(logTable)
         .where(
           and(
@@ -94,7 +131,31 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
         )
         .orderBy(desc(logTable.createdAt))
         .limit(1);
-      return row ? { createdAt: row.createdAt, payload: row.payload ?? null } : null;
+      return row ? { id: row.id, createdAt: row.createdAt, payload: row.payload ?? null } : null;
+    },
+
+    async updateSimpleDonePayload(params) {
+      return runDrizzleMutationTransaction(async (tx) => {
+        const [row] = await tx
+          .update(logTable)
+          .set({
+            payload: sql`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.metrics)}::jsonb`,
+          })
+          .where(
+            and(
+              eq(logTable.id, params.completionId),
+              eq(logTable.instanceId, params.instanceId),
+              eq(logTable.patientUserId, params.patientUserId),
+              eq(logTable.instanceStageItemId, params.instanceStageItemId),
+              eq(logTable.actionType, 'done'),
+              sql`coalesce(${logTable.payload}->>'source', '') = 'simple_item_complete'`,
+            ),
+          )
+          .returning({ id: logTable.id, createdAt: logTable.createdAt, payload: logTable.payload });
+        return row
+          ? { id: row.id, createdAt: row.createdAt, payload: row.payload ?? null }
+          : null;
+      });
     },
 
     async deleteSimpleDoneInWindow(params) {

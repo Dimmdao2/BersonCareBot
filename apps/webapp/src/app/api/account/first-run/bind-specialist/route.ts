@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireAdminWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { getCurrentSession } from '@/modules/auth/service';
 
 export async function POST() {
+  const session = await getCurrentSession();
+  if (session?.user.role === 'admin') {
+    return NextResponse.json({ ok: false, error: 'platform_admin_forbidden' }, { status: 403 });
+  }
   const gate = await requireAdminWorkspaceApiContext();
   if (!gate.ok) return gate.response;
   const { ctx } = gate;

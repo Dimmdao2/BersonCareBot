@@ -27,6 +27,7 @@ export function normalizeModesFormPatchItem(
     key === 'patient_program_discussion_doctor_reply_from_log_enabled' ||
     key === 'patient_program_discussion_ui_enabled' ||
     key === 'patient_program_discussion_media_submission_enabled'
+    || key === 'material_ratings_enabled'
   ) {
     const inner = normalizedValue.value;
     const b =

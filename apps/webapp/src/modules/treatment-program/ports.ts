@@ -421,11 +421,28 @@ export type TreatmentProgramTestAttemptsPort = {
 
 export type ProgramActionLogPort = {
   insertAction(input: ProgramActionLogInsert): Promise<{ id: string; createdAt: string }>;
+  lockSimpleCompletionTargetAndGetLatest(params: {
+    instanceId: string;
+    patientUserId: string;
+    instanceStageItemId: string;
+  }): Promise<{ id: string; createdAt: string; payload: Record<string, unknown> | null } | null>;
   getLatestSimpleDonePayload(params: {
     instanceId: string;
     patientUserId: string;
     instanceStageItemId: string;
-  }): Promise<{ createdAt: string; payload: Record<string, unknown> | null } | null>;
+  }): Promise<{ id: string; createdAt: string; payload: Record<string, unknown> | null } | null>;
+  updateSimpleDonePayload(params: {
+    completionId: string;
+    instanceId: string;
+    patientUserId: string;
+    instanceStageItemId: string;
+    metrics: {
+      perceivedDifficulty?: 'easy' | 'medium' | 'hard';
+      reps?: number;
+      sets?: number;
+      weightKg?: number;
+    };
+  }): Promise<{ id: string; createdAt: string; payload: Record<string, unknown> | null } | null>;
   /** Удаляет «простые» `done` за окно (не трогает `test_submitted` / `lfk_exercise_done`). */
   deleteSimpleDoneInWindow(params: {
     instanceId: string;

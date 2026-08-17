@@ -558,7 +558,7 @@ integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DA
 
 **Текущий runtime:** одна БД; `DATABASE_URL` в `api.prod` и `webapp.prod` **одинаковый**. Для SQL в webapp-таблицах используйте схему **`public`**, для integrator — **`integrator`** (или `search_path`, заданный роли).
 
-Файл **`cutover.prod`** и переменные `INTEGRATOR_DATABASE_URL` / `SOURCE_DATABASE_URL` остаются для **legacy** cutover/backfill-скриптов и dev-симметрии; на проде после unification они могут указывать на **ту же** строку, что и `DATABASE_URL` (или быть не нужны — см. конкретный скрипт).
+**УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026:** active checkout не содержит PROD A→B0, historical replay или disposable execution path. `cutover.prod`, `INTEGRATOR_DATABASE_URL` и `SOURCE_DATABASE_URL` могут встречаться только в исторических описаниях и не являются входом текущего deploy.
 
 ### Миграции: webapp Drizzle (`public`) vs integrator
 

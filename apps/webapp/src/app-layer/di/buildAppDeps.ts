@@ -1864,6 +1864,8 @@ function _buildAppDeps() {
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
       updateRole: userProjectionPort.updateRole,
       getProfileEmailFields: userProjectionPort.getProfileEmailFields,
+      getCurrentPatientFio: userProjectionPort.getCurrentPatientFio,
+      updateCurrentPatientFio: userProjectionPort.updateCurrentPatientFio,
       clearStaffAccountEmail: userProjectionPort.clearStaffAccountEmail,
       patchAdminClientProfile: userProjectionPort.patchAdminClientProfile,
       findPlatformUserIdWithEmailConflict: userProjectionPort.findPlatformUserIdWithEmailConflict,

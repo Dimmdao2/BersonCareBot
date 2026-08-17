@@ -280,7 +280,11 @@ export function createTreatmentProgramProgressService(deps: {
         sets?: number;
         weightKg?: number;
       };
-    }): Promise<TreatmentProgramInstanceDetail> {
+      repeatCooldownMinutes: number;
+    }): Promise<{
+      item: TreatmentProgramInstanceDetail;
+      completion: { id: string; createdAt: string };
+    }> {
       return instances.runInMutationTransaction(async () => {
         assertUuid(input.patientUserId);
         assertUuid(input.instanceId);
@@ -298,6 +302,18 @@ export function createTreatmentProgramProgressService(deps: {
         }
         if (item.itemType === 'clinical_test') {
           throw new Error('Для клинического теста используйте отправку результатов');
+        }
+        const latest = await actionLog.lockSimpleCompletionTargetAndGetLatest({
+          instanceId: input.instanceId,
+          patientUserId: input.patientUserId,
+          instanceStageItemId: item.id,
+        });
+        const cooldownMinutes = Math.min(180, Math.max(5, input.repeatCooldownMinutes));
+        if (
+          latest &&
+          Date.parse(nowIso()) - Date.parse(latest.createdAt) < cooldownMinutes * 60_000
+        ) {
+          throw new Error('completion_cooldown_active');
         }
         const hadCompleted = item.completedAt != null;
         const ts = nowIso();
@@ -326,7 +342,7 @@ export function createTreatmentProgramProgressService(deps: {
         ) {
           completionPayload.weightKg = input.completion.weightKg;
         }
-        await actionLog.insertAction({
+        const completion = await actionLog.insertAction({
           instanceId: input.instanceId,
           instanceStageItemId: item.id,
           patientUserId: input.patientUserId,
@@ -347,7 +363,7 @@ export function createTreatmentProgramProgressService(deps: {
         }
         const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
         if (!out) throw new Error('Программа не найдена');
-        return out;
+        return { item: out, completion };
       });
     },
 
@@ -373,7 +389,46 @@ export function createTreatmentProgramProgressService(deps: {
       const d = p.perceivedDifficulty;
       const difficulty: import('./types').LfkPostSessionDifficulty | null =
         d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
-      return { at: row.createdAt, reps, sets, weightKg, difficulty };
+      return { completionId: row.id, at: row.createdAt, reps, sets, weightKg, difficulty };
+    },
+
+    async enrichSimpleCompletion(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+      completionId: string;
+      metrics: {
+        perceivedDifficulty?: 'easy' | 'medium' | 'hard';
+        reps?: number;
+        sets?: number;
+        weightKg?: number;
+      };
+    }): Promise<import('./types').ExerciseMetricPoint> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      assertUuid(input.completionId);
+      const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!detail) throw new Error('Программа не найдена');
+      resolveItemAndStage(detail, input.stageItemId);
+      const row = await actionLog.updateSimpleDonePayload({
+        completionId: input.completionId,
+        instanceId: input.instanceId,
+        patientUserId: input.patientUserId,
+        instanceStageItemId: input.stageItemId,
+        metrics: input.metrics,
+      });
+      if (!row) throw new Error('completion_not_found');
+      const p = row.payload ?? {};
+      const d = p.perceivedDifficulty;
+      return {
+        completionId: row.id,
+        at: row.createdAt,
+        reps: typeof p.reps === 'number' && Number.isFinite(p.reps) ? p.reps : null,
+        sets: typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null,
+        weightKg: typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null,
+        difficulty: d === 'easy' || d === 'medium' || d === 'hard' ? d : null,
+      };
     },
 
     async patientEnsureTestAttempt(input: {
@@ -691,7 +746,7 @@ export function createTreatmentProgramProgressService(deps: {
         const d = p.perceivedDifficulty;
         const difficulty: import('./types').LfkPostSessionDifficulty | null =
           d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
-        return { at: r.createdAt, reps, weightKg, sets, difficulty };
+        return { completionId: r.id, at: r.createdAt, reps, weightKg, sets, difficulty };
       });
     },
 
@@ -722,7 +777,7 @@ export function createTreatmentProgramProgressService(deps: {
         const d = p.perceivedDifficulty;
         const difficulty: import('./types').LfkPostSessionDifficulty | null =
           d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
-        return { at: r.createdAt, reps, weightKg, sets, difficulty };
+        return { completionId: r.id, at: r.createdAt, reps, weightKg, sets, difficulty };
       });
     },
 
