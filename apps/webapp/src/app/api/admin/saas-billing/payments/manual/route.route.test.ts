@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DatabaseError } from 'pg';
 
 const fakes = vi.hoisted(() => ({
   gate: vi.fn(),
@@ -122,7 +123,6 @@ describe('manual SaaS invoice HTTP mapping', () => {
       503,
       'saas_billing_payment_provider_unavailable',
     ],
-    ['permission denied', '42501', 503, 'saas_billing_database_unavailable'],
     ['unexpected internal failure', undefined, 503, 'saas_billing_manual_invoice_unavailable'],
   ])('maps %s to a bounded refusal', async (message, code, status, publicError) => {
     fakes.createManualInvoice.mockRejectedValue(Object.assign(new Error(message), { code }));
@@ -139,6 +139,47 @@ describe('manual SaaS invoice HTTP mapping', () => {
         errorCode: code ?? null,
         root: expect.any(String),
       }),
+      '[saas-billing/manual-invoice] creation failed',
+    );
+  });
+
+  it('preserves a bounded database-unavailable mapping for an actual PostgreSQL error', async () => {
+    const rawMessage = 'permission denied: db-customer-secret@example.test';
+    const databaseError = new DatabaseError(rawMessage, rawMessage.length, 'error');
+    databaseError.code = '42501';
+    fakes.createManualInvoice.mockRejectedValue(databaseError);
+
+    const response = await POST(request());
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({ ok: false, error: 'saas_billing_database_unavailable' });
+    expect(JSON.stringify({ body, logs: fakes.loggerError.mock.calls })).not.toContain(rawMessage);
+    expect(fakes.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: '42501', root: 'database_unavailable' }),
+      '[saas-billing/manual-invoice] creation failed',
+    );
+  });
+
+  it('preserves a bounded database-unavailable mapping for a transport-shaped connect failure', async () => {
+    const rawMessage = 'connect refused: transport-customer-secret@example.test';
+    const transportError = Object.assign(new Error(rawMessage), {
+      code: 'ECONNREFUSED',
+      errno: -111,
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 5432,
+    });
+    fakes.createManualInvoice.mockRejectedValue(transportError);
+
+    const response = await POST(request());
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({ ok: false, error: 'saas_billing_database_unavailable' });
+    expect(JSON.stringify({ body, logs: fakes.loggerError.mock.calls })).not.toContain(rawMessage);
+    expect(fakes.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'ECONNREFUSED', root: 'database_unavailable' }),
       '[saas-billing/manual-invoice] creation failed',
     );
   });
@@ -169,18 +210,63 @@ describe('manual SaaS invoice HTTP mapping', () => {
     );
   });
 
-  it('does not trust an arbitrary five-character error code as a safe SQLSTATE', async () => {
-    const attackerControlledCode = 'PWN42';
-    fakes.createManualInvoice.mockRejectedValue(
-      Object.assign(new Error('unexpected internal failure'), { code: attackerControlledCode }),
-    );
+  it.each(['PWN42', 'QXZ99', 'provider-secret-code'])(
+    'does not expose unknown external code %s in response, structured logs or console logs',
+    async (attackerControlledCode) => {
+      const rawMessage = `unexpected provider failure: ${attackerControlledCode}:customer-secret`;
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    await POST(request());
+      try {
+        fakes.createManualInvoice.mockRejectedValue(
+          Object.assign(new Error(rawMessage), { code: attackerControlledCode }),
+        );
 
-    expect(JSON.stringify(fakes.loggerError.mock.calls)).not.toContain(attackerControlledCode);
-    expect(fakes.loggerError).toHaveBeenCalledWith(
-      expect.objectContaining({ errorCode: null }),
-      '[saas-billing/manual-invoice] creation failed',
-    );
-  });
+        const response = await POST(request());
+        const body = await response.json();
+        const observable = JSON.stringify({
+          body,
+          structured: fakes.loggerError.mock.calls,
+          console: [consoleError.mock.calls, consoleWarn.mock.calls, consoleLog.mock.calls],
+        });
+
+        expect(response.status).toBe(503);
+        expect(body).toEqual({ ok: false, error: 'saas_billing_manual_invoice_unavailable' });
+        expect(observable).not.toContain(attackerControlledCode);
+        expect(observable).not.toContain(rawMessage);
+        expect(fakes.loggerError).toHaveBeenCalledWith(
+          expect.objectContaining({ errorCode: null, root: 'unclassified' }),
+          '[saas-billing/manual-invoice] creation failed',
+        );
+      } finally {
+        consoleError.mockRestore();
+        consoleWarn.mockRestore();
+        consoleLog.mockRestore();
+      }
+    },
+  );
+
+  it.each(['42501', 'ECONNREFUSED'])(
+    'does not let a plain external error forge trusted provenance with error.code=%s',
+    async (spoofedTrustedCode) => {
+      const rawMessage = `provider-controlled:${spoofedTrustedCode}:customer-secret`;
+      fakes.createManualInvoice.mockRejectedValue(
+        Object.assign(new Error(rawMessage), { code: spoofedTrustedCode }),
+      );
+
+      const response = await POST(request());
+      const body = await response.json();
+      const observable = JSON.stringify({ body, structured: fakes.loggerError.mock.calls });
+
+      expect.soft(response.status).toBe(503);
+      expect.soft(body).toEqual({ ok: false, error: 'saas_billing_manual_invoice_unavailable' });
+      expect.soft(observable).not.toContain(spoofedTrustedCode);
+      expect.soft(observable).not.toContain(rawMessage);
+      expect.soft(fakes.loggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ errorCode: null, root: 'unclassified' }),
+        '[saas-billing/manual-invoice] creation failed',
+      );
+    },
+  );
 });
