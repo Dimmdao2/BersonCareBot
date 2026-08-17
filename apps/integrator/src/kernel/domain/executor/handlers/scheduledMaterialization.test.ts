@@ -8,10 +8,15 @@ const action: Action = {
   mode: 'sync',
   params: {},
 };
+const schedulerEventId = 'sch:ffffffff-ffff-4fff-8fff-ffffffffffff';
 const ctx: DomainContext = {
   event: {
     type: 'schedule.tick',
-    meta: { eventId: 'tick-1', occurredAt: '2026-08-03T12:00:00.000Z', source: 'scheduler' },
+    meta: {
+      eventId: schedulerEventId,
+      occurredAt: '2026-08-03T12:00:00.000Z',
+      source: 'scheduler',
+    },
     payload: { organizationId: 'd0000000-0000-4000-8000-00000000000d' },
   },
   nowIso: '2026-08-03T12:00:00.000Z',
@@ -28,7 +33,7 @@ describe('scheduled patient reminder materialization', () => {
     expect(result.status).toBe('success');
     expect(wake).toHaveBeenCalledWith({
       organizationId: 'd0000000-0000-4000-8000-00000000000d',
-      wakeId: 'tick-1',
+      wakeId: schedulerEventId,
     });
   });
 
