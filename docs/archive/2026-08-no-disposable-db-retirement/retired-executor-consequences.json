@@ -676,13 +676,13 @@
         },
         {
           "title": "getDashboardPatientMetrics counts the real fixture client",
-          "state": "named-dev-ready",
-          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+          "state": "required-current-oracle",
+          "evidence": null
         },
         {
           "title": "isolates lists and dashboard metrics between specialists in one organization",
-          "state": "named-dev-ready",
-          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+          "state": "required-current-oracle",
+          "evidence": null
         }
       ]
     },
@@ -981,8 +981,8 @@
         },
         {
           "title": "limits conversation list and unread count to patients assigned to the specialist",
-          "state": "named-dev-ready",
-          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+          "state": "required-current-oracle",
+          "evidence": null
         }
       ]
     },

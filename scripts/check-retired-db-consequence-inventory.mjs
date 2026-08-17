@@ -71,8 +71,8 @@ assert.equal(declarationStates.length, 121, 'every product declaration needs an 
 assert.deepEqual(stateCounts, {
   'static-product': 2,
   'static-security': 9,
-  'named-dev-ready': 22,
-  'required-current-oracle': 82,
+  'named-dev-ready': 19,
+  'required-current-oracle': 85,
   'retired-owner': 6,
 });
 for (const declaration of declarationStates) {
@@ -90,5 +90,5 @@ assert.deepEqual(counts, {
 });
 
 console.log(
-  `retired DB consequence inventory: OK (123 paths; product=${productDeclarations}: static=2 security=9 named-DEV-READY=22 required=82 retired=6; other=55 independent + 29 support + 4 history)`,
+  `retired DB consequence inventory: OK (123 paths; product=${productDeclarations}: static=2 security=9 named-DEV-READY=19 required=85 retired=6; other=55 independent + 29 support + 4 history)`,
 );

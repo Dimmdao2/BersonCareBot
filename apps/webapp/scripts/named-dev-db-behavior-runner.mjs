@@ -25,12 +25,12 @@ const WEBAPP_ENV_PATH = resolve(CANONICAL_DEV_REPO_ROOT, 'apps/webapp/.env.dev')
 export const LIVE_COVERAGE = Object.freeze({
   pgBookingSchedulingDeactivateWorkingHours: 2,
   pgBookingSchedulingReadChokepoint: 3,
-  pgDoctorClients: 3,
+  pgDoctorClients: 1,
   pgDoctorAnalyticsMetricAccounts: 1,
   pgPatientBookings: 1,
   pgPhase14DCommsTail: 1,
   pgProgramItemDiscussionDoctorComments: 2,
-  pgSupportCommunication: 5,
+  pgSupportCommunication: 4,
   tenantIsolationMatrix: 4,
 });
 
@@ -840,7 +840,7 @@ export function selfTestRegistry(candidate = LIVE_COVERAGE) {
   for (const [key, expected] of Object.entries(LIVE_COVERAGE)) {
     assert.equal(candidate[key], expected, `live coverage count changed for ${key}`);
   }
-  assert.equal(LIVE_COVERED_CALLS, 22, 'live coverage total must stay explicit');
+  assert.equal(LIVE_COVERED_CALLS, 19, 'live coverage total must stay explicit');
 }
 
 async function main() {
@@ -848,7 +848,7 @@ async function main() {
   if (process.argv[2] === '--self-test') {
     assertCanonicalNamedDevEnvFiles();
     selfTestRegistry();
-    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 22-call registry)');
+    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 19-call registry)');
     return;
   }
   const result = await runLive();

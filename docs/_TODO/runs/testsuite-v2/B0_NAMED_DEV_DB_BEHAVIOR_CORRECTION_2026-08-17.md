@@ -14,8 +14,8 @@ This correction did not contact or mutate DEV, TEST, or PROD.
   knows its deterministic owned rule id before the request, and deletes that id in `finally` even if the create
   response is lost. Booking and retained chat rows use one unique run tag; chat recovery asserts at most one row.
 - The exact source census is 35 files / 121 top-level test declarations. The nine `RegExp.prototype.test` false
-  matches are excluded. Round 2 now claims only 2 exact static replacements and 22 same-consequence READY cells;
-  it leaves 82 product/worker and 9 security/catalog consequences unproved and explicitly retires 6 non-product
+  matches are excluded. Round 2 now claims only 2 exact static replacements and 19 same-consequence READY cells;
+  it leaves 85 product/worker and 9 security/catalog consequences unproved and explicitly retires 6 non-product
   implementation contracts.
 - The nine security/catalog cells have one non-DB declaration/generator oracle. It proves the intended declaration,
   not installed catalog state; live catalog equality remains for canonical named-environment reconcile.
@@ -59,9 +59,9 @@ PASS
 
 ## Remaining named blockers
 
-- The 22 READY product consequences are not PASS until the shared live DEV audit releases the single server and the
+- The 19 READY product consequences are not PASS until the shared live DEV audit releases the single server and the
   serialized runner records durable readbacks.
-- The remaining 82 product/worker consequences require ordinary product/provider/worker state grouped in the matrix;
+- The remaining 85 product/worker consequences require ordinary product/provider/worker state grouped in the matrix;
   no fixture root, raw SQL, disposable database or historical replay was added.
 - The nine declaration/generator cells still require the canonical named-environment reconcile/catalog comparison
   before they can become live PASS.
