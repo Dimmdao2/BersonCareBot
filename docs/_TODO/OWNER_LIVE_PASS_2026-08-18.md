@@ -80,8 +80,41 @@
 - [ ] **L-6. Переключение «Показывать мне врачебные экраны» сыплет 403** на `…/summary` и `…/unread-count`.
       Само переключение срабатывает, но пункты меню врача появляются/исчезают только после перезагрузки
       страницы. Владелец: «вероятно имеет смысл автоматически перезагружать страницу».
-- [ ] **L-7. Не меняется адрес клиники (slug)** без объяснения причины: «Не удалось сохранить адрес.
-      Повторите попытку.» `…/slug` → **500**.
+- [x] **L-7. Не меняется адрес клиники (slug)** без объяснения причины: «Не удалось сохранить адрес.
+      Повторите попытку.» `…/slug` → **500**. Ветка `wt/clinic-slug-privilege-20260818`.
+
+      **Причина (доказана, а не назначена).** Два сторожа адреса —
+      `organization_slug_claims_rename_complete_guard` и `…_alias_complete_guard` — это
+      `CONSTRAINT TRIGGER … DEFERRABLE INITIALLY DEFERRED`, то есть их тела исполняются на COMMIT.
+      К этому моменту порт БД уже выполнил `RESET ROLE`
+      (`packages/db-principal/src/portContext.ts:402,422,482,518`), поэтому тело, объявленное
+      `SECURITY INVOKER`, работало от голой логин-роли `bcb_dev_webapp_staff`, у которой нет
+      `USAGE` на схему `public`. Журнал PostgreSQL на живом воспроизведении 18.08 02:06:05 MSK:
+      `bcb_dev_webapp_staff@bcb_webapp_dev ERROR: permission denied for schema public` ·
+      `CONTEXT: PL/pgSQL function app.assert_organization_slug_rename_complete() line 15 at IF` ·
+      `STATEMENT: COMMIT`. Маршрут переводит SQLSTATE 42501 в 503
+      (`apps/webapp/src/app/api/clinic/slug/route.ts:56-66`), экран показывал общий текст.
+
+      **Починка.** Оба сторожа объявлены `SECURITY DEFINER` с владельцем уже существующего шва
+      публичного адреса `app_seam_public_slug_owner` и закреплённым `search_path=pg_catalog`
+      (`deploy/postgres/privileges/declaration.ts`). Права и RLS шва — ровно те колонки, которые
+      читают тела: `organization_slug_claims(kind, organization_id, slug)`,
+      `clinic_public_directory_entries(organization_id, slug)`,
+      `organization_slug_rename_events(next_slug, organization_id, previous_slug)`, только SELECT.
+      Отдельного файла миграции нет и быть не может: владельца функции меняет только сверщик
+      деклараций от суперпользователя — попытка сделать это шагом миграции падает с
+      `must be able to SET ROLE "app_seam_public_slug_owner"` (проверено), а тела функций не менялись.
+
+      **Живая проверка под ролью владельца клиники** (DEV, `http://127.0.0.1:5200`,
+      `dimmdao@yandex.ru`): экран «Настройки» → «Публичная запись» → «Изменить адрес» →
+      `POST /api/clinic/slug` → **200**, на экране `Slug: dmitryberson`, ссылка
+      `/book/dmitryberson`. В БД остались алиас старого адреса, синхронизированный каталог и
+      запись аудита переименования — то, чего сторож и требует.
+
+      **Сторож по-прежнему кусается:** неполное переименование (сменили slug у заявки и каталога,
+      алиас не оставили, аудит не записали) на COMMIT под логин-ролью отбивается своим
+      сообщением `organization slug rename requires retained alias, synchronized directory and
+      audit event`, а не 42501.
 - [ ] **L-8. Смена тарифа: «Не удалось выставить счёт на оплату тарифа.»** `…/billing` → **500**.
 - [ ] **L-9. Календарь: админ клиники создаёт запись,** экран требует «Заполните филиал, услугу и
       специалиста», **а полей выбора услуги и специалиста на форме нет**.

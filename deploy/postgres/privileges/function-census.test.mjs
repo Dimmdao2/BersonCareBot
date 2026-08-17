@@ -192,9 +192,10 @@ test('function parser removes real comments without truncating comment markers i
 });
 
 test('aggregated runtime surface findings separate invoker triggers from exact definer corrections', () => {
+  // Both organization-slug guards left this list on 2026-08-18: they are DEFERRABLE INITIALLY
+  // DEFERRED constraint triggers, so as SECURITY INVOKER they ran at COMMIT under the bare login
+  // role and could not reach schema public at all — see the dedicated test below.
   const invokerTriggers = [
-    'app.assert_organization_slug_alias_complete()',
-    'app.assert_organization_slug_rename_complete()',
     'app.enforce_lfk_child_owner()',
     'app.guard_clinic_directory_current_slug()',
     'app.guard_org_brand_revision()',
@@ -315,8 +316,9 @@ test('legacy census is restored without obsolete context and overlaid by the act
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 371);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 369);
+  // +2 on 2026-08-18: both organization-slug deferred constraint-trigger guards became DEFINER seams.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 373);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 371);
   assert.equal(testFunctions.length, 387);
   assert.equal(devFunctions.length, 385);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
@@ -414,6 +416,44 @@ test('complete relation APIs leave no generation gap', () => {
   }
 });
 
+// Live defect 2026-08-18 (L-7): both organization-slug guards are CONSTRAINT TRIGGERs declared
+// DEFERRABLE INITIALLY DEFERRED, so their bodies run at COMMIT — after the DB port has already
+// executed RESET ROLE. Declared SECURITY INVOKER they therefore executed as the bare login role,
+// which holds no USAGE on schema public, and every attempt by a clinic owner to change the public
+// address of the clinic died with SQLSTATE 42501 and a 503 the screen could not explain.
+test('a function that declares a relation surface can only reach it as SECURITY DEFINER', () => {
+  const functions = declaration.portContext.functions;
+  for (const signature of [
+    'app.assert_organization_slug_rename_complete()',
+    'app.assert_organization_slug_alias_complete()',
+  ]) {
+    const guard = functions[signature];
+    assert.equal(guard.security, 'DEFINER', signature);
+    assert.equal(guard.owner, 'app_seam_public_slug_owner', signature);
+    assert.ok(guard.relationSurfaces.length > 0, signature);
+    for (const surface of guard.relationSurfaces) {
+      assert.deepEqual(surface.operations, ['SELECT'], `${signature} ${surface.relation}`);
+    }
+  }
+  const renameSurfaces = Object.fromEntries(
+    functions['app.assert_organization_slug_rename_complete()'].relationSurfaces
+      .map((surface) => [surface.relation, [...surface.columns].sort()]),
+  );
+  assert.deepEqual(renameSurfaces, {
+    'public.organization_slug_claims': ['kind', 'organization_id', 'slug'],
+    'public.clinic_public_directory_entries': ['organization_id', 'slug'],
+    'public.organization_slug_rename_events': ['next_slug', 'organization_id', 'previous_slug'],
+  });
+
+  const invoker = structuredClone(declaration);
+  invoker.portContext.functions['app.assert_organization_slug_rename_complete()'].security = 'INVOKER';
+  for (const database of DATABASES) {
+    assert.ok(collectGaps(invoker, database).some((gap) =>
+      gap.site === 'portContext.functions.app.assert_organization_slug_rename_complete().security'
+      && gap.reason === 'a declared relation surface is reachable only through SECURITY DEFINER'), database);
+  }
+});
+
 test('special body relation contracts are an exact closed set and arbitrary bypasses fail', () => {
   const expected = {
     'app_control.enforce_relation_birth_wall()': 'relation-birth-wall',
@@ -496,7 +536,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 371 : 369;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 373 : 371;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),
@@ -517,7 +557,7 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.ok(surfaceVerifier.includes("('app.install_port_context(uuid,app.port_context_claims)', 'port-context')"));
     assert.ok(surfaceVerifier.includes("('public.audit_app_runtime_settings_change()')"));
     assert.ok(surfaceVerifier.includes("('app.password_login_acquire_impl(text,text,uuid,text)')"));
-    assert.equal(surfaceVerifier.includes("('app.assert_organization_slug_alias_complete()')"), false);
+    assert.ok(surfaceVerifier.includes("('app.assert_organization_slug_alias_complete()')"));
     assert.equal(surfaceVerifier.includes("('public.sync_registered_app_runtime_setting()')"), false);
     assert.ok(surfaceVerifier.includes("('app.enqueue_media_transcode_job_for_staff(uuid)', 'public.media_files'"));
     assert.ok(surfaceVerifier.includes(

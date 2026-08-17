@@ -3314,17 +3314,45 @@ const REV10_CONTEXT = {
       invocation: 'trigger' as const,
       bodyRelationSurfaceContract: 'relation-birth-wall' as const,
     }),
+    // Both slug guards are CONSTRAINT TRIGGERs declared DEFERRABLE INITIALLY DEFERRED, so their
+    // bodies execute at COMMIT — after withPortContextTransaction has already run RESET ROLE and
+    // app.clear_port_context(). As SECURITY INVOKER they therefore ran as the bare login role
+    // (bcb_dev_webapp_staff), which holds no USAGE on schema public, and every clinic slug rename
+    // died with 42501 "permission denied for schema public". Owning them by the existing public-slug
+    // seam makes the deferred check independent of whichever role is in effect at COMMIT; the
+    // surfaces below are exactly the columns the two bodies read and nothing else.
     'app.assert_organization_slug_alias_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [],
       purpose: 'deferred organization slug alias completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims',
+          columns: ['kind', 'organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.organization_slug_rename_events',
+          columns: ['next_slug', 'organization_id', 'previous_slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.assert_organization_slug_rename_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [],
       purpose: 'deferred organization slug rename completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims',
+          columns: ['kind', 'organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.clinic_public_directory_entries',
+          columns: ['organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.organization_slug_rename_events',
+          columns: ['next_slug', 'organization_id', 'previous_slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.enforce_lfk_child_owner()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
