@@ -73,6 +73,29 @@ describe('patient reminder materialization signed wake route', () => {
     expect(fakes.runWake).not.toHaveBeenCalled();
   });
 
+  it('rejects an oversized wake id even when the organization-bound key matches it', async () => {
+    const oversizedWakeId = `sch:${'a'.repeat(61)}`;
+    const response = await POST(
+      request({
+        key: `patient-reminder-materialize:${organizationId}:${oversizedWakeId}`,
+        body: { wakeId: oversizedWakeId, organizationId },
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(fakes.runWake).not.toHaveBeenCalled();
+  });
+
+  it('rejects a blank wake id even when the organization-bound key matches it', async () => {
+    const response = await POST(
+      request({
+        key: `patient-reminder-materialize:${organizationId}:`,
+        body: { wakeId: '', organizationId },
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(fakes.runWake).not.toHaveBeenCalled();
+  });
+
   it('fails closed when the verified organization principal cannot be installed', async () => {
     fakes.principalAccepted = false;
     const response = await POST(request());
