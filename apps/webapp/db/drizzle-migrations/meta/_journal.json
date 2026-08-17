@@ -141,6 +141,13 @@
       "when": 1800000019000,
       "tag": "0019_patient_reminder_materialization_runtime_capabilities",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1800000020000,
+      "tag": "0020_patient_reminder_materialization_narrow_column_reads",
+      "breakpoints": true
     }
   ]
 }
