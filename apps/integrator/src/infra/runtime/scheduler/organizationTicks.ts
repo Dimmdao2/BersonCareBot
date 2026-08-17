@@ -31,7 +31,7 @@ export async function runSchedulerOrganizationTicks(
         {
           type: 'schedule.tick',
           meta: {
-            eventId: `sch:${organizationId}:${deps.newEventId()}`,
+            eventId: `sch:${deps.newEventId()}`,
             occurredAt,
             source: 'scheduler',
           },

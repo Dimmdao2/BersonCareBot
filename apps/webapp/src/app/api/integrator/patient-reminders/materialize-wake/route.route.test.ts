@@ -22,16 +22,17 @@ vi.mock('@/app-layer/reminders/runPatientReminderMaterializationWake', () => ({
 import { POST } from './route';
 
 const organizationId = 'd0000000-0000-4000-8000-00000000000d';
+const schedulerWakeId = 'sch:ffffffff-ffff-4fff-8fff-ffffffffffff';
 
 function request(overrides: { key?: string; body?: unknown } = {}) {
-  const body = overrides.body ?? { wakeId: 'tick-1', organizationId };
+  const body = overrides.body ?? { wakeId: schedulerWakeId, organizationId };
   return new Request('https://test.example/api/integrator/patient-reminders/materialize-wake', {
     method: 'POST',
     headers: {
       'x-bersoncare-timestamp': '1785369600',
       'x-bersoncare-signature': 'sig',
       'x-bersoncare-idempotency-key':
-        overrides.key ?? `patient-reminder-materialize:${organizationId}:tick-1`,
+        overrides.key ?? `patient-reminder-materialize:${organizationId}:${schedulerWakeId}`,
     },
     body: JSON.stringify(body),
   });
@@ -65,7 +66,9 @@ describe('patient reminder materialization signed wake route', () => {
   });
 
   it('rejects a key copied across organizations or wake ids', async () => {
-    const response = await POST(request({ key: 'patient-reminder-materialize:other:tick-1' }));
+    const response = await POST(
+      request({ key: `patient-reminder-materialize:other:${schedulerWakeId}` }),
+    );
     expect(response.status).toBe(400);
     expect(fakes.runWake).not.toHaveBeenCalled();
   });
