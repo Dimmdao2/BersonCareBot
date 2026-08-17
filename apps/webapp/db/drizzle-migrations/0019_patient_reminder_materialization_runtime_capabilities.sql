@@ -122,6 +122,8 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.read_patient_reminder_delivery_target_snapshot(
   p_organization_id uuid,
   p_platform_user_id uuid,
@@ -265,6 +267,8 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- This helper is private to the two reminder-materialization roots. Its previous operational
 -- scheduler EXECUTE was unnecessary and made a nested call depend on the wrong accepted context.
 CREATE OR REPLACE FUNCTION app.patient_reminder_materialization_fingerprint(
@@ -360,6 +364,8 @@ REVOKE ALL ON FUNCTION app.patient_reminder_materialization_fingerprint(text,tex
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.commit_patient_reminder_materialization(
   p_organization_id uuid,
   p_occurrence_id text,
