@@ -214,8 +214,12 @@ plans либо текущему отдельному DB privilege plan. В эт�
       plaintext отсутствует в S3, CDN/nginx caches, logs, metrics, dumps и незашифрованном swap.
 - [ ] **IS-I2-07. S3 access controls.** Доказаны anonymous deny, bucket policy/ACL, least-privilege credentials,
       credential separation и provider-side encryption как дополнительный, но не заменяющий client-side слой.
-- [ ] **IS-I2-08. Versioning/lifecycle safety.** Versioning включается только после delete-all-versions capability;
-      lifecycle и Object Lock согласованы с deletion/legal-hold model и не создают неудаляемые сироты.
+- [ ] **IS-I2-08. Versioning/lifecycle safety.** Разделение зафиксировано владельцем 17.08: на **рабочем** бакете
+      версионирование выключено, на **архивном** у второго провайдера — включено вместе с Object Lock (решение 22).
+      Следствия: удалённый по ошибке пациентский файл восстанавливается только из независимой копии `IS-I3-04`, и
+      этот путь обязан быть доказан drill'ом `IS-I3-09`; в квоте клиники версий не существует, поэтому вопрос
+      «считать ли версии» закрыт. Lifecycle и Object Lock согласованы с deletion/legal-hold model и не создают
+      неудаляемые сироты. Фактическая конфигурация обоих бакетов подтверждается машинной проверкой в evidence.
 - [ ] **IS-I2-09. Crypto negative tests.** Wrong tenant/key/metadata, tamper, truncation, retry/concurrency и key loss
       fail closed; tenant A не использует envelope tenant B.
 - [ ] **IS-I2-10. Selected field encryption decision.** Массовое шифрование полей отклонено владельцем 17.08
