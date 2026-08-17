@@ -2946,6 +2946,51 @@ const REV10_CONTEXT = {
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.patient_cancel_pending_reminder_occurrences(text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'],
+      relationSurfaces: [
+        ...(BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'].relationSurfaces ?? []),
+        { relation: 'public.reminder_rules',
+          columns: ['integrator_rule_id', 'organization_id', 'platform_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    },
+    'app.read_current_patient_organization_entitlements()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_current_patient_organization_entitlements()'],
+      relationSurfaces: [
+        ...(BUSINESS_SEAM_FUNCTIONS['app.read_current_patient_organization_entitlements()'].relationSurfaces ?? []),
+        { relation: 'public.saas_paid_period_policy',
+          columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    },
+    'app.email_auth_find_email_owner_conflict(uuid,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.email_auth_find_email_owner_conflict(uuid,text)'],
+      relationSurfaces: [],
+      delegatesTo: ['app.find_platform_user_ids_by_any_confirmed_email(text)'],
+    },
+    'app.password_login_acquire(text,text,uuid,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_acquire_impl(text,text,uuid,text)'],
+    },
+    'app.password_login_complete(uuid,boolean)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_complete(uuid,boolean)'],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_complete_impl(uuid,boolean)'],
+    },
+    'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)': {
+      ...BUSINESS_SEAM_FUNCTIONS[
+        'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)'
+      ],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)'],
+    },
+    'app.password_login_read_altcha_secret()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_read_altcha_secret()'],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_read_altcha_secret_impl()'],
+    },
     'app.require_attested_target_role(name,name[])': rev10Function({
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'name',
       execute: ['app_seam_reminder_patient_owner'],
@@ -3091,6 +3136,10 @@ const REV10_CONTEXT = {
     'app.provision_specialist_owner(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'],
       delegatesTo: ['app.require_staff_security_self_user_id()'],
+      relationSurfaces: BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'].relationSurfaces
+        ?.map((surface) => surface.relation === 'public.be_organizations'
+          ? { ...surface, operations: ['INSERT' as const] }
+          : surface) ?? [],
     },
     'app.replace_pending_specialist_signup_challenge(uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.replace_pending_specialist_signup_challenge(uuid,text)'],
@@ -3235,6 +3284,7 @@ const REV10_CONTEXT = {
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app_control, pg_temp'],
       invocation: 'trigger' as const,
+      bodyRelationSurfaceContract: 'relation-birth-wall' as const,
     }),
     'app.assert_organization_slug_alias_complete()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
@@ -3968,7 +4018,8 @@ const REV10_CONTEXT = {
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
           'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
-        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_history_events',
           columns: ['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at'],
           operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4323,10 +4374,14 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.platform_users',
           columns: ['id', 'role', 'merged_into_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at'],
-          operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['id', 'role', 'merged_into_id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_identity',
           columns: ['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at'],
-          operations: ['INSERT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['platform_user_id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.admin_audit_log',
           columns: ['organization_id', 'actor_id', 'action', 'target_id', 'details'],
           operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4714,12 +4769,16 @@ const REV10_CONTEXT = {
       execute: ['app_staff'], purpose: 'media.transcode.enqueue', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.media_files', columns: ['id'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+      delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
     }),
     'app.enqueue_media_transcode_job_for_service(uuid)': rev10Function({
       owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
       execute: ['app_operational_media_worker'], purpose: 'media.transcode.enqueue', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [], delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
     }),
     'app.resolve_active_organization_for_integrator_user_id(bigint)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
@@ -4801,14 +4860,17 @@ const REV10_CONTEXT = {
     }),
     'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
       execute: [], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      bodyRelationSurfaceContract: 'port-context' as const }),
     'app.clear_port_context()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
       execute: [], purpose: 'clear', typedArgs: [],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      bodyRelationSurfaceContract: 'port-context' as const }),
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      bodyRelationSurfaceContract: 'port-context' as const }),
     'app.require_attested_context_for_roles(name,name[])': rev10Function({
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_SEAM_OWNERS],
       purpose: 'verify one current transaction-bound port context before an ordinary definer body',
@@ -4892,7 +4954,7 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.outgoing_delivery_queue', columns: ['id', 'organization_id', 'status', 'failure_class',
           'kind', 'channel', 'payload_json', 'last_error', 'created_at'],
-          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.broadcast_audit', columns: ['id', 'organization_id', 'actor_id', 'message_title'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4900,11 +4962,11 @@ const REV10_CONTEXT = {
           'phone_normalized'], operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.integrator_push_outbox', columns: ['id', 'kind', 'status', 'last_error',
-          'created_at'], operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          'created_at'], operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'integrator.projection_outbox', columns: ['id', 'event_type', 'idempotency_key',
           'status', 'attempts_done', 'last_error', 'created_at'],
-          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.operator_health_failure_archive', columns: ['organization_id', 'archived_by_user_id',
           'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json',
@@ -4913,10 +4975,10 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
