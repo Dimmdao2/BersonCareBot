@@ -28,6 +28,18 @@ test('renders redacted Gitleaks finding locations from SARIF', () => {
                 },
               ],
             },
+            {
+              ruleId: 'telegram-bot-token-assignment',
+              partialFingerprints: { commitSha: 'fedcba0987654321' },
+              locations: [
+                {
+                  physicalLocation: {
+                    artifactLocation: { uri: 'src/telegram.ts' },
+                    region: { startLine: 12 },
+                  },
+                },
+              ],
+            },
           ],
         },
       ],
@@ -39,10 +51,12 @@ test('renders redacted Gitleaks finding locations from SARIF', () => {
     encoding: 'utf8',
   });
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /Findings: \*\*1\*\*/);
+  assert.match(result.stdout, /Findings: \*\*2\*\*/);
   assert.match(result.stdout, /src\/secret\.ts:17/);
-  assert.doesNotMatch(result.stdout + result.stderr, /1234567890abcdef/);
+  assert.match(result.stdout, /src\/telegram\.ts:12/);
+  assert.doesNotMatch(result.stdout + result.stderr, /1234567890abcdef|fedcba0987654321/);
   assert.match(result.stderr, /::error file=src\/secret\.ts,line=17/);
+  assert.match(result.stderr, /::error file=src\/telegram\.ts,line=12/);
 });
 
 test('checked push exits non-zero when a discovered Actions run is red', () => {

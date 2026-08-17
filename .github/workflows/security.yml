@@ -63,7 +63,7 @@ jobs:
 
   # --- Gitleaks negative self-test (proves the guard actually catches a secret) --------------
   gitleaks-selftest:
-    name: Gitleaks self-test (must catch a planted fake secret)
+    name: Gitleaks self-test (must catch a fake Telegram bot token)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -82,10 +82,10 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           gitleaks version
-      - name: Plant fake secret and assert gitleaks detects it
-        # A GitHub-token-shaped value is generated locally from random bytes at runtime. It was
-        # never issued by GitHub and cannot be a real credential, but it trips the default
-        # `github-pat` rule. It is written to a throwaway directory
+      - name: Plant fake Telegram token and assert the custom rule detects it
+        # A Telegram-token-shaped value is generated locally from random bytes at runtime. It was
+        # never issued by Telegram and cannot be a real credential, but it proves the narrow
+        # `telegram-bot-token-assignment` rule. It is written to a throwaway directory
         # under $RUNNER_TEMP (outside the repo checkout, never `git add`-ed, never committed),
         # so it cannot trip the real `gitleaks` job's `gitleaks git .` history scan above — that
         # job only ever sees actual commits in this repo, not this job's ephemeral scratch dir.
@@ -98,11 +98,18 @@ jobs:
           mkdir -p "${selftest_dir}"
           trap 'rm -rf "${selftest_dir}"' EXIT
 
-          printf 'token = ghp_%s\n' "$(openssl rand -hex 18)" \
-            > "${selftest_dir}/planted-secret.txt"
+          fake_bot_id="$(node --input-type=module -e \
+            "import { randomBytes } from 'node:crypto'; process.stdout.write([...randomBytes(10)].map((byte) => byte % 10).join(''));"
+          )"
+          fake_secret="$(node --input-type=module -e \
+            "import { randomBytes } from 'node:crypto'; process.stdout.write(randomBytes(32).toString('base64url').slice(0, 35));"
+          )"
+          printf 'botToken: "%s:%s"\n' "${fake_bot_id}" "${fake_secret}" \
+            > "${selftest_dir}/planted-secret.ts"
 
           set +e
-          gitleaks dir "${selftest_dir}" --no-banner --redact --config .gitleaks.toml
+          gitleaks dir "${selftest_dir}" --no-banner --redact --config .gitleaks.toml \
+            --report-format sarif --report-path "${selftest_dir}/gitleaks.sarif"
           gitleaks_exit=$?
           set -e
 
@@ -112,7 +119,20 @@ jobs:
             exit 1
           fi
 
-          echo "OK: gitleaks exited ${gitleaks_exit} (non-zero) on the planted secret — detection works."
+          SELFTEST_REPORT="${selftest_dir}/gitleaks.sarif" node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const report = JSON.parse(readFileSync(process.env.SELFTEST_REPORT, 'utf8'));
+          const results = (report.runs ?? []).flatMap((run) => run.results ?? []);
+          if (results.length !== 1 || results[0]?.ruleId !== 'telegram-bot-token-assignment') {
+            console.error(
+              `::error::Gitleaks self-test FAILED: expected exactly one telegram-bot-token-assignment finding; got ${results.length}.`,
+            );
+            process.exit(1);
+          }
+          NODE
+
+          echo "OK: the custom Telegram rule produced exactly one redacted finding."
 
   # --- SAST ---------------------------------------------------------------------------------
   semgrep:
