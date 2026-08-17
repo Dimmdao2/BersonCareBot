@@ -208,7 +208,7 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   }
   // Branch creation is an enforced stock write. An active tariff must therefore declare its
   // branch stock explicitly: omission is neither zero nor unlimited and cannot be a saveable
-  // commercial state. Existing named product tariffs are repaired by migration 0016.
+  // commercial state. Existing named product tariffs are repaired by migration 0018.
   if (input.isActive && input.quotas.branches === undefined) {
     throw new Error('tariff_branches_quota_required');
   }

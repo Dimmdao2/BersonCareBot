@@ -49,7 +49,7 @@ phone_otp_public_booking_issue_challenge
 const functionsFor = (database) => Object.entries(declaration.portContext.functions)
   .filter(([, fn]) => !fn.databases || fn.databases.includes(database));
 
-test('legacy 244/42 census is restored without obsolete context and overlaid by rev10', () => {
+test('legacy census is restored without obsolete context and overlaid by the active B0-forward roots', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
     functions: 229,
@@ -76,10 +76,10 @@ test('legacy 244/42 census is restored without obsolete context and overlaid by 
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 317);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 315);
-  assert.equal(testFunctions.length, 333);
-  assert.equal(devFunctions.length, 331);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 368);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 366);
+  assert.equal(testFunctions.length, 384);
+  assert.equal(devFunctions.length, 382);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);

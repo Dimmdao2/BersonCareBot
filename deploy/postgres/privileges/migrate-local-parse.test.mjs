@@ -64,17 +64,17 @@ test('a pure backfill emits no untyped empty owner-membership array', () => {
   assert.doesNotMatch(assertion ?? '', /ARRAY\[\]/u);
 });
 
-test('payment webhook bootstrap migration follows the real owner-ordered deploy path', () => {
+test('clinic owner tariff migration follows the B0-forward owner-ordered deploy path', () => {
   const source = fs.readFileSync(
     path.join(
       repoRoot,
-      'apps/webapp/db/drizzle-migrations/0449_patient_acquiring_webhook_bootstrap_resolver_local.sql',
+      'apps/webapp/db/drizzle-migrations/0018_clinic_owner_tariff_branch_quotas.sql',
     ),
     'utf8',
   );
   const steps = parseOwnerStatements(
     source,
-    '0449_patient_acquiring_webhook_bootstrap_resolver_local',
+    '0018_clinic_owner_tariff_branch_quotas',
   );
 
   assert.deepEqual(
@@ -84,8 +84,7 @@ test('payment webhook bootstrap migration follows the real owner-ordered deploy 
       languageUsage,
     })),
     [
-      { owner: 'app_object_owner', schemaCreate: null, languageUsage: null },
-      { owner: 'app_object_owner', schemaCreate: null, languageUsage: null },
+      { owner: null, schemaCreate: null, languageUsage: null },
       {
         owner: 'app_seam_payment_webhook_owner',
         schemaCreate: 'app',
@@ -93,8 +92,8 @@ test('payment webhook bootstrap migration follows the real owner-ordered deploy 
       },
       {
         owner: 'app_seam_payment_webhook_owner',
-        schemaCreate: null,
-        languageUsage: null,
+        schemaCreate: 'app',
+        languageUsage: 'plpgsql',
       },
     ],
   );

@@ -1,5 +1,5 @@
 -- BCB-MIGRATION-BACKFILL
--- TEMPORARY LOCAL MIGRATION NUMBER 0016
+-- TEMPORARY LOCAL MIGRATION NUMBER 0018
 -- Owner 2026-08-17: START must state a real branch stock, and the canonical Developer tariff is
 -- explicitly unlimited. Repair only these named tariffs and only when the quota key is absent;
 -- never overwrite an owner-set quota. Stock mechanics live in quotas, not the ability-toggle map.
