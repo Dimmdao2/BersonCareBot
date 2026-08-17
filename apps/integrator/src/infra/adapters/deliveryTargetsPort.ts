@@ -5,6 +5,7 @@
 import { createHmac } from 'node:crypto';
 import { integratorWebhookSecret } from '../../config/env.js';
 import type {
+  AdminMessengerTargets,
   DeliveryTargetsPort,
   DeliveryTargetsFetchOptions,
 } from '../../kernel/contracts/index.js';
@@ -12,6 +13,48 @@ import type { DeliveryTargetsFetchResult } from '../../kernel/contracts/notifica
 
 function signGet(timestamp: string, canonicalGet: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${canonicalGet}`).digest('base64url');
+}
+
+async function fetchAdminMessengerTargets(
+  getAppBaseUrl: () => Promise<string>,
+): Promise<AdminMessengerTargets | null> {
+  const baseUrl = await getAppBaseUrl();
+  const secret = integratorWebhookSecret();
+  if (!baseUrl || !secret) return null;
+
+  const pathname = '/api/integrator/admin-notification-targets';
+  const url = `${baseUrl.replace(/\/$/, '')}${pathname}`;
+  const canonicalGet = `GET ${pathname}`;
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = signGet(timestamp, canonicalGet, secret);
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Bersoncare-Timestamp': timestamp,
+        'X-Bersoncare-Signature': signature,
+      },
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      adminMessengerTargets?: {
+        telegramUserIds?: unknown;
+        maxUserIds?: unknown;
+      };
+    };
+    if (!res.ok || data.ok !== true || !data.adminMessengerTargets) return null;
+    const { telegramUserIds, maxUserIds } = data.adminMessengerTargets;
+    const isStringArray = (value: unknown): value is string[] =>
+      Array.isArray(value) &&
+      value.every((item) => typeof item === 'string' && item.trim().length > 0);
+    if (!isStringArray(telegramUserIds) || !isStringArray(maxUserIds)) return null;
+    return {
+      telegram: telegramUserIds.map((item) => item.trim()),
+      max: maxUserIds.map((item) => item.trim()),
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchDeliveryTargets(
@@ -68,15 +111,20 @@ export function createDeliveryTargetsPort(deps: {
   return {
     async getTargetsByPhone(
       phoneNormalized: string,
-      options?: DeliveryTargetsFetchOptions,
+      options: DeliveryTargetsFetchOptions,
     ): Promise<DeliveryTargetsFetchResult | null> {
-      if (!phoneNormalized || !phoneNormalized.trim()) return null;
+      const organizationId = options?.organizationId?.trim();
+      if (!phoneNormalized || !phoneNormalized.trim() || !organizationId) return null;
       const topic = options?.topic?.trim();
       return fetchDeliveryTargets(getAppBaseUrl, {
         phone: phoneNormalized.trim(),
+        organizationId,
         ...(topic ? { topic } : {}),
         ...(options?.integratorUserId ? { integratorUserId: options.integratorUserId } : {}),
       });
+    },
+    async getAdminMessengerTargets(): Promise<AdminMessengerTargets | null> {
+      return fetchAdminMessengerTargets(getAppBaseUrl);
     },
     async getTargetsByChannelBinding(params: {
       telegramId?: string;

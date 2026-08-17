@@ -2,8 +2,9 @@ import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 
-function bookingPayloadFromRow(row: PatientBookingRecord) {
+function bookingPayloadFromRow(row: PatientBookingRecord, organizationId: string) {
   return {
+    organizationId,
     bookingId: row.id,
     userId: row.userId as string,
     bookingType: row.bookingType,
@@ -33,6 +34,7 @@ async function resolveBookingForIntegratorRecordId(
 
 export async function emitBookingDeletedEvent(input: {
   deps: ReturnType<typeof buildAppDeps>;
+  organizationId: string;
   integratorRecordId: string;
   /** Staff canonical delete — idempotency `booking.deleted:staff:{appointmentId}` */
   idempotencySuffix?: string;
@@ -55,7 +57,7 @@ export async function emitBookingDeletedEvent(input: {
     await syncPort.emitBookingEvent({
       eventType: 'booking.deleted',
       idempotencyKey,
-      payload: bookingPayloadFromRow(bookingRow),
+      payload: bookingPayloadFromRow(bookingRow, input.organizationId),
     });
     return;
   }
@@ -65,6 +67,7 @@ export async function emitBookingDeletedEvent(input: {
     eventType: 'booking.deleted',
     idempotencyKey,
     payload: {
+      organizationId: input.organizationId,
       bookingId: canonicalId ?? '00000000-0000-4000-8000-000000000001',
       userId: canonicalId ?? '00000000-0000-4000-8000-000000000001',
       bookingType: 'in_person',
