@@ -5086,11 +5086,14 @@ function withoutConvertedPatientWrites(
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.admin_audit_log': {
-    kind: 'direct', purpose: 'platform operations reads and appends the non-clinical administrative event journal',
+    kind: 'direct',
+    purpose: 'platform operations reads and appends the non-clinical administrative event journal; '
+      + 'the clinic billing role appends only its own organization row when the clinic owner changes tariff',
     codePaths: [
       'apps/webapp/src/infra/adminAuditLog.ts#listAdminAuditLog',
       'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts#appendAudit',
       'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts#appendManualAssignmentAudit',
     ],
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: [
@@ -5098,6 +5101,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         'last_seen_at', 'resolved_at', 'created_at',
       ] },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
+        'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
+      ] },
+      // Стена `platform-role+clinic` уже объявляет: org-строки живут под стеной клиники. Владелец
+      // клиники меняет тариф под ролью app_clinic_billing, и тот же путь обязан записать «кто что
+      // сделал». Даём ТОЛЬКО INSERT: читать журнал арендатор по-прежнему не может, править и удалять
+      // записи — тоже. Колонки перечислены все, потому что drizzle именует в INSERT каждую колонку
+      // таблицы (включая DEFAULT-ные), а PostgreSQL проверяет привилегию на каждую названную.
+      { role: 'app_clinic_billing', operations: ['INSERT'], columns: [
         'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
         'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
       ] },
@@ -6358,6 +6370,14 @@ function revision10AdminAuditLogPolicies(index: number): PolicyDecl[] {
       name: `rev10_admin_audit_platform_insert_${index + 1}`,
       as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_platform_settings'], withCheck: platformWall,
       note: 'platform commercial transactions append their audit rows directly in the same transaction',
+    },
+    {
+      name: `rev10_admin_audit_clinic_insert_${index + 1}`,
+      as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_clinic_billing'],
+      withCheck: "(current_user = 'app_clinic_billing'::name"
+        + ' AND organization_id = app.current_org_id())',
+      note: 'clinic billing appends only its own organization row; the NULL-organization platform '
+        + 'branch stays unreachable for the tenant, and no SELECT/UPDATE/DELETE policy is added',
     },
   ];
 }
