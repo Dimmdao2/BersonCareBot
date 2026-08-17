@@ -164,7 +164,12 @@ chmod 600 "$TARGET/root/.ssh/authorized_keys"
 
 # The initramfs has no netplan and no DHCP here, so the unlock shell is only reachable if the kernel itself
 # brings the interface up. Hence the ip= parameter rather than anything configured later in userspace.
-IPPARAM="ip=$BCB_NET_IP::$BCB_NET_GW:$BCB_NET_NETMASK:${BCB_HOSTNAME:-bcb-prod}:eth0:off"
+#
+# The device field is deliberately EMPTY. Naming eth0 here looks right but is not: eth0 is the name netplan
+# assigns after the root filesystem is mounted, while the initramfs still sees the kernel's own name (ens3
+# and similar). Pinning eth0 produced "ipconfig: eth0: SIOCGIFINDEX: No such device", no network, and an
+# unlock prompt nobody could reach. Left empty, ipconfig configures whichever interface actually exists.
+IPPARAM="ip=$BCB_NET_IP::$BCB_NET_GW:$BCB_NET_NETMASK:${BCB_HOSTNAME:-bcb-prod}::off"
 
 mkdir -p "$TARGET/etc/dropbear/initramfs"
 printf 'no-port-forwarding,no-agent-forwarding,no-x11-forwarding %s\n' "$BCB_SSH_PUBKEY" \
@@ -244,6 +249,8 @@ vcheck "initramfs carries cryptsetup" 'lsinitramfs "$TARGET"/boot/initrd.img-* 2
 vcheck "initramfs carries dropbear"   'lsinitramfs "$TARGET"/boot/initrd.img-* 2>/dev/null | grep -q dropbear'
 vcheck "initramfs has the unlock key" 'initramfs_has_our_key'
 vcheck "kernel gets a static ip"      'grep -q "ip=$BCB_NET_IP" "$TARGET/boot/grub/grub.cfg"'
+vcheck "ip= names no interface"       '! grep -qE "ip=$BCB_NET_IP[^ ]*:(eth|ens|enp)[a-z0-9]*:" "$TARGET/boot/grub/grub.cfg"'
+vcheck "initramfs carries a net driver" 'lsinitramfs "$TARGET"/boot/initrd.img-* 2>/dev/null | grep -qE "virtio_net|e1000|vmxnet3"'
 vcheck "netplan present"              '[ -s "$TARGET/etc/netplan/01-bcb-static.yaml" ]'
 vcheck "ssh key installed"            '[ -s "$TARGET/root/.ssh/authorized_keys" ]'
 vcheck "ssh enabled at boot"          '[ -L "$TARGET/etc/systemd/system/multi-user.target.wants/ssh.service" ]'
