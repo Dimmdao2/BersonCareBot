@@ -24,12 +24,12 @@ import {
 
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
 
-function deletedEvent(organizationId?: string) {
+function deletedEvent(organizationId: string = ORGANIZATION_ID) {
   return {
     eventType: 'booking.deleted' as const,
     idempotencyKey: 'booking-port-context-test',
     payload: {
-      ...(organizationId ? { organizationId } : {}),
+      organizationId,
       bookingId: '11111111-1111-4111-8111-111111111111',
       userId: 'test-user',
       bookingType: 'in_person' as const,

@@ -169,16 +169,16 @@ export async function loadOperatorHealthAlertConfigIntegrator(
 
 /**
  * Webapp owns the global platform-admin recipient resolution. The integrator asks its signed M2M
- * port; a failed/unavailable lookup is an empty audience and never falls back to a direct
- * identity-table query under the integrator principal.
+ * port; a failed/unavailable lookup is a named retryable failure and never falls back to a direct
+ * identity-table query under the integrator principal. A successful empty list remains a valid
+ * empty audience.
  */
 export async function loadAdminMessengerIdLists(
   deliveryTargets: Pick<DeliveryTargetsPort, 'getAdminMessengerTargets'> = createDeliveryTargetsPort({
     getAppBaseUrl: async () => env.APP_BASE_URL,
   }),
 ): Promise<{ telegram: string[]; max: string[] }> {
-  return (await deliveryTargets.getAdminMessengerTargets()) ?? {
-    telegram: [],
-    max: [],
-  };
+  const targets = await deliveryTargets.getAdminMessengerTargets();
+  if (!targets) throw new Error('admin_notification_targets_unavailable');
+  return targets;
 }

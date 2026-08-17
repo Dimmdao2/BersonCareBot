@@ -65,7 +65,7 @@ export type BookingSyncPort = {
       | 'booking.reminder_updated';
     idempotencyKey: string;
     payload: {
-      organizationId?: string;
+      organizationId: string;
       bookingId: string;
       userId: string;
       bookingType: BookingType;
