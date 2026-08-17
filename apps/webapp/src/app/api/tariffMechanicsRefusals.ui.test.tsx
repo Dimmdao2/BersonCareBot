@@ -6,7 +6,6 @@ const actionMocks = vi.hoisted(() => ({
   practice: vi.fn(),
   cooldowns: vi.fn(),
   rotation: vi.fn(),
-  moodIcons: vi.fn(),
   sectionVisibility: vi.fn(),
   sectionAuth: vi.fn(),
   sectionReorder: vi.fn(),
@@ -42,7 +41,6 @@ vi.mock('@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions', () => 
   savePatientHomePracticeTargetAction: actionMocks.practice,
   savePatientHomeRepeatCooldownsAction: actionMocks.cooldowns,
   savePatientHomeWarmupRotationAction: actionMocks.rotation,
-  savePatientHomeMoodIconsAction: actionMocks.moodIcons,
 }));
 
 import { ContentNav } from '@/app/app/doctor/content/ContentNav';
@@ -53,7 +51,6 @@ import { DefaultPromoProgramClient } from '@/app/app/doctor/treatment-program-pr
 import { PatientHomePracticeTargetPanel } from '@/app/app/settings/patient-home/PatientHomePracticeTargetPanel';
 import { PatientHomeRepeatCooldownPanel } from '@/app/app/settings/patient-home/PatientHomeRepeatCooldownPanel';
 import { PatientHomeDailyWarmupRotationPanel } from '@/app/app/settings/patient-home/PatientHomeDailyWarmupRotationPanel';
-import { PatientHomeMoodIconsPanel } from '@/app/app/doctor/patient-home/PatientHomeMoodIconsPanel';
 import { ContentSectionsListClient } from '@/app/app/doctor/content/sections/ContentSectionsListClient';
 import { ContentPagesSectionList } from '@/app/app/doctor/content/ContentPagesSectionList';
 import { ContentLifecycleDropdown } from '@/app/app/doctor/content/ContentLifecycleDropdown';
@@ -61,11 +58,6 @@ import { PatientDailyWarmupVideoEngagement } from '@/app/app/patient/content/[sl
 
 const REFUSAL =
   'Невозможно выполнить действие: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
-const moodOptions = [1, 2, 3, 4, 5].map((score) => ({
-  score: score as 1 | 2 | 3 | 4 | 5,
-  label: `Оценка ${score}`,
-  imageUrl: null,
-}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -262,9 +254,7 @@ describe('tariff refusal UI', () => {
         headers: { 'content-type': 'application/json' },
       }),
     );
-    render(
-      <PatientHomeMoodCheckin moodOptions={moodOptions} personalTierOk anonymousGuest={false} />,
-    );
+    render(<PatientHomeMoodCheckin personalTierOk anonymousGuest={false} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Самочувствие 4 из 5/ }));
     await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
@@ -291,7 +281,6 @@ describe('tariff refusal UI', () => {
         practiceSource="daily_warmup"
         guest={false}
         needsActivation={false}
-        moodIconOptions={moodOptions}
       />,
     );
 
@@ -314,7 +303,6 @@ describe('tariff refusal UI', () => {
         practiceSource="daily_warmup"
         guest={false}
         needsActivation={false}
-        moodIconOptions={moodOptions}
       />,
     );
 
@@ -423,10 +411,6 @@ describe('tariff refusal UI', () => {
           <PatientHomeDailyWarmupRotationPanel initialEnabled={false} initialTimes={['09:00']} />
         ),
         action: actionMocks.rotation,
-      },
-      {
-        node: <PatientHomeMoodIconsPanel initialOptions={moodOptions} />,
-        action: actionMocks.moodIcons,
       },
     ];
 

@@ -12,7 +12,6 @@ import type {
   PatientMoodToday,
   PatientMoodWeekMark,
 } from '@/modules/patient-mood/types';
-import type { PatientHomeMoodIconOption } from '@/modules/patient-home/patientHomeMoodIcons';
 import {
   patientHomeMoodCardGeometryClass,
   patientHomeMoodCheckinShellClass,
@@ -26,7 +25,6 @@ import { PatientHomeWellbeingWeekStrip } from './PatientHomeWellbeingWeekStrip';
 import { PatientHomeMoodScoreRow } from './PatientHomeMoodScoreRow';
 
 type Props = {
-  moodOptions: readonly PatientHomeMoodIconOption[];
   personalTierOk: boolean;
   anonymousGuest: boolean;
   initialMood?: PatientMoodToday | null;
@@ -42,7 +40,6 @@ type Props = {
 };
 
 export function PatientHomeMoodCheckin({
-  moodOptions,
   personalTierOk,
   anonymousGuest,
   initialMood = null,
@@ -134,7 +131,6 @@ export function PatientHomeMoodCheckin({
 
   const renderMoodScale = (frozenDisabled: boolean) => (
     <PatientHomeMoodScoreRow
-      moodOptions={moodOptions}
       frozenDisabled={frozenDisabled}
       selectedScore={selectedScore}
       busy={submittingScore !== null}

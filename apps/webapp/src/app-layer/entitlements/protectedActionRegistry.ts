@@ -944,16 +944,6 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.systemSettings.updateSetting',
   },
   {
-    id: 'patient-home-today.mood-icons.update',
-    mechanic: 'patient_home_today',
-    file: 'src/app/app/doctor/patient-home/patientHomeDoctorSettingsActions.ts',
-    exportName: 'savePatientHomeMoodIconsAction',
-    method: 'action',
-    authContext: 'requireDoctorWorkspaceContext',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'deps.systemSettings.updateSetting',
-  },
-  {
     id: 'warmups.rotation.update',
     mechanic: ['patient_home_today', 'warmups'],
     file: 'src/app/app/doctor/patient-home/patientHomeDoctorSettingsActions.ts',

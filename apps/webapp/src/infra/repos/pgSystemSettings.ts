@@ -94,7 +94,6 @@ const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
-  'patient_home_mood_icons',
   'patient_home_daily_warmup_repeat_cooldown_minutes',
   'patient_home_daily_warmup_rotation_enabled',
   'patient_home_daily_warmup_rotation_times',
