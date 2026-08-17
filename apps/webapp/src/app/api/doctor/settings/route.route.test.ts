@@ -1,0 +1,102 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const fakes = vi.hoisted(() => ({
+  buildAppDeps: vi.fn(),
+  requireDoctorWorkspaceApiContext: vi.fn(),
+  persistSettingsBatch: vi.fn(),
+  updateSetting: vi.fn(),
+  listSettingsByScope: vi.fn(),
+}));
+
+vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
+vi.mock('@/app-layer/guards/requireRole', () => ({
+  requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspaceApiContext,
+}));
+
+import { GET, PATCH } from './route';
+
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const COMMENTS_KEY = 'doctor_patient_support_comments_without_support_default_enabled';
+const MEDIA_KEY = 'doctor_patient_support_media_without_support_default_enabled';
+
+describe('/api/doctor/settings clinic-safe settings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORGANIZATION_ID,
+        session: { user: { userId: 'clinic-owner' } },
+      },
+    });
+    fakes.buildAppDeps.mockReturnValue({
+      systemSettings: {
+        persistSettingsBatch: fakes.persistSettingsBatch,
+        updateSetting: fakes.updateSetting,
+        listSettingsByScope: fakes.listSettingsByScope,
+      },
+    });
+  });
+
+  it('commits both support defaults in one organization batch and returns the saved values', async () => {
+    const saved = [
+      { key: COMMENTS_KEY, valueJson: { value: false }, organizationId: ORGANIZATION_ID },
+      { key: MEDIA_KEY, valueJson: { value: true }, organizationId: ORGANIZATION_ID },
+    ];
+    fakes.persistSettingsBatch.mockResolvedValue(saved);
+
+    const response = await PATCH(
+      new Request('http://test/api/doctor/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          items: [
+            { key: COMMENTS_KEY, value: { value: false } },
+            { key: MEDIA_KEY, value: { value: true } },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, settings: saved });
+    expect(fakes.persistSettingsBatch).toHaveBeenCalledTimes(1);
+    expect(fakes.persistSettingsBatch).toHaveBeenCalledWith(
+      [
+        { key: COMMENTS_KEY, scope: 'doctor', value: { value: false } },
+        { key: MEDIA_KEY, scope: 'doctor', value: { value: true } },
+      ],
+      'clinic-owner',
+      { organizationId: ORGANIZATION_ID },
+    );
+  });
+
+  it('refuses a stale global SMS payload before any write', async () => {
+    const response = await PATCH(
+      new Request('http://test/api/doctor/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: 'sms_fallback_enabled', value: { value: true } }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'invalid_body' });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+    expect(fakes.persistSettingsBatch).not.toHaveBeenCalled();
+  });
+
+  it('does not expose a stale global row in the clinic readback', async () => {
+    fakes.listSettingsByScope.mockResolvedValue([
+      { key: COMMENTS_KEY, valueJson: { value: true } },
+      { key: 'sms_fallback_enabled', valueJson: { value: true } },
+    ]);
+
+    const response = await GET();
+
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      settings: [{ key: COMMENTS_KEY, valueJson: { value: true } }],
+    });
+  });
+});

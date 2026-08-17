@@ -35,6 +35,9 @@ vi.mock('@/modules/integrator/bookingM2mApi', () => ({
 
 import { POST } from './route';
 
+const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
+const SERVICE_ID = '44444444-4444-4444-8444-444444444444';
+
 /**
  * D13a(добор): врач заводит запланированный визит нового/существующего пациента
  * (manual-patient-visit, kind=scheduled) — до этой правки `booking.created` не нёс
@@ -82,6 +85,9 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
       appointment: {
         id: 'appt-1',
         organizationId: 'org-1',
+        specialistId: input.appointment.specialistId,
+        branchId: input.appointment.branchId,
+        serviceId: input.appointment.serviceId,
         startAt: '2027-03-10T09:00:00.000Z',
         endAt: '2027-03-10T09:30:00.000Z',
         appointmentReminderAllowedPresetIds:
@@ -122,6 +128,8 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
           startAt: '2027-03-10T09:00:00.000Z',
           endAt: '2027-03-10T09:30:00.000Z',
           durationMinutes: 30,
+          branchId: BRANCH_ID,
+          serviceId: SERVICE_ID,
         }),
       }),
     );
@@ -144,10 +152,47 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
           startAt: '2027-03-10T09:00:00.000Z',
           endAt: '2027-03-10T09:30:00.000Z',
           durationMinutes: 30,
+          branchId: BRANCH_ID,
+          serviceId: SERVICE_ID,
         }),
       }),
     );
 
     expect(captured[0]).toHaveProperty('reminderPlan');
+  });
+
+  it('passes the selected branch and service into the scheduled create transaction', async () => {
+    const response = await POST(
+      new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual-patient-visit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'scheduled',
+          requestId: '22222222-2222-4222-8222-222222222222',
+          lastName: 'Иванов',
+          firstName: 'Иван',
+          phone: '+79990000000',
+          startAt: '2027-03-10T09:00:00.000Z',
+          endAt: '2027-03-10T09:30:00.000Z',
+          durationMinutes: 30,
+          branchId: BRANCH_ID,
+          serviceId: SERVICE_ID,
+        }),
+      }),
+    );
+
+    expect(fakes.createScheduledManualPatientVisit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointment: expect.objectContaining({ branchId: BRANCH_ID, serviceId: SERVICE_ID }),
+      }),
+      expect.objectContaining({ bookingEngine: expect.anything() }),
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      appointment: {
+        specialistId: '11111111-1111-4111-8111-111111111111',
+        branchId: BRANCH_ID,
+        serviceId: SERVICE_ID,
+      },
+    });
   });
 });

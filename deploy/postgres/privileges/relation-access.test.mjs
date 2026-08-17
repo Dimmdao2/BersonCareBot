@@ -522,6 +522,28 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
   }
 });
 
+test('clinic-owner mutation grants include every default column emitted by Drizzle inserts', () => {
+  exactColumns('public.be_booking_form_fields', 'app_staff', 'INSERT', [
+    'created_at', 'field_key', 'field_type', 'id', 'is_active', 'is_required', 'label',
+    'organization_id', 'placeholder', 'sort_order', 'updated_at', 'visible_to_patient',
+    'visible_to_staff',
+  ]);
+  exactColumns('public.clinic_public_directory_entries', 'app_staff', 'INSERT', [
+    'created_at', 'display_name', 'is_published', 'organization_id', 'published_at', 'slug',
+    'updated_at',
+  ]);
+  exactColumns('public.organization_slug_claims', 'app_staff', 'INSERT', [
+    'created_at', 'created_by_platform_user_id', 'id', 'kind', 'organization_id', 'slug',
+    'updated_at',
+  ]);
+  exactColumns('public.organization_slug_claims', 'app_staff', 'UPDATE', [
+    'created_by_platform_user_id', 'kind', 'organization_id', 'slug', 'updated_at',
+  ]);
+  exactColumns('public.organization_slug_rename_events', 'app_staff', 'INSERT', [
+    'actor_platform_user_id', 'created_at', 'id', 'next_slug', 'organization_id', 'previous_slug',
+  ]);
+});
+
 test('no direct INSERT or UPDATE grant is table-wide', () => {
   for (const [relation, access] of Object.entries(REV10_CLINICAL_ACCESS)) {
     if (access.kind !== 'direct') continue;
@@ -534,6 +556,29 @@ test('no direct INSERT or UPDATE grant is table-wide', () => {
 });
 
 test('billing relations use the clinic, platform, and webhook worker roles without ordinary staff mutation', () => {
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const access = declaration.databases[dbName].tables['public.saas_billing_periods'].access;
+    assert.equal(access.kind, 'direct');
+    assert.equal(
+      access.grants.some((grant) => grant.role === 'app_clinic_billing'),
+      false,
+      `${dbName}: clinic billing must use the fixed catalog root, not relation SELECT`,
+    );
+    const root = declaration.portContext.functions['app.list_saas_billing_period_catalog()'];
+    assert.ok(root, `${dbName}: fixed billing-period root is declared`);
+    assert.deepEqual(root.execute, ['app_clinic_billing']);
+    assert.deepEqual(root.relationSurfaces, [{
+      relation: 'public.saas_billing_periods',
+      columns: ['code', 'label', 'months', 'is_selectable', 'sort_order'],
+      operations: ['SELECT'],
+      evidence: 'pg16-function-body-lexical-upper-bound',
+    }]);
+    const platformRoot =
+      declaration.portContext.functions['app.list_saas_billing_period_catalog_platform()'];
+    assert.ok(platformRoot, `${dbName}: platform billing-period root is declared`);
+    assert.deepEqual(platformRoot.execute, ['app_platform_settings']);
+    assert.deepEqual(platformRoot.relationSurfaces, root.relationSurfaces);
+  }
   const billingAccountInsertColumns = [
     'billing_address', 'billing_email', 'billing_requisites', 'created_at', 'id', 'legal_name',
     'organization_id', 'registration_reason_code', 'tax_identifier', 'updated_at',

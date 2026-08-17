@@ -4,19 +4,45 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
+import { BOOKING_FORM_FIELD_TYPES } from '@/modules/booking-form/fieldTypes';
 
-const upsertBody = z.object({
-  id: z.string().uuid().optional(),
-  fieldKey: z.string().min(1),
-  fieldType: z.string().min(1),
-  label: z.string().min(1),
-  placeholder: z.string().optional(),
-  isRequired: z.boolean(),
-  visibleToPatient: z.boolean(),
-  visibleToStaff: z.boolean(),
-  sortOrder: z.number().int(),
-  isActive: z.boolean(),
-});
+const upsertBody = z
+  .object({
+    id: z.string().uuid().optional(),
+    fieldKey: z.string().trim().min(1).max(80).regex(/^[a-z][a-z0-9_]*$/),
+    fieldType: z.enum(BOOKING_FORM_FIELD_TYPES),
+    label: z.string().trim().min(1).max(200),
+    placeholder: z.string().max(500).optional(),
+    isRequired: z.boolean(),
+    visibleToPatient: z.boolean(),
+    visibleToStaff: z.boolean(),
+    sortOrder: z.number().int(),
+    isActive: z.boolean(),
+  })
+  .strict();
+
+function pgErrorFacts(error: unknown): { code: string; constraint: string } {
+  if (typeof error !== 'object' || error === null) return { code: '', constraint: '' };
+  const value = error as {
+    code?: unknown;
+    constraint?: unknown;
+    cause?: { code?: unknown; constraint?: unknown };
+  };
+  return {
+    code:
+      typeof value.code === 'string'
+        ? value.code
+        : typeof value.cause?.code === 'string'
+          ? value.cause.code
+          : '',
+    constraint:
+      typeof value.constraint === 'string'
+        ? value.constraint
+        : typeof value.cause?.constraint === 'string'
+          ? value.cause.constraint
+          : '',
+  };
+}
 
 export async function GET() {
   const gate = await requireClinicManagementBookingEngine();
@@ -43,14 +69,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
   }
   const bookingForm = deps.bookingForm;
-  const field = await withDoctorWorkspacePrincipal(
-    gate.ctx,
-    'admin.booking-engine.form-fields.upsert',
-    () =>
-      bookingForm.upsertAdminField(gate.ctx.organizationId, {
-        ...parsed.data,
-        placeholder: parsed.data.placeholder ?? null,
-      }),
-  );
-  return NextResponse.json({ ok: true, field });
+  try {
+    const field = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'admin.booking-engine.form-fields.upsert',
+      () =>
+        bookingForm.upsertAdminField(gate.ctx.organizationId, {
+          ...parsed.data,
+          placeholder: parsed.data.placeholder ?? null,
+        }),
+    );
+    return NextResponse.json({ ok: true, field });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const pg = pgErrorFacts(error);
+    if (
+      pg.code === '23505' &&
+      (pg.constraint === '' || pg.constraint === 'uq_be_booking_form_fields_org_key')
+    ) {
+      return NextResponse.json({ ok: false, error: 'field_key_already_exists' }, { status: 409 });
+    }
+    if (message === 'booking_form_field_not_found') {
+      return NextResponse.json({ ok: false, error: 'field_not_found' }, { status: 404 });
+    }
+    if (pg.code === '42501') {
+      console.error('[booking-form-field] capability denied', {
+        operation: parsed.data.id ? 'update' : 'create',
+        code: pg.code,
+      });
+      return NextResponse.json(
+        { ok: false, error: 'booking_form_capability_unavailable' },
+        { status: 503 },
+      );
+    }
+    console.error('[booking-form-field] mutation failed', {
+      operation: parsed.data.id ? 'update' : 'create',
+      errorClass: error instanceof Error ? error.name : 'unknown',
+      code: pg.code || 'unknown',
+    });
+    return NextResponse.json({ ok: false, error: 'booking_form_write_failed' }, { status: 503 });
+  }
 }

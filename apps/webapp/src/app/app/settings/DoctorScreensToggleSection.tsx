@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -20,6 +21,7 @@ export type DoctorScreensToggleSectionProps = {
  * stay reachable afterwards to turn it back ON.
  */
 export function DoctorScreensToggleSection({ initialDisabled }: DoctorScreensToggleSectionProps) {
+  const router = useRouter();
   const [disabled, setDisabled] = useState(initialDisabled);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +37,9 @@ export function DoctorScreensToggleSection({ initialDisabled }: DoctorScreensTog
         body: JSON.stringify({ disabled: nextDisabled }),
       });
       setDisabled(nextDisabled);
+      // The shell/navigation and all badge pollers are server-capability projections. Refresh the
+      // current RSC tree exactly once after the write so they unmount/remount coherently.
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка при сохранении');
     } finally {

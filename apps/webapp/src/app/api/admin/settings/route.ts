@@ -79,7 +79,6 @@ import {
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   'booking_allow_doctor_unlink_past_package_sessions',
   'booking_calendar_show_working_hours',
-  'booking_allow_doctor_unlink_past_package_sessions',
   'booking_payment_enabled',
   'material_ratings_enabled',
   'specialist_signup_enabled',
@@ -132,6 +131,7 @@ const ADMIN_SCOPE_KEYS = [
   'patient_booking_url',
   'booking_default_organization_id',
   'booking_calendar_show_working_hours',
+  'booking_allow_doctor_unlink_past_package_sessions',
   'booking_min_notice_hours',
   'booking_payment_enabled',
   'booking_payment_providers',

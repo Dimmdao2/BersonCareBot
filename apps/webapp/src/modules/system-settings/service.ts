@@ -471,6 +471,28 @@ export function createSystemSettingsService(
       invalidateConfigKey(key);
       return result;
     },
+
+    /** Validates and commits one organization settings form as a single write unit. */
+    async persistSettingsBatch(
+      rows: Array<{ key: string; scope: SystemSettingScope; value: unknown }>,
+      updatedBy: string | null,
+      options: SystemSettingsWriteOptions = {},
+    ): Promise<SystemSetting[]> {
+      const normalizedRows = [];
+      for (const row of rows) {
+        if (!isAllowedKey(row.key)) throw new Error(`unknown_setting_key: ${row.key}`);
+        normalizedRows.push({
+          key: row.key,
+          scope: row.scope,
+          organizationId: resolveWriteOrganizationId(row.key, options),
+          valueJson: await valueForWrite(row.key, row.scope, row.value, options),
+          updatedBy,
+        });
+      }
+      const saved = await writeRows(normalizedRows);
+      for (const setting of saved) invalidateConfigKey(setting.key);
+      return saved;
+    },
     async clearSetting(
       key: string,
       scope: SystemSettingScope,

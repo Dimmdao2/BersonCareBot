@@ -4,7 +4,18 @@ import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
+import { PaymentProviderRequestRefusedError } from '@/modules/payments/providerPort';
 import { handleSeatOveragePurchase } from './seatOveragePurchase';
+
+type BillingOperation = 'overview' | 'tariff-change' | 'renewal';
+
+function logBillingFailure(operation: BillingOperation, error: unknown, category: string) {
+  console.error('[clinic-billing] operation failed', {
+    operation,
+    category,
+    errorClass: error instanceof Error ? error.name : 'unknown',
+  });
+}
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
@@ -30,8 +41,9 @@ export async function GET() {
       () => buildAppDeps().saasBilling.getOwnTariffChangeState(gate.ctx.organizationId),
     );
     return NextResponse.json({ ok: true, billing, tariffChange });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'saas_billing_unavailable' }, { status: 500 });
+  } catch (error) {
+    logBillingFailure('overview', error, 'repository_unavailable');
+    return NextResponse.json({ ok: false, error: 'saas_billing_unavailable' }, { status: 503 });
   }
 }
 
@@ -72,9 +84,27 @@ function tariffChangeError(error: unknown) {
   ) {
     return NextResponse.json({ ok: false, error: message }, { status: 409 });
   }
+  if (
+    message === 'saas_billing_tariff_change_unavailable' ||
+    message.startsWith('saas_billing_period_unknown:')
+  ) {
+    logBillingFailure('tariff-change', error, 'configuration_unavailable');
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_tariff_change_unavailable' },
+      { status: 503 },
+    );
+  }
+  if (error instanceof PaymentProviderRequestRefusedError) {
+    logBillingFailure('tariff-change', error, 'provider_refused');
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_provider_refused' },
+      { status: 502 },
+    );
+  }
+  logBillingFailure('tariff-change', error, 'unexpected');
   return NextResponse.json(
-    { ok: false, error: 'saas_billing_tariff_change_failed' },
-    { status: 500 },
+    { ok: false, error: 'saas_billing_tariff_change_unavailable' },
+    { status: 503 },
   );
 }
 
@@ -233,6 +263,37 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json({ ok: false, error: message }, { status: 409 });
     }
-    return NextResponse.json({ ok: false, error: 'saas_billing_invoice_failed' }, { status: 500 });
+    if (
+      message.startsWith('saas_billing_provider_invoices_unsupported:') ||
+      message.startsWith('payment_provider_receipt_unsupported:')
+    ) {
+      logBillingFailure('renewal', error, 'provider_capability_unsupported');
+      return NextResponse.json(
+        { ok: false, error: 'saas_billing_provider_capability_unsupported' },
+        { status: 501 },
+      );
+    }
+    if (error instanceof PaymentProviderRequestRefusedError) {
+      logBillingFailure('renewal', error, 'provider_refused');
+      return NextResponse.json(
+        { ok: false, error: 'saas_billing_provider_refused' },
+        { status: 502 },
+      );
+    }
+    if (message === 'saas_billing_checkout_unavailable') {
+      return NextResponse.json(
+        { ok: false, error: 'saas_billing_checkout_unavailable' },
+        { status: 502 },
+      );
+    }
+    logBillingFailure(
+      'renewal',
+      error,
+      message.startsWith('saas_billing_period_unknown:') ? 'billing_period_unavailable' : 'unexpected',
+    );
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_invoice_unavailable' },
+      { status: 503 },
+    );
   }
 }

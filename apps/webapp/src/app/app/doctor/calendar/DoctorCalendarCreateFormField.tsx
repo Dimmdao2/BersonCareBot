@@ -18,6 +18,7 @@ type Props = {
   options: readonly CalendarFilterOption[];
   value: string | null;
   noneLabel: string;
+  emptyLabel: string;
   onChange: (value: string | null) => void;
 };
 
@@ -31,9 +32,17 @@ export function DoctorCalendarCreateFormField({
   options,
   value,
   noneLabel,
+  emptyLabel,
   onChange,
 }: Props) {
-  if (mode === 'hidden') return null;
+  if (mode === 'hidden') {
+    return (
+      <div className="space-y-1">
+        <Label>{fieldLabel}</Label>
+        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+      </div>
+    );
+  }
 
   const displayLabel = options.find((o) => o.id === value)?.label ?? '—';
 
@@ -51,7 +60,7 @@ export function DoctorCalendarCreateFormField({
       value={value ?? noneValue()}
       onValueChange={(v) => onChange(v === noneValue() ? null : v)}
     >
-      <SelectTrigger>
+      <SelectTrigger displayLabel={options.find((option) => option.id === value)?.label ?? noneLabel}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

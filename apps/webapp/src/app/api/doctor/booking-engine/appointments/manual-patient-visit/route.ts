@@ -48,10 +48,10 @@ const bodySchema = z.discriminatedUnion('kind', [
   identitySchema
     .extend({
       kind: z.literal('scheduled'),
-      branchId: z.string().uuid().nullable().optional(),
+      branchId: z.string().uuid(),
       roomId: z.string().uuid().nullable().optional(),
       specialistId: z.string().uuid().nullable().optional(),
-      serviceId: z.string().uuid().nullable().optional(),
+      serviceId: z.string().uuid(),
       startAt: z.string().min(1),
       endAt: z.string().min(1),
       durationMinutes: z.number().int().positive(),
@@ -141,10 +141,10 @@ export async function POST(request: Request) {
                 {
                   ...identity,
                   appointment: {
-                    branchId: parsed.data.branchId ?? null,
+                    branchId: parsed.data.branchId,
                     roomId: parsed.data.roomId ?? null,
                     specialistId,
-                    serviceId: parsed.data.serviceId ?? null,
+                    serviceId: parsed.data.serviceId,
                     startAt: parsed.data.startAt,
                     endAt: parsed.data.endAt,
                     durationMinutes: parsed.data.durationMinutes,
@@ -259,6 +259,20 @@ export async function POST(request: Request) {
     if (message === 'identity_conflict' || message === 'patient_not_available') {
       return NextResponse.json({ ok: false, error: 'patient_not_available' }, { status: 409 });
     }
-    return NextResponse.json({ ok: false, error: 'create_failed' }, { status: 400 });
+    if (
+      message === 'branch_not_found' ||
+      message === 'service_not_found' ||
+      message === 'specialist_not_found'
+    ) {
+      return NextResponse.json({ ok: false, error: message }, { status: 404 });
+    }
+    if (message === 'service_not_available_for_specialist' || message === 'room_branch_mismatch') {
+      return NextResponse.json({ ok: false, error: message }, { status: 409 });
+    }
+    console.error('[manual-patient-appointment] create failed', {
+      errorClass: error instanceof Error ? error.name : 'unknown',
+      code: pg.code || 'unknown',
+    });
+    return NextResponse.json({ ok: false, error: 'appointment_create_unavailable' }, { status: 503 });
   }
 }

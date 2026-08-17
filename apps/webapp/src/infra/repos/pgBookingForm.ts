@@ -121,7 +121,8 @@ export function createPgBookingFormPort(): BookingFormPort {
             )
             .returning(),
         );
-        return mapField(updated[0]!);
+        if (!updated[0]) throw new Error('booking_form_field_not_found');
+        return mapField(updated[0]);
       }
       const inserted = await db.transaction((tx) =>
         tx
@@ -142,7 +143,8 @@ export function createPgBookingFormPort(): BookingFormPort {
           })
           .returning(),
       );
-      return mapField(inserted[0]!);
+      if (!inserted[0]) throw new Error('booking_form_field_write_failed');
+      return mapField(inserted[0]);
     },
 
     async saveSubmissions({ organizationId, appointmentId, answers }) {

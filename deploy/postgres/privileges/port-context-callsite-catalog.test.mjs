@@ -353,6 +353,16 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'billing.webhook.refund.resolve', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
   },
+  'app.list_saas_billing_period_catalog()': {
+    port: 'webapp', targetRole: 'app_clinic_billing', contextClass: 'staff',
+    purpose: 'billing.clinic.period-catalog.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  'app.list_saas_billing_period_catalog_platform()': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'billing.platform.period-catalog.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
   'app.resolve_patient_acquiring_webhook_organization(text,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'patient-payment.webhook.resolve', argCount: 2,

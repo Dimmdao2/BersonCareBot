@@ -206,6 +206,12 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   if (!Number.isSafeInteger(input.includedSeats) || input.includedSeats < 0) {
     throw new Error('tariff_seat_limit_invalid');
   }
+  // Branch creation is an enforced stock write. An active tariff must therefore declare its
+  // branch stock explicitly: omission is neither zero nor unlimited and cannot be a saveable
+  // commercial state. Existing named product tariffs are repaired by migration 0016.
+  if (input.isActive && input.quotas.branches === undefined) {
+    throw new Error('tariff_branches_quota_required');
+  }
   // §5a item 5.1 — null keeps seats hard-blocked at includedSeats (§5.2); a configured price
   // requires a currency to bill it in, same requirement priceMinor already has above.
   if (input.additionalSeatPriceMinor !== null) {

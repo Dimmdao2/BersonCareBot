@@ -1,4 +1,5 @@
 import { and, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
@@ -26,7 +27,7 @@ import {
   saasBillingRefunds,
   saasBillingSubscriptions,
 } from '../../../db/schema/saasBilling';
-import { saasBillingPeriods, saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
+import { saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
 import { adminAuditLog } from '../../../db/schema/schema';
 
 type Db = ReturnType<typeof getDrizzle>;
@@ -229,16 +230,33 @@ function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown>
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
     async listBillingPeriods() {
-      const rows = await getDrizzle()
-        .select()
-        .from(saasBillingPeriods)
-        .orderBy(saasBillingPeriods.sortOrder, saasBillingPeriods.code);
-      return rows.map((row) => ({
+      const platformRead = getCurrentDbPrincipal()?.kind === 'platform';
+      type BillingPeriodCatalogRow = {
+        code: string;
+        label: string;
+        months: number;
+        is_selectable: boolean;
+        sort_order: number;
+      };
+      const result = platformRead
+        ? await runWebappNamedRoot<BillingPeriodCatalogRow>(
+            getWebappSqlDb(),
+            'app.list_saas_billing_period_catalog_platform()',
+            [],
+            sql`SELECT * FROM app.list_saas_billing_period_catalog_platform()`,
+          )
+        : await runWebappNamedRoot<BillingPeriodCatalogRow>(
+            getWebappSqlDb(),
+            'app.list_saas_billing_period_catalog()',
+            [],
+            sql`SELECT * FROM app.list_saas_billing_period_catalog()`,
+          );
+      return result.rows.map((row) => ({
         code: row.code,
         label: row.label,
         months: row.months,
-        isSelectable: row.isSelectable,
-        sortOrder: row.sortOrder,
+        isSelectable: row.is_selectable,
+        sortOrder: row.sort_order,
       }));
     },
     async getSaasBillingAccountBillingEmail(organizationId) {

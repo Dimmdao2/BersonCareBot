@@ -11,7 +11,6 @@ import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/system
 import { ALLOWED_KEYS } from '@/modules/system-settings/types';
 
 const DOCTOR_SCOPE_KEYS = [
-  'sms_fallback_enabled',
   'doctor_patient_support_comments_without_support_default_enabled',
   'doctor_patient_support_media_without_support_default_enabled',
   'doctor_specialist_task_reminder_channels',
@@ -21,16 +20,34 @@ const DOCTOR_SCOPE_KEYS = [
   'booking_calendar_default_specialist_id',
 ] as const;
 
+const SUPPORT_DEFAULT_KEYS = [
+  'doctor_patient_support_comments_without_support_default_enabled',
+  'doctor_patient_support_media_without_support_default_enabled',
+] as const;
+
 const patchSchema = z.object({
   key: z.enum(DOCTOR_SCOPE_KEYS),
   value: z.unknown(),
 });
 
+const supportDefaultsBatchSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            key: z.enum(SUPPORT_DEFAULT_KEYS),
+            value: z.object({ value: z.boolean() }).strict(),
+          })
+          .strict(),
+      )
+      .length(SUPPORT_DEFAULT_KEYS.length),
+  })
+  .strict();
+
 /**
- * P0.11.3: every DOCTOR_SCOPE_KEYS key except `sms_fallback_enabled` is PER-ORG (see `orgScopedKeys.ts`)
- * — this route always threads the caller's own clinic `organizationId`; the `system-settings` service
- * chokepoint forces GLOBAL keys back to `organization_id IS NULL` regardless, so it is always safe to
- * pass it through here without per-key branching.
+ * Every key exposed here is PER-ORG. Platform-global `sms_fallback_enabled` deliberately has no
+ * clinic route: a stale clinic payload is rejected before any row is written.
  */
 export async function GET() {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -40,7 +57,12 @@ export async function GET() {
   const settings = await deps.systemSettings.listSettingsByScope('doctor', {
     organizationId: gate.ctx.organizationId,
   });
-  return NextResponse.json({ ok: true, settings });
+  return NextResponse.json({
+    ok: true,
+    settings: settings.filter((setting) =>
+      (DOCTOR_SCOPE_KEYS as readonly string[]).includes(setting.key),
+    ),
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -48,6 +70,40 @@ export async function PATCH(request: Request) {
   if (!gate.ok) return gate.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
+  if (raw !== null && typeof raw === 'object' && 'items' in raw) {
+    const batch = supportDefaultsBatchSchema.safeParse(raw);
+    if (!batch.success) {
+      return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+    }
+    const seen = new Set(batch.data.items.map((item) => item.key));
+    if (SUPPORT_DEFAULT_KEYS.some((key) => !seen.has(key))) {
+      return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+    }
+    const deps = buildAppDeps();
+    try {
+      const settings = await deps.systemSettings.persistSettingsBatch(
+        batch.data.items.map((item) => ({
+          key: item.key,
+          scope: 'doctor' as const,
+          value: item.value,
+        })),
+        gate.ctx.session.user.userId,
+        { organizationId: gate.ctx.organizationId },
+      );
+      return NextResponse.json({ ok: true, settings });
+    } catch (error) {
+      const errResponse = systemSettingsOrgContextErrorResponse(error);
+      if (errResponse) return errResponse;
+      console.error('[doctor-settings] atomic batch failed', {
+        operation: 'support-defaults',
+        errorClass: error instanceof Error ? error.name : 'unknown',
+      });
+      return NextResponse.json(
+        { ok: false, error: 'settings_write_unavailable' },
+        { status: 503 },
+      );
+    }
+  }
   const parsed = patchSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
@@ -71,6 +127,13 @@ export async function PATCH(request: Request) {
   } catch (error) {
     const errResponse = systemSettingsOrgContextErrorResponse(error);
     if (errResponse) return errResponse;
-    throw error;
+    console.error('[doctor-settings] mutation failed', {
+      operation: parsed.data.key,
+      errorClass: error instanceof Error ? error.name : 'unknown',
+    });
+    return NextResponse.json(
+      { ok: false, error: 'settings_write_unavailable' },
+      { status: 503 },
+    );
   }
 }

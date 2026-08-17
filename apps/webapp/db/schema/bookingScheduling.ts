@@ -20,20 +20,10 @@ import {
   beSpecialists,
   beRooms,
 } from './bookingEngine';
-
-export const BOOKING_FORM_FIELD_TYPES = [
-  'first_name',
-  'last_name',
-  'phone',
-  'email',
-  'comment',
-  'problem_description',
-  'complaint',
-  'free_text',
-  'custom',
-] as const;
-
-export type BookingFormFieldType = (typeof BOOKING_FORM_FIELD_TYPES)[number];
+export {
+  BOOKING_FORM_FIELD_TYPES,
+  type BookingFormFieldType,
+} from '../../src/modules/booking-form/fieldTypes';
 
 export const beBookingFormFields = pgTable(
   'be_booking_form_fields',

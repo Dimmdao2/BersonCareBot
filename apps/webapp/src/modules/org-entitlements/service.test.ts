@@ -68,6 +68,10 @@ const activeAccess = {
   source: 'assignment' as const,
 };
 
+const TEST_BRANCH_QUOTA = {
+  branches: { kind: 'unlimited', limit: null, unit: 'items' },
+} satisfies TariffQuotaMap;
+
 describe('registration tariff policy archive wall', () => {
   const tariffInput: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'> = {
     name: 'Registration tariff',
@@ -76,7 +80,7 @@ describe('registration tariff policy archive wall', () => {
     currency: null,
     billingPeriod: 'month',
     mechanics: {},
-    quotas: {},
+    quotas: TEST_BRANCH_QUOTA,
     systemAccessPolicy: null,
     mechanicAccessPolicies: {},
     downgradePolicies: {},
@@ -296,6 +300,7 @@ describe('org entitlement mechanic classes', () => {
         billingPeriod: 'month',
         mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
         quotas: {
+          ...TEST_BRANCH_QUOTA,
           files: {
             kind: 'numeric',
             limit: 1024,
@@ -1075,7 +1080,7 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
           currency: null,
           billingPeriod: 'month',
           mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
-          quotas: {},
+          quotas: TEST_BRANCH_QUOTA,
           // @ts-expect-error `full_access` was removed from AccessTerminalState — this must be a type error too.
           systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'full_access' },
           mechanicAccessPolicies: {},
@@ -1107,7 +1112,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       currency: null,
       billingPeriod: 'month',
       mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
-      quotas: {},
+      quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
@@ -1175,6 +1180,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
     const service = createPlatformEntitlementsService(servicePort());
     for (const mechanic of criticalMechanics()) {
       const quotas = {
+        ...TEST_BRANCH_QUOTA,
         [mechanic]: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
       } as never;
       expect(() =>
@@ -1407,7 +1413,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       currency: null,
       billingPeriod: 'month',
       mechanics: {},
-      quotas: {},
+      quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
@@ -1468,6 +1474,12 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       reason: '',
     });
     expect(created.includedSeats).toBe(0);
+  });
+
+  it('refuses to save an active tariff without an explicit branches stock', () => {
+    expect(() =>
+      service().createTariff(tariffInput({ quotas: {} }), { actorId: null, reason: '' }),
+    ).toThrow('tariff_branches_quota_required');
   });
 
   // Owner 31.07: «процент для предупреждения надо считать только от количества доступных клиентов
@@ -1772,7 +1784,7 @@ describe('§5a #1069 Т5 (owner 03.08) — the trial is one-time per organizatio
     currency: 'RUB',
     billingPeriod: 'month',
     mechanics: {},
-    quotas: {},
+    quotas: TEST_BRANCH_QUOTA,
     systemAccessPolicy: null,
     mechanicAccessPolicies: {},
     downgradePolicies: {},
@@ -1842,7 +1854,7 @@ describe('#1069 T9 — billing period catalog rejects retired day for new tariff
           currency: 'RUB',
           billingPeriod: 'day',
           mechanics: {},
-          quotas: {},
+          quotas: TEST_BRANCH_QUOTA,
           systemAccessPolicy: null,
           mechanicAccessPolicies: {},
           downgradePolicies: {},
@@ -1947,7 +1959,7 @@ describe('§5a #1069 Т8 (owner 03.08) — discounted price is explicit per tari
       currency: 'RUB',
       billingPeriod: 'month',
       mechanics: {},
-      quotas: {},
+      quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},

@@ -1,0 +1,49 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const fakes = vi.hoisted(() => ({ apiJson: vi.fn() }));
+
+vi.mock('@/shared/lib/apiJson', () => ({ apiJson: fakes.apiJson }));
+
+import { BookingPoliciesSection } from './BookingPoliciesSection';
+
+describe('BookingPoliciesSection empty organization state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.apiJson.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.endsWith('/overview')) return { ok: true, specialists: [], services: [] };
+      if (options?.method === 'POST') return { ok: true, policy: { id: 'saved-policy' } };
+      return { ok: true, cancellationPolicies: [], reschedulePolicies: [] };
+    });
+  });
+
+  it('offers a real organization cancellation draft and creates it without a fake id', async () => {
+    render(<BookingPoliciesSection defaultKind="cancellation" />);
+
+    const save = await screen.findByRole('button', { name: 'Сохранить отмену' });
+    expect(screen.queryByText('Нет политики')).not.toBeInTheDocument();
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(fakes.apiJson).toHaveBeenCalledWith(
+        '/api/admin/booking-engine/policies',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    );
+    const post = fakes.apiJson.mock.calls.find((call) => call[1]?.method === 'POST');
+    const body = JSON.parse(String(post?.[1]?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      kind: 'cancellation',
+      scopeLevel: 'organization',
+      scopeEntityId: null,
+      title: 'Правила отмены клиники',
+    });
+    expect(body).not.toHaveProperty('id');
+  });
+
+  it('offers a real organization reschedule draft in the same empty state', async () => {
+    render(<BookingPoliciesSection defaultKind="reschedule" lockKind />);
+
+    expect(await screen.findByRole('button', { name: 'Сохранить перенос' })).toBeEnabled();
+  });
+});

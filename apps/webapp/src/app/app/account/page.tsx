@@ -162,10 +162,6 @@ export default async function AccountPage({
         {workspaceContext?.canAccessClinicalWorkspace ? (
           <SettingsForm
             patientLabel="пациент"
-            smsFallbackEnabled={valueOf(
-              doctorSettings.find((setting) => setting.key === 'sms_fallback_enabled')?.valueJson,
-              true,
-            )}
             supportCommentsWithoutSupportDefault={valueOf(
               doctorSettings.find(
                 (setting) =>
