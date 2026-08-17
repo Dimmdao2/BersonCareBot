@@ -108,6 +108,17 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('does not issue a tenant-scoped phone lookup for a blank organization identity', async () => {
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
+
+    await expect(
+      port.getTargetsByPhone('+79180000001', { organizationId: '   ' }),
+    ).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('дано: вебапп ответил 500 → когда резолв → тогда null (МЫ НЕ СМОГЛИ спросить), а не тихое «каналов нет»', async () => {
     // АРБИТР: заменить `if (!res.ok || data.ok !== true) return null;` на `if (data.ok !== true) return null;`
     // (убрать проверку res.ok) — 500 с телом `{ok:true}` (маловероятно, но именно так ловится
