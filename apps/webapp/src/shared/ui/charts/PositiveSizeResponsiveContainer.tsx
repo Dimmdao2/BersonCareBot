@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-} from 'react';
+import { useCallback, useState, useSyncExternalStore, type ComponentProps } from 'react';
 import { ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
 
@@ -19,35 +13,37 @@ export function PositiveSizeResponsiveContainer({
   className,
   ...props
 }: ResponsiveProps) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
 
-  const measure = useCallback(() => {
-    const host = hostRef.current;
-    if (!host) return;
+  const getSnapshot = useCallback(() => {
+    if (!host) return '';
     const rect = host.getBoundingClientRect();
-    const next = rect.width > 0 && rect.height > 0 ? { width: rect.width, height: rect.height } : null;
-    setSize((current) =>
-      current?.width === next?.width && current?.height === next?.height ? current : next,
-    );
-  }, []);
+    return rect.width > 0 && rect.height > 0 ? `${rect.width}:${rect.height}` : '';
+  }, [host]);
 
-  useEffect(() => {
-    measure();
-    const host = hostRef.current;
-    if (!host) return;
-    if (typeof ResizeObserver === 'function') {
-      const observer = new ResizeObserver(measure);
-      observer.observe(host);
-      return () => observer.disconnect();
-    }
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [measure]);
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      if (!host) return () => undefined;
+      if (typeof ResizeObserver === 'function') {
+        const observer = new ResizeObserver(notify);
+        observer.observe(host);
+        return () => observer.disconnect();
+      }
+      window.addEventListener('resize', notify);
+      return () => window.removeEventListener('resize', notify);
+    },
+    [host],
+  );
+
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, () => '');
+  const [measuredWidth, measuredHeight] = snapshot ? snapshot.split(':').map(Number) : [0, 0];
+  const hasPositiveSize = measuredWidth > 0 && measuredHeight > 0;
 
   return (
-    <div ref={hostRef} className={cn('h-full w-full min-w-0', className)}>
-      {size ? <ResponsiveContainer {...props} width={size.width} height={size.height} /> : null}
+    <div ref={setHost} className={cn('h-full w-full min-w-0', className)}>
+      {hasPositiveSize ? (
+        <ResponsiveContainer {...props} width={measuredWidth} height={measuredHeight} />
+      ) : null}
     </div>
   );
 }

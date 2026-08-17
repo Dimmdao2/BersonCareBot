@@ -1,9 +1,6 @@
-import { sql } from 'drizzle-orm';
-import { getDrizzle } from '@/app-layer/db/drizzle';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
-import { getCurrentDbPrincipal, getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { mediaPlaybackUserVideoFirstResolve } from '../../../db/schema';
-import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -17,34 +14,11 @@ export async function recordPlaybackUserVideoFirstResolve(input: {
   if (!organizationId) return false;
 
   try {
-    if (getCurrentDbPrincipal()?.kind === 'patient') {
-      const result = await runWebappNamedRoot<{ inserted: boolean }>(
-        getWebappSqlDb(),
-        'app.record_current_patient_playback_first_resolve(uuid)',
-        [input.mediaId],
-        sql`SELECT app.record_current_patient_playback_first_resolve(
-          ${input.mediaId}::uuid
-        ) AS inserted`,
-      );
-      return result.rows[0]?.inserted === true;
-    }
-    const db = getDrizzle();
-    const rows = await db
-      .insert(mediaPlaybackUserVideoFirstResolve)
-      .values({
-        organizationId,
-        userId: input.userId,
-        mediaId: input.mediaId,
-      })
-      .onConflictDoNothing({
-        target: [
-          mediaPlaybackUserVideoFirstResolve.userId,
-          mediaPlaybackUserVideoFirstResolve.mediaId,
-        ],
-      })
-      .returning({ mediaId: mediaPlaybackUserVideoFirstResolve.mediaId });
-
-    return rows.length > 0;
+    return await buildAppDeps().playbackUserVideoFirstResolve.record({
+      organizationId,
+      userId: input.userId,
+      mediaId: input.mediaId,
+    });
   } catch (e) {
     logger.error(
       { err: e, mediaId: input.mediaId },

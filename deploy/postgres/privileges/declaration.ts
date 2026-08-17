@@ -5206,7 +5206,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.media_playback_user_video_first_resolve': {
     kind: 'direct', purpose: 'patient reads its own marker and records it only through the exact visibility-checked root',
-    codePaths: ['apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts'],
+    codePaths: ['apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: ['media_id', 'user_id'] },
     ],

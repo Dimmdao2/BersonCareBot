@@ -127,12 +127,14 @@ import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from '@/shared/lib/scheduleRecordPr
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
 import { createMediaService } from '@/modules/media/service';
+import type { PlaybackUserVideoFirstResolvePort } from '@/modules/media/ports';
 import { createSymptomDiaryService } from '@/modules/diaries/symptom-service';
 import { createLfkDiaryService } from '@/modules/diaries/lfk-service';
 import { createChannelPreferencesService } from '@/modules/channel-preferences/service';
 import { createContentCatalogResolver } from '@/modules/content-catalog/service';
 import { mockMediaStoragePort } from '@/infra/repos/mockMediaStorage';
 import { createS3MediaStoragePort, listMediaDeleteErrors } from '@/infra/repos/s3MediaStorage';
+import { createPgPlaybackUserVideoFirstResolvePort } from '@/infra/repos/pgPlaybackUserVideoFirstResolve';
 import { inMemorySymptomDiaryPort } from '@/infra/repos/symptomDiary';
 import { inMemoryLfkDiaryPort } from '@/infra/repos/lfkDiary';
 import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
@@ -765,6 +767,17 @@ const remindersService = createRemindersService(reminderRulesPort, {
 });
 const mediaStoragePort =
   !inMemoryRepos && isS3MediaEnabled(env) ? createS3MediaStoragePort() : mockMediaStoragePort;
+const inMemoryPlaybackUserVideoFirstResolveKeys = new Set<string>();
+const playbackUserVideoFirstResolvePort: PlaybackUserVideoFirstResolvePort = !inMemoryRepos
+  ? createPgPlaybackUserVideoFirstResolvePort()
+  : {
+      async record(input) {
+        const key = `${input.userId}:${input.mediaId}`;
+        const inserted = !inMemoryPlaybackUserVideoFirstResolveKeys.has(key);
+        inMemoryPlaybackUserVideoFirstResolveKeys.add(key);
+        return inserted;
+      },
+    };
 const referencesPort = !inMemoryRepos ? pgReferencesPort : inMemoryReferencesPort;
 const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
@@ -1827,6 +1840,7 @@ function _buildAppDeps() {
     healthFailureArchive,
     notificationDelivery,
     media: mediaService,
+    playbackUserVideoFirstResolve: playbackUserVideoFirstResolvePort,
     mediaDeleteErrors: {
       list: listMediaDeleteErrors,
     },

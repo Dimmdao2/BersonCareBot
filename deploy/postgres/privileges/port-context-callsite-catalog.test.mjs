@@ -743,7 +743,7 @@ const EXPECTED_ROOTS = new Map(Object.entries({
   'app.record_current_patient_playback_client_event(uuid,text,text,text,text)': patientRoot(
     'patient.media.playback-client-event.record', 5, 'apps/webapp/src/app-layer/media/playbackClientEvents.ts'),
   'app.record_current_patient_playback_first_resolve(uuid)': patientRoot(
-    'patient.media.playback-first-resolve.record', 1, 'apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts'),
+    'patient.media.playback-first-resolve.record', 1, 'apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts'),
   'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)': patientRoot(
     'patient.diary-day.snapshot.capture', 8, 'apps/webapp/src/infra/repos/pgPatientDiarySnapshots.ts'),
   'app.set_current_patient_notification_topic(text,boolean)': patientRoot(

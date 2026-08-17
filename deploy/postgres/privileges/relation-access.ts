@@ -4392,7 +4392,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "codePaths": [
       "apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts",
       "apps/webapp/src/app-layer/media/playbackHourlyRetention.ts",
-      "apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts",
+      "apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts",
       "apps/webapp/src/app/api/internal/media-playback-stats/retention/route.ts",
       "apps/webapp/src/infra/repos/pgMaterialRating.ts"
     ],
