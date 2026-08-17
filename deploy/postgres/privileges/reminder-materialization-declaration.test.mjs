@@ -26,9 +26,10 @@ test('current reminder materialization roots have one owner and no PUBLIC execut
 // The live 42501 of 17.08 was "permission denied for table user_reminder_occurrences" raised inside
 // the snapshot root: its body read the whole occurrence row while the seam owner holds only the
 // narrow per-column grants declared below. The tempting repair is to widen this surface until the
-// error goes away, which hands the reminder seam the delivery-outcome columns it never reads and
-// makes deploy/postgres/privileges/reminder-materialization-snapshot.acceptance.sh pass for the
-// wrong reason. Delivery outcome belongs to the delivery seams, not to materialization.
+// error goes away, which hands the reminder seam the delivery-outcome columns it never reads.
+// Delivery outcome belongs to the delivery seams, not to materialization. The proof that the
+// narrowed bodies actually work is the named DEV base itself: after migration 0020 the wake route
+// answers 200 on the live scheduler ticks.
 const DELIVERY_OUTCOME_COLUMNS = ['sent_at', 'failed_at', 'delivery_channel', 'delivery_job_id', 'error_code'];
 
 test('materialization seam never reads occurrence delivery outcome and never takes the whole table', () => {
