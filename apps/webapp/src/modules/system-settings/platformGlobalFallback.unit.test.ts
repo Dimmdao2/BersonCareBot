@@ -63,9 +63,13 @@ describe('platform-owned fallback rows for per-organization settings', () => {
       ),
     ).rejects.toThrow('organization_context_required');
     await expect(
-      service.updateSetting('patient_home_mood_icons', 'admin', { value: [] }, 'platform-actor', {
-        allowPlatformGlobalFallbackWrite: true,
-      }),
+      service.updateSetting(
+        'patient_home_daily_practice_target',
+        'admin',
+        { value: 3 },
+        'platform-actor',
+        { allowPlatformGlobalFallbackWrite: true },
+      ),
     ).rejects.toThrow('organization_context_required');
     await expect(
       service.updateSetting(
@@ -89,7 +93,7 @@ describe('platform-owned fallback rows for per-organization settings', () => {
           { key: 'patient_booking_url', valueJson: { value: 'https://booking.example.test' } },
           // Deliberately exercise the service boundary with a registry-valid but non-Modes per-org
           // key. The HTTP schema rejects it even earlier; the service must still fail before write.
-          { key: 'patient_home_mood_icons', valueJson: { value: [] } },
+          { key: 'patient_home_daily_practice_target', valueJson: { value: 3 } },
         ] as never,
         'platform-actor',
         { allowPlatformGlobalFallbackWrite: true },

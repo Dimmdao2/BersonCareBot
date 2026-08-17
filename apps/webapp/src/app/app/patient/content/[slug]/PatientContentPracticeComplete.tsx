@@ -15,7 +15,6 @@ import {
   DialogTitle,
 } from '@/shared/ui/patient/primitives/dialog';
 import { Button } from '@/shared/ui/patient/primitives/button';
-import type { PatientHomeMoodIconOption } from '@/modules/patient-home/patientHomeMoodIcons';
 import type { PracticeSource } from '@/modules/patient-practice/types';
 import { cn } from '@/lib/utils';
 import {
@@ -35,8 +34,6 @@ type Props = {
   practiceSource: PracticeSource;
   guest: boolean;
   needsActivation: boolean;
-  /** Те же 5 опций, что блок самочувствия на главной (`patient_home_mood_icons`). */
-  moodIconOptions: readonly PatientHomeMoodIconOption[];
 };
 
 export function PatientContentPracticeComplete({
@@ -45,7 +42,6 @@ export function PatientContentPracticeComplete({
   practiceSource,
   guest,
   needsActivation,
-  moodIconOptions,
 }: Props) {
   const router = useRouter();
   const isWarmup = practiceSource === 'daily_warmup';
@@ -301,7 +297,6 @@ export function PatientContentPracticeComplete({
           </DialogHeader>
           <div className="flex flex-col gap-3 px-4 pb-4">
             <PatientHomeMoodScoreRow
-              moodOptions={moodIconOptions}
               frozenDisabled={false}
               selectedScore={pickedMoodScore}
               busy={modalBusy}
