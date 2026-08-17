@@ -5,13 +5,15 @@ import { createSystemSettingsService } from './service';
 import { allowsPlatformGlobalFallbackWrite, isPerOrgSettingKey } from './orgScopedKeys';
 
 describe('platform-owned fallback rows for per-organization settings', () => {
-  it('keeps both keys per-org while allowing their explicit platform fallback rows', async () => {
+  it('keeps listed keys per-org while allowing their explicit platform fallback rows', async () => {
     const service = createSystemSettingsService(createInMemorySystemSettingsPort());
 
     expect(isPerOrgSettingKey('patient_booking_url')).toBe(true);
     expect(isPerOrgSettingKey('notifications_topics')).toBe(true);
+    expect(isPerOrgSettingKey('sms_fallback_enabled')).toBe(true);
     expect(allowsPlatformGlobalFallbackWrite('patient_booking_url')).toBe(true);
     expect(allowsPlatformGlobalFallbackWrite('notifications_topics')).toBe(true);
+    expect(allowsPlatformGlobalFallbackWrite('sms_fallback_enabled')).toBe(true);
 
     await service.updateSetting(
       'patient_booking_url',
@@ -27,6 +29,13 @@ describe('platform-owned fallback rows for per-organization settings', () => {
       'platform-actor',
       { allowPlatformGlobalFallbackWrite: true },
     );
+    await service.updateSetting(
+      'sms_fallback_enabled',
+      'doctor',
+      { value: true },
+      'platform-actor',
+      { allowPlatformGlobalFallbackWrite: true },
+    );
 
     await expect(service.getSetting('patient_booking_url', 'admin')).resolves.toMatchObject({
       organizationId: null,
@@ -35,6 +44,10 @@ describe('platform-owned fallback rows for per-organization settings', () => {
     await expect(service.getSetting('notifications_topics', 'admin')).resolves.toMatchObject({
       organizationId: null,
       valueJson: { value: [{ id: 'test', title: 'Тест тема' }] },
+    });
+    await expect(service.getSetting('sms_fallback_enabled', 'doctor')).resolves.toMatchObject({
+      organizationId: null,
+      valueJson: { value: true },
     });
   });
 

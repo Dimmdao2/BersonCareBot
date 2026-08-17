@@ -8,9 +8,11 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/systemSettingsOrgContextResponse';
+import { isPerOrgSettingKey } from '@/modules/system-settings/orgScopedKeys';
 import { ALLOWED_KEYS } from '@/modules/system-settings/types';
 
 const DOCTOR_SCOPE_KEYS = [
+  'sms_fallback_enabled',
   'doctor_patient_support_comments_without_support_default_enabled',
   'doctor_patient_support_media_without_support_default_enabled',
   'doctor_specialist_task_reminder_channels',
@@ -20,7 +22,8 @@ const DOCTOR_SCOPE_KEYS = [
   'booking_calendar_default_specialist_id',
 ] as const;
 
-const SUPPORT_DEFAULT_KEYS = [
+const CABINET_BOOLEAN_KEYS = [
+  'sms_fallback_enabled',
   'doctor_patient_support_comments_without_support_default_enabled',
   'doctor_patient_support_media_without_support_default_enabled',
 ] as const;
@@ -36,18 +39,18 @@ const supportDefaultsBatchSchema = z
       .array(
         z
           .object({
-            key: z.enum(SUPPORT_DEFAULT_KEYS),
+            key: z.enum(CABINET_BOOLEAN_KEYS),
             value: z.object({ value: z.boolean() }).strict(),
           })
           .strict(),
       )
-      .length(SUPPORT_DEFAULT_KEYS.length),
+      .length(CABINET_BOOLEAN_KEYS.length),
   })
   .strict();
 
 /**
- * Every key exposed here is PER-ORG. Platform-global `sms_fallback_enabled` deliberately has no
- * clinic route: a stale clinic payload is rejected before any row is written.
+ * Every key exposed here is PER-ORG. The clinic route returns only the resolved organization's
+ * rows; an intentional platform fallback row is never presented as the clinic's saved value.
  */
 export async function GET() {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -59,8 +62,10 @@ export async function GET() {
   });
   return NextResponse.json({
     ok: true,
-    settings: settings.filter((setting) =>
-      (DOCTOR_SCOPE_KEYS as readonly string[]).includes(setting.key),
+    settings: settings.filter(
+      (setting) =>
+        (DOCTOR_SCOPE_KEYS as readonly string[]).includes(setting.key) &&
+        (!isPerOrgSettingKey(setting.key) || setting.organizationId === gate.ctx.organizationId),
     ),
   });
 }
@@ -76,7 +81,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
     }
     const seen = new Set(batch.data.items.map((item) => item.key));
-    if (SUPPORT_DEFAULT_KEYS.some((key) => !seen.has(key))) {
+    if (CABINET_BOOLEAN_KEYS.some((key) => !seen.has(key))) {
       return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
     }
     const deps = buildAppDeps();

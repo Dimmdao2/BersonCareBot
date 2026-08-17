@@ -18,6 +18,7 @@ import { LabeledSwitch } from '@/components/common/form/LabeledSwitch';
 
 type SettingsFormProps = {
   patientLabel: string;
+  smsFallbackEnabled: boolean;
   supportCommentsWithoutSupportDefault: boolean;
   supportMediaWithoutSupportDefault: boolean;
   settingsEndpoint?: '/api/doctor/settings' | '/api/admin/settings';
@@ -27,6 +28,7 @@ type SettingsFormProps = {
 
 export function SettingsForm({
   patientLabel,
+  smsFallbackEnabled,
   supportCommentsWithoutSupportDefault,
   supportMediaWithoutSupportDefault,
   settingsEndpoint = '/api/doctor/settings',
@@ -34,6 +36,7 @@ export function SettingsForm({
   showSupportDefaults = true,
 }: SettingsFormProps) {
   const [label, setLabel] = useState(patientLabel);
+  const [smsFallback, setSmsFallback] = useState(smsFallbackEnabled);
   const [supportCommentsDefault, setSupportCommentsDefault] = useState(
     supportCommentsWithoutSupportDefault,
   );
@@ -65,6 +68,10 @@ export function SettingsForm({
             body: JSON.stringify({
               items: [
                 {
+                  key: 'sms_fallback_enabled',
+                  value: { value: smsFallback },
+                },
+                {
                   key: 'doctor_patient_support_comments_without_support_default_enabled',
                   value: { value: supportCommentsDefault },
                 },
@@ -92,6 +99,7 @@ export function SettingsForm({
               : undefined;
           };
           if (
+            valueFor('sms_fallback_enabled') !== smsFallback ||
             valueFor('doctor_patient_support_comments_without_support_default_enabled') !==
               supportCommentsDefault ||
             valueFor('doctor_patient_support_media_without_support_default_enabled') !==
@@ -138,6 +146,15 @@ export function SettingsForm({
               </SelectContent>
             </Select>
           </div>
+        ) : null}
+
+        {showSupportDefaults ? (
+          <LabeledSwitch
+            label="SMS fallback"
+            checked={smsFallback}
+            onCheckedChange={setSmsFallback}
+            disabled={isPending}
+          />
         ) : null}
 
         {showSupportDefaults ? (

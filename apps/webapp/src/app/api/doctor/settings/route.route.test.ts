@@ -16,6 +16,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
 import { GET, PATCH } from './route';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const SMS_KEY = 'sms_fallback_enabled';
 const COMMENTS_KEY = 'doctor_patient_support_comments_without_support_default_enabled';
 const MEDIA_KEY = 'doctor_patient_support_media_without_support_default_enabled';
 
@@ -38,8 +39,9 @@ describe('/api/doctor/settings clinic-safe settings', () => {
     });
   });
 
-  it('commits both support defaults in one organization batch and returns the saved values', async () => {
+  it('commits all cabinet booleans in one organization batch and returns the saved values', async () => {
     const saved = [
+      { key: SMS_KEY, valueJson: { value: true }, organizationId: ORGANIZATION_ID },
       { key: COMMENTS_KEY, valueJson: { value: false }, organizationId: ORGANIZATION_ID },
       { key: MEDIA_KEY, valueJson: { value: true }, organizationId: ORGANIZATION_ID },
     ];
@@ -51,6 +53,7 @@ describe('/api/doctor/settings clinic-safe settings', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           items: [
+            { key: SMS_KEY, value: { value: true } },
             { key: COMMENTS_KEY, value: { value: false } },
             { key: MEDIA_KEY, value: { value: true } },
           ],
@@ -63,6 +66,7 @@ describe('/api/doctor/settings clinic-safe settings', () => {
     expect(fakes.persistSettingsBatch).toHaveBeenCalledTimes(1);
     expect(fakes.persistSettingsBatch).toHaveBeenCalledWith(
       [
+        { key: SMS_KEY, scope: 'doctor', value: { value: true } },
         { key: COMMENTS_KEY, scope: 'doctor', value: { value: false } },
         { key: MEDIA_KEY, scope: 'doctor', value: { value: true } },
       ],
@@ -73,7 +77,7 @@ describe('/api/doctor/settings clinic-safe settings', () => {
 
   it('saves the clinic SMS fallback setting under the resolved organization', async () => {
     const saved = {
-      key: 'sms_fallback_enabled',
+      key: SMS_KEY,
       valueJson: { value: true },
       organizationId: ORGANIZATION_ID,
     };
@@ -83,14 +87,14 @@ describe('/api/doctor/settings clinic-safe settings', () => {
       new Request('http://test/api/doctor/settings', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ key: 'sms_fallback_enabled', value: { value: true } }),
+        body: JSON.stringify({ key: SMS_KEY, value: { value: true } }),
       }),
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, setting: saved });
     expect(fakes.updateSetting).toHaveBeenCalledWith(
-      'sms_fallback_enabled',
+      SMS_KEY,
       'doctor',
       { value: true },
       'clinic-owner',
@@ -100,15 +104,17 @@ describe('/api/doctor/settings clinic-safe settings', () => {
 
   it('does not expose a stale global row in the clinic readback', async () => {
     fakes.listSettingsByScope.mockResolvedValue([
-      { key: COMMENTS_KEY, valueJson: { value: true } },
-      { key: 'sms_fallback_enabled', valueJson: { value: true } },
+      { key: COMMENTS_KEY, valueJson: { value: true }, organizationId: ORGANIZATION_ID },
+      { key: SMS_KEY, valueJson: { value: true }, organizationId: null },
     ]);
 
     const response = await GET();
 
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      settings: [{ key: COMMENTS_KEY, valueJson: { value: true } }],
+      settings: [
+        { key: COMMENTS_KEY, valueJson: { value: true }, organizationId: ORGANIZATION_ID },
+      ],
     });
   });
 });

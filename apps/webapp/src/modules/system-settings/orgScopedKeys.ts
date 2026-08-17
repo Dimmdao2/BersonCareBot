@@ -20,6 +20,7 @@ export function isPerOrgSettingKey(key: string): boolean {
 const PLATFORM_GLOBAL_FALLBACK_WRITE_KEYS = new Set<SystemSettingKey>([
   'patient_booking_url',
   'notifications_topics',
+  'sms_fallback_enabled',
 ]);
 
 /**

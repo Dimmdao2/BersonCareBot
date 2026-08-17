@@ -81,7 +81,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты'),
   sms_fallback_enabled: restricted(
     'doctor',
-    'global',
+    'per_org',
     'boolean',
     'false',
     'derived',

@@ -288,6 +288,7 @@ export default async function SettingsPage({
         ) : null}
         <SettingsForm
           patientLabel={String(patientLabel)}
+          smsFallbackEnabled={false}
           supportCommentsWithoutSupportDefault={false}
           supportMediaWithoutSupportDefault={false}
           settingsEndpoint="/api/admin/settings"

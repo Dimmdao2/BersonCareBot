@@ -26,6 +26,7 @@ describe('clinic-owner cabinet settings form', () => {
     render(
       <SettingsForm
         patientLabel="пациент"
+        smsFallbackEnabled={false}
         supportCommentsWithoutSupportDefault={false}
         supportMediaWithoutSupportDefault
         showPatientLabel={false}
@@ -40,10 +41,10 @@ describe('clinic-owner cabinet settings form', () => {
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(String(init?.body)) as { items: Array<{ key: string }> };
     expect(body.items.map((item) => item.key)).toEqual([
+      'sms_fallback_enabled',
       'doctor_patient_support_comments_without_support_default_enabled',
       'doctor_patient_support_media_without_support_default_enabled',
     ]);
-    expect(body.items.map((item) => item.key)).toContain('sms_fallback_enabled');
     await waitFor(() => expect(screen.queryByText('Не удалось сохранить настройки')).toBeNull());
   });
 });

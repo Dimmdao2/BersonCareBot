@@ -1,12 +1,11 @@
 import type { SessionUser } from '@/shared/types/session';
-import { formatPatientGreetingName } from '@/shared/lib/fio';
-
-/** Имя в приветствии: `first_name`, иначе только первый токен legacy `display_name`. */
+/**
+ * Имя в приветствии берётся только из структурированного `first_name`.
+ * Legacy `display_name` не парсим: строка может быть записана как ФИО, где первый токен — фамилия.
+ */
 export function patientGreetingPersonalizedName(
   user: Pick<SessionUser, 'firstName' | 'displayName'>,
 ): string | null {
   const first = user.firstName?.trim();
-  if (first) return first;
-  const display = user.displayName?.trim() ?? '';
-  return formatPatientGreetingName(null, display) || null;
+  return first || null;
 }
