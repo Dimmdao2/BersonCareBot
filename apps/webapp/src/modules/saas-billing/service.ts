@@ -22,6 +22,10 @@ import { billingPeriodMonthsMap } from './billingPeriodCatalog';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
 import { buildPartialRefundReceipt, buildSaasBillingReceipt } from './fiscalReceipt';
+import {
+  withManualInvoiceDatabaseBoundary,
+  withManualInvoiceProviderTransportBoundary,
+} from './manualInvoiceFailure';
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
@@ -75,6 +79,9 @@ export class SaasBillingTariffDowngradeBlockedError extends Error {
 type ManualAssignmentTransaction = Parameters<
   Parameters<SaasBillingRepositoryPort['runManualAssignmentTransaction']>[0]
 >[0];
+
+type AsyncOperationBoundary = <T>(operation: () => Promise<T>) => Promise<T>;
+const runWithoutBoundary: AsyncOperationBoundary = (operation) => operation();
 
 /**
  * #1069 T5 (owner 03.08): the one-time trial applies to the organization's FIRST tariff — assigned
@@ -144,9 +151,10 @@ export function createSaasBillingService(dependencies: {
   /** `providerId` picks a specific configured provider (e.g. the one named in a webhook URL); omitted, it's the global default. */
   async function resolvePaymentProvider(
     providerId?: string,
+    runSettingsOperation: AsyncOperationBoundary = runWithoutBoundary,
   ): Promise<ResolvedSaasBillingPaymentProvider> {
     const settings = parseSaasBillingPaymentProviderSettings(
-      await dependencies.settings.getSaasBillingPaymentProviderValue(),
+      await runSettingsOperation(() => dependencies.settings.getSaasBillingPaymentProviderValue()),
     );
     const id = providerId ?? settings.defaultProviderId;
     const providerConfig = settings.providers.find((p) => p.id === id && p.enabled);
@@ -182,6 +190,7 @@ export function createSaasBillingService(dependencies: {
       ReturnType<typeof dependencies.repository.createSaasBillingInvoice>
     >['invoice'],
     payeeRequisites: ResolvedSaasBillingPaymentProvider['payeeRequisites'],
+    runRepositoryOperation: AsyncOperationBoundary = runWithoutBoundary,
   ) {
     const fiscalReceiptConfigured = Boolean(
       payeeRequisites.vatCode || payeeRequisites.taxSystemCode,
@@ -190,15 +199,17 @@ export function createSaasBillingService(dependencies: {
     if (!payeeRequisites.vatCode) {
       throw new Error('saas_billing_receipt_vat_code_missing');
     }
-    const billingEmail = await dependencies.repository.getSaasBillingAccountBillingEmail(
-      invoice.organizationId,
+    const billingEmail = await runRepositoryOperation(() =>
+      dependencies.repository.getSaasBillingAccountBillingEmail(invoice.organizationId),
     );
     const receipt = buildSaasBillingReceipt(invoice, billingEmail, payeeRequisites);
     return {
-      invoice: await dependencies.repository.attachSaasBillingInvoiceReceiptSnapshot({
-        saasBillingInvoiceId: invoice.id,
-        receipt,
-      }),
+      invoice: await runRepositoryOperation(() =>
+        dependencies.repository.attachSaasBillingInvoiceReceiptSnapshot({
+          saasBillingInvoiceId: invoice.id,
+          receipt,
+        }),
+      ),
       receipt,
     };
   }
@@ -410,16 +421,22 @@ export function createSaasBillingService(dependencies: {
       throw new Error('saas_billing_manual_invoice_expiry_invalid');
     }
 
-    const { saasBillingSubscriptionId, billingPeriod } =
-      await dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId);
+    const { saasBillingSubscriptionId, billingPeriod } = await withManualInvoiceDatabaseBoundary(
+      () => dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId),
+    );
     const servicePeriodStartsAt = now().toISOString();
-    const servicePeriodEndsAt = await paidPeriodEndsAtForBillingCode(
-      dependencies.repository,
-      servicePeriodStartsAt,
-      billingPeriod,
+    const servicePeriodEndsAt = await withManualInvoiceDatabaseBoundary(() =>
+      paidPeriodEndsAtForBillingCode(
+        dependencies.repository,
+        servicePeriodStartsAt,
+        billingPeriod,
+      ),
     );
 
-    const provider = await resolvePaymentProvider();
+    const provider = await resolvePaymentProvider(
+      undefined,
+      withManualInvoiceDatabaseBoundary,
+    );
     if (!provider.adapter.supportsInvoice) {
       throw new Error(`saas_billing_provider_invoices_unsupported:${provider.providerId}`);
     }
@@ -436,8 +453,8 @@ export function createSaasBillingService(dependencies: {
       input.expiresAt,
     ])}`;
 
-    const { invoice, created: wasCreated } =
-      await dependencies.repository.createManualSaasBillingInvoice({
+    const { invoice, created: wasCreated } = await withManualInvoiceDatabaseBoundary(() =>
+      dependencies.repository.createManualSaasBillingInvoice({
         organizationId: input.organizationId,
         saasBillingSubscriptionId,
         amountMinor: input.amountMinor,
@@ -450,42 +467,55 @@ export function createSaasBillingService(dependencies: {
         providerIdempotencyKey,
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: 0,
-      });
+      }),
+    );
     if (!wasCreated && invoice.providerCheckoutUrl) return invoice;
     const claimed =
-      (await dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(invoice.id)) ??
+      (await withManualInvoiceDatabaseBoundary(async () =>
+        dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(invoice.id),
+      )) ??
       (wasCreated || invoice.status === 'draft');
     if (!claimed) return invoice;
 
     try {
-      const fiscalized = await attachFiscalReceiptIfConfigured(invoice, provider.payeeRequisites);
-      const intent = await provider.adapter.createIntent({
-      amountMinor: fiscalized.invoice.amountMinor,
-      currency: fiscalized.invoice.currency,
-      idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
-      payerRef: `organization:${invoice.organizationId}`,
-      purpose: 'saas_billing_tariff_renewal',
-      subjectRef: invoice.id,
-      returnUrl: SAAS_BILLING_RETURN_URL,
-      invoice: { description, expiresAt: input.expiresAt },
-      metadata: {
-        organizationId: invoice.organizationId,
-        saasBillingInvoiceId: invoice.id,
-        saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
-      },
-      providerConfig: provider.providerConfig,
-      receipt: fiscalized.receipt,
-      });
+      const fiscalized = await attachFiscalReceiptIfConfigured(
+        invoice,
+        provider.payeeRequisites,
+        withManualInvoiceDatabaseBoundary,
+      );
+      const intent = await withManualInvoiceProviderTransportBoundary(() =>
+        provider.adapter.createIntent({
+          amountMinor: fiscalized.invoice.amountMinor,
+          currency: fiscalized.invoice.currency,
+          idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
+          payerRef: `organization:${invoice.organizationId}`,
+          purpose: 'saas_billing_tariff_renewal',
+          subjectRef: invoice.id,
+          returnUrl: SAAS_BILLING_RETURN_URL,
+          invoice: { description, expiresAt: input.expiresAt },
+          metadata: {
+            organizationId: invoice.organizationId,
+            saasBillingInvoiceId: invoice.id,
+            saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
+          },
+          providerConfig: provider.providerConfig,
+          receipt: fiscalized.receipt,
+        }),
+      );
 
-      return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
-        saasBillingInvoiceId: invoice.id,
-        providerInvoiceRef: intent.providerIntentRef,
-        providerCheckoutUrl: intent.checkoutUrl ?? null,
-      });
+      return await withManualInvoiceDatabaseBoundary(() =>
+        dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+          saasBillingInvoiceId: invoice.id,
+          providerInvoiceRef: intent.providerIntentRef,
+          providerCheckoutUrl: intent.checkoutUrl ?? null,
+        }),
+      );
     } catch (error) {
-      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.({
-        saasBillingInvoiceId: invoice.id,
-      });
+      await withManualInvoiceDatabaseBoundary(async () =>
+        dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.({
+          saasBillingInvoiceId: invoice.id,
+        }),
+      );
       throw error;
     }
   }

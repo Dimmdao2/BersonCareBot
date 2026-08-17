@@ -31,11 +31,45 @@ type ProviderRow = {
   publicId?: string;
 };
 
+const EMPTY_FISCAL_CODE = '__unset__';
+const VAT_OPTIONS = [
+  { value: '1', label: 'Без НДС' },
+  { value: '2', label: '0%' },
+  { value: '3', label: '10%' },
+  { value: '4', label: '20%' },
+  { value: '5', label: '10/110' },
+  { value: '6', label: '20/120' },
+  { value: '7', label: '5%' },
+  { value: '8', label: '7%' },
+  { value: '9', label: '5/105' },
+  { value: '10', label: '7/107' },
+  { value: '11', label: '22%' },
+  { value: '12', label: '22/122' },
+] as const;
+const TAX_SYSTEM_OPTIONS = [
+  { value: '1', label: 'Общая' },
+  { value: '2', label: 'УСН, доходы' },
+  { value: '3', label: 'УСН, доходы минус расходы' },
+  { value: '4', label: 'ЕСХН' },
+  { value: '5', label: 'Патент' },
+  { value: '6', label: 'ЕНВД' },
+] as const;
+
+function optionLabel(
+  options: ReadonlyArray<{ value: string; label: string }>,
+  value: string,
+  emptyLabel: string,
+): string {
+  return options.find((option) => option.value === value)?.label ?? emptyLabel;
+}
+
 type Props = {
   paymentEnabled: boolean;
   readOnly?: boolean;
   providersJson: {
     defaultProviderId: string;
+    fiscalVatCode?: string | null;
+    fiscalTaxSystemCode?: string | null;
     providers: ProviderRow[];
   };
 };
@@ -49,6 +83,12 @@ export function BookingPaymentsSection({
   const [providers, setProviders] = useState<ProviderRow[]>(providersJson.providers);
   const [defaultProviderId, setDefaultProviderId] = useState(
     providersJson.defaultProviderId || 'yookassa',
+  );
+  const [fiscalVatCode, setFiscalVatCode] = useState(
+    providersJson.fiscalVatCode ?? EMPTY_FISCAL_CODE,
+  );
+  const [fiscalTaxSystemCode, setFiscalTaxSystemCode] = useState(
+    providersJson.fiscalTaxSystemCode ?? EMPTY_FISCAL_CODE,
   );
   const [webhookSecrets, setWebhookSecrets] = useState<Record<string, string>>({});
   const [shopIds, setShopIds] = useState<Record<string, string>>({});
@@ -68,6 +108,9 @@ export function BookingPaymentsSection({
       const okProviders = await patchAdminSetting('booking_payment_providers', {
         enabled: true,
         defaultProviderId,
+        fiscalVatCode: fiscalVatCode === EMPTY_FISCAL_CODE ? null : fiscalVatCode,
+        fiscalTaxSystemCode:
+          fiscalTaxSystemCode === EMPTY_FISCAL_CODE ? null : fiscalTaxSystemCode,
         providers: providers.map((p) => ({
           ...p,
           webhookSecret: webhookSecrets[p.id]?.trim() || p.webhookSecret || '',
@@ -108,7 +151,13 @@ export function BookingPaymentsSection({
               onValueChange={(v) => v && setDefaultProviderId(v)}
               disabled={readOnly}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger
+                className="w-full"
+                displayLabel={
+                  providers.find((provider) => provider.id === defaultProviderId)?.label ??
+                  defaultProviderId
+                }
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -119,6 +168,58 @@ export function BookingPaymentsSection({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Ставка НДС для чека</Label>
+              <Select
+                value={fiscalVatCode}
+                onValueChange={(value) => value && setFiscalVatCode(value)}
+                disabled={readOnly}
+              >
+                <SelectTrigger
+                  className="w-full"
+                  displayLabel={optionLabel(VAT_OPTIONS, fiscalVatCode, 'Не задана')}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_FISCAL_CODE}>Не задана</SelectItem>
+                  {VAT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Система налогообложения для чека</Label>
+              <Select
+                value={fiscalTaxSystemCode}
+                onValueChange={(value) => value && setFiscalTaxSystemCode(value)}
+                disabled={readOnly}
+              >
+                <SelectTrigger
+                  className="w-full"
+                  displayLabel={optionLabel(
+                    TAX_SYSTEM_OPTIONS,
+                    fiscalTaxSystemCode,
+                    'Не задана',
+                  )}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_FISCAL_CODE}>Не задана</SelectItem>
+                  {TAX_SYSTEM_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           {providers.map((p) => (
             <div key={p.id} className="space-y-2 rounded-md border p-3">

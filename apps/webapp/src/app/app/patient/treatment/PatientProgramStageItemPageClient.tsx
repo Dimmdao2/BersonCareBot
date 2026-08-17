@@ -70,12 +70,13 @@ import {
   CompletionMetricsPanel,
   DEFAULT_COMPLETION_METRICS_DRAFT,
   draftToPayload,
-  metricNumberToInput,
-  type CompletionDifficulty,
   type CompletionMetricsDraft,
 } from '@/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection';
 import { PatientProgramItemExecutionRow } from '@/app/app/patient/treatment/PatientProgramItemExecutionRow';
-import { postProgramItemComplete } from '@/app/app/patient/treatment/postProgramItemComplete';
+import {
+  patchProgramItemCompletionMetrics,
+  postProgramItemComplete,
+} from '@/app/app/patient/treatment/postProgramItemComplete';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 
 const EMPTY_ORDERED_ITEM_IDS: string[] = [];
@@ -324,6 +325,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     DEFAULT_COMPLETION_METRICS_DRAFT,
   );
   const [metricsPanelOpen, setMetricsPanelOpen] = useState(false);
+  const [metricsCompletionId, setMetricsCompletionId] = useState<string | null>(null);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
     unreadCount: 0,
@@ -466,9 +468,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const itemInteraction = resolved?.itemInteraction ?? 'readOnly';
   const readOnly = itemInteraction === 'readOnly';
 
-  const lastIsoForSimpleComplete = item
-    ? mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt)
-    : null;
+  const lastIsoForSimpleComplete = item ? (lastDoneAtIsoByItemId[item.id] ?? null) : null;
   const simpleCompleteDoneFrozen = isItemDoneCooldownActive(
     lastIsoForSimpleComplete,
     planItemDoneRepeatCooldownMs,
@@ -568,78 +568,58 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     void loadDiscussionPreview();
   }, [loadDiscussionPreview]);
 
-  const loadLatestMetrics = useCallback(async (): Promise<CompletionMetricsDraft> => {
-    if (!item || !canUseInteractiveProgramActions) return DEFAULT_COMPLETION_METRICS_DRAFT;
-    try {
-      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`);
-      const data = (await res.json().catch(() => null)) as {
-        ok?: boolean;
-        metrics?: {
-          perceivedDifficulty?: CompletionDifficulty | null;
-          difficulty?: CompletionDifficulty | null;
-          reps?: number | null;
-          sets?: number | null;
-          weightKg?: number | null;
-        } | null;
-      } | null;
-      const m = res.ok && data?.ok ? data.metrics : null;
-      return {
-        ...DEFAULT_COMPLETION_METRICS_DRAFT,
-        perceivedDifficulty: m?.difficulty ?? m?.perceivedDifficulty ?? 'medium',
-        repsRaw: metricNumberToInput(m?.reps),
-        setsRaw: metricNumberToInput(m?.sets),
-        weightRaw: metricNumberToInput(m?.weightKg, true),
-      };
-    } catch {
-      return DEFAULT_COMPLETION_METRICS_DRAFT;
-    }
-  }, [base, canUseInteractiveProgramActions, item]);
-
   useEffect(() => {
     setMetricsPanelOpen(false);
+    setMetricsCompletionId(null);
     setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
   }, [itemId]);
 
   const handleComplete = async () => {
     if (!item || !canUseInteractiveProgramActions || simpleCompleteDoneFrozen) return;
-    setMetricsPanelOpen(true);
-    setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
     setBusy(item.id);
     reportError(null);
     try {
-      const previousDraft = await loadLatestMetrics();
-      setMetricsDraft(previousDraft);
+      const result = await postProgramItemComplete({ base, itemId: item.id });
+      if (!result.ok) {
+        reportError(result.error);
+        return;
+      }
+      setMetricsCompletionId(result.completion.id);
+      setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
+      setMetricsPanelOpen(true);
+      if (result.item) setDetail(result.item);
+      setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+      setLastDoneAtIsoByItemId((prev) => ({
+        ...prev,
+        [item.id]: result.completion.createdAt,
+      }));
+      setDoneTodayCountByItemId((prev) => ({
+        ...prev,
+        [item.id]: (prev[item.id] ?? 0) + 1,
+      }));
     } finally {
       setBusy(null);
     }
   };
 
   const saveCompletionMetrics = async () => {
-    if (!item || !canUseInteractiveProgramActions) return;
+    if (!item || !canUseInteractiveProgramActions || !metricsCompletionId) return;
     setMetricsDraft((prev) => ({ ...prev, saving: true }));
     reportError(null);
     try {
       const payload = draftToPayload(metricsDraft);
-      const result = await postProgramItemComplete({
+      const result = await patchProgramItemCompletionMetrics({
         base,
         itemId: item.id,
+        completionId: metricsCompletionId,
         payload,
       });
       if (!result.ok) {
         reportError(result.error);
         return;
       }
-      if (result.item) {
-        setDetail(result.item);
-        const updatedItem =
-          result.item.stages.flatMap((stage) => stage.items).find((entry) => entry.id === item.id) ??
-          null;
-        const completedAt = updatedItem?.completedAt ?? new Date().toISOString();
-        setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
-        setLastDoneAtIsoByItemId((prev) => ({ ...prev, [item.id]: completedAt }));
-        setDoneTodayCountByItemId((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
-      }
       setMetricsPanelOpen(false);
+      setMetricsCompletionId(null);
       await refresh();
       await loadDiscussionPreview();
     } finally {

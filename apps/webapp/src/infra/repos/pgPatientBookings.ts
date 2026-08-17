@@ -1,7 +1,13 @@
 /** Wave 3 phase 13B — domain SQL via `runWebappPgText`. */
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import type {
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
@@ -19,10 +25,10 @@ type Row = {
   booking_type: string;
   city: string | null;
   category: string;
-  slot_start: Date;
-  slot_end: Date;
+  slot_start: Date | string;
+  slot_end: Date | string;
   status: string;
-  cancelled_at: Date | null;
+  cancelled_at: Date | string | null;
   cancel_reason: string | null;
   gcal_event_id: string | null;
   contact_phone: string;
@@ -30,8 +36,8 @@ type Row = {
   contact_name: string;
   reminder_24h_sent: boolean;
   reminder_2h_sent: boolean;
-  created_at: Date;
-  updated_at: Date;
+  created_at: Date | string;
+  updated_at: Date | string;
   branch_id?: string | null;
   service_id?: string | null;
   branch_service_id?: string | null;
@@ -45,6 +51,43 @@ type Row = {
   canonical_appointment_id?: string | null;
   canonical_in_person_context?: CanonicalInPersonBookingContext | null;
 };
+
+function isCurrentPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function mutateCurrentPatientBooking(
+  bookingId: string,
+  action: string,
+  payload: Record<string, unknown> = {},
+): Promise<PatientBookingRecord | null> {
+  const result = await runWebappNamedRoot<{ booking: Row | null }>(
+    getWebappSqlDb(),
+    'app.mutate_current_patient_booking(uuid,text,text)',
+    [bookingId, action, JSON.stringify(payload)],
+    sql`SELECT app.mutate_current_patient_booking(
+      ${bookingId}::uuid,
+      ${action}::text,
+      ${JSON.stringify(payload)}::text
+    ) AS booking`,
+  );
+  const row = result.rows[0]?.booking;
+  return row ? mapRow(row) : null;
+}
+
+async function readCurrentPatientBookingRow(
+  id: string,
+  kind: 'booking' | 'appointment',
+): Promise<PatientBookingRecord | null> {
+  const result = await runWebappNamedRoot<{ booking: Row | null }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_row(uuid,text)',
+    [id, kind],
+    sql`SELECT app.read_current_patient_booking_row(${id}::uuid, ${kind}::text) AS booking`,
+  );
+  const row = result.rows[0]?.booking;
+  return row ? mapRow(row) : null;
+}
 
 function mapRow(row: Row): PatientBookingRecord {
   return {
@@ -119,6 +162,20 @@ async function listCurrentPatientBookingRows(
 export const pgPatientBookingsPort: PatientBookingsPort = {
   async createPending(input: CreatePendingPatientBookingInput) {
     const id = randomUUID();
+    if (isCurrentPatientPrincipal()) {
+      const payload = { id, ...input };
+      const result = await runWebappNamedRoot<{ booking: Row | null }>(
+        getWebappSqlDb(),
+        'app.create_current_patient_booking_pending(text)',
+        [JSON.stringify(payload)],
+        sql`SELECT app.create_current_patient_booking_pending(
+          ${JSON.stringify(payload)}::text
+        ) AS booking`,
+      );
+      const row = result.rows[0]?.booking;
+      if (!row) throw new Error('create_pending_failed');
+      return mapRow(row);
+    }
     // Abandoned placeholders without a canonical link must not block retries or other patients.
     await runWebappPgText(
       `UPDATE patient_bookings
@@ -210,6 +267,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markAwaitingPayment(bookingId, canonicalAppointmentId) {
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(bookingId, 'await_payment', { canonicalAppointmentId });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'awaiting_payment',
@@ -239,6 +299,11 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async markConfirmed(bookingId, options) {
     const canonicalId = options?.canonicalAppointmentId?.trim() || null;
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(bookingId, 'confirm', {
+        canonicalAppointmentId: canonicalId,
+      });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'confirmed',
@@ -253,6 +318,10 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markFailedSync(bookingId) {
+    if (isCurrentPatientPrincipal()) {
+      await mutateCurrentPatientBooking(bookingId, 'failed_sync');
+      return;
+    }
     await runWebappPgText(
       `UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
@@ -262,6 +331,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markCancelling(bookingId) {
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(bookingId, 'cancelling');
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'cancelling', updated_at = now()
@@ -275,6 +347,12 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async markCancelled(input) {
     const status = input.status ?? 'cancelled';
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(input.bookingId, 'cancel', {
+        status,
+        reason: input.reason ?? null,
+      });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = $2,
@@ -291,6 +369,13 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async updateSlotsAfterReschedule(input) {
     const status = input.status ?? 'confirmed';
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(input.bookingId, 'reschedule', {
+        slotStart: input.slotStart,
+        slotEnd: input.slotEnd,
+        status,
+      });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET slot_start = $2::timestamptz,
@@ -306,6 +391,10 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getByIdForUser(bookingId, userId) {
+    if (isCurrentPatientPrincipal()) {
+      void userId;
+      return readCurrentPatientBookingRow(bookingId, 'booking');
+    }
     const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings WHERE id = $1 AND platform_user_id = $2 LIMIT 1`,
       [bookingId, userId],
@@ -315,6 +404,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getById(bookingId) {
+    if (isCurrentPatientPrincipal()) {
+      return readCurrentPatientBookingRow(bookingId, 'booking');
+    }
     const result = await runWebappPgText<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [
       bookingId,
     ]);
@@ -323,6 +415,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getByCanonicalAppointmentId(canonicalAppointmentId) {
+    if (isCurrentPatientPrincipal()) {
+      return readCurrentPatientBookingRow(canonicalAppointmentId, 'appointment');
+    }
     const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings WHERE canonical_appointment_id = $1::uuid LIMIT 1`,
       [canonicalAppointmentId],

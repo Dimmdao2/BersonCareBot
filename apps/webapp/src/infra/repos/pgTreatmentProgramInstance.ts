@@ -1,6 +1,10 @@
 import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { isMechanicEnabled } from '@/modules/org-entitlements/service';
 import {
@@ -1822,9 +1826,25 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
 
     async touchPatientPlanLastOpenedAt(patientUserId: string, instanceId: string): Promise<void> {
       void patientUserId;
-      await getDrizzle().execute(
-        sql`SELECT app.touch_current_patient_plan_last_opened(${instanceId}::uuid)`,
+      await runWebappNamedRoot(
+        getWebappSqlDb(),
+        'app.touch_current_patient_plan_last_opened(uuid)',
+        [instanceId],
+        sql`SELECT app.touch_current_patient_plan_last_opened(${instanceId}::uuid) AS updated`,
       );
+    },
+
+    async touchCurrentPatientProgramItem(instanceId, stageItemId) {
+      const result = await runWebappNamedRoot<{ stage: Record<string, unknown> }>(
+        getWebappSqlDb(),
+        'app.touch_current_patient_program_item(uuid,uuid)',
+        [instanceId, stageItemId],
+        sql`SELECT app.touch_current_patient_program_item(
+          ${instanceId}::uuid, ${stageItemId}::uuid
+        ) AS stage`,
+      );
+      if (!result.rows[0]?.stage) throw new Error('Элемент не найден');
+      return { updatedStage: true };
     },
 
     async markStageItemViewedIfNever(
@@ -1832,6 +1852,17 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       instanceId: string,
       stageItemId: string,
     ): Promise<{ updated: boolean }> {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{ updated: boolean }>(
+          getWebappSqlDb(),
+          'app.mark_current_patient_program_item_viewed(uuid,uuid)',
+          [instanceId, stageItemId],
+          sql`SELECT app.mark_current_patient_program_item_viewed(
+            ${instanceId}::uuid, ${stageItemId}::uuid
+          ) AS updated`,
+        );
+        return { updated: result.rows[0]?.updated === true };
+      }
       const now = new Date().toISOString();
       return runDrizzleMutationTransaction(async (tx) => {
         const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({

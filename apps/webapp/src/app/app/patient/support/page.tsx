@@ -22,7 +22,10 @@ export default async function PatientSupportPage() {
       backHref={routePaths.patient}
       backLabel="Меню"
     >
-      <section className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}>
+      <section
+        id="patient-support-form"
+        className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}
+      >
         <div>
           <h2 className="text-base font-semibold">Связаться с поддержкой</h2>
           <p className={cn(patientMutedTextClass, 'mt-1')}>

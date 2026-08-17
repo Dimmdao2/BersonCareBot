@@ -340,7 +340,10 @@ export function StaffSecuritySection(props: Props) {
             </Button>
           </div>
         ) : null}
-        {!props.recoveryOnly && props.hasOrganization && !props.hasSpecialistBinding ? (
+        {!props.recoveryOnly &&
+        props.showSpecialistFirstRun !== false &&
+        props.hasOrganization &&
+        !props.hasSpecialistBinding ? (
           <Button size="sm" onClick={bindSpecialist}>
             Подключить рабочий кабинет
           </Button>

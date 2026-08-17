@@ -33,7 +33,7 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
   const sortedCities = sortCitiesForDisplay(cities);
 
   return (
-    <div className={bookingChoiceSectionClass}>
+    <div id="patient-booking-format-options" className={bookingChoiceSectionClass}>
       <div className="flex flex-col gap-2">
         <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
           Очный приём

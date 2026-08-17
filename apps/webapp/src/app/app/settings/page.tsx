@@ -292,7 +292,6 @@ export default async function SettingsPage({
           supportCommentsWithoutSupportDefault={false}
           supportMediaWithoutSupportDefault={false}
           settingsEndpoint="/api/admin/settings"
-          showSmsFallback={false}
           showSupportDefaults={false}
         />
         <DoctorTodayPreferencesSection

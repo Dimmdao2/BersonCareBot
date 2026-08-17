@@ -1,6 +1,8 @@
 'use client';
 
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 
 import type { ProductAnalyticsActiveUsersDailyRow } from '@/modules/product-analytics/types';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
@@ -21,7 +23,7 @@ export function ProductAnalyticsActiveUsersChart({
 
   return (
     <div className="h-[220px] w-full min-w-0 pb-2">
-      <ResponsiveContainer width="100%" height="100%">
+      <PositiveSizeResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 32 }}>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
@@ -42,7 +44,7 @@ export function ProductAnalyticsActiveUsersChart({
           />
           <Line type="monotone" dataKey="activeUsers" stroke={STROKE} strokeWidth={2} dot={false} />
         </LineChart>
-      </ResponsiveContainer>
+      </PositiveSizeResponsiveContainer>
     </div>
   );
 }

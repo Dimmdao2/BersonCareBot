@@ -30,7 +30,7 @@ export default async function PatientHelpPage() {
       backHref={routePaths.patient}
       backLabel="Меню"
     >
-      <div className="flex flex-col gap-4">
+      <div id="patient-help-directory" className="flex flex-col gap-4">
         <PatientHelpArticleList articles={articles} />
         <section className={cn(patientSectionSurfaceClass, '!gap-3 !p-4')}>
           <ul className="m-0 list-disc space-y-2 pl-5 text-sm">

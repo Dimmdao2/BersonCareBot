@@ -25,11 +25,19 @@ export const ROLE_SCENARIOS = Object.freeze({
     },
     // Semantic anchors intentionally avoid translated/editorial headings.
     routeEvidence: {
-      '/app/admin/system-health': ['[aria-label="Сигналы изоляции за 7 дней"]'],
-      '/app/admin/commercial': ['#trial-duration'],
+      '/app/admin/system-health': ['#system-health-root'],
+      '/app/account?tab=security': ['#account-current-password'],
+      '/app/doctor/analytics': ['#doctor-analytics-tabs'],
+      '/app/admin/clinics': ['#clinics-filter-q'],
+      '/app/admin/commercial': ['[role="tab"][aria-selected="true"]'],
       '/app/admin/payments': ['#platform-payments'],
+      '/app/admin/app-settings': ['#app-support-contact'],
+      '/app/admin/auth': ['#auth-telegram-bot'],
       '/app/admin/audit-log': ['#admin-audit-log'],
       '/app/admin/booking': ['#booking-online-default-color'],
+      '/app/admin/integrations': ['#platform-integration-availability'],
+      '/app/admin/technical': ['#test-account-emails'],
+      '/app/admin/health-archive': ['#health-failure-archive'],
     },
   },
   doctor: {
@@ -71,10 +79,60 @@ export const ROLE_SCENARIOS = Object.freeze({
     ],
     routeEvidence: {
       '/app/doctor': ['#doctor-today-dashboard'],
+      '/app/doctor/patient-home': ['#patient-home-mood-icons-heading'],
+      '/app/doctor/patients': ['#doctor-patients-header'],
+      '/app/doctor/schedule?tab=cal': ['[data-testid="cal-toolbar"]'],
+      '/app/doctor/schedule?tab=work': ['[data-testid="schedule-work-tab"]'],
+      '/app/doctor/schedule?tab=setup&section=calendar': [
+        '[data-testid="setup-section-calendar"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=locations': [
+        '[data-testid="setup-section-locations"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=services': [
+        '[data-testid="setup-section-services"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=specialists': [
+        '[data-testid="setup-section-specialists"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=form': [
+        '[data-testid="setup-section-form"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=payments': [
+        '[data-testid="setup-section-payments"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=rules': [
+        '[data-testid="setup-section-rules"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=notifications': [
+        '[data-testid="setup-section-notifications"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=packages': [
+        '[data-testid="setup-section-packages"]',
+      ],
       '/app/doctor/communications': ['#doctor-communications-tabs'],
+      '/app/doctor/exercises': ['#doctor-exercises-create-link-desktop'],
+      '/app/doctor/lfk-templates': ['#doctor-lfk-templates-new-link'],
+      '/app/doctor/clinical-tests': ['#doctor-clinical-tests-create'],
+      '/app/doctor/test-sets': ['#doctor-test-sets-header'],
+      '/app/doctor/recommendations': ['#doctor-recommendations-create'],
+      '/app/doctor/treatment-program-templates': [
+        '#doctor-treatment-program-templates-new',
+      ],
+      '/app/doctor/treatment-program-promo': ['#doctor-treatment-program-promo-header'],
       '/app/doctor/content': ['#doctor-content-header'],
-      '/app/doctor/references': ['#doctor-reference-measure-kinds'],
-      '/app/doctor/content/sections/edit/warmups': ['#doctor-content-sections'],
+      '/app/doctor/content/library': ['#doctor-content-library-section'],
+      '/app/doctor/references': ['[aria-label="Поиск по названию или коду"]'],
+      '/app/doctor/courses': ['#doctor-courses-header'],
+      '/app/settings?tab=organization': ['#patient-label-select'],
+      '/app/settings?tab=team': ['[aria-label="Участники команды"]'],
+      '/app/settings?tab=billing': ['[aria-label="Механики тарифа"]'],
+      '/app/account': ['[aria-label="Разделы аккаунта"]'],
+      '/app/doctor/content/sections/edit/warmups': ['main form input[name="title"]'],
+      '/app/doctor/content/:slug': ['#doctor-content-header'],
+      '/app/doctor/courses/new': ['#course-title'],
+      '/app/doctor/courses/:uuid': ['#edit-course-title'],
+      '/app/doctor/treatment-program-templates/:uuid': ['#tpl-prog-title'],
     },
     allowedFinalTemplates: {
       '/app/doctor/references': ['/app/doctor/references/clinical_test_measure_kind'],
@@ -83,6 +141,8 @@ export const ROLE_SCENARIOS = Object.freeze({
   patient: {
     syntheticToken: 'client',
     sessionCookieEnv: 'DEV_AUDIT_PATIENT_SESSION_COOKIE',
+    emailEnv: 'DEV_AUDIT_PATIENT_EMAIL',
+    defaultEmail: 'kinesiospace@gmail.com',
     identity: { role: 'client', contactKind: 'phone', contactValue: '+79189000782' },
     routes: [
       '/app/patient',
@@ -105,12 +165,25 @@ export const ROLE_SCENARIOS = Object.freeze({
     ],
     routeEvidence: {
       '/app/patient': ['#patient-home-today-layout'],
-      '/app/patient/treatment': ['#patient-program-current-stage', '#patient-tp-list-hero-title'],
+      '/app/patient/treatment': [
+        '#patient-treatment-program-detail',
+        '#patient-tp-list-hero-title',
+      ],
       '/app/patient/diary': ['#patient-diary-wellbeing-week-section'],
-      '/app/patient/booking': ['[aria-label="Календарь доступных дат записи"]'],
+      '/app/patient/booking': ['#patient-booking-format-options'],
       '/app/patient/messages': ['[data-testid="patient-messages-readonly-notice"]', 'textarea'],
       '/app/patient/profile': ['#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'],
+      '/app/patient/organizations': ['#patient-organizations-list'],
+      '/app/patient/notifications': ['#patient-notifications-inbox'],
+      '/app/patient/notifications/settings': ['#patient-notification-topics'],
       '/app/patient/reminders': ['#patient-reminders-rehab'],
+      '/app/patient/purchases': ['#patient-purchases-history'],
+      '/app/patient/courses': ['#patient-courses-catalog'],
+      '/app/patient/about': ['#patient-about-specialist'],
+      '/app/patient/address': ['#patient-address-details'],
+      '/app/patient/help': ['#patient-help-directory'],
+      '/app/patient/support': ['#patient-support-form'],
+      '/app/patient/install': ['#patient-install-guide'],
       '/app/patient/content/:slug': ['article[id^="patient-content-article-"]'],
     },
     allowedFinalTemplates: {

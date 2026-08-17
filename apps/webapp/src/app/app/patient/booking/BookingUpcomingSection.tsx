@@ -81,6 +81,8 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
           return (
             <div
               key={row.id}
+              data-booking-id={row.id}
+              data-booking-status={row.status}
               className={cn(
                 patientListItemClass,
                 'flex flex-col gap-2 !px-3 !py-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3',

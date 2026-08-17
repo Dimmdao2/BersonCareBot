@@ -105,31 +105,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'scope_entity_not_found' }, { status: 404 });
   }
 
-  if (parsed.data.kind === 'cancellation') {
+  try {
+    if (parsed.data.kind === 'cancellation') {
+      const data = parsed.data;
+      const policy = await withDoctorWorkspacePrincipal(
+        gate.ctx,
+        'admin.booking-engine.policies.cancellation.upsert',
+        () =>
+          bookingPolicies.upsertCancellationPolicy({
+            ...data,
+            organizationId,
+            scopeEntityId,
+          }),
+      );
+      return NextResponse.json({ ok: true, policy });
+    }
+
     const data = parsed.data;
     const policy = await withDoctorWorkspacePrincipal(
       gate.ctx,
-      'admin.booking-engine.policies.cancellation.upsert',
+      'admin.booking-engine.policies.reschedule.upsert',
       () =>
-        bookingPolicies.upsertCancellationPolicy({
+        bookingPolicies.upsertReschedulePolicy({
           ...data,
           organizationId,
           scopeEntityId,
         }),
     );
     return NextResponse.json({ ok: true, policy });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'policy_not_found') {
+      return NextResponse.json({ ok: false, error: 'policy_not_found' }, { status: 404 });
+    }
+    console.error('[booking-policy] mutation failed', {
+      kind: parsed.data.kind,
+      errorClass: error instanceof Error ? error.name : 'unknown',
+    });
+    return NextResponse.json(
+      { ok: false, error: 'booking_policy_write_unavailable' },
+      { status: 503 },
+    );
   }
-
-  const data = parsed.data;
-  const policy = await withDoctorWorkspacePrincipal(
-    gate.ctx,
-    'admin.booking-engine.policies.reschedule.upsert',
-    () =>
-      bookingPolicies.upsertReschedulePolicy({
-        ...data,
-        organizationId,
-        scopeEntityId,
-      }),
-  );
-  return NextResponse.json({ ok: true, policy });
 }

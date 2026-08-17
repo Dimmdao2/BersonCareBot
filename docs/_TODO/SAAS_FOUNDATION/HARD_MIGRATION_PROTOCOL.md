@@ -1,6 +1,10 @@
 # SaaS hard migration protocol - fresh dump to TEST rehearsal
 
-Status: **ACTIVE OWNER-GATED TEST REHEARSAL (owner 2026-08-15).** The target is the named
+Status: **УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026 → `docs/OWNER_DECISIONS.md`, B0 migration baseline.**
+Оставшийся текст — историческая запись и не является исполняемым runbook; описанные disposable,
+PROD A→B0, reset/restore и cutover-команды удалены из active checkout.
+
+Заменённый протокол был: **ACTIVE OWNER-GATED TEST REHEARSAL (owner 2026-08-15).** The target is the named
 `bersoncarebot_test` database restored directly from the fresh current PROD dump. There is no intermediate or
 disposable database in this rehearsal. Each deploy/cutover still touches one target DB only.
 

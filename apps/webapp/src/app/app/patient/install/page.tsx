@@ -17,7 +17,10 @@ export default async function PatientInstallPage() {
       backHref={routePaths.patient}
       backLabel="Меню"
     >
-      <section className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}>
+      <section
+        id="patient-install-guide"
+        className={cn(patientSectionSurfaceClass, '!gap-4 !p-6')}
+      >
         <h2 className="text-base font-semibold">Установка на устройство</h2>
         <p className={patientMutedTextClass}>
           Чтобы открывать кабинет как приложение, добавьте страницу на главный экран (PWA /

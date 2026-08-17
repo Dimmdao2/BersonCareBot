@@ -163,8 +163,12 @@ export default async function AccountPage({
           <SettingsForm
             patientLabel="пациент"
             smsFallbackEnabled={valueOf(
-              doctorSettings.find((setting) => setting.key === 'sms_fallback_enabled')?.valueJson,
-              true,
+              doctorSettings.find(
+                (setting) =>
+                  setting.key === 'sms_fallback_enabled' &&
+                  setting.organizationId === workspaceContext.organizationId,
+              )?.valueJson,
+              false,
             )}
             supportCommentsWithoutSupportDefault={valueOf(
               doctorSettings.find(

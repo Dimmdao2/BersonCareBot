@@ -9,15 +9,7 @@ C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
 SAAS_C2_SECRET_PREFLIGHT=deploy/host/saas-c2-secret-preflight.mjs
-C5A_PLATFORM_OPERATIONS_RUNTIME=deploy/postgres/c5a-platform-operations-runtime.sql
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
-STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
-SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
-REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
-PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql
-PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS=deploy/postgres/patient-media-playback-telemetry-accessors.sql
-PATIENT_INVITES_RLS=deploy/postgres/patient-invites-rls.sql
-D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
@@ -113,13 +105,6 @@ require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_RUNTIME}" "C4 operational runtime
 require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}" "C4 operational readiness probe"
 require_file "${PROJECT_ROOT}/${C4_MEDIA_CONTROL_CUTOVER}" "C4 media control cutover sequence"
 require_file "${PROJECT_ROOT}/${SAAS_C2_SECRET_PREFLIGHT}" "SaaS C2 secret preflight"
-require_file "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}" "C5A platform operations runtime overlay"
-require_file "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}" "Specialist owner provisioning overlay"
-require_file "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}" "Reference catalog RLS overlay"
-require_file "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}" "Patient-visible catalog RLS overlay"
-require_file "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}" "Patient media playback telemetry accessor overlay"
-require_file "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}" "Patient invite strict runtime overlay"
-require_file "${PROJECT_ROOT}/${D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX}" "D30 online index artifact"
 require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
@@ -182,26 +167,10 @@ set -a
 source "${WEBAPP_ENV_FILE}"
 set +a
 
-# Backup before migrations: write to pre-migrations folder (run as root).
-# Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
-sudo -n "${BACKUP_SCRIPT}" pre-migrations
-
-pnpm migrate
-pnpm --dir apps/webapp run migrate
-
-# 0328 commits first; this hot-table index must run as a separate autocommit psql operation.
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
-  -f "${PROJECT_ROOT}/${D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX}"
-
-# Migration 0182 versions the reference baseline helper. Refresh the canonical SECURITY DEFINER
-# provisioning function in the same post-migration order as the SaaS TEST wrapper so a newly
-# created organization receives its catalog snapshot in the organization-creation transaction.
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}"
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}"
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}"
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}"
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}"
+# B0 owner ruling: the future PROD A→B0 migration is deliberately not implemented here.
+# This deploy is code-only until DEV and named TEST have completed their full green runtime passes.
+# In particular it must never invoke the DEV-only `migrate-dev.sh` wrapper.
+node scripts/check-b0-migration-baseline.mjs
 
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
@@ -290,20 +259,3 @@ done
 
 grep -q '"ok":true' /tmp/bersoncarebot-health.json
 grep -q '"db":"up"' /tmp/bersoncarebot-health.json
-
-# Optional post-deploy Stage 13 cutover (backfill + reconcile + stage13-gate).
-# Enable explicitly to avoid heavy one-time tasks on every deploy:
-#   RUN_STAGE13_CUTOVER=1 bash deploy/host/deploy-prod.sh
-# Optional dry-run-only:
-#   RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy-prod.sh
-if [ "${RUN_STAGE13_CUTOVER:-0}" = "1" ]; then
-  if [ ! -x "${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}" ]; then
-    fail "Stage13 cutover script is missing or not executable: ${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}"
-  fi
-
-  if [ "${RUN_STAGE13_CUTOVER_DRY_RUN_ONLY:-0}" = "1" ]; then
-    bash "${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}" --dry-run-only
-  else
-    bash "${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}"
-  fi
-fi

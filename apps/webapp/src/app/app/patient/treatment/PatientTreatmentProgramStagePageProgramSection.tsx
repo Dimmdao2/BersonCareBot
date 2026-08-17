@@ -37,7 +37,10 @@ import {
 } from '@/app/app/patient/treatment/programCompositionOrder';
 import { ProgramItemDiscussionDialog } from './ProgramItemDiscussionDialog';
 import { PatientProgramItemExecutionRow } from './PatientProgramItemExecutionRow';
-import { postProgramItemComplete } from './postProgramItemComplete';
+import {
+  patchProgramItemCompletionMetrics,
+  postProgramItemComplete,
+} from './postProgramItemComplete';
 
 type Stage = TreatmentProgramInstanceDetail['stages'][number];
 
@@ -144,7 +147,7 @@ type ItemDiscussionSummary = {
 export type CompletionDifficulty = 'easy' | 'medium' | 'hard';
 
 export type CompletionMetricsDraft = {
-  perceivedDifficulty: CompletionDifficulty;
+  perceivedDifficulty?: CompletionDifficulty;
   repsRaw: string;
   setsRaw: string;
   weightRaw: string;
@@ -153,14 +156,14 @@ export type CompletionMetricsDraft = {
 };
 
 export type CompletionMetricsPayload = {
-  perceivedDifficulty: CompletionDifficulty;
+  perceivedDifficulty?: CompletionDifficulty;
   reps?: number;
   sets?: number;
   weightKg?: number;
 };
 
 export const DEFAULT_COMPLETION_METRICS_DRAFT: CompletionMetricsDraft = {
-  perceivedDifficulty: 'medium',
+  perceivedDifficulty: undefined,
   repsRaw: '',
   setsRaw: '',
   weightRaw: '',
@@ -214,7 +217,7 @@ export function metricNumberToInput(v: number | null | undefined, decimal = fals
 
 export function draftToPayload(draft: CompletionMetricsDraft): CompletionMetricsPayload {
   return {
-    perceivedDifficulty: draft.perceivedDifficulty,
+    ...(draft.perceivedDifficulty ? { perceivedDifficulty: draft.perceivedDifficulty } : {}),
     reps: optionalPositiveInt(draft.repsRaw),
     sets: optionalPositiveInt(draft.setsRaw),
     weightKg: optionalWeight(draft.weightRaw),
@@ -223,7 +226,6 @@ export function draftToPayload(draft: CompletionMetricsDraft): CompletionMetrics
 
 function PatientProgramTileSimpleCompleteButton(props: {
   itemId: string;
-  completedAt: string | null;
   lastDoneAtIso: string | undefined;
   busy: string | null;
   planItemDoneRepeatCooldownMs: number;
@@ -232,15 +234,13 @@ function PatientProgramTileSimpleCompleteButton(props: {
 }) {
   const {
     itemId,
-    completedAt,
     lastDoneAtIso,
     busy,
     planItemDoneRepeatCooldownMs,
     containerClassName,
     onComplete,
   } = props;
-  const merged = mergeLastActivityDisplayedIso(lastDoneAtIso, completedAt);
-  const doneFrozen = isItemDoneCooldownActive(merged, planItemDoneRepeatCooldownMs);
+  const doneFrozen = isItemDoneCooldownActive(lastDoneAtIso, planItemDoneRepeatCooldownMs);
 
   return (
     <div className={cn('flex min-w-0 flex-1 basis-0 flex-col gap-0.5', containerClassName)}>
@@ -422,6 +422,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
   const [discussionDialogItemId, setDiscussionDialogItemId] = useState<string | null>(null);
   const [activeMetricsItemId, setActiveMetricsItemId] = useState<string | null>(null);
+  const [activeMetricsCompletionId, setActiveMetricsCompletionId] = useState<string | null>(null);
+  const [completionDisplayByItemId, setCompletionDisplayByItemId] = useState<
+    Record<string, { createdAt: string; todayCount: number }>
+  >({});
   const [metricsDraft, setMetricsDraft] = useState<CompletionMetricsDraft>(
     DEFAULT_COMPLETION_METRICS_DRAFT,
   );
@@ -504,60 +508,46 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     return () => clearTimeout(timer);
   }, [loadDiscussionSummary]);
 
-  const loadLatestMetrics = useCallback(
-    async (itemId: string): Promise<CompletionMetricsDraft> => {
-      try {
-        const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete/metrics`);
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          metrics?: {
-            perceivedDifficulty?: CompletionDifficulty | null;
-            difficulty?: CompletionDifficulty | null;
-            reps?: number | null;
-            sets?: number | null;
-            weightKg?: number | null;
-          } | null;
-        } | null;
-        const m = res.ok && data?.ok ? data.metrics : null;
-        return {
-          ...DEFAULT_COMPLETION_METRICS_DRAFT,
-          perceivedDifficulty: m?.difficulty ?? m?.perceivedDifficulty ?? 'medium',
-          repsRaw: metricNumberToInput(m?.reps),
-          setsRaw: metricNumberToInput(m?.sets),
-          weightRaw: metricNumberToInput(m?.weightKg, true),
-        };
-      } catch {
-        return DEFAULT_COMPLETION_METRICS_DRAFT;
-      }
-    },
-    [base],
-  );
-
   const handleTileComplete = useCallback(
     async (itemId: string) => {
-      setActiveMetricsItemId(itemId);
-      setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
       setBusy(itemId);
       setError(null);
       try {
-        const previousDraft = await loadLatestMetrics(itemId);
-        setMetricsDraft(previousDraft);
+        const result = await postProgramItemComplete({ base, itemId });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setCompletionDisplayByItemId((current) => ({
+          ...current,
+          [itemId]: {
+            createdAt: result.completion.createdAt,
+            todayCount: (current[itemId]?.todayCount ?? doneTodayCountByItemId[itemId] ?? 0) + 1,
+          },
+        }));
+        onDoneItemIds(doneItemIds.includes(itemId) ? doneItemIds : [...doneItemIds, itemId]);
+        setActiveMetricsItemId(itemId);
+        setActiveMetricsCompletionId(result.completion.id);
+        setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
+        await refresh();
       } finally {
         setBusy(null);
       }
     },
-    [loadLatestMetrics, setBusy, setError],
+    [base, doneItemIds, doneTodayCountByItemId, onDoneItemIds, refresh, setBusy, setError],
   );
 
   const saveMetrics = useCallback(
     async (itemId: string) => {
       setMetricsDraft((prev) => ({ ...prev, saving: true }));
       setError(null);
+      if (!activeMetricsCompletionId) return;
       try {
         const payload = draftToPayload(metricsDraft);
-        const result = await postProgramItemComplete({
+        const result = await patchProgramItemCompletionMetrics({
           base,
           itemId,
+          completionId: activeMetricsCompletionId,
           payload,
         });
         if (!result.ok) {
@@ -565,12 +555,13 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           return;
         }
         setActiveMetricsItemId(null);
+        setActiveMetricsCompletionId(null);
         await refresh();
       } finally {
         setMetricsDraft((prev) => ({ ...prev, saving: false }));
       }
     },
-    [base, metricsDraft, refresh, setError],
+    [activeMetricsCompletionId, base, metricsDraft, refresh, setError],
   );
 
   if (visibleProgramItems.length === 0) return null;
@@ -580,8 +571,15 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
   const renderTile = (item: InstanceStageItem): ReactNode => {
     const media = primaryMediaForStageItem(item);
-    const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-    const todayCount = doneTodayCountByItemId[item.id] ?? 0;
+    const completionDisplay = completionDisplayByItemId[item.id];
+    const lastIso = mergeLastActivityDisplayedIso(
+      completionDisplay?.createdAt ?? lastDoneAtIsoByItemId[item.id],
+      item.completedAt,
+    );
+    const todayCount = Math.max(
+      doneTodayCountByItemId[item.id] ?? 0,
+      completionDisplay?.todayCount ?? 0,
+    );
     const readOnlyTile = readOnly || contentBlocked;
     const showSimpleCompleteFooter = !readOnlyTile && programTileShowsSimpleCompleteActions(item);
 
@@ -724,8 +722,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
               {showSimpleCompleteFooter ? (
                 <PatientProgramTileSimpleCompleteButton
                   itemId={item.id}
-                  completedAt={item.completedAt}
-                  lastDoneAtIso={lastDoneAtIsoByItemId[item.id]}
+                  lastDoneAtIso={completionDisplay?.createdAt ?? lastDoneAtIsoByItemId[item.id]}
                   busy={busy}
                   planItemDoneRepeatCooldownMs={planItemDoneRepeatCooldownMs}
                   onComplete={handleTileComplete}

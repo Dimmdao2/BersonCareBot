@@ -39,6 +39,7 @@ export default async function DoctorAdminTechnicalPage() {
           diagnostics.patientProgramDiscussionMediaSubmissionEnabled
         }
         patientBookingUrl={diagnostics.patientBookingUrl}
+        materialRatingsEnabled={diagnostics.materialRatingsEnabled}
       />
       <OperatorHealthProbeSettingsSection />
       <OperatorHealthAlertsSection

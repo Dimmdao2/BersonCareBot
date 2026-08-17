@@ -44,6 +44,8 @@ function settings(enabled: boolean): BookingPaymentSettings {
   return {
     enabled,
     defaultProviderId: providerConfig.id,
+    fiscalVatCode: '1',
+    fiscalTaxSystemCode: null,
     providers: [providerConfig],
   };
 }
@@ -67,6 +69,7 @@ describe('registry acquiring provider boundary', () => {
       gateway.createCharge({
         organizationId: '00000000-0000-4000-8000-000000001074',
         patientUserId: '00000000-0000-4000-8000-000000001074',
+        customerEmail: 'patient@example.test',
         amountMinor: 12_345,
         currency: 'RUB',
         idempotencyKey: 'charge-1074-disabled',
@@ -85,6 +88,7 @@ describe('registry acquiring provider boundary', () => {
       gateway.createCharge({
         organizationId: '00000000-0000-4000-8000-000000001074',
         patientUserId: '00000000-0000-4000-8000-000000001074',
+        customerEmail: 'patient@example.test',
         amountMinor: 12_345,
         currency: 'RUB',
         idempotencyKey: 'charge-1074-stable',
@@ -106,12 +110,45 @@ describe('registry acquiring provider boundary', () => {
       purpose: 'patient_acquiring_charge',
       subjectRef: 'charge-1074-stable',
       returnUrl: 'https://app.example.test/payments/return',
+      receipt: {
+        customer: { email: 'patient@example.test' },
+        items: [
+          {
+            description: 'Test charge',
+            quantity: 1,
+            amountMinor: 12_345,
+            vatCode: '1',
+            paymentSubject: 'service',
+            paymentMode: 'full_prepayment',
+            measure: 'piece',
+          },
+        ],
+      },
       metadata: {
         patientUserId: '00000000-0000-4000-8000-000000001074',
         description: 'Test charge',
       },
       providerConfig,
     });
+  });
+
+  it('fails locally before YooKassa when fiscal settings are missing', async () => {
+    const gateway = createRegistryAcquiringGateway({
+      getConfig: async () => ({ ...settings(true), fiscalVatCode: null }),
+    });
+
+    await expect(
+      gateway.createCharge({
+        organizationId: '00000000-0000-4000-8000-000000001074',
+        patientUserId: '00000000-0000-4000-8000-000000001074',
+        customerEmail: 'patient@example.test',
+        amountMinor: 12_345,
+        currency: 'RUB',
+        idempotencyKey: 'charge-1074-no-fiscal-config',
+        returnUrl: 'https://app.example.test/payments/return',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'booking_payment_receipt_vat_code_missing' });
+    expect(createIntent).not.toHaveBeenCalled();
   });
 
   it('refunds through the original provider after the clinic default changes', async () => {

@@ -30,3 +30,19 @@ export type WebPushSubscriptionsPort = {
   /** Remove stale subscription after 410/404 from push service; returns whether a row was removed. */
   deleteByEndpointIfExists(userId: string, endpoint: string): Promise<boolean>;
 };
+
+export type IntegratorWebPushDeliverySettings = {
+  webPushVapidValueJson: unknown | null;
+  /** Public VAPID contact, derived inside the DB seam without exposing SMTP credentials. */
+  vapidSubject: string | null;
+};
+
+/** Narrow M2M reads used only after an integrator organization principal is installed. */
+export type IntegratorWebPushDeliveryPort = {
+  /** `null` means the target user is not active in the attested organization. */
+  listAuthorizedSubscriptions(
+    organizationId: string,
+    userId: string,
+  ): Promise<WebPushSubscriptionPayloadV1[] | null>;
+  readDeliverySettings(organizationId: string): Promise<IntegratorWebPushDeliverySettings | null>;
+};

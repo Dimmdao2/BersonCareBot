@@ -17,7 +17,10 @@ export default async function PatientAddressPage() {
       backHref={routePaths.patient}
       backLabel="Меню"
     >
-      <div className="flex min-h-0 flex-1 flex-col items-start gap-3">
+      <div
+        id="patient-address-details"
+        className="flex min-h-0 flex-1 flex-col items-start gap-3"
+      >
         <p className="text-sm text-muted-foreground">
           Адрес, маршрут и контакты кабинета находятся на сайте специалиста.
         </p>

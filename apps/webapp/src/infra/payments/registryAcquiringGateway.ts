@@ -20,6 +20,7 @@
 import { getPaymentProviderAdapter } from './paymentProviderRegistry';
 import type { AcquiringGatewayPort } from '@/modules/patient-payments/ports';
 import type { BookingPaymentSettings } from '@/modules/payments/types';
+import { buildBookingPaymentReceipt } from '@/modules/payments/fiscalReceipt';
 
 export type AcquiringGatewayConfig = {
   /**
@@ -51,7 +52,7 @@ export function createRegistryAcquiringGateway(
     const providerCfg = settings.providers.find((p) => p.id === id && p.enabled);
     if (!providerCfg) throw new Error(`payment_provider_unavailable:${id}`);
     const adapter = getPaymentProviderAdapter(id);
-    return { adapter, providerCfg, providerId: id };
+    return { adapter, providerCfg, providerId: id, settings };
   }
 
   return {
@@ -61,8 +62,9 @@ export function createRegistryAcquiringGateway(
       let adapter;
       let providerCfg;
       let providerId;
+      let settings;
       try {
-        ({ adapter, providerCfg, providerId } = await resolveProvider(
+        ({ adapter, providerCfg, providerId, settings } = await resolveProvider(
           input.organizationId,
           explicitProvider,
         ));
@@ -82,6 +84,13 @@ export function createRegistryAcquiringGateway(
           purpose: 'patient_acquiring_charge',
           subjectRef: input.idempotencyKey,
           returnUrl: input.returnUrl,
+          receipt: buildBookingPaymentReceipt({
+            settings,
+            providerId,
+            customerEmail: input.customerEmail,
+            description: input.description,
+            amountMinor: input.amountMinor,
+          }),
           metadata: {
             patientUserId: input.patientUserId,
             description: input.description,

@@ -158,14 +158,13 @@ test('patient booking catalog is exposed only through its signed organization ro
   }
 });
 
-test('patient reminder history is readable and only its seen cursor is mutable', () => {
+test('patient reminder history is readable and its seen cursor mutates only through a named root', () => {
   for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
     const table = declaration.databases[dbName].tables['public.reminder_occurrence_history'];
     assert.equal(table.access.kind, 'direct');
     const patientGrants = table.access.grants.filter((grant) => grant.role === 'app_patient');
     assert.deepEqual(patientGrants, [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['seen_at'] },
     ]);
     const policy = table.policies.find((candidate) =>
       candidate.name.startsWith('rev10_direct_business_'));
@@ -309,20 +308,13 @@ test('reference catalogs are complete within the current clinic and only staff m
   }
 });
 
-test('patient symptom entries are self-owned and expose the full diary action set', () => {
+test('patient symptom entries are self-readable and mutate only through named roots', () => {
   for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
     const table = declaration.databases[dbName].tables['public.symptom_entries'];
     assert.equal(table.access.kind, 'direct');
     const patientGrants = table.access.grants.filter((grant) => grant.role === 'app_patient');
     assert.deepEqual(patientGrants, [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'entry_type', 'notes', 'patient_practice_completion_id', 'platform_user_id', 'recorded_at',
-        'source', 'tracking_id', 'user_id', 'value_0_10',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['entry_type', 'notes', 'recorded_at', 'value_0_10'] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ]);
     const policy = table.policies.find((candidate) =>
       candidate.name.startsWith('rev10_saas_org_dormant_'));
@@ -530,6 +522,28 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
   }
 });
 
+test('clinic-owner mutation grants include every default column emitted by Drizzle inserts', () => {
+  exactColumns('public.be_booking_form_fields', 'app_staff', 'INSERT', [
+    'created_at', 'field_key', 'field_type', 'id', 'is_active', 'is_required', 'label',
+    'organization_id', 'placeholder', 'sort_order', 'updated_at', 'visible_to_patient',
+    'visible_to_staff',
+  ]);
+  exactColumns('public.clinic_public_directory_entries', 'app_staff', 'INSERT', [
+    'created_at', 'display_name', 'is_published', 'organization_id', 'published_at', 'slug',
+    'updated_at',
+  ]);
+  exactColumns('public.organization_slug_claims', 'app_staff', 'INSERT', [
+    'created_at', 'created_by_platform_user_id', 'id', 'kind', 'organization_id', 'slug',
+    'updated_at',
+  ]);
+  exactColumns('public.organization_slug_claims', 'app_staff', 'UPDATE', [
+    'created_by_platform_user_id', 'kind', 'organization_id', 'slug', 'updated_at',
+  ]);
+  exactColumns('public.organization_slug_rename_events', 'app_staff', 'INSERT', [
+    'actor_platform_user_id', 'created_at', 'id', 'next_slug', 'organization_id', 'previous_slug',
+  ]);
+});
+
 test('no direct INSERT or UPDATE grant is table-wide', () => {
   for (const [relation, access] of Object.entries(REV10_CLINICAL_ACCESS)) {
     if (access.kind !== 'direct') continue;
@@ -542,6 +556,29 @@ test('no direct INSERT or UPDATE grant is table-wide', () => {
 });
 
 test('billing relations use the clinic, platform, and webhook worker roles without ordinary staff mutation', () => {
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const access = declaration.databases[dbName].tables['public.saas_billing_periods'].access;
+    assert.equal(access.kind, 'direct');
+    assert.equal(
+      access.grants.some((grant) => grant.role === 'app_clinic_billing'),
+      false,
+      `${dbName}: clinic billing must use the fixed catalog root, not relation SELECT`,
+    );
+    const root = declaration.portContext.functions['app.list_saas_billing_period_catalog()'];
+    assert.ok(root, `${dbName}: fixed billing-period root is declared`);
+    assert.deepEqual(root.execute, ['app_clinic_billing']);
+    assert.deepEqual(root.relationSurfaces, [{
+      relation: 'public.saas_billing_periods',
+      columns: ['code', 'label', 'months', 'is_selectable', 'sort_order'],
+      operations: ['SELECT'],
+      evidence: 'pg16-function-body-lexical-upper-bound',
+    }]);
+    const platformRoot =
+      declaration.portContext.functions['app.list_saas_billing_period_catalog_platform()'];
+    assert.ok(platformRoot, `${dbName}: platform billing-period root is declared`);
+    assert.deepEqual(platformRoot.execute, ['app_platform_settings']);
+    assert.deepEqual(platformRoot.relationSurfaces, root.relationSurfaces);
+  }
   const billingAccountInsertColumns = [
     'billing_address', 'billing_email', 'billing_requisites', 'created_at', 'id', 'legal_name',
     'organization_id', 'registration_reason_code', 'tax_identifier', 'updated_at',
@@ -814,11 +851,8 @@ test('runtime settings and account email use semantic row walls without broad pa
     ['id', 'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary',
       'confirmed_at', 'source_origin', 'created_at'],
   );
-  assert.deepEqual(
-    users.access.grants.find((grant) =>
-      grant.role === 'app_patient' && grant.operations.includes('UPDATE'))?.columns,
-    ['calendar_timezone', 'reminder_muted_until', 'updated_at'],
-  );
+  assert.equal(users.access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('UPDATE')), false);
   const patientSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_patient_select_'));
   const staffSelect = users.policies.find((policy) =>
@@ -943,25 +977,26 @@ test('patient page relations have exact self/current-clinic access and published
   assert.match(patientMediaPolicy?.using ?? '', /uploaded_by = app\.current_patient_user_id\(\)/);
 
   const firstResolve = tables['public.media_playback_user_video_first_resolve'];
-  assert.deepEqual(firstResolve.access.grants.find((grant) =>
-    grant.role === 'app_patient' && grant.operations.includes('INSERT'))?.columns,
-  ['first_resolved_at', 'media_id', 'organization_id', 'user_id']);
+  assert.equal(firstResolve.access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('INSERT')), false);
   assert.deepEqual(firstResolve.access.grants.find((grant) =>
     grant.role === 'app_patient' && grant.operations.includes('SELECT'))?.columns,
   ['media_id', 'user_id']);
-  const firstResolvePolicy = firstResolve.policies.find((policy) =>
-    policy.name.startsWith('rev10_playback_first_resolve_self_'));
-  assert.match(firstResolvePolicy?.withCheck ?? '', /organization_id = app\.current_org_id\(\)/);
-  assert.match(firstResolvePolicy?.withCheck ?? '', /user_id = app\.current_patient_user_id\(\)/);
+  const firstResolveRoot = declaration.portContext.functions[
+    'app.record_current_patient_playback_first_resolve(uuid)'
+  ];
+  assert.deepEqual(firstResolveRoot.execute, ['app_patient']);
+  assert.deepEqual(firstResolveRoot.relationSurfaces.find((surface) =>
+    surface.relation === 'public.media_playback_user_video_first_resolve')?.operations, ['INSERT']);
 
   const clientEvents = tables['public.media_playback_client_events'];
-  assert.deepEqual(clientEvents.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
-    ['created_at', 'delivery', 'error_detail', 'event_class', 'id', 'media_id', 'organization_id',
-      'user_agent', 'user_id']);
-  const clientEventPolicy = clientEvents.policies.find((policy) =>
-    policy.name.startsWith('rev10_playback_client_event_patient_insert_'));
-  assert.match(clientEventPolicy?.withCheck ?? '', /organization_id = app\.current_org_id\(\)/);
-  assert.match(clientEventPolicy?.withCheck ?? '', /user_id = app\.current_patient_user_id\(\)/);
+  assert.equal(clientEvents.access.kind, 'named-seams');
+  const clientEventRoot = declaration.portContext.functions[
+    'app.record_current_patient_playback_client_event(uuid,text,text,text,text)'
+  ];
+  assert.deepEqual(clientEventRoot.execute, ['app_patient']);
+  assert.deepEqual(clientEventRoot.relationSurfaces.find((surface) =>
+    surface.relation === 'public.media_playback_client_events')?.operations, ['INSERT']);
 
   for (const relation of ['public.patient_home_blocks', 'public.patient_home_block_items']) {
     const policy = tables[relation].policies.find((candidate) =>
@@ -998,27 +1033,10 @@ test('patient page relations have exact self/current-clinic access and published
   assert.match(packageItemsPolicy?.using ?? '', /be_patient_packages/u);
   assert.match(packageItemsPolicy?.using ?? '', /platform_user_id.*app\.current_patient_user_id\(\)/u);
 
-  exactColumns('public.patient_diary_day_snapshots', 'app_patient', 'INSERT', [
-    'captured_at',
-    'iana',
-    'local_date',
-    'organization_id',
-    'plan_done_mask',
-    'plan_instance_id',
-    'plan_item_ids',
-    'platform_user_id',
-    'warmup_all_done',
-    'warmup_done_count',
-    'warmup_slot_limit',
-  ]);
-  exactColumns('public.patient_practice_completions', 'app_patient', 'INSERT', [
-    'content_page_id',
-    'feeling',
-    'notes',
-    'organization_id',
-    'source',
-    'user_id',
-  ]);
+  assert.equal(tables['public.patient_diary_day_snapshots'].access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('INSERT')), false);
+  assert.equal(tables['public.patient_practice_completions'].access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('INSERT')), false);
   exactColumns('public.patient_practice_completions', 'app_patient', 'UPDATE', ['feeling']);
   exactColumns('public.patient_daily_warmup_presentations', 'app_patient', 'SELECT', [
     'content_page_id',
@@ -1026,25 +1044,10 @@ test('patient page relations have exact self/current-clinic access and published
     'skip_next_scheduled_rotation',
     'user_id',
   ]);
-  exactColumns('public.patient_daily_warmup_presentations', 'app_patient', 'INSERT', [
-    'content_page_id',
-    'last_rotation_at',
-    'organization_id',
-    'skip_next_scheduled_rotation',
-    'updated_at',
-    'user_id',
-  ]);
-  exactColumns('public.patient_daily_warmup_presentations', 'app_patient', 'UPDATE', [
-    'content_page_id',
-    'last_rotation_at',
-    'skip_next_scheduled_rotation',
-    'updated_at',
-  ]);
-  exactColumns('public.patient_daily_warmup_video_views', 'app_patient', 'INSERT', [
-    'content_page_id',
-    'organization_id',
-    'user_id',
-  ]);
+  assert.equal(tables['public.patient_daily_warmup_presentations'].access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.some((operation) => operation !== 'SELECT')), false);
+  assert.equal(tables['public.patient_daily_warmup_video_views'].access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('INSERT')), false);
   exactColumns('public.be_patient_timeline_events', 'app_patient', 'SELECT', [
     'domain',
     'event_type',
@@ -1084,10 +1087,7 @@ test('patient page relations have exact self/current-clinic access and published
 
   const patientMessages = tables['public.support_conversation_messages'].access.grants
     .filter((grant) => grant.role === 'app_patient');
-  assert.deepEqual(
-    patientMessages.find((grant) => grant.operations.includes('UPDATE'))?.columns,
-    ['read_at'],
-  );
+  assert.equal(patientMessages.some((grant) => grant.operations.includes('UPDATE')), false);
   assert.equal(patientMessages.some((grant) => grant.operations.includes('DELETE')), false);
 
   assert.deepEqual(
@@ -1116,16 +1116,16 @@ test('patient page relations have exact self/current-clinic access and published
   }
 
   const patientProgramOperations = {
-    'public.program_action_log': ['DELETE', 'INSERT', 'SELECT'],
-    'public.program_item_discussion_messages': ['INSERT', 'SELECT'],
-    'public.program_item_discussion_reads': ['INSERT', 'SELECT', 'UPDATE'],
-    'public.test_attempts': ['INSERT', 'SELECT', 'UPDATE'],
-    'public.test_results': ['INSERT', 'SELECT', 'UPDATE'],
-    'public.treatment_program_events': ['INSERT', 'SELECT'],
+    'public.program_action_log': ['SELECT'],
+    'public.program_item_discussion_messages': ['SELECT'],
+    'public.program_item_discussion_reads': ['SELECT'],
+    'public.test_attempts': ['SELECT'],
+    'public.test_results': ['SELECT'],
+    'public.treatment_program_events': ['SELECT'],
     'public.treatment_program_instance_stage_groups': ['SELECT'],
-    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
-    'public.treatment_program_instance_stages': ['SELECT', 'UPDATE'],
-    'public.treatment_program_instances': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
   };
 
   const patientSupport = tables['public.doctor_patient_support'];
@@ -1151,46 +1151,21 @@ test('patient page relations have exact self/current-clinic access and published
       relation);
   }
 
-  const patientProgramInsertColumns = {
-    'public.program_action_log': [
-      'action_type', 'created_at', 'id', 'instance_id', 'instance_stage_item_id', 'note', 'organization_id',
-      'patient_user_id', 'payload', 'session_id',
-    ],
-    'public.program_item_discussion_messages': [
-      'body', 'created_at', 'id', 'instance_stage_item_id', 'media_file_id', 'organization_id', 'origin',
-      'patient_user_id', 'sender_role', 'support_message_id',
-    ],
-    'public.program_item_discussion_reads': [
-      'instance_stage_item_id', 'last_read_at', 'organization_id', 'patient_user_id',
-    ],
-    'public.test_attempts': [
-      'accepted_at', 'accepted_by', 'id', 'instance_stage_item_id', 'organization_id', 'patient_user_id',
-      'started_at', 'submitted_at',
-    ],
-    'public.test_results': [
-      'attempt_id', 'created_at', 'decided_by', 'id', 'normalized_decision', 'organization_id', 'raw_value',
-      'test_id',
-    ],
-    'public.treatment_program_events': [
-      'actor_id', 'created_at', 'event_type', 'id', 'instance_id', 'organization_id', 'payload', 'reason',
-      'target_id', 'target_type',
-    ],
-  };
-  for (const [relation, columns] of Object.entries(patientProgramInsertColumns)) {
-    const insert = tables[relation].access.grants.find((grant) =>
-      grant.role === 'app_patient' && grant.operations.includes('INSERT'));
-    assert.deepEqual([...insert.columns].sort(), [...columns].sort(), relation);
+  for (const relation of Object.keys(patientProgramOperations)) {
+    assert.equal(tables[relation].access.grants.some((grant) =>
+      grant.role === 'app_patient' && grant.operations.some((operation) =>
+        ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'].includes(operation))), false, relation);
   }
 });
 
 test('patient notification preferences are product-complete and remain self-only', () => {
   const expected = {
     'public.user_channel_bindings': ['SELECT'],
-    'public.user_channel_preferences': ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
-    'public.user_notification_topic_channels': ['INSERT', 'SELECT', 'UPDATE'],
-    'public.user_notification_topics': ['INSERT', 'SELECT', 'UPDATE'],
+    'public.user_channel_preferences': ['SELECT'],
+    'public.user_notification_topic_channels': ['SELECT'],
+    'public.user_notification_topics': ['SELECT'],
     'public.user_phone_history': ['SELECT'],
-    'public.user_web_push_subscriptions': ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+    'public.user_web_push_subscriptions': ['SELECT'],
   };
   for (const [relation, operations] of Object.entries(expected)) {
     const table = declaration.databases.bersoncarebot_test.tables[relation];
@@ -1211,6 +1186,49 @@ test('patient notification preferences are product-complete and remain self-only
   }
 });
 
+test('converted patient self-action writes are reachable only through exact named roots', () => {
+  const tables = declaration.databases.bersoncarebot_test.tables;
+  const converted = [
+    ['public.material_ratings', ['INSERT', 'UPDATE'],
+      'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)'],
+    ['public.media_playback_client_events', ['INSERT'],
+      'app.record_current_patient_playback_client_event(uuid,text,text,text,text)'],
+    ['public.media_playback_user_video_first_resolve', ['INSERT'],
+      'app.record_current_patient_playback_first_resolve(uuid)'],
+    ['public.patient_content_rating_feedback', ['INSERT'],
+      'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)'],
+    ['public.patient_daily_warmup_presentations', ['INSERT', 'UPDATE'],
+      'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)'],
+    ['public.patient_daily_warmup_video_views', ['INSERT'],
+      'app.record_current_patient_daily_warmup_video_view(uuid)'],
+    ['public.patient_diary_day_snapshots', ['INSERT'],
+      'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)'],
+    ['public.patient_practice_completions', ['INSERT'],
+      'app.record_current_patient_practice_completion(uuid,text,integer)'],
+    ['public.user_notification_topic_channels', ['INSERT', 'UPDATE'],
+      'app.set_current_patient_notification_topic_channel(text,text,boolean)'],
+    ['public.user_notification_topics', ['INSERT', 'UPDATE'],
+      'app.set_current_patient_notification_topic(text,boolean)'],
+  ];
+  for (const [relation, convertedOperations, functionIdentity] of converted) {
+    const patientDirectOperations = tables[relation].access.kind === 'direct'
+      ? tables[relation].access.grants
+        .filter((grant) => grant.role === 'app_patient')
+        .flatMap((grant) => grant.operations)
+      : [];
+    for (const operation of convertedOperations) {
+      assert.equal(patientDirectOperations.includes(operation), false, `${relation}:${operation}`);
+    }
+    const root = declaration.portContext.functions[functionIdentity];
+    assert.deepEqual(root.execute, ['app_patient'], functionIdentity);
+    const surface = root.relationSurfaces.find((candidate) => candidate.relation === relation);
+    assert.ok(surface, `${functionIdentity}:${relation}`);
+    for (const operation of convertedOperations) {
+      assert.equal(surface.operations.includes(operation), true, `${functionIdentity}:${operation}`);
+    }
+  }
+});
+
 test('patient material rating rows remain self-only and aggregate access uses one named root', () => {
   for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
     const tables = declaration.databases[dbName].tables;
@@ -1218,25 +1236,15 @@ test('patient material rating rows remain self-only and aggregate access uses on
     const ratingPatientGrants = ratings.access.grants.filter(
       (grant) => grant.role === 'app_patient',
     );
-    assert.deepEqual(ratingPatientGrants, [
-      { role: 'app_patient', operations: ['SELECT'],
-        columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'] },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['id', 'organization_id', 'stars', 'target_id', 'target_kind', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['stars', 'updated_at'] },
-    ]);
+    assert.deepEqual(ratingPatientGrants, [{ role: 'app_patient', operations: ['SELECT'],
+      columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'] }]);
     const ratingSelect = ratings.policies.find((policy) =>
       policy.name.startsWith('rev10_material_ratings_select_'));
-    const ratingInsert = ratings.policies.find((policy) =>
-      policy.name.startsWith('rev10_material_ratings_insert_'));
-    const ratingUpdate = ratings.policies.find((policy) =>
-      policy.name.startsWith('rev10_material_ratings_update_'));
     assert.deepEqual(ratingSelect?.to, ['app_staff', 'app_patient']);
     assert.match(ratingSelect?.using ?? '', /organization_id = app\.current_org_id\(\)/u);
     assert.match(ratingSelect?.using ?? '', /user_id = app\.current_patient_user_id\(\)/u);
-    assert.match(ratingInsert?.withCheck ?? '', /user_id = app\.current_patient_user_id\(\)/u);
-    assert.match(ratingUpdate?.using ?? '', /user_id = app\.current_patient_user_id\(\)/u);
-    assert.match(ratingUpdate?.withCheck ?? '', /user_id = app\.current_patient_user_id\(\)/u);
+    assert.equal(ratings.access.grants.some((grant) => grant.role === 'app_patient'
+      && grant.operations.some((operation) => operation !== 'SELECT')), false);
 
     const snapshot = declaration.portContext.functions[
       'app.read_current_patient_material_rating_snapshot(text,uuid)'
@@ -1263,21 +1271,18 @@ test('patient material rating rows remain self-only and aggregate access uses on
     const feedback = tables['public.patient_content_rating_feedback'];
     assert.deepEqual(
       feedback.access.grants.filter((grant) => grant.role === 'app_patient'),
-      [
-        { role: 'app_patient', operations: ['SELECT'], columns: ['id'] },
-        { role: 'app_patient', operations: ['INSERT'],
-          columns: ['comment', 'content_page_id', 'created_at', 'id', 'organization_id', 'rating_value',
-            'reason_codes', 'user_id'] },
-      ],
+      [{ role: 'app_patient', operations: ['SELECT'], columns: ['id'] }],
     );
     const feedbackSelect = feedback.policies.find((policy) =>
       policy.name.startsWith('rev10_patient_rating_feedback_select_'));
-    const feedbackInsert = feedback.policies.find((policy) =>
-      policy.name.startsWith('rev10_patient_rating_feedback_insert_'));
     assert.deepEqual(feedbackSelect?.to, ['app_staff', 'app_patient']);
     assert.match(feedbackSelect?.using ?? '', /user_id = app\.current_patient_user_id\(\)/u);
-    assert.match(feedbackInsert?.withCheck ?? '', /organization_id = app\.current_org_id\(\)/u);
-    assert.match(feedbackInsert?.withCheck ?? '', /user_id = app\.current_patient_user_id\(\)/u);
+    const feedbackRoot = declaration.portContext.functions[
+      'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)'
+    ];
+    assert.deepEqual(feedbackRoot.execute, ['app_patient']);
+    assert.deepEqual(feedbackRoot.relationSurfaces.find((surface) =>
+      surface.relation === 'public.patient_content_rating_feedback')?.operations, ['INSERT']);
   }
 });
 

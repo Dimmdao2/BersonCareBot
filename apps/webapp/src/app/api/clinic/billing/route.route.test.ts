@@ -15,6 +15,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 
 import { DELETE, GET, PATCH, POST } from './route';
 import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
+import { PaymentProviderRequestRefusedError } from '@/modules/payments/providerPort';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const tariffId = '22222222-2222-4222-8222-222222222222';
@@ -62,6 +63,27 @@ describe('/api/clinic/billing tariff change', () => {
     await expect(response.json()).resolves.toMatchObject({
       tariffChange: { pendingTariffId: tariffId, pendingEffectiveAt: '2026-09-01T00:00:00.000Z' },
     });
+  });
+
+  it('maps a billing-period capability/read failure to a redacted service response', async () => {
+    getOrganizationBillingOverview.mockRejectedValue({
+      code: '42501',
+      detail: 'permission denied for saas_billing_periods',
+    });
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_unavailable',
+    });
+    expect(errorLog).toHaveBeenCalledWith(
+      '[clinic-billing] operation failed',
+      expect.objectContaining({ operation: 'overview', category: 'repository_unavailable' }),
+    );
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain('saas_billing_periods');
   });
 
   it('schedules through the service and exposes a blocker before any payment path', async () => {
@@ -138,6 +160,28 @@ describe('/api/clinic/billing tariff change', () => {
       tariffId,
       actorId: 'actor',
     });
+  });
+
+  it('maps a proven provider refusal to 502 without exposing provider detail', async () => {
+    scheduleOwnTariffChange.mockRejectedValue(
+      new PaymentProviderRequestRefusedError('provider secret response'),
+    );
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await PATCH(
+      new Request('http://test/api/clinic/billing', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tariffId }),
+      }),
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_provider_refused',
+    });
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain('provider secret response');
   });
 
   it('cancels the pending change without creating an invoice', async () => {
@@ -292,6 +336,22 @@ describe('POST /api/clinic/billing own-tariff renewal', () => {
     expect(createOwnTariffRenewalInvoice).toHaveBeenCalledWith(organizationId);
   });
 
+  it('returns the created invoice and checkout URL as authoritative readback', async () => {
+    createOwnTariffRenewalInvoice.mockResolvedValue({
+      id: 'renewal-invoice',
+      providerCheckoutUrl: 'https://pay.example/renewal',
+    });
+
+    const response = await POST(new Request('http://test/api/clinic/billing', { method: 'POST' }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      invoiceId: 'renewal-invoice',
+      checkoutUrl: 'https://pay.example/renewal',
+    });
+  });
+
   it('names an incomplete fiscal setup instead of hiding it as an invoice failure', async () => {
     createOwnTariffRenewalInvoice.mockRejectedValue(
       new Error('saas_billing_receipt_vat_code_missing'),
@@ -303,6 +363,20 @@ describe('POST /api/clinic/billing own-tariff renewal', () => {
     await expect(response.json()).resolves.toEqual({
       ok: false,
       error: 'saas_billing_receipt_vat_code_missing',
+    });
+  });
+
+  it('fails closed when the provider cannot carry fiscal receipt data', async () => {
+    createOwnTariffRenewalInvoice.mockRejectedValue(
+      new Error('payment_provider_receipt_unsupported:legacy-provider'),
+    );
+
+    const response = await POST(new Request('http://test/api/clinic/billing', { method: 'POST' }));
+
+    expect(response.status).toBe(501);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_provider_capability_unsupported',
     });
   });
 });

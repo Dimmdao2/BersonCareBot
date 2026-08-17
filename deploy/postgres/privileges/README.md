@@ -12,12 +12,8 @@
 и приёмочный инвариант. Там, где сегодняшний код делает то, что модель запрещает, объявлена **модель**,
 а код перечислен в `CODE_MUST_CHANGE` — грант никогда не выдаётся «потому что код туда ходит».
 
-**Статус:** DEV прошла target grants и runtime-cutover; TEST остаётся owner-gated до восстановления именованной
-базы из pre-error backup и отдельной репетиции. Декларацию потребляет генератор.
-Отдельные `generated/zero-state.*.sql` и `generated/zero-state.cluster.sql` реализуют только предшествующую
-точку ноль: отзывают старые права, закрывают `PUBLIC`, переводят таблицы в FORCE RLS без политик и удаляют exact
-application roles. Они не выдают новых прав и выполняются только при initial cutover; обычный deploy их не
-повторяет.
+**Статус:** декларацию потребляет B0-forward генератор. Zero-state, disposable и initial-cutover artifacts
+удалены из active checkout решением 16.08.2026 и не являются операторским путём.
 
 Грамматика (типы, шаблоны стен, разворачивание компактных строк) вынесена в **`types.ts`** — в
 `declaration.ts` остались только решения и данные.
@@ -84,7 +80,6 @@ throw-ами на уровне приложения. Здесь отказыва
 
 | Класс поля | Применяет | Примечание |
 |---|---|---|
-| старые application roles/logins, ACL, ownership, default ACL и `PUBLIC` до новой схемы | **zero-state generator** → `generated/zero-state.<db>.sql`, затем `zero-state.cluster.sql` | отдельная revoke-only миграция; выполняется и доказывается раньше target grants |
 | роли, атрибуты, членства (кластер), в т.ч. новые `app_integrator_resolver`, `app_operational_maintenance`, `app_migration_phase` | `roles-install` (§B шаг 1) из декларации **+ env-маппинга** | кластерный уровень, переживает restore |
 | записи логинов (имя, членство, `passwordEnv`, CONNECT, `rolconfig`, **`port`**) | **env-render** в момент применения (декларация + `env/<env>.json`) | **не коммитится** — никогда не литерал пароля |
 | ACL схем/таблиц/колонок/последовательностей/функций/представлений, политики, флаги RLS, владельцы, `datdba`, `ALTER DATABASE … SET`, hardening дефолтных привилегий | **генератор** → закоммиченный `generated/privileges.<db>.sql` | env-независимая истина |
@@ -94,21 +89,8 @@ throw-ами на уровне приложения. Здесь отказыва
 | birth wall каждой managed table | **event trigger + deploy gate** читают class/declaration | tenant/clinical: `ENABLE/FORCE RLS` + tenant/patient policies; остальные классы — explicit class wall; неизвестный объект = FAIL |
 | `wall`, `cls`, `pol` (policyRequirement), `drop` (removal), `code` (codeMustChange) | **declaration + generator/gates** | полные policy definitions/grants исполняемы; human requirement не заменяет машинную стену; поле `revoke` устарело и удаляется |
 
-Проверка точки ноль на одноразовом PostgreSQL 16:
-
-```bash
-node deploy/postgres/privileges/generate-cli.mjs --all --zero-state --check
-node deploy/postgres/privileges/generate-cli.mjs --zero-state-cluster --check
-pnpm test:db-zero-state
-```
-
-Атомарный post-zero установщик для одной target-БД сначала выполняет её generated zero verifier,
-затем в одной транзакции создаёт login-shells, context contract, exact roots, grants,
-capability seed и проверяет итоговый environment/catalog. Его behavior gate:
-
-```bash
-pnpm test:db-post-zero-installer
-```
+Проверка текущей декларации: `node deploy/postgres/privileges/generate-cli.mjs --check` и
+`node deploy/postgres/privileges/generate-cli.mjs --census`.
 
 **Байтовая точность важна:** строки `searchPath` и `dbSettings` хранятся дословно как в каталоге
 (например `search_path=public, integrator` — с пробелом после запятой). §F сравнивает побайтово;

@@ -13,6 +13,8 @@ export type MaterialRatingPort = {
     targetKind: MaterialRatingTargetKind;
     targetId: string;
     stars: number;
+    programInstanceId?: string | null;
+    programStageItemId?: string | null;
   }): Promise<void>;
 
   getMyRating(input: {

@@ -8,16 +8,16 @@ visits one representative per unique rendered route template, requires the exact
 included) and a route-specific unique functional/landmark anchor rather than editorial copy, and fails on browser console/page errors, request
 failures or HTTP 4xx/5xx. Output includes cold/warm navigation and action latency; `out/` is untracked.
 
-Actual doctor/global-admin login needs `DEV_AUDIT_PASSWORD`; the emails default to the canonical owner
-addresses and may be overridden with `DEV_AUDIT_DOCTOR_EMAIL` / `DEV_AUDIT_ADMIN_EMAIL`. The actual
-patient has no email-login contract, so pass the already-minted DEV-only session cookie value as
+Actual doctor/global-admin/patient login needs `DEV_AUDIT_PASSWORD`; the emails default to the canonical
+owner addresses and may be overridden with `DEV_AUDIT_DOCTOR_EMAIL`, `DEV_AUDIT_ADMIN_EMAIL`, or
+`DEV_AUDIT_PATIENT_EMAIL`. A pre-minted DEV-only patient session can instead be passed as
 `DEV_AUDIT_PATIENT_SESSION_COOKIE`. Synthetic `dev:*` fixtures are rejected unless
 `DEV_AUDIT_ALLOW_SYNTHETIC=1`, and a synthetic run must never be reported as coverage of real data.
 
 Read-only run:
 
 ```sh
-DEV_AUDIT_PASSWORD='…' DEV_AUDIT_PATIENT_SESSION_COOKIE='…' \
+DEV_AUDIT_PASSWORD='…' \
   node runs/dev-interactive-audit/run.mjs
 ```
 
@@ -30,7 +30,7 @@ three identities, every route template, all eight real Dmitry patient-card tabs,
 patient list, the payment control surface, the patient home warmup CTA, and phone-bind surface.
 
 ```sh
-DEV_AUDIT_MUTATE=1 DEV_AUDIT_PASSWORD='…' DEV_AUDIT_PATIENT_SESSION_COOKIE='…' \
+DEV_AUDIT_MUTATE=1 DEV_AUDIT_PASSWORD='…' \
   node runs/dev-interactive-audit/run.mjs
 ```
 

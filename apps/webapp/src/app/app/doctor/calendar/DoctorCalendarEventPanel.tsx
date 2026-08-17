@@ -401,6 +401,17 @@ function DoctorCalendarEventPanelInner({
               setCreateStart(value);
               markCreateDirty();
             }}
+            onSpecialistChange={(value) => {
+              setCreateSpecialistId(value);
+              if (
+                !listCreateServicesForSelection(filterMeta.services, value, createBranchId).some(
+                  (service) => service.id === createServiceId,
+                )
+              ) {
+                setCreateServiceId(null);
+              }
+              markCreateDirty();
+            }}
             onBranchChange={(value) => {
               setCreateBranchId(value);
               if (
@@ -951,6 +962,7 @@ type CreateFormProps = {
   pending: boolean;
   message: string | null;
   onStartChange: (v: string) => void;
+  onSpecialistChange: (v: string | null) => void;
   onBranchChange: (v: string | null) => void;
   onServiceChange: (v: string | null) => void;
   onPatientChange: (v: CalendarPatientOption | null) => void;
@@ -966,6 +978,10 @@ function CreateForm(props: CreateFormProps) {
   const branchMode = resolveCalendarCreateFieldMode(
     props.filterMeta.branches,
     props.activeFilters.branchId,
+  );
+  const specialistMode = resolveCalendarCreateFieldMode(
+    props.filterMeta.specialists,
+    props.activeFilters.specialistId,
   );
   const serviceMode = resolveCalendarCreateFieldMode(
     props.serviceOptions,
@@ -988,11 +1004,21 @@ function CreateForm(props: CreateFormProps) {
         disabled={props.pending}
       />
       <DoctorCalendarCreateFormField
+        fieldLabel="Специалист"
+        mode={specialistMode}
+        options={props.filterMeta.specialists}
+        value={props.createSpecialistId}
+        noneLabel="Специалист"
+        emptyLabel="Нет доступных специалистов."
+        onChange={props.onSpecialistChange}
+      />
+      <DoctorCalendarCreateFormField
         fieldLabel="Филиал"
         mode={branchMode}
         options={props.filterMeta.branches}
         value={props.createBranchId}
         noneLabel="Филиал"
+        emptyLabel="Нет доступных филиалов."
         onChange={props.onBranchChange}
       />
       <DoctorCalendarCreateFormField
@@ -1001,6 +1027,11 @@ function CreateForm(props: CreateFormProps) {
         options={props.serviceOptions}
         value={props.createServiceId}
         noneLabel="Услуга"
+        emptyLabel={
+          props.createSpecialistId && props.createBranchId
+            ? 'Нет доступных услуг для выбранных специалиста и филиала.'
+            : 'Сначала выберите специалиста и филиал.'
+        }
         onChange={props.onServiceChange}
       />
       <Label>Длительность</Label>

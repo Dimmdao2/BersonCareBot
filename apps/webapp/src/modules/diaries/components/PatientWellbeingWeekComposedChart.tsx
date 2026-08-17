@@ -1,5 +1,7 @@
 'use client';
 
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
 import { DateTime } from 'luxon';
 import { useId } from 'react';
 import {
@@ -8,7 +10,6 @@ import {
   ComposedChart,
   Legend,
   Line,
-  ResponsiveContainer,
   Scatter,
   Tooltip,
   XAxis,
@@ -418,7 +419,7 @@ export default function PatientWellbeingWeekComposedChart({
 
   return (
     <div className="h-[220px] w-full min-w-0 overflow-x-visible pb-2 [&_.recharts-wrapper]:overflow-visible">
-      <ResponsiveContainer width="100%" height="100%">
+      <PositiveSizeResponsiveContainer width="100%" height="100%">
         <ComposedChart margin={{ top: 8, right: 0, left: Y_AXIS_LABEL_GUTTER_PX, bottom: 8 }}>
           <defs>
             {aggregateSegments.map((seg, idx) => (
@@ -647,7 +648,7 @@ export default function PatientWellbeingWeekComposedChart({
             isAnimationActive={false}
           />
         </ComposedChart>
-      </ResponsiveContainer>
+      </PositiveSizeResponsiveContainer>
     </div>
   );
 }

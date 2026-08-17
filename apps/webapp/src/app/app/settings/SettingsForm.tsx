@@ -22,7 +22,6 @@ type SettingsFormProps = {
   supportCommentsWithoutSupportDefault: boolean;
   supportMediaWithoutSupportDefault: boolean;
   settingsEndpoint?: '/api/doctor/settings' | '/api/admin/settings';
-  showSmsFallback?: boolean;
   showPatientLabel?: boolean;
   showSupportDefaults?: boolean;
 };
@@ -33,7 +32,6 @@ export function SettingsForm({
   supportCommentsWithoutSupportDefault,
   supportMediaWithoutSupportDefault,
   settingsEndpoint = '/api/doctor/settings',
-  showSmsFallback = true,
   showPatientLabel = true,
   showSupportDefaults = true,
 }: SettingsFormProps) {
@@ -52,51 +50,64 @@ export function SettingsForm({
     setError(null);
     startTransition(async () => {
       try {
-        const requests: Promise<Response>[] = [];
+        if (showPatientLabel && showSupportDefaults) {
+          setError('Форма содержит несовместимые области настроек');
+          return;
+        }
+        let response: Response;
         if (showPatientLabel) {
-          requests.push(
-            fetch(settingsEndpoint, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key: 'patient_label', value: { value: label } }),
+          response = await fetch(settingsEndpoint, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'patient_label', value: { value: label } }),
+          });
+        } else {
+          response = await fetch(settingsEndpoint, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              items: [
+                {
+                  key: 'sms_fallback_enabled',
+                  value: { value: smsFallback },
+                },
+                {
+                  key: 'doctor_patient_support_comments_without_support_default_enabled',
+                  value: { value: supportCommentsDefault },
+                },
+                {
+                  key: 'doctor_patient_support_media_without_support_default_enabled',
+                  value: { value: supportMediaDefault },
+                },
+              ],
             }),
-          );
+          });
         }
-        if (showSupportDefaults) {
-          requests.push(
-            fetch(settingsEndpoint, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                key: 'doctor_patient_support_comments_without_support_default_enabled',
-                value: { value: supportCommentsDefault },
-              }),
-            }),
-          );
-          requests.push(
-            fetch(settingsEndpoint, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                key: 'doctor_patient_support_media_without_support_default_enabled',
-                value: { value: supportMediaDefault },
-              }),
-            }),
-          );
-        }
-        if (showSmsFallback) {
-          requests.push(
-            fetch(settingsEndpoint, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key: 'sms_fallback_enabled', value: { value: smsFallback } }),
-            }),
-          );
-        }
-        const responses = await Promise.all(requests);
-        if (responses.some((response) => !response.ok)) {
+        const body = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          settings?: Array<{ key: string; valueJson: unknown }>;
+        } | null;
+        if (!response.ok || !body?.ok) {
           setError('Не удалось сохранить настройки');
           return;
+        }
+        if (showSupportDefaults) {
+          const valueFor = (key: string) => {
+            const valueJson = body.settings?.find((setting) => setting.key === key)?.valueJson;
+            return valueJson !== null && typeof valueJson === 'object' && 'value' in valueJson
+              ? (valueJson as { value: unknown }).value
+              : undefined;
+          };
+          if (
+            valueFor('sms_fallback_enabled') !== smsFallback ||
+            valueFor('doctor_patient_support_comments_without_support_default_enabled') !==
+              supportCommentsDefault ||
+            valueFor('doctor_patient_support_media_without_support_default_enabled') !==
+              supportMediaDefault
+          ) {
+            setError('Не удалось подтвердить сохранённые настройки');
+            return;
+          }
         }
         setSaved(true);
       } catch {
@@ -122,7 +133,11 @@ export function SettingsForm({
                 if (v) setLabel(v);
               }}
             >
-              <SelectTrigger id="patient-label-select" className="w-40">
+              <SelectTrigger
+                id="patient-label-select"
+                className="w-40"
+                displayLabel={label === 'клиент' ? 'Клиент' : 'Пациент'}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -133,10 +148,9 @@ export function SettingsForm({
           </div>
         ) : null}
 
-        {showSmsFallback ? (
+        {showSupportDefaults ? (
           <LabeledSwitch
             label="SMS fallback"
-            hint="Разрешить SMS для OTP и записи на приём; если выключено — только Telegram / Max / email."
             checked={smsFallback}
             onCheckedChange={setSmsFallback}
             disabled={isPending}

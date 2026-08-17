@@ -1,11 +1,12 @@
 'use client';
 
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
 import {
   CartesianGrid,
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
 } from 'recharts';
@@ -40,7 +41,7 @@ export default function SymptomChartRecharts({
 
   return (
     <div className="h-[260px] w-full min-w-0 pb-2">
-      <ResponsiveContainer width="100%" height="100%">
+      <PositiveSizeResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 48 }}>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
@@ -102,7 +103,7 @@ export default function SymptomChartRecharts({
             connectNulls={false}
           />
         </LineChart>
-      </ResponsiveContainer>
+      </PositiveSizeResponsiveContainer>
     </div>
   );
 }

@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
   InPersonBookingResolveError,
-  resolveInPersonBookingContext,
+  resolveCurrentPatientInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
 
 async function resolveServiceIdForBooking(
@@ -16,7 +15,7 @@ async function resolveServiceIdForBooking(
   const serviceId = input.serviceId?.trim() ?? '';
   if (branchId && serviceId) {
     try {
-      const ctx = await resolveInPersonBookingContext(deps, { branchId, serviceId });
+      const ctx = await resolveCurrentPatientInPersonBookingContext(deps, { branchId, serviceId });
       return { organizationId: ctx.organizationId, serviceId };
     } catch (err) {
       if (err instanceof InPersonBookingResolveError) {
@@ -34,7 +33,7 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
   const params = new URL(request.url).searchParams;
   const deps = buildAppDeps();
-  if (!deps.memberships || !deps.bookingEngine) {
+  if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   const { memberships } = deps;
@@ -44,17 +43,10 @@ export async function GET(request: Request) {
     serviceId: params.get('serviceId') ?? undefined,
   });
   if (resolvedOrResponse instanceof NextResponse) return resolvedOrResponse;
-  const packages = await withExplicitOrganizationPrincipal(
-    {
-      organizationId: resolvedOrResponse.organizationId,
-      source: 'api/booking/memberships/available:GET',
-    },
-    () =>
-      memberships.listActivePackagesForBooking(
-        gate.session.user.userId,
-        resolvedOrResponse.organizationId,
-        resolvedOrResponse.serviceId,
-      ),
+  const packages = await memberships.listActivePackagesForBooking(
+    gate.session.user.userId,
+    resolvedOrResponse.organizationId,
+    resolvedOrResponse.serviceId,
   );
   return NextResponse.json({ ok: true, packages });
 }

@@ -1,6 +1,8 @@
 'use client';
 
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
 import {
   diaryChartFormatTickLabel,
@@ -23,7 +25,7 @@ export default function DiaryLineChartRecharts({
 
   return (
     <div className="h-[240px] w-full min-w-0 pb-8">
-      <ResponsiveContainer width="100%" height="100%">
+      <PositiveSizeResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 28 }}>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
@@ -65,7 +67,7 @@ export default function DiaryLineChartRecharts({
             isAnimationActive={false}
           />
         </LineChart>
-      </ResponsiveContainer>
+      </PositiveSizeResponsiveContainer>
     </div>
   );
 }

@@ -53,16 +53,20 @@ async function persistBookingFormContacts(
   deps: CanonicalBookingDeps,
   createInput: CreatePatientBookingInput,
 ) {
-  const identity =
-    deps.getPlatformUserIdentityContacts != null
-      ? await deps.getPlatformUserIdentityContacts(createInput.userId)
-      : null;
-  await upsertBookingFormContactsBestEffort(deps.platformUserContacts, {
-    platformUserId: createInput.userId,
-    contactPhone: createInput.contactPhone,
-    contactEmail: createInput.contactEmail,
-    identity,
-  });
+  try {
+    const identity =
+      deps.getPlatformUserIdentityContacts != null
+        ? await deps.getPlatformUserIdentityContacts(createInput.userId)
+        : null;
+    await upsertBookingFormContactsBestEffort(deps.platformUserContacts, {
+      platformUserId: createInput.userId,
+      contactPhone: createInput.contactPhone,
+      contactEmail: createInput.contactEmail,
+      identity,
+    });
+  } catch {
+    // Contact enrichment is explicitly best-effort and must not roll back a confirmed booking.
+  }
 }
 
 export type CanonicalBookingDeps = {
@@ -184,10 +188,42 @@ export async function createBookingOnCanonicalEngine(
       serviceId: createInput.serviceId,
     });
     if (!inPersonCtx) throw new Error('branch_service_not_found');
-    const [branch, service] = await Promise.all([
-      deps.bookingEngine.catalog.getBranch(inPersonCtx.branchId),
-      deps.bookingEngine.services.getService(inPersonCtx.serviceId),
-    ]);
+    const patientCatalog = inPersonCtx.patientCatalogSnapshot;
+    const [branch, service] = patientCatalog
+      ? [
+          {
+            id: inPersonCtx.branchId,
+            organizationId: inPersonCtx.organizationId,
+            title: patientCatalog.branchTitle,
+            shortTitle: patientCatalog.branchShortTitle,
+            color: patientCatalog.branchColor,
+            cityCode: patientCatalog.branchCityCode,
+            address: patientCatalog.branchAddress,
+            timezone: inPersonCtx.branchTimezone,
+            isActive: true,
+            sortOrder: patientCatalog.branchSortOrder,
+          } satisfies BeBranch,
+          {
+            id: inPersonCtx.serviceId,
+            organizationId: inPersonCtx.organizationId,
+            title: patientCatalog.serviceTitle,
+            description: patientCatalog.serviceDescription,
+            durationMinutes: inPersonCtx.durationMinutes,
+            bufferAfterMinutes: inPersonCtx.bufferAfterMinutes,
+            priceMinor: patientCatalog.servicePriceMinor,
+            isActive: true,
+            prepaymentApplicable: patientCatalog.servicePrepaymentApplicable,
+            usableInPackages: patientCatalog.serviceUsableInPackages,
+            onlinePaymentApplicable: patientCatalog.serviceOnlinePaymentApplicable,
+            publicWidgetVisible: patientCatalog.servicePublicWidgetVisible,
+            adminManualOnly: patientCatalog.serviceAdminManualOnly,
+            sortOrder: patientCatalog.serviceSortOrder,
+          } satisfies BeClinicService,
+        ]
+      : await Promise.all([
+          deps.bookingEngine.catalog.getBranch(inPersonCtx.branchId),
+          deps.bookingEngine.services.getService(inPersonCtx.serviceId),
+        ]);
     if (
       !branch ||
       !service ||
@@ -338,12 +374,19 @@ export async function createBookingOnCanonicalEngine(
     prepayQuote?.required === true &&
     (prepayQuote.amountMinor ?? 0) > 0;
   const initialAppointmentStatus = needsPrepayment ? 'awaiting_payment' : 'confirmed';
-  const specialistReminderSettings = canonicalSpecialistId
-    ? await deps.bookingEngine.getSpecialistAppointmentReminderSettings({
-        organizationId: orgId,
-        specialistId: canonicalSpecialistId,
-      })
-    : null;
+  const specialistReminderSettings = inPersonCtx?.patientCatalogSnapshot
+    ? {
+        allowedPresetIds:
+          inPersonCtx.patientCatalogSnapshot.specialistReminderAllowedPresetIds,
+        defaultPresetId:
+          inPersonCtx.patientCatalogSnapshot.specialistReminderDefaultPresetId,
+      }
+    : canonicalSpecialistId
+      ? await deps.bookingEngine.getSpecialistAppointmentReminderSettings({
+          organizationId: orgId,
+          specialistId: canonicalSpecialistId,
+        })
+      : null;
 
   const phoneNormalized =
     normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();

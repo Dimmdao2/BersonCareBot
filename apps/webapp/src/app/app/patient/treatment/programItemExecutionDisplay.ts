@@ -1,6 +1,5 @@
 import { DateTime } from 'luxon';
 import {
-  calendarDaysFromUtcIsoToNowInZone,
   formatRelativePatientCalendarDayRu,
 } from '@/modules/treatment-program/stage-semantics';
 
@@ -14,19 +13,14 @@ export function resolveProgramItemExecutionDots(params: {
   zone: string;
   now?: DateTime;
 }): { variant: ProgramItemExecutionDotsVariant; dotCount: number; dotOverflow: number } {
-  const { lastIso, todayCount, zone, now } = params;
-  if (!lastIso?.trim()) {
+  const { todayCount } = params;
+  if (todayCount <= 0) {
     return { variant: 'gray', dotCount: 1, dotOverflow: 0 };
   }
-  const calendarDays = calendarDaysFromUtcIsoToNowInZone(lastIso, zone, now);
-  if (calendarDays === 0) {
-    const capped = Math.min(Math.max(todayCount, 0), MAX_PROGRAM_ITEM_TODAY_DOTS);
-    const dotCount = capped > 0 ? capped : 1;
-    const dotOverflow =
-      todayCount > MAX_PROGRAM_ITEM_TODAY_DOTS ? todayCount - MAX_PROGRAM_ITEM_TODAY_DOTS : 0;
-    return { variant: 'green', dotCount, dotOverflow };
-  }
-  return { variant: 'gray', dotCount: 1, dotOverflow: 0 };
+  const capped = Math.min(todayCount, MAX_PROGRAM_ITEM_TODAY_DOTS);
+  const dotOverflow =
+    todayCount > MAX_PROGRAM_ITEM_TODAY_DOTS ? todayCount - MAX_PROGRAM_ITEM_TODAY_DOTS : 0;
+  return { variant: 'green', dotCount: capped, dotOverflow };
 }
 
 /** Patient-facing «Выполнялось: …» without duplicate «Сегодня N раз». */

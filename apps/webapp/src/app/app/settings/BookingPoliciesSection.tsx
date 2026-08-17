@@ -21,6 +21,10 @@ import type {
   RescheduleLimitBehavior,
   ReschedulePolicy,
 } from '@/modules/booking-policies/types';
+import {
+  DEFAULT_CANCELLATION_POLICY,
+  DEFAULT_RESCHEDULE_POLICY,
+} from '@/modules/booking-policies/types';
 
 const BASE = '/api/admin/booking-engine/policies';
 
@@ -46,6 +50,46 @@ const LIMIT_OPTIONS: { value: RescheduleLimitBehavior; label: string }[] = [
 type PolicyKind = 'cancellation' | 'reschedule';
 
 const OVERVIEW = '/api/admin/booking-engine/overview';
+const CANCELLATION_DRAFT_ID = 'draft-cancellation-organization';
+const RESCHEDULE_DRAFT_ID = 'draft-reschedule-organization';
+
+function withOrganizationDrafts(input: {
+  cancellationPolicies: CancellationPolicy[];
+  reschedulePolicies: ReschedulePolicy[];
+}) {
+  return {
+    cancellationPolicies: input.cancellationPolicies.some(
+      (policy) => policy.scopeLevel === 'organization',
+    )
+      ? input.cancellationPolicies
+      : [
+          ...input.cancellationPolicies,
+          {
+            ...DEFAULT_CANCELLATION_POLICY,
+            id: CANCELLATION_DRAFT_ID,
+            organizationId: '',
+            scopeLevel: 'organization' as const,
+            scopeEntityId: null,
+            title: 'Правила отмены клиники',
+          },
+        ],
+    reschedulePolicies: input.reschedulePolicies.some(
+      (policy) => policy.scopeLevel === 'organization',
+    )
+      ? input.reschedulePolicies
+      : [
+          ...input.reschedulePolicies,
+          {
+            ...DEFAULT_RESCHEDULE_POLICY,
+            id: RESCHEDULE_DRAFT_ID,
+            organizationId: '',
+            scopeLevel: 'organization' as const,
+            scopeEntityId: null,
+            title: 'Правила переноса клиники',
+          },
+        ],
+  };
+}
 
 type Props = {
   defaultKind?: PolicyKind;
@@ -72,8 +116,12 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
         reschedulePolicies?: ReschedulePolicy[];
         error?: string;
       }>(BASE);
-      setCancellationPolicies(json.cancellationPolicies ?? []);
-      setReschedulePolicies(json.reschedulePolicies ?? []);
+      const policies = withOrganizationDrafts({
+        cancellationPolicies: json.cancellationPolicies ?? [],
+        reschedulePolicies: json.reschedulePolicies ?? [],
+      });
+      setCancellationPolicies(policies.cancellationPolicies);
+      setReschedulePolicies(policies.reschedulePolicies);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'load_failed');
@@ -130,7 +178,7 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             kind: 'cancellation',
-            id: policy.id,
+            ...(policy.id === CANCELLATION_DRAFT_ID ? {} : { id: policy.id }),
             scopeLevel: policy.scopeLevel,
             scopeEntityId: policy.scopeLevel === 'organization' ? null : policy.scopeEntityId,
             title: policy.title,
@@ -161,7 +209,7 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             kind: 'reschedule',
-            id: policy.id,
+            ...(policy.id === RESCHEDULE_DRAFT_ID ? {} : { id: policy.id }),
             scopeLevel: policy.scopeLevel,
             scopeEntityId: policy.scopeLevel === 'organization' ? null : policy.scopeEntityId,
             title: policy.title,
@@ -200,7 +248,10 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
               value={scopeLevel}
               onValueChange={(v) => v && setScopeLevel(v as PolicyScopeLevel)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger
+                className="w-full"
+                displayLabel={SCOPE_LEVELS.find((item) => item.value === scopeLevel)?.label}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -216,7 +267,10 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
             <div className="space-y-2">
               <Label>Специалист</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger className="w-full max-w-md">
+                <SelectTrigger
+                  className="w-full max-w-md"
+                  displayLabel={specialists.find((item) => item.id === scopeEntityId)?.fullName}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,7 +287,10 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
             <div className="space-y-2">
               <Label>Услуга</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger className="w-full max-w-md">
+                <SelectTrigger
+                  className="w-full max-w-md"
+                  displayLabel={services.find((item) => item.id === scopeEntityId)?.title}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,7 +307,10 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
             <div className="space-y-2">
               <Label>Тип политики</Label>
               <Select value={kind} onValueChange={(v) => v && setKind(v as PolicyKind)}>
-                <SelectTrigger className="w-full max-w-md">
+                <SelectTrigger
+                  className="w-full max-w-md"
+                  displayLabel={kind === 'cancellation' ? 'Отмена' : 'Перенос'}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -300,7 +360,14 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
                   )
                 }
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  className="w-full"
+                  displayLabel={
+                    LATE_CANCEL_OPTIONS.find(
+                      (item) => item.value === cancelPolicy.lateCancellationBehavior,
+                    )?.label
+                  }
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -404,7 +471,14 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
                   )
                 }
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  className="w-full"
+                  displayLabel={
+                    LIMIT_OPTIONS.find(
+                      (item) => item.value === reschedulePolicy.limitExceededBehavior,
+                    )?.label
+                  }
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -502,8 +576,10 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
           </div>
         ) : null}
 
-        {!activePolicy ? (
-          <p className="text-sm text-muted-foreground">Нет политики для выбранного уровня.</p>
+        {!activePolicy && scopeLevel !== 'organization' ? (
+          <p className="text-sm text-muted-foreground">
+            Выберите специалиста или услугу, чтобы создать политику этого уровня.
+          </p>
         ) : null}
       </CardContent>
     </Card>

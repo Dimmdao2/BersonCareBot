@@ -6,7 +6,12 @@ import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
 } from '@bersoncare/db-principal';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { MediaPreviewStatus } from '@/modules/media/types';
 import type { LfkDiaryPort } from '@/modules/diaries/ports';
@@ -76,11 +81,11 @@ function rowToSession(row: {
   id: string;
   user_id: string;
   complex_id: string;
-  completed_at: Date;
+  completed_at: Date | string;
   source: string;
-  created_at: Date;
+  created_at: Date | string;
   complex_title?: string;
-  recorded_at?: Date | null;
+  recorded_at?: Date | string | null;
   duration_minutes?: number | null;
   difficulty_0_10?: number | null;
   pain_0_10?: number | null;
@@ -106,6 +111,16 @@ type LfkSessionDbRow = Parameters<typeof rowToSession>[0];
 type LfkComplexDbRow = Parameters<typeof rowToComplex>[0];
 
 type LfkSessionInsertDbRow = Omit<LfkSessionDbRow, 'complex_title'>;
+
+type CurrentPatientLfkSessionResult = {
+  ok: boolean;
+  code?: string;
+  session?: LfkSessionDbRow | null;
+  sessions?: LfkSessionDbRow[];
+  completed_at?: Date | string | null;
+  updated?: boolean;
+  deleted?: boolean;
+};
 
 const COMPLEX_SELECT = `c.id, c.user_id, c.title,
   c.platform_user_id,
@@ -149,6 +164,28 @@ function complexCoverJoinForCurrentPrincipal(): string {
   return getCurrentDbPrincipal()?.kind === 'patient'
     ? PATIENT_COMPLEX_COVER_JOIN
     : STAFF_COMPLEX_COVER_JOIN;
+}
+
+function isCurrentPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function currentPatientLfkSessions(
+  action: 'list' | 'list_range' | 'min_completed_at' | 'get' | 'create' | 'update' | 'delete',
+  payload: Record<string, unknown> = {},
+): Promise<CurrentPatientLfkSessionResult> {
+  const payloadJson = JSON.stringify(payload);
+  const result = await runWebappNamedRoot<{ result: CurrentPatientLfkSessionResult }>(
+    getWebappSqlDb(),
+    'app.current_patient_lfk_sessions(text,text)',
+    [action, payloadJson],
+    sql`SELECT app.current_patient_lfk_sessions(${action}::text, ${payloadJson}::text) AS result`,
+  );
+  const value = result.rows[0]?.result;
+  if (!value?.ok) {
+    throw new Error(value?.code ?? 'current_patient_lfk_session_failed');
+  }
+  return value;
 }
 
 function userMatchSql(tableAlias: string, userParamIndex: number): string {
@@ -195,6 +232,19 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   async addSession(params) {
     const completedAt = new Date(params.completedAt);
     const recordedAt = params.recordedAt ? new Date(params.recordedAt) : completedAt;
+    if (isCurrentPatientPrincipal()) {
+      const result = await currentPatientLfkSessions('create', {
+        complex_id: params.complexId,
+        completed_at: completedAt.toISOString(),
+        recorded_at: recordedAt.toISOString(),
+        duration_minutes: params.durationMinutes ?? null,
+        difficulty_0_10: params.difficulty0_10 ?? null,
+        pain_0_10: params.pain0_10 ?? null,
+        comment: params.comment ?? null,
+      });
+      if (!result.session) throw new Error('current_patient_lfk_session_create_failed');
+      return rowToSession(result.session);
+    }
     const result = await runWebappPgText<LfkSessionInsertDbRow>(
       `INSERT INTO lfk_sessions (
          user_id, complex_id, completed_at, source, recorded_at,
@@ -227,6 +277,10 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async listSessions(userId, limit = 50) {
+    if (isCurrentPatientPrincipal()) {
+      const result = await currentPatientLfkSessions('list', { limit });
+      return (result.sessions ?? []).map(rowToSession);
+    }
     const result = await runWebappPgText<LfkSessionDbRow>(
       `SELECT ${SESSION_SELECT}
        FROM lfk_sessions s
@@ -252,6 +306,15 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
 
   async listSessionsInRange(params) {
     const lim = Math.min(params.limit ?? 2000, 5000);
+    if (isCurrentPatientPrincipal()) {
+      const result = await currentPatientLfkSessions('list_range', {
+        from_completed_at: params.fromCompletedAt,
+        to_completed_at_exclusive: params.toCompletedAtExclusive,
+        complex_id: params.complexId ?? null,
+        limit: lim,
+      });
+      return (result.sessions ?? []).map(rowToSession);
+    }
     const orgCondition = params.organizationId ? 'AND s.organization_id = $5::uuid' : '';
     if (params.complexId) {
       const result = await runWebappPgText<LfkSessionDbRow>(
@@ -295,6 +358,10 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async minCompletedAtForUser(userId) {
+    if (isCurrentPatientPrincipal()) {
+      const result = await currentPatientLfkSessions('min_completed_at');
+      return nullableToIsoStringSafe(result.completed_at);
+    }
     const result = await runWebappPgText<{ m: Date | string | null }>(
       `SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`,
       [userId],
@@ -304,6 +371,10 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async getSessionForUser(params) {
+    if (isCurrentPatientPrincipal()) {
+      const result = await currentPatientLfkSessions('get', { session_id: params.sessionId });
+      return result.session ? rowToSession(result.session) : null;
+    }
     const result = await runWebappPgText<LfkSessionDbRow>(
       `SELECT ${SESSION_SELECT}
        FROM lfk_sessions s
@@ -317,6 +388,18 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   async updateSession(params) {
     let comment = params.comment?.trim() ?? null;
     if (comment && comment.length > 200) comment = comment.slice(0, 200);
+    if (isCurrentPatientPrincipal()) {
+      const result = await currentPatientLfkSessions('update', {
+        session_id: params.sessionId,
+        completed_at: params.completedAt,
+        duration_minutes: params.durationMinutes ?? null,
+        difficulty_0_10: params.difficulty0_10 ?? null,
+        pain_0_10: params.pain0_10 ?? null,
+        comment,
+      });
+      if (!result.updated) throw new Error('current_patient_lfk_session_not_found');
+      return;
+    }
     await runWebappPgText(
       `UPDATE lfk_sessions
        SET completed_at = $3::timestamptz,
@@ -338,6 +421,11 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async deleteSession(params) {
+    if (isCurrentPatientPrincipal()) {
+      const result = await currentPatientLfkSessions('delete', { session_id: params.sessionId });
+      if (!result.deleted) throw new Error('current_patient_lfk_session_not_found');
+      return;
+    }
     await runWebappPgText(`DELETE FROM lfk_sessions WHERE id = $2 AND user_id = $1`, [
       params.userId,
       params.sessionId,

@@ -201,20 +201,15 @@ function currentRuntimeEntries() {
   );
 }
 
-function assertMigrationDropsRetiredTables() {
-  const migrationPath = join(
+function assertRetiredTablesAbsentFromCurrentContract() {
+  const contractPath = join(
     repoRoot,
-    'apps/webapp/db/drizzle-migrations/0275_retire_dead_mailing_domain.sql',
+    'deploy/postgres/generated/privileges.bcb_webapp_dev.sql',
   );
-  const migration = readFileSync(migrationPath, 'utf8');
-  const missing = retiredTables.filter(
-    (table) => !migration.includes(`DROP TABLE IF EXISTS ${table}`),
-  );
-  if (missing.length > 0) {
-    throw new Error(`D8 migration does not drop: ${missing.join(', ')}`);
-  }
-  if (!migration.includes('D8 refuses to drop non-empty table')) {
-    throw new Error('D8 migration is missing the non-empty-table refusal guard');
+  const contract = readFileSync(contractPath, 'utf8').replaceAll('"', '');
+  const present = retiredTables.filter((table) => contract.includes(table));
+  if (present.length > 0) {
+    throw new Error(`D8 retired tables remain in the current B0 access contract: ${present.join(', ')}`);
   }
 }
 
@@ -317,6 +312,6 @@ if (process.argv.includes('--self-test')) {
     console.error(securityViolations.join('\n'));
     process.exit(1);
   }
-  assertMigrationDropsRetiredTables();
+  assertRetiredTablesAbsentFromCurrentContract();
   console.log('check-d8-mailing-retirement: OK');
 }

@@ -37,6 +37,42 @@ afterEach(() => {
 // request may have reached processing before failing — and must surface as a plain `Error` so the
 // caller keeps retrying under the SAME key instead of risking a double charge.
 describe('yookassa createIntent — refused vs ambiguous failure classification', () => {
+  it('a real invoice HTTP 403 is typed at the adapter boundary', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(403, { type: 'error', code: 'forbidden' })),
+    );
+    const provider = createYookassaPaymentProvider();
+
+    await expect(
+      provider.createIntent({
+        ...createIntentParams,
+        invoice: {
+          description: 'Manual SaaS invoice',
+          expiresAt: '2026-08-20T00:00:00.000Z',
+        },
+      }),
+    ).rejects.toBeInstanceOf(PaymentProviderRequestRefusedError);
+  });
+
+  it('an invoice HTTP 500 remains ambiguous and untyped', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(500, { type: 'error', code: 'internal_server_error' })),
+    );
+    const provider = createYookassaPaymentProvider();
+
+    const rejection = provider.createIntent({
+      ...createIntentParams,
+      invoice: {
+        description: 'Manual SaaS invoice',
+        expiresAt: '2026-08-20T00:00:00.000Z',
+      },
+    });
+    await expect(rejection).rejects.toThrow('yookassa_create_invoice_failed:500');
+    await expect(rejection).rejects.not.toBeInstanceOf(PaymentProviderRequestRefusedError);
+  });
+
   it('a 400 response (e.g. a reused Idempotence-Key) throws PaymentProviderRequestRefusedError', async () => {
     vi.stubGlobal(
       'fetch',

@@ -1,28 +1,11 @@
-import { and, eq, isNull } from 'drizzle-orm';
-import { getDrizzle } from '@/app-layer/db/drizzle';
-import { patientPracticeCompletions, symptomEntries } from '../../../db/schema';
-import { WELLBEING_GENERAL_MIRROR_NOTE } from '@/modules/diaries/wellbeingGeneralMirrorNote';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type { SymptomDiaryPort } from '@/modules/diaries/ports';
 import type { PatientPracticePort } from '@/modules/patient-practice/ports';
 import type {
   ApplyDailyWarmupFeelingParams,
   WarmupFeelingCompletionPort,
 } from '@/modules/patient-practice/warmupFeelingCompletionPort';
-
-function pgErrCode(e: unknown): string | undefined {
-  if (
-    typeof e === 'object' &&
-    e !== null &&
-    'code' in e &&
-    typeof (e as { code?: unknown }).code === 'string'
-  ) {
-    return (e as { code: string }).code;
-  }
-  if (typeof e === 'object' && e !== null && 'cause' in e) {
-    return pgErrCode((e as { cause?: unknown }).cause);
-  }
-  return undefined;
-}
 
 export function createPgWarmupFeelingCompletionPort(opts: {
   diaries: Pick<
@@ -31,106 +14,33 @@ export function createPgWarmupFeelingCompletionPort(opts: {
   >;
   completions: Pick<PatientPracticePort, 'getByIdForUser' | 'updateFeelingById'>;
 }): WarmupFeelingCompletionPort {
+  void opts;
   return {
     async applyDailyWarmupFeeling(
       params: ApplyDailyWarmupFeelingParams,
     ): Promise<{ duplicate: boolean }> {
-      const { userId, completionId, feeling, completedAtIso, symptomTypeRefId, symptomTitle } =
-        params;
-
-      const db = getDrizzle();
-      let duplicate = false;
-
-      const generalTracking =
-        params.generalWellbeingSymptomTypeRefId && params.generalWellbeingSymptomTitle
-          ? await opts.diaries.ensureGeneralWellbeingTracking({
-              userId,
-              symptomTitle: params.generalWellbeingSymptomTitle,
-              symptomTypeRefId: params.generalWellbeingSymptomTypeRefId,
-            })
-          : null;
-
-      try {
-        await db.transaction(async (tx) => {
-          const trackingId = await opts.diaries.upsertWarmupFeelingTrackingIdInTx(tx, {
-            userId,
-            symptomTitle,
-            symptomTypeRefId,
-          });
-
-          const existing = await tx
-            .select({ id: symptomEntries.id })
-            .from(symptomEntries)
-            .where(eq(symptomEntries.patientPracticeCompletionId, completionId))
-            .limit(1);
-          if (existing.length > 0) {
-            await tx
-              .update(patientPracticeCompletions)
-              .set({ feeling })
-              .where(
-                and(
-                  eq(patientPracticeCompletions.id, completionId),
-                  eq(patientPracticeCompletions.userId, userId),
-                  isNull(patientPracticeCompletions.feeling),
-                ),
-              );
-            duplicate = true;
-            return;
-          }
-
-          await tx.insert(symptomEntries).values({
-            userId,
-            platformUserId: userId,
-            trackingId,
-            value010: feeling,
-            entryType: 'instant',
-            recordedAt: completedAtIso,
-            source: 'webapp',
-            notes: null,
-            patientPracticeCompletionId: completionId,
-          });
-
-          if (generalTracking) {
-            await tx.insert(symptomEntries).values({
-              userId,
-              platformUserId: userId,
-              trackingId: generalTracking.id,
-              value010: feeling,
-              entryType: 'instant',
-              recordedAt: completedAtIso,
-              source: 'webapp',
-              notes: WELLBEING_GENERAL_MIRROR_NOTE,
-              patientPracticeCompletionId: null,
-            });
-          }
-
-          await tx
-            .update(patientPracticeCompletions)
-            .set({ feeling })
-            .where(
-              and(
-                eq(patientPracticeCompletions.id, completionId),
-                eq(patientPracticeCompletions.userId, userId),
-              ),
-            );
-        });
-      } catch (e: unknown) {
-        const code = pgErrCode(e);
-        if (code === '23505') {
-          duplicate = true;
-        } else {
-          throw e;
-        }
-      }
-
-      if (duplicate) {
-        const again = await opts.completions.getByIdForUser(completionId, userId);
-        if (again && again.feeling === null) {
-          await opts.completions.updateFeelingById(completionId, userId, feeling);
-        }
-      }
-
-      return { duplicate };
+      const args = [
+        params.completionId,
+        params.feeling,
+        params.symptomTypeRefId,
+        params.symptomTitle,
+        params.generalWellbeingSymptomTypeRefId ?? null,
+        params.generalWellbeingSymptomTitle ?? null,
+      ] as const;
+      const result = await runWebappNamedRoot<{ duplicate: boolean }>(
+        getWebappSqlDb(),
+        'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)',
+        args,
+        sql`SELECT app.apply_current_patient_warmup_feeling(
+          ${params.completionId}::uuid,
+          ${params.feeling}::integer,
+          ${params.symptomTypeRefId}::uuid,
+          ${params.symptomTitle}::text,
+          ${params.generalWellbeingSymptomTypeRefId ?? null}::uuid,
+          ${params.generalWellbeingSymptomTitle ?? null}::text
+        ) AS duplicate`,
+      );
+      return { duplicate: result.rows[0]?.duplicate === true };
     },
   };
 }

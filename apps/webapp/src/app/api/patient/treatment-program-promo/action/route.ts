@@ -117,10 +117,18 @@ export async function POST(req: Request) {
 
   if (markComplete) {
     try {
+      if (!detail.organizationId) {
+        return NextResponse.json({ ok: false, error: 'organization_required' }, { status: 400 });
+      }
+      const repeatCooldownMinutes = await deps.runtimeConfig.getInteger(
+        'patient_treatment_plan_item_done_repeat_cooldown_minutes',
+        { patientUserId: userId, organizationId: detail.organizationId },
+      );
       await deps.treatmentProgramProgress.patientCompleteSimpleItem({
         patientUserId: userId,
         instanceId: detail.id,
         stageItemId: mappedId,
+        repeatCooldownMinutes,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'error';

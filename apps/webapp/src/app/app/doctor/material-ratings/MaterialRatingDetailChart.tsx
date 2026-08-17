@@ -1,11 +1,12 @@
 'use client';
 
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
 import {
   CartesianGrid,
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
 } from 'recharts';
@@ -42,7 +43,7 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
 
   return (
     <div className="h-[280px] w-full min-w-0 pb-2">
-      <ResponsiveContainer width="100%" height="100%">
+      <PositiveSizeResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 36, left: 4, bottom: 48 }}>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
@@ -139,7 +140,7 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
             isAnimationActive={false}
           />
         </LineChart>
-      </ResponsiveContainer>
+      </PositiveSizeResponsiveContainer>
     </div>
   );
 }

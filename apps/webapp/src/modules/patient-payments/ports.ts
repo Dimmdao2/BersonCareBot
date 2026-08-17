@@ -107,6 +107,8 @@ export type AcquiringChargeInput = {
   /** Server-derived clinic that owns both the patient ledger and provider settings. */
   organizationId: string;
   patientUserId: string;
+  /** Server-derived payer email used only for the fiscal receipt. */
+  customerEmail?: string | null;
   amountMinor: number;
   currency: string;
   /** Stable caller-owned key forwarded unchanged to the payment provider. */

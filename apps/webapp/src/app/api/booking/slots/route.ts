@@ -4,10 +4,9 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { logger } from '@/app-layer/logging/logger';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   InPersonBookingResolveError,
-  resolveInPersonBookingContext,
+  resolveCurrentPatientInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
 import { inPersonSlotsQuerySchema } from '@/modules/patient-booking/inPersonApiSchemas';
 
@@ -49,19 +48,15 @@ export async function GET(request: Request) {
     if (parsed.data.type === 'online') {
       return NextResponse.json({ ok: false, error: 'ambiguous_booking_tenant' }, { status: 400 });
     }
-    const ctx = await resolveInPersonBookingContext(deps, parsed.data);
-    const slots = await withExplicitOrganizationPrincipal(
-      { organizationId: ctx.organizationId, source: 'api/booking/slots:GET' },
-      () =>
-        deps.patientBooking.getSlots({
-          type: 'in_person',
-          organizationId: ctx.organizationId,
-          branchId: ctx.branchId,
-          serviceId: ctx.serviceId,
-          date: parsed.data.date,
-          slotCount: parsed.data.slotCount,
-        }),
-    );
+    const ctx = await resolveCurrentPatientInPersonBookingContext(deps, parsed.data);
+    const slots = await deps.patientBooking.getSlots({
+      type: 'in_person',
+      organizationId: ctx.organizationId,
+      branchId: ctx.branchId,
+      serviceId: ctx.serviceId,
+      date: parsed.data.date,
+      slotCount: parsed.data.slotCount,
+    });
     return NextResponse.json({ ok: true, slots }, { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'slots_unavailable';

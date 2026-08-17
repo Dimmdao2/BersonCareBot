@@ -1,11 +1,10 @@
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientBookingTrustedPhoneAccess } from '@/app-layer/guards/requireRole';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
   InPersonBookingResolveError,
-  resolveInPersonBookingContext,
+  resolveCurrentPatientInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
 import {
   contactFioFieldSchema,
@@ -105,14 +104,10 @@ export async function POST(request: Request) {
     if (body.type === 'online') {
       return jsonError('ambiguous_booking_tenant', {}, { status: 400 });
     }
-    const ctx = await resolveInPersonBookingContext(deps, body);
-    const booking = await withExplicitOrganizationPrincipal(
-      { organizationId: ctx.organizationId, source: 'api/booking/create:POST' },
-      async () => {
-        const branch = await deps.bookingEngine?.catalog.getBranch(ctx.branchId);
-        const cityCode = branch?.cityCode.trim().toLowerCase();
-        if (!cityCode) throw new InPersonBookingResolveError('branch_not_found');
-        return deps.patientBooking.createBooking({
+    const ctx = await resolveCurrentPatientInPersonBookingContext(deps, body);
+    const cityCode = ctx.cityCode?.trim().toLowerCase();
+    if (!cityCode) throw new InPersonBookingResolveError('branch_not_found');
+    const booking = await deps.patientBooking.createBooking({
           userId: session.user.userId,
           organizationId: ctx.organizationId,
           type: 'in_person',
@@ -128,9 +123,7 @@ export async function POST(request: Request) {
           contactEmail: body.contactEmail,
           formAnswers: body.formAnswers,
           patientPackageId: body.patientPackageId,
-        });
-      },
-    );
+    });
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
       const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(

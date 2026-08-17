@@ -1,6 +1,10 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import {
   programItemDiscussionMessages,
@@ -224,6 +228,43 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
     async insertMessage(
       input: ProgramItemDiscussionMessageInsert,
     ): Promise<ProgramItemDiscussionMessage> {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{
+          message: {
+            id: string;
+            instance_stage_item_id: string;
+            patient_user_id: string;
+            sender_role: string;
+            origin: string;
+            body: string | null;
+            media_file_id: string | null;
+            support_message_id: string | null;
+            created_at: string;
+          };
+        }>(
+          getWebappSqlDb(),
+          'app.append_current_patient_program_discussion(uuid,text,uuid)',
+          [input.instanceStageItemId, input.body ?? null, input.mediaFileId ?? null],
+          sql`SELECT app.append_current_patient_program_discussion(
+            ${input.instanceStageItemId}::uuid,
+            ${input.body ?? null}::text,
+            ${input.mediaFileId ?? null}::uuid
+          ) AS message`,
+        );
+        const row = result.rows[0]?.message;
+        if (!row) throw new Error('program_item_discussion_insert_failed');
+        return {
+          id: row.id,
+          instanceStageItemId: row.instance_stage_item_id,
+          patientUserId: row.patient_user_id,
+          senderRole: row.sender_role as ProgramItemDiscussionSenderRole,
+          origin: row.origin as ProgramItemDiscussionOrigin,
+          body: row.body,
+          mediaFileId: row.media_file_id,
+          supportMessageId: row.support_message_id,
+          createdAt: row.created_at,
+        };
+      }
       try {
         return await runDrizzleMutationTransaction(async (tx) => {
           const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
@@ -519,6 +560,20 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       lastReadAt?: string;
     }): Promise<void> {
       const lastReadAt = params.lastReadAt ?? new Date().toISOString();
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{ updated: boolean }>(
+          getWebappSqlDb(),
+          'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)',
+          [params.stageItemId, lastReadAt],
+          sql`SELECT app.mark_current_patient_program_discussion_read(
+            ${params.stageItemId}::uuid, ${lastReadAt}::timestamptz
+          ) AS updated`,
+        );
+        if (result.rows[0]?.updated !== true) {
+          throw new Error('program_item_discussion_read_rejected');
+        }
+        return;
+      }
       await runDrizzleMutationTransaction(async (tx) => {
         const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
           where: eq(treatmentProgramInstanceStageItems.id, params.stageItemId),

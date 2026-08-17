@@ -29,6 +29,7 @@ export type AdminSettingsSectionProps = {
   patientProgramDiscussionUiEnabled: boolean;
   patientProgramDiscussionMediaSubmissionEnabled: boolean;
   patientBookingUrl: string;
+  materialRatingsEnabled: boolean;
 };
 
 export function AdminSettingsSection({
@@ -47,6 +48,7 @@ export function AdminSettingsSection({
   patientProgramDiscussionUiEnabled,
   patientProgramDiscussionMediaSubmissionEnabled,
   patientBookingUrl,
+  materialRatingsEnabled,
 }: AdminSettingsSectionProps) {
   const [devModeVal, setDevModeVal] = useState(devMode);
   const [debugForward, setDebugForward] = useState(debugForwardToAdmin);
@@ -69,6 +71,7 @@ export function AdminSettingsSection({
     patientProgramDiscussionMediaSubmissionEnabled,
   );
   const [bookingUrl, setBookingUrl] = useState(patientBookingUrl);
+  const [ratingsEnabled, setRatingsEnabled] = useState(materialRatingsEnabled);
 
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +133,7 @@ export function AdminSettingsSection({
             value: discussionMediaSubmissionEnabled,
           },
           { key: 'patient_booking_url', value: bookingRaw },
+          { key: 'material_ratings_enabled', value: ratingsEnabled },
         ]);
         if (!batchResult.ok) {
           const idx = batchResult.atIndex;
@@ -235,6 +239,13 @@ export function AdminSettingsSection({
             />
           </DoctorField>
         </section>
+
+        <LabeledSwitch
+          label="Оценки материалов"
+          checked={ratingsEnabled}
+          onCheckedChange={(value) => setRatingsEnabled(Boolean(value))}
+          disabled={isPending}
+        />
 
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
           <p className="text-sm font-semibold">Режим техработ пациентского приложения</p>

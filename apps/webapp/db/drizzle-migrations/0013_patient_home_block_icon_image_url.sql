@@ -1,1 +1,0 @@
-ALTER TABLE "patient_home_blocks" ADD COLUMN "icon_image_url" text;

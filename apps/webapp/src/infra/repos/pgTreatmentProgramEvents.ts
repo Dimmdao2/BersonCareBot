@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, max } from 'drizzle-orm';
+import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
 } from '@bersoncare/db-principal';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { treatmentProgramEvents as eventTable } from '../../../db/schema/treatmentProgramEvents';
 import { treatmentProgramInstances as instTable } from '../../../db/schema/treatmentProgramInstances';
@@ -58,6 +59,55 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
 export function createPgTreatmentProgramEventsPort(): TreatmentProgramEventsPort {
   return {
     async appendEvent(input: AppendTreatmentProgramEventInput): Promise<TreatmentProgramEventRow> {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const payload = JSON.stringify(input.payload ?? {});
+        const args = [
+          input.instanceId,
+          input.eventType,
+          input.targetType,
+          input.targetId,
+          payload,
+          input.reason ?? null,
+        ] as const;
+        const result = await runWebappNamedRoot<{
+          event: {
+            id: string;
+            instance_id: string;
+            actor_id: string | null;
+            event_type: string;
+            target_type: string;
+            target_id: string;
+            payload: Record<string, unknown>;
+            reason: string | null;
+            created_at: string;
+          };
+        }>(
+          getWebappSqlDb(),
+          'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)',
+          args,
+          sql`SELECT app.append_current_patient_program_event(
+            ${input.instanceId}::uuid,
+            ${input.eventType}::text,
+            ${input.targetType}::text,
+            ${input.targetId}::uuid,
+            ${payload}::text,
+            ${input.reason ?? null}::text
+          ) AS event`,
+        );
+        const row = result.rows[0]?.event;
+        if (!row) throw new Error('insert treatment_program_event failed');
+        return {
+          id: row.id,
+          instanceId: row.instance_id,
+          actorId: row.actor_id,
+          eventType: row.event_type as TreatmentProgramEventType,
+          targetType: row.target_type as TreatmentProgramEventTargetType,
+          targetId: row.target_id,
+          payload: row.payload ?? {},
+          reason: row.reason,
+          createdAt: row.created_at,
+        };
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const principal = getCurrentDbPrincipal();
         const currentPatientUserId =

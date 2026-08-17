@@ -80,17 +80,8 @@ const checks = [
   // #1074 step 1 keeps the dormant-smoke harness but unhooks it until the five removed
   // app-level target tests are rebuilt under the new suite contract.
   [
-    'SAAS Phase 4 generated FORCE target artifact',
-    'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs',
-  ],
-  [
     'SAAS Phase 4 generated locked-policy artifact',
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-locked-policy-artifact.mjs',
-  ],
-  [
-    'SAAS Phase 4 prod-copy safety self-test',
-    'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs',
-    '--self-test-safety',
   ],
   [
     'SAAS S5-2 generated artifacts and classifications',

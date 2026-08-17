@@ -15,6 +15,7 @@ import type { PrepaymentResolveContext } from './prepaymentContextFromBooking';
 import { parsePatientPackageProductRef } from '@/modules/memberships/patientPackageProductRef';
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
+import { buildBookingPaymentReceipt } from './fiscalReceipt';
 
 /**
  * The caller always computes a screen-specific return address; this is only the safety net for
@@ -76,6 +77,8 @@ export function createPaymentsService(deps: {
    * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
    */
   assertWriteClearance?: (mechanic: 'payments' | 'booking_prepayment') => void;
+  /** Resolve the current payer email for fiscal receipts at the moment the intent is created. */
+  resolvePayerEmail?: (platformUserId: string) => Promise<string | null>;
 }) {
   async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
     return deps.config.getBookingPaymentSettings(organizationId);
@@ -133,6 +136,9 @@ export function createPaymentsService(deps: {
     // A provider toggled on without credentials is not actually usable — fail here, before an
     // outbound call to the provider, with the same code callers already treat as "not configured".
     if (!provider || !providerHasCredentials(provider)) {
+      throw new Error('payment_provider_unavailable');
+    }
+    if (provider.id === 'yookassa' && !settings.fiscalVatCode) {
       throw new Error('payment_provider_unavailable');
     }
     return provider;
@@ -404,6 +410,13 @@ export function createPaymentsService(deps: {
         purpose: 'appointment_prepayment',
         subjectRef: input.appointmentId,
         returnUrl: resolveReturnUrl(input.returnUrl),
+        receipt: buildBookingPaymentReceipt({
+          settings,
+          providerId: provider.id,
+          customerEmail: await deps.resolvePayerEmail?.(input.platformUserId),
+          description: 'Предоплата записи',
+          amountMinor: input.amountMinor,
+        }),
         metadata: {
           appointmentId: input.appointmentId,
         },
@@ -470,6 +483,13 @@ export function createPaymentsService(deps: {
         purpose: 'package_purchase',
         subjectRef: productRef,
         returnUrl: resolveReturnUrl(input.returnUrl),
+        receipt: buildBookingPaymentReceipt({
+          settings,
+          providerId: provider.id,
+          customerEmail: await deps.resolvePayerEmail?.(input.platformUserId),
+          description: 'Оплата абонемента',
+          amountMinor: input.amountMinor,
+        }),
         metadata: {
           patientPackageId: input.patientPackageId,
         },

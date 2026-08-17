@@ -39,6 +39,22 @@ export type UserProjectionPort = {
     email: string | null;
     emailVerifiedAt: string | null;
   }>;
+  getCurrentPatientFio: () => Promise<{
+    lastName: string | null;
+    firstName: string | null;
+    patronymic: string | null;
+    displayName: string;
+  } | null>;
+  updateCurrentPatientFio: (params: {
+    lastName: string;
+    firstName: string;
+    patronymic: string | null;
+  }) => Promise<{
+    lastName: string;
+    firstName: string;
+    patronymic: string | null;
+    displayName: string;
+  } | null>;
   /** Сброс email у своего аккаунта врача/админа (`role IN ('doctor','admin')`). */
   clearStaffAccountEmail: (
     platformUserId: string,

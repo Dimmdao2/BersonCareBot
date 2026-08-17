@@ -5,6 +5,7 @@
  */
 
 import { sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
@@ -364,6 +365,17 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
 
     async markSeen(platformUserId: string, occurrenceIds: string[]) {
       if (occurrenceIds.length === 0) return;
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await runWebappNamedRoot(
+          getWebappSqlDb(),
+          'app.mark_current_patient_reminder_history_seen(text)',
+          [JSON.stringify(occurrenceIds)],
+          sql`SELECT app.mark_current_patient_reminder_history_seen(
+            ${JSON.stringify(occurrenceIds)}::text
+          ) AS affected`,
+        );
+        return;
+      }
       await runWebappSql(
         getWebappSqlDb(),
         sql`
@@ -375,6 +387,15 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
     },
 
     async markAllSeen(platformUserId: string) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await runWebappNamedRoot(
+          getWebappSqlDb(),
+          'app.mark_all_current_patient_reminder_history_seen()',
+          [],
+          sql`SELECT app.mark_all_current_patient_reminder_history_seen() AS affected`,
+        );
+        return;
+      }
       await runWebappSql(
         getWebappSqlDb(),
         sql`

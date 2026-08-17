@@ -460,6 +460,42 @@ describe('password change HTTP boundary', () => {
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
+  it('keeps global admin eligible and reissues only the rotated current session', async () => {
+    const adminUser = { ...user, role: 'admin' as const, sessionEpoch: 8 };
+    fakes.requireStaffSession.mockResolvedValue({
+      ok: true,
+      session: { ...session, user: { ...user, role: 'admin' } },
+    });
+    fakes.changePassword.mockResolvedValue({ ok: true, user: adminUser });
+
+    const response = await changePassword(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(fakes.setSession).toHaveBeenCalledWith(adminUser, {
+      staffSecurity: session.staffSecurity,
+    });
+    expect(fakes.setSession).toHaveBeenCalledOnce();
+  });
+
+  it('reports a missing verified email as password-login unavailable, not role-disabled', async () => {
+    fakes.getVerifiedEmail.mockResolvedValue(null);
+    fakes.changePassword.mockResolvedValue({
+      ok: false,
+      error: 'password_login_unavailable',
+    });
+
+    const response = await changePassword(request());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'password_login_unavailable',
+      message: 'Вход по паролю не настроен. Используйте другой способ входа.',
+    });
+    expect(fakes.setSession).not.toHaveBeenCalled();
+  });
+
   it('reports password-changed partial success when replacement-session issuance fails', async () => {
     fakes.changePassword.mockResolvedValue({ ok: true, user });
     fakes.setSession.mockRejectedValue(new Error('cookie write unavailable'));

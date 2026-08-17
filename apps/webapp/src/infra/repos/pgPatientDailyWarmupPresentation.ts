@@ -1,11 +1,11 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientDailyWarmupPresentations } from '../../../db/schema';
 import type {
   DailyWarmupPresentationState,
   PatientDailyWarmupPresentationPort,
 } from '@/modules/patient-home/dailyWarmupPresentationPorts';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 export function createPgPatientDailyWarmupPresentationPort(): PatientDailyWarmupPresentationPort {
   return {
@@ -30,29 +30,18 @@ export function createPgPatientDailyWarmupPresentationPort(): PatientDailyWarmup
     },
 
     async upsertPresentationState(userId, state) {
-      const organizationId = getCurrentDbPrincipalOrganizationId();
-      if (!organizationId) throw new Error('organization_principal_required');
-      const db = getDrizzle();
-      const now = new Date().toISOString();
-      await db
-        .insert(patientDailyWarmupPresentations)
-        .values({
-          organizationId,
-          userId,
-          contentPageId: state.contentPageId,
-          lastRotationAt: state.lastRotationAt,
-          skipNextScheduledRotation: state.skipNextScheduledRotation,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: patientDailyWarmupPresentations.userId,
-          set: {
-            contentPageId: state.contentPageId,
-            lastRotationAt: state.lastRotationAt,
-            skipNextScheduledRotation: state.skipNextScheduledRotation,
-            updatedAt: now,
-          },
-        });
+      const result = await runWebappNamedRoot<{ saved: boolean }>(
+        getWebappSqlDb(),
+        'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)',
+        [state.contentPageId, state.lastRotationAt, state.skipNextScheduledRotation],
+        sql`SELECT app.save_current_patient_daily_warmup_presentation(
+          ${state.contentPageId}::uuid,
+          ${state.lastRotationAt}::timestamptz,
+          ${state.skipNextScheduledRotation}::boolean
+        ) AS saved`,
+      );
+      void userId;
+      if (result.rows[0]?.saved !== true) throw new Error('daily_warmup_presentation_rejected');
     },
 
     async getPresentedContentPageId(userId) {

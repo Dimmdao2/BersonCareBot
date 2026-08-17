@@ -18,11 +18,7 @@ CI guardrail: `check-legacy-migrations-frozen.sh` блокирует добав�
 - Карта trusted writers в коде и контекст: [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](../../../docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8.
 - Управление пользователем по номеру (очистка, перенос, integrator): **[user-phone-admin.ts](user-phone-admin.ts)** (в шапке — команды и переменные окружения).
 
-**Patient invite disposable proof:** `node apps/webapp/scripts/patient-invites-disposable-proof.mjs` поднимает
-только приватный PostgreSQL-кластер в `/tmp` с именем `bcb_saas_*_scratch_*`, очищает его в `finally`/по сигналу и
-не читает ambient `DATABASE_URL`/PG env. Он доказывает migration+rollback, отсутствие guessed portal backfill,
-безопасный reissue, одноразовый bearer, signed OTP boundary/cooldown, two-connection redeem, cross-org RLS и ACL/FORCE.
-DEV/TEST/PROD и внешние отправки не затрагиваются.
+Patient-invite disposable proof retired with the B0 baseline; no disposable bootstrap is an active script path.
 
 ## Прочие файлы
 

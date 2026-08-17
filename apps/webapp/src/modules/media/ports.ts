@@ -57,3 +57,7 @@ export type MediaStoragePort = {
   getUsageSummary(mediaId: string): Promise<MediaUsageSummary>;
   deleteHard(mediaId: string): Promise<boolean>;
 };
+
+export type PlaybackUserVideoFirstResolvePort = {
+  record(input: { organizationId: string; userId: string; mediaId: string }): Promise<boolean>;
+};

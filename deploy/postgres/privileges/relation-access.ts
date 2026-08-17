@@ -560,6 +560,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "created_at",
           "field_key",
           "field_type",
+          "id",
           "is_active",
           "is_required",
           "label",
@@ -2525,6 +2526,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "display_name",
           "is_published",
           "organization_id",
@@ -4390,7 +4392,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "codePaths": [
       "apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts",
       "apps/webapp/src/app-layer/media/playbackHourlyRetention.ts",
-      "apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts",
+      "apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts",
       "apps/webapp/src/app/api/internal/media-playback-stats/retention/route.ts",
       "apps/webapp/src/infra/repos/pgMaterialRating.ts"
     ],
@@ -4933,7 +4935,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_staff",
         "operations": [
-          "INSERT",
+          "INSERT"
+        ],
+        "columns": [
+          "created_at",
+          "created_by_platform_user_id",
+          "id",
+          "kind",
+          "organization_id",
+          "slug",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
           "UPDATE"
         ],
         "columns": [
@@ -4974,6 +4990,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "actor_platform_user_id",
+          "created_at",
+          "id",
           "next_slug",
           "organization_id",
           "previous_slug"

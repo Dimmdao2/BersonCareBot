@@ -131,6 +131,7 @@ const ADMIN_SCOPE_KEYS = [
   'patient_booking_url',
   'booking_default_organization_id',
   'booking_calendar_show_working_hours',
+  'booking_allow_doctor_unlink_past_package_sessions',
   'booking_min_notice_hours',
   'booking_payment_enabled',
   'booking_payment_providers',
@@ -515,6 +516,7 @@ export async function PATCH(request: Request) {
         const settings = redactAdminSettingsForClient(
           await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId, {
             organizationId,
+            ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
           }),
         );
         return NextResponse.json({ ok: true, settings });
@@ -956,7 +958,10 @@ export async function PATCH(request: Request) {
       settingScope,
       normalizedValue,
       session.user.userId,
-      { organizationId },
+      {
+        organizationId,
+        ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
+      },
     );
   } catch (error) {
     const errResponse = systemSettingsOrgContextErrorResponse(error);

@@ -94,6 +94,7 @@ const clientIdentity: ClientIdentity = {
   blockedReason: null,
   isArchived: false,
   channelBindingDates: {},
+  email: 'patient@example.test',
 };
 
 const pendingPayment: PatientPayment = {
@@ -243,6 +244,7 @@ describe('patient acquiring charge HTTP boundary', () => {
     expect(fakes.createCharge).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
       patientUserId: PATIENT_ID,
+      customerEmail: 'patient@example.test',
       amountMinor: 12_345,
       currency: 'RUB',
       idempotencyKey: 'charge-1074-stable',

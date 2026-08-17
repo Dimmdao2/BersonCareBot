@@ -2382,13 +2382,21 @@ describe('К4 round 2: повторное «Выставить счёт» не �
       providerIntentRef: `provider-invoice-${createIntent.mock.calls.length}`,
       checkoutUrl: `https://yookassa.example.test/checkout-${createIntent.mock.calls.length}`,
     }));
+    const repository = createInMemorySaasBillingRepository();
     const service = createSaasBillingService({
-      repository: createInMemorySaasBillingRepository(),
+      repository,
       settings: {
         getSaasBillingPaymentProviderValue: async () => ({
           defaultProviderId: 'mock',
           providers: [
-            { id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' },
+            {
+              id: 'mock',
+              label: 'Mock',
+              enabled: true,
+              webhookSecret: 'unused',
+              shopId: 's',
+              apiKey: 'k',
+            },
           ],
         }),
       },
@@ -2409,6 +2417,11 @@ describe('К4 round 2: повторное «Выставить счёт» не �
 
     expect(second.id).toBe(first.id);
     expect(second.providerCheckoutUrl).toBe(first.providerCheckoutUrl);
+    expect(
+      (await repository.getOrganizationBillingOverview('org-k4r2')).invoices.find(
+        (candidate) => candidate.id === first.id,
+      )?.providerCheckoutUrl,
+    ).toBe(first.providerCheckoutUrl);
     expect(createIntent).toHaveBeenCalledTimes(1);
     expect(createIntent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2488,6 +2501,39 @@ describe('К4 round 2: повторное «Выставить счёт» не �
     expect((await repository.getOrganizationBillingOverview('org-k4-isolation-a')).invoices).toHaveLength(3);
     expect((await repository.getOrganizationBillingOverview('org-k4-isolation-b')).invoices).toHaveLength(1);
     expect(createIntent).toHaveBeenCalledTimes(4);
+  });
+
+  it('не отправляет manual invoice провайдеру при неполной фискальной конфигурации', async () => {
+    const createIntent = vi.fn();
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [
+            { id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' },
+          ],
+          payeeRequisites: { taxSystemCode: '2' },
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date('2026-08-17T00:00:00.000Z'),
+    });
+    await seedOrgWithTariff(service);
+
+    await expect(
+      service.createManualSaasBillingInvoice({
+        organizationId: 'org-k4r2',
+        amountMinor: 5_000,
+        currency: 'RUB',
+        description: 'Счёт за тариф',
+        expiresAt: '2026-08-20T00:00:00.000Z',
+      }),
+    ).rejects.toThrow('saas_billing_receipt_vat_code_missing');
+
+    expect(createIntent).not.toHaveBeenCalled();
+    expect((await repository.getOrganizationBillingOverview('org-k4r2')).invoices).toHaveLength(1);
   });
 });
 

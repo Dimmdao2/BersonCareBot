@@ -8,6 +8,7 @@ import {
   setCachedResponse,
 } from '@/app-layer/idempotency/idempotencyStore';
 import { integratorSupportDeliveryAttemptWriteSchema } from '@/modules/messaging/integratorSupportHttp';
+import { logger } from '@/infra/logging/logger';
 
 /** POST /api/integrator/support/delivery-attempt — webapp-owned delivery audit write. */
 export async function POST(request: Request) {
@@ -53,6 +54,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'support not configured' }, { status: 503 });
   }
   const result = await bridge.syncDeliveryAttempt(parsed.data);
+  if (!result.ok) {
+    logger.warn(
+      {
+        route: 'integrator/support/delivery-attempt',
+        organizationId: parsed.data.organizationId,
+        failureReason: result.error,
+      },
+      'integrator support delivery attempt write failed',
+    );
+  }
   const status = result.ok ? 200 : 400;
   await setCachedResponse(idempotencyKey, requestHash, status, result);
   return NextResponse.json(result, { status });

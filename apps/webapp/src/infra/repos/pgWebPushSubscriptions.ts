@@ -1,8 +1,15 @@
 /**
  * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `saveSubscription`.
  */
+import { sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import type {
   WebPushSubscriptionPayloadV1,
@@ -32,9 +39,41 @@ function rowToPayload(row: {
   };
 }
 
+async function removeCurrentPatientSubscription(endpoint: string): Promise<boolean> {
+  const result = await runWebappNamedRoot<{ deleted: boolean }>(
+    getWebappSqlDb(),
+    'app.remove_current_patient_web_push_subscription(text)',
+    [endpoint],
+    sql`SELECT app.remove_current_patient_web_push_subscription(${endpoint}::text) AS deleted`,
+  );
+  return result.rows[0]?.deleted === true;
+}
+
 export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
   return {
     async saveSubscription(userId, subscription, options?: { userAgent?: string | null }) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const userAgent = options?.userAgent?.trim() || null;
+        const args = [
+          subscription.endpoint,
+          subscription.keys.p256dh,
+          subscription.keys.auth,
+          userAgent,
+        ] as const;
+        const result = await runWebappNamedRoot<{ saved: boolean }>(
+          getWebappSqlDb(),
+          'app.save_current_patient_web_push_subscription(text,text,text,text)',
+          args,
+          sql`SELECT app.save_current_patient_web_push_subscription(
+            ${subscription.endpoint}::text,
+            ${subscription.keys.p256dh}::text,
+            ${subscription.keys.auth}::text,
+            ${userAgent}::text
+          ) AS saved`,
+        );
+        if (result.rows[0]?.saved !== true) throw new Error('web_push_subscription_rejected');
+        return;
+      }
       const pool = getPool();
       const ua = options?.userAgent?.trim() || null;
       await withPoolTransaction(pool, async (client) => {
@@ -66,6 +105,10 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
     },
 
     async removeSubscriptionByEndpoint(userId, endpoint) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await removeCurrentPatientSubscription(endpoint);
+        return;
+      }
       await runWebappPgText(
         `DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid AND endpoint = $2`,
         [userId, endpoint],
@@ -73,6 +116,15 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
     },
 
     async removeSubscriptionsForUser(userId) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await runWebappNamedRoot(
+          getWebappSqlDb(),
+          'app.remove_all_current_patient_web_push_subscriptions()',
+          [],
+          sql`SELECT app.remove_all_current_patient_web_push_subscriptions() AS affected`,
+        );
+        return;
+      }
       await runWebappPgText(`DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid`, [
         userId,
       ]);
@@ -95,6 +147,9 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
     },
 
     async deleteByEndpointIfExists(userId: string, endpoint: string): Promise<boolean> {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        return removeCurrentPatientSubscription(endpoint);
+      }
       const res = await runWebappPgText(
         `DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid AND endpoint = $2`,
         [userId, endpoint],

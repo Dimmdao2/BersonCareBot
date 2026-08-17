@@ -4,6 +4,21 @@
 Этот файл — исполняемый порядок и состояние работ. Более позднее owner-решение всегда заменяет старый пункт;
 история замен остаётся в git и [`AUDIT_LOG.md`](./AUDIT_LOG.md), но не действует одновременно с новым планом.
 
+## OWNER-CORRECTION 16.08.2026 — B0, без исторического replay
+
+Текущая доведённая структура DEV становится baseline `B0`. Все прежние migration-файлы/manifests и активная
+historical ledger-chain удаляются из checkout; ledgers DEV/TEST ребейзятся на один marker `B0`, после которого
+начинаются только новые forward-миграции. Переход существующего PROD-снимка `A → B0` — одна цельная атомарная
+миграция. Все формулировки ниже про replay legacy/history, A0/A1/disposable bootstrap, восстановление цепочки и
+ordinary deploy через старые migrations являются историческим evidence и больше не задают работу.
+
+Текущий порядок: довести и доказать весь DEV как `B0`, включая страницы, действия, сервисы, воркеры и доставки →
+удалить активную историю и второй путь → проверить новые chokepoints/marker → один раз перевести текущую именованную
+TEST в финальное состояние через `deploy-test` → удалить необходимость в этом переходном механизме → полностью
+проверить TEST. Живая отправка TEST разрешена только на аккаунты Дмитрия Берсона. Любая ошибка TEST исправляется
+в коде и канонической DEV-базе/схеме с мигратором, после чего DEV и TEST проходят заново. Только затем отдельным
+этапом готовится одна `A → B0` миграция на чистом PROD-дампе для SaaS prod test deploy.
+
 ## Конечный результат
 
 Рабочая цепочка: **PostgreSQL mTLS → минимальные logins/roles/grants → transaction-bound context → нативный
@@ -395,17 +410,26 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   app/API/console/layout diagnostics. Единственный нестабильный шум полного прохода — скрипт внешнего iframe
   `https://dmitryberson.ru/adress`, который на HTTP DEV иногда пытается читать parent window HTTPS→HTTP; страница
   и повторный прогон рабочие, это не выдача данных и не отказ PostgreSQL.
+  **CORRECTION 16.08.2026 — booking lifecycle не был доказан:** прежний Chromium census подтвердил загрузку
+  страницы и чтение каталога, но не выполнял создание, повторное чтение, перенос и отмену записи. Реальный
+  authenticated patient-проход дал рабочие слоты, затем `POST /api/booking/create` вернул `503 create_failed` на
+  прямом чтении `be_branches` из staff-oriented create-пути; confirm page одновременно показала недоказанные
+  `booking/form-fields` и `booking/memberships/available`. Поэтому формулировка «повторный прогон бронирования без
+  diagnostics» относится только к render/read и не является готовностью booking lifecycle. Открытый gate:
+  `create → upcoming readback → reschedule → rescheduled readback → cancel → history`, с exact patient roots и без
+  direct relation grants.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
-- [x] Полный green live matrix достигнут: exact phone bind HTTP path, оба `/health` с `db=up`, полный CI `rc=0`.
-  Владелец может пропустить ручную DEV-проверку по решению 14.08; следующий gate — утверждение cluster cleanup
-  inventory перед TEST.
+- [ ] **CORRECTION 17.08.2026 — DEV не green:** latest aggregate evidence fails doctor
+  authentication/identity and has no complete patient/global-admin artifacts; booking lifecycle evidence is also
+  incomplete. The previous readiness statement is superseded. TEST remains untouched until the full role/page/action,
+  worker, scheduler and delivery matrix is green.
 
 ## Ф8 — финальная TEST-репетиция после зелёного DEV
 
-OWNER-REPLACED 14.08.2026: прежний маршрут через restored production dump и отдельный повторный owner-gate
-заменён прямой командой владельца на DEV → TEST. Текущий TEST разрешено обновить сразу после исправления всех
-найденных DEV-ошибок; PROD и production dump в эту операцию не входят.
+OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полного зелёного DEV-прохода. После него `deploy-test`
+выполняет один раз переход текущей именованной TEST в финальное состояние; механизм этого разового перехода затем
+удаляется. PROD и production dump в эту операцию не входят.
 
 - [ ] Все Ф0–Ф7, относящиеся к рабочему DEV, завершены; branch committed/pushed, проверки зелёные.
 - [ ] До удаления показать владельцу измеренный список database и cluster login/role с точной командой; удалить
@@ -413,16 +437,20 @@ OWNER-REPLACED 14.08.2026: прежний маршрут через restored pro
   `14/18` независимых ролей, ещё четыре снимаются только после устранения их точных object dependencies.
 - [ ] Сохранить Brain/TaskDB, StoryLama DEV+PROD и BersonCareBot DEV+TEST вместе с нужными им ролями/логинами;
   локальной BersonCareBot PROD и иных старых/backup/copy баз после утверждённой очистки быть не должно.
-- [ ] Именованную TEST обнулить, применить штатные migrations и сгенерированную privilege/role/login projection;
-  не собирать отдельную A0-базу и не восстанавливать production dump. Перед запуском исправлен обнаруженный
-  generator gap: zero-state теперь переносит extension ownership через dependency-guarded `REASSIGN OWNED` и
-  проверяет `pg_extension.extowner`; legacy-владелец живого DEV `pgcrypto` перенесён на `postgres`.
+- [ ] Не обнуляя и не пересоздавая TEST, один раз перевести её текущее состояние в финальное через `deploy-test`;
+  не собирать отдельную A0-базу и не восстанавливать production dump. После успешного перехода удалить разовую
+  переходную ветку из `deploy-test`: дальнейший deploy применяет только post-B0 forward-миграции.
 - [ ] Доказать migration ledger, отсутствие legacy/лишних grants и positive/negative controls обоих портов;
-  затем поднять services на TEST для ручной проверки владельцем через доменный адрес.
+  затем проверить все страницы/действия, services, workers и все типы доставки на TEST. Живая отправка разрешена
+  только на аккаунты Дмитрия Берсона.
+- [ ] Любой TEST-дефект исправить в коде и канонической DEV-базе/схеме с мигратором; заново получить полный зелёный
+  DEV и только затем повторить TEST-гейт.
 
-## Ф9 — PROD
+## Ф9 — одна A → B0 миграция на чистом PROD-дампе
 
-- [ ] Только после принятой TEST-репетиции подготовить отдельную production operation/rollback.
+- [ ] Только после зелёных DEV и TEST подготовить и отрепетировать для SaaS prod test deploy одну атомарную
+  миграцию чистого PROD-дампа из состояния `A` в `B0`, без historical replay и промежуточных состояний.
+- [ ] После принятой репетиции отдельно подготовить production operation/rollback.
 - [ ] Ничего на PROD не выполнять без нового явного разрешения владельца и подтверждения host `135.106.162.170`.
 
 ## Что не считается готовностью
