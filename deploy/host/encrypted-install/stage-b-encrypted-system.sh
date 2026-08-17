@@ -38,6 +38,8 @@ die() { echo "[stage-b] FATAL: $*" >&2; exit 1; }
 [ -n "${BCB_NET_GW:-}" ] || die "BCB_NET_GW is required"
 [ -n "${BCB_NET_MAC:-}" ] || die "BCB_NET_MAC is required"
 BCB_NET_DNS="${BCB_NET_DNS:-1.1.1.1}"
+# The kernel's own name for the NIC, which is also the name the initramfs uses. Not a renamed alias.
+BCB_NET_IFACE="${BCB_NET_IFACE:-ens3}"
 grep -q " $(basename "$P_LUKS") " /proc/mounts && die "$P_LUKS is mounted"
 
 modprobe dm-crypt 2>/dev/null || true
@@ -134,23 +136,30 @@ deb $MIRROR $SUITE-security main restricted universe multiverse
 EOF
 
 mkdir -p "$TARGET/etc/netplan"
-cat > "$TARGET/etc/netplan/01-bcb-static.yaml" <<EOF
+# Remote unlock and netplan interact in a way that is easy to miss. The initramfs configures the NIC from
+# the ip= parameter and hands the result to userspace as /run/netplan/<iface>.yaml — a second declaration of
+# the same card. Two consequences follow, and both broke a boot here before being understood:
+#
+#   * renaming the interface (set-name) makes netplan emit a wait-online that requires BOTH the old and the
+#     new name; the old one never appears, so network-online.target hangs until timeout and every service
+#     ordered after it — nginx included — starts minutes late or not at all;
+#   * declaring the default route under `routes:` while the handover fragment uses the deprecated
+#     `gateway4:` counts as two default routes rather than an override, and netplan refuses to generate.
+#
+# So: same interface id as the kernel name, no renaming, the same route key as the fragment, and a filename
+# that sorts after it so this file wins the merge.
+cat > "$TARGET/etc/netplan/zz-bcb-static.yaml" <<EOF
 network:
   version: 2
   ethernets:
-    bcbnet:
-      match:
-        macaddress: $BCB_NET_MAC
-      set-name: eth0
+    $BCB_NET_IFACE:
       mtu: 1500
       addresses: [$BCB_NET_IP/$BCB_NET_PREFIX]
+      gateway4: $BCB_NET_GW
       nameservers:
         addresses: [$BCB_NET_DNS]
-      routes:
-        - to: 0.0.0.0/0
-          via: $BCB_NET_GW
 EOF
-chmod 600 "$TARGET/etc/netplan/01-bcb-static.yaml"
+chmod 600 "$TARGET/etc/netplan/zz-bcb-static.yaml"
 # A freshly bootstrapped Ubuntu ships /etc/resolv.conf as a symlink into /run/systemd/resolve, which does
 # not exist until systemd is actually running. Writing through that dangling link fails with "Directory
 # nonexistent", so the link is replaced by a real file for the duration of the install.
