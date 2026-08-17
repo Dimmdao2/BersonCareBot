@@ -46,8 +46,11 @@ async function main(): Promise<void> {
         ),
       );
   if (!execute) {
+    // Same port-context path as --execute below (db.tx → getIntegratorDrizzleSession(tx)), just
+    // without the write: outside a transaction the plain pool has no principal installed and the
+    // privilege walls reject the SELECT (see forensic note above this file's usage).
     const candidates = await runWithOrganizationPrincipal(ORGANIZATION_ID, () =>
-      listExactActiveOrphans(getIntegratorDrizzleSession(db)),
+      db.tx((tx) => listExactActiveOrphans(getIntegratorDrizzleSession(tx))),
     );
     console.log(JSON.stringify({ databaseName, mode: 'dry-run', candidates }));
     return;
