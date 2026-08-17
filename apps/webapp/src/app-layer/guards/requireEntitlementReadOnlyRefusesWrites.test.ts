@@ -46,6 +46,15 @@ import { togglePatientHomeBlockVisibility } from '@/app/app/settings/patient-hom
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type { MechanicAccessState, OrgMechanic } from '@/modules/org-entitlements/types';
 
+/**
+ * The product sentence a tariff-blocked action already shows everywhere else in the cabinet
+ * (`tariffMechanicsRefusals.ui.test.tsx` pins the same wording for the Server Action refusals).
+ * Spelled out here on purpose: the oracle must not be the implementation under test.
+ */
+const TARIFF_REFUSAL_SENTENCE =
+  'Невозможно выполнить действие: этот раздел не входит в ваш тариф. ' +
+  'Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
+
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const workspace = { organizationId: ORG_ID, session: { user: { userId: USER_ID } } };
@@ -200,6 +209,42 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
+    expect(createPhysicalBranch).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Owner live pass 18.08, L-1 («не создаётся локация», `POST …/branches` → 403). The clinic-owner
+   * role sits on a tariff whose «Филиалы» quota is not configured, so the mechanic resolves to
+   * `disabled`. The refusal itself is intended; what reached the screen was the bare machine code
+   * `entitlement_required`, because this adapter — unlike the read adapter and the Server Action
+   * refusals — shipped no `message`, and `apiJson` shows `body.message ?? body.error`.
+   */
+  it('explains a tariff-disabled branch write instead of answering with a machine code', async () => {
+    const createPhysicalBranch = vi.fn();
+    vi.mocked(requireClinicManagementBookingEngine).mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORG_ID,
+        service: { catalog: { createPhysicalBranch } },
+      },
+    } as never);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: readOnlyOrgEntitlementsPort('disabled'),
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await createBranch(
+      request('https://app.example.test/api/admin/booking-engine/branches', {
+        title: 'Кабинет на Невском',
+        cityCode: 'spb',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'entitlement_required',
+      mechanic: 'branches',
+      message: TARIFF_REFUSAL_SENTENCE,
+    });
     expect(createPhysicalBranch).not.toHaveBeenCalled();
   });
 

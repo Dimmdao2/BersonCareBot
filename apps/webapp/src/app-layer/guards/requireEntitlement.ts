@@ -218,7 +218,18 @@ export async function requireEntitlementForMutation(
   if (!decision.ok) {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: decision.reason, mechanic }, { status: 403 }),
+      response: NextResponse.json(
+        {
+          ok: false,
+          error: decision.reason,
+          mechanic,
+          // Same explanation the read adapter and the Server Action refusals already carry: a
+          // mutation blocked by a tariff mechanic is the one refusal a person actually clicks
+          // into, so it must not reach the screen as the bare `entitlement_required` code.
+          message: entitlementMutationRefusalMessage('выполнить действие', decision.reason),
+        },
+        { status: 403 },
+      ),
     };
   }
   return decision;
