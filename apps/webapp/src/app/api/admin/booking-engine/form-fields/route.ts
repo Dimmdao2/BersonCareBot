@@ -4,12 +4,24 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
-import { BOOKING_FORM_FIELD_TYPES } from '@/modules/booking-form/fieldTypes';
+import {
+  BOOKING_FORM_FIELD_KEY_MAX_LENGTH,
+  BOOKING_FORM_FIELD_KEY_PATTERN,
+  BOOKING_FORM_FIELD_TYPES,
+} from '@/modules/booking-form/fieldTypes';
+
+/** A rejected body reaches the screen as this sentence, never as the machine code. */
+const INVALID_BODY_MESSAGE = 'Данные вопроса заполнены неверно. Проверьте их и повторите действие.';
 
 const upsertBody = z
   .object({
     id: z.string().uuid().optional(),
-    fieldKey: z.string().trim().min(1).max(80).regex(/^[a-z][a-z0-9_]*$/),
+    fieldKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(BOOKING_FORM_FIELD_KEY_MAX_LENGTH)
+      .regex(BOOKING_FORM_FIELD_KEY_PATTERN),
     fieldType: z.enum(BOOKING_FORM_FIELD_TYPES),
     label: z.string().trim().min(1).max(200),
     placeholder: z.string().max(500).optional(),
@@ -62,7 +74,10 @@ export async function POST(request: Request) {
   if (!entitlement.ok) return entitlement.response;
   const parsed = upsertBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid_body', message: INVALID_BODY_MESSAGE },
+      { status: 400 },
+    );
   }
   const deps = buildAppDeps();
   if (!deps.bookingForm) {

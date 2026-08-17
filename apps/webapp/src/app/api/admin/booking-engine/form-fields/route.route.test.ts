@@ -100,6 +100,17 @@ describe('clinic-owner booking form field mutation', () => {
     expect(fakes.upsertAdminField).not.toHaveBeenCalled();
   });
 
+  // Owner live pass 18.08 (L-4): the refusal reached the screen as the bare code `invalid_body`.
+  it('carries a human explanation of a refused body, not only its code', async () => {
+    const response = await POST(request({ fieldKey: 'Bad key' }));
+    const body = (await response.json()) as { error?: string; message?: string };
+
+    expect(response.status).toBe(400);
+    expect(body.message).toBe(
+      'Данные вопроса заполнены неверно. Проверьте их и повторите действие.',
+    );
+  });
+
   it('redacts a missing insert capability as a specific safe service error', async () => {
     fakes.upsertAdminField.mockRejectedValue({ code: '42501', message: 'secret relation detail' });
 

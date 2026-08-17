@@ -32,6 +32,7 @@ import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/cal
 import {
   resolveCalendarCreateFieldMode,
   resolveCalendarCreateFieldValue,
+  resolveCalendarCreateSubmission,
 } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import type {
   AppointmentCancellationRecord,
@@ -440,20 +441,23 @@ function DoctorCalendarEventPanelInner({
             // §3.6: если открыто через startInCreate — отмена закрывает панель
             onCancel={() => (startInCreate ? onClose() : setMode('view'))}
             onSubmit={() => {
-              if (
-                !createStart ||
-                !createDurationMinutes ||
-                !createBranchId ||
-                !createServiceId ||
-                !createSpecialistId ||
-                !createServiceOptions.some((service) => service.id === createServiceId)
-              ) {
-                setMessage('Заполните филиал, услугу и специалиста.');
+              const submission = resolveCalendarCreateSubmission({
+                start: createStart,
+                durationMinutes: createDurationMinutes,
+                specialistId: createSpecialistId,
+                branchId: createBranchId,
+                serviceId: createServiceId,
+                serviceIsOffered: createServiceOptions.some(
+                  (service) => service.id === createServiceId,
+                ),
+              });
+              if (!submission.ok) {
+                setMessage(submission.message);
                 return;
               }
-              const startAt = new Date(createStart).toISOString();
+              const startAt = new Date(submission.start).toISOString();
               const endAt = new Date(
-                new Date(createStart).getTime() + createDurationMinutes * 60_000,
+                new Date(submission.start).getTime() + submission.durationMinutes * 60_000,
               ).toISOString();
               if (
                 createPatient?.isNew === true &&

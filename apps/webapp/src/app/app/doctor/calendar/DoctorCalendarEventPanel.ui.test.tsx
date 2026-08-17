@@ -74,6 +74,56 @@ describe('clinic calendar create form', () => {
     });
   });
 
+  // Owner live pass 18.08 (L-9): everything picked except the start time, and the form answered
+  // «Заполните филиал, услугу и специалиста» — so the owner concluded the selectors were missing.
+  it('names the empty start time instead of blaming the filled branch/service/specialist', async () => {
+    const fetchMock = vi.fn() as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <DoctorCalendarEventPanel
+        apiBase="/api/doctor/booking-engine"
+        selected={null}
+        timeZone="Europe/Moscow"
+        filterMeta={{
+          specialists: [{ id: SPECIALIST_ID, label: 'Доктор Иванов' }],
+          branches: [{ id: BRANCH_ID, label: 'Центр' }],
+          rooms: [],
+          services: [
+            {
+              id: SERVICE_ID,
+              label: 'Приём',
+              durationMinutes: 30,
+              availability: [{ specialistId: SPECIALIST_ID, branchId: BRANCH_ID }],
+            },
+          ],
+        }}
+        activeFilters={{ specialistId: null, branchId: null, roomId: null, serviceId: null }}
+        ownSpecialistId={SPECIALIST_ID}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+        startInCreate
+        createInitialSpecialistId={SPECIALIST_ID}
+        createInitialBranchId={BRANCH_ID}
+        createInitialServiceId={SERVICE_ID}
+      />,
+    );
+
+    expect(await screen.findByLabelText('Специалист')).toHaveValue('Доктор Иванов');
+    expect(screen.getByLabelText('Филиал')).toHaveValue('Центр');
+    expect(screen.getByLabelText('Услуга')).toHaveValue('Приём');
+    expect(screen.getByLabelText('Начало')).toHaveValue('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    const shown = await screen.findByText(/Укажите/);
+    expect(shown).toHaveTextContent('начало записи');
+    expect(shown).not.toHaveTextContent('филиал');
+    expect(shown).not.toHaveTextContent('услугу');
+    expect(shown).not.toHaveTextContent('специалиста');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('explains which required clinic catalog is empty instead of hiding the required fields', async () => {
     vi.stubGlobal('fetch', vi.fn());
 
