@@ -98,12 +98,12 @@ tar -xzf "$WORK/base.tar.gz" -C "$TARGET" || die "unpack failed"
 
 # ---------------------------------------------------------------- configure
 log "configuring the temporary system"
-BOOT_UUID=$(blkid -s UUID -o value "$P_BOOT")
-TMP_UUID=$(blkid -s UUID -o value "$P_TMP")
-
+# Filesystem labels, not UUIDs: the rescue ships a BusyBox blkid that ignores -s/-o and prints its whole
+# description line, which silently produced an fstab of garbage and would have dropped the first boot into
+# an emergency shell. Labels are set by mkfs above and need no parsing at all.
 cat > "$TARGET/etc/fstab" <<EOF
-UUID=$TMP_UUID  /      ext4  errors=remount-ro  0 1
-UUID=$BOOT_UUID /boot  ext4  defaults           0 2
+LABEL=bcb-tmpsys  /      ext4  errors=remount-ro  0 1
+LABEL=bcb-boot    /boot  ext4  defaults           0 2
 EOF
 
 echo bcb-tmpsys > "$TARGET/etc/hostname"
@@ -162,7 +162,13 @@ if ! mount -t devtmpfs devtmpfs "$TARGET/dev" 2>/dev/null; then
 fi
 [ -c "$TARGET/dev/null" ] || die "/dev is not visible inside the target"
 [ -w "$TARGET/dev/null" ] || die "/dev/null inside the target is not writable"
-bind_mount /dev/pts "$TARGET/dev/pts" 2>/dev/null || true
+# /dev/pts is a nice-to-have, so it must never be able to abort the run. It is mounted with plain commands
+# rather than through bind_mount(): that helper dies on failure, and a `2>/dev/null` on the call site would
+# swallow the very message explaining why — which is exactly how an earlier run exited without a word.
+mkdir -p "$TARGET/dev/pts" 2>/dev/null || true
+mount -t devpts devpts "$TARGET/dev/pts" 2>/dev/null ||
+  mount -o bind /dev/pts "$TARGET/dev/pts" 2>/dev/null ||
+  log "warning: /dev/pts unavailable, continuing without it"
 mount -t proc proc "$TARGET/proc" || die "cannot mount /proc"
 mount -t sysfs sys "$TARGET/sys" || die "cannot mount /sys"
 mount "$P_BOOT" "$TARGET/boot" || die "cannot mount $P_BOOT"
