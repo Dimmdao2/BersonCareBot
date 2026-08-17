@@ -566,7 +566,7 @@ BEGIN
        OR v_intent #>> '{meta,userId}' IS DISTINCT FROM v_integrator_user_id
        OR v_intent #>> '{meta,outboundMessageClass}' IS DISTINCT FROM 'routine_product'
        OR v_intent #>> '{meta,outboundCapability}' IS DISTINCT FROM
-          CASE WHEN v_channel = 'web_push' THEN 'app_push' ELSE 'essential_delivery' END
+          (CASE WHEN v_channel = 'web_push' THEN 'app_push' ELSE 'essential_delivery' END)
        OR pg_catalog.length(v_intent_payload #>> '{message,text}') NOT BETWEEN 1 AND 65536
        OR jsonb_typeof(v_intent_payload -> 'delivery') IS DISTINCT FROM 'object'
        OR v_intent_payload #> '{delivery,channels}' IS DISTINCT FROM jsonb_build_array(v_channel)

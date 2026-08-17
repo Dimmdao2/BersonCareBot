@@ -31,7 +31,7 @@ const urls = {
     'postgresql://bcb_dev_webapp_global_admin:global-secret@127.0.0.1:5432/bcb_webapp_dev',
 };
 
-function createRuntime({ migratorState } = {}) {
+function createRuntime({ migratorState, rollbackValidationStatus = 0 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-dev-'));
   const bin = join(root, 'bin');
   const capture = join(root, 'calls.log');
@@ -74,6 +74,11 @@ if [[ "\${1:-}" == *'/parse-dev-database-url.mjs' ]]; then exec '${realNode}' "$
 printf 'node' >> '${capture}'
 printf ' <%s>' "$@" >> '${capture}'
 printf '\n' >> '${capture}'
+if [[ "\${1:-}" == *'/migrate-local.mjs' ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" == '--rollback-only' ]]; then exit '${rollbackValidationStatus}'; fi
+  done
+fi
 `,
   );
   writeFileSync(
@@ -201,8 +206,25 @@ test('migrate-dev preflight accepts only the stationary post-cutover migrator', 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /preflight: PASS/u);
   const calls = readFileSync(runtime.capture, 'utf8');
-  assert.doesNotMatch(calls, /pnpm|migrate-local|reconcile-access/u);
+  assert.match(calls, /migrate-local\.mjs.*--drizzle-folder.*--rollback-only/su);
+  assert.doesNotMatch(
+    calls,
+    /migrate-integrator-local|reconcile-access|update-dev-port-context-env|pnpm/u,
+  );
   assert.doesNotMatch(calls, /int-secret|staff-secret|patient-secret|global-secret/u);
+});
+
+test('migrate-dev preflight stops on rollback validation failure without execute side effects', () => {
+  const runtime = createRuntime({ rollbackValidationStatus: 42 });
+  const result = runWrapper(runtime, '--preflight');
+  assert.equal(result.status, 42, result.stderr);
+  assert.doesNotMatch(result.stdout, /preflight: PASS/u);
+  const calls = readFileSync(runtime.capture, 'utf8');
+  assert.match(calls, /migrate-local\.mjs.*--rollback-only/su);
+  assert.doesNotMatch(
+    calls,
+    /migrate-integrator-local|reconcile-access|update-dev-port-context-env|--shared-role-baseline/u,
+  );
 });
 
 test('migrate-dev rejects a LOGIN/BYPASS/member migrator before any migration', () => {
