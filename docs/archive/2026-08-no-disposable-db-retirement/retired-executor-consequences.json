@@ -226,7 +226,24 @@
         "listAdminAuditLog returns the real fixture row for its action",
         "countOpenAutoMergeConflicts counts the real unresolved fixture row"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listAdminAuditLog returns empty page for impossible action filter",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "listAdminAuditLog returns the real fixture row for its action",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "countOpenAutoMergeConflicts counts the real unresolved fixture row",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/platformUserFullPurge.patientFiles.postgres.integration.test.ts",
@@ -236,7 +253,24 @@
         "folds a media-library-linked patient file into mediaFiles even when the doctor uploaded it",
         "the row disappears via cascade once the webapp purge core runs -- proving collection must happen first"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "collects the s3 key of a standalone patient file (no media library link)",
+          "state": "static-product",
+          "evidence": "pnpm --dir apps/webapp exec vitest run src/infra/platformUserFullPurge.collectPurgeArtifactKeys.test.ts"
+        },
+        {
+          "title": "folds a media-library-linked patient file into mediaFiles even when the doctor uploaded it",
+          "state": "static-product",
+          "evidence": "pnpm --dir apps/webapp exec vitest run src/infra/platformUserFullPurge.collectPurgeArtifactKeys.test.ts"
+        },
+        {
+          "title": "the row disappears via cascade once the webapp purge core runs -- proving collection must happen first",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/platformUserFullPurge.postgres.integration.test.ts",
@@ -245,7 +279,19 @@
         "getPurgePlatformUserRowForTests returns null for unknown user id",
         "getPurgePlatformUserRowForTests loads a client row without mutating data"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "getPurgePlatformUserRowForTests returns null for unknown user id",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        },
+        {
+          "title": "getPurgePlatformUserRowForTests loads a client row without mutating data",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/platformUserMergePreview.postgres.integration.test.ts",
@@ -255,7 +301,24 @@
         "searchMergeUsersForManualMerge runs read-only SELECT when query is non-empty",
         "buildMergePreview returns same_id without touching DB writes"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "searchMergeUsersForManualMerge returns [] for empty query without DB hit",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        },
+        {
+          "title": "searchMergeUsersForManualMerge runs read-only SELECT when query is non-empty",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        },
+        {
+          "title": "buildMergePreview returns same_id without touching DB writes",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/appointmentReminderDelivery.postgres.integration.test.ts",
@@ -265,7 +328,24 @@
         "advances Telegram→MAX once under concurrent retry completion",
         "terminalizes before provider when the current appointment recipient becomes blocked"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "revalidates the exact canonical generation and terminalizes it after reschedule",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "advances Telegram→MAX once under concurrent retry completion",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "terminalizes before provider when the current appointment recipient becomes blocked",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/authEmailOtpDeliveryOwnership.postgres.integration.test.ts",
@@ -277,7 +357,34 @@
         "a claim cannot be reopened after the challenge has already been sent (delivery_claimed_at survives the send)",
         "golden path under app_patient: insert -> purpose -> claim -> enqueue reaches a real pending queue row"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "audit attack 1 verbatim: a bare challenge_id (no token) can no longer force a send",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "a stranger who never claimed the row cannot enqueue it at all (unknown/absent token)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "audit attack 2 verbatim: overwriting a victim\\",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "a claim cannot be reopened after the challenge has already been sent (delivery_claimed_at survives the send)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "golden path under app_patient: insert -> purpose -> claim -> enqueue reaches a real pending queue row",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/loginBootstrapDefinerAccessors.postgres.integration.test.ts",
@@ -290,7 +397,39 @@
         "resolves the preferred auth channel through the narrow accessor without raising 42501",
         "returns null (not an error) for a user with no preferred auth channel"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "denies the plain platform_users read under this role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "denies the plain user_channel_preferences read under this role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "finds the exact user by email through the narrow accessor without raising 42501",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns no rows (not an error) for an unknown email",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "resolves the preferred auth channel through the narrow accessor without raising 42501",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns null (not an error) for a user with no preferred auth channel",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/orgBrandRevisionGuard.postgres.integration.test.ts",
@@ -302,7 +441,34 @@
         "lets the media purge delete a logo referenced by a DRAFT revision",
         "still rejects every other edit of a published or archived revision"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "rejects a DIRECT logo-clearing UPDATE on published and archived revisions (M-1)",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "lets the media purge delete a logo referenced by a PUBLISHED revision (FK SET NULL)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "lets the media purge delete a logo referenced by an ARCHIVED revision",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "lets the media purge delete a logo referenced by a DRAFT revision",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "still rejects every other edit of a published or archived revision",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/patientReminderMaterialization.postgres.integration.test.ts",
@@ -317,7 +483,49 @@
         "owns all four materialization capabilities as app_owner, not the migration-runner role",
         "grants only exact capability execution to locked runtime roles"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "rejects cross-tenant materialization at the exact capability",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "rolls back the production port when queue materialization fails",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "does not materialize an unavailable patient",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "atomically binds exact queue event/generation and revalidates the live recipient",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "converges concurrent wake upserts to one occurrence key",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "does not reset snoozed generation or terminal evidence on an old wake replay",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "owns all four materialization capabilities as app_owner, not the migration-runner role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "grants only exact capability execution to locked runtime roles",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgAuthRateLimitEvents.postgres.integration.test.ts",
@@ -325,7 +533,14 @@
       "consequences": [
         "records events and enforces maxPerWindow inside a transaction"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "records events and enforces maxPerWindow inside a transaction",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgBookingScheduling.deactivateWorkingHours.postgres.integration.test.ts",
@@ -334,7 +549,19 @@
         "flips is_active to false in the database via the real service (id, organizationId) order",
         "demonstrates the ORIGINAL bug shape: swapped args match zero rows (UPDATE 0), row stays active"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "flips is_active to false in the database via the real service (id, organizationId) order",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "demonstrates the ORIGINAL bug shape: swapped args match zero rows (UPDATE 0), row stays active",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgBookingScheduling.readChokepoint.postgres.integration.test.ts",
@@ -344,7 +571,24 @@
         "positive: Clinic B staff sees its own working-hours row via the real repo function",
         "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is "
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "positive: Clinic A staff sees its own working-hours row via the real repo function",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "positive: Clinic B staff sees its own working-hours row via the real repo function",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is ",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgCanonicalAppointments.postgres.integration.test.ts",
@@ -353,7 +597,19 @@
         "resolves both canonical and retained Rubitime external identifiers through the real port",
         "soft-deletes the canonical appointment when called with a retained Rubitime identifier"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "resolves both canonical and retained Rubitime external identifiers through the real port",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "soft-deletes the canonical appointment when called with a retained Rubitime identifier",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.postgres.integration.test.ts",
@@ -361,7 +617,14 @@
       "consequences": [
         "listMetricAccounts clients_total returns the real fixture client"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listMetricAccounts clients_total returns the real fixture client",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.postgres.integration.test.ts",
@@ -372,7 +635,29 @@
         "commits the audit, every job and deduplicated recipients atomically and returns that audit",
         "rolls back a duplicate event and a forced job-insert failure without leaving audit, jobs or recipients"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "keeps complete audit row shape, append/list order and the default list limit",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "preserves distinct and merged-user channel counts",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "commits the audit, every job and deduplicated recipients atomically and returns that audit",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "rolls back a duplicate event and a forced job-insert failure without leaving audit, jobs or recipients",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgDoctorClients.postgres.integration.test.ts",
@@ -382,7 +667,24 @@
         "getDashboardPatientMetrics counts the real fixture client",
         "isolates lists and dashboard metrics between specialists in one organization"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listClients returns the real fixture client",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "getDashboardPatientMetrics counts the real fixture client",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "isolates lists and dashboard metrics between specialists in one organization",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgEmailChallengeAtomicAttempts.postgres.integration.test.ts",
@@ -391,7 +693,19 @@
         "serializes two real concurrent increments through the row lock: both land, attempts reaches 2",
         "returns zero rows for a challenge that no longer exists (deleted by a concurrent resend/expiry/success)"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "serializes two real concurrent increments through the row lock: both land, attempts reaches 2",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns zero rows for a challenge that no longer exists (deleted by a concurrent resend/expiry/success)",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgEmailOtpPublicAtomicConsume.postgres.integration.test.ts",
@@ -399,7 +713,14 @@
       "consequences": [
         "serializes two consumes through the principal lock: exactly one succeeds and the replay expires"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "serializes two consumes through the principal lock: exactly one succeeds and the replay expires",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgGlobalAdminWebPushRecipients.postgres.integration.test.ts",
@@ -407,7 +728,14 @@
       "consequences": [
         "returns only active canonical platform admins"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "returns only active canonical platform admins",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgMediaWorkerControl.postgres.integration.test.ts",
@@ -421,7 +749,44 @@
         "commits complete HLS and program outcomes and rejects a terminal replay",
         "rolls back the media update when the second completion update fails"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "atomically gives one pending job to one of two concurrent claimers",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "reclaims a stale processing job but leaves a future pending job unclaimed",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "quarantines missing and mismatched media ownership and never returns either row",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "rejects wrong owner, stale state, spoofed media, and cross-org mutations without changing rows",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "preserves retry and permanent-failure queue/media state semantics",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "commits complete HLS and program outcomes and rejects a terminal replay",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "rolls back the media update when the second completion update fails",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.postgres.integration.test.ts",
@@ -430,7 +795,19 @@
         "email: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s",
         "phone: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "email: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "phone: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgPatientBookings.postgres.integration.test.ts",
@@ -439,7 +816,19 @@
         "getById returns null for unknown booking id",
         "listHistoryByUser returns the real booking created via the same port"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "getById returns null for unknown booking id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "listHistoryByUser returns the real booking created via the same port",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgPhase14DCommsTail.postgres.integration.test.ts",
@@ -450,7 +839,29 @@
         "getPatientCalendarTimezoneIana returns null for unknown user",
         "getPatientCalendarTimezoneIana returns the real value for a known user"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "broadcast audit list returns an empty array with nothing appended",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "broadcast audit list returns a real appended entry",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getPatientCalendarTimezoneIana returns null for unknown user",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getPatientCalendarTimezoneIana returns the real value for a known user",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgPhoneChallengeAtomicAttempts.postgres.integration.test.ts",
@@ -459,7 +870,19 @@
         "serializes two real concurrent increments through the row lock: both land, verify_attempts reaches 2",
         "returns zero rows for a challenge that no longer exists (raw SQL, same predicate the port uses)"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "serializes two real concurrent increments through the row lock: both land, verify_attempts reaches 2",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns zero rows for a challenge that no longer exists (raw SQL, same predicate the port uses)",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgPlatformUserMerge.postgres.integration.test.ts",
@@ -468,7 +891,19 @@
         "projection merge: trusted phone on the canon, phoneless duplicate → merged_into_id",
         "merges colliding product_analytics_user_hourly rows by summing counters, both org-scoped and global buckets"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "projection merge: trusted phone on the canon, phoneless duplicate → merged_into_id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "merges colliding product_analytics_user_hourly rows by summing counters, both org-scoped and global buckets",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgProgramItemDiscussion.doctorComments.postgres.integration.test.ts",
@@ -477,7 +912,19 @@
         "listUnreadExerciseCommentsForDoctor executes without SQL error and returns an array",
         "listExerciseCommentsForDoctor (history) executes and paginates by cursor without SQL error"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listUnreadExerciseCommentsForDoctor executes without SQL error and returns an array",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "listExerciseCommentsForDoctor (history) executes and paginates by cursor without SQL error",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgSaasBillingCapture.postgres.integration.test.ts",
@@ -486,7 +933,19 @@
         "updates the invoice and applies the tariff under a real organization principal",
         "fails loudly instead of silently writing zero rows when no organization context is active"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "updates the invoice and applies the tariff under a real organization principal",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "fails loudly instead of silently writing zero rows when no organization context is active",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgSupportCommunication.postgres.integration.test.ts",
@@ -498,7 +957,34 @@
         "countUnreadUserMessagesForAdmin counts the real unread fixture message",
         "limits conversation list and unread count to patients assigned to the specialist"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listOpenConversationsForAdmin returns an array via runWebappPgText executor",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "conversationExists is false for unknown uuid",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "conversationExists is true for a real conversation",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "countUnreadUserMessagesForAdmin counts the real unread fixture message",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "limits conversation list and unread count to patients assigned to the specialist",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/pgUserProjection.postgres.integration.test.ts",
@@ -511,7 +997,39 @@
         "clearStaffAccountEmail is no-op for unknown staff id",
         "clearStaffAccountEmail clears the real email for a known staff id"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "findByPhoneNormalized returns null for unknown phone",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "findByPhoneNormalized returns the real row for a known phone",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getProfileEmailFields returns nulls for unknown user id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getProfileEmailFields returns the real verified email for a known user id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "clearStaffAccountEmail is no-op for unknown staff id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "clearStaffAccountEmail clears the real email for a known staff id",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/reminderCallbackCapabilities.postgres.integration.test.ts",
@@ -526,7 +1044,49 @@
         "persists mute and channel-topic settings through canonical public state",
         "exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC or operational tables"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "rejects invalid and expired signed callback contexts before canonical state changes",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "fails closed for an actor/org mismatch without changing the foreign occurrence",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "writes canonical done history exactly once and returns a safe repeat result",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "changes only the exact-org occurrence for skip",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "atomically reschedules exactly the signed snoozed occurrence and never replays it",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "leaves canonical snooze state absent when its exact operational occurrence is absent",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "persists mute and channel-topic settings through canonical public state",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC or operational tables",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/reminderOccurrenceD21Migration.postgres.integration.test.ts",
@@ -534,7 +1094,14 @@
       "consequences": [
         "preserves actionable legacy pending state when the unified key already exists"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "preserves actionable legacy pending state when the unified key already exists",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/reminderRulesD5Migration.postgres.integration.test.ts",
@@ -542,7 +1109,14 @@
       "consequences": [
         "uses public.reminder_rules as the occurrence parent, preserves delivery history, and fails closed on parent deletion"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "uses public.reminder_rules as the occurrence parent, preserves delivery history, and fails closed on parent deletion",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/saasBillingPaidTariffApplyAccessor.postgres.integration.test.ts",
@@ -555,7 +1129,39 @@
         "reports success from the tariff write, not from ending a trial the organization never had (#1057 B0.3 regression)",
         "applies the tariff for the second, still-foreign-organization-owned paid invoice under its own org"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "applies the tariff for an invoice that is actually paid, under app_staff",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "refuses an unpaid invoice (no-op, not an error)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "refuses a paid invoice presented against a foreign organization",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "leaves the direct app_staff guard trigger refusing tariff_id writes",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "reports success from the tariff write, not from ending a trial the organization never had (#1057 B0.3 regression)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "applies the tariff for the second, still-foreign-organization-owned paid invoice under its own org",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/saasBillingWebhookBootstrapInvoiceResolver.postgres.integration.test.ts",
@@ -565,7 +1171,24 @@
         "reaches the exact invoice through the narrow resolver without raising 42501",
         "returns no rows (not an error) for an unknown provider reference"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "denies the plain table read the webhook used to issue under this role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "reaches the exact invoice through the narrow resolver without raising 42501",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns no rows (not an error) for an unknown provider reference",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/src/infra/repos/tenantIsolationMatrix.postgres.integration.test.ts",
@@ -582,7 +1205,59 @@
         "org_enrollments: the exact negative query returns the foreign row once the wall is removed",
         "clinical_visit: the exact negative query returns the foreign row once the wall is removed"
       ],
-      "replacementState": "mixed-see-named-dev-matrix"
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "positive: clinic A staff sees its own enrollment row",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "negative: clinic A staff gets nothing for clinic B, even asking for it by id",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "positive: patient P sees their own enrollment row with no org principal set",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "negative: patient P (clinic A only) never sees patient Q (clinic B) enrollment row",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "positive: clinic A staff sees its own clinic’s visit record",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "negative: clinic A staff gets nothing for clinic B’s visit record",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "positive: patient P sees their own visit record",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "negative: patient P (clinic A) never sees patient Q’s (clinic B) visit record",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "org_enrollments: the exact negative query returns the foreign row once the wall is removed",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "clinical_visit: the exact negative query returns the foreign row once the wall is removed",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
     },
     {
       "path": "apps/webapp/vitest.postgres.config.ts",

@@ -24,11 +24,14 @@ const WEBAPP_ENV_PATH = resolve(CANONICAL_DEV_REPO_ROOT, 'apps/webapp/.env.dev')
  */
 export const LIVE_COVERAGE = Object.freeze({
   pgBookingSchedulingDeactivateWorkingHours: 2,
-  pgBookingSchedulingReadChokepoint: 1,
-  pgDoctorClients: 2,
+  pgBookingSchedulingReadChokepoint: 3,
+  pgDoctorClients: 3,
+  pgDoctorAnalyticsMetricAccounts: 1,
   pgPatientBookings: 1,
   pgPhase14DCommsTail: 1,
-  pgSupportCommunication: 3,
+  pgProgramItemDiscussionDoctorComments: 2,
+  pgSupportCommunication: 5,
+  tenantIsolationMatrix: 4,
 });
 
 export const LIVE_COVERED_CALLS = Object.values(LIVE_COVERAGE).reduce(
@@ -302,6 +305,11 @@ async function proveDoctorTenantWalls(sessions) {
   const isolatedOnly = isolatedIds.find((id) => !ownIds.includes(id));
   assert(ownOnly, 'canonical DEV doctor fixture has no tenant-exclusive patient');
   assert(isolatedOnly, 'canonical DEV isolated fixture has no tenant-exclusive patient');
+  assert.equal(
+    ownIds.some((id) => isolatedIds.includes(id)),
+    false,
+    'doctor patient lists overlap across the canonical isolated organizations',
+  );
 
   expectOk(
     await sessions.doctor.request(`/api/doctor/patients/${encodeURIComponent(ownOnly)}`),
@@ -323,7 +331,52 @@ async function proveDoctorTenantWalls(sessions) {
     'doctor clients_total metric',
   );
   assert(Array.isArray(metric.items), 'clients_total metric items must be an array');
+  const metricUserIds = metric.items
+    .map((item) => item?.userId)
+    .filter((value) => typeof value === 'string');
+  assert(
+    metricUserIds.some((id) => ownIds.includes(id)),
+    'clients_total metric did not return a real specialist-visible patient',
+  );
+  assert.equal(
+    metricUserIds.some((id) => isolatedIds.includes(id)),
+    false,
+    'clients_total metric leaked an isolated-organization patient',
+  );
   return { doctorRows: ownIds.length, isolatedDoctorRows: isolatedIds.length };
+}
+
+export async function proveTenantClinicalWalls(sessions) {
+  const own = await sessions.doctor.request('/api/doctor/patients');
+  const isolated = await sessions.isolatedDoctor.request('/api/doctor/patients');
+  assert.equal(own.status, 200, 'doctor patient discovery failed');
+  assert.equal(isolated.status, 200, 'isolated doctor patient discovery failed');
+  const ownIds = clientIds(own.body);
+  const isolatedIds = clientIds(isolated.body);
+  const ownOnly = ownIds.find((id) => !isolatedIds.includes(id));
+  const isolatedOnly = isolatedIds.find((id) => !ownIds.includes(id));
+  assert(ownOnly && isolatedOnly, 'tenant clinical wall requires two exclusive fixture patients');
+
+  const clinicalPaths = [
+    (id) => `/api/doctor/clients/${encodeURIComponent(id)}/treatment-program-instances`,
+    (id) => `/api/doctor/clients/${encodeURIComponent(id)}/history`,
+  ];
+  for (const path of clinicalPaths) {
+    expectOk(await sessions.doctor.request(path(ownOnly)), 'doctor own clinical relation');
+    expectNotFound(
+      await sessions.doctor.request(path(isolatedOnly)),
+      'doctor foreign clinical relation',
+    );
+    expectOk(
+      await sessions.isolatedDoctor.request(path(isolatedOnly)),
+      'isolated doctor own clinical relation',
+    );
+    expectNotFound(
+      await sessions.isolatedDoctor.request(path(ownOnly)),
+      'isolated doctor foreign clinical relation',
+    );
+  }
+  return { enrollmentWall: true, clinicalVisitWall: true };
 }
 
 async function proveWorkingHours(sessions) {
@@ -334,6 +387,12 @@ async function proveWorkingHours(sessions) {
   const isolated = expectOk(
     await sessions.isolatedDoctor.request('/api/doctor/booking-engine/working-hours'),
     'isolated doctor working hours',
+  );
+  const ownIds = new Set((own.rows ?? []).map((candidate) => candidate?.id).filter(Boolean));
+  assert.equal(
+    (isolated.rows ?? []).some((candidate) => ownIds.has(candidate?.id)),
+    false,
+    'working-hours rows overlap across isolated organizations',
   );
   const row = (own.rows ?? []).find((candidate) => typeof candidate?.id === 'string');
   assert(row, 'canonical DEV doctor fixture has no working-hours row');
@@ -533,6 +592,25 @@ async function provePatientTimezone(patient) {
   return { restored: true };
 }
 
+async function proveDoctorExerciseCommentQueries(doctor) {
+  const all = expectOk(
+    await doctor.request('/api/doctor/exercise-comments?mode=all'),
+    'doctor exercise comment history',
+  );
+  assert(Array.isArray(all.items), 'doctor exercise comment history must be an array');
+  assert.equal(typeof all.hasMore, 'boolean', 'doctor exercise comment history hasMore is missing');
+  assert(
+    all.nextCursor === null || typeof all.nextCursor === 'object',
+    'doctor exercise comment history cursor is invalid',
+  );
+  const unread = expectOk(
+    await doctor.request('/api/doctor/exercise-comments?mode=unread'),
+    'doctor unread exercise comments',
+  );
+  assert(Array.isArray(unread.items), 'doctor unread exercise comments must be an array');
+  return { historyRows: all.items.length, unreadRows: unread.items.length };
+}
+
 async function proveSupportCommunication(sessions, runTag) {
   const boot = expectOk(
     await sessions.patient.request('/api/patient/messages'),
@@ -570,6 +648,22 @@ async function proveSupportCommunication(sessions, runTag) {
     (doctorList.conversations ?? []).some((row) => row.conversationId === boot.conversationId),
     'doctor cannot see the patient conversation',
   );
+  const patientUserId = sessions.patient.me?.userId ?? sessions.patient.me?.id;
+  assert.equal(typeof patientUserId, 'string', 'patient platform user id missing');
+  const unread = expectOk(
+    await sessions.clinicAdmin.request(
+      `/api/doctor/messages/unread-count?patientUserId=${encodeURIComponent(patientUserId)}`,
+    ),
+    'doctor unread patient message count',
+  );
+  assert(
+    Number.isInteger(unread.unreadCount) && unread.unreadCount >= 1,
+    'patient message did not produce a durable unread count',
+  );
+  expectNotFound(
+    await sessions.clinicAdmin.request(`/api/doctor/messages/${randomUUID()}`),
+    'unknown support conversation',
+  );
   expectOk(
     await sessions.clinicAdmin.request(
       `/api/doctor/messages/${encodeURIComponent(boot.conversationId)}`,
@@ -581,6 +675,17 @@ async function proveSupportCommunication(sessions, runTag) {
       `/api/doctor/messages/${encodeURIComponent(boot.conversationId)}`,
     ),
     'isolated doctor conversation read',
+  );
+  const isolatedList = expectOk(
+    await sessions.isolatedDoctor.request('/api/doctor/messages/conversations'),
+    'isolated doctor conversation list',
+  );
+  assert.equal(
+    (isolatedList.conversations ?? []).some(
+      (row) => row.conversationId === boot.conversationId,
+    ),
+    false,
+    'isolated doctor can list the foreign patient conversation',
   );
   return { retainedTaggedMessages: 1, tag: runTag };
 }
@@ -705,9 +810,11 @@ async function runLive() {
     const scenarios = {};
     scenarios.adminAudit = await proveAdminAudit(sessions.globalAdmin);
     scenarios.doctorTenantWalls = await proveDoctorTenantWalls(sessions);
+    scenarios.tenantClinicalWalls = await proveTenantClinicalWalls(sessions);
     scenarios.workingHours = await proveWorkingHours(sessions);
     scenarios.booking = await proveBookingLifecycle(sessions, runTag);
     scenarios.patientTimezone = await provePatientTimezone(sessions.patient);
+    scenarios.doctorExerciseComments = await proveDoctorExerciseCommentQueries(sessions.doctor);
     scenarios.supportCommunication = await proveSupportCommunication(sessions, runTag);
     scenarios.reminderRule = await proveReminderRuleLifecycle(sessions, runTag);
     return {
@@ -733,7 +840,7 @@ export function selfTestRegistry(candidate = LIVE_COVERAGE) {
   for (const [key, expected] of Object.entries(LIVE_COVERAGE)) {
     assert.equal(candidate[key], expected, `live coverage count changed for ${key}`);
   }
-  assert.equal(LIVE_COVERED_CALLS, 10, 'live coverage total must stay explicit');
+  assert.equal(LIVE_COVERED_CALLS, 22, 'live coverage total must stay explicit');
 }
 
 async function main() {
@@ -741,7 +848,7 @@ async function main() {
   if (process.argv[2] === '--self-test') {
     assertCanonicalNamedDevEnvFiles();
     selfTestRegistry();
-    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 10-call registry)');
+    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 22-call registry)');
     return;
   }
   const result = await runLive();

@@ -48,6 +48,16 @@ for (const row of inventory.rows) {
 const product = inventory.rows.filter((row) => row.classification === 'product-postgres-oracle');
 const other = inventory.rows.filter((row) => row.classification !== 'product-postgres-oracle');
 const productDeclarations = product.reduce((sum, row) => sum + row.consequences.length, 0);
+const declarationStates = product.flatMap((row) => row.declarations ?? []);
+const stateCounts = Object.fromEntries(
+  [
+    'static-product',
+    'static-security',
+    'named-dev-ready',
+    'required-current-oracle',
+    'retired-owner',
+  ].map((state) => [state, declarationStates.filter((declaration) => declaration.state === state).length]),
+);
 const counts = Object.fromEntries(
   [...allowedClassifications].map((classification) => [
     classification,
@@ -57,6 +67,20 @@ const counts = Object.fromEntries(
 
 assert.equal(product.length, 35, 'retired product-oracle file count changed');
 assert.equal(productDeclarations, 121, 'retired product declaration count changed');
+assert.equal(declarationStates.length, 121, 'every product declaration needs an exact disposition');
+assert.deepEqual(stateCounts, {
+  'static-product': 2,
+  'static-security': 9,
+  'named-dev-ready': 22,
+  'required-current-oracle': 82,
+  'retired-owner': 6,
+});
+for (const declaration of declarationStates) {
+  assert.equal(typeof declaration.title, 'string');
+  if (declaration.state !== 'required-current-oracle') {
+    assert.equal(typeof declaration.evidence, 'string', `${declaration.title}: evidence is missing`);
+  }
+}
 assert.equal(other.length, 88, 'all 88 non-product executor paths must be classified');
 assert.deepEqual(counts, {
   'product-postgres-oracle': 35,
@@ -66,5 +90,5 @@ assert.deepEqual(counts, {
 });
 
 console.log(
-  `retired DB consequence inventory: OK (123 paths = 35 product oracles / ${productDeclarations} declarations + 55 independent oracles + 29 support + 4 history)`,
+  `retired DB consequence inventory: OK (123 paths; product=${productDeclarations}: static=2 security=9 named-DEV-READY=22 required=82 retired=6; other=55 independent + 29 support + 4 history)`,
 );

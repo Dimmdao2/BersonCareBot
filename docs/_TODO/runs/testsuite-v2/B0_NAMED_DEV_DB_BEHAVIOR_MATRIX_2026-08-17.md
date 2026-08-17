@@ -1,7 +1,7 @@
 # B0 named-DEV DB behavior replacement matrix — 2026-08-17
 
-Status: **BLOCKED — 2/121 have an exact surviving static oracle; 10/121 have the same-consequence named-DEV
-product runner implemented but have not been executed; 103 required consequences remain unproved; 6 implementation
+Status: **BLOCKED — 2/121 have an exact surviving static oracle; 22/121 have the same-consequence named-DEV
+product runner implemented but have not been executed; 91 required consequences remain unproved; 6 implementation
 contracts are explicitly retired.** No live DEV, TEST, or PROD command was run while preparing this correction.
 
 The source census is executable and counts only top-level `it` / `test` / `it.each` / `test.each` declarations;
@@ -39,11 +39,11 @@ runner also performs useful broader smoke, but nearby shapes/resources do not re
 | `patientReminderMaterialization` | 8 | 0 | 0 | 6 | 2 | 0 |
 | `pgAuthRateLimitEvents` | 1 | 0 | 0 | 1 | 0 | 0 |
 | `pgBookingScheduling.deactivateWorkingHours` | 2 | 0 | 2 | 0 | 0 | 0 |
-| `pgBookingScheduling.readChokepoint` | 3 | 0 | 1 | 2 | 0 | 0 |
+| `pgBookingScheduling.readChokepoint` | 3 | 0 | 3 | 0 | 0 | 0 |
 | `pgCanonicalAppointments` | 2 | 0 | 0 | 2 | 0 | 0 |
-| `pgDoctorAnalyticsMetricAccounts` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `pgDoctorAnalyticsMetricAccounts` | 1 | 0 | 1 | 0 | 0 | 0 |
 | `pgDoctorBroadcastDelivery` | 4 | 0 | 0 | 4 | 0 | 0 |
-| `pgDoctorClients` | 3 | 0 | 2 | 1 | 0 | 0 |
+| `pgDoctorClients` | 3 | 0 | 3 | 0 | 0 | 0 |
 | `pgEmailChallengeAtomicAttempts` | 2 | 0 | 0 | 2 | 0 | 0 |
 | `pgEmailOtpPublicAtomicConsume` | 1 | 0 | 0 | 1 | 0 | 0 |
 | `pgGlobalAdminWebPushRecipients` | 1 | 0 | 0 | 1 | 0 | 0 |
@@ -53,20 +53,22 @@ runner also performs useful broader smoke, but nearby shapes/resources do not re
 | `pgPhase14DCommsTail` | 4 | 0 | 1 | 3 | 0 | 0 |
 | `pgPhoneChallengeAtomicAttempts` | 2 | 0 | 0 | 2 | 0 | 0 |
 | `pgPlatformUserMerge` | 2 | 0 | 0 | 2 | 0 | 0 |
-| `pgProgramItemDiscussion.doctorComments` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgProgramItemDiscussion.doctorComments` | 2 | 0 | 2 | 0 | 0 | 0 |
 | `pgSaasBillingCapture` | 2 | 0 | 0 | 2 | 0 | 0 |
-| `pgSupportCommunication` | 5 | 0 | 3 | 2 | 0 | 0 |
+| `pgSupportCommunication` | 5 | 0 | 5 | 0 | 0 | 0 |
 | `pgUserProjection` | 6 | 0 | 0 | 6 | 0 | 0 |
 | `reminderCallbackCapabilities` | 8 | 0 | 0 | 7 | 1 | 0 |
 | `reminderOccurrenceD21Migration` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `reminderRulesD5Migration` | 1 | 0 | 0 | 1 | 0 | 0 |
 | `saasBillingPaidTariffApplyAccessor` | 6 | 0 | 0 | 5 | 1 | 0 |
 | `saasBillingWebhookBootstrapInvoiceResolver` | 3 | 0 | 0 | 2 | 1 | 0 |
-| `tenantIsolationMatrix` | 10 | 0 | 0 | 10 | 0 | 0 |
-| **Total** | **121** | **2** | **10** | **94** | **9** | **6** |
+| `tenantIsolationMatrix` | 10 | 0 | 4 | 6 | 0 | 0 |
+| **Total** | **121** | **2** | **22** | **82** | **9** | **6** |
 
-Arithmetic: `2 + 10 + 94 + 9 + 6 = 121`. The 23 claims rejected by the independent audit are back in the required
-column, not hidden in READY.
+Arithmetic: `2 + 22 + 82 + 9 + 6 = 121`. The added READY rows are exact public-path consequences: disjoint
+working-hours reads, doctor list/metric isolation, unknown/real/unread/tenant-scoped support conversations, and
+organization-scoped treatment-enrollment/clinical-visit and doctor exercise-comment queries. They remain READY,
+not PASS, until serialized DEV.
 
 ## Exact disposition
 
@@ -92,17 +94,17 @@ materializer owner/EXECUTE invariants, the callback ACL boundary, tariff direct-
 table denial/root. Installed catalog equality still belongs to the canonical named-environment declaration reconcile;
 this static oracle does not claim live catalog PASS.
 
-### 94 required product/worker consequences
+### 82 required product/worker consequences
 
 | Journey | Declarations | Current product/application path | Safe named-DEV disposition |
 | --- | ---: | --- | --- |
 | Identity/auth/lockout/projection/merge | 25 | `/api/auth/**`, session/profile APIs, integrator projection/merge worker | Ordinary logins cover positive auth/profile reads; OTP ownership, concurrent consume/attempt locks and merge collisions need provider/worker-created ordinary state. No fixture root is added. |
-| Reminders/messages/broadcast/delivery | 29 | patient reminder/message APIs, doctor messages/broadcast APIs, scheduler + worker materialization/callback roots | Exact communication consequences in READY are counted separately; these 29 require the corrected common scheduler/worker and durable admin-health/readbacks with DEV delivery disabled. |
+| Reminders/messages/broadcast/delivery | 27 | patient reminder/message APIs, doctor messages/broadcast APIs, scheduler + worker materialization/callback roots | Exact communication consequences in READY are counted separately; these 27 require the corrected common scheduler/worker and durable admin-health/readbacks with DEV delivery disabled. |
 | Billing/money | 9 | clinic/global billing APIs and webhook worker | Invoice creation can use product APIs; paid/unpaid/foreign provider state cannot be fabricated. It remains blocked until the ordinary provider/test channel supplies it. |
 | Media/branding/purge | 11 | branding/media APIs, media control worker, purge application port | Ordinary upload/branding paths can cover end-user effects; claim races, quarantine, purge order and cascade need the existing worker/control port and tagged ordinary media. |
-| Booking/tenant/analytics/audit | 20 | booking lifecycle, doctor patient/list/analytics, admin audit APIs | Exact booking/tenant consequences in READY are counted separately; these 20 need retained lookup, exact tenant relation walls, deterministic audit conflicts and metric counts with real tagged rows/readbacks, not shape assertions. |
+| Booking/tenant/analytics/audit | 10 | booking lifecycle, doctor patient/list/analytics, admin audit APIs | Exact booking/tenant consequences in READY are counted separately; these 10 need retained lookup, patient-side relation walls and deterministic audit conflicts with real tagged rows/readbacks, not shape assertions. |
 
-The journey rows are non-overlapping and sum to `25 + 29 + 9 + 11 + 20 = 94`. No cell becomes PASS until the
+The journey rows are non-overlapping and sum to `25 + 27 + 9 + 11 + 10 = 82`. No cell becomes PASS until the
 serialized live command records its exact durable readback.
 
 ## Complete 123-path inventory

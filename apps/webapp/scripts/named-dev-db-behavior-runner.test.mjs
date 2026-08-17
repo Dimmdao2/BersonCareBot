@@ -8,6 +8,7 @@ import {
   fetchWithTimeout,
   LIVE_COVERAGE,
   proveReminderRuleLifecycle,
+  proveTenantClinicalWalls,
   reminderRuleIdFromRunKey,
   selfTestRegistry,
 } from './named-dev-db-behavior-runner.mjs';
@@ -83,7 +84,7 @@ describe('named DEV database behavior runner refusal gate', () => {
 });
 
 describe('named DEV behavior evidence registry', () => {
-  it('keeps only the ten same-consequence product-path claims', () => {
+  it('keeps only explicitly mapped same-consequence product-path claims', () => {
     assert.doesNotThrow(() => selfTestRegistry());
   });
 
@@ -155,5 +156,32 @@ describe('bounded requests and mutation recovery', () => {
     assert.equal(calls.at(-1).path, `/api/patient/reminders/${expectedId}`);
     assert.equal(calls.at(-1).options.recovery, true);
     assert.equal(createAttempts, 2);
+  });
+});
+
+describe('tenant clinical behavior mapping', () => {
+  it('reads own enrollment/visit paths and observes both cross-organization walls', async () => {
+    const ownId = '11111111-1111-4111-8111-111111111111';
+    const isolatedId = '22222222-2222-4222-8222-222222222222';
+    const calls = [];
+    const session = (label, ownPatient, foreignPatient) => ({
+      async request(path) {
+        calls.push(`${label}:${path}`);
+        if (path === '/api/doctor/patients') {
+          return { status: 200, body: { clients: [{ userId: ownPatient }] } };
+        }
+        if (path.includes(ownPatient)) return { status: 200, body: { ok: true, items: [] } };
+        if (path.includes(foreignPatient)) {
+          return { status: 404, body: { error: 'not_found' } };
+        }
+        throw new Error(`unexpected request ${path}`);
+      },
+    });
+    const result = await proveTenantClinicalWalls({
+      doctor: session('doctor', ownId, isolatedId),
+      isolatedDoctor: session('isolated', isolatedId, ownId),
+    });
+    assert.deepEqual(result, { enrollmentWall: true, clinicalVisitWall: true });
+    assert.equal(calls.length, 10);
   });
 });
