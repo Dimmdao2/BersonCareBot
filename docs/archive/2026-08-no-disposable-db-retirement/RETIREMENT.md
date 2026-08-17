@@ -2,7 +2,7 @@
 
 The executable paths represented by `retired-executor-paths.json` were removed at `fb44002ce`. The exact
 classification is not inferred from deletion: `retired-executor-consequences.json` preserves all 123 source paths,
-all 121 top-level declarations from the 35 product PostgreSQL test files, and a separate classification of the other
+all 122 declarations from the 35 product PostgreSQL test files, and a separate classification of the other
 88 paths (55 independent oracles, 29 harness/fixture support files, and 4 historical replay files). Deleted source is
 historical evidence only; it is not a command, test entry point, or migration guide.
 

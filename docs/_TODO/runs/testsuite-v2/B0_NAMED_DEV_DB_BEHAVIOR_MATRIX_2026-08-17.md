@@ -1,15 +1,16 @@
 # B0 named-DEV DB behavior replacement matrix — 2026-08-17
 
-Status: **BLOCKED — 3/121 have an exact surviving static oracle; 20/121 have the same-consequence named-DEV
-product runner implemented but have not been executed; 92 required consequences remain unproved; 6 implementation
+Status: **BLOCKED — 3/122 have an exact surviving static oracle; 20/122 have the same-consequence named-DEV
+product runner implemented but have not been executed; 93 required consequences remain unproved; 6 implementation
 contracts are explicitly retired.** No live DEV, TEST, or PROD command was run while preparing this correction.
 
-The source census is executable and counts only top-level `it` / `test` / `it.each` / `test.each` declarations;
-method calls such as `regex.test(value)` are excluded:
+The source census is executable and counts `it` / `test` / `it.each` / `test.each` declarations on the TypeScript
+AST — one declaration per `.each`, never one per table row. Method calls such as `regex.test(value)` are excluded,
+and an `.each` table that itself contains parentheses (`statement_timestamp()`) no longer truncates the count:
 
 ```bash
 node scripts/census-retired-postgres-tests.mjs
-# productFiles=35, productCalls=121
+# productFiles=35, productCalls=122
 ```
 
 The named-DEV runner is fixed to the canonical files and exact four local PostgreSQL endpoints
@@ -35,7 +36,7 @@ runner also performs useful broader smoke, but nearby shapes/resources do not re
 | `platformUserFullPurge.patientFiles` | 3 | 2 | 0 | 1 | 0 | 0 |
 | `platformUserFullPurge` | 2 | 0 | 0 | 0 | 0 | 2 |
 | `platformUserMergePreview` | 3 | 0 | 0 | 0 | 0 | 3 |
-| `appointmentReminderDelivery` | 3 | 0 | 0 | 3 | 0 | 0 |
+| `appointmentReminderDelivery` | 4 | 0 | 0 | 4 | 0 | 0 |
 | `authEmailOtpDeliveryOwnership` | 5 | 0 | 0 | 5 | 0 | 0 |
 | `loginBootstrapDefinerAccessors` | 6 | 0 | 0 | 4 | 2 | 0 |
 | `orgBrandRevisionGuard` | 5 | 0 | 0 | 3 | 2 | 0 |
@@ -66,9 +67,9 @@ runner also performs useful broader smoke, but nearby shapes/resources do not re
 | `saasBillingPaidTariffApplyAccessor` | 6 | 0 | 0 | 5 | 1 | 0 |
 | `saasBillingWebhookBootstrapInvoiceResolver` | 3 | 0 | 0 | 2 | 1 | 0 |
 | `tenantIsolationMatrix` | 10 | 0 | 4 | 6 | 0 | 0 |
-| **Total** | **121** | **3** | **20** | **83** | **9** | **6** |
+| **Total** | **122** | **3** | **20** | **84** | **9** | **6** |
 
-Arithmetic: `3 + 20 + 83 + 9 + 6 = 121`. The READY rows are exact public/current-port consequences: disjoint
+Arithmetic: `3 + 20 + 84 + 9 + 6 = 122`. The READY rows are exact public/current-port consequences: disjoint
 working-hours reads, doctor list and metric-account isolation, unknown/real/unread support conversations, and
 organization-scoped treatment-enrollment/clinical-visit and doctor exercise-comment queries. They remain READY,
 not PASS, until serialized DEV.
@@ -98,17 +99,17 @@ current three-root reminder materializer owner/EXECUTE boundary, the callback AC
 boundary, and billing bootstrap table denial/root. Installed catalog equality still belongs to the canonical
 named-environment declaration reconcile; this static oracle does not claim live catalog PASS.
 
-### 83 required product/worker consequences
+### 84 required product/worker consequences
 
 | Journey | Declarations | Current product/application path | Safe named-DEV disposition |
 | --- | ---: | --- | --- |
 | Identity/auth/lockout/projection/merge | 25 | `/api/auth/**`, session/profile APIs, integrator projection/merge worker | Ordinary logins cover positive auth/profile reads; OTP ownership, concurrent consume/attempt locks and merge collisions need provider/worker-created ordinary state. No fixture root is added. |
-| Reminders/messages/broadcast/delivery | 23 | patient reminder/message APIs, doctor messages/broadcast APIs, scheduler + worker materialization/callback roots | Exact communication consequences in READY/static are counted separately; these 23 require the corrected common scheduler/worker and durable admin-health/readbacks with DEV delivery disabled. |
+| Reminders/messages/broadcast/delivery | 24 | patient reminder/message APIs, doctor messages/broadcast APIs, scheduler + worker materialization/callback roots | Exact communication consequences in READY/static are counted separately; these 24 require the corrected common scheduler/worker and durable admin-health/readbacks with DEV delivery disabled. |
 | Billing/money | 9 | clinic/global billing APIs and webhook worker | Invoice creation can use product APIs; paid/unpaid/foreign provider state cannot be fabricated. It remains blocked until the ordinary provider/test channel supplies it. |
 | Media/branding/purge | 11 | branding/media APIs, media control worker, purge application port | Ordinary upload/branding paths can cover end-user effects; claim races, quarantine, purge order and cascade need the existing worker/control port and tagged ordinary media. |
 | Booking/tenant/analytics/audit | 15 | booking lifecycle, doctor patient/list/analytics, admin audit APIs | Exact booking/tenant consequences in READY are counted separately; these 15 need retained lookup, same-organization specialist assignment walls, direct dashboard-metric execution, patient-side relation walls, the exact working-hours deactivate argument-order regression, and deterministic audit conflicts with real tagged rows/readbacks, not shape assertions. |
 
-The journey rows are non-overlapping and sum to `25 + 23 + 9 + 11 + 15 = 83`. No READY cell becomes PASS until the
+The journey rows are non-overlapping and sum to `25 + 24 + 9 + 11 + 15 = 84`. No READY cell becomes PASS until the
 serialized live command records its exact durable readback.
 
 ## Complete 123-path inventory
@@ -117,7 +118,7 @@ Deletion is not a disposition. The executable inventory check now accounts for t
 
 ```bash
 node scripts/check-retired-db-consequence-inventory.mjs
-# 123 paths = 35 product oracles / 121 declarations + 55 independent oracles + 29 support + 4 history
+# 123 paths = 35 product oracles / 122 declarations + 55 independent oracles + 29 support + 4 history
 ```
 
 The exact source-path and consequence text is preserved in
@@ -134,7 +135,9 @@ actually ran instead of attributing old output to a Markdown file. Each affected
 that those paths are historical and non-runnable. An unmarked active instruction naming a retired path fails the B0
 gate. The gate also rejects database/server creation, PostgreSQL containers, SQL include/file/stdin replay,
 database-client `CREATE/DROP DATABASE` including a local-variable payload, shell/JS/Python process variants,
-`cat history.sql | psql`, and a `psql` child fed a SQL file through `input`.
+`cat history.sql | psql`, a `psql` child fed a SQL file through `input`, static argument/command lists bound to a
+local name in JS and Python, a quoted variable-resolved `psql`, and fully-qualified container images such as
+`docker.io/library/postgres:17`.
 
 ```bash
 node scripts/check-b0-migration-baseline.mjs
