@@ -7,6 +7,7 @@ import {
   databaseNameFromUrl,
   fetchWithTimeout,
   LIVE_COVERAGE,
+  parseCurrentPortStepOutput,
   proveReminderRuleLifecycle,
   proveTenantClinicalWalls,
   reminderRuleIdFromRunKey,
@@ -95,6 +96,27 @@ describe('named DEV behavior evidence registry', () => {
 
     const inflated = { ...LIVE_COVERAGE, pgPatientBookings: 2 };
     assert.throws(() => selfTestRegistry(inflated), /count changed/);
+  });
+
+  it('accepts only the complete current-port materialization evidence payload', () => {
+    const payload = {
+      ok: true,
+      target: 'bcb_webapp_dev',
+      assertions: {
+        crossTenantRejected: true,
+        unavailablePatientSkipped: true,
+        atomicRollbackObservedTwice: true,
+        leakedOccurrences: 0,
+      },
+    };
+    assert.deepEqual(parseCurrentPortStepOutput(`bounded diagnostic\n${JSON.stringify(payload)}`), payload);
+    for (const mutation of [
+      { ...payload, target: 'bersoncarebot_test' },
+      { ...payload, assertions: { ...payload.assertions, crossTenantRejected: false } },
+      { ...payload, assertions: { ...payload.assertions, leakedOccurrences: 1 } },
+    ]) {
+      assert.throws(() => parseCurrentPortStepOutput(JSON.stringify(mutation)));
+    }
   });
 });
 

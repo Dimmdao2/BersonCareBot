@@ -87,7 +87,7 @@ test('all 47 current-patient B0-forward roots have exact executable relation-ope
 
 test('all latest active B0-forward definers have exact executable relation-operation surfaces', () => {
   const functions = latestArtifactFunctions(B0_FORWARD_MIGRATIONS);
-  assert.equal(functions.length, 78);
+  assert.equal(functions.length, 82);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -98,7 +98,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 384 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 387 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -116,15 +116,15 @@ test('all 384 declared functions have the exact source-reconstructed base type a
     'app_ext.digest(text,text)': { returns: 'bytea', returnsSet: false },
     'app_ext.hmac(text,text,text)': { returns: 'bytea', returnsSet: false },
   };
-  assert.equal(canonical.size, 382);
+  assert.equal(canonical.size, 385);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
     return counts;
   }, {});
-  assert.deepEqual(forms, { SCALAR: 258, TABLE: 120, SETOF: 4 });
+  assert.deepEqual(forms, { SCALAR: 261, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 260);
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 263);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -291,15 +291,15 @@ test('current-patient surface gate catches missing operation, absent relation, a
 test('legacy census is restored without obsolete context and overlaid by the active B0-forward roots', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 229,
+    functions: 232,
     owners: 40,
-    test: 229,
-    dev: 227,
+    test: 232,
+    dev: 230,
     triggers: 3,
-    relationEdges: 470,
+    relationEdges: 487,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 229);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 229);
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 232);
+  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 232);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -315,10 +315,10 @@ test('legacy census is restored without obsolete context and overlaid by the act
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 368);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 366);
-  assert.equal(testFunctions.length, 384);
-  assert.equal(devFunctions.length, 382);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 371);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 369);
+  assert.equal(testFunctions.length, 387);
+  assert.equal(devFunctions.length, 385);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -326,7 +326,7 @@ test('legacy census is restored without obsolete context and overlaid by the act
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
   assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 223);
+    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 226);
   assert.deepEqual(proconfigExceptions, [
     ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],
@@ -496,7 +496,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 368 : 366;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 371 : 369;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

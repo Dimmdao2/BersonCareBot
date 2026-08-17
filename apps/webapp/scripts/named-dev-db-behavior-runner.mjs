@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -12,10 +13,15 @@ export const CANONICAL_DEV_DATABASE_HOST = '127.0.0.1';
 export const CANONICAL_DEV_DATABASE_PORT = '5432';
 export const REQUEST_TIMEOUT_MS = 30_000;
 export const WHOLE_RUN_TIMEOUT_MS = 12 * 60_000;
+export const CURRENT_PORT_STEP_TIMEOUT_MS = 2 * 60_000;
 
 const CANONICAL_DEV_REPO_ROOT = '/home/dev/dev-projects/BersonCareBot';
 const API_ENV_PATH = resolve(CANONICAL_DEV_REPO_ROOT, '.env');
 const WEBAPP_ENV_PATH = resolve(CANONICAL_DEV_REPO_ROOT, 'apps/webapp/.env.dev');
+const CURRENT_PORT_STEP_PATH = resolve(
+  CANONICAL_DEV_REPO_ROOT,
+  'apps/webapp/scripts/patient-reminder-materialization-named-dev-step.ts',
+);
 
 /**
  * These counts are deliberately conservative. One product journey may exercise several old low-level
@@ -28,6 +34,7 @@ export const LIVE_COVERAGE = Object.freeze({
   pgDoctorClients: 1,
   pgDoctorAnalyticsMetricAccounts: 1,
   pgPatientBookings: 1,
+  patientReminderMaterialization: 3,
   pgPhase14DCommsTail: 1,
   pgProgramItemDiscussionDoctorComments: 2,
   pgSupportCommunication: 4,
@@ -159,6 +166,83 @@ export function reminderRuleIdFromRunKey(platformUserId, key) {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = bytes.toString('hex');
   return `wp-${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+export function parseCurrentPortStepOutput(stdout) {
+  const lastLine = stdout.trim().split(/\r?\n/).at(-1);
+  assert(lastLine, 'current-port behavior step produced no JSON evidence');
+  const payload = JSON.parse(lastLine);
+  assert.equal(payload?.ok, true, 'current-port behavior step did not return ok');
+  assert.equal(payload?.target, CANONICAL_DEV_DATABASE, 'current-port step target drifted');
+  assert.equal(
+    payload?.assertions?.crossTenantRejected,
+    true,
+    'current-port step did not prove the tenant wall',
+  );
+  assert.equal(
+    payload?.assertions?.unavailablePatientSkipped,
+    true,
+    'current-port step did not prove unavailable-patient handling',
+  );
+  assert.equal(
+    payload?.assertions?.atomicRollbackObservedTwice,
+    true,
+    'current-port step did not prove atomic rollback twice',
+  );
+  assert.equal(payload?.assertions?.leakedOccurrences, 0, 'current-port step leaked an occurrence');
+  return payload;
+}
+
+export async function runCurrentPortBehaviorStep(organizationId, parentSignal) {
+  assert.match(
+    organizationId,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    'doctor overview returned an invalid organization id',
+  );
+  assertCanonicalFile(CURRENT_PORT_STEP_PATH, 'current-port named DEV step');
+  const timeoutSignal = AbortSignal.timeout(CURRENT_PORT_STEP_TIMEOUT_MS);
+  const signal = parentSignal ? AbortSignal.any([parentSignal, timeoutSignal]) : timeoutSignal;
+  const child = spawn(
+    'pnpm',
+    [
+      'exec',
+      'tsx',
+      CURRENT_PORT_STEP_PATH,
+      '--run',
+      '--organization-id',
+      organizationId,
+    ],
+    {
+      cwd: resolve(CANONICAL_DEV_REPO_ROOT, 'apps/webapp'),
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      signal,
+    },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk;
+  });
+  await new Promise((resolveChild, rejectChild) => {
+    child.once('error', rejectChild);
+    child.once('close', (code, signalName) => {
+      if (code === 0) resolveChild();
+      else {
+        rejectChild(
+          new Error(
+            `current-port step failed (${code ?? signalName ?? 'unknown'}): ${stderr.trim()}`,
+          ),
+        );
+      }
+    });
+  });
+  return parseCurrentPortStepOutput(stdout);
 }
 
 function cookiePairs(headers) {
@@ -817,6 +901,14 @@ async function runLive() {
     scenarios.doctorExerciseComments = await proveDoctorExerciseCommentQueries(sessions.doctor);
     scenarios.supportCommunication = await proveSupportCommunication(sessions, runTag);
     scenarios.reminderRule = await proveReminderRuleLifecycle(sessions, runTag);
+    const overview = expectOk(
+      await sessions.clinicAdmin.request('/api/doctor/booking-engine/overview'),
+      'clinic booking overview',
+    );
+    scenarios.currentPortBehavior = await runCurrentPortBehaviorStep(
+      overview.organizationId,
+      runController.signal,
+    );
     return {
       ok: true,
       target: CANONICAL_DEV_DATABASE,
@@ -840,7 +932,7 @@ export function selfTestRegistry(candidate = LIVE_COVERAGE) {
   for (const [key, expected] of Object.entries(LIVE_COVERAGE)) {
     assert.equal(candidate[key], expected, `live coverage count changed for ${key}`);
   }
-  assert.equal(LIVE_COVERED_CALLS, 19, 'live coverage total must stay explicit');
+  assert.equal(LIVE_COVERED_CALLS, 22, 'live coverage total must stay explicit');
 }
 
 async function main() {
@@ -848,7 +940,7 @@ async function main() {
   if (process.argv[2] === '--self-test') {
     assertCanonicalNamedDevEnvFiles();
     selfTestRegistry();
-    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 19-call registry)');
+    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 22-call registry)');
     return;
   }
   const result = await runLive();

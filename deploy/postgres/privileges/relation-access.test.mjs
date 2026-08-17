@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
+import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
 import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
 
 function directGrants(relation) {
@@ -274,12 +275,49 @@ test('definer aggregate and ctid scans retain the table-level reads required by 
   for (const [signature, relation] of expected) {
     const root = declaration.portContext.functions[signature];
     const surface = root.relationSurfaces.find((candidate) => candidate.relation === relation);
-    assert.deepEqual(surface?.tableOperations, ['SELECT'], `${signature}:${relation}`);
+    const expectedTableOperations = signature.startsWith('app.auth_rate_limit_check_and_record')
+      ? ['SELECT', 'DELETE']
+      : ['SELECT'];
+    assert.deepEqual(surface?.tableOperations, expectedTableOperations, `${signature}:${relation}`);
     for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
       const grant = declaration.databases[dbName].tables[relation].grants[root.owner];
-      assert.ok(grant.privs.includes('SELECT'), `${dbName}:${signature}:${relation}`);
+      for (const operation of expectedTableOperations) {
+        assert.ok(grant.privs.includes(operation), `${dbName}:${signature}:${relation}:${operation}`);
+      }
     }
   }
+});
+
+function functionSurfaceOperationNarrowingGaps(candidateFunctions, identities) {
+  const gaps = [];
+  for (const identity of identities) {
+    const canonical = BUSINESS_SEAM_FUNCTIONS[identity];
+    assert.ok(canonical, identity);
+    const candidate = candidateFunctions[identity];
+    if (!candidate) continue;
+    for (const canonicalSurface of canonical.relationSurfaces ?? []) {
+      const candidateSurface = candidate.relationSurfaces?.find(
+        (surface) => surface.relation === canonicalSurface.relation,
+      );
+      for (const operation of canonicalSurface.operations) {
+        if (!candidateSurface?.operations.includes(operation)) {
+          gaps.push(`${identity}:${canonicalSurface.relation}:${operation}`);
+        }
+      }
+    }
+  }
+  return gaps;
+}
+
+test('declaration wrappers never narrow canonical function relation operations', () => {
+  const identity = 'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)';
+  assert.deepEqual(functionSurfaceOperationNarrowingGaps(declaration.portContext.functions, [identity]), []);
+  const mutated = structuredClone(declaration.portContext.functions);
+  mutated[identity].relationSurfaces[0].operations = ['SELECT'];
+  assert.deepEqual(functionSurfaceOperationNarrowingGaps(mutated, [identity]), [
+    `${identity}:public.auth_rate_limit_events:DELETE`,
+    `${identity}:public.auth_rate_limit_events:INSERT`,
+  ]);
 });
 
 test('reference catalogs are complete within the current clinic and only staff mutates items', () => {

@@ -487,43 +487,43 @@
       "declarations": [
         {
           "title": "rejects cross-tenant materialization at the exact capability",
-          "state": "required-current-oracle",
-          "evidence": null
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
         },
         {
           "title": "rolls back the production port when queue materialization fails",
-          "state": "required-current-oracle",
-          "evidence": null
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
         },
         {
           "title": "does not materialize an unavailable patient",
-          "state": "required-current-oracle",
-          "evidence": null
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
         },
         {
           "title": "atomically binds exact queue event/generation and revalidates the live recipient",
-          "state": "required-current-oracle",
-          "evidence": null
+          "state": "static-product",
+          "evidence": "node --test deploy/postgres/privileges/reminder-materialization-boundary.test.mjs"
         },
         {
           "title": "converges concurrent wake upserts to one occurrence key",
-          "state": "required-current-oracle",
-          "evidence": null
+          "state": "static-product",
+          "evidence": "node --test deploy/postgres/privileges/reminder-materialization-boundary.test.mjs"
         },
         {
           "title": "does not reset snoozed generation or terminal evidence on an old wake replay",
-          "state": "required-current-oracle",
-          "evidence": null
+          "state": "static-product",
+          "evidence": "pnpm --dir apps/webapp exec vitest --run src/app-layer/reminders/runPatientReminderMaterializationWake.audit.unit.test.ts"
         },
         {
           "title": "owns all four materialization capabilities as app_owner, not the migration-runner role",
           "state": "static-security",
-          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/reminder-materialization-declaration.test.mjs"
         },
         {
           "title": "grants only exact capability execution to locked runtime roles",
           "state": "static-security",
-          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/reminder-materialization-declaration.test.mjs"
         }
       ]
     },

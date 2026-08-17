@@ -1,7 +1,7 @@
 # B0 named-DEV DB behavior replacement matrix — 2026-08-17
 
-Status: **BLOCKED — 2/121 have an exact surviving static oracle; 19/121 have the same-consequence named-DEV
-product runner implemented but have not been executed; 94 required consequences remain unproved; 6 implementation
+Status: **BLOCKED — 5/121 have an exact surviving static oracle; 22/121 have the same-consequence named-DEV
+product runner implemented but have not been executed; 88 required consequences remain unproved; 6 implementation
 contracts are explicitly retired.** No live DEV, TEST, or PROD command was run while preparing this correction.
 
 The source census is executable and counts only top-level `it` / `test` / `it.each` / `test.each` declarations;
@@ -16,7 +16,9 @@ The named-DEV runner is fixed to the canonical files and exact four local Postgr
 `127.0.0.1:5432/bcb_webapp_dev`. Integrator and webapp must each independently declare `port-context`; remote hosts,
 mixed modes, other ports and other database names fail before HTTP. Every request and the whole run have deadlines.
 Booking cleanup discovers a unique run tag; the reminder create uses a standard idempotency key whose owned rule id
-is known before mutation, creates disabled, and deletes in `finally` even after a lost response.
+is known before mutation, creates disabled, and deletes in `finally` even after a lost response. The same canonical
+command then invokes the audited current materialization port step for the organization returned by the authenticated
+clinic overview; the child has its own two-minute deadline and cannot accept a database target override.
 
 ```bash
 pnpm --dir apps/webapp run test:db-behavior:named-dev:self-test  # refusal/fault checks only
@@ -36,7 +38,7 @@ runner also performs useful broader smoke, but nearby shapes/resources do not re
 | `authEmailOtpDeliveryOwnership` | 5 | 0 | 0 | 5 | 0 | 0 |
 | `loginBootstrapDefinerAccessors` | 6 | 0 | 0 | 4 | 2 | 0 |
 | `orgBrandRevisionGuard` | 5 | 0 | 0 | 3 | 2 | 0 |
-| `patientReminderMaterialization` | 8 | 0 | 0 | 6 | 2 | 0 |
+| `patientReminderMaterialization` | 8 | 3 | 3 | 0 | 2 | 0 |
 | `pgAuthRateLimitEvents` | 1 | 0 | 0 | 1 | 0 | 0 |
 | `pgBookingScheduling.deactivateWorkingHours` | 2 | 0 | 2 | 0 | 0 | 0 |
 | `pgBookingScheduling.readChokepoint` | 3 | 0 | 3 | 0 | 0 | 0 |
@@ -63,9 +65,9 @@ runner also performs useful broader smoke, but nearby shapes/resources do not re
 | `saasBillingPaidTariffApplyAccessor` | 6 | 0 | 0 | 5 | 1 | 0 |
 | `saasBillingWebhookBootstrapInvoiceResolver` | 3 | 0 | 0 | 2 | 1 | 0 |
 | `tenantIsolationMatrix` | 10 | 0 | 4 | 6 | 0 | 0 |
-| **Total** | **121** | **2** | **19** | **85** | **9** | **6** |
+| **Total** | **121** | **5** | **22** | **79** | **9** | **6** |
 
-Arithmetic: `2 + 19 + 85 + 9 + 6 = 121`. The added READY rows are exact public-path consequences: disjoint
+Arithmetic: `5 + 22 + 79 + 9 + 6 = 121`. The added READY rows are exact public/current-port consequences: disjoint
 working-hours reads, doctor list and metric-account isolation, unknown/real/unread support conversations, and
 organization-scoped treatment-enrollment/clinical-visit and doctor exercise-comment queries. They remain READY,
 not PASS, until serialized DEV.
@@ -87,24 +89,25 @@ These are declaration/generator facts, not fake live user journeys. Their non-DB
 
 ```bash
 node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs
+node --experimental-strip-types --test deploy/postgres/privileges/reminder-materialization-declaration.test.mjs
 ```
 
-It checks the two login direct-table denials and exact roots, two brand direct-update guard invariants, two reminder
-materializer owner/EXECUTE invariants, the callback ACL boundary, tariff direct-write boundary, and billing bootstrap
-table denial/root. Installed catalog equality still belongs to the canonical named-environment declaration reconcile;
-this static oracle does not claim live catalog PASS.
+Together they check the two login direct-table denials and exact roots, two brand direct-update guard invariants, the
+current three-root reminder materializer owner/EXECUTE boundary, the callback ACL boundary, tariff direct-write
+boundary, and billing bootstrap table denial/root. Installed catalog equality still belongs to the canonical
+named-environment declaration reconcile; this static oracle does not claim live catalog PASS.
 
-### 85 required product/worker consequences
+### 79 required product/worker consequences
 
 | Journey | Declarations | Current product/application path | Safe named-DEV disposition |
 | --- | ---: | --- | --- |
 | Identity/auth/lockout/projection/merge | 25 | `/api/auth/**`, session/profile APIs, integrator projection/merge worker | Ordinary logins cover positive auth/profile reads; OTP ownership, concurrent consume/attempt locks and merge collisions need provider/worker-created ordinary state. No fixture root is added. |
-| Reminders/messages/broadcast/delivery | 27 | patient reminder/message APIs, doctor messages/broadcast APIs, scheduler + worker materialization/callback roots | Exact communication consequences in READY are counted separately; these 27 require the corrected common scheduler/worker and durable admin-health/readbacks with DEV delivery disabled. |
+| Reminders/messages/broadcast/delivery | 21 | patient reminder/message APIs, doctor messages/broadcast APIs, scheduler + worker materialization/callback roots | Exact communication consequences in READY/static are counted separately; these 21 require the corrected common scheduler/worker and durable admin-health/readbacks with DEV delivery disabled. |
 | Billing/money | 9 | clinic/global billing APIs and webhook worker | Invoice creation can use product APIs; paid/unpaid/foreign provider state cannot be fabricated. It remains blocked until the ordinary provider/test channel supplies it. |
 | Media/branding/purge | 11 | branding/media APIs, media control worker, purge application port | Ordinary upload/branding paths can cover end-user effects; claim races, quarantine, purge order and cascade need the existing worker/control port and tagged ordinary media. |
 | Booking/tenant/analytics/audit | 13 | booking lifecycle, doctor patient/list/analytics, admin audit APIs | Exact booking/tenant consequences in READY are counted separately; these 13 need retained lookup, same-organization specialist assignment walls, direct dashboard-metric execution, patient-side relation walls and deterministic audit conflicts with real tagged rows/readbacks, not shape assertions. |
 
-The journey rows are non-overlapping and sum to `25 + 27 + 9 + 11 + 13 = 85`. No cell becomes PASS until the
+The journey rows are non-overlapping and sum to `25 + 21 + 9 + 11 + 13 = 79`. No READY cell becomes PASS until the
 serialized live command records its exact durable readback.
 
 ## Complete 123-path inventory

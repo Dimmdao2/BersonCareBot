@@ -784,6 +784,11 @@ export function collectGaps(declaration, dbName) {
             add(ssite, `operation-specific columns are invalid for '${operation}'`);
           }
         }
+        for (const operation of surface.tableOperations ?? []) {
+          if (!surface.operations.includes(operation)) {
+            add(ssite, `table operation is absent from the canonical surface operations: '${operation}'`);
+          }
+        }
       }
       if (Array.isArray(fn.relationSurfaces) && fn.relationSurfaces.length === 0 && !(fn.delegatesTo?.length > 0)) {
         add(`portContext.functions.${signature}`, 'wrapper without a direct relation surface must name exact delegated roots');

@@ -13,9 +13,13 @@ This correction did not contact or mutate DEV, TEST, or PROD.
   have recovery cleanup. Patient reminder creation is disabled, carries a standard owner-scoped idempotency key,
   knows its deterministic owned rule id before the request, and deletes that id in `finally` even if the create
   response is lost. Booking and retained chat rows use one unique run tag; chat recovery asserts at most one row.
+- The audited current-port reminder step is part of that one canonical command, not a second live entrypoint. It uses
+  the authenticated clinic overview's organization, refuses every non-canonical DB target, has a two-minute child
+  deadline, performs rollback-only fault evidence, and leaves no occurrence fixture.
 - The exact source census is 35 files / 121 top-level test declarations. The nine `RegExp.prototype.test` false
-  matches are excluded. Round 2 now claims only 2 exact static replacements and 19 same-consequence READY cells;
-  it leaves 85 product/worker and 9 security/catalog consequences unproved and explicitly retires 6 non-product
+  matches are excluded. The merged audited correction now claims 5 exact static replacements and 22
+  same-consequence READY cells; it leaves 79 product/worker and 9 security/catalog consequences unproved and
+  explicitly retires 6 non-product
   implementation contracts.
 - The nine security/catalog cells have one non-DB declaration/generator oracle. It proves the intended declaration,
   not installed catalog state; live catalog equality remains for canonical named-environment reconcile.
@@ -30,10 +34,10 @@ This correction did not contact or mutate DEV, TEST, or PROD.
 
 ```text
 pnpm --dir apps/webapp run test:db-behavior:named-dev:self-test
-PASS — 7/7 local refusal/fault tests + actual canonical env-file refusal check; no HTTP/DB request
+PASS — HTTP runner + target-refusal audit 11/11 + current-port step 4/4 + actual canonical env-file refusal check; no HTTP/DB request
 
 node --test apps/webapp/scripts/named-dev-db-behavior-runner.test.mjs apps/webapp/scripts/named-dev-db-behavior-runner.audit.test.mjs
-PASS — 9/9
+PASS — 11/11
 
 node --test scripts/census-retired-postgres-tests.test.mjs
 PASS — 2/2; measured 35 files / 121 declarations
@@ -47,6 +51,9 @@ PASS — additional 7/7 faults killed
 node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs
 PASS — 5/5 grouped declaration/generator oracles
 
+node --experimental-strip-types --test deploy/postgres/privileges/reminder-materialization-boundary.test.mjs deploy/postgres/privileges/reminder-materialization-declaration.test.mjs
+PASS — 7/7 current atomic-boundary/declaration oracles
+
 pnpm --dir apps/webapp exec vitest run src/modules/reminders/service.idempotency.test.ts src/modules/reminders/service.mechanicWriteClearance.test.ts src/app/api/tariffMechanics.route.test.ts
 PASS — 3 files / 48 tests
 
@@ -59,9 +66,9 @@ PASS
 
 ## Remaining named blockers
 
-- The 19 READY product consequences are not PASS until the shared live DEV audit releases the single server and the
+- The 22 READY product consequences are not PASS until the shared live DEV audit releases the single server and the
   serialized runner records durable readbacks.
-- The remaining 85 product/worker consequences require ordinary product/provider/worker state grouped in the matrix;
+- The remaining 79 product/worker consequences require ordinary product/provider/worker state grouped in the matrix;
   no fixture root, raw SQL, disposable database or historical replay was added.
 - The nine declaration/generator cells still require the canonical named-environment reconcile/catalog comparison
   before they can become live PASS.
