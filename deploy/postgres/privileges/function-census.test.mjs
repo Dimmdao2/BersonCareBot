@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { declaration } from './declaration.ts';
 import {
@@ -9,6 +11,17 @@ import {
   OBSOLETE_CONTEXT_SIGNATURES,
 } from './function-census.ts';
 import { collectGaps, generateFunctionCensusSql } from './generate.mjs';
+import {
+  compareFunctionSurfaces,
+  currentPatientArtifactFunctions,
+  extractPublicRelationOperations,
+} from './function-body-surface.mjs';
+
+const PRIVILEGES_DIR = path.dirname(fileURLToPath(import.meta.url));
+const CURRENT_PATIENT_MIGRATIONS = [
+  path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0016_patient_self_action_capabilities.sql'),
+  path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0017_patient_shared_core_capabilities.sql'),
+];
 
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
 const TEST_ONLY = [
@@ -48,6 +61,46 @@ phone_otp_public_booking_issue_challenge
 
 const functionsFor = (database) => Object.entries(declaration.portContext.functions)
   .filter(([, fn]) => !fn.databases || fn.databases.includes(database));
+
+test('all 47 current-patient B0-forward roots have exact executable relation-operation surfaces', () => {
+  const functions = currentPatientArtifactFunctions(CURRENT_PATIENT_MIGRATIONS);
+  assert.equal(functions.length, 47);
+  assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
+});
+
+test('current-patient surface gate catches missing operation, absent relation, and overbroad SELECT together', () => {
+  const functions = [{
+    name: 'app.fixture_current_patient_root',
+    body: `
+      insert into public.fixture_target (id) values (1) on conflict (id) do nothing;
+      insert into public.fixture_write (id) values (1);
+      insert into public.fixture_returning (id) values (1) returning *;
+      delete from public.fixture_history where id = 1;
+      select x.id from public.fixture_read x, public.fixture_comma c
+      join public.fixture_joined j on j.id = x.id;
+    `,
+  }];
+  const declaredFunctions = {
+    'app.fixture_current_patient_root()': {
+      relationSurfaces: [
+        { relation: 'public.fixture_target', operations: ['INSERT'] },
+        { relation: 'public.fixture_history', operations: ['SELECT', 'DELETE'] },
+        { relation: 'public.fixture_read', operations: ['SELECT'] },
+        { relation: 'public.fixture_returning', operations: ['INSERT'] },
+        { relation: 'public.fixture_write', operations: ['SELECT', 'INSERT'] },
+      ],
+    },
+  };
+  assert.deepEqual(compareFunctionSurfaces(functions, declaredFunctions), [
+    'app.fixture_current_patient_root() -> public.fixture_comma: executable relation surface is absent; actual=SELECT',
+    'app.fixture_current_patient_root() -> public.fixture_joined: executable relation surface is absent; actual=SELECT',
+    'app.fixture_current_patient_root() -> public.fixture_returning: actual=INSERT,SELECT declared=INSERT',
+    'app.fixture_current_patient_root() -> public.fixture_target: actual=INSERT,SELECT declared=INSERT',
+    'app.fixture_current_patient_root() -> public.fixture_write: actual=INSERT declared=INSERT,SELECT',
+  ]);
+  assert.deepEqual(extractPublicRelationOperations(functions[0].body).get('public.fixture_history'),
+    ['SELECT', 'DELETE']);
+});
 
 test('legacy census is restored without obsolete context and overlaid by the active B0-forward roots', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
@@ -207,6 +260,11 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT/);
     assert.match(first, /constrained ON CONFLICT DO NOTHING was not classified as requiring SELECT/);
     assert.match(first, /UPDATE predicate\/RETURNING requires undeclared SELECT/);
+    assert.match(first, /CREATE TEMP TABLE bcb_function_surface_gaps/);
+    assert.match(first, /function body relation surface absent/);
+    assert.match(first, /string_agg\(message, E'\\n' ORDER BY message\)/);
+    assert.match(first, /RAISE EXCEPTION 'function body surface gaps/);
+    assert.doesNotMatch(first, /THEN RAISE EXCEPTION 'function body requires undeclared/);
     assert.match(first, /app\.record_operator_outbound_probe_run\(text,timestamp with time zone,text,jsonb\)/);
     assert.doesNotMatch(first, /install_signed_context|release_principal_context|reset_principal_context/);
     for (const signature of TEST_ONLY) {

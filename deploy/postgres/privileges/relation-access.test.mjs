@@ -989,7 +989,10 @@ test('patient page relations have exact self/current-clinic access and published
   ];
   assert.deepEqual(firstResolveRoot.execute, ['app_patient']);
   assert.deepEqual(firstResolveRoot.relationSurfaces.find((surface) =>
-    surface.relation === 'public.media_playback_user_video_first_resolve')?.operations, ['INSERT']);
+    surface.relation === 'public.media_playback_user_video_first_resolve')?.operations, ['SELECT', 'INSERT']);
+  assert.deepEqual(firstResolveRoot.relationSurfaces.find((surface) =>
+    surface.relation === 'public.media_playback_user_video_first_resolve')?.operationColumns?.SELECT,
+  ['user_id', 'media_id']);
 
   const clientEvents = tables['public.media_playback_client_events'];
   assert.equal(clientEvents.access.kind, 'named-seams');
@@ -1284,7 +1287,9 @@ test('patient material rating rows remain self-only and aggregate access uses on
     ];
     assert.deepEqual(feedbackRoot.execute, ['app_patient']);
     assert.deepEqual(feedbackRoot.relationSurfaces.find((surface) =>
-      surface.relation === 'public.patient_content_rating_feedback')?.operations, ['INSERT']);
+      surface.relation === 'public.patient_content_rating_feedback')?.operations, ['SELECT', 'INSERT']);
+    assert.deepEqual(feedbackRoot.relationSurfaces.find((surface) =>
+      surface.relation === 'public.patient_content_rating_feedback')?.operationColumns?.SELECT, ['id']);
   }
 });
 

@@ -2330,6 +2330,391 @@ DO $bcb$ DECLARE bad text; BEGIN
 END $bcb$;
 
 -- Function-body relation-operation verifier: the declaration must cover PostgreSQL statement semantics.
+CREATE TEMP TABLE bcb_function_surface_functions(signature text PRIMARY KEY) ON COMMIT DROP;
+INSERT INTO bcb_function_surface_functions(signature) VALUES
+  ('app_control.enforce_relation_birth_wall()'),
+  ('app_ext.digest(text,text)'),
+  ('app_ext.hmac(text,text,text)'),
+  ('app_ext.resolve_variant_a_identity(uuid)'),
+  ('app_ext.resolve_variant_a_physical(uuid)'),
+  ('app.abort_patient_program_submission_media(uuid)'),
+  ('app.accept_org_invite(text,uuid,text)'),
+  ('app.acknowledge_open_outbound_provider_incidents()'),
+  ('app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)'),
+  ('app.append_current_patient_program_discussion(uuid,text,uuid)'),
+  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)'),
+  ('app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)'),
+  ('app.append_platform_audit_event(text,text,text)'),
+  ('app.apply_current_patient_booking_cancellation(text)'),
+  ('app.apply_current_patient_booking_reschedule(text)'),
+  ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)'),
+  ('app.apply_paid_saas_billing_tariff(uuid,uuid)'),
+  ('app.apply_specialist_task_reminder_success_outcome(uuid)'),
+  ('app.archive_operator_health_failures(text,integer,uuid)'),
+  ('app.assert_organization_slug_alias_complete()'),
+  ('app.assert_organization_slug_rename_complete()'),
+  ('app.auth_channel_binding_session(text,text)'),
+  ('app.auth_channel_link_lock_unused_secret(uuid)'),
+  ('app.auth_channel_link_mark_secret_used_if_unused(uuid)'),
+  ('app.auth_channel_link_mark_secret_used(uuid)'),
+  ('app.auth_channel_link_read_secret(text,text)'),
+  ('app.auth_channel_link_replace_secret(uuid,text,text,timestamp with time zone)'),
+  ('app.auth_login_token_confirm(text)'),
+  ('app.auth_login_token_create(text,uuid,text,timestamp with time zone)'),
+  ('app.auth_login_token_expire_past()'),
+  ('app.auth_login_token_mark_session_issued(text)'),
+  ('app.auth_login_token_read(text)'),
+  ('app.auth_oauth_find_user(text,text)'),
+  ('app.auth_oauth_list_user_providers(uuid)'),
+  ('app.auth_oauth_upsert_binding(uuid,text,text,text)'),
+  ('app.auth_phone_bind_lock_channel_binding(text,text)'),
+  ('app.auth_phone_bind_upsert_channel_binding(uuid,text,text)'),
+  ('app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'),
+  ('app.begin_staff_login_challenge(text,timestamp with time zone)'),
+  ('app.bump_platform_user_session_epoch_self()'),
+  ('app.cancel_patient_invite_email_proof(text,text)'),
+  ('app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)'),
+  ('app.choose_organization_first_tariff(uuid,uuid)'),
+  ('app.claim_unbound_patient_invite_email(text,text,text,bigint,text)'),
+  ('app.clear_port_context()'),
+  ('app.close_active_user_phone_history(uuid)'),
+  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)'),
+  ('app.complete_staff_totp_enrollment(text,jsonb)'),
+  ('app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)'),
+  ('app.confirm_patient_program_submission_media(uuid)'),
+  ('app.confirm_staff_recovery_codes()'),
+  ('app.consume_staff_recovery_login(text,text)'),
+  ('app.consume_staff_totp_login(text)'),
+  ('app.count_active_canonical_appointments()'),
+  ('app.create_current_patient_booking_appointments(text)'),
+  ('app.create_current_patient_booking_pending(text)'),
+  ('app.create_current_patient_reminder_rule(text,text)'),
+  ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)'),
+  ('app.create_specialist_signup_intent(uuid,text,text,text,text)'),
+  ('app.current_actor_user_id()'),
+  ('app.current_integrator_user_id()'),
+  ('app.current_org_id()'),
+  ('app.current_patient_has_active_org_enrollment(uuid)'),
+  ('app.current_patient_has_password_credentials()'),
+  ('app.current_patient_has_web_oauth_binding()'),
+  ('app.current_patient_lfk_sessions(text,text)'),
+  ('app.current_patient_user_id()'),
+  ('app.current_provisioned_owner_organization()'),
+  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)'),
+  ('app.delete_current_patient_reminder_rule(text)'),
+  ('app.delete_current_patient_symptom_entry(uuid)'),
+  ('app.delete_google_calendar_event_id(uuid)'),
+  ('app.email_auth_delete_email_challenge_by_id(uuid)'),
+  ('app.email_auth_delete_email_challenges_for_user(uuid)'),
+  ('app.email_auth_enqueue_otp_delivery(uuid,uuid)'),
+  ('app.email_auth_find_email_challenge_for_confirm(uuid,uuid)'),
+  ('app.email_auth_find_email_challenge_for_consume(uuid,uuid)'),
+  ('app.email_auth_find_email_otp_lock(uuid)'),
+  ('app.email_auth_find_email_owner_conflict(uuid,text)'),
+  ('app.email_auth_find_email_send_cooldown(uuid,text)'),
+  ('app.email_auth_find_latest_email_challenge_for_user(uuid,bigint)'),
+  ('app.email_auth_find_latest_pending_email_challenge_for_user(uuid,bigint)'),
+  ('app.email_auth_increment_email_challenge_attempts(uuid)'),
+  ('app.email_auth_insert_email_challenge(uuid,text,text,bigint)'),
+  ('app.email_auth_register_email_otp_lockout(uuid)'),
+  ('app.email_auth_reset_email_otp_lockout(uuid)'),
+  ('app.email_auth_set_email_challenge_delivery_code(uuid,text)'),
+  ('app.email_auth_set_email_challenge_purpose(uuid,text)'),
+  ('app.email_auth_start_challenge(uuid,text,text,bigint,text,text)'),
+  ('app.email_auth_upsert_email_send_cooldown(uuid,text)'),
+  ('app.email_auth_verify_user_email(uuid,text)'),
+  ('app.email_otp_public_consume_latest_challenge(text,text)'),
+  ('app.email_otp_public_delete_unverified_registration(uuid)'),
+  ('app.email_otp_public_find_email_send_cooldown_by_email(text)'),
+  ('app.email_otp_public_find_latest_email_challenge_by_email(text,bigint)'),
+  ('app.email_otp_public_find_or_create_user(text)'),
+  ('app.email_otp_public_find_user_by_email(text)'),
+  ('app.email_otp_public_register_patient(text,text,text,text)'),
+  ('app.email_password_delete_unverified_registration(uuid)'),
+  ('app.email_password_find_login_candidate(text)'),
+  ('app.email_password_find_reset_candidate(text)'),
+  ('app.email_password_find_user_id_by_email_challenge(uuid)'),
+  ('app.email_password_register_pending(text,text,text,text,text,text)'),
+  ('app.enforce_lfk_child_owner()'),
+  ('app.enqueue_current_reminder_rule_push(text)'),
+  ('app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)'),
+  ('app.enqueue_media_transcode_job_core(uuid)'),
+  ('app.enqueue_media_transcode_job_for_service(uuid)'),
+  ('app.enqueue_media_transcode_job_for_staff(uuid)'),
+  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)'),
+  ('app.ensure_current_patient_support_conversation()'),
+  ('app.ensure_current_patient_system_symptom_tracking(text,text,uuid)'),
+  ('app.ensure_current_patient_test_attempt(uuid)'),
+  ('app.ensure_staff_security_profile()'),
+  ('app.exchange_patient_invite(text,text,timestamp with time zone)'),
+  ('app.find_platform_user_ids_by_any_confirmed_email(text)'),
+  ('app.get_google_calendar_event_id(uuid)'),
+  ('app.get_latest_specialist_signup_intent_for_user()'),
+  ('app.get_pending_specialist_signup_intent(uuid,uuid)'),
+  ('app.get_preferred_auth_channel_code(uuid)'),
+  ('app.get_public_config_bool(text)'),
+  ('app.get_public_reference_baseline(text)'),
+  ('app.get_specialist_signup_intent_by_challenge(uuid)'),
+  ('app.get_staff_security_profile()'),
+  ('app.get_staff_security_session_state()'),
+  ('app.get_web_push_vapid_public_key()'),
+  ('app.guard_clinic_directory_current_slug()'),
+  ('app.guard_org_brand_revision()'),
+  ('app.guard_organization_slug_claim_mutation()'),
+  ('app.guard_organization_slug_rename_event_mutation()'),
+  ('app.hash_port_typed_args(app.port_typed_arg[])'),
+  ('app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)'),
+  ('app.install_port_context(uuid,app.port_context_claims)'),
+  ('app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)'),
+  ('app.integrator_event_idempotency_read(text)'),
+  ('app.integrator_event_idempotency_store(text,text,integer,text,integer)'),
+  ('app.integrator_upsert_channel_identity(text,text,text)'),
+  ('app.is_current_patient_self_booking_allowed()'),
+  ('app.is_current_patient_test_account()'),
+  ('app.is_max_bot_configured()'),
+  ('app.is_organization_slug_available(text)'),
+  ('app.is_platform_registration_analytics_user_excluded(uuid)'),
+  ('app.is_sms_provider_configured()'),
+  ('app.is_smtp_outbound_configured()'),
+  ('app.is_staff()'),
+  ('app.is_telegram_login_configured()'),
+  ('app.list_active_booking_cities()'),
+  ('app.list_active_canonical_appointments_by_phone(text)'),
+  ('app.list_google_calendar_probe_organization_ids()'),
+  ('app.list_integration_webhook_burst_signals(integer,integer)'),
+  ('app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)'),
+  ('app.list_platform_organization_members(uuid)'),
+  ('app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)'),
+  ('app.list_saas_billing_period_catalog_platform()'),
+  ('app.list_saas_billing_period_catalog()'),
+  ('app.list_scheduler_reminder_organization_ids()'),
+  ('app.list_web_push_reminder_organization_ids(timestamp with time zone)'),
+  ('app.lookup_patient_invite_continuation(text)'),
+  ('app.lookup_pending_org_invite(text)'),
+  ('app.mark_all_current_patient_reminder_history_seen()'),
+  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)'),
+  ('app.mark_current_patient_program_item_viewed(uuid,uuid)'),
+  ('app.mark_current_patient_reminder_history_seen(text)'),
+  ('app.mark_current_patient_support_conversation_read(uuid)'),
+  ('app.mark_current_patient_support_messages_read(text)'),
+  ('app.mark_current_patient_support_notifications_read()'),
+  ('app.mark_operator_incident_alert_sent(uuid)'),
+  ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])'),
+  ('app.mutate_current_patient_booking(uuid,text,text)'),
+  ('app.open_or_touch_operator_incident(text,text,text,text,text)'),
+  ('app.open_or_touch_operator_probe_incident(text,text,text)'),
+  ('app.operator_incident_alert_already_sent(uuid)'),
+  ('app.passkey_complete_authentication(uuid,text,bigint,bigint,text,boolean)'),
+  ('app.passkey_complete_registration(uuid,uuid,text,text,bigint,jsonb,text,boolean)'),
+  ('app.passkey_delete_current_credential(text)'),
+  ('app.passkey_get_or_create_account(uuid,text)'),
+  ('app.passkey_issue_challenge(uuid,text,uuid,text,text,text,timestamp with time zone)'),
+  ('app.passkey_list_current_credentials()'),
+  ('app.passkey_list_current_exclusions()'),
+  ('app.passkey_read_challenge(uuid,text)'),
+  ('app.passkey_read_credential(text)'),
+  ('app.password_credentials_replace_self(text,text)'),
+  ('app.password_credentials_upsert_self(text,text)'),
+  ('app.password_login_acquire_impl(text,text,uuid,text)'),
+  ('app.password_login_acquire(text,text,uuid,text)'),
+  ('app.password_login_complete_impl(uuid,boolean)'),
+  ('app.password_login_complete(uuid,boolean)'),
+  ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)'),
+  ('app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)'),
+  ('app.password_login_read_altcha_secret_impl()'),
+  ('app.password_login_read_altcha_secret()'),
+  ('app.patch_current_patient_booking_notifications(uuid,text,text)'),
+  ('app.patient_cancel_pending_reminder_occurrences(text)'),
+  ('app.patient_disable_reminder_messenger_topic(text,text)'),
+  ('app.patient_done_reminder_occurrence(text)'),
+  ('app.patient_reminder_materialization_fingerprint(text,text)'),
+  ('app.patient_reminder_notification_settings(text,text)'),
+  ('app.patient_set_reminder_mute(integer,boolean)'),
+  ('app.patient_set_reminder_muted_until(timestamp with time zone)'),
+  ('app.patient_skip_reminder_occurrence(uuid,text,text)'),
+  ('app.patient_snooze_reminder_occurrence(uuid,text,integer)'),
+  ('app.phone_auth_find_latest_challenge_created_at(text)'),
+  ('app.phone_auth_find_otp_lock(text)'),
+  ('app.phone_auth_register_otp_lockout(text,bigint)'),
+  ('app.phone_auth_reset_otp_lockout(text)'),
+  ('app.phone_challenge_store_delete_by_phone(text)'),
+  ('app.phone_challenge_store_delete(text)'),
+  ('app.phone_challenge_store_increment_attempts(text,bigint)'),
+  ('app.phone_challenge_store_read(text)'),
+  ('app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)'),
+  ('app.phone_messenger_bind_completion_state(text,text,text,text)'),
+  ('app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)'),
+  ('app.phone_otp_public_booking_consume_challenge(text,text,integer,integer)'),
+  ('app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,text)'),
+  ('app.pre_session_resolve_identity(uuid)'),
+  ('app.prepare_organization_lifecycle_notification_context(uuid)'),
+  ('app.propagate_staff_session_version_to_session_epoch()'),
+  ('app.provision_specialist_owner(uuid)'),
+  ('app.prune_integration_webhook_error_events(integer)'),
+  ('app.read_booking_calendar_latest_staff_comment(uuid)'),
+  ('app.read_booking_calendar_patient_profile(uuid)'),
+  ('app.read_canonical_appointment_by_external_id(text)'),
+  ('app.read_curated_playback_health_pre_0196()'),
+  ('app.read_curated_playback_health()'),
+  ('app.read_curated_system_health_pre_0196()'),
+  ('app.read_curated_system_health()'),
+  ('app.read_current_org_tariff_transition_usage()'),
+  ('app.read_current_patient_active_organizations()'),
+  ('app.read_current_patient_appointment_history()'),
+  ('app.read_current_patient_booking_appointment(uuid)'),
+  ('app.read_current_patient_booking_busy_intervals(uuid,uuid,timestamp with time zone,timestamp with time zone,uuid)'),
+  ('app.read_current_patient_booking_catalog()'),
+  ('app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)'),
+  ('app.read_current_patient_booking_form_fields()'),
+  ('app.read_current_patient_booking_packages(uuid)'),
+  ('app.read_current_patient_booking_payment_setting(text)'),
+  ('app.read_current_patient_booking_policies(text)'),
+  ('app.read_current_patient_booking_prepayment_policy(uuid,text)'),
+  ('app.read_current_patient_booking_reschedules(uuid)'),
+  ('app.read_current_patient_booking_row(uuid,text)'),
+  ('app.read_current_patient_booking_rows(text,timestamp with time zone)'),
+  ('app.read_current_patient_booking_runtime_integer(text)'),
+  ('app.read_current_patient_booking_slot_snapshot(uuid,uuid,text,text)'),
+  ('app.read_current_patient_fio()'),
+  ('app.read_current_patient_material_rating_snapshot(text,uuid)'),
+  ('app.read_current_patient_organization_entitlements()'),
+  ('app.read_current_patient_staff_notification_profiles(uuid,text)'),
+  ('app.read_current_patient_treatment_program_description(uuid)'),
+  ('app.read_current_patient_ui_setting(text,text)'),
+  ('app.read_global_server_runtime_setting(text)'),
+  ('app.read_integrator_auth_channel_setting(text)'),
+  ('app.read_integrator_clinic_delivery_credential(text,uuid)'),
+  ('app.read_integrator_google_calendar_setting(text,uuid)'),
+  ('app.read_integrator_migration_ledger()'),
+  ('app.read_integrator_platform_integration_availability()'),
+  ('app.read_integrator_projection_health(integer)'),
+  ('app.read_integrator_provider_runtime_setting(text)'),
+  ('app.read_integrator_runtime_setting(text)'),
+  ('app.read_integrator_smtp_outbound_setting()'),
+  ('app.read_integrator_web_push_delivery_settings(uuid)'),
+  ('app.read_integrator_web_push_subscriptions(uuid,uuid)'),
+  ('app.read_last_saas_isolation_coverage()'),
+  ('app.read_media_worker_runtime_setting(text)'),
+  ('app.read_operator_health_probe_config()'),
+  ('app.read_operator_outbound_probe_meta()'),
+  ('app.read_org_brand_core_context(uuid)'),
+  ('app.read_org_enforced_quota_usage(uuid)'),
+  ('app.read_outbound_provider_incident_health()'),
+  ('app.read_outgoing_delivery_reclaim_config()'),
+  ('app.read_patient_lfk_complex_cover(uuid)'),
+  ('app.read_patient_lfk_complex_exercise_lines(uuid[])'),
+  ('app.read_patient_telegram_display_handle(uuid)'),
+  ('app.read_platform_lfk_media_entitlement_refs(uuid)'),
+  ('app.read_platform_media_row(uuid)'),
+  ('app.read_public_runtime_setting(text,text)'),
+  ('app.read_reminder_transactional_email_cooldown(uuid)'),
+  ('app.read_saas_billing_payment_provider_clinic()'),
+  ('app.read_saas_billing_payment_provider_platform()'),
+  ('app.read_saas_billing_payment_provider_preauth()'),
+  ('app.read_saas_isolation_events()'),
+  ('app.read_saas_isolation_trend()'),
+  ('app.read_tenant_isolation_canary()'),
+  ('app.read_webapp_preauth_provider_setting(text)'),
+  ('app.read_webapp_server_runtime_setting(text,text)'),
+  ('app.record_current_patient_analytics_event(timestamp with time zone,text,text,text,text,jsonb)'),
+  ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)'),
+  ('app.record_current_patient_daily_warmup_video_view(uuid)'),
+  ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)'),
+  ('app.record_current_patient_playback_first_resolve(uuid)'),
+  ('app.record_current_patient_practice_completion(uuid,text,integer)'),
+  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)'),
+  ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)'),
+  ('app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)'),
+  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'),
+  ('app.record_failed_staff_factor_attempt()'),
+  ('app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)'),
+  ('app.record_integrator_webhook_outcome(text,boolean,integer,text,text)'),
+  ('app.record_media_playback_resolution_event(uuid,uuid,text,boolean)'),
+  ('app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)'),
+  ('app.record_operator_delivery_attempt(text,text,text,integer,text)'),
+  ('app.record_operator_outbound_probe_run(text,timestamp with time zone,text,jsonb)'),
+  ('app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'),
+  ('app.record_reminder_transactional_email_cooldown(uuid)'),
+  ('app.record_saas_isolation_coverage(uuid,text,timestamp with time zone,timestamp with time zone,text[],integer,integer)'),
+  ('app.redeem_patient_invite_email(text)'),
+  ('app.refresh_specialist_task_reminder_materialization(text)'),
+  ('app.reject_staff_commercial_organization_update()'),
+  ('app.release_integrator_idempotency(text)'),
+  ('app.remove_all_current_patient_web_push_subscriptions()'),
+  ('app.remove_current_patient_web_push_subscription(text)'),
+  ('app.replace_pending_specialist_signup_challenge(uuid,text)'),
+  ('app.report_saas_isolation_event(text,text,text,text)'),
+  ('app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)'),
+  ('app.require_attested_context_for_roles(name,name[])'),
+  ('app.require_attested_target_role(name,name[])'),
+  ('app.require_platform_principal()'),
+  ('app.require_staff_security_self_user_id()'),
+  ('app.reserve_current_patient_booking_package(text)'),
+  ('app.resolve_active_organization_for_integrator_user_id(bigint)'),
+  ('app.resolve_all_open_operator_incidents()'),
+  ('app.resolve_clinic_dedicated_bot_organization(text,text)'),
+  ('app.resolve_current_patient_treatment_program_organization(uuid)'),
+  ('app.resolve_operator_probe_incidents(text)'),
+  ('app.resolve_organization_cabinet_access(uuid)'),
+  ('app.resolve_organization_mechanic_access(uuid,text)'),
+  ('app.resolve_outgoing_delivery_scope(uuid)'),
+  ('app.resolve_patient_acquiring_webhook_organization(text,text)'),
+  ('app.resolve_payment_webhook_organization(text,text,text)'),
+  ('app.resolve_platform_audit_conflict(uuid)'),
+  ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
+  ('app.resolve_public_organization_by_slug(text)'),
+  ('app.resolve_public_organization_slug(text)'),
+  ('app.resolve_saas_billing_invoice_for_webhook(text,text)'),
+  ('app.resolve_saas_billing_refund_for_webhook(text,text)'),
+  ('app.resolve_staff_workspace_memberships(uuid)'),
+  ('app.revalidate_appointment_reminder_materialization(uuid)'),
+  ('app.revalidate_patient_reminder_delivery_materialization(uuid)'),
+  ('app.revalidate_specialist_task_reminder_materialization(uuid)'),
+  ('app.revoke_staff_sessions()'),
+  ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)'),
+  ('app.saas_billing_effective_tariff(uuid,uuid)'),
+  ('app.save_current_patient_booking_form_answers(uuid,text)'),
+  ('app.save_current_patient_channel_preference(text,boolean,boolean)'),
+  ('app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)'),
+  ('app.save_current_patient_test_result(uuid,uuid,text,text)'),
+  ('app.save_current_patient_web_push_subscription(text,text,text,text)'),
+  ('app.save_pending_staff_totp(text)'),
+  ('app.seed_reference_catalog_after_organization_insert()'),
+  ('app.seed_reference_catalog_snapshot(uuid)'),
+  ('app.set_current_patient_booking_reminder_preset(uuid,text)'),
+  ('app.set_current_patient_calendar_timezone(text,boolean)'),
+  ('app.set_current_patient_notification_topic_channel(text,text,boolean)'),
+  ('app.set_current_patient_notification_topic(text,boolean)'),
+  ('app.set_current_patient_preferred_auth_channel(text)'),
+  ('app.set_current_patient_reminder_muted_until(timestamp with time zone)'),
+  ('app.set_staff_security_self_password_hash(text)'),
+  ('app.specialist_task_reminder_materialization_fingerprint(uuid)'),
+  ('app.staff_user_has_password_credentials(uuid)'),
+  ('app.staff_user_has_web_oauth_binding(uuid)'),
+  ('app.start_current_patient_test_attempt(uuid,uuid)'),
+  ('app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)'),
+  ('app.start_provisioned_organization_trial()'),
+  ('app.submit_current_patient_test_attempt(uuid)'),
+  ('app.sync_clinic_dedicated_bot_binding()'),
+  ('app.touch_current_patient_plan_last_opened(uuid)'),
+  ('app.touch_current_patient_program_item(uuid,uuid)'),
+  ('app.touch_current_patient_support_conversation_activity(uuid)'),
+  ('app.try_acquire_integrator_idempotency(text,integer)'),
+  ('app.update_current_patient_fio(text,text,text)'),
+  ('app.update_current_patient_practice_completion_feeling(uuid,integer)'),
+  ('app.update_current_patient_reminder_rule(text,text)'),
+  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'),
+  ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)'),
+  ('app.upsert_google_calendar_event_id(uuid,text)'),
+  ('app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)'),
+  ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)'),
+  ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)'),
+  ('public.audit_app_runtime_settings_change()'),
+  ('public.media_folders_enforce_depth()'),
+  ('public.media_folders_prevent_cycle()'),
+  ('public.sync_registered_app_runtime_setting()'),
+  ('public.system_settings_test_lock_guard()')
+;
 CREATE TEMP TABLE bcb_function_relation_surfaces(signature text NOT NULL, relation_name text NOT NULL, columns text[] NOT NULL, operations text[] NOT NULL) ON COMMIT DROP;
 INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,operations) VALUES
   ('app_ext.resolve_variant_a_identity(uuid)', 'app_ext.variant_a_identity_refs', ARRAY['physical_user_id', 'opaque_ref']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
@@ -2344,28 +2729,17 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.accept_org_invite(text,uuid,text)', 'public.saas_tariffs', ARRAY['id', 'mechanics', 'created_at', 'updated_at', 'included_seats']::text[], ARRAY['SELECT']::text[]),
   ('app.acknowledge_open_outbound_provider_incidents()', 'public.operator_incidents', ARRAY['resolved_at', 'acknowledged_at', 'direction', 'alert_claim_phase', 'alert_claim_token', 'alert_claimed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)', 'public.outgoing_delivery_queue', ARRAY['id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'next_retry_at', 'dead_at', 'last_error', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
   ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.append_current_patient_program_discussion(uuid,text,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.append_current_patient_program_event(uuid,text,text,uuid,text,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.append_platform_audit_event(text,text,text)', 'public.admin_audit_log', ARRAY['organization_id', 'actor_id', 'action', 'details', 'status', 'id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.apply_current_patient_booking_cancellation(text)', 'public.be_appointments', ARRAY['id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id', 'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized', 'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id', 'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_current_patient_booking_cancellation(text)', 'public.be_appointment_cancellations', ARRAY['organization_id', 'appointment_id', 'actor_type', 'actor_id', 'cancellation_type', 'reason', 'was_free', 'was_penalized', 'package_session_charged', 'prepayment_retained', 'prepayment_refunded', 'staff_comment', 'notifications_sent', 'manual_override', 'applied_policy_id', 'applied_policy_snapshot', 'created_at']::text[], ARRAY['INSERT']::text[]),
@@ -2375,11 +2749,11 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.apply_current_patient_booking_reschedule(text)', 'public.be_appointment_reschedules', ARRAY['organization_id', 'appointment_id', 'from_start_at', 'from_end_at', 'to_start_at', 'to_end_at', 'actor_type', 'actor_id', 'was_in_free_reschedule_window', 'free_cancellation_available_at_reschedule', 'free_cancellation_available_after', 'applied_policy_id', 'applied_policy_snapshot', 'reason', 'staff_comment', 'notifications_sent', 'manual_override', 'created_at']::text[], ARRAY['INSERT']::text[]),
   ('app.apply_current_patient_booking_reschedule(text)', 'public.be_appointment_history_events', ARRAY['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at']::text[], ARRAY['INSERT']::text[]),
   ('app.apply_current_patient_booking_reschedule(text)', 'public.be_patient_timeline_events', ARRAY['organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type', 'linked_object_id', 'payload', 'occurred_at']::text[], ARRAY['INSERT']::text[]),
+  ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)', 'public.reference_categories', ARRAY['id', 'code']::text[], ARRAY['SELECT']::text[]),
   ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)', 'public.reference_items', ARRAY['id', 'category_id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
+  ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_paid_saas_billing_tariff(uuid,uuid)', 'public.be_organizations', ARRAY['id', 'updated_at', 'tariff_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.apply_paid_saas_billing_tariff(uuid,uuid)', 'public.saas_billing_invoices', ARRAY['id', 'organization_id', 'tariff_id', 'status', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.apply_paid_saas_billing_tariff(uuid,uuid)', 'public.saas_organization_trials', ARRAY['id', 'organization_id', 'tariff_id', 'status', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -2436,22 +2810,13 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'public.patient_merge_candidates', ARRAY['id', 'organization_id', 'anchor_user_id', 'candidate_user_id', 'reason', 'status', 'payload']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'public.platform_users', ARRAY['id', 'role', 'updated_at', 'email', 'email_verified_at', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.close_active_user_phone_history(uuid)', 'public.user_phone_history', ARRAY['platform_user_id', 'valid_to']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.complete_current_patient_program_item(uuid,uuid,integer,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.complete_staff_totp_enrollment(text,jsonb)', 'public.staff_security_profiles', ARRAY['user_id', 'factor_type', 'totp_secret_ciphertext', 'pending_totp_secret_ciphertext', 'factor_verified_at', 'recovery_code_hashes', 'recovery_codes_confirmed_at', 'replacement_required', 'failed_attempts', 'locked_until', 'session_version', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)', 'public.reference_categories', ARRAY['id', 'code']::text[], ARRAY['SELECT']::text[]),
-  ('app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)', 'public.reference_items', ARRAY['id', 'category_id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
-  ('app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.confirm_patient_program_submission_media(uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose', 'status', 'mime_type']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.confirm_staff_recovery_codes()', 'public.staff_security_profiles', ARRAY['user_id', 'factor_verified_at', 'recovery_code_hashes', 'recovery_codes_confirmed_at', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.consume_staff_recovery_login(text,text)', 'public.staff_security_profiles', ARRAY['user_id', 'recovery_code_hashes', 'replacement_required', 'failed_attempts', 'locked_until', 'session_version', 'login_challenge_hash', 'login_challenge_expires_at', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -2468,10 +2833,9 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.create_current_patient_booking_appointments(text)', 'public.be_patient_timeline_events', ARRAY['organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type', 'linked_object_id', 'payload', 'occurred_at']::text[], ARRAY['INSERT']::text[]),
   ('app.create_current_patient_booking_pending(text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.create_current_patient_booking_pending(text)', 'public.patient_bookings', ARRAY['id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end', 'status', 'canonical_appointment_id', 'contact_phone', 'contact_email', 'contact_name', 'branch_id', 'service_id', 'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot', 'service_title_snapshot', 'duration_minutes_snapshot', 'price_minor_snapshot', 'cancelled_at', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.create_current_patient_reminder_rule(text,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.create_current_patient_reminder_rule(text,text)', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.create_current_patient_reminder_rule(text,text)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.create_current_patient_reminder_rule(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
+  ('app.create_current_patient_reminder_rule(text,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
+  ('app.create_current_patient_reminder_rule(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.create_current_patient_reminder_rule(text,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)', 'public.media_folders', ARRAY['id', 'organization_id', 'parent_id', 'name', 'kind', 'patient_user_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)', 'public.user_identity', ARRAY['platform_user_id', 'first_name', 'last_name', 'patronymic', 'display_name']::text[], ARRAY['SELECT']::text[]),
@@ -2486,25 +2850,14 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.current_patient_lfk_sessions(text,text)', 'public.lfk_sessions', ARRAY['id', 'organization_id', 'user_id', 'complex_id', 'completed_at', 'source', 'created_at', 'recorded_at', 'duration_minutes', 'difficulty_0_10', 'pain_0_10', 'comment']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
   ('app.current_provisioned_owner_organization()', 'public.be_organization_members', ARRAY['id', 'organization_id', 'platform_user_id', 'role', 'status', 'created_at']::text[], ARRAY['SELECT']::text[]),
   ('app.current_provisioned_owner_organization()', 'public.be_organizations', ARRAY['id', 'is_active', 'created_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_reminder_rule(text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.delete_current_patient_reminder_rule(text)', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.delete_current_patient_reminder_rule(text)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_reminder_rule(text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
-  ('app.delete_current_patient_symptom_entry(uuid)', 'public.reference_categories', ARRAY['id', 'code']::text[], ARRAY['SELECT']::text[]),
-  ('app.delete_current_patient_symptom_entry(uuid)', 'public.reference_items', ARRAY['id', 'category_id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
-  ('app.delete_current_patient_symptom_entry(uuid)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.delete_current_patient_symptom_entry(uuid)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.delete_current_patient_symptom_entry(uuid)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.delete_current_patient_reminder_rule(text)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.delete_current_patient_reminder_rule(text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.delete_current_patient_symptom_entry(uuid)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.delete_current_patient_symptom_entry(uuid)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.delete_google_calendar_event_id(uuid)', 'public.be_appointments', ARRAY['id', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.delete_google_calendar_event_id(uuid)', 'public.booking_calendar_map', ARRAY['appointment_key']::text[], ARRAY['SELECT', 'DELETE']::text[]),
   ('app.delete_google_calendar_event_id(uuid)', 'public.patient_bookings', ARRAY['canonical_appointment_id', 'gcal_event_id', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -2552,33 +2905,19 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)', 'public.outgoing_delivery_queue', ARRAY['event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'organization_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.enqueue_media_transcode_job_core(uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'mime_type', 's3_key', 'status', 'hls_master_playlist_s3_key', 'video_processing_status', 'video_processing_error']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.enqueue_media_transcode_job_core(uuid)', 'public.media_transcode_jobs', ARRAY['id', 'media_id', 'organization_id', 'status', 'attempts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.ensure_current_patient_support_conversation()', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.ensure_current_patient_support_conversation()', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_support_conversation()', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.ensure_current_patient_system_symptom_tracking(text,text,uuid)', 'public.reference_categories', ARRAY['id', 'code']::text[], ARRAY['SELECT']::text[]),
   ('app.ensure_current_patient_system_symptom_tracking(text,text,uuid)', 'public.reference_items', ARRAY['id', 'category_id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
   ('app.ensure_current_patient_system_symptom_tracking(text,text,uuid)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_system_symptom_tracking(text,text,uuid)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.ensure_current_patient_system_symptom_tracking(text,text,uuid)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.ensure_current_patient_test_attempt(uuid)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.ensure_current_patient_test_attempt(uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.ensure_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.ensure_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.ensure_current_patient_test_attempt(uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.ensure_staff_security_profile()', 'public.staff_security_profiles', ARRAY['user_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.exchange_patient_invite(text,text,timestamp with time zone)', 'public.be_organizations', ARRAY['id', 'title', 'is_active', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.exchange_patient_invite(text,text,timestamp with time zone)', 'public.org_enrollments', ARRAY['id', 'organization_id', 'platform_user_id', 'status', 'portal_activated_at']::text[], ARRAY['SELECT']::text[]),
@@ -2644,40 +2983,21 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.lookup_patient_invite_continuation(text)', 'public.patient_invites', ARRAY['id', 'organization_id', 'patient_user_id', 'enrollment_id', 'status', 'invited_email_normalized', 'expires_at', 'accepted_by_platform_user_id', 'accepted_via', 'continuation_hash', 'continuation_expires_at', 'proof_code_hash', 'proof_expires_at', 'proof_verified_at', 'updated_at', 'recipient_binding']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.lookup_pending_org_invite(text)', 'public.be_organizations', ARRAY['id', 'title', 'created_at']::text[], ARRAY['SELECT']::text[]),
   ('app.lookup_pending_org_invite(text)', 'public.organization_member_invites', ARRAY['id', 'organization_id', 'invited_email', 'invited_role', 'token_hash', 'status', 'expires_at', 'created_by_platform_user_id', 'accepted_by_platform_user_id', 'accepted_membership_id', 'created_at', 'accepted_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.mark_all_current_patient_reminder_history_seen()', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.mark_all_current_patient_reminder_history_seen()', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
   ('app.mark_all_current_patient_reminder_history_seen()', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.mark_all_current_patient_reminder_history_seen()', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_reminder_history_seen(text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.mark_current_patient_reminder_history_seen(text)', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
+  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.mark_current_patient_program_item_viewed(uuid,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.mark_current_patient_reminder_history_seen(text)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_reminder_history_seen(text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
-  ('app.mark_current_patient_support_conversation_read(uuid)', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_support_conversation_read(uuid)', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_support_messages_read(text)', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_support_messages_read(text)', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_support_notifications_read()', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.mark_current_patient_support_notifications_read()', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.mark_current_patient_support_conversation_read(uuid)', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.mark_current_patient_support_conversation_read(uuid)', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.mark_current_patient_support_messages_read(text)', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.mark_current_patient_support_messages_read(text)', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.mark_current_patient_support_notifications_read()', 'public.support_conversation_messages', ARRAY['id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text', 'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url', 'media_type', 'read_at', 'delivered_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.mark_current_patient_support_notifications_read()', 'public.support_conversations', ARRAY['id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source', 'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code', 'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.mark_operator_incident_alert_sent(uuid)', 'public.operator_incidents', ARRAY['id', 'alert_sent_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'integrator.user_reminder_occurrences', ARRAY['id', 'rule_id', 'status', 'queued_at', 'updated_at', 'organization_id', 'platform_user_id', 'delivery_generation']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'public.outgoing_delivery_queue', ARRAY['id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'updated_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -2974,43 +3294,45 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)', 'public.app_runtime_settings', ARRAY['key', 'scope', 'audience', 'organization_id', 'value_json']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)', 'public.content_pages', ARRAY['id', 'organization_id', 'is_published', 'archived_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)', 'public.patient_content_rating_feedback', ARRAY['id', 'organization_id', 'user_id', 'content_page_id', 'rating_value', 'reason_codes', 'comment']::text[], ARRAY['INSERT']::text[]),
+  ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)', 'public.patient_home_blocks', ARRAY['code', 'organization_id', 'is_visible']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)', 'public.patient_home_block_items', ARRAY['block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_content_rating_feedback(uuid,integer,text,text)', 'public.patient_content_rating_feedback', ARRAY['id', 'organization_id', 'user_id', 'content_page_id', 'rating_value', 'reason_codes', 'comment']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.record_current_patient_daily_warmup_video_view(uuid)', 'public.patient_daily_warmup_presentations', ARRAY['organization_id', 'user_id', 'content_page_id']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_daily_warmup_video_view(uuid)', 'public.content_pages', ARRAY['id', 'organization_id', 'is_published', 'archived_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_daily_warmup_video_view(uuid)', 'public.patient_daily_warmup_video_views', ARRAY['organization_id', 'user_id', 'content_page_id']::text[], ARRAY['INSERT']::text[]),
   ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)', 'public.media_files', ARRAY['id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)', 'public.content_pages', ARRAY['organization_id', 'is_published', 'archived_at', 'deleted_at', 'video_url', 'image_url', 'body_md', 'body_html']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'instance_id']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'stage_id', 'status', 'snapshot']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)', 'public.program_item_discussion_messages', ARRAY['instance_stage_item_id', 'media_file_id', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_playback_client_event(uuid,text,text,text,text)', 'public.media_playback_client_events', ARRAY['organization_id', 'media_id', 'user_id', 'event_class', 'delivery', 'error_detail', 'user_agent']::text[], ARRAY['INSERT']::text[]),
   ('app.record_current_patient_playback_first_resolve(uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by']::text[], ARRAY['SELECT']::text[]),
-  ('app.record_current_patient_playback_first_resolve(uuid)', 'public.media_playback_user_video_first_resolve', ARRAY['organization_id', 'user_id', 'media_id']::text[], ARRAY['INSERT']::text[]),
+  ('app.record_current_patient_playback_first_resolve(uuid)', 'public.content_pages', ARRAY['organization_id', 'is_published', 'archived_at', 'deleted_at', 'video_url', 'image_url', 'body_md', 'body_html']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_first_resolve(uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_first_resolve(uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'instance_id']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_first_resolve(uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'stage_id', 'status', 'snapshot']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_first_resolve(uuid)', 'public.program_item_discussion_messages', ARRAY['instance_stage_item_id', 'media_file_id', 'organization_id']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_playback_first_resolve(uuid)', 'public.media_playback_user_video_first_resolve', ARRAY['organization_id', 'user_id', 'media_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.record_current_patient_practice_completion(uuid,text,integer)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_practice_completion(uuid,text,integer)', 'public.content_pages', ARRAY['id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_practice_completion(uuid,text,integer)', 'public.patient_home_blocks', ARRAY['code', 'organization_id', 'is_visible']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_practice_completion(uuid,text,integer)', 'public.patient_home_block_items', ARRAY['block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref']::text[], ARRAY['SELECT']::text[]),
-  ('app.record_current_patient_practice_completion(uuid,text,integer)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'content_page_id', 'source', 'feeling', 'notes']::text[], ARRAY['INSERT']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
+  ('app.record_current_patient_practice_completion(uuid,text,integer)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'content_page_id', 'source', 'feeling', 'notes']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)', 'public.org_enrollments', ARRAY['id', 'organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)', 'public.product_analytics_events_recent', ARRAY['id', 'occurred_at', 'event_type', 'entry_channel', 'page_key', 'user_id', 'push_tracking_id', 'topic_code', 'push_kind', 'warmup_slogan_key', 'metadata', 'organization_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)', 'public.product_analytics_hourly', ARRAY['bucket_hour', 'event_type', 'entry_channel', 'page_key', 'topic_code', 'push_kind', 'warmup_slogan_key', 'event_count', 'updated_at', 'organization_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)', 'public.product_analytics_user_hourly', ARRAY['bucket_hour', 'user_id', 'entry_channel', 'page_key', 'app_opens', 'page_views', 'push_opens', 'active_minutes', 'last_seen_at', 'updated_at', 'organization_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.record_current_patient_push_open(timestamp with time zone,text,uuid)', 'public.product_push_notifications', ARRAY['id', 'user_id', 'topic_code', 'push_kind', 'warmup_slogan_key', 'organization_id']::text[], ARRAY['SELECT']::text[]),
-  ('app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
-  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.reference_categories', ARRAY['id', 'code']::text[], ARRAY['SELECT']::text[]),
-  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.reference_items', ARRAY['id', 'category_id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
-  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT']::text[]),
+  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
+  ('app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.record_failed_staff_factor_attempt()', 'public.staff_security_profiles', ARRAY['user_id', 'failed_attempts', 'locked_until', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)', 'public.support_delivery_events', ARRAY['id', 'organization_id', 'conversation_message_id', 'integrator_intent_event_id', 'correlation_id', 'channel_code', 'status', 'attempt', 'reason', 'payload_json', 'occurred_at']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.record_integrator_webhook_outcome(text,boolean,integer,text,text)', 'public.integration_webhook_last_status', ARRAY['source', 'received_at', 'processed_ok', 'error_class', 'http_status_returned', 'detail']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
@@ -3033,16 +3355,8 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.redeem_patient_invite_email(text)', 'public.platform_users', ARRAY['id', 'role', 'updated_at', 'email_verified_at', 'merged_into_id', 'email_normalized']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.refresh_specialist_task_reminder_materialization(text)', 'public.outgoing_delivery_queue', ARRAY['id', 'event_id', 'kind', 'payload_json', 'status', 'updated_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.release_integrator_idempotency(text)', 'integrator.idempotency_keys', ARRAY['key']::text[], ARRAY['SELECT', 'DELETE']::text[]),
-  ('app.remove_all_current_patient_web_push_subscriptions()', 'public.user_channel_preferences', ARRAY['id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.remove_all_current_patient_web_push_subscriptions()', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code']::text[], ARRAY['SELECT']::text[]),
-  ('app.remove_all_current_patient_web_push_subscriptions()', 'public.platform_users', ARRAY['id', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.remove_all_current_patient_web_push_subscriptions()', 'public.user_phone_history', ARRAY['platform_user_id', 'valid_to']::text[], ARRAY['SELECT']::text[]),
-  ('app.remove_all_current_patient_web_push_subscriptions()', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.remove_current_patient_web_push_subscription(text)', 'public.user_channel_preferences', ARRAY['id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.remove_current_patient_web_push_subscription(text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code']::text[], ARRAY['SELECT']::text[]),
-  ('app.remove_current_patient_web_push_subscription(text)', 'public.platform_users', ARRAY['id', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.remove_current_patient_web_push_subscription(text)', 'public.user_phone_history', ARRAY['platform_user_id', 'valid_to']::text[], ARRAY['SELECT']::text[]),
-  ('app.remove_current_patient_web_push_subscription(text)', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
+  ('app.remove_all_current_patient_web_push_subscriptions()', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
+  ('app.remove_current_patient_web_push_subscription(text)', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'DELETE']::text[]),
   ('app.replace_pending_specialist_signup_challenge(uuid,text)', 'public.specialist_signup_intents', ARRAY['id', 'user_id', 'challenge_id', 'status', 'organization_slug']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.report_saas_isolation_event(text,text,text,text)', 'public.saas_isolation_event_hourly', ARRAY['event_id', 'bucket_start', 'occurrence_count']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
   ('app.report_saas_isolation_event(text,text,text,text)', 'public.saas_isolation_events', ARRAY['id', 'fingerprint', 'event_class', 'source_service', 'source_operation', 'explanation_status', 'lifecycle_status', 'occurrence_count', 'last_seen_at', 'resolved_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
@@ -3123,29 +3437,16 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.save_current_patient_booking_form_answers(uuid,text)', 'public.be_booking_form_fields', ARRAY['id', 'organization_id', 'field_key', 'is_active', 'visible_to_patient']::text[], ARRAY['SELECT']::text[]),
   ('app.save_current_patient_booking_form_answers(uuid,text)', 'public.be_booking_form_submissions', ARRAY['organization_id', 'appointment_id', 'field_id', 'value_text']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.save_current_patient_channel_preference(text,boolean,boolean)', 'public.user_channel_preferences', ARRAY['id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.save_current_patient_channel_preference(text,boolean,boolean)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_current_patient_channel_preference(text,boolean,boolean)', 'public.platform_users', ARRAY['id', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_current_patient_channel_preference(text,boolean,boolean)', 'public.user_phone_history', ARRAY['platform_user_id', 'valid_to']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_current_patient_channel_preference(text,boolean,boolean)', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
   ('app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)', 'public.content_pages', ARRAY['id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)', 'public.patient_home_blocks', ARRAY['code', 'organization_id', 'is_visible']::text[], ARRAY['SELECT']::text[]),
   ('app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)', 'public.patient_home_block_items', ARRAY['block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)', 'public.patient_daily_warmup_presentations', ARRAY['organization_id', 'user_id', 'content_page_id', 'last_rotation_at', 'skip_next_scheduled_rotation', 'updated_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)', 'public.patient_daily_warmup_presentations', ARRAY['organization_id', 'user_id', 'content_page_id', 'last_rotation_at', 'skip_next_scheduled_rotation', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT']::text[]),
   ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.save_current_patient_web_push_subscription(text,text,text,text)', 'public.user_channel_preferences', ARRAY['id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.save_current_patient_web_push_subscription(text,text,text,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_current_patient_web_push_subscription(text,text,text,text)', 'public.platform_users', ARRAY['id', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_current_patient_web_push_subscription(text,text,text,text)', 'public.user_phone_history', ARRAY['platform_user_id', 'valid_to']::text[], ARRAY['SELECT']::text[]),
+  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.save_current_patient_test_result(uuid,uuid,text,text)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.save_current_patient_web_push_subscription(text,text,text,text)', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
   ('app.save_pending_staff_totp(text)', 'public.staff_security_profiles', ARRAY['user_id', 'pending_totp_secret_ciphertext', 'failed_attempts', 'locked_until', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.seed_reference_catalog_snapshot(uuid)', 'public.reference_catalog_baselines', ARRAY['version', 'definition_json']::text[], ARRAY['SELECT']::text[]),
@@ -3158,19 +3459,15 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.set_current_patient_calendar_timezone(text,boolean)', 'public.platform_users', ARRAY['id', 'role', 'updated_at', 'merged_into_id', 'calendar_timezone']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.set_current_patient_notification_topic_channel(text,text,boolean)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.set_current_patient_notification_topic_channel(text,text,boolean)', 'public.app_runtime_settings', ARRAY['key', 'scope', 'audience', 'organization_id', 'value_json']::text[], ARRAY['SELECT']::text[]),
-  ('app.set_current_patient_notification_topic_channel(text,text,boolean)', 'public.user_notification_topic_channels', ARRAY['user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
+  ('app.set_current_patient_notification_topic_channel(text,text,boolean)', 'public.user_notification_topic_channels', ARRAY['user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.set_current_patient_notification_topic(text,boolean)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.set_current_patient_notification_topic(text,boolean)', 'public.app_runtime_settings', ARRAY['key', 'scope', 'audience', 'organization_id', 'value_json']::text[], ARRAY['SELECT']::text[]),
-  ('app.set_current_patient_notification_topic(text,boolean)', 'public.user_notification_topics', ARRAY['user_id', 'topic_code', 'is_enabled', 'updated_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.set_current_patient_preferred_auth_channel(text)', 'public.user_channel_preferences', ARRAY['id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.set_current_patient_preferred_auth_channel(text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code']::text[], ARRAY['SELECT']::text[]),
+  ('app.set_current_patient_notification_topic(text,boolean)', 'public.user_notification_topics', ARRAY['user_id', 'topic_code', 'is_enabled', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.set_current_patient_preferred_auth_channel(text)', 'public.platform_users', ARRAY['id', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.set_current_patient_preferred_auth_channel(text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code']::text[], ARRAY['SELECT']::text[]),
+  ('app.set_current_patient_preferred_auth_channel(text)', 'public.user_channel_preferences', ARRAY['id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.set_current_patient_preferred_auth_channel(text)', 'public.user_phone_history', ARRAY['platform_user_id', 'valid_to']::text[], ARRAY['SELECT']::text[]),
-  ('app.set_current_patient_preferred_auth_channel(text)', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.set_current_patient_reminder_muted_until(timestamp with time zone)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.set_current_patient_reminder_muted_until(timestamp with time zone)', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.set_current_patient_reminder_muted_until(timestamp with time zone)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.set_current_patient_reminder_muted_until(timestamp with time zone)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
+  ('app.set_current_patient_reminder_muted_until(timestamp with time zone)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.set_staff_security_self_password_hash(text)', 'public.user_password_credentials', ARRAY['user_id', 'password_hash', 'updated_at', 'failed_attempts', 'locked_until']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.specialist_task_reminder_materialization_fingerprint(uuid)', 'public.platform_users', ARRAY['id', 'created_at', 'updated_at', 'email', 'email_verified_at']::text[], ARRAY['SELECT']::text[]),
   ('app.specialist_task_reminder_materialization_fingerprint(uuid)', 'public.specialist_tasks', ARRAY['id', 'owner_user_id', 'patient_user_id', 'title', 'description', 'due_at', 'remind_at', 'is_important', 'completed_at', 'reminder_sent_at', 'created_at', 'updated_at', 'organization_id']::text[], ARRAY['SELECT']::text[]),
@@ -3181,16 +3478,10 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.specialist_task_reminder_materialization_fingerprint(uuid)', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.staff_user_has_password_credentials(uuid)', 'public.user_password_credentials', ARRAY['user_id']::text[], ARRAY['SELECT']::text[]),
   ('app.staff_user_has_web_oauth_binding(uuid)', 'public.user_oauth_bindings', ARRAY['user_id', 'provider']::text[], ARRAY['SELECT']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.start_current_patient_test_attempt(uuid,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)', 'app.context_signing_secrets', ARRAY['id', 'secret']::text[], ARRAY['SELECT']::text[]),
   ('app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)', 'public.be_organizations', ARRAY['id', 'is_active', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)', 'public.patient_invites', ARRAY['id', 'organization_id', 'status', 'invited_email_normalized', 'expires_at', 'continuation_hash', 'continuation_expires_at', 'proof_email_normalized', 'proof_code_hash', 'proof_started_at', 'proof_expires_at', 'proof_attempts', 'proof_verified_at', 'updated_at', 'recipient_binding']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -3200,29 +3491,18 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.start_provisioned_organization_trial()', 'public.saas_registration_tariff_policy', ARRAY['key', 'tariff_id', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.start_provisioned_organization_trial()', 'public.saas_tariffs', ARRAY['id', 'is_active', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.start_provisioned_organization_trial()', 'public.saas_trial_policy', ARRAY['key', 'duration_days', 'start_event', 'post_trial_behavior', 'post_trial_tariff_id', 'is_active', 'updated_at', 'discount_window_days']::text[], ARRAY['SELECT']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.submit_current_patient_test_attempt(uuid)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.submit_current_patient_test_attempt(uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.submit_current_patient_test_attempt(uuid)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.submit_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.submit_current_patient_test_attempt(uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.submit_current_patient_test_attempt(uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.sync_clinic_dedicated_bot_binding()', 'public.clinic_dedicated_bot_bindings', ARRAY['channel', 'organization_id', 'credential_fingerprint', 'is_active', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'DELETE']::text[]),
   ('app.touch_current_patient_plan_last_opened(uuid)', 'public.org_enrollments', ARRAY['id', 'organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.touch_current_patient_plan_last_opened(uuid)', 'public.treatment_program_instances', ARRAY['id', 'patient_user_id', 'status', 'updated_at', 'patient_plan_last_opened_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.touch_current_patient_program_item(uuid,uuid)', 'public.treatment_program_events', ARRAY['id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload', 'reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.program_action_log', ARRAY['id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id', 'action_type', 'payload', 'note', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose']::text[], ARRAY['SELECT']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.program_item_discussion_messages', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body', 'media_file_id', 'support_message_id', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.program_item_discussion_reads', ARRAY['organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.test_attempts', ARRAY['id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at', 'accepted_at', 'accepted_by']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.test_results', ARRAY['id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by', 'created_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot', 'completed_at', 'last_viewed_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.touch_current_patient_program_item(uuid,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at', 'patient_plan_last_opened_at']::text[], ARRAY['SELECT']::text[]),
   ('app.touch_current_patient_support_conversation_activity(uuid)', 'public.org_enrollments', ARRAY['id', 'organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.touch_current_patient_support_conversation_activity(uuid)', 'public.support_conversation_messages', ARRAY['id', 'conversation_id', 'sender_role', 'text', 'source', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.touch_current_patient_support_conversation_activity(uuid)', 'public.support_conversations', ARRAY['id', 'platform_user_id', 'source', 'admin_scope', 'status', 'last_message_at', 'closed_at', 'updated_at', 'organization_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -3230,25 +3510,17 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.update_current_patient_fio(text,text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
   ('app.update_current_patient_fio(text,text,text)', 'public.user_identity', ARRAY['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
   ('app.update_current_patient_fio(text,text,text)', 'public.admin_audit_log', ARRAY['organization_id', 'actor_id', 'action', 'target_id', 'details']::text[], ARRAY['INSERT']::text[]),
-  ('app.update_current_patient_practice_completion_feeling(uuid,integer)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'feeling']::text[], ARRAY['UPDATE']::text[]),
-  ('app.update_current_patient_reminder_rule(text,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.update_current_patient_reminder_rule(text,text)', 'public.reminder_journal', ARRAY['id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.update_current_patient_reminder_rule(text,text)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.update_current_patient_reminder_rule(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['UPDATE']::text[]),
-  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.reference_categories', ARRAY['id', 'code']::text[], ARRAY['SELECT']::text[]),
-  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.reference_items', ARRAY['id', 'category_id', 'organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
-  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]),
-  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.update_current_patient_practice_completion_feeling(uuid,integer)', 'public.patient_practice_completions', ARRAY['id', 'organization_id', 'user_id', 'feeling']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.update_current_patient_reminder_rule(text,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_entries', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type', 'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)', 'public.symptom_trackings', ARRAY['id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active', 'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text', 'diagnosis_ref_id', 'stage_ref_id', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.app_runtime_settings', ARRAY['key', 'scope', 'audience', 'organization_id', 'value_json']::text[], ARRAY['SELECT']::text[]),
   ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.content_pages', ARRAY['id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.patient_home_blocks', ARRAY['code', 'organization_id', 'is_visible']::text[], ARRAY['SELECT']::text[]),
-  ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.patient_home_block_items', ARRAY['block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref']::text[], ARRAY['SELECT']::text[]),
   ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.treatment_program_instances', ARRAY['id', 'organization_id', 'patient_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.treatment_program_instance_stages', ARRAY['id', 'organization_id', 'instance_id']::text[], ARRAY['SELECT']::text[]),
   ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.treatment_program_instance_stage_items', ARRAY['id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status']::text[], ARRAY['SELECT']::text[]),
-  ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.material_ratings', ARRAY['organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at']::text[], ARRAY['INSERT', 'UPDATE']::text[]),
+  ('app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)', 'public.material_ratings', ARRAY['organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.upsert_google_calendar_event_id(uuid,text)', 'public.be_appointments', ARRAY['id', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.upsert_google_calendar_event_id(uuid,text)', 'public.booking_calendar_map', ARRAY['appointment_key', 'gcal_event_id', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.upsert_google_calendar_event_id(uuid,text)', 'public.patient_bookings', ARRAY['canonical_appointment_id', 'gcal_event_id', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
@@ -3261,32 +3533,45 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)', 'public.patient_invites', ARRAY['id', 'organization_id', 'patient_user_id', 'status', 'invited_email_normalized', 'expires_at', 'accepted_by_platform_user_id', 'accepted_via', 'continuation_hash', 'continuation_expires_at', 'proof_email_normalized', 'proof_code_hash', 'proof_expires_at', 'proof_attempts', 'proof_verified_at', 'updated_at', 'recipient_binding']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('public.audit_app_runtime_settings_change()', 'public.app_runtime_settings_audit', ARRAY['audience', 'key', 'new_value_json', 'old_value_json', 'organization_id', 'scope', 'source', 'updated_by']::text[], ARRAY['INSERT']::text[])
 ;
+CREATE TEMP TABLE bcb_function_surface_gaps(message text PRIMARY KEY) ON COMMIT DROP;
 DO $bcb$
-DECLARE surface record; source text; relation_pattern text; column_pattern text; mutation text;
+DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text;
 BEGIN
   IF 'insert into x(id) values (1) on conflict do nothing' ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M' THEN RAISE EXCEPTION 'targetless ON CONFLICT DO NOTHING was classified as requiring SELECT'; END IF;
   IF NOT ('insert into x(id) values (1) on conflict (id) do nothing' ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M') THEN RAISE EXCEPTION 'indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;
   IF NOT ('insert into x(id) values (1) on conflict on constraint x_pkey do nothing' ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M') THEN RAISE EXCEPTION 'constrained ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;
+  FOR function_row IN SELECT * FROM bcb_function_surface_functions ORDER BY signature LOOP
+    SELECT pg_catalog.lower(p.prosrc) INTO source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(function_row.signature);
+    IF source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body surface target missing: '||function_row.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;
+    FOR relation_row IN SELECT 'public.'||c.relname AS relation_name FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f') ORDER BY c.relname LOOP
+      relation_pattern := pg_catalog.replace(relation_row.relation_name, '.', '\.');
+      IF (source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') OR source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mselect\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M') OR source ~ ('\m(join|using)[[:space:]]+'||relation_pattern||'\M')) AND NOT EXISTS (SELECT 1 FROM bcb_function_relation_surfaces declared WHERE declared.signature=function_row.signature AND declared.relation_name=relation_row.relation_name) THEN
+        INSERT INTO bcb_function_surface_gaps VALUES ('function body relation surface absent: '||function_row.signature||' -> '||relation_row.relation_name) ON CONFLICT DO NOTHING;
+      END IF;
+    END LOOP;
+  END LOOP;
   FOR surface IN SELECT * FROM bcb_function_relation_surfaces ORDER BY signature,relation_name LOOP
     SELECT pg_catalog.lower(p.prosrc) INTO source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(surface.signature);
-    IF source IS NULL THEN RAISE EXCEPTION 'function body surface target missing: %',surface.signature; END IF;
+    IF source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body surface target missing: '||surface.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;
     relation_pattern := pg_catalog.replace(surface.relation_name, '.', '\.');
     column_pattern := pg_catalog.array_to_string(surface.columns, '|');
-    IF source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M') AND NOT ('INSERT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared INSERT: % -> %',surface.signature,surface.relation_name; END IF;
-    IF source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') AND NOT ('UPDATE'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared UPDATE: % -> %',surface.signature,surface.relation_name; END IF;
-    IF source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M') AND NOT ('DELETE'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared DELETE: % -> %',surface.signature,surface.relation_name; END IF;
-    IF (source ~ ('\mselect\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mjoin[[:space:]]+'||relation_pattern||'\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'function body requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;
+    IF source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M') AND NOT ('INSERT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared INSERT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') AND NOT ('UPDATE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared UPDATE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M') AND NOT ('DELETE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared DELETE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF (source ~ ('\mselect\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR source ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M') OR source ~ ('\m(join|using)[[:space:]]+'||relation_pattern||'\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     mutation := (pg_catalog.regexp_match(source, '(\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
-    IF mutation ~ '\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M' AND NOT ('UPDATE'=ANY(surface.operations)) THEN RAISE EXCEPTION 'ON CONFLICT DO UPDATE requires undeclared UPDATE: % -> %',surface.signature,surface.relation_name; END IF;
-    IF mutation ~ '\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'ON CONFLICT DO UPDATE requires undeclared SELECT for conflict/update row: % -> %',surface.signature,surface.relation_name; END IF;
-    IF mutation ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'targeted ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row: % -> %',surface.signature,surface.relation_name; END IF;
-    IF mutation ~ ('\mreturning\M[^;]*\m('||column_pattern||')\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'INSERT RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;
+    IF mutation ~ '\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M' AND NOT ('UPDATE'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('ON CONFLICT DO UPDATE requires undeclared UPDATE: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF mutation ~ '\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('ON CONFLICT DO UPDATE requires undeclared SELECT for conflict/update row: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF mutation ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M' AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('targeted ON CONFLICT DO NOTHING requires undeclared SELECT for conflict row: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF (mutation ~ '\mreturning[[:space:]]+[*]' OR mutation ~ ('\mreturning\M[^;]*\m('||column_pattern||')\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('INSERT RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     mutation := (pg_catalog.regexp_match(source, '(\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M[^;]*)'))[1];
-    IF mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'UPDATE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;
+    IF (mutation ~ '\mreturning[[:space:]]+[*]' OR mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('UPDATE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     mutation := (pg_catalog.regexp_match(source, '(\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
-    IF mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M') AND NOT ('SELECT'=ANY(surface.operations)) THEN RAISE EXCEPTION 'DELETE predicate/RETURNING requires undeclared SELECT: % -> %',surface.signature,surface.relation_name; END IF;
+    IF (mutation ~ '\mreturning[[:space:]]+[*]' OR mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('DELETE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
   END LOOP;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=928';
+  SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
+  IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED rows=815';
 END
 $bcb$;
 
@@ -12433,6 +12718,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."content_pages" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."content_pages" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."content_pages" TO "app_patient";
 GRANT SELECT ("archived_at", "deleted_at", "id", "is_published", "organization_id") ON TABLE "public"."content_pages" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("archived_at", "body_html", "body_md", "deleted_at", "image_url", "is_published", "organization_id", "video_url") ON TABLE "public"."content_pages" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("archived_at", "deleted_at", "id", "is_published", "organization_id", "slug") ON TABLE "public"."content_pages" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."content_pages" TO "app_staff";
 GRANT INSERT ("body_html", "body_md", "image_url", "is_published", "linked_course_id", "organization_id", "requires_auth", "section", "slug", "sort_order", "summary", "title", "updated_at", "video_type", "video_url") ON TABLE "public"."content_pages" TO "app_staff";
@@ -13409,6 +13695,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."material_ratings" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."material_ratings" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("organization_id", "stars", "target_id", "target_kind", "user_id") ON TABLE "public"."material_ratings" TO "app_patient";
 GRANT SELECT ("organization_id", "stars", "target_id", "target_kind", "user_id") ON TABLE "public"."material_ratings" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("target_id", "target_kind", "user_id") ON TABLE "public"."material_ratings" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("organization_id", "stars", "target_id", "target_kind", "updated_at", "user_id") ON TABLE "public"."material_ratings" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("organization_id", "stars", "target_id", "target_kind", "updated_at", "user_id") ON TABLE "public"."material_ratings" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."material_ratings" TO "app_staff";
@@ -13726,6 +14013,7 @@ ALTER TABLE "public"."media_playback_user_video_first_resolve" FORCE ROW LEVEL S
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_user_video_first_resolve" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."media_playback_user_video_first_resolve" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("media_id", "user_id") ON TABLE "public"."media_playback_user_video_first_resolve" TO "app_patient";
+GRANT SELECT ("media_id", "user_id") ON TABLE "public"."media_playback_user_video_first_resolve" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("media_id", "organization_id", "user_id") ON TABLE "public"."media_playback_user_video_first_resolve" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."media_playback_user_video_first_resolve" TO "app_staff";
 GRANT INSERT ("media_id", "user_id") ON TABLE "public"."media_playback_user_video_first_resolve" TO "app_staff";
@@ -14784,6 +15072,7 @@ ALTER TABLE "public"."patient_content_rating_feedback" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."patient_content_rating_feedback" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."patient_content_rating_feedback" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("id") ON TABLE "public"."patient_content_rating_feedback" TO "app_patient";
+GRANT SELECT ("id") ON TABLE "public"."patient_content_rating_feedback" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("comment", "content_page_id", "id", "organization_id", "rating_value", "reason_codes", "user_id") ON TABLE "public"."patient_content_rating_feedback" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ON TABLE "public"."patient_content_rating_feedback" TO "app_staff";
 GRANT INSERT ("comment", "content_page_id", "organization_id", "rating_value", "reason_codes", "user_id") ON TABLE "public"."patient_content_rating_feedback" TO "app_staff";
@@ -14831,6 +15120,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_daily_warmup_presentations" FRO
 REVOKE ALL PRIVILEGES ON TABLE "public"."patient_daily_warmup_presentations" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ("content_page_id", "last_rotation_at", "skip_next_scheduled_rotation", "user_id") ON TABLE "public"."patient_daily_warmup_presentations" TO "app_patient";
 GRANT SELECT ("content_page_id", "organization_id", "user_id") ON TABLE "public"."patient_daily_warmup_presentations" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("content_page_id", "user_id") ON TABLE "public"."patient_daily_warmup_presentations" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("content_page_id", "last_rotation_at", "organization_id", "skip_next_scheduled_rotation", "updated_at", "user_id") ON TABLE "public"."patient_daily_warmup_presentations" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("content_page_id", "last_rotation_at", "organization_id", "skip_next_scheduled_rotation", "updated_at", "user_id") ON TABLE "public"."patient_daily_warmup_presentations" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."patient_daily_warmup_presentations" TO "app_staff";
@@ -15282,6 +15572,8 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_practice_completions" FROM "app
 GRANT SELECT ON TABLE "public"."patient_practice_completions" TO "app_patient";
 GRANT SELECT ("completed_at", "feeling", "id", "organization_id", "source", "user_id") ON TABLE "public"."patient_practice_completions" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("completed_at", "organization_id", "source", "user_id") ON TABLE "public"."patient_practice_completions" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("id") ON TABLE "public"."patient_practice_completions" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("id", "organization_id", "user_id") ON TABLE "public"."patient_practice_completions" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("content_page_id", "feeling", "id", "notes", "organization_id", "source", "user_id") ON TABLE "public"."patient_practice_completions" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("completed_at", "feeling", "id", "organization_id", "source", "user_id") ON TABLE "public"."patient_practice_completions" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("feeling", "id", "organization_id", "user_id") ON TABLE "public"."patient_practice_completions" TO "app_seam_patient_self_actions_owner";
@@ -15584,11 +15876,12 @@ GRANT SELECT ("email_normalized", "email_verified_at", "id", "merged_into_id", "
 GRANT UPDATE ("email", "email_normalized", "email_verified_at", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT UPDATE ("email_normalized", "email_verified_at", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT SELECT ("calendar_timezone", "id") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("id", "merged_into_id", "reminder_muted_until", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
-GRANT SELECT ("email_verified_at", "id") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("calendar_timezone", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
-GRANT UPDATE ("id", "merged_into_id", "reminder_muted_until", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("email_verified_at", "id") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("calendar_timezone", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
+GRANT UPDATE ("id", "merged_into_id", "reminder_muted_until", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("display_name", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("email", "id", "integrator_user_id", "merged_into_id", "patient_phone_trust_at", "phone_normalized", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_phone_binding_owner";
 GRANT SELECT ("created_at", "id", "merged_into_id", "phone_normalized") ON TABLE "public"."platform_users" TO "app_seam_phone_binding_owner";
@@ -15866,8 +16159,8 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."program_action_log" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."program_action_log" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."program_action_log" TO "app_patient";
 GRANT DELETE ON TABLE "public"."program_action_log" TO "app_seam_patient_self_actions_owner";
-GRANT SELECT ("action_type", "created_at", "id", "instance_id", "instance_stage_item_id", "note", "organization_id", "patient_user_id", "payload", "session_id") ON TABLE "public"."program_action_log" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("action_type", "created_at", "instance_id", "instance_stage_item_id", "organization_id", "patient_user_id") ON TABLE "public"."program_action_log" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("action_type", "created_at", "id", "instance_id", "instance_stage_item_id", "note", "organization_id", "patient_user_id", "payload", "session_id") ON TABLE "public"."program_action_log" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("action_type", "created_at", "id", "instance_id", "instance_stage_item_id", "note", "organization_id", "patient_user_id", "payload", "session_id") ON TABLE "public"."program_action_log" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("action_type", "created_at", "id", "instance_id", "instance_stage_item_id", "note", "organization_id", "patient_user_id", "payload", "session_id") ON TABLE "public"."program_action_log" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."program_action_log" TO "app_staff";
@@ -15914,6 +16207,8 @@ ALTER TABLE "public"."program_item_discussion_messages" FORCE ROW LEVEL SECURITY
 REVOKE ALL PRIVILEGES ON TABLE "public"."program_item_discussion_messages" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."program_item_discussion_messages" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."program_item_discussion_messages" TO "app_patient";
+GRANT SELECT ("body", "created_at", "id", "instance_stage_item_id", "media_file_id", "organization_id", "origin", "patient_user_id", "sender_role", "support_message_id") ON TABLE "public"."program_item_discussion_messages" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("instance_stage_item_id", "media_file_id", "organization_id") ON TABLE "public"."program_item_discussion_messages" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("body", "created_at", "id", "instance_stage_item_id", "media_file_id", "organization_id", "origin", "patient_user_id", "sender_role", "support_message_id") ON TABLE "public"."program_item_discussion_messages" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."program_item_discussion_messages" TO "app_staff";
 GRANT INSERT ("body", "created_at", "instance_stage_item_id", "media_file_id", "organization_id", "origin", "patient_user_id", "sender_role", "support_message_id") ON TABLE "public"."program_item_discussion_messages" TO "app_staff";
@@ -15956,6 +16251,7 @@ ALTER TABLE "public"."program_item_discussion_reads" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."program_item_discussion_reads" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."program_item_discussion_reads" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."program_item_discussion_reads" TO "app_patient";
+GRANT SELECT ("instance_stage_item_id", "last_read_at", "organization_id", "patient_user_id") ON TABLE "public"."program_item_discussion_reads" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("instance_stage_item_id", "last_read_at", "organization_id", "patient_user_id") ON TABLE "public"."program_item_discussion_reads" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("instance_stage_item_id", "last_read_at", "organization_id", "patient_user_id") ON TABLE "public"."program_item_discussion_reads" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ON TABLE "public"."program_item_discussion_reads" TO "app_staff";
@@ -16277,6 +16573,7 @@ ALTER TABLE "public"."reminder_journal" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."reminder_journal" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."reminder_journal" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."reminder_journal" TO "app_patient";
+GRANT SELECT ("action", "created_at", "id", "occurrence_id", "organization_id", "rule_id", "skip_reason", "snooze_until") ON TABLE "public"."reminder_journal" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("action", "created_at", "id", "occurrence_id", "organization_id", "rule_id", "skip_reason", "snooze_until") ON TABLE "public"."reminder_journal" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("action", "id", "occurrence_id", "organization_id", "rule_id") ON TABLE "public"."reminder_journal" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("action", "created_at", "id", "occurrence_id", "organization_id", "rule_id") ON TABLE "public"."reminder_journal" TO "app_seam_reminder_patient_owner";
@@ -16326,6 +16623,7 @@ ALTER TABLE "public"."reminder_occurrence_history" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."reminder_occurrence_history" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."reminder_occurrence_history" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."reminder_occurrence_history" TO "app_patient";
+GRANT DELETE ON TABLE "public"."reminder_occurrence_history" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("integrator_occurrence_id", "organization_id", "platform_user_id", "seen_at") ON TABLE "public"."reminder_occurrence_history" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("integrator_occurrence_id", "organization_id", "platform_user_id", "seen_at") ON TABLE "public"."reminder_occurrence_history" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("category", "id", "integrator_occurrence_id", "integrator_rule_id", "integrator_user_id", "organization_id", "platform_user_id", "status") ON TABLE "public"."reminder_occurrence_history" TO "app_seam_reminder_patient_owner";
@@ -17943,6 +18241,7 @@ ALTER TABLE "public"."treatment_program_events" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_events" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_events" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."treatment_program_events" TO "app_patient";
+GRANT SELECT ("actor_id", "created_at", "event_type", "id", "instance_id", "organization_id", "payload", "reason", "target_id", "target_type") ON TABLE "public"."treatment_program_events" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("actor_id", "created_at", "event_type", "id", "instance_id", "organization_id", "payload", "reason", "target_id", "target_type") ON TABLE "public"."treatment_program_events" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ON TABLE "public"."treatment_program_events" TO "app_staff";
 GRANT INSERT ("actor_id", "event_type", "instance_id", "organization_id", "payload", "reason", "target_id", "target_type") ON TABLE "public"."treatment_program_events" TO "app_staff";
@@ -18029,6 +18328,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."treatment_program_instance_stage_items"
 GRANT SELECT ON TABLE "public"."treatment_program_instance_stage_items" TO "app_patient";
 GRANT SELECT ("completed_at", "id", "is_actionable", "item_ref_id", "item_type", "last_viewed_at", "organization_id", "snapshot", "stage_id", "status") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "organization_id", "stage_id") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("id", "snapshot", "stage_id", "status") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "item_ref_id", "item_type", "organization_id", "stage_id", "status") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("completed_at", "id", "is_actionable", "item_ref_id", "item_type", "last_viewed_at", "organization_id", "snapshot", "stage_id", "status") ON TABLE "public"."treatment_program_instance_stage_items" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."treatment_program_instance_stage_items" TO "app_staff";
@@ -18133,8 +18433,8 @@ GRANT SELECT ("id", "organization_id", "patient_user_id", "template_id") ON TABL
 GRANT SELECT ("id", "organization_id", "patient_user_id", "status") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_program_resolver_owner";
 GRANT SELECT ("assignment_source", "id", "organization_id", "patient_plan_last_opened_at", "patient_user_id", "status", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "organization_id", "patient_user_id") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_self_actions_owner";
-GRANT SELECT ("id", "organization_id", "patient_plan_last_opened_at", "patient_user_id", "status", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "organization_id", "patient_user_id", "status") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("id", "organization_id", "patient_plan_last_opened_at", "patient_user_id", "status", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("assignment_source", "id", "organization_id", "patient_plan_last_opened_at", "patient_user_id", "status", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("id", "organization_id", "patient_plan_last_opened_at", "patient_user_id", "status", "updated_at") ON TABLE "public"."treatment_program_instances" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ON TABLE "public"."treatment_program_instances" TO "app_staff";
@@ -18604,6 +18904,7 @@ ALTER TABLE "public"."user_notification_topic_channels" FORCE ROW LEVEL SECURITY
 REVOKE ALL PRIVILEGES ON TABLE "public"."user_notification_topic_channels" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."user_notification_topic_channels" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."user_notification_topic_channels" TO "app_patient";
+GRANT SELECT ("channel_code", "topic_code", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_reminder_appointment_owner";
@@ -18667,6 +18968,7 @@ ALTER TABLE "public"."user_notification_topics" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."user_notification_topics" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."user_notification_topics" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_public_booking_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT ON TABLE "public"."user_notification_topics" TO "app_patient";
+GRANT SELECT ("topic_code", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_patient_self_actions_owner";
 GRANT INSERT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_reminder_appointment_owner";

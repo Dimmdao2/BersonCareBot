@@ -1913,6 +1913,20 @@ const patientSurface = (
   relation, columns, operations, evidence: 'pg16-function-body-lexical-upper-bound',
 });
 
+const exactPatientSurfaces = (
+  available: readonly FunctionRelationSurface[],
+  operationsByRelation: Readonly<Record<string, readonly Privilege[]>>,
+): readonly FunctionRelationSurface[] => Object.entries(operationsByRelation).map(([relation, operations]) => {
+  const surface = available.find((candidate) => candidate.relation === relation);
+  if (!surface) throw new Error(`exact patient relation surface is unavailable: ${relation}`);
+  return { ...surface, operations,
+    ...(surface.operationColumns?.SELECT && !operations.includes('SELECT') ? { operationColumns: undefined } : {}) };
+});
+
+const PATIENT_ORG_ENROLLMENT_SURFACE = patientSurface('public.org_enrollments', [
+  'organization_id', 'platform_user_id', 'status',
+], ['SELECT']);
+
 const PATIENT_REMINDER_CORE_SURFACES = [
   patientSurface('public.reminder_rules', [
     'id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category',
@@ -2014,6 +2028,163 @@ const PATIENT_PROGRAM_CORE_SURFACES = [
     'created_at',
   ], ['SELECT', 'INSERT', 'UPDATE']),
 ] as const;
+
+const PATIENT_ROOT_OPERATIONS = {
+  create_current_patient_reminder_rule: {
+    'public.org_enrollments': ['SELECT'], 'public.platform_users': ['SELECT'],
+    'public.reminder_rules': ['SELECT', 'INSERT'],
+  },
+  update_current_patient_reminder_rule: { 'public.reminder_rules': ['SELECT', 'UPDATE'] },
+  delete_current_patient_reminder_rule: {
+    'public.reminder_occurrence_history': ['SELECT', 'DELETE'],
+    'public.reminder_rules': ['SELECT', 'DELETE'],
+  },
+  record_current_patient_reminder_journal_action: {
+    'public.reminder_journal': ['SELECT', 'INSERT'], 'public.reminder_rules': ['SELECT'],
+  },
+  mark_current_patient_reminder_history_seen: {
+    'public.reminder_occurrence_history': ['SELECT', 'UPDATE'],
+  },
+  mark_all_current_patient_reminder_history_seen: {
+    'public.reminder_occurrence_history': ['SELECT', 'UPDATE'],
+  },
+  set_current_patient_reminder_muted_until: { 'public.platform_users': ['SELECT', 'UPDATE'] },
+  ensure_current_patient_support_conversation: {
+    'public.org_enrollments': ['SELECT'], 'public.support_conversations': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  append_current_patient_support_message: {
+    'public.support_conversation_messages': ['SELECT', 'INSERT'],
+    'public.support_conversations': ['SELECT', 'UPDATE'],
+  },
+  mark_current_patient_support_conversation_read: {
+    'public.support_conversation_messages': ['SELECT', 'UPDATE'],
+    'public.support_conversations': ['SELECT'],
+  },
+  mark_current_patient_support_messages_read: {
+    'public.support_conversation_messages': ['SELECT', 'UPDATE'],
+    'public.support_conversations': ['SELECT'],
+  },
+  mark_current_patient_support_notifications_read: {
+    'public.support_conversation_messages': ['SELECT', 'UPDATE'],
+    'public.support_conversations': ['SELECT'],
+  },
+  ensure_current_patient_system_symptom_tracking: {
+    'public.reference_categories': ['SELECT'], 'public.reference_items': ['SELECT'],
+    'public.symptom_trackings': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  record_current_patient_symptom_entry: {
+    'public.symptom_entries': ['SELECT', 'INSERT'], 'public.symptom_trackings': ['SELECT'],
+  },
+  update_current_patient_symptom_entry: {
+    'public.symptom_entries': ['SELECT', 'UPDATE'], 'public.symptom_trackings': ['SELECT'],
+  },
+  delete_current_patient_symptom_entry: {
+    'public.symptom_entries': ['SELECT', 'DELETE'], 'public.symptom_trackings': ['SELECT'],
+  },
+  configure_current_patient_assigned_symptom_tracking: {
+    'public.symptom_trackings': ['SELECT', 'UPDATE'],
+  },
+  apply_current_patient_warmup_feeling: {
+    'public.patient_practice_completions': ['SELECT', 'UPDATE'],
+    'public.reference_categories': ['SELECT'], 'public.reference_items': ['SELECT'],
+    'public.symptom_entries': ['SELECT', 'INSERT'],
+    'public.symptom_trackings': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  save_current_patient_channel_preference: {
+    'public.user_channel_preferences': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  set_current_patient_preferred_auth_channel: {
+    'public.platform_users': ['SELECT'], 'public.user_channel_bindings': ['SELECT'],
+    'public.user_channel_preferences': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.user_phone_history': ['SELECT'],
+  },
+  save_current_patient_web_push_subscription: {
+    'public.user_web_push_subscriptions': ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
+  remove_current_patient_web_push_subscription: {
+    'public.user_web_push_subscriptions': ['SELECT', 'DELETE'],
+  },
+  remove_all_current_patient_web_push_subscriptions: {
+    'public.user_web_push_subscriptions': ['SELECT', 'DELETE'],
+  },
+  touch_current_patient_program_item: {
+    'public.treatment_program_events': ['INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  complete_current_patient_program_item: {
+    'public.program_action_log': ['SELECT', 'INSERT'], 'public.treatment_program_events': ['INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stages': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instances': ['SELECT', 'UPDATE'],
+  },
+  enrich_current_patient_program_completion: {
+    'public.program_action_log': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  record_current_patient_program_action: {
+    'public.media_files': ['SELECT'], 'public.program_action_log': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  delete_current_patient_program_actions_in_window: {
+    'public.program_action_log': ['SELECT', 'DELETE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  append_current_patient_program_event: {
+    'public.treatment_program_events': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  mark_current_patient_program_item_viewed: {
+    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  append_current_patient_program_discussion: {
+    'public.media_files': ['SELECT'], 'public.program_item_discussion_messages': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  mark_current_patient_program_discussion_read: {
+    'public.program_item_discussion_reads': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  ensure_current_patient_test_attempt: {
+    'public.test_attempts': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  start_current_patient_test_attempt: {
+    'public.test_attempts': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  save_current_patient_test_result: {
+    'public.test_attempts': ['SELECT'], 'public.test_results': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  submit_current_patient_test_attempt: {
+    'public.test_attempts': ['SELECT', 'UPDATE'], 'public.test_results': ['SELECT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+} as const satisfies Readonly<Record<string, Readonly<Record<string, readonly Privilege[]>>>>;
 
 const INTEGRATOR_DELIVERY_SOURCES = [
   'delivery-handler',
@@ -4099,7 +4270,8 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.patient_practice_completions', columns: [
           'id', 'organization_id', 'user_id', 'content_page_id', 'source', 'feeling', 'notes',
-        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        ], operations: ['SELECT' as const, 'INSERT' as const], operationColumns: { SELECT: ['id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)': rev10Function({
@@ -4115,11 +4287,6 @@ const REV10_CONTEXT = {
         { relation: 'public.content_pages', columns: [
           'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.patient_home_block_items', columns: [
-          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
-        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.treatment_program_instances', columns: [
           'id', 'organization_id', 'patient_user_id', 'status',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4131,7 +4298,8 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.material_ratings', columns: [
           'organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at',
-        ], operations: ['INSERT' as const, 'UPDATE' as const],
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['user_id', 'target_kind', 'target_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4171,7 +4339,9 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.patient_practice_completions', columns: [
           'id', 'organization_id', 'user_id', 'feeling',
-        ], operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['id', 'organization_id', 'user_id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)': rev10Function({
@@ -4192,7 +4362,8 @@ const REV10_CONTEXT = {
         { relation: 'public.patient_daily_warmup_presentations', columns: [
           'organization_id', 'user_id', 'content_page_id', 'last_rotation_at',
           'skip_next_scheduled_rotation', 'updated_at',
-        ], operations: ['INSERT' as const, 'UPDATE' as const],
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['user_id', 'content_page_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4225,9 +4396,15 @@ const REV10_CONTEXT = {
         { relation: 'public.content_pages', columns: [
           'id', 'organization_id', 'is_published', 'archived_at', 'deleted_at',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_block_items', columns: [
+          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.patient_content_rating_feedback', columns: [
           'id', 'organization_id', 'user_id', 'content_page_id', 'rating_value', 'reason_codes', 'comment',
-        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        ], operations: ['SELECT' as const, 'INSERT' as const], operationColumns: { SELECT: ['id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.record_current_patient_playback_client_event(uuid,text,text,text,text)': rev10Function({
@@ -4237,6 +4414,21 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.media_files', columns: [
           'id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'organization_id', 'is_published', 'archived_at', 'deleted_at', 'video_url', 'image_url',
+          'body_md', 'body_html',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: [
+          'id', 'organization_id', 'patient_user_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: ['id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: [
+          'id', 'stage_id', 'status', 'snapshot',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_item_discussion_messages', columns: [
+          'instance_stage_item_id', 'media_file_id', 'organization_id',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_playback_client_events', columns: [
           'organization_id', 'media_id', 'user_id', 'event_class', 'delivery', 'error_detail', 'user_agent',
@@ -4251,9 +4443,26 @@ const REV10_CONTEXT = {
         { relation: 'public.media_files', columns: [
           'id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'organization_id', 'is_published', 'archived_at', 'deleted_at', 'video_url', 'image_url',
+          'body_md', 'body_html',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: [
+          'id', 'organization_id', 'patient_user_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: ['id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: [
+          'id', 'stage_id', 'status', 'snapshot',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_item_discussion_messages', columns: [
+          'instance_stage_item_id', 'media_file_id', 'organization_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_playback_user_video_first_resolve', columns: [
           'organization_id', 'user_id', 'media_id',
-        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          operationColumns: { SELECT: ['user_id', 'media_id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)': rev10Function({
@@ -4297,7 +4506,8 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_notification_topics', columns: [
           'user_id', 'topic_code', 'is_enabled', 'updated_at',
-        ], operations: ['INSERT' as const, 'UPDATE' as const],
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['user_id', 'topic_code'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4313,90 +4523,131 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_notification_topic_channels', columns: [
           'user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at',
-        ], operations: ['INSERT' as const, 'UPDATE' as const],
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['user_id', 'topic_code', 'channel_code'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.create_current_patient_reminder_rule(text,text)': patientSelfFunction(
-      'jsonb', ['text', 'text'], 'patient.reminder-rule.create', PATIENT_REMINDER_CORE_SURFACES),
+      'jsonb', ['text', 'text'], 'patient.reminder-rule.create', exactPatientSurfaces(
+        [...PATIENT_REMINDER_CORE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
+        PATIENT_ROOT_OPERATIONS.create_current_patient_reminder_rule)),
     'app.update_current_patient_reminder_rule(text,text)': patientSelfFunction(
-      'jsonb', ['text', 'text'], 'patient.reminder-rule.update', PATIENT_REMINDER_CORE_SURFACES),
+      'jsonb', ['text', 'text'], 'patient.reminder-rule.update', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.update_current_patient_reminder_rule)),
     'app.delete_current_patient_reminder_rule(text)': patientSelfFunction(
-      'boolean', ['text'], 'patient.reminder-rule.delete', PATIENT_REMINDER_CORE_SURFACES),
+      'boolean', ['text'], 'patient.reminder-rule.delete', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_reminder_rule)),
     'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientSelfFunction(
       'uuid', ['text', 'text', 'text', 'timestamp with time zone', 'text'],
-      'patient.reminder-journal.record', PATIENT_REMINDER_CORE_SURFACES),
+      'patient.reminder-journal.record', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_reminder_journal_action)),
     'app.mark_current_patient_reminder_history_seen(text)': patientSelfFunction(
-      'integer', ['text'], 'patient.reminder-history.seen', PATIENT_REMINDER_CORE_SURFACES),
+      'integer', ['text'], 'patient.reminder-history.seen', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_reminder_history_seen)),
     'app.mark_all_current_patient_reminder_history_seen()': patientSelfFunction(
-      'integer', [], 'patient.reminder-history.seen-all', PATIENT_REMINDER_CORE_SURFACES),
+      'integer', [], 'patient.reminder-history.seen-all', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_all_current_patient_reminder_history_seen)),
     'app.set_current_patient_reminder_muted_until(timestamp with time zone)': patientSelfFunction(
-      'boolean', ['timestamp with time zone'], 'patient.reminder.mute', PATIENT_REMINDER_CORE_SURFACES),
+      'boolean', ['timestamp with time zone'], 'patient.reminder.mute', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.set_current_patient_reminder_muted_until)),
     'app.ensure_current_patient_support_conversation()': patientSelfFunction(
-      'jsonb', [], 'patient.support-conversation.ensure', PATIENT_SUPPORT_CORE_SURFACES),
+      'jsonb', [], 'patient.support-conversation.ensure', exactPatientSurfaces(
+        [...PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
+        PATIENT_ROOT_OPERATIONS.ensure_current_patient_support_conversation)),
     'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)': patientSelfFunction(
       'jsonb', ['uuid', 'text', 'text', 'text', 'timestamp with time zone', 'text', 'text'],
-      'patient.support-message.append', PATIENT_SUPPORT_CORE_SURFACES),
+      'patient.support-message.append', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.append_current_patient_support_message)),
     'app.mark_current_patient_support_conversation_read(uuid)': patientSelfFunction(
-      'integer', ['uuid'], 'patient.support-conversation.read', PATIENT_SUPPORT_CORE_SURFACES),
+      'integer', ['uuid'], 'patient.support-conversation.read', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_conversation_read)),
     'app.mark_current_patient_support_messages_read(text)': patientSelfFunction(
-      'integer', ['text'], 'patient.support-messages.read', PATIENT_SUPPORT_CORE_SURFACES),
+      'integer', ['text'], 'patient.support-messages.read', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_messages_read)),
     'app.mark_current_patient_support_notifications_read()': patientSelfFunction(
-      'integer', [], 'patient.support-notifications.read', PATIENT_SUPPORT_CORE_SURFACES),
+      'integer', [], 'patient.support-notifications.read', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_notifications_read)),
     'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)': patientSelfFunction(
-      'jsonb', ['text', 'text', 'uuid'], 'patient.symptom-system-tracking.ensure', PATIENT_SYMPTOM_CORE_SURFACES),
+      'jsonb', ['text', 'text', 'uuid'], 'patient.symptom-system-tracking.ensure', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.ensure_current_patient_system_symptom_tracking)),
     'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
       'jsonb', ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
-      'patient.symptom-entry.record', PATIENT_SYMPTOM_CORE_SURFACES),
+      'patient.symptom-entry.record', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_symptom_entry)),
     'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
       'jsonb', ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
-      'patient.symptom-entry.update', PATIENT_SYMPTOM_CORE_SURFACES),
+      'patient.symptom-entry.update', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.update_current_patient_symptom_entry)),
     'app.delete_current_patient_symptom_entry(uuid)': patientSelfFunction(
-      'boolean', ['uuid'], 'patient.symptom-entry.delete', PATIENT_SYMPTOM_CORE_SURFACES),
+      'boolean', ['uuid'], 'patient.symptom-entry.delete', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_symptom_entry)),
     'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)': patientSelfFunction(
-      'boolean', ['uuid', 'text', 'boolean'], 'patient.symptom-tracking.configure', PATIENT_SYMPTOM_CORE_SURFACES),
+      'boolean', ['uuid', 'text', 'boolean'], 'patient.symptom-tracking.configure', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.configure_current_patient_assigned_symptom_tracking)),
     'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)': patientSelfFunction(
       'boolean', ['uuid', 'integer', 'uuid', 'text', 'uuid', 'text'],
-      'patient.warmup-feeling.apply', PATIENT_SYMPTOM_CORE_SURFACES),
+      'patient.warmup-feeling.apply', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.apply_current_patient_warmup_feeling)),
     'app.save_current_patient_channel_preference(text,boolean,boolean)': patientSelfFunction(
-      'jsonb', ['text', 'boolean', 'boolean'], 'patient.channel-preference.save', PATIENT_CHANNEL_CORE_SURFACES),
+      'jsonb', ['text', 'boolean', 'boolean'], 'patient.channel-preference.save', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_channel_preference)),
     'app.set_current_patient_preferred_auth_channel(text)': patientSelfFunction(
-      'boolean', ['text'], 'patient.preferred-auth-channel.set', PATIENT_CHANNEL_CORE_SURFACES),
+      'boolean', ['text'], 'patient.preferred-auth-channel.set', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.set_current_patient_preferred_auth_channel)),
     'app.save_current_patient_web_push_subscription(text,text,text,text)': patientSelfFunction(
-      'boolean', ['text', 'text', 'text', 'text'], 'patient.web-push-subscription.save', PATIENT_CHANNEL_CORE_SURFACES),
+      'boolean', ['text', 'text', 'text', 'text'], 'patient.web-push-subscription.save', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_web_push_subscription)),
     'app.remove_current_patient_web_push_subscription(text)': patientSelfFunction(
-      'boolean', ['text'], 'patient.web-push-subscription.remove', PATIENT_CHANNEL_CORE_SURFACES),
+      'boolean', ['text'], 'patient.web-push-subscription.remove', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.remove_current_patient_web_push_subscription)),
     'app.remove_all_current_patient_web_push_subscriptions()': patientSelfFunction(
-      'integer', [], 'patient.web-push-subscriptions.remove-all', PATIENT_CHANNEL_CORE_SURFACES),
+      'integer', [], 'patient.web-push-subscriptions.remove-all', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.remove_all_current_patient_web_push_subscriptions)),
     'app.touch_current_patient_program_item(uuid,uuid)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid'], 'patient.program-item.touch', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'uuid'], 'patient.program-item.touch', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.touch_current_patient_program_item)),
     'app.complete_current_patient_program_item(uuid,uuid,integer,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'integer', 'text'], 'patient.program-item.complete', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'uuid', 'integer', 'text'], 'patient.program-item.complete', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.complete_current_patient_program_item)),
     'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'uuid', 'text'], 'patient.program-completion.enrich', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'uuid', 'uuid', 'text'], 'patient.program-completion.enrich', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.enrich_current_patient_program_completion)),
     'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'text', 'uuid', 'text', 'text'],
-      'patient.program-action.record', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'uuid', 'text', 'uuid', 'text', 'text'], 'patient.program-action.record',
+      exactPatientSurfaces(PATIENT_PROGRAM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.record_current_patient_program_action)),
     'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)': patientSelfFunction(
       'integer', ['uuid', 'uuid', 'timestamp with time zone', 'timestamp with time zone', 'boolean'],
-      'patient.program-actions.delete-window', PATIENT_PROGRAM_CORE_SURFACES),
+      'patient.program-actions.delete-window', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.delete_current_patient_program_actions_in_window)),
     'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'text', 'text', 'uuid', 'text', 'text'],
-      'patient.program-event.append', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'text', 'text', 'uuid', 'text', 'text'], 'patient.program-event.append',
+      exactPatientSurfaces(PATIENT_PROGRAM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.append_current_patient_program_event)),
     'app.mark_current_patient_program_item_viewed(uuid,uuid)': patientSelfFunction(
-      'boolean', ['uuid', 'uuid'], 'patient.program-item.viewed', PATIENT_PROGRAM_CORE_SURFACES),
+      'boolean', ['uuid', 'uuid'], 'patient.program-item.viewed', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_program_item_viewed)),
     'app.append_current_patient_program_discussion(uuid,text,uuid)': patientSelfFunction(
-      'jsonb', ['uuid', 'text', 'uuid'], 'patient.program-discussion.append', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'text', 'uuid'], 'patient.program-discussion.append', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.append_current_patient_program_discussion)),
     'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)': patientSelfFunction(
-      'boolean', ['uuid', 'timestamp with time zone'], 'patient.program-discussion.read', PATIENT_PROGRAM_CORE_SURFACES),
+      'boolean', ['uuid', 'timestamp with time zone'], 'patient.program-discussion.read', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_program_discussion_read)),
     'app.ensure_current_patient_test_attempt(uuid)': patientSelfFunction(
-      'jsonb', ['uuid'], 'patient.test-attempt.ensure', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid'], 'patient.test-attempt.ensure', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.ensure_current_patient_test_attempt)),
     'app.start_current_patient_test_attempt(uuid,uuid)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid'], 'patient.test-attempt.start', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'uuid'], 'patient.test-attempt.start', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.start_current_patient_test_attempt)),
     'app.save_current_patient_test_result(uuid,uuid,text,text)': patientSelfFunction(
-      'jsonb', ['uuid', 'uuid', 'text', 'text'], 'patient.test-result.save', PATIENT_PROGRAM_CORE_SURFACES),
+      'jsonb', ['uuid', 'uuid', 'text', 'text'], 'patient.test-result.save', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_test_result)),
     'app.submit_current_patient_test_attempt(uuid)': patientSelfFunction(
-      'boolean', ['uuid'], 'patient.test-attempt.submit', PATIENT_PROGRAM_CORE_SURFACES),
+      'boolean', ['uuid'], 'patient.test-attempt.submit', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.submit_current_patient_test_attempt)),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
       owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
       execute: ['app_seam_patient_lfk_media_owner'],
