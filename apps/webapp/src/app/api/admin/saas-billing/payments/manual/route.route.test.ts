@@ -187,19 +187,28 @@ describe('manual SaaS invoice HTTP mapping', () => {
   });
 
   it('maps a typed provider refusal without trusting its message text', async () => {
+    const providerResponse = 'provider-fiscal-customer-secret@example.test';
     fakes.createManualInvoice.mockRejectedValue(
       new PaymentProviderRequestRefusedError(
-        'yookassa_create_invoice_failed:403:provider refused',
+        `yookassa_create_invoice_failed:403:${providerResponse}`,
       ),
     );
 
     const response = await POST(request());
+    const body = await response.json();
 
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({
+    expect(body).toEqual({
       ok: false,
       error: 'saas_billing_provider_rejected_invoice',
     });
+    expect(JSON.stringify({ body, logs: fakes.loggerError.mock.calls })).not.toContain(
+      providerResponse,
+    );
+    expect(fakes.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: null, root: 'provider_invoice_refused' }),
+      '[saas-billing/manual-invoice] creation failed',
+    );
   });
 
   it('does not let an untyped domain error forge a provider refusal through message text', async () => {

@@ -3,7 +3,10 @@ export type ManualInvoiceFailure = Readonly<{
   error: string;
 }>;
 
-import { PaymentProviderTransportError } from '@/modules/payments/providerPort';
+import {
+  PaymentProviderRequestRefusedError,
+  PaymentProviderTransportError,
+} from '@/modules/payments/providerPort';
 import { ExternalFetchTimeoutError } from '@/shared/lib/externalFetch';
 
 const DATABASE_UNAVAILABLE_CODES = new Set([
@@ -81,6 +84,7 @@ function errorMessage(error: unknown): string {
 function diagnosticRoot(error: unknown): string {
   const message = errorMessage(error);
   if (trustedInfrastructureFailure(error)) return 'database_unavailable';
+  if (error instanceof PaymentProviderRequestRefusedError) return 'provider_invoice_refused';
   if (message === 'organization_not_found') return 'organization_not_found';
   if (message.startsWith('saas_billing_receipt_') || message.startsWith('payment_receipt_')) {
     return 'fiscal_data_invalid';
@@ -93,10 +97,6 @@ function diagnosticRoot(error: unknown): string {
     message.startsWith('saas_billing_payment_provider_unavailable')
   ) {
     return 'provider_unavailable';
-  }
-  if (message.startsWith('yookassa_create_invoice_failed')) {
-    const status = /^yookassa_create_invoice_failed:(\d{3})(?::|$)/.exec(message)?.[1];
-    return status ? `provider_invoice_refused_${status}` : 'provider_invoice_refused';
   }
   if (
     message === 'yookassa_missing_invoice_fields' ||
@@ -125,6 +125,9 @@ export function mapManualInvoiceFailure(error: unknown): ManualInvoiceFailure {
   const message = errorMessage(error);
   if (trustedInfrastructureFailure(error)) {
     return { status: 503, error: 'saas_billing_database_unavailable' };
+  }
+  if (error instanceof PaymentProviderRequestRefusedError) {
+    return { status: 502, error: 'saas_billing_provider_rejected_invoice' };
   }
   if (message === 'organization_not_found') {
     return { status: 404, error: message };
@@ -156,7 +159,6 @@ export function mapManualInvoiceFailure(error: unknown): ManualInvoiceFailure {
     return { status: 503, error: 'saas_billing_payment_provider_unavailable' };
   }
   if (
-    message.startsWith('yookassa_create_invoice_failed') ||
     message === 'yookassa_missing_invoice_fields' ||
     message === 'saas_billing_checkout_unavailable' ||
     message === 'provider_temporarily_unavailable'

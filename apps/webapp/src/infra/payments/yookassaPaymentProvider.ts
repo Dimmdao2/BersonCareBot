@@ -287,7 +287,11 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           async (res) => {
             if (!res.ok) {
               const text = await res.text().catch(() => '');
-              throw new Error(`yookassa_create_invoice_failed:${res.status}:${text.slice(0, 500)}`);
+              const message = `yookassa_create_invoice_failed:${res.status}:${text.slice(0, 500)}`;
+              if (res.status >= 400 && res.status < 500) {
+                throw new PaymentProviderRequestRefusedError(message);
+              }
+              throw new Error(message);
             }
             return (await res.json()) as {
               id?: string;
