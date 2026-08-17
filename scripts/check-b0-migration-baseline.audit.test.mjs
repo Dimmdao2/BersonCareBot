@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import test from 'node:test';
+import test, { after, before } from 'node:test';
+
+import { acquireCheckoutLock, releaseCheckoutLock } from './b0-gate-selftest-lock.mjs';
+
+// This matrix mutates the shared checkout; the other matrix does too. `node --test` runs the two
+// files in parallel processes, so the lock — not an invocation flag — is what keeps them apart.
+before(() => acquireCheckoutLock());
+after(() => releaseCheckoutLock());
 
 const root = resolve(import.meta.dirname, '..');
 const checker = resolve(root, 'scripts/check-b0-migration-baseline.mjs');
@@ -126,6 +133,74 @@ const reauditOneResolutionFaults = [
 
 test('kills quoted variable-resolved psql and fully-qualified PostgreSQL images', { concurrency: false }, () => {
   for (const [relativePath, content] of reauditOneResolutionFaults) expectKilled(relativePath, content);
+});
+
+// Re-audit two: every shape that survived the independent audit of 2026-08-17 and is in the closure
+// scope. Each one is an ordinary refactor of a forbidden command, not an obfuscation of it.
+const reauditTwoSurvivingShapes = [
+  // F1 — a bound executable with a computed argument. The parent commit killed this; the candidate
+  // stopped killing it because one unresolvable element discarded the whole argument list.
+  [
+    'scripts/__reaudit_two_bound_executable_dynamic_arg.mjs',
+    "import { spawnSync } from 'node:child_process';\nimport { resolve } from 'node:path';\nconst executable = 'psql';\nspawnSync(executable, ['-f', resolve(process.cwd(), 'history/0001_legacy.sql')]);\n",
+  ],
+  // F2 — a command string bound to a local name and run through exec/execSync.
+  [
+    'scripts/__reaudit_two_exec_variable_createdb.mjs',
+    "import { execSync } from 'node:child_process';\nconst command = 'createdb bcb_throwaway';\nexecSync(command, { stdio: 'inherit' });\n",
+  ],
+  [
+    'scripts/__reaudit_two_exec_variable_psql.mjs',
+    "import { execSync } from 'node:child_process';\nconst command = 'psql -f apps/webapp/history/0001_legacy.sql';\nexecSync(command, { stdio: 'inherit' });\n",
+  ],
+  // F4 — an absolute binary path is the same command as the bare name.
+  [
+    'scripts/__reaudit_two_absolute_psql.sh',
+    '#!/bin/sh\n/usr/lib/postgresql/16/bin/psql -d bcb_dev -f apps/webapp/history/0001_legacy.sql\n',
+  ],
+  [
+    'scripts/__reaudit_two_absolute_createdb.sh',
+    '#!/bin/sh\n/usr/lib/postgresql/16/bin/createdb bcb_throwaway\n',
+  ],
+  [
+    'scripts/__reaudit_two_variable_absolute_psql.sh',
+    '#!/bin/sh\nPSQL=/usr/bin/psql\n"$PSQL" -d bcb_dev -f apps/webapp/history/0001_legacy.sql\n',
+  ],
+  // F5 — a Make recipe line starts with a literal TAB, which no anchor used to cover.
+  [
+    'tools/__reaudit_two_make/Makefile',
+    'reset:\n\tdropdb --if-exists bcb_throwaway\n\tcreatedb bcb_throwaway\n',
+  ],
+  // F7 — a `sh -c "…"` / `bash -c "…"` wrapper.
+  ['scripts/__reaudit_two_sh_c.sh', '#!/bin/sh\nsh -c "createdb bcb_throwaway"\n'],
+  ['scripts/__reaudit_two_bash_c.sh', '#!/bin/sh\nbash -c "dropdb bcb_throwaway"\n'],
+  // F6 — a digest pin is the same image identity in YAML as in a Dockerfile.
+  [
+    'scripts/__reaudit_two_digest_compose.yml',
+    'services:\n  db:\n    image: postgres@sha256:0000000000000000000000000000000000000000000000000000000000000000\n',
+  ],
+  [
+    '.github/workflows/__reaudit_two_digest_service.yml',
+    'name: bad\njobs:\n  bad:\n    services:\n      db:\n        image: postgres@sha256:0000000000000000000000000000000000000000000000000000000000000000\n    steps:\n      - run: echo hi\n',
+  ],
+  // F8 — `pg_restore --create` creates a database and rebuilds it from a dump, which PLAN.md:441
+  // forbids outright.
+  [
+    'scripts/__reaudit_two_pg_restore.sh',
+    '#!/bin/sh\npg_restore --clean --create --dbname postgres /var/backups/prod-A.dump\n',
+  ],
+  [
+    'tools/__reaudit_two_pg_restore_child.mjs',
+    "import { spawnSync } from 'node:child_process';\nconst dump = '/var/backups/prod-A.dump';\nspawnSync('pg_restore', ['--clean', '--create', '--dbname', 'postgres', dump]);\n",
+  ],
+  [
+    'tools/__reaudit_two_pg_restore.py',
+    "import subprocess\nsubprocess.run(['pg_restore', '--clean', '--create', '--dbname', 'postgres', '/var/backups/prod-A.dump'], check=True)\n",
+  ],
+];
+
+test('kills every in-scope shape that survived the re-audit of 2026-08-17', { concurrency: false }, () => {
+  for (const [relativePath, content] of reauditTwoSurvivingShapes) expectKilled(relativePath, content);
 });
 
 test('does not pin inert prose in an executable source file', { concurrency: false }, () => {

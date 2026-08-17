@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import test from 'node:test';
+import test, { after, before } from 'node:test';
+
+import { acquireCheckoutLock, releaseCheckoutLock } from './b0-gate-selftest-lock.mjs';
+
+// This matrix mutates the shared checkout; the other matrix does too. `node --test` runs the two
+// files in parallel processes, so the lock — not an invocation flag — is what keeps them apart.
+before(() => acquireCheckoutLock());
+after(() => releaseCheckoutLock());
 
 const root = resolve(import.meta.dirname, '..');
 const checker = resolve(root, 'scripts/check-b0-migration-baseline.mjs');

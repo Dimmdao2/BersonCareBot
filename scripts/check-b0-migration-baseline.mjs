@@ -147,6 +147,52 @@ const namedEnvironmentReplayPorts = new Set([
   'deploy/postgres/privileges/migrate-local.mjs',
 ]);
 
+// `pg_restore --create` both creates a database and reconstructs its contents from a dump, which is
+// the reconstruction the owner plan forbids outright, so it is a database utility like the others.
+const databaseUtilities = new Set(['initdb', 'createdb', 'dropdb', 'pg_ctl', 'pg_restore']);
+const databaseUtilityPattern = 'initdb|createdb|dropdb|pg_ctl|pg_restore';
+const processCallees = ['spawn', 'spawnSync', 'execFile', 'execFileSync'];
+// `exec`/`execSync` take one whole command string instead of (executable, args), so they are
+// inspected as shell command text rather than as an argv pair.
+const shellCommandCallees = ['exec', 'execSync'];
+
+// Command identity is the final path component: the JS scanner already normalises with basename(),
+// so `/usr/lib/postgresql/16/bin/psql` is the same command as `psql` for the shell scanners too.
+function normaliseShellCommandPaths(source) {
+  return source.replaceAll(
+    new RegExp(
+      `(^|[\\s;&|(='"\`])(?:[A-Za-z0-9._~$-]*/)+(${databaseUtilityPattern}|psql)\\b`,
+      'gim',
+    ),
+    (match, prefix, command) => `${prefix}${command}`,
+  );
+}
+
+// A database utility is anchored to the start of a command, not to arbitrary prose. Command starts
+// include a line start (Make recipes begin with a TAB and may carry a `@`/`-`/`+` prefix), a shell
+// separator, a YAML `run:` key, and a `sh -c "…"` / `bash -c "…"` wrapper.
+const databaseUtilityAnchors = new RegExp(
+  `(?:^[ \\t]*[-@+]?[ \\t]*|[;&|]\\s*|\\brun:\\s*|\\bcommand\\s+|\\bexec\\s+|\\b(?:sh|bash|zsh|dash|ash)\\s+-[A-Za-z]*c\\s+|\\bsudo(?:\\s+-\\S+)*\\s+)['"]?(?:${databaseUtilityPattern})\\b['"]?`,
+  'im',
+);
+
+// One command string handed to `exec`/`execSync` is shell text, so it is judged by the shell rules.
+function shellCommandStringViolation(command) {
+  const normalised = normaliseShellCommandPaths(command);
+  if (databaseUtilityAnchors.test(normalised)) return 'database create/drop/server utility';
+  if (/\b(?:create|drop)\s+database\b/i.test(normalised)) {
+    return 'CREATE/DROP DATABASE through a database client';
+  }
+  if (
+    /(?:^|[;&|(\s'"])(?:sudo(?:\s+-\S+)*\s+)?['"]?psql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<>&])|\\+i(?:r)?\s)/im.test(
+      normalised,
+    )
+  ) {
+    return 'psql file/stdin replay outside a named-environment port';
+  }
+  return null;
+}
+
 function uncommentedShell(source) {
   return source
     .split('\n')
@@ -154,9 +200,6 @@ function uncommentedShell(source) {
     .join('\n')
     .replaceAll(/\\\r?\n/g, ' ');
 }
-
-const databaseUtilities = new Set(['initdb', 'createdb', 'dropdb', 'pg_ctl']);
-const processCallees = ['spawn', 'spawnSync', 'execFile', 'execFileSync'];
 
 // Resolves a static string OR a static list of strings. A command list bound to a local name is the
 // same callable as the inline literal, so both shapes must reach the process-call inspection below.
@@ -195,6 +238,37 @@ function staticJavaScriptStringList(node, bindings) {
   return Array.isArray(value) ? value : null;
 }
 
+// An argument list is still readable when one of its elements is dynamic: `['-f', resolve(…)]` is a
+// file replay whatever the path folds to. Unresolvable elements become `null` placeholders so the
+// positions of the static ones are preserved, and the whole list is never discarded.
+function tolerantStringList(node, bindings, initializers, seen = new Set()) {
+  if (!node) return null;
+  if (ts.isParenthesizedExpression(node)) {
+    return tolerantStringList(node.expression, bindings, initializers, seen);
+  }
+  if (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isTypeAssertionExpression(node)) {
+    return tolerantStringList(node.expression, bindings, initializers, seen);
+  }
+  if (ts.isIdentifier(node)) {
+    const bound = bindings.get(node.text);
+    if (Array.isArray(bound)) return bound;
+    if (seen.has(node.text)) return null;
+    const initializer = initializers.get(node.text);
+    return initializer
+      ? tolerantStringList(initializer, bindings, initializers, new Set([...seen, node.text]))
+      : null;
+  }
+  if (!ts.isArrayLiteralExpression(node)) return null;
+  return node.elements.flatMap((element) => {
+    if (ts.isSpreadElement(element)) {
+      return tolerantStringList(element.expression, bindings, initializers, seen) ?? [null];
+    }
+    const value = staticJavaScriptValue(element, bindings);
+    if (Array.isArray(value)) return value;
+    return [typeof value === 'string' ? value : null];
+  });
+}
+
 function javaScriptSemanticViolation(source, rel) {
   const sourceFile = ts.createSourceFile(
     rel,
@@ -212,6 +286,12 @@ function javaScriptSemanticViolation(source, rel) {
     ts.forEachChild(node, collectDeclarations);
   }
   collectDeclarations(sourceFile);
+  const initializers = new Map();
+  for (const declaration of declarations) {
+    if (!initializers.has(declaration.name.text)) {
+      initializers.set(declaration.name.text, declaration.initializer);
+    }
+  }
   for (let pass = 0; pass < declarations.length; pass += 1) {
     let changed = false;
     for (const declaration of declarations) {
@@ -242,12 +322,14 @@ function javaScriptSemanticViolation(source, rel) {
       // resolve through local bindings, so a refactor into a variable is not an escape.
       const firstArgument = node.arguments[0];
       const firstList = firstArgument && ts.isSpreadElement(firstArgument)
-        ? staticJavaScriptStringList(firstArgument.expression, bindings)
-        : staticJavaScriptStringList(firstArgument, bindings);
-      const executable = first ?? firstList?.[0] ?? null;
-      const args = firstList
-        ? firstList.slice(1)
-        : (staticJavaScriptStringList(node.arguments[1], bindings) ?? []);
+        ? tolerantStringList(firstArgument.expression, bindings, initializers)
+        : tolerantStringList(firstArgument, bindings, initializers);
+      const executable = first ?? (typeof firstList?.[0] === 'string' ? firstList[0] : null);
+      // A dynamic element never hides the static ones around it: the list keeps its shape and only
+      // the unresolvable positions drop out of the flag comparison.
+      const args = (
+        firstList ? firstList.slice(1) : (tolerantStringList(node.arguments[1], bindings, initializers) ?? [])
+      ).filter((argument) => typeof argument === 'string');
       if (executable && databaseUtilities.has(basename(executable).toLowerCase())) {
         violation = 'database create/drop/server utility';
         return;
@@ -261,6 +343,15 @@ function javaScriptSemanticViolation(source, rel) {
           args.some((argument) => /^\\i(?:r)?(?:\s|$)/i.test(argument)))
       ) {
         violation = 'psql file/stdin replay outside a named-environment port';
+        return;
+      }
+    }
+    if (shellCommandCallees.includes(callee) && first) {
+      // `execSync(command)` with the command bound to a local name is the same callable as the
+      // inline literal, so the one command string is read with the shell rules.
+      const commandViolation = shellCommandStringViolation(first);
+      if (commandViolation) {
+        violation = commandViolation;
         return;
       }
     }
@@ -308,7 +399,7 @@ for node in ast.walk(tree):
     # process entrypoint that receives one is inspected, not only os.system.
     processCallees = ('os.system', 'os.popen', 'subprocess.run', 'subprocess.call', 'subprocess.check_call', 'subprocess.check_output', 'subprocess.Popen', 'subprocess.getoutput', 'subprocess.getstatusoutput')
     if name in processCallees and isinstance(command, str):
-        if re.search(r'(^|\s)(initdb|createdb|dropdb|pg_ctl)(\s|$)', command, re.I): violation = 'database create/drop/server utility'
+        if re.search(r'(^|\s)(initdb|createdb|dropdb|pg_ctl|pg_restore)(\s|$)', command, re.I): violation = 'database create/drop/server utility'
         elif re.search(r'\b(create|drop)\s+database\b', command, re.I): violation = 'CREATE/DROP DATABASE through a database client'
         elif re.search(r'\bpsql\b.*(?:\s-f\s|\s--file(?:=|\s)|\\i(?:r)?\s)', command, re.I): violation = 'psql file/stdin replay outside a named-environment port'
     if violation: break
@@ -415,6 +506,20 @@ function isPostgresImageReference(reference) {
   return ['postgres', 'postgresql'].includes(repository.split(':')[0].toLowerCase());
 }
 
+// A compose/CI `image:` key and a `docker run` argument name the same image identity a Dockerfile
+// `FROM` does, so both go through isPostgresImageReference — a digest pin is not a different image.
+function referencesPostgresContainer(source) {
+  for (const match of source.matchAll(/\bimage\s*:\s*['"]?([^\s'"\n]+)/gi)) {
+    if (isPostgresImageReference(match[1])) return true;
+  }
+  for (const match of source.matchAll(/\bdocker\s+(?:run|create)\b([^\n]*)/gi)) {
+    if (shellWords(match[1]).some((word) => !word.startsWith('-') && isPostgresImageReference(word))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function dockerfileStartsPostgres(source) {
   return uncommentedShell(source).split(/\r?\n/).some((line) => {
     const words = shellWords(line.replace(/\\\s*$/g, ''));
@@ -432,9 +537,11 @@ function executableViolation(rel, source) {
   const isJavaScriptLike = ['mjs', 'mts', 'cjs', 'js', 'ts', 'tsx'].includes(extension);
   const isPython = extension === 'py';
   const isSql = extension === 'sql';
-  const shell = isShellLike ? shellVariables(uncommentedShell(source)) : '';
+  const shell = isShellLike
+    ? normaliseShellCommandPaths(shellVariables(uncommentedShell(source)))
+    : '';
   const semanticJavaScriptViolation = isJavaScriptLike &&
-    /\b(?:initdb|createdb|dropdb|pg_ctl|psql|database)\b/i.test(source)
+    /\b(?:initdb|createdb|dropdb|pg_ctl|pg_restore|psql|database)\b/i.test(source)
     ? javaScriptSemanticViolation(source, rel)
     : null;
   const semanticPythonViolation = isPython ? pythonSemanticViolation(source) : null;
@@ -442,20 +549,17 @@ function executableViolation(rel, source) {
     return semanticJavaScriptViolation ?? semanticPythonViolation;
   }
 
-  const databaseUtilityInShell =
-    /(?:^|[;&|]\s*|\brun:\s*|\bcommand\s+|\bexec\s+|\bsudo(?:\s+-\S+)*\s+)['"]?(?:initdb|createdb|dropdb|pg_ctl)\b['"]?/im.test(
-      shell,
-    );
+  const databaseUtilityInShell = databaseUtilityAnchors.test(shell);
   const databaseUtilityInChildProcess = isJavaScriptLike &&
-    /\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`](?:initdb|createdb|dropdb|pg_ctl)['"`]/i.test(
+    /\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`](?:initdb|createdb|dropdb|pg_ctl|pg_restore)['"`]/i.test(
       source,
     );
   const databaseUtilityInShellChild = isJavaScriptLike &&
-    /\b(?:exec|execSync)\s*\(\s*['"`][\s\S]{0,300}?\b(?:initdb|createdb|dropdb|pg_ctl)\b/i.test(
+    /\b(?:exec|execSync)\s*\(\s*['"`][\s\S]{0,300}?\b(?:initdb|createdb|dropdb|pg_ctl|pg_restore)\b/i.test(
       source,
     );
   const databaseUtilityInPython = isPython &&
-    /\bsubprocess\s*\.\s*(?:run|call|check_call|check_output|Popen)\s*\([\s\S]{0,400}?(?:['"](?:initdb|createdb|dropdb|pg_ctl)['"]|['"][^'"]*\b(?:initdb|createdb|dropdb|pg_ctl)\b[^'"]*['"])/i.test(
+    /\bsubprocess\s*\.\s*(?:run|call|check_call|check_output|Popen)\s*\([\s\S]{0,400}?(?:['"](?:initdb|createdb|dropdb|pg_ctl|pg_restore)['"]|['"][^'"]*\b(?:initdb|createdb|dropdb|pg_ctl|pg_restore)\b[^'"]*['"])/i.test(
       source,
     );
   if (
@@ -484,14 +588,10 @@ function executableViolation(rel, source) {
       /\.\s*(?:execute|query)\s*\(\s*(?:[rubf]{0,2})?['"]\s*(?:create|drop)\s+database\b/i.test(source));
   if (databaseDdlThroughClient) return 'CREATE/DROP DATABASE through a database client';
 
-  // The optional registry/namespace prefix keeps `docker.io/library/postgres:17` the same identity
-  // as the unqualified `postgres:17`.
-  const postgresContainer =
-    /(?:\bimage\s*:\s*|\bdocker\s+(?:run|create)\b[^\n]*?)['"]?(?:[A-Za-z0-9._:-]+\/)*(?:postgres|postgresql)(?::[A-Za-z0-9._-]+)?(?=[\s'"\\]|$)/i;
   if (
-    (isShellLike && postgresContainer.test(shell)) ||
+    (isShellLike && referencesPostgresContainer(shell)) ||
     (callableBasename.test(basename(rel)) && dockerfileStartsPostgres(source)) ||
-    (isJavaScriptLike && postgresContainer.test(source))
+    (isJavaScriptLike && referencesPostgresContainer(source))
   ) {
     return 'PostgreSQL container/server';
   }
@@ -551,7 +651,7 @@ const forbiddenManifestCommands = activeManifests.flatMap((path) => {
     .filter(([name, command]) =>
       forbiddenName.test(name) ||
       /\bA0\b|a0-greenfield|offline-legacy|disposable|SCRATCH_DATABASE_URL|vitest\.postgres|postgres-integration/i.test(String(command)) ||
-      /(?:^|[;&|]\s*|\bcommand\s+|\bexec\s+|\bsudo(?:\s+-\S+)*\s+)(?:initdb|createdb|dropdb|pg_ctl)\b/i.test(String(command)) ||
+      /(?:^|[;&|]\s*|\bcommand\s+|\bexec\s+|\bsudo(?:\s+-\S+)*\s+)(?:initdb|createdb|dropdb|pg_ctl|pg_restore)\b/i.test(String(command)) ||
       /\bpsql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<&])|\s(?:-c|--command(?:=|\s))\s*['"]?\\(?:i|ir)\s+)/i.test(String(command)) ||
       /\bdocker\s+(?:run|create)\b[^\n]*\b(?:postgres|postgresql)(?::[A-Za-z0-9._-]+)?\b/i.test(String(command)),
     )
