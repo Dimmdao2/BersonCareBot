@@ -75,6 +75,21 @@ trigger relation, 1 brand-trigger relation, and 2 runtime-setting-trigger relati
 owner-surface reconciliation to them would create grants for the wrong principal: INVOKER trigger bodies use the
 mutating caller's ACL. Their dependencies may be inventoried separately, but must not generate seam-owner grants.
 
+The exact 12 r4 messages are:
+
+1. `app.assert_organization_slug_alias_complete()` → `public.organization_slug_claims`.
+2. The same function → `public.organization_slug_rename_events`.
+3. `app.assert_organization_slug_rename_complete()` → `public.clinic_public_directory_entries`.
+4. The same function → `public.organization_slug_claims`.
+5. The same function → `public.organization_slug_rename_events`.
+6. `app.enforce_lfk_child_owner()` → `public.lfk_complex_templates`.
+7. The same function → `public.lfk_exercises`.
+8. The same function → `public.media_files`.
+9. `app.guard_clinic_directory_current_slug()` → `public.organization_slug_claims`.
+10. `app.guard_org_brand_revision()` → `public.org_brand_revisions` (comment-only false positive).
+11. `public.sync_registered_app_runtime_setting()` → `public.app_runtime_settings`.
+12. The same function → `public.system_settings`.
+
 One of the 12 is additionally a parser false positive: `guard_org_brand_revision → org_brand_revisions` occurs only
 in body comments. Its real direct read is `public.media_files:SELECT`. The full independent inventory also finds two
 unlogged INVOKER readers, `public.media_folders_enforce_depth()` and `public.media_folders_prevent_cycle()`, both on
