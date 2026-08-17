@@ -2,10 +2,20 @@ import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireAdminWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
+import {
+  hasLaunchCapability,
+  resolveLaunchCapabilities,
+} from '@/app-layer/guards/workspaceCapabilities';
 
 export async function POST() {
   const session = await getCurrentSession();
-  if (session?.user.role === 'admin') {
+  if (
+    session &&
+    hasLaunchCapability(
+      resolveLaunchCapabilities({ sessionRole: session.user.role }),
+      'platform.operations',
+    )
+  ) {
     return NextResponse.json({ ok: false, error: 'platform_admin_forbidden' }, { status: 403 });
   }
   const gate = await requireAdminWorkspaceApiContext();
