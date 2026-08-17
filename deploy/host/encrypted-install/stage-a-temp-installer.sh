@@ -184,7 +184,11 @@ apt-get $APTOPT -o Acquire::AllowInsecureRepositories=true update -qq || true
 apt-get $APTOPT -o Acquire::AllowInsecureRepositories=true -o APT::Get::AllowUnauthenticated=true \
   install -y -qq --no-install-recommends gpgv ubuntu-keyring
 apt-get $APTOPT update -qq
+# systemd-sysv is what actually provides /sbin/init. The base rootfs ships with no init system at all, and
+# --no-install-recommends will not pull one in, so leaving it out yields a system that boots the kernel,
+# mounts the root filesystem and then panics with "Target filesystem doesn't have requested /sbin/init".
 apt-get $APTOPT install -y -qq --no-install-recommends \
+  systemd systemd-sysv dbus udev \
   linux-image-generic grub-pc netplan.io systemd-resolved openssh-server \
   cryptsetup cryptsetup-initramfs lvm2 gdisk parted debootstrap ca-certificates
 systemctl enable ssh
@@ -197,6 +201,27 @@ chmod +x "$TARGET/tmp/inside.sh"
 log "installing kernel, grub and tooling inside the temporary system"
 DISK_INSIDE="$DISK" chroot "$TARGET" /bin/sh -c "DISK_INSIDE=$DISK sh /tmp/inside.sh" || die "chroot stage failed"
 rm -f "$TARGET/tmp/inside.sh"
+
+# ---------------------------------------------------------------- verify
+# The script exiting 0 has already twice meant "produced a system that cannot boot". Nothing is reported as
+# finished until the artefacts a boot actually needs are present on disk.
+log "verifying the installed system"
+vfail=0
+vcheck() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; vfail=1; fi; }
+vcheck "/sbin/init exists"            '[ -e "$TARGET/sbin/init" ] || [ -L "$TARGET/sbin/init" ]'
+vcheck "systemd binary present"       '[ -x "$TARGET/usr/lib/systemd/systemd" ]'
+vcheck "kernel on /boot"              'ls "$TARGET"/boot/vmlinuz-* >/dev/null 2>&1'
+vcheck "initrd on /boot"              'ls "$TARGET"/boot/initrd.img-* >/dev/null 2>&1'
+vcheck "grub.cfg on /boot"            '[ -s "$TARGET/boot/grub/grub.cfg" ]'
+vcheck "grub core written to disk"    'dd if="$DISK" bs=512 count=1 2>/dev/null | grep -qa GRUB'
+vcheck "fstab has no stray quotes"    '! grep -q "\"" "$TARGET/etc/fstab"'
+vcheck "fstab root entry"             'grep -qE "^LABEL=bcb-tmpsys[[:space:]]+/[[:space:]]" "$TARGET/etc/fstab"'
+vcheck "netplan present"              '[ -s "$TARGET/etc/netplan/01-bcb-static.yaml" ]'
+vcheck "ssh authorized_keys"          '[ -s "$TARGET/root/.ssh/authorized_keys" ]'
+vcheck "sshd installed"               '[ -x "$TARGET/usr/sbin/sshd" ]'
+vcheck "ssh enabled at boot"          '[ -L "$TARGET/etc/systemd/system/multi-user.target.wants/ssh.service" ]'
+vcheck "cryptsetup for stage B"       '[ -x "$TARGET/usr/sbin/cryptsetup" ]'
+[ "$vfail" = 0 ] || die "the installed system would not boot or would be unreachable; not reporting success"
 
 # ---------------------------------------------------------------- finish
 sync
