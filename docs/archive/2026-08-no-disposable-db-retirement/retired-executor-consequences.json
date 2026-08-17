@@ -353,7 +353,7 @@
       "consequences": [
         "audit attack 1 verbatim: a bare challenge_id (no token) can no longer force a send",
         "a stranger who never claimed the row cannot enqueue it at all (unknown/absent token)",
-        "audit attack 2 verbatim: overwriting a victim\\",
+        "audit attack 2 verbatim: overwriting a victim's pending code is refused, code stays the real one",
         "a claim cannot be reopened after the challenge has already been sent (delivery_claimed_at survives the send)",
         "golden path under app_patient: insert -> purpose -> claim -> enqueue reaches a real pending queue row"
       ],
@@ -370,7 +370,7 @@
           "evidence": null
         },
         {
-          "title": "audit attack 2 verbatim: overwriting a victim\\",
+          "title": "audit attack 2 verbatim: overwriting a victim's pending code is refused, code stays the real one",
           "state": "required-current-oracle",
           "evidence": null
         },
@@ -502,13 +502,13 @@
         },
         {
           "title": "atomically binds exact queue event/generation and revalidates the live recipient",
-          "state": "static-product",
-          "evidence": "node --test deploy/postgres/privileges/reminder-materialization-boundary.test.mjs"
+          "state": "required-current-oracle",
+          "evidence": null
         },
         {
           "title": "converges concurrent wake upserts to one occurrence key",
-          "state": "static-product",
-          "evidence": "node --test deploy/postgres/privileges/reminder-materialization-boundary.test.mjs"
+          "state": "required-current-oracle",
+          "evidence": null
         },
         {
           "title": "does not reset snoozed generation or terminal evidence on an old wake replay",
@@ -553,13 +553,13 @@
       "declarations": [
         {
           "title": "flips is_active to false in the database via the real service (id, organizationId) order",
-          "state": "named-dev-ready",
-          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+          "state": "required-current-oracle",
+          "evidence": null
         },
         {
           "title": "demonstrates the ORIGINAL bug shape: swapped args match zero rows (UPDATE 0), row stays active",
-          "state": "named-dev-ready",
-          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+          "state": "required-current-oracle",
+          "evidence": null
         }
       ]
     },
@@ -569,7 +569,7 @@
       "consequences": [
         "positive: Clinic A staff sees its own working-hours row via the real repo function",
         "positive: Clinic B staff sees its own working-hours row via the real repo function",
-        "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is "
+        "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is issued under a run()-scoped principal and awaited via Promise.all (payment-timeline/route.ts shape) alongside an unrelated concurrent read"
       ],
       "replacementState": "mixed-see-named-dev-matrix",
       "declarations": [
@@ -584,7 +584,7 @@
           "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
         },
         {
-          "title": "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is ",
+          "title": "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is issued under a run()-scoped principal and awaited via Promise.all (payment-timeline/route.ts shape) alongside an unrelated concurrent read",
           "state": "named-dev-ready",
           "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
         }

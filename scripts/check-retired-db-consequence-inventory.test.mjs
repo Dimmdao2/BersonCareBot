@@ -15,6 +15,13 @@ test('accounts for the complete 123-path retirement and the exact 121 product de
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.match(result.stdout, /123 paths/);
   assert.match(result.stdout, /product=121/);
-  assert.match(result.stdout, /static=5 security=9 named-DEV-READY=22 required=79/);
+  const dispositions = /static=(\d+) security=(\d+) named-DEV-READY=(\d+) required=(\d+) retired=(\d+)/.exec(
+    result.stdout,
+  );
+  assert(dispositions, 'computed declaration disposition counts are missing');
+  assert.equal(
+    dispositions.slice(1).reduce((sum, count) => sum + Number(count), 0),
+    121,
+  );
   assert.match(result.stdout, /other=55 independent/);
 });

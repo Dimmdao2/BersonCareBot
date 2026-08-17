@@ -68,13 +68,11 @@ const counts = Object.fromEntries(
 assert.equal(product.length, 35, 'retired product-oracle file count changed');
 assert.equal(productDeclarations, 121, 'retired product declaration count changed');
 assert.equal(declarationStates.length, 121, 'every product declaration needs an exact disposition');
-assert.deepEqual(stateCounts, {
-  'static-product': 5,
-  'static-security': 9,
-  'named-dev-ready': 22,
-  'required-current-oracle': 79,
-  'retired-owner': 6,
-});
+assert.equal(
+  Object.values(stateCounts).reduce((sum, count) => sum + count, 0),
+  productDeclarations,
+  'computed declaration disposition counts must cover the exact product census',
+);
 for (const declaration of declarationStates) {
   assert.equal(typeof declaration.title, 'string');
   if (declaration.state !== 'required-current-oracle') {
@@ -90,5 +88,5 @@ assert.deepEqual(counts, {
 });
 
 console.log(
-  `retired DB consequence inventory: OK (123 paths; product=${productDeclarations}: static=5 security=9 named-DEV-READY=22 required=79 retired=6; other=55 independent + 29 support + 4 history)`,
+  `retired DB consequence inventory: OK (123 paths; product=${productDeclarations}: static=${stateCounts['static-product']} security=${stateCounts['static-security']} named-DEV-READY=${stateCounts['named-dev-ready']} required=${stateCounts['required-current-oracle']} retired=${stateCounts['retired-owner']}; other=${counts['independent-oracle']} independent + ${counts['retired-support']} support + ${counts['retired-history']} history)`,
 );

@@ -81,6 +81,31 @@ describe('named DEV database behavior runner refusal gate', () => {
       () => assertNamedDevEnv(canonicalApiEnv.replace('127.0.0.1', 'localhost'), canonicalWebappEnv),
       /exact canonical named DEV/,
     );
+    for (const override of [
+      'host=203.0.113.10',
+      'hostaddr=203.0.113.10',
+      'port=6543',
+      'dbname=bersoncarebot_test',
+      'database=bersoncarebot_test',
+      'service=production',
+    ]) {
+      const mutatedWebapp = canonicalWebappEnv.replaceAll(
+        '/bcb_webapp_dev',
+        `/bcb_webapp_dev?${override}`,
+      );
+      assert.throws(
+        () => assertNamedDevEnv(canonicalApiEnv, mutatedWebapp),
+        /parameter overrides/,
+      );
+      const mutatedApi = canonicalApiEnv.replace(
+        '/bcb_webapp_dev',
+        `/bcb_webapp_dev?${override}`,
+      );
+      assert.throws(
+        () => assertNamedDevEnv(mutatedApi, canonicalWebappEnv),
+        /parameter overrides/,
+      );
+    }
   });
 });
 

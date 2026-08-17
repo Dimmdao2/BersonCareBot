@@ -122,3 +122,31 @@ test('rejects an unmarked active-doc reference but permits a truthful historical
     rmSync(marked, { force: true });
   }
 });
+
+test('kills all six semantic executor bypasses from combined audit one', { concurrency: false }, () => {
+  for (const [path, source] of [
+    [
+      'scripts/__combined_audit_variable_psql.mjs',
+      "import { spawnSync } from 'node:child_process';\nconst executable = 'psql';\nconst historySql = 'history.sql';\nspawnSync(executable, ['-f', historySql]);\n",
+    ],
+    [
+      'scripts/__combined_audit_variable_createdb.sh',
+      '#!/bin/sh\ndatabase_tool=createdb; "$database_tool" bcb_throwaway\n',
+    ],
+    [
+      'tools/__combined_audit_os_system.py',
+      "import os\nos.system('createdb bcb_throwaway')\n",
+    ],
+    ['tools/__combined_audit_postgres/Dockerfile', 'FROM postgres:17\nRUN echo active\n'],
+    [
+      'scripts/__combined_audit_printf_include.sh',
+      "#!/bin/sh\nprintf '\\i history.sql\\n' | psql \"$DATABASE_URL\"\n",
+    ],
+    [
+      'tools/__combined_audit_concatenated_ddl.mjs',
+      "const client = getClient();\nconst statement = 'CREATE ' + 'DATABASE bcb_throwaway';\nawait client.query(statement);\n",
+    ],
+  ]) {
+    expectKilled(path, source);
+  }
+});

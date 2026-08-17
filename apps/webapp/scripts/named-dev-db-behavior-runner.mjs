@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Client } from 'pg';
 
 export const CANONICAL_DEV_BASE_URL = 'http://127.0.0.1:5200';
 export const CANONICAL_DEV_DATABASE = 'bcb_webapp_dev';
@@ -29,7 +30,6 @@ const CURRENT_PORT_STEP_PATH = resolve(
  * remaining cases stay named blockers in the matrix instead of being replaced by mocks or source text.
  */
 export const LIVE_COVERAGE = Object.freeze({
-  pgBookingSchedulingDeactivateWorkingHours: 2,
   pgBookingSchedulingReadChokepoint: 3,
   pgDoctorClients: 1,
   pgDoctorAnalyticsMetricAccounts: 1,
@@ -91,7 +91,15 @@ function canonicalTargetFromUrl(value, label) {
     throw new Error(`${label} must be a PostgreSQL URL`);
   }
   const databaseName = databaseNameFromUrl(value, label);
-  return { parsed, databaseName };
+  if (parsed.searchParams.size > 0) {
+    throw new Error(`${label} must not contain PostgreSQL connection parameter overrides`);
+  }
+  const client = new Client({ connectionString: value });
+  return {
+    host: client.host,
+    port: client.port,
+    databaseName: client.database ?? databaseName,
+  };
 }
 
 export function assertCanonicalArgs(args) {
@@ -129,10 +137,10 @@ export function assertNamedDevEnv(apiSource, webappSource) {
   ];
   for (const [label, value] of targets) {
     if (!value) throw new Error(`${label} is required for the canonical named DEV runner`);
-    const { parsed, databaseName } = canonicalTargetFromUrl(value, label);
+    const { host, port, databaseName } = canonicalTargetFromUrl(value, label);
     if (
-      parsed.hostname !== CANONICAL_DEV_DATABASE_HOST ||
-      parsed.port !== CANONICAL_DEV_DATABASE_PORT ||
+      host !== CANONICAL_DEV_DATABASE_HOST ||
+      port !== Number(CANONICAL_DEV_DATABASE_PORT) ||
       databaseName !== CANONICAL_DEV_DATABASE
     ) {
       throw new Error(
@@ -932,7 +940,7 @@ export function selfTestRegistry(candidate = LIVE_COVERAGE) {
   for (const [key, expected] of Object.entries(LIVE_COVERAGE)) {
     assert.equal(candidate[key], expected, `live coverage count changed for ${key}`);
   }
-  assert.equal(LIVE_COVERED_CALLS, 22, 'live coverage total must stay explicit');
+  assert.equal(LIVE_COVERED_CALLS, 20, 'live coverage total must stay explicit');
 }
 
 async function main() {
@@ -940,7 +948,7 @@ async function main() {
   if (process.argv[2] === '--self-test') {
     assertCanonicalNamedDevEnvFiles();
     selfTestRegistry();
-    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 22-call registry)');
+    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 20-call registry)');
     return;
   }
   const result = await runLive();

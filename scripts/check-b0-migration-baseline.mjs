@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, relative as relativePath, resolve } from 'node:path';
+import ts from 'typescript';
 
 const root = resolve(import.meta.dirname, '..');
 const webappMigrations = resolve(root, 'apps/webapp/db/drizzle-migrations');
@@ -153,6 +155,234 @@ function uncommentedShell(source) {
     .replaceAll(/\\\r?\n/g, ' ');
 }
 
+const databaseUtilities = new Set(['initdb', 'createdb', 'dropdb', 'pg_ctl']);
+
+function staticJavaScriptString(node, bindings) {
+  if (!node) return null;
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isParenthesizedExpression(node)) return staticJavaScriptString(node.expression, bindings);
+  if (ts.isIdentifier(node)) return bindings.get(node.text) ?? null;
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = staticJavaScriptString(node.left, bindings);
+    const right = staticJavaScriptString(node.right, bindings);
+    return left === null || right === null ? null : left + right;
+  }
+  return null;
+}
+
+function javaScriptSemanticViolation(source, rel) {
+  const sourceFile = ts.createSourceFile(
+    rel,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    rel.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const bindings = new Map();
+  const declarations = [];
+  function collectDeclarations(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      declarations.push(node);
+    }
+    ts.forEachChild(node, collectDeclarations);
+  }
+  collectDeclarations(sourceFile);
+  for (let pass = 0; pass < declarations.length; pass += 1) {
+    let changed = false;
+    for (const declaration of declarations) {
+      if (bindings.has(declaration.name.text)) continue;
+      const value = staticJavaScriptString(declaration.initializer, bindings);
+      if (value !== null) {
+        bindings.set(declaration.name.text, value);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+
+  let violation = null;
+  function inspect(node) {
+    if (violation || !ts.isCallExpression(node)) {
+      if (!violation) ts.forEachChild(node, inspect);
+      return;
+    }
+    const callee = ts.isIdentifier(node.expression)
+      ? node.expression.text
+      : ts.isPropertyAccessExpression(node.expression)
+        ? node.expression.name.text
+        : null;
+    const first = staticJavaScriptString(node.arguments[0], bindings);
+    if (
+      ['spawn', 'spawnSync', 'execFile', 'execFileSync'].includes(callee) &&
+      first &&
+      databaseUtilities.has(basename(first).toLowerCase())
+    ) {
+      violation = 'database create/drop/server utility';
+      return;
+    }
+    if (['spawn', 'spawnSync', 'execFile', 'execFileSync'].includes(callee) && first === 'psql') {
+      const argumentNode = node.arguments[1];
+      const args = ts.isArrayLiteralExpression(argumentNode)
+        ? argumentNode.elements.map((element) => staticJavaScriptString(element, bindings))
+        : [];
+      if (
+        args.some((argument) => argument === '-f' || argument === '--file' || argument?.startsWith('--file=')) ||
+        args.some((argument) => typeof argument === 'string' && /^\\i(?:r)?(?:\s|$)/i.test(argument))
+      ) {
+        violation = 'psql file/stdin replay outside a named-environment port';
+        return;
+      }
+    }
+    if (callee === 'query' && first && /\b(?:create|drop)\s+database\b/i.test(first)) {
+      violation = 'CREATE/DROP DATABASE through a database client';
+      return;
+    }
+    ts.forEachChild(node, inspect);
+  }
+  inspect(sourceFile);
+  return violation;
+}
+
+const pythonAstScanner = String.raw`
+import ast, json, re, sys
+source = sys.stdin.read()
+tree = ast.parse(source)
+bindings = {}
+def value(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, str): return node.value
+    if isinstance(node, ast.Name): return bindings.get(node.id)
+    if isinstance(node, (ast.List, ast.Tuple)):
+        values = [value(item) for item in node.elts]
+        return values if all(item is not None for item in values) else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = value(node.left), value(node.right)
+        return left + right if isinstance(left, str) and isinstance(right, str) else None
+    return None
+for node in ast.walk(tree):
+    if isinstance(node, (ast.Assign, ast.AnnAssign)):
+        target = node.targets[0] if isinstance(node, ast.Assign) and node.targets else node.target
+        resolved = value(node.value)
+        if isinstance(target, ast.Name) and resolved is not None: bindings[target.id] = resolved
+violation = None
+for node in ast.walk(tree):
+    if not isinstance(node, ast.Call): continue
+    name = ''
+    if isinstance(node.func, ast.Name): name = node.func.id
+    elif isinstance(node.func, ast.Attribute):
+        root = node.func.value.id if isinstance(node.func.value, ast.Name) else ''
+        name = root + '.' + node.func.attr
+    argument = value(node.args[0]) if node.args else None
+    command = ' '.join(argument) if isinstance(argument, list) and all(isinstance(item, str) for item in argument) else argument if isinstance(argument, str) else None
+    if name == 'os.system' and isinstance(command, str):
+        if re.search(r'(^|\s)(initdb|createdb|dropdb|pg_ctl)(\s|$)', command, re.I): violation = 'database create/drop/server utility'
+        elif re.search(r'\b(create|drop)\s+database\b', command, re.I): violation = 'CREATE/DROP DATABASE through a database client'
+        elif re.search(r'\bpsql\b.*(?:\s-f\s|\s--file(?:=|\s)|\\i(?:r)?\s)', command, re.I): violation = 'psql file/stdin replay outside a named-environment port'
+    if violation: break
+print(json.dumps({'violation': violation}))
+`;
+
+function pythonSemanticViolation(source) {
+  const result = spawnSync('python3', ['-c', pythonAstScanner], {
+    input: source,
+    encoding: 'utf8',
+    timeout: 5_000,
+  });
+  if (result.status !== 0) {
+    throw new Error(`Python AST scan failed: ${result.stderr.trim()}`);
+  }
+  return JSON.parse(result.stdout).violation;
+}
+
+function shellVariables(source) {
+  const bindings = new Map();
+  for (const match of source.matchAll(
+    /(?:^|[;\n])\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:'([^']*)'|"([^"]*)"|([^\s;]+))/g,
+  )) {
+    bindings.set(match[1], match[2] ?? match[3] ?? match[4]);
+  }
+  return source.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, braced, plain) => {
+    return bindings.get(braced ?? plain) ?? match;
+  });
+}
+
+function splitUnquoted(source, separator) {
+  const parts = [];
+  let quote = null;
+  let escaped = false;
+  let start = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === '\\' && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if ((character === "'" || character === '"') && (!quote || quote === character)) {
+      quote = quote ? null : character;
+      continue;
+    }
+    if (!quote && character === separator) {
+      parts.push(source.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(source.slice(start));
+  return parts;
+}
+
+function shellWords(source) {
+  const words = [];
+  let word = '';
+  let quote = null;
+  let escaped = false;
+  for (const character of source.trim()) {
+    if (escaped) {
+      word += character;
+      escaped = false;
+      continue;
+    }
+    if (character === '\\' && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if ((character === "'" || character === '"') && (!quote || quote === character)) {
+      quote = quote ? null : character;
+      continue;
+    }
+    if (!quote && /\s/.test(character)) {
+      if (word) words.push(word);
+      word = '';
+      continue;
+    }
+    word += character;
+  }
+  if (word) words.push(word);
+  return words;
+}
+
+function shellPrintfReplay(source) {
+  return source.split(/\r?\n/).some((line) => {
+    const pipeline = splitUnquoted(line, '|').map(shellWords);
+    return pipeline.some((tokens, index) => {
+      if (tokens[0] !== 'psql' || index === 0) return false;
+      const producer = pipeline[index - 1];
+      return producer[0] === 'printf' && producer.slice(1).some((value) => /^\\i(?:r)?(?:\s|$)/i.test(value));
+    });
+  });
+}
+
+function dockerfileStartsPostgres(source) {
+  return uncommentedShell(source).split(/\r?\n/).some((line) => {
+    const words = shellWords(line.replace(/\\\s*$/g, ''));
+    if (words[0]?.toUpperCase() !== 'FROM') return false;
+    const image = words.slice(1).find((word) => !word.startsWith('--')) ?? '';
+    return ['postgres', 'postgresql'].includes(image.split('@')[0].split(':')[0].toLowerCase());
+  });
+}
+
 function executableViolation(rel, source) {
   const extension = rel.split('.').at(-1)?.toLowerCase() ?? '';
   const isShellLike =
@@ -161,10 +391,18 @@ function executableViolation(rel, source) {
   const isJavaScriptLike = ['mjs', 'mts', 'cjs', 'js', 'ts', 'tsx'].includes(extension);
   const isPython = extension === 'py';
   const isSql = extension === 'sql';
-  const shell = isShellLike ? uncommentedShell(source) : '';
+  const shell = isShellLike ? shellVariables(uncommentedShell(source)) : '';
+  const semanticJavaScriptViolation = isJavaScriptLike &&
+    /\b(?:initdb|createdb|dropdb|pg_ctl|psql|database)\b/i.test(source)
+    ? javaScriptSemanticViolation(source, rel)
+    : null;
+  const semanticPythonViolation = isPython ? pythonSemanticViolation(source) : null;
+  if (semanticJavaScriptViolation || semanticPythonViolation) {
+    return semanticJavaScriptViolation ?? semanticPythonViolation;
+  }
 
   const databaseUtilityInShell =
-    /(?:^|[;&|]\s*|\brun:\s*|\bcommand\s+|\bexec\s+|\bsudo(?:\s+-\S+)*\s+)(?:initdb|createdb|dropdb|pg_ctl)\b/im.test(
+    /(?:^|[;&|]\s*|\brun:\s*|\bcommand\s+|\bexec\s+|\bsudo(?:\s+-\S+)*\s+)['"]?(?:initdb|createdb|dropdb|pg_ctl)\b['"]?/im.test(
       shell,
     );
   const databaseUtilityInChildProcess = isJavaScriptLike &&
@@ -207,14 +445,19 @@ function executableViolation(rel, source) {
 
   const postgresContainer =
     /(?:\bimage\s*:\s*|\bdocker\s+(?:run|create)\b[^\n]*?)['"]?(?:postgres|postgresql)(?::[A-Za-z0-9._-]+)?(?=[\s'"\\]|$)/i;
-  if ((isShellLike && postgresContainer.test(shell)) || (isJavaScriptLike && postgresContainer.test(source))) {
+  if (
+    (isShellLike && postgresContainer.test(shell)) ||
+    (callableBasename.test(basename(rel)) && dockerfileStartsPostgres(source)) ||
+    (isJavaScriptLike && postgresContainer.test(source))
+  ) {
     return 'PostgreSQL container/server';
   }
 
   const shellReplay = isShellLike &&
     (/(?:^|[;&|(\s])(?:sudo(?:\s+-\S+)*\s+)?psql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<>&])|<<\s*['"]?SQL\b)/im.test(shell) ||
       /\bpsql\b[^\n]*\s(?:-c|--command(?:=|\s))\s*['"]?\\+(?:i|ir)\s+/im.test(shell) ||
-      /\b(?:cat|head|tail|sed|awk)\b[^\n|]*\.(?:sql|psql)\b[^\n|]*\|\s*(?:sudo(?:\s+-\S+)*\s+)?psql\b/im.test(shell));
+      /\b(?:cat|head|tail|sed|awk)\b[^\n|]*\.(?:sql|psql)\b[^\n|]*\|\s*(?:sudo(?:\s+-\S+)*\s+)?psql\b/im.test(shell) ||
+      shellPrintfReplay(shell));
   const childReplay = isJavaScriptLike &&
     (/\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`]psql['"`][\s\S]{0,800}?(?:['"`](?:-f|--file)['"`]|['"`](?:-c|--command)['"`][\s\S]{0,200}?['"`]\\\\+(?:i|ir)(?:\s|['"`])|['"`]\\\\+(?:i|ir)(?:\s|['"`]))/i.test(
       source,

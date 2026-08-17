@@ -52,8 +52,26 @@ describe('named DEV patient reminder materialization step', () => {
       webappEnv.replaceAll('127.0.0.1', '135.106.162.170'),
       webappEnv.replaceAll(':5432/', ':5433/'),
       webappEnv.replace('port-context', 'legacy-guc'),
+      ...[
+        'host=203.0.113.10',
+        'hostaddr=203.0.113.10',
+        'port=6543',
+        'dbname=bersoncarebot_test',
+        'database=bersoncarebot_test',
+        'service=production',
+      ].map((override) =>
+        webappEnv.replaceAll('/bcb_webapp_dev', `/bcb_webapp_dev?${override}`),
+      ),
     ]) {
       assert.throws(() => assertCanonicalNamedDevTarget(apiEnv, mutation));
+    }
+    for (const override of ['host=203.0.113.10', 'port=6543', 'service=production']) {
+      assert.throws(() =>
+        assertCanonicalNamedDevTarget(
+          apiEnv.replace('/bcb_webapp_dev', `/bcb_webapp_dev?${override}`),
+          webappEnv,
+        ),
+      );
     }
   });
 
