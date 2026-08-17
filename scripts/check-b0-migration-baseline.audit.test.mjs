@@ -111,6 +111,23 @@ test('kills case, spacing, version, child-process and SQL-include equivalents', 
   for (const [relativePath, content] of equivalentFaults) expectKilled(relativePath, content);
 });
 
+// Re-audit one, finding 2: command resolution and image identity must not depend on the surface form.
+const reauditOneResolutionFaults = [
+  [
+    'scripts/__b0_quoted_variable_psql.sh',
+    '#!/bin/sh\ndatabase_client=psql; "$database_client" "$DATABASE_URL" -f history.sql\n',
+  ],
+  [
+    'tools/__b0_qualified_postgres_image/Dockerfile',
+    'FROM docker.io/library/postgres:17\nRUN echo active\n',
+  ],
+  ['scripts/__b0_qualified_compose_image.yml', 'services:\n  db:\n    image: docker.io/library/postgres:17\n'],
+];
+
+test('kills quoted variable-resolved psql and fully-qualified PostgreSQL images', { concurrency: false }, () => {
+  for (const [relativePath, content] of reauditOneResolutionFaults) expectKilled(relativePath, content);
+});
+
 test('does not pin inert prose in an executable source file', { concurrency: false }, () => {
   const path = 'scripts/__b0_inert_prose.mjs';
   withFileMutation(path, '#!/usr/bin/env node\nconst note = "psql $DATABASE_URL -f retired.sql";\nvoid note;\n', () => {

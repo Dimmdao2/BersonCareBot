@@ -156,18 +156,43 @@ function uncommentedShell(source) {
 }
 
 const databaseUtilities = new Set(['initdb', 'createdb', 'dropdb', 'pg_ctl']);
+const processCallees = ['spawn', 'spawnSync', 'execFile', 'execFileSync'];
 
-function staticJavaScriptString(node, bindings) {
+// Resolves a static string OR a static list of strings. A command list bound to a local name is the
+// same callable as the inline literal, so both shapes must reach the process-call inspection below.
+function staticJavaScriptValue(node, bindings) {
   if (!node) return null;
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-  if (ts.isParenthesizedExpression(node)) return staticJavaScriptString(node.expression, bindings);
+  if (ts.isParenthesizedExpression(node)) return staticJavaScriptValue(node.expression, bindings);
+  if (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isTypeAssertionExpression(node)) {
+    return staticJavaScriptValue(node.expression, bindings);
+  }
   if (ts.isIdentifier(node)) return bindings.get(node.text) ?? null;
+  if (ts.isArrayLiteralExpression(node)) {
+    const elements = node.elements.map((element) =>
+      ts.isSpreadElement(element)
+        ? staticJavaScriptValue(element.expression, bindings)
+        : staticJavaScriptValue(element, bindings),
+    );
+    if (elements.some((element) => element === null)) return null;
+    return elements.flatMap((element) => (Array.isArray(element) ? element : [element]));
+  }
   if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-    const left = staticJavaScriptString(node.left, bindings);
-    const right = staticJavaScriptString(node.right, bindings);
-    return left === null || right === null ? null : left + right;
+    const left = staticJavaScriptValue(node.left, bindings);
+    const right = staticJavaScriptValue(node.right, bindings);
+    return typeof left === 'string' && typeof right === 'string' ? left + right : null;
   }
   return null;
+}
+
+function staticJavaScriptString(node, bindings) {
+  const value = staticJavaScriptValue(node, bindings);
+  return typeof value === 'string' ? value : null;
+}
+
+function staticJavaScriptStringList(node, bindings) {
+  const value = staticJavaScriptValue(node, bindings);
+  return Array.isArray(value) ? value : null;
 }
 
 function javaScriptSemanticViolation(source, rel) {
@@ -191,7 +216,7 @@ function javaScriptSemanticViolation(source, rel) {
     let changed = false;
     for (const declaration of declarations) {
       if (bindings.has(declaration.name.text)) continue;
-      const value = staticJavaScriptString(declaration.initializer, bindings);
+      const value = staticJavaScriptValue(declaration.initializer, bindings);
       if (value !== null) {
         bindings.set(declaration.name.text, value);
         changed = true;
@@ -212,22 +237,28 @@ function javaScriptSemanticViolation(source, rel) {
         ? node.expression.name.text
         : null;
     const first = staticJavaScriptString(node.arguments[0], bindings);
-    if (
-      ['spawn', 'spawnSync', 'execFile', 'execFileSync'].includes(callee) &&
-      first &&
-      databaseUtilities.has(basename(first).toLowerCase())
-    ) {
-      violation = 'database create/drop/server utility';
-      return;
-    }
-    if (['spawn', 'spawnSync', 'execFile', 'execFileSync'].includes(callee) && first === 'psql') {
-      const argumentNode = node.arguments[1];
-      const args = ts.isArrayLiteralExpression(argumentNode)
-        ? argumentNode.elements.map((element) => staticJavaScriptString(element, bindings))
-        : [];
+    if (processCallees.includes(callee)) {
+      // A process call carries either (executable, [args]) or a single static command list. Both
+      // resolve through local bindings, so a refactor into a variable is not an escape.
+      const firstArgument = node.arguments[0];
+      const firstList = firstArgument && ts.isSpreadElement(firstArgument)
+        ? staticJavaScriptStringList(firstArgument.expression, bindings)
+        : staticJavaScriptStringList(firstArgument, bindings);
+      const executable = first ?? firstList?.[0] ?? null;
+      const args = firstList
+        ? firstList.slice(1)
+        : (staticJavaScriptStringList(node.arguments[1], bindings) ?? []);
+      if (executable && databaseUtilities.has(basename(executable).toLowerCase())) {
+        violation = 'database create/drop/server utility';
+        return;
+      }
       if (
-        args.some((argument) => argument === '-f' || argument === '--file' || argument?.startsWith('--file=')) ||
-        args.some((argument) => typeof argument === 'string' && /^\\i(?:r)?(?:\s|$)/i.test(argument))
+        executable &&
+        basename(executable).toLowerCase() === 'psql' &&
+        (args.some(
+          (argument) => argument === '-f' || argument === '--file' || argument.startsWith('--file='),
+        ) ||
+          args.some((argument) => /^\\i(?:r)?(?:\s|$)/i.test(argument)))
       ) {
         violation = 'psql file/stdin replay outside a named-environment port';
         return;
@@ -273,7 +304,10 @@ for node in ast.walk(tree):
         name = root + '.' + node.func.attr
     argument = value(node.args[0]) if node.args else None
     command = ' '.join(argument) if isinstance(argument, list) and all(isinstance(item, str) for item in argument) else argument if isinstance(argument, str) else None
-    if name == 'os.system' and isinstance(command, str):
+    # A command list bound to a local name is the same callable as the inline literal, so every
+    # process entrypoint that receives one is inspected, not only os.system.
+    processCallees = ('os.system', 'os.popen', 'subprocess.run', 'subprocess.call', 'subprocess.check_call', 'subprocess.check_output', 'subprocess.Popen', 'subprocess.getoutput', 'subprocess.getstatusoutput')
+    if name in processCallees and isinstance(command, str):
         if re.search(r'(^|\s)(initdb|createdb|dropdb|pg_ctl)(\s|$)', command, re.I): violation = 'database create/drop/server utility'
         elif re.search(r'\b(create|drop)\s+database\b', command, re.I): violation = 'CREATE/DROP DATABASE through a database client'
         elif re.search(r'\bpsql\b.*(?:\s-f\s|\s--file(?:=|\s)|\\i(?:r)?\s)', command, re.I): violation = 'psql file/stdin replay outside a named-environment port'
@@ -374,12 +408,19 @@ function shellPrintfReplay(source) {
   });
 }
 
+// Container image identity is the final repository component: `docker.io/library/postgres:17`,
+// `library/postgres` and `postgres` are the same image, so a fully-qualified reference is not an escape.
+function isPostgresImageReference(reference) {
+  const repository = reference.split('@')[0].split('/').at(-1) ?? '';
+  return ['postgres', 'postgresql'].includes(repository.split(':')[0].toLowerCase());
+}
+
 function dockerfileStartsPostgres(source) {
   return uncommentedShell(source).split(/\r?\n/).some((line) => {
     const words = shellWords(line.replace(/\\\s*$/g, ''));
     if (words[0]?.toUpperCase() !== 'FROM') return false;
     const image = words.slice(1).find((word) => !word.startsWith('--')) ?? '';
-    return ['postgres', 'postgresql'].includes(image.split('@')[0].split(':')[0].toLowerCase());
+    return isPostgresImageReference(image);
   });
 }
 
@@ -443,8 +484,10 @@ function executableViolation(rel, source) {
       /\.\s*(?:execute|query)\s*\(\s*(?:[rubf]{0,2})?['"]\s*(?:create|drop)\s+database\b/i.test(source));
   if (databaseDdlThroughClient) return 'CREATE/DROP DATABASE through a database client';
 
+  // The optional registry/namespace prefix keeps `docker.io/library/postgres:17` the same identity
+  // as the unqualified `postgres:17`.
   const postgresContainer =
-    /(?:\bimage\s*:\s*|\bdocker\s+(?:run|create)\b[^\n]*?)['"]?(?:postgres|postgresql)(?::[A-Za-z0-9._-]+)?(?=[\s'"\\]|$)/i;
+    /(?:\bimage\s*:\s*|\bdocker\s+(?:run|create)\b[^\n]*?)['"]?(?:[A-Za-z0-9._:-]+\/)*(?:postgres|postgresql)(?::[A-Za-z0-9._-]+)?(?=[\s'"\\]|$)/i;
   if (
     (isShellLike && postgresContainer.test(shell)) ||
     (callableBasename.test(basename(rel)) && dockerfileStartsPostgres(source)) ||
@@ -453,10 +496,11 @@ function executableViolation(rel, source) {
     return 'PostgreSQL container/server';
   }
 
+  // `"$database_client"` resolves to a quoted `psql` word, which is the same command as the bare one.
   const shellReplay = isShellLike &&
-    (/(?:^|[;&|(\s])(?:sudo(?:\s+-\S+)*\s+)?psql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<>&])|<<\s*['"]?SQL\b)/im.test(shell) ||
+    (/(?:^|[;&|(\s'"])(?:sudo(?:\s+-\S+)*\s+)?['"]?psql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<>&])|<<\s*['"]?SQL\b)/im.test(shell) ||
       /\bpsql\b[^\n]*\s(?:-c|--command(?:=|\s))\s*['"]?\\+(?:i|ir)\s+/im.test(shell) ||
-      /\b(?:cat|head|tail|sed|awk)\b[^\n|]*\.(?:sql|psql)\b[^\n|]*\|\s*(?:sudo(?:\s+-\S+)*\s+)?psql\b/im.test(shell) ||
+      /\b(?:cat|head|tail|sed|awk)\b[^\n|]*\.(?:sql|psql)\b[^\n|]*\|\s*(?:sudo(?:\s+-\S+)*\s+)?['"]?psql\b/im.test(shell) ||
       shellPrintfReplay(shell));
   const childReplay = isJavaScriptLike &&
     (/\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`]psql['"`][\s\S]{0,800}?(?:['"`](?:-f|--file)['"`]|['"`](?:-c|--command)['"`][\s\S]{0,200}?['"`]\\\\+(?:i|ir)(?:\s|['"`])|['"`]\\\\+(?:i|ir)(?:\s|['"`]))/i.test(

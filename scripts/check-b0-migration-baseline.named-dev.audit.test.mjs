@@ -150,3 +150,28 @@ test('kills all six semantic executor bypasses from combined audit one', { concu
     expectKilled(path, source);
   }
 });
+
+// Re-audit one, finding 2: a static argument/command list bound to a local name is the same callable
+// as the inline literal, so the semantic scanners must propagate it into the process call.
+test('kills static command lists bound to a local name in JS and Python', () => {
+  for (const [path, source] of [
+    [
+      'scripts/__reaudit_one_js_argument_list.mjs',
+      "import { spawnSync } from 'node:child_process';\nconst executable = 'psql';\nconst history = 'history.sql';\nconst args = ['-f', history];\nspawnSync(executable, args);\n",
+    ],
+    [
+      'scripts/__reaudit_one_js_command_list.mjs',
+      "import { execFileSync } from 'node:child_process';\nconst command = ['createdb', 'bcb_throwaway'];\nexecFileSync(...command);\n",
+    ],
+    [
+      'tools/__reaudit_one_python_command_list.py',
+      "import subprocess\nname = 'bcb_throwaway'\ncommand = ['createdb', name]\nsubprocess.run(command, check=True)\n",
+    ],
+    [
+      'tools/__reaudit_one_python_psql_list.py',
+      "import subprocess\nhistory = 'history.sql'\ncommand = ['psql', '-f', history]\nsubprocess.Popen(command)\n",
+    ],
+  ]) {
+    expectKilled(path, source);
+  }
+});

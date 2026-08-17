@@ -326,7 +326,8 @@
       "consequences": [
         "revalidates the exact canonical generation and terminalizes it after reschedule",
         "advances Telegram→MAX once under concurrent retry completion",
-        "terminalizes before provider when the current appointment recipient becomes blocked"
+        "terminalizes before provider when the current appointment recipient becomes blocked",
+        "terminalizes before provider when the recipient becomes %s"
       ],
       "replacementState": "mixed-see-named-dev-matrix",
       "declarations": [
@@ -342,6 +343,11 @@
         },
         {
           "title": "terminalizes before provider when the current appointment recipient becomes blocked",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "terminalizes before provider when the recipient becomes %s",
           "state": "required-current-oracle",
           "evidence": null
         }

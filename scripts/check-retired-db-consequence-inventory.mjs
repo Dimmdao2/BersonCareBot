@@ -66,8 +66,8 @@ const counts = Object.fromEntries(
 );
 
 assert.equal(product.length, 35, 'retired product-oracle file count changed');
-assert.equal(productDeclarations, 121, 'retired product declaration count changed');
-assert.equal(declarationStates.length, 121, 'every product declaration needs an exact disposition');
+assert.equal(productDeclarations, 122, 'retired product declaration count changed');
+assert.equal(declarationStates.length, 122, 'every product declaration needs an exact disposition');
 assert.equal(
   Object.values(stateCounts).reduce((sum, count) => sum + count, 0),
   productDeclarations,
