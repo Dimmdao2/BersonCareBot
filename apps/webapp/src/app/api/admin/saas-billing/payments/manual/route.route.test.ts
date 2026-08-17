@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseError } from 'pg';
-import { PaymentProviderTransportError } from '@/modules/payments/providerPort';
+import {
+  PaymentProviderRequestRefusedError,
+  PaymentProviderTransportError,
+} from '@/modules/payments/providerPort';
 import {
   withManualInvoiceDatabaseBoundary,
   withManualInvoiceProviderTransportBoundary,
@@ -117,12 +120,6 @@ describe('manual SaaS invoice HTTP mapping', () => {
       'saas_billing_provider_invoices_unsupported',
     ],
     [
-      'yookassa_create_invoice_failed:403:provider refused',
-      undefined,
-      502,
-      'saas_billing_provider_rejected_invoice',
-    ],
-    [
       'saas_billing_payment_provider_unavailable:yookassa',
       undefined,
       503,
@@ -185,6 +182,40 @@ describe('manual SaaS invoice HTTP mapping', () => {
     expect(JSON.stringify({ body, logs: fakes.loggerError.mock.calls })).not.toContain(rawMessage);
     expect(fakes.loggerError).toHaveBeenCalledWith(
       expect.objectContaining({ errorCode: 'ECONNREFUSED', root: 'database_unavailable' }),
+      '[saas-billing/manual-invoice] creation failed',
+    );
+  });
+
+  it('maps a typed provider refusal without trusting its message text', async () => {
+    fakes.createManualInvoice.mockRejectedValue(
+      new PaymentProviderRequestRefusedError(
+        'yookassa_create_invoice_failed:403:provider refused',
+      ),
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_provider_rejected_invoice',
+    });
+  });
+
+  it('does not let an untyped domain error forge a provider refusal through message text', async () => {
+    fakes.createManualInvoice.mockRejectedValue(
+      new Error('yookassa_create_invoice_failed:403:provider refused'),
+    );
+
+    const response = await POST(request());
+
+    expect.soft(response.status).toBe(503);
+    await expect.soft(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_manual_invoice_unavailable',
+    });
+    expect.soft(fakes.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: null, root: 'unclassified' }),
       '[saas-billing/manual-invoice] creation failed',
     );
   });
