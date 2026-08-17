@@ -170,7 +170,10 @@ plans либо текущему отдельному DB privilege plan. В эт�
       script или active release.
 - [ ] **IS-I1-06. systemd hardening.** Для каждого unit применены и проверены `NoNewPrivileges`, `PrivateTmp`,
       filesystem/device/capability/address-family restrictions и controlled writable directories; исключения
-      перечислены в одном manifest.
+      перечислены в одном manifest. Отдельно для `media-worker`: `TMPDIR` указывает на дисковый каталог с известным
+      размером (не tmpfs — иначе двухгигабайтный ролик уезжает в память), и unit получает `CPUQuota`, потому что
+      `ffmpeg` запускается без ограничения потоков и одна задача транскодирования способна занять все ядра
+      (`apps/media-worker/src/ffmpeg/hlsArgs.ts` — флага `-threads` нет).
 - [ ] **IS-I1-07. Files and packages.** Env, certificates, keys, backups, logs, releases и privileged scripts имеют
       точных owners/modes; установлен только необходимый package set; host antimalware/agent следует verdict I0-06.
 - [ ] **IS-I1-08. TLS policy.** Nginx/vhost фиксирует TLS 1.2+, современные suites, HSTS и certificate renewal;
