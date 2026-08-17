@@ -249,10 +249,14 @@ S5-0 обязан подтвердить каждый key callsite-матриц�
 
 ### Runtime, `authenticated_client`
 
+**УСТАРЕЛО/ЗАМЕНЕНО → 2026-08-18:** ключа `patient_home_mood_icons` в этом списке больше нет — решением
+владельца 18.08 настройка иконок самочувствия удалена целиком (реестр, UI, данные), иконки читаются из
+bundled-папки `apps/webapp/public/patient/home/icons/mood/`.
+
 `app_display_timezone`, `support_contact_url`, `patient_app_maintenance_enabled`,
 `patient_app_maintenance_message`, `patient_booking_url`,
 `patient_default_promo_treatment_program_template_id`, `patient_home_daily_practice_target`,
-`patient_home_mood_icons`, `patient_home_daily_warmup_repeat_cooldown_minutes`,
+`patient_home_daily_warmup_repeat_cooldown_minutes`,
 `patient_treatment_plan_item_done_repeat_cooldown_minutes`, `patient_program_discussion_ui_enabled`,
 `patient_program_discussion_media_submission_enabled`, `notifications_topics`, `video_playback_api_enabled`,
 `video_default_delivery`, `booking_payment_enabled`.
