@@ -28,10 +28,10 @@ function rawErrorCode(error: unknown): string | null {
 function errorCode(error: unknown): string | null {
   const code = rawErrorCode(error);
   if (!code) return null;
-  if (DATABASE_UNAVAILABLE_CODES.has(code)) return code;
-  // PostgreSQL SQLSTATEs are exactly five upper-case alphanumerics. Keep only that bounded
-  // diagnostic class; arbitrary provider `code` values may contain customer or fiscal data.
-  return /^[0-9A-Z]{5}$/u.test(code) ? code : null;
+  // A five-character shape is not proof that a code came from PostgreSQL: providers and
+  // arbitrary thrown values use the same public `code` property. Keep only codes whose
+  // classification is explicit here so untrusted provider/customer values never reach logs.
+  return DATABASE_UNAVAILABLE_CODES.has(code) ? code : null;
 }
 
 function errorMessage(error: unknown): string {

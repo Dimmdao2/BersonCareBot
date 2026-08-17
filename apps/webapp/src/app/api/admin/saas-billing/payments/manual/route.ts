@@ -55,7 +55,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, invoice });
   } catch (error) {
     // Never log the raw error/message here: provider responses may echo fiscal or customer data.
-    // The diagnostic helper preserves only a bounded root class/SQLSTATE without those values.
+    // The diagnostic helper preserves only a bounded root class and explicitly trusted
+    // DB/transport code without those values.
     logger.error(
       manualInvoiceFailureDiagnostic(error),
       '[saas-billing/manual-invoice] creation failed',
