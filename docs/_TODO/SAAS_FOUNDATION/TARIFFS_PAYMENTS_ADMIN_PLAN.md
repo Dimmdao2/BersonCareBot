@@ -442,7 +442,7 @@ trialPolicy }` одним payload'ом (`route.ts:99-104`), тем же гейт
 - [x] Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
       boundary; не выбирать тариф по имени/`is_default` и не скрывать неполную policy под all-on fallback — см. §3.2.
       — ГОТОВО, land `706e7f52f`: C5A применяет registration tariff и активную trial policy в одной
-      provisioning-транзакции. `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs`
+      provisioning-транзакции. `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
       доказал configured tariff/trial (14+3 дня), идемпотентный replay, легальный NULL без trial и полный rollback
       при stale non-NULL ссылке; независимый аудит нашёл и сохранённый PostgreSQL oracle подтвердил закрытие гонки
       set-policy/deactivate (`65d9196df`).
@@ -866,7 +866,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 - [x] **2.9** Политика живёт данными и меняется на ходу (уточнение владельца 30.07: «эти политики могут меняться,
       поэтому это должно не зависеть»): правка дней и конечного состояния действует без выкатки и без миграции; перечень
       ступеней и конечных состояний расширяется данными, кодом остаётся только смысл ступени. Тест: смена политики в
-      тарифе меняет поведение без перезапуска и без правки кода. ✅ `apps/webapp/scripts/check-access-ladder-transitions.mjs`
+      тарифе меняет поведение без перезапуска и без правки кода. ✅ `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
       на private PostgreSQL: следующая резолюция читает новую запись тарифа; существующие приоритеты system/mechanic и
       критичные механики остаются теми же. **ПРОДОЛЖЕНИЕ 02.08 (`wt/tariff-policy-live`):** applied
       `0305_tariff_snapshot_access_doors_local.sql` восстановлена byte-for-byte из
@@ -874,12 +874,12 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       <(git show feat/doctor-ui-rebuild:apps/webapp/db/drizzle-migrations/0305_tariff_snapshot_access_doors_local.sql)`;
       exit 0); forward-only `0320_tariff_policy_live_progression_local.sql`
       несёт узкий audit-history read и переопределение двух существующих дверей. Oracle читает именно `0320`;
-      `node apps/webapp/scripts/check-access-ladder-transitions.mjs` PASS, включая смену terminal state без
+      `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` PASS, включая смену terminal state без
       перезапуска/правки кода и self-test red-paths.
 - [x] **2.10** Изменение политики действует ВПЕРЁД: организация, уже идущая по лестнице, пересчитывается от новой
       политики без потери накопленного и без мгновенного блока (образец — Stripe, где правка настроек влияет на будущие
       попытки). Тест: организация в терпении при удлинении терпения не блокируется, при укорочении не выкидывается
-      задним числом. ✅ `apps/webapp/scripts/check-access-ladder-transitions.mjs` на private PostgreSQL: продление
+      задним числом. ✅ `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` на private PostgreSQL: продление
       mechanic-level grace сохраняет grace до нового срока; сокращение system-level grace/read-only до нуля не выбрасывает
       уже read-only кабинет. Self-test с удалённой исторической границей краснеет: `expected read_only, got disabled`.
       **ПРОДОЛЖЕНИЕ 02.08 (`wt/tariff-policy-live`):** `0320` сохраняет этот единственный live-data resolver path,
@@ -921,20 +921,20 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       триалу, а не по вырезанным состояниям.
       🔴 **Не закрыто — три исполняемых места всё ещё читают снесённую колонку**, и два доказательства
       из-за этого падают:
-      · `apps/webapp/scripts/check-access-ladder-transitions.mjs:34` открывает файл миграции по старому
+      · `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:34` открывает файл миграции по старому
         номеру `0296`, а при сведении он стал `0297` — падает `ENOENT`;
       · `apps/webapp/src/infra/repos/saasBillingTariffSnapshot.devDbProof.test.ts:113` вставляет удалённую
         колонку в фикстуру — тест не доходит до собственных утверждений;
-      · `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs:975` читает
+      · `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:975` читает
         колонку и требует старый грант — падает на проверке цепочки выдачи триала.
       Пункт держать открытым, пока эти три не приведены в порядок: сегодня они дают ложный красный на
       путях, которые на самом деле работают.
 
-      **ПРОВЕРКА 02.08:** `node apps/webapp/scripts/check-access-ladder-transitions.mjs` прошёл на
-      своём private PostgreSQL cluster; `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only`
+      **ПРОВЕРКА 02.08:** `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` прошёл на
+      своём private PostgreSQL cluster; `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --static-only`
       прошёл и подтвердил цепочку назначенного тарифа + active trial без удалённой колонки/гранта.
       Полный private-cluster smoke остаётся blocker: команда
-      `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` падает до
+      `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` падает до
       assertions provisioning/trial с `prerequisites missing -- app_patient, app_owner (NOLOGIN+BYPASSRLS), schema app, signup/users/orgs/members and reference catalog baseline must all exist`
       при наложении `deploy/postgres/specialist-owner-provisioning-rls.sql`. Это не хвост колонки и не
       входит в scope 2.13. Прежнее решение не использовать общую DEV для snapshot proof отменено:
@@ -1475,12 +1475,12 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       `createPgOrganizationInvitesPort` и `createPgSaasBillingRepository`; `app.accept_org_invite` по-прежнему
       берётся дословно из deploy-overlay. Доказательства на восстановленном дереве (02.08):
       · `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts src/app/api/clinic/invites/route.route.test.ts src/app/app/settings/TeamSection.ui.test.tsx src/app-layer/guards/cabinetAccessLadder.test.ts` — **5 файлов, 51/51**;
-      · `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` — **exit 0**, реальные Drizzle-пути
+      · `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — **exit 0**, реальные Drizzle-пути
       доказали backfill, first NULL-boundary capture + end trial, early boundary, seat replay/isolation,
       pending/paid capacity, create/accept, renewal `10000 + 2×1500 = 13000`, full/partial refund и decisive lock;
       · fault injection — **8/8 пойманы, 0 непойманных**: два исходных класса (price-based accept, unusable draft)
       зафиксированы в `SAAS_SEAT_BILLING_0308_INDEPENDENT_AUDIT_2026-08-02.md`; повтор команды
-      `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` после каждой из шести прежних
+      `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` после каждой из шести прежних
       непойманных мутаций (always-promote, pending omitted, paid allowance omitted, renewal seat component omitted,
       advisory lock disabled, first NULL boundary rejected) дал **exit 1** на соответствующем product assertion;
       · `pnpm --dir apps/webapp exec tsc --noEmit` — **exit 0**; scoped ESLint трёх финально изменённых файлов —
@@ -1545,7 +1545,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 - [x] **6.1** ✅ **ЗАКРЫТО 31.07** (`edfe998be`), проверено лидом. Клиника видит «использовано из включённого» по всем числам и своё состояние по лестнице: в терпении — до
       какой даты, в режиме только чтения — что именно нельзя.
-- [x] **6.2** ✅ **ЗАКРЫТО 02.08**: отчёт по всем организациям — кто за пределом и кто на какой ступени. `app.read_org_enforced_quota_usage(uuid)` выдаёт platform-роли только агрегаты пациентов (`org_enrollments` в `invited|active`) и байтов файлов (`COALESCE(SUM(patient_files.size_bytes), 0)`) наряду с местами; `pgOrgEntitlements` передаёт их в существующие projection/UsageSection. Доказательство: `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` извлекает реальный accessor и проверяет org-scope, статусы, сумму, ноль и отсутствие прямого platform row access; `pgOrgEntitlements.test.ts` и `service.test.ts` проверяют порт и отображаемые projection. В `c5a-platform-operations-runtime.sql` и TEST closure три source relation (`organization_member_invites`, `org_enrollments`, `patient_files`) теперь требуют FORCE RLS, нулевые table/column ACL и policy у `app_platform_settings`, а также SELECT у `app_owner`; у platform остаётся только EXECUTE accessor.
+- [x] **6.2** ✅ **ЗАКРЫТО 02.08**: отчёт по всем организациям — кто за пределом и кто на какой ступени. `app.read_org_enforced_quota_usage(uuid)` выдаёт platform-роли только агрегаты пациентов (`org_enrollments` в `invited|active`) и байтов файлов (`COALESCE(SUM(patient_files.size_bytes), 0)`) наряду с местами; `pgOrgEntitlements` передаёт их в существующие projection/UsageSection. Доказательство: `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` извлекает реальный accessor и проверяет org-scope, статусы, сумму, ноль и отсутствие прямого platform row access; `pgOrgEntitlements.test.ts` и `service.test.ts` проверяют порт и отображаемые projection. В `c5a-platform-operations-runtime.sql` и TEST closure три source relation (`organization_member_invites`, `org_enrollments`, `patient_files`) теперь требуют FORCE RLS, нулевые table/column ACL и policy у `app_platform_settings`, а также SELECT у `app_owner`; у platform остаётся только EXECUTE accessor.
 - [x] **6.3** ✅ **ЗАКРЫТО 31.07** (`edfe998be`): подтверждено тестом, что порядок собирается из существующих примитивов — показать числа → найти превысивших → выдать исключение → включить. Новый движок не строился намеренно.
 - [x] **6.4** ✅ **ЗАКРЫТО 31.07** (`edfe998be`), проверено лидом ДВУМЯ поломками (разрешил критичной лестницу — тест упал; убрал «всегда включена» — упали два). Проверка, что не появилось лишнего: у критичных механик и у запрещённого владельцем нет ни лестницы, ни
       числа. Расхождение — блокер этапа.

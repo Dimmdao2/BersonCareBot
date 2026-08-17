@@ -19,7 +19,7 @@ return row identifiers, tenant identifiers, recipients, payloads, error text, or
 ## Evidence
 
 - `node docs/_TODO/SAAS_FOUNDATION/scripts/check-curated-system-health-diagnostics.mjs` — PASS.
-- `node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-curated-system-health-diagnostics.mjs` — PASS.
+- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — PASS.
   The disposable PostgreSQL proof verifies staff denial, protected execute, direct-table denial,
   FORCE-RLS cross-tenant aggregation, exact aggregate counts, and sentinel non-disclosure.
 - Targeted Vitest: 9 files / 41 tests — PASS, including global-admin route guard and error semantics.

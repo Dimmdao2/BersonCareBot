@@ -44,7 +44,7 @@ file = await ... createFile({ ..., folderId: patientFolder.id });  // ← пре
 - `pnpm --filter webapp exec vitest run tariffMechanics` — 31/31 зелёные;
 - тест: при исчерпанном пределе папка пациента НЕ создаётся (проверить отсутствие побочного эффекта, а не
   только код ответа);
-- `node apps/webapp/scripts/check-storage-quota-race.mjs` остаётся зелёным и краснеет при снятии решающей
+- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` остаётся зелёным и краснеет при снятии решающей
   строки — приложить дословный вывод;
 - `pnpm --filter webapp lint` и `typecheck` зелёные;
 - галочки плана не ставить, push и merge не делать.

@@ -1,143 +1,124 @@
 # B0 named-DEV DB behavior replacement matrix — 2026-08-17
 
-Status: **BLOCKED — 2/130 already replaced; a real product-path runner now implements 33 more calls but has not
-been executed on named DEV; 95/130 remain exact named blockers.** This file is a census and handoff, not a readiness
-claim. It exists to prevent deleted disposable tests from being silently treated as redundant or a static/mock gate
-from being presented as PostgreSQL evidence.
+Status: **BLOCKED — 2/121 have an exact surviving static oracle; 10/121 have the same-consequence named-DEV
+product runner implemented but have not been executed; 103 required consequences remain unproved; 6 implementation
+contracts are explicitly retired.** No live DEV, TEST, or PROD command was run while preparing this correction.
 
-Exact source census:
-
-```bash
-node --input-type=module - <<'NODE'
-import { execFileSync } from 'node:child_process';
-const files = execFileSync('git', ['diff', '--diff-filter=D', '--name-only', '0210820cd', 'fb44002ce'],
-  { encoding: 'utf8' }).trim().split('\n').filter((path) => path.endsWith('.postgres.integration.test.ts'));
-let calls = 0;
-for (const path of files) {
-  const source = execFileSync('git', ['show', `0210820cd:${path}`], { encoding: 'utf8' });
-  calls += [...source.matchAll(/\b(?:it|test)\s*(?:\.each\s*\([^)]*\)\s*)?\(/g)].length;
-}
-console.log({ productFiles: files.length - 2, productCalls: calls - 3 });
-NODE
-```
-
-Measured result: `35` product files / `130` calls. The only exact surviving replacement found is the two
-artifact-key collection behaviors in
-`apps/webapp/src/infra/platformUserFullPurge.collectPurgeArtifactKeys.test.ts`; command:
+The source census is executable and counts only top-level `it` / `test` / `it.each` / `test.each` declarations;
+method calls such as `regex.test(value)` are excluded:
 
 ```bash
-pnpm --dir apps/webapp exec vitest run src/infra/platformUserFullPurge.collectPurgeArtifactKeys.test.ts
+node scripts/census-retired-postgres-tests.mjs
+# productFiles=35, productCalls=121
 ```
 
-That unit file proves the pure application-port collection/mapping consequence and does not claim cascade,
-transaction, RLS, ACL, concurrency, or live-query behavior. Nearby tests that only mock an executor, pin a named
-root, or prove route wiring were inspected but are not counted as replacements for a real PostgreSQL oracle.
-
-## Executable named-DEV runner
-
-The single command is:
+The named-DEV runner is fixed to the canonical files and exact four local PostgreSQL endpoints
+`127.0.0.1:5432/bcb_webapp_dev`. Integrator and webapp must each independently declare `port-context`; remote hosts,
+mixed modes, other ports and other database names fail before HTTP. Every request and the whole run have deadlines.
+Booking cleanup discovers a unique run tag; the reminder create uses a standard idempotency key whose owned rule id
+is known before mutation, creates disabled, and deletes in `finally` even after a lost response.
 
 ```bash
-pnpm --dir apps/webapp run test:db-behavior:named-dev
+pnpm --dir apps/webapp run test:db-behavior:named-dev:self-test  # refusal/fault checks only
+pnpm --dir apps/webapp run test:db-behavior:named-dev            # serialized live DEV; NOT RUN here
 ```
 
-It is fixed to `http://127.0.0.1:5200`, accepts no URL/target/database argument, reads only the canonical non-symlink
-`/home/dev/dev-projects/BersonCareBot/.env` and
-`/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev`, and refuses unless `INTEGRATOR_DB_URL` plus all three
-webapp port URLs name exact `bcb_webapp_dev` in `port-context` mode. It uses six ordinary dev-bypass identities,
-product HTTP/application ports, two concurrent product requests for the booking race and durable product readbacks.
-Reversible state is restored; created reminder/booking entities are completed through ordinary delete/cancel.
-Contractually retained audit/history/chat rows carry one unique run tag and the report states their bounded count.
+`READY` below means implemented but not live-proved. Only the same human/architecture consequence is counted. The
+runner also performs useful broader smoke, but nearby shapes/resources do not replace a deleted PostgreSQL oracle.
 
-Refusal/mutation self-test reads and validates the actual canonical env files, but does not contact the webapp or DB
-and does not mutate DEV:
+| Removed product oracle | Calls | Static | READY | Required product/worker | Security/generator | Retired |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `adminAuditLog` | 3 | 0 | 0 | 3 | 0 | 0 |
+| `platformUserFullPurge.patientFiles` | 3 | 2 | 0 | 1 | 0 | 0 |
+| `platformUserFullPurge` | 2 | 0 | 0 | 0 | 0 | 2 |
+| `platformUserMergePreview` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `appointmentReminderDelivery` | 3 | 0 | 0 | 3 | 0 | 0 |
+| `authEmailOtpDeliveryOwnership` | 5 | 0 | 0 | 5 | 0 | 0 |
+| `loginBootstrapDefinerAccessors` | 6 | 0 | 0 | 4 | 2 | 0 |
+| `orgBrandRevisionGuard` | 5 | 0 | 0 | 3 | 2 | 0 |
+| `patientReminderMaterialization` | 8 | 0 | 0 | 6 | 2 | 0 |
+| `pgAuthRateLimitEvents` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `pgBookingScheduling.deactivateWorkingHours` | 2 | 0 | 2 | 0 | 0 | 0 |
+| `pgBookingScheduling.readChokepoint` | 3 | 0 | 1 | 2 | 0 | 0 |
+| `pgCanonicalAppointments` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgDoctorAnalyticsMetricAccounts` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `pgDoctorBroadcastDelivery` | 4 | 0 | 0 | 4 | 0 | 0 |
+| `pgDoctorClients` | 3 | 0 | 2 | 1 | 0 | 0 |
+| `pgEmailChallengeAtomicAttempts` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgEmailOtpPublicAtomicConsume` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `pgGlobalAdminWebPushRecipients` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `pgMediaWorkerControl` | 7 | 0 | 0 | 7 | 0 | 0 |
+| `pgOtpDecayingLockoutAtomicEscalation` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgPatientBookings` | 2 | 0 | 1 | 1 | 0 | 0 |
+| `pgPhase14DCommsTail` | 4 | 0 | 1 | 3 | 0 | 0 |
+| `pgPhoneChallengeAtomicAttempts` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgPlatformUserMerge` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgProgramItemDiscussion.doctorComments` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgSaasBillingCapture` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `pgSupportCommunication` | 5 | 0 | 3 | 2 | 0 | 0 |
+| `pgUserProjection` | 6 | 0 | 0 | 6 | 0 | 0 |
+| `reminderCallbackCapabilities` | 8 | 0 | 0 | 7 | 1 | 0 |
+| `reminderOccurrenceD21Migration` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `reminderRulesD5Migration` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `saasBillingPaidTariffApplyAccessor` | 6 | 0 | 0 | 5 | 1 | 0 |
+| `saasBillingWebhookBootstrapInvoiceResolver` | 3 | 0 | 0 | 2 | 1 | 0 |
+| `tenantIsolationMatrix` | 10 | 0 | 0 | 10 | 0 | 0 |
+| **Total** | **121** | **2** | **10** | **94** | **9** | **6** |
+
+Arithmetic: `2 + 10 + 94 + 9 + 6 = 121`. The 23 claims rejected by the independent audit are back in the required
+column, not hidden in READY.
+
+## Exact disposition
+
+### Six retired implementation contracts
+
+- `platformUserFullPurge` 2: the deleted `getPurgePlatformUserRowForTests` helper was a harness seam, not a human
+  contract. The actual purge consequence remains required in `platformUserFullPurge.patientFiles`.
+- `platformUserMergePreview` 3: the owner-accepted U1 route remains unavailable (`404 not_available`); the deleted
+  preview implementation is not restored.
+- `reminderOccurrenceD21Migration` 1: pre-B0 migration convergence is historical replay and is forbidden. Current
+  occurrence/materialization behavior remains required through B0-forward product/worker paths.
+
+### Nine security/deployment invariants
+
+These are declaration/generator facts, not fake live user journeys. Their non-DB executable oracle is:
 
 ```bash
-pnpm --dir apps/webapp run test:db-behavior:named-dev:self-test
+node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs
 ```
 
-The live command is intentionally **not run yet**: the shared DEV server is occupied by live audit A, and the worker
-brief explicitly forbids a concurrent mutating pass. Therefore its 33 cells are `READY`, not `PASS`.
+It checks the two login direct-table denials and exact roots, two brand direct-update guard invariants, two reminder
+materializer owner/EXECUTE invariants, the callback ACL boundary, tariff direct-write boundary, and billing bootstrap
+table denial/root. Installed catalog equality still belongs to the canonical named-environment declaration reconcile;
+this static oracle does not claim live catalog PASS.
 
-## File-by-file accounting
+### 94 required product/worker consequences
 
-`Static` is an exact surviving oracle. `Runner` is implemented by the command above but remains unproved until its
-first serialized live run. `Blocked` has no compliant product setup/observation path under the current four-login/
-exact-capability B0 contract; the reason categories follow the table.
+| Journey | Declarations | Current product/application path | Safe named-DEV disposition |
+| --- | ---: | --- | --- |
+| Identity/auth/lockout/projection/merge | 25 | `/api/auth/**`, session/profile APIs, integrator projection/merge worker | Ordinary logins cover positive auth/profile reads; OTP ownership, concurrent consume/attempt locks and merge collisions need provider/worker-created ordinary state. No fixture root is added. |
+| Reminders/messages/broadcast/delivery | 29 | patient reminder/message APIs, doctor messages/broadcast APIs, scheduler + worker materialization/callback roots | Exact communication consequences in READY are counted separately; these 29 require the corrected common scheduler/worker and durable admin-health/readbacks with DEV delivery disabled. |
+| Billing/money | 9 | clinic/global billing APIs and webhook worker | Invoice creation can use product APIs; paid/unpaid/foreign provider state cannot be fabricated. It remains blocked until the ordinary provider/test channel supplies it. |
+| Media/branding/purge | 11 | branding/media APIs, media control worker, purge application port | Ordinary upload/branding paths can cover end-user effects; claim races, quarantine, purge order and cascade need the existing worker/control port and tagged ordinary media. |
+| Booking/tenant/analytics/audit | 20 | booking lifecycle, doctor patient/list/analytics, admin audit APIs | Exact booking/tenant consequences in READY are counted separately; these 20 need retained lookup, exact tenant relation walls, deterministic audit conflicts and metric counts with real tagged rows/readbacks, not shape assertions. |
 
-| Removed product oracle                       |   Calls | Static | Runner | Blocked | Required behavior class                                        |
-| -------------------------------------------- | ------: | -----: | -----: | ------: | -------------------------------------------------------------- |
-| `adminAuditLog`                              |       3 |      0 |      3 |       0 | real filtered reads and conflict count                         |
-| `platformUserFullPurge.patientFiles`         |       3 |      2 |      0 |       1 | collection mapping; cascade/order remains live                 |
-| `platformUserFullPurge`                      |       2 |      0 |      0 |       2 | purge target read without mutation                             |
-| `platformUserMergePreview`                   |       3 |      0 |      0 |       3 | read-only search/preview and zero-write branch                 |
-| `appointmentReminderDelivery`                |       3 |      0 |      0 |       3 | generation revalidation, retry race, blocked recipient         |
-| `authEmailOtpDeliveryOwnership`              |       7 |      0 |      0 |       7 | token ownership, anti-reopen, enqueue golden path              |
-| `loginBootstrapDefinerAccessors`             |       8 |      0 |      0 |       8 | table denial plus narrow accessor positive/negative            |
-| `orgBrandRevisionGuard`                      |       5 |      0 |      0 |       5 | immutable published/archive guard plus FK purge                |
-| `patientReminderMaterialization`             |       8 |      0 |      0 |       8 | tenant wall, rollback, upsert race, grants/ownership           |
-| `pgAuthRateLimitEvents`                      |       1 |      0 |      0 |       1 | transactional max-per-window                                   |
-| `pgBookingScheduling.deactivateWorkingHours` |       2 |      0 |      2 |       0 | real update and swapped-argument regression                    |
-| `pgBookingScheduling.readChokepoint`         |       3 |      0 |      3 |       0 | two-tenant positive/negative reads                             |
-| `pgCanonicalAppointments`                    |       2 |      0 |      2 |       0 | canonical/retained lookup and soft delete                      |
-| `pgDoctorAnalyticsMetricAccounts`            |       1 |      0 |      1 |       0 | real metric account count                                      |
-| `pgDoctorBroadcastDelivery`                  |       4 |      0 |      0 |       4 | atomic audit/jobs/recipients and rollback                      |
-| `pgDoctorClients`                            |       3 |      0 |      3 |       0 | list/metrics and specialist isolation                          |
-| `pgEmailChallengeAtomicAttempts`             |       2 |      0 |      0 |       2 | row-lock increment race and deleted challenge                  |
-| `pgEmailOtpPublicAtomicConsume`              |       1 |      0 |      0 |       1 | exactly-one concurrent consume                                 |
-| `pgGlobalAdminWebPushRecipients`             |       1 |      0 |      0 |       1 | active canonical admin recipient filter                        |
-| `pgMediaWorkerControl`                       |       7 |      0 |      0 |       7 | claim race, quarantine, ownership, completion rollback         |
-| `pgOtpDecayingLockoutAtomicEscalation`       |       2 |      0 |      0 |       2 | email/phone serialized escalation cycles                       |
-| `pgPatientBookings`                          |       2 |      0 |      2 |       0 | unknown read and real history row                              |
-| `pgPhase14DCommsTail`                        |       4 |      0 |      1 |       3 | broadcast and timezone real reads                              |
-| `pgPhoneChallengeAtomicAttempts`             |       2 |      0 |      0 |       2 | row-lock increment race and deleted challenge                  |
-| `pgPlatformUserMerge`                        |       2 |      0 |      0 |       2 | identity/projection and analytics collision merge              |
-| `pgProgramItemDiscussion.doctorComments`     |       2 |      0 |      0 |       2 | live SQL execution and cursor pagination                       |
-| `pgSaasBillingCapture`                       |       3 |      0 |      0 |       3 | invoice/tariff transaction and missing-principal failure       |
-| `pgSupportCommunication`                     |       5 |      0 |      5 |       0 | real conversation/unread reads and assignment wall             |
-| `pgUserProjection`                           |       6 |      0 |      0 |       6 | phone/email reads plus exact email clear/no-op                 |
-| `reminderCallbackCapabilities`               |      10 |      0 |      0 |      10 | signature/tenant wall/idempotency and definer-only ACL         |
-| `reminderOccurrenceD21Migration`             |       1 |      0 |      0 |       1 | B0 equivalent of legacy occurrence convergence not yet named   |
-| `reminderRulesD5Migration`                   |       1 |      0 |      1 |       0 | B0 rule create/update/delete through the canonical parent path |
-| `saasBillingPaidTariffApplyAccessor`         |       7 |      0 |      0 |       7 | paid/foreign/unpaid guards and tariff application              |
-| `saasBillingWebhookBootstrapInvoiceResolver` |       4 |      0 |      0 |       4 | plain-table denial and narrow resolver                         |
-| `tenantIsolationMatrix`                      |      10 |      0 |     10 |       0 | staff/patient A/B walls through paired product identities      |
-| **Total**                                    | **130** |  **2** | **33** |  **95** |                                                                |
+The journey rows are non-overlapping and sum to `25 + 29 + 9 + 11 + 20 = 94`. No cell becomes PASS until the
+serialized live command records its exact durable readback.
 
-## Exact remaining blockers
+## Active-reference and B0 retirement gate
 
-No blocker below authorizes a new capability, fixture seam, grant, raw query or direct DB test:
+The 123 removed paths are registered only in the non-routable archive at
+`docs/archive/2026-08-no-disposable-db-retirement/retired-executor-paths.json`. Active `docs/**` and `.cursor/**`
+contain zero exact references; historical instructions point to the archive retirement note instead. The B0 gate
+scans the full active repository and rejects database/server creation, PostgreSQL containers, SQL include/file/stdin
+replay, JS database-client `CREATE/DROP DATABASE`, shell/JS/Python process variants and `psql -c '\\i/\\ir'`, while
+leaving inert prose and archives alone.
 
-1. **No accepted product setup/cleanup port (`42` calls):** OTP/challenge ownership and row-lock races, media-worker
-   claim/quarantine/completion, user merge collision, full purge ordering and brand-revision FK/immutability need rows
-   that ordinary product routes cannot currently seed and observe together. Adding a DEV-only root would be a
-   production backdoor and is explicitly forbidden.
-2. **Worker/scheduler/provider pipeline (`23` calls):** appointment reminder delivery, patient reminder
-   materialization and signed callback generation require the common scheduler/worker plus the corrected exact roots.
-   They belong to the serialized worker/scheduler live pass, not a second concurrent runner; external delivery remains
-   disabled on DEV.
-3. **Deployment catalog/ACL rather than user flow (`8` calls):** direct-table denial, function ownership and exact
-   EXECUTE grants require the declaration reconcile/catalog audit on the real named DB. A product route proves a
-   positive/negative human consequence, but cannot honestly prove catalog ownership or absence of a direct grant.
-4. **Billing/payment atomicity (`14` calls):** paid/unpaid/foreign invoice application and webhook bootstrap require
-   a provider-owned paid invoice state. The ordinary clinic/global-admin UI may create an invoice but cannot fabricate
-   provider payment state; doing so through a fixture root is forbidden.
-5. **Removed/unavailable product surface (`8` calls):** platform merge preview/search endpoints intentionally return
-   `404 not_available`; the two program-comment pagination calls have no safe deterministic product fixture in the
-   current DEV accounts. A `404` is not substituted for the removed read/preview oracle.
+```bash
+node scripts/check-b0-migration-baseline.mjs
+node --test scripts/check-b0-migration-baseline.audit.test.mjs
+node --test scripts/check-b0-migration-baseline.named-dev.audit.test.mjs
+```
 
-Counts: `42 + 23 + 8 + 14 + 8 = 95`.
-
-## Runner contract and acceptance
-
-The runner must remain one serialized command and refuse anything except canonical named DEV. It must use existing
-application/Drizzle ports for setup, action, observation and cleanup; use per-run unique identifiers; and apply only
-product cleanup semantics. It must not accept a generic URL, use `psql`, replay a file, create/drop a database/schema,
-change roles/policies, or run on TEST/PROD. Concurrency uses two product-port calls against one tagged fixture and a
-durable product readback.
-
-`ca1d848ee` plus this runner still **must not be landed as a complete 130/130 replacement**. Acceptance requires:
-
-- serialized live PASS of the 33 `Runner` cells after audit A releases shared DEV;
-- independent verification that the command really fails on target overrides and foreign tenant mutations;
-- exact evidence for each of the 95 blocked calls, or an owner decision removing that behavior requirement.
+No disposable database, raw SQL product probe, historical migration replay, grant change, TEST or PROD operation is
+authorized by this matrix.

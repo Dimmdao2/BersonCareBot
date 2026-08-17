@@ -357,7 +357,7 @@ owner. S5-3 must route writes through its chokepoint without adding a second aud
 
 **Выход:** runtime store существует и заполнен additive; старый read/write path ещё работоспособен. S5-1 dynamic
 proof исполняется только через
-`apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs`: private PostgreSQL 16 cluster в `/tmp`, без
+`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`: private PostgreSQL 16 cluster в `/tmp`, без
 application env и без DEV/TEST/PROD. Он проверяет schema/FK/check/index/trigger, insert/update/rollback audit,
 idempotent reapply, aggregate source/destination counts, restricted-key absence, secret-field-safe projections и
 защиту более новой destination row.

@@ -6,7 +6,7 @@ Authority: `docs/_TODO/UZ3_COMPLIANCE_BACKLOG_2026-08-03.md` п.5 ("Матрич
 `docs/_TODO/runs/integrator-cleanup/TENANT_ISOLATION_MATRIX_BRIEF_2026-08-04.md` (commit `23dbf26ad`,
 "docs(sec): brief the tenant isolation matrix test #987").
 
-Исполняемое доказательство: `apps/webapp/src/infra/repos/tenantIsolationMatrix.postgres.integration.test.ts`
+Исполняемое доказательство: `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
 (идёт в CI job `test-webapp-postgres`, `.github/workflows/ci.yml:147-156`, тем же способом, что
 остальные `*.postgres.integration.test.ts`).
 

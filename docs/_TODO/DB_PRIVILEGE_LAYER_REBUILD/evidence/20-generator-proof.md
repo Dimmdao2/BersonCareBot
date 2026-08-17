@@ -10,9 +10,9 @@
 |---|---|
 | `deploy/postgres/privileges/generate.mjs` | чистая библиотека: декларация → текст SQL; БД для генерации не нужна |
 | `deploy/postgres/privileges/generate-cli.mjs` | CLI: `--db/--out/--stdout/--all`, гейт `--check`, `--gaps`, `--env` |
-| `deploy/postgres/privileges/fixtures/proof-declaration.ts` | пруф-фикстура: декларация ТОЙ ЖЕ формы, воспроизводящая живой дефект |
-| `deploy/postgres/privileges/fixtures/proof-setup.sql` · `proof-setup-db.sql` | состояние ДО генератора (живой дефект) |
-| `deploy/postgres/privileges/fixtures/proof-snapshot.sql` | детерминированный снимок каталога прав (для идемпотентности/атомарности) |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` | пруф-фикстура: декларация ТОЙ ЖЕ формы, воспроизводящая живой дефект |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` · `proof-setup-db.sql` | состояние ДО генератора (живой дефект) |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` | детерминированный снимок каталога прав (для идемпотентности/атомарности) |
 | `deploy/postgres/privileges/fixtures/proof-run.sh` | ВЕСЬ прогон одной командой (создаёт кластер и сносит его) |
 | `deploy/postgres/privileges/fixtures/generated/*.sql` | закоммиченные артефакты фикстуры — против них бежит гейт `--check` |
 
@@ -325,8 +325,8 @@ GRANT не пережил транзакцию. Это и есть требов�
 ══════════════════════════════════════════════════════════════════════
 побайтно совпало: privileges.bcb_privproof.sql (e58989692055a262…)
 побайтно совпало: org-allowlist.bcb_privproof.sql (63ae5bf7fec9da34…)
-ok bcb_privproof/privileges: deploy/postgres/privileges/fixtures/generated/privileges.bcb_privproof.sql совпадает побайтно
-ok bcb_privproof/allowlist: deploy/postgres/privileges/fixtures/generated/org-allowlist.bcb_privproof.sql совпадает побайтно
+ok bcb_privproof/privileges: docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md совпадает побайтно
+ok bcb_privproof/allowlist: docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md совпадает побайтно
 
 --check: артефакты соответствуют декларации побайтно.
 --- гейт обязан КРАСНЕТЬ на устаревшем артефакте ---

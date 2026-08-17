@@ -61,7 +61,7 @@ Oracle и ограничения инфраструктуры повторно �
 nl -ba docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md \
   | sed -n '642,725p;780,845p;870,965p'
 nl -ba docs/_TODO/testsuite-rewrite-list.md | sed -n '1,90p'
-nl -ba apps/webapp/src/app-layer/testing/pg-harness.ts | sed -n '1,120p'
+nl -ba docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md | sed -n '1,120p'
 ```
 
 Все остальные evidence-ссылки ниже получены через `nl -ba <точный файл> | sed -n '<точный диапазон>p'`. БД, серверы, тест-раннеры и внешние провайдеры не запускались.

@@ -29,15 +29,15 @@ Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 | `apps/webapp/db/drizzle-migrations/0160_p0_8_3_public_direct_org_rls.sql`        | Real Drizzle SQL migration generated from the P0.8.3 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive direct-org policy `saas_org_dormant_p0_8_3` to the strict 103 public direct-org target tables.                                                                           |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs`                   | Lists/exports the strict 37-table P0.8.4 public FK/denorm path target set, keeps `public.comments` blocked behind P0.12.1, and renders deterministic policy DDL from descriptors.                                                                                                                                  |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-4-policy-generator.mjs`           | DB-free checker for exact 37-target coverage, FK/denorm split, `public.comments` exclusion, and deterministic ENABLE/FORCE/DROP/CREATE policy statements.                                                                                                                                                          |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-4-public-path-policies.mjs`       | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic denorm and FK-path public tables/roles, applies generated P0.8.4 policies, proves dormant unset/empty permit, org A/B isolation, and FK parent/service cross-org mismatch denial, then rolls back.    |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`       | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic denorm and FK-path public tables/roles, applies generated P0.8.4 policies, proves dormant unset/empty permit, org A/B isolation, and FK parent/service cross-org mismatch denial, then rolls back.    |
 | `apps/webapp/db/drizzle-migrations/0161_p0_8_4_public_path_rls.sql`              | Real Drizzle SQL migration generated from the P0.8.4 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive policy `saas_org_dormant_p0_8_4` to the 2 public FK-path and 35 public denorm materialized-org target tables.                                                            |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-5-policy-targets.mjs`                   | Lists/exports the strict 13-table P0.8.5 integrator SCOPED target set split by P0.4.I1/I2/I3/I4 and renders deterministic policy DDL from descriptors.                                                                                                                                                             |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-5-policy-generator.mjs`           | DB-free checker for exact 13-target coverage, 5/3/4/1 P0.4 split, P0.4 source migration assertion tokens, and deterministic ENABLE/FORCE/DROP/CREATE policy statements.                                                                                                                                            |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-5-integrator-scoped-policies.mjs` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic integrator schema tables/roles/bridge rows, applies generated P0.8.5 policies, proves dormant unset/empty permit, org A/B isolation, denorm source split behavior, and NOBYPASSRLS, then rolls back.  |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic integrator schema tables/roles/bridge rows, applies generated P0.8.5 policies, proves dormant unset/empty permit, org A/B isolation, denorm source split behavior, and NOBYPASSRLS, then rolls back.  |
 | `apps/webapp/db/drizzle-migrations/0162_p0_8_5_integrator_scoped_rls.sql`        | Real Drizzle SQL migration generated from the P0.8.5 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive policy `saas_org_dormant_p0_8_5` to the 13 integrator SCOPED target tables.                                                                                              |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-6-policy-targets.mjs`                   | Lists/exports the strict 4-table P0.8.6 BOOTSTRAP hybrid target set and renders deterministic policy DDL from descriptors.                                                                                                                                                                                         |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-6-policy-generator.mjs`           | DB-free checker for exact 4-target coverage and strict bootstrap hybrid global-or-matching-org policy statements.                                                                                                                                                                                                  |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs`  | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public + integrator schema tables/roles/rows, applies generated P0.8.6 policies, proves NOBYPASSRLS, unset/empty global-only visibility, and org A/B global+matching-org visibility, then rolls back. |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`  | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public + integrator schema tables/roles/rows, applies generated P0.8.6 policies, proves NOBYPASSRLS, unset/empty global-only visibility, and org A/B global+matching-org visibility, then rolls back. |
 | `apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql`         | Real Drizzle SQL migration generated from the P0.8.6 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and bootstrap hybrid policy `saas_bootstrap_hybrid_p0_8_6` to the strict 4 BOOTSTRAP hybrid target tables.                                                                                      |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-7-explicit-exemptions.mjs`        | DB-free checker for explicit INFRA/LEGACY/TELEMETRY exemptions and unsupported user-ref denial on INFRA/TELEMETRY. Uses static scope artifacts only and pins the prior audit-root leak class.                                                                                                                      |
 | `scripts/check-saas-db-regression.mjs`                                           | Runs DB chokepoint, system settings, P0.4, P0.5, P0.8.1, P0.8.2, DB-free P0.8.3/P0.8.4/P0.8.5/P0.8.6 generator checks, and the P0.8.7 explicit exemption/user-ref denial check.                                                                                                                                    |
@@ -286,7 +286,7 @@ Scratch smoke with a scratch URL accessible to the current shell user:
 
 ```bash
 SCRATCH_DATABASE_URL="postgresql:///bcb_saas_p0_8_4_scratch" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-4-public-path-policies.mjs
+  node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 Local peer-auth workaround used on the dev host when only the OS `postgres` role can create/connect to
@@ -296,7 +296,7 @@ scratch DBs:
 scratch_db="bcb_saas_p0_8_4_scratch_$(date +%s)_$$"
 sudo -n -u postgres createdb "$scratch_db"
 SCRATCH_DATABASE_URL="postgresql:///$scratch_db" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-4-public-path-policies.mjs --print-sql \
+  node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --print-sql \
   > /tmp/p0-8-4-smoke.sql
 chmod 0644 /tmp/p0-8-4-smoke.sql
 sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-4-smoke.sql
@@ -322,7 +322,7 @@ Scratch smoke with a scratch URL accessible to the current shell user:
 
 ```bash
 SCRATCH_DATABASE_URL="postgresql:///bcb_saas_p0_8_5_scratch" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-5-integrator-scoped-policies.mjs
+  node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 Local peer-auth workaround used on the dev host when only the OS `postgres` role can create/connect to
@@ -332,7 +332,7 @@ scratch DBs:
 scratch_db="bcb_saas_p0_8_5_scratch_$(date +%s)_$$"
 sudo -n -u postgres createdb "$scratch_db"
 SCRATCH_DATABASE_URL="postgresql:///$scratch_db" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-5-integrator-scoped-policies.mjs --print-sql \
+  node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --print-sql \
   > /tmp/p0-8-5-smoke.sql
 chmod 0644 /tmp/p0-8-5-smoke.sql
 sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-5-smoke.sql
@@ -354,7 +354,7 @@ Scratch smoke with a scratch URL accessible to the current shell user:
 
 ```bash
 SCRATCH_DATABASE_URL="postgresql:///bcb_saas_p0_8_6_scratch" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs
+  node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 Local peer-auth workaround used on the dev host when only the OS `postgres` role can create/connect to
@@ -364,7 +364,7 @@ scratch DBs:
 scratch_db="bcb_saas_p0_8_6_scratch_$(date +%s)_$$"
 sudo -n -u postgres createdb "$scratch_db"
 SCRATCH_DATABASE_URL="postgresql:///$scratch_db" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs --print-sql \
+  node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --print-sql \
   > /tmp/p0-8-6-smoke.sql
 chmod 0644 /tmp/p0-8-6-smoke.sql
 sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-6-smoke.sql

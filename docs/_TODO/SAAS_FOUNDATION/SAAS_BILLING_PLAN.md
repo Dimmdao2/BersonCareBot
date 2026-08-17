@@ -262,7 +262,7 @@
       повторял product SQL вручную (2 caught / 6 uncaught). Исправленный
       `check-c4a-843-clinic-invite-concurrency.mjs` на том же disposable PostgreSQL 16 вызывает реальные
       `createPgOrganizationInvitesPort`/`createPgSaasBillingRepository`: команда
-      `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` — exit 0. Шесть прежних непойманных
+      `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — exit 0. Шесть прежних непойманных
       мутаций теперь дают exit 1; вместе с двумя классами, уже пойманными аудитом, итог **8/8, uncaught 0**.
       `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts src/app/api/clinic/invites/route.route.test.ts src/app/app/settings/TeamSection.ui.test.tsx src/app-layer/guards/cabinetAccessLadder.test.ts` —
       5 файлов, 51/51; webapp typecheck, scoped ESLint, migration/journal/schema/raw-SQL gates и diff-check — exit 0.

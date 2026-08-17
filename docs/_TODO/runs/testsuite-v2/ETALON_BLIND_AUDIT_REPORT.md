@@ -227,7 +227,7 @@ psql-переменных скопированы из основного ове�
 |---|---|---|
 | `apps/webapp/scripts/run-saas-isolation-test-scenarios.ts` | **Да, жёстко**: `const REQUIRED_DATABASE = 'bersoncarebot_test'`, `assertExactTestOperator()` сверяет `current_database()`, `rolsuper=false`, `rolbypassrls=false`, членство в `saas_telemetry_operator` и НЕ-членство в `app_*` — и делает это **до** первого вызова фикстурной функции | Нет: в DEV падает на преflight-е `saas_isolation_test_scenario_operator_preflight_failed`, до обращения к удалённым функциям |
 | `apps/webapp/scripts/report-saas-isolation-diagnostics.ts` (подкоманда `scenario`, стр. 171) | Собственной проверки имени БД **нет** — опирается только на предохранитель внутри самой SQL-функции | Нет автоматических прогонов: запускается вручную через `npm run diagnostics:saas-isolation`. В DEV теперь упадёт с `undefined_function` вместо явного `saas_isolation_scenario_test_database_required` — диагностика хуже, но безопасность не пострадала |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-saas-isolation-diagnostics.mjs` | репетиционный скрипт в `docs/_TODO`, не в прогоне | Нет |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` | репетиционный скрипт в `docs/_TODO`, не в прогоне | Нет |
 | `deploy/host/deploy-test-saas.sh:772-781` `run_saas_isolation_test_scenario_proof()` | TEST, вызов на стр. 2168 — **после** установки фикстурного оверлея (стр. 2162) | Нет |
 
 Ни один `*.test.ts`/`*.spec.ts` не импортирует `saasIsolationTestScenarioRunner` /

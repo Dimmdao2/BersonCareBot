@@ -43,7 +43,7 @@ Application repository path:
   `app.close_active_user_phone_history($1::uuid)` when `DB_PRINCIPAL_CONTEXT_MODE=locked`, then
   inserts the new active row with `organization_id` from `getCurrentDbPrincipalOrganizationId()`
   or NULL for bootstrap.
-- `docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs` now has an owner-authorized
+- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` now has an owner-authorized
   full-rehearsal app smoke that calls `applyPlatformUserPhoneHistoryTransition` through
   `withTransaction` under locked mode for:
   - pre-existing org-stamped active row -> org-stamped new active row;

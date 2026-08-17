@@ -438,7 +438,7 @@ instance mode однозначно выбирает org-scoped dedicated credent
       `upsertOrganization`, `resolveDeploymentSingleActiveOrganizationId` и прямых SQL к `be_organizations`.
       Где: anchors из §3. Доказательство: таблица caller→target port в execution log, ноль неразобранных runtime callers.
 - [ ] Зафиксировать две synthetic организации, owner/admin/doctor/patient/global-admin identities и два channel
-      bindings в disposable fixture. Где: `docs/_TODO/SAAS_FOUNDATION/scripts/p0-13-synthetic-fixtures.mjs:471` или
+      bindings в disposable fixture. Где: `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:471` или
       отдельный `scripts/s6-clinic-directory-fixtures.mjs:new`. Доказательство: fixture не содержит реальных данных и
       не делает outbound delivery.
 

@@ -14,7 +14,7 @@ You audit a plan document, not code. Verdict must be PASS or FAIL with numbered 
 5. **Reality of the code** (verify claims, do not trust the plan): `apps/webapp/src/modules/org-entitlements/types.ts`,
    `.../service.ts`, `apps/webapp/src/app-layer/guards/requireEntitlement.ts`,
    `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts`, `apps/webapp/db/schema/saasEntitlements.ts`,
-   `apps/webapp/scripts/check-c5a-courses-quota-race.mjs`, `apps/webapp/scripts/check-cms-pages-quota-race.mjs`.
+   `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`, `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`.
 
 ## What to check — in this order
 

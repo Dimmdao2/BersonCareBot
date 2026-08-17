@@ -13,9 +13,9 @@
 
 Исправить ровно три названных места на текущем `feat`:
 
-1. `apps/webapp/scripts/check-access-ladder-transitions.mjs` — читать фактическую migration `0297`, не старый номер.
+1. `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — читать фактическую migration `0297`, не старый номер.
 2. `apps/webapp/src/infra/repos/saasBillingTariffSnapshot.devDbProof.test.ts` — fixture без удалённой колонки.
-3. `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` — доказательство тарифа и
+3. `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — доказательство тарифа и
    активного trial без чтения колонки и без требования старого column grant.
 
 Не возвращать колонку, состояние или grant; не переписывать продукт, не добавлять migration/helper/test. Сохранить

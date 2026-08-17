@@ -47,7 +47,7 @@ pnpm --dir apps/webapp exec eslint db/schema/schema.ts db/schema/relations.ts sr
 pnpm --dir apps/webapp lint
 pnpm --dir apps/webapp typecheck
 node docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs | cmp -s - deploy/postgres/p0-5b-grants.sql
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 Observed exits: raw-SQL `0`; journal `0`; scoped lint `0`; full webapp lint `0` (two pre-existing

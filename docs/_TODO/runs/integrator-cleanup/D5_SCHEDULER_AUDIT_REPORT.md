@@ -187,7 +187,7 @@ cd apps/webapp && pnpm run lint
   → ELIFECYCLE Command failed with exit code 1
   → check-no-new-raw-sql: raw SQL debt manifest violation.
     New raw .query(...) SQL outside the frozen D18c debt list:
-      - apps/webapp/src/infra/repos/reminderRulesD5Migration.postgres.integration.test.ts:17,24,29,40,46,55,56,57,58,59,70,83,89,92
+      - docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:17,24,29,40,46,55,56,57,58,59,70,83,89,92
 ```
 
 Причина: этот тестовый файл — часть аудируемого коммита (не мой acceptance-тест) — создаёт

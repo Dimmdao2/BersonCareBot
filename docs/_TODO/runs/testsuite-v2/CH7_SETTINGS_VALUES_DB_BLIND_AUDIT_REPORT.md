@@ -103,7 +103,7 @@ pnpm --dir apps/webapp exec tsx -e "import {readFileSync} from 'node:fs'; import
 ожидает сохранения всех трёх ранее заданных runtime values.
 
 ```text
-node apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 → exit 1
   freshGlobalRowCounts="39|28"
   existingRuntimeValuesPreserved="true|false|false"
@@ -124,7 +124,7 @@ admin values.
 **Команда / oracle:** тот же disposable acceptance-test удаляет `smsc_api_key` после migration.
 
 ```text
-node apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 → missingSmsRow="f"; oracle expected runtime_setting_unavailable.
 ```
 
@@ -159,10 +159,10 @@ PostgreSQL накатывает миграции по порядку. Факти
 старый smoke зелёный.
 
 ```text
-rg -n "0300|0301|0302|apply\(" apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs
+rg -n "0300|0301|0302|apply\(" docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 → apply sites только для 0186, 0209, 0228, 0210; совпадений 0300/0301/0302 нет.
 
-node apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 → S5 runtime settings private PostgreSQL migration proof: OK (aggregate-only).
 ```
 
@@ -265,7 +265,7 @@ DEV/TEST/PROD базы и сервер не использовались. Produc
 
 ## Оставленные audit artifacts
 
-- `apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs` — disposable migration/ACL acceptance;
+- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — disposable migration/ACL acceptance;
 - audit tests в `configAdapter.unit.test.ts`, `runtimeSettingsNoSubstitution.unit.test.ts`,
   `adminSettingsData.unit.test.ts`, `publicAuthPolicy.unit.test.ts`, `passwordAuth.route.test.ts`,
   `platformPolicy.unit.test.ts`, `operatorHeartbeatConfig.unit.test.ts`;

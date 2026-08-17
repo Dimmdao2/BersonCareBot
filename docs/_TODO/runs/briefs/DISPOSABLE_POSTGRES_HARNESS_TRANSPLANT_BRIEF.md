@@ -36,7 +36,7 @@ test-file. Это не RLS-proof: В1/В9б остаются на A1/реаль�
    - `apps/webapp/vitest.postgres.{config.ts,globalSetup.ts,setup.ts}`;
    - pilot `*.postgres.integration.test.ts`;
    - только необходимые script entries в `apps/webapp/package.json` и корневом `package.json`;
-   - существующий `apps/webapp/src/app-layer/testing/pg-harness.ts` не дублировать: либо использовать как
+   - существующий `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` не дублировать: либо использовать как
      контракт/guard, либо минимально свести с реализацией.
 2. Сохранить все текущие `*.devDb.integration.test.ts` как есть. Их судьба — отдельный Б3.
 3. Template строится только из committed A0 schema/manifest/seed + текущих pending webapp Drizzle migrations.

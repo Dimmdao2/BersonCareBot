@@ -385,7 +385,7 @@ UPDATE`). No patient-facing route/caller was found anywhere in `apps/webapp/src`
 
 ## Live proof
 
-`docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs` (scratch DB only) proves, after applying
+`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` (scratch DB only) proves, after applying
 `p0-5b-role-split-staff-patient.sql` then the real per-table + column-level privilege strings this
 generator computes:
 

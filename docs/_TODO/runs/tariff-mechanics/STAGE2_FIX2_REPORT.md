@@ -20,7 +20,7 @@
 3. Fix 3 — реальный SQL output
 
 - Было: мок PG-порта возвращал готовые policy-поля независимо от SQL.
-- Изменение: [rehearsal](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs:194) теперь поднимает приватный PostgreSQL 16, применяет настоящую 0276, проверяет обе policy-колонки под `app_patient`, затем применяет deploy-overlay и повторяет проверку.
+- Изменение: [rehearsal](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:194) теперь поднимает приватный PostgreSQL 16, применяет настоящую 0276, проверяет обе policy-колонки под `app_patient`, затем применяет deploy-overlay и повторяет проверку.
 - Тест: `pnpm run rehearse:e1-c5a-entitlement-closure` → `PASS`.
 - Ручные мутации:
   - удаление колонок из 0276 → `column "tariff_system_access_policy" does not exist`;
@@ -46,7 +46,7 @@
 6. Fix 6 — invite RLS
 
 - Было: accept проверял устаревший `mechanics->>'clinic_team'`.
-- Изменение: [organization-member-invites-rls.sql](/home/dev/dev-projects/bcb-wt-tariff/deploy/postgres/organization-member-invites-rls.sql:283) проверяет `included_seats IS NOT NULL`; [PG-proof](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs:598) принимает приглашение по тарифу без override.
+- Изменение: [organization-member-invites-rls.sql](/home/dev/dev-projects/bcb-wt-tariff/deploy/postgres/organization-member-invites-rls.sql:283) проверяет `included_seats IS NOT NULL`; [PG-proof](/home/dev/dev-projects/bcb-wt-tariff/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:598) принимает приглашение по тарифу без override.
 - Тест: реальный приватный PostgreSQL → `OK`.
 - Ручная мутация: возврат старого JSON-чтения дал `entitlement_disabled`.
 - Owner/signature/ACL не менялись. Exact-count остаётся `110`: функция заменена 1:1, новая `SECURITY DEFINER` не появилась. Увеличение до 111 сломало бы deploy-contract.

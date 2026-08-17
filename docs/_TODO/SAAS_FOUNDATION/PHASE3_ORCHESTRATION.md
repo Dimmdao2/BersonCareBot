@@ -34,7 +34,7 @@ Validation, 2026-07-12:
 - `node scripts/check-saas-db-regression.mjs`
 - `node --check` for changed SaaS descriptor/check scripts
 - `git diff --check`
-- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` (private scratch-cluster proof against the current U3S contract: locked self-principal provisioning, exactly one organization + owner membership with deferred specialist binding, replay/concurrency convergence, foreign-UUID and second-organization denial, then exact-organization idempotent binding through the production repository; never targets DEV/TEST/PROD)
+- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` (private scratch-cluster proof against the current U3S contract: locked self-principal provisioning, exactly one organization + owner membership with deferred specialist binding, replay/concurrency convergence, foreign-UUID and second-organization denial, then exact-organization idempotent binding through the production repository; never targets DEV/TEST/PROD)
 
 Audit:
 

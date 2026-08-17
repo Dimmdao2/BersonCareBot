@@ -277,7 +277,7 @@ runtime/инспекцией.
   Добавить в `.gitleaksignore` только три exact historical fingerprints с датированным комментарием, без path/rule
   blanket allowlist:
   - `f7db88013ad8e342e192959ef50cabe679c0acff:packages/db-principal/test/webapp-locked-infra-cron.test.mjs:generic-api-key:48`
-  - `35fba2479d52143eb7f15daa3f7a5dbe905b825f:apps/webapp/src/infra/repos/reminderCallbackCapabilities.postgres.integration.test.ts:generic-api-key:110`
+  - `35fba2479d52143eb7f15daa3f7a5dbe905b825f:docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:generic-api-key:110`
   - `928fe9ceeb6e307f20e83e8efbd3518a71ec6502:apps/webapp/src/infra/payments/paymentProviderIdentity.unit.test.ts:generic-api-key:26`
   Evidence: `.gitleaksignore` lines 42–45.
 - [x] **DL-SEC-03** Exact local command from workflow

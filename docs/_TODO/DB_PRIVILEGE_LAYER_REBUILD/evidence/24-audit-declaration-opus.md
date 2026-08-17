@@ -93,9 +93,9 @@ node --experimental-strip-types -e "import('./deploy/postgres/privileges/declara
 комментарии:
 
 ```bash
-grep -n "_login" deploy/postgres/privileges/fixtures/generated/privileges.bcb_privproof.sql
+grep -n "_login" docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 # 111:-- CONNECT bcb_proof_staff_login: логин — статья в env-рендере (§A.1/§D.1).
-grep -n "REVOKE ALL PRIVILEGES ON TABLE" deploy/postgres/privileges/fixtures/generated/privileges.bcb_privproof.sql
+grep -n "REVOKE ALL PRIVILEGES ON TABLE" docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 # 152:… FROM "app_migration_phase", "app_owner", "app_patient", "app_staff";   ← только кластерные роли
 ```
 

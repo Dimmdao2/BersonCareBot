@@ -3,14 +3,14 @@
 Scratch-only proof script:
 
 ```bash
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 Phase 2 reusable artifact successor:
 
 ```bash
 deploy/postgres/p2-b-protected-principal-context.sql
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 The Phase 1 script remains the original scratch proof and source assertion matrix. P2-B moves the
@@ -53,8 +53,8 @@ Validation run:
 
 - `pnpm --dir packages/db-principal run build`
 - `pnpm --dir packages/db-principal run typecheck`
-- `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs`
-- `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs`
+- `node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
+- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`
 - targeted webapp, integrator, and media-worker DB checkout/reset tests
 - `pnpm --dir apps/webapp typecheck`
 - `pnpm --dir apps/integrator typecheck`

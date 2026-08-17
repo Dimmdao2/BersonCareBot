@@ -184,7 +184,7 @@ git ls-tree -r --name-only ff443a4a4 -- \
   apps/webapp/src/app-layer/di/di.md \
   docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs \
   deploy/postgres/p0-5b-grants.sql \
-  docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs \
+  docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md \
   apps/webapp/src/infra/repos/pgPatientBookings.ts \
   apps/webapp/src/infra/repos/pgAppointmentProjection.ts \
   apps/webapp/src/modules/patient-booking/canonicalCreate.ts \

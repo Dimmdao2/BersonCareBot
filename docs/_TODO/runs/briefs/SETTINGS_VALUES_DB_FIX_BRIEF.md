@@ -44,7 +44,7 @@ platform enforcement этим round не меняются.
 
 Сначала прогнать оставленные audit tests/scripts красными, затем после fix теми же командами зелёными:
 
-- `apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs` — fresh counts, existing empty/non-empty
+- `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — fresh counts, existing empty/non-empty
   preservation, missing accessor unavailable, ACL shape;
 - `adminSettingsData.unit.test.ts`, `runtimeSettingsNoSubstitution.unit.test.ts`,
   `operatorHeartbeatConfig.unit.test.ts`, `passwordAuth.route.test.ts`;

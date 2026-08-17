@@ -23,7 +23,7 @@ candidate tests:
 ## Result
 
 The new disposable-PostgreSQL acceptance test is
-`apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.postgres.integration.test.ts`.
+`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`.
 It reuses `vitest.postgres.config.ts`; no harness, schema, migration, port or
 source-text test was added. Its temporary RLS disablement and fault trigger are
 restored in teardown/finally inside the disposable clone.

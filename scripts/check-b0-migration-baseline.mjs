@@ -100,7 +100,7 @@ const ignoredDirectoryNames = new Set([
   'node_modules',
 ]);
 const ignoredPathPrefixes = ['docs/archive/', '.cursor/plans/archive/'];
-const callableExtension = /\.(?:sh|bash|mjs|mts|cjs|js|ts|tsx|sql|ya?ml)$/i;
+const callableExtension = /\.(?:sh|bash|mjs|mts|cjs|js|ts|tsx|py|sql|ya?ml)$/i;
 const callableBasename = /^(?:Dockerfile(?:\..*)?|Makefile|Taskfile(?:\..*)?)$/i;
 
 function repositoryFiles(directory) {
@@ -159,6 +159,7 @@ function executableViolation(rel, source) {
     ['sh', 'bash', 'yml', 'yaml'].includes(extension) ||
     callableBasename.test(basename(rel));
   const isJavaScriptLike = ['mjs', 'mts', 'cjs', 'js', 'ts', 'tsx'].includes(extension);
+  const isPython = extension === 'py';
   const isSql = extension === 'sql';
   const shell = isShellLike ? uncommentedShell(source) : '';
 
@@ -174,13 +175,28 @@ function executableViolation(rel, source) {
     /\b(?:exec|execSync)\s*\(\s*['"`][\s\S]{0,300}?\b(?:initdb|createdb|dropdb|pg_ctl)\b/i.test(
       source,
     );
-  if (databaseUtilityInShell || databaseUtilityInChildProcess || databaseUtilityInShellChild) {
+  const databaseUtilityInPython = isPython &&
+    /\bsubprocess\s*\.\s*(?:run|call|check_call|check_output|Popen)\s*\([\s\S]{0,400}?(?:['"](?:initdb|createdb|dropdb|pg_ctl)['"]|['"][^'"]*\b(?:initdb|createdb|dropdb|pg_ctl)\b[^'"]*['"])/i.test(
+      source,
+    );
+  if (
+    databaseUtilityInShell ||
+    databaseUtilityInChildProcess ||
+    databaseUtilityInShellChild ||
+    databaseUtilityInPython
+  ) {
     return 'database create/drop/server utility';
   }
 
   if (isSql && /\b(?:create|drop)\s+database\b/i.test(source)) {
     return 'CREATE/DROP DATABASE SQL';
   }
+  const databaseDdlThroughClient =
+    (isJavaScriptLike &&
+      /\.\s*query\s*\(\s*['"`]\s*(?:create|drop)\s+database\b/i.test(source)) ||
+    (isPython &&
+      /\.\s*(?:execute|query)\s*\(\s*(?:[rubf]{0,2})?['"]\s*(?:create|drop)\s+database\b/i.test(source));
+  if (databaseDdlThroughClient) return 'CREATE/DROP DATABASE through a database client';
 
   const postgresContainer =
     /(?:\bimage\s*:\s*|\bdocker\s+(?:run|create)\b[^\n]*?)['"]?(?:postgres|postgresql)(?::[A-Za-z0-9._-]+)?(?=[\s'"\\]|$)/i;
@@ -189,18 +205,23 @@ function executableViolation(rel, source) {
   }
 
   const shellReplay = isShellLike &&
-    /(?:^|[;&|(\s])(?:sudo(?:\s+-\S+)*\s+)?psql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<>&])|<<\s*['"]?SQL\b)/im.test(shell);
+    (/(?:^|[;&|(\s])(?:sudo(?:\s+-\S+)*\s+)?psql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<>&])|<<\s*['"]?SQL\b)/im.test(shell) ||
+      /\bpsql\b[^\n]*\s(?:-c|--command(?:=|\s))\s*['"]?\\+(?:i|ir)\s+/im.test(shell));
   const childReplay = isJavaScriptLike &&
-    /\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`]psql['"`][\s\S]{0,800}?(?:['"`](?:-f|--file)['"`]|['"`]\\\\i(?:\s|['"`]))/i.test(
+    /\b(?:spawn|spawnSync|execFile|execFileSync)\s*\(\s*['"`]psql['"`][\s\S]{0,800}?(?:['"`](?:-f|--file)['"`]|['"`](?:-c|--command)['"`][\s\S]{0,200}?['"`]\\\\+(?:i|ir)(?:\s|['"`])|['"`]\\\\+(?:i|ir)(?:\s|['"`]))/i.test(
       source,
     );
   const shellChildReplay = isJavaScriptLike &&
     /\b(?:exec|execSync)\s*\(\s*['"`][\s\S]{0,800}?\bpsql\b[\s\S]{0,500}?(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<&])|\\\\i\s)/i.test(
       source,
     );
+  const pythonReplay = isPython &&
+    /\bsubprocess\s*\.\s*(?:run|call|check_call|check_output|Popen)\s*\([\s\S]{0,800}?['"]psql['"][\s\S]{0,800}?(?:['"](?:-f|--file)['"]|['"](?:-c|--command)['"][\s\S]{0,200}?['"]\\(?:i|ir)\s)/i.test(
+      source,
+    );
   const sqlIncludeReplay = isSql && /^\s*\\i\s+\S+/im.test(source);
   if (
-    (shellReplay || childReplay || shellChildReplay || sqlIncludeReplay) &&
+    (shellReplay || childReplay || shellChildReplay || pythonReplay || sqlIncludeReplay) &&
     !namedEnvironmentReplayPorts.has(rel)
   ) {
     return 'psql file/stdin replay outside a named-environment port';
@@ -211,6 +232,7 @@ function executableViolation(rel, source) {
 const gateFiles = new Set([
   'scripts/check-b0-migration-baseline.mjs',
   'scripts/check-b0-migration-baseline.audit.test.mjs',
+  'scripts/check-b0-migration-baseline.named-dev.audit.test.mjs',
 ]);
 const alternateExecutors = executableFiles.flatMap((path) => {
   const rel = relative(path);
@@ -234,7 +256,7 @@ const forbiddenManifestCommands = activeManifests.flatMap((path) => {
       forbiddenName.test(name) ||
       /\bA0\b|a0-greenfield|offline-legacy|disposable|SCRATCH_DATABASE_URL|vitest\.postgres|postgres-integration/i.test(String(command)) ||
       /(?:^|[;&|]\s*|\bcommand\s+|\bexec\s+|\bsudo(?:\s+-\S+)*\s+)(?:initdb|createdb|dropdb|pg_ctl)\b/i.test(String(command)) ||
-      /\bpsql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<&]))/i.test(String(command)) ||
+      /\bpsql\b[^\n]*(?:\s(?:-f|--file(?:=|\s))\s*|<\s*(?![<&])|\s(?:-c|--command(?:=|\s))\s*['"]?\\(?:i|ir)\s+)/i.test(String(command)) ||
       /\bdocker\s+(?:run|create)\b[^\n]*\b(?:postgres|postgresql)(?::[A-Za-z0-9._-]+)?\b/i.test(String(command)),
     )
     .map(([name]) => `${relative(path)}#scripts.${name}`);
@@ -245,12 +267,26 @@ if (forbiddenManifestCommands.length > 0) {
   );
 }
 
-const retiredExecutableReference =
-  /apps\/webapp\/scripts\/postgres-integration\/(?:cli|harness-lib)\.ts|apps\/webapp\/vitest\.postgres\.(?:config|globalSetup|setup)\.ts|docs\/_TODO\/SAAS_FOUNDATION\/scripts\/smoke-p0-8-3-direct-org-policies\.mjs|deploy\/postgres\/port-context\/acceptance\.sh/;
+const retiredExecutorRegistry = JSON.parse(
+  readFileSync(
+    resolve(root, 'docs/archive/2026-08-no-disposable-db-retirement/retired-executor-paths.json'),
+    'utf8',
+  ),
+);
+if (!Array.isArray(retiredExecutorRegistry) || retiredExecutorRegistry.some((value) => typeof value !== 'string')) {
+  throw new Error('retired executor registry must be a string array');
+}
 const retiredDocReferences = repositoryInventory
-  .filter((path) => relative(path).startsWith('docs/') && path.endsWith('.md'))
-  .filter((path) => retiredExecutableReference.test(readFileSync(path, 'utf8')))
-  .map(relative);
+  .filter((path) => {
+    const rel = relative(path);
+    return path.endsWith('.md') && (rel.startsWith('docs/') || rel.startsWith('.cursor/'));
+  })
+  .flatMap((path) => {
+    const source = readFileSync(path, 'utf8');
+    return retiredExecutorRegistry
+      .filter((retiredPath) => source.includes(retiredPath))
+      .map((retiredPath) => `${relative(path)} -> ${retiredPath}`);
+  });
 if (retiredDocReferences.length > 0) {
   throw new Error(
     `active documentation references a retired database executor: ${retiredDocReferences.join(', ')}`,

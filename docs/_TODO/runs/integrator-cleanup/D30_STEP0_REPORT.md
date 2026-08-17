@@ -19,7 +19,7 @@
 - `apps/integrator/src/infra/scripts/check-d30-scheduler-lock-concurrency.ts` — новый скрипт-доказательство.
 - `apps/integrator/src/infra/scripts/d30DisposablePostgres.ts` — общий хелпер: одноразовый PostgreSQL 16
   (`initdb`/`pg_ctl`/`createdb` в `/tmp`, только unix-сокет), тот же приём, что уже есть в репозитории
-  (`apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs`,
+  (`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`,
   `apps/webapp/scripts/patient-invites-disposable-proof.mjs`).
 - Команда: `pnpm --dir apps/integrator run check:d30-scheduler-lock-concurrency`.
 

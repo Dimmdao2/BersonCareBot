@@ -17,7 +17,7 @@ Authority: `docs/_TODO/SINGLE_ENTRY_CLEANUP_2026-08-01.md` § Ч7.
   `runtime_setting_unavailable:<key>` вместо `false`.
 - Password login читает обязательный `auth_2fa_enabled` до `setSessionFromUser`; voluntary TOTP и
   текущая platform-policy семантика не изменены.
-- Реальный migration evidence: `node apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs`.
+- Реальный migration evidence: `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`.
   Script создаёт private disposable PostgreSQL 16, применяет именно `0300`–`0302`, проверяет
   fresh `41|28`, preservation empty/non-empty values, missing accessor и ACL shape.
 
@@ -60,7 +60,7 @@ Authority: `docs/_TODO/SINGLE_ENTRY_CLEANUP_2026-08-01.md` § Ч7.
 - `bash apps/webapp/scripts/check-drizzle-journal-sync.sh` — OK.
 - `bash apps/webapp/scripts/check-legacy-migrations-frozen.sh` — OK.
 - `node scripts/check-db-chokepoint.mjs` — OK.
-- `node apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs` — OK: `41|28`,
+- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` — OK: `41|28`,
   preservation `true|true|true`, missing SMS row = `runtime_setting_unavailable:smsc_api_key`,
   ACL/function shape `false|true|true|true|true`.
 - `pnpm run typecheck` (webapp) — 0 ошибок.

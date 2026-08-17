@@ -128,7 +128,7 @@ CREATE DATABASE
 |---|---|
 | `scripts/verify-a0-greenfield-baseline.mjs:137-220` | `resolveTrustedPostgresBinaries(['initdb','pg_ctl','psql'])` → `initdb` во временный каталог → `pg_ctl start` → `CREATE DATABASE … OWNER …` |
 | `scripts/verify-a1-rls-conformance.mjs:140-249` | то же самое, для проверки RLS |
-| `scripts/verify-b3-booking-concurrency.mjs:15,183` | то же самое, для гонок брони |
+| `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:15,183` | то же самое, для гонок брони |
 
 И резолвер бинарей отрабатывает в этой самой песочнице:
 

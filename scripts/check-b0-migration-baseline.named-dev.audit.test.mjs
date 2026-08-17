@@ -51,3 +51,26 @@ test('rejects a callable Python createdb executor', () => {
     "import subprocess\nsubprocess.run(['createdb', 'bcb_throwaway'], check=True)\n",
   );
 });
+
+test('rejects case, spacing and alternate include equivalents', () => {
+  for (const [path, source] of [
+    [
+      'tools/__named_dev_pg_drop.mts',
+      "const client = getClient();\nawait client . query( `  DrOp  DaTaBaSe bcb_throwaway` );\n",
+    ],
+    [
+      'scripts/__named_dev_psql_ir.sh',
+      "#!/bin/sh\npsql \"$DATABASE_URL\" --command '\\ir history.sql'\n",
+    ],
+    [
+      'tools/__named_dev_python_db_client.py',
+      "cursor . execute(\"  CREATE   DATABASE bcb_throwaway\")\n",
+    ],
+    [
+      'tools/__named_dev_python_dropdb.py',
+      "import subprocess\nsubprocess . run(\"DROPDB bcb_throwaway\", shell=True, check=True)\n",
+    ],
+  ]) {
+    expectKilled(path, source);
+  }
+});

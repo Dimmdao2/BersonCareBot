@@ -11,7 +11,7 @@
    ```bash
    bash apps/webapp/scripts/check-drizzle-journal-sync.sh
    DATABASE_URL='postgres://audit_no_connect@127.0.0.1:1/audit_no_connect' pnpm --dir apps/webapp exec drizzle-kit check
-   node apps/webapp/scripts/check-access-ladder-transitions.mjs
+   node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
    pnpm --dir apps/webapp lint
    pnpm --dir apps/webapp typecheck
    ```

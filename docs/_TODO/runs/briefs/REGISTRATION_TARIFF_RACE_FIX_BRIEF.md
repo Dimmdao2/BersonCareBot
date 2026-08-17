@@ -30,7 +30,7 @@ they are unless a strict typing change is mechanically required.
 Run the exact saved PostgreSQL command until it is green:
 
 ```bash
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 Also rerun the focused org-entitlements suite, static-only smoke, typecheck, scoped ESLint, raw-SQL gate and

@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CANONICAL_DEV_BASE_URL = 'http://127.0.0.1:5200';
 export const CANONICAL_DEV_DATABASE = 'bcb_webapp_dev';
+export const CANONICAL_DEV_DATABASE_HOST = '127.0.0.1';
+export const CANONICAL_DEV_DATABASE_PORT = '5432';
+export const REQUEST_TIMEOUT_MS = 30_000;
+export const WHOLE_RUN_TIMEOUT_MS = 12 * 60_000;
 
 const CANONICAL_DEV_REPO_ROOT = '/home/dev/dev-projects/BersonCareBot';
 const API_ENV_PATH = resolve(CANONICAL_DEV_REPO_ROOT, '.env');
@@ -19,17 +23,12 @@ const WEBAPP_ENV_PATH = resolve(CANONICAL_DEV_REPO_ROOT, 'apps/webapp/.env.dev')
  * remaining cases stay named blockers in the matrix instead of being replaced by mocks or source text.
  */
 export const LIVE_COVERAGE = Object.freeze({
-  adminAuditLog: 3,
   pgBookingSchedulingDeactivateWorkingHours: 2,
-  pgBookingSchedulingReadChokepoint: 3,
-  pgCanonicalAppointments: 2,
-  pgDoctorAnalyticsMetricAccounts: 1,
-  pgDoctorClients: 3,
-  pgPatientBookings: 2,
+  pgBookingSchedulingReadChokepoint: 1,
+  pgDoctorClients: 2,
+  pgPatientBookings: 1,
   pgPhase14DCommsTail: 1,
-  pgSupportCommunication: 5,
-  reminderRulesD5Migration: 1,
-  tenantIsolationMatrix: 10,
+  pgSupportCommunication: 3,
 });
 
 export const LIVE_COVERED_CALLS = Object.values(LIVE_COVERAGE).reduce(
@@ -74,6 +73,17 @@ export function databaseNameFromUrl(value, label) {
   return databaseName;
 }
 
+function canonicalTargetFromUrl(value, label) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${label} must be a PostgreSQL URL`);
+  }
+  const databaseName = databaseNameFromUrl(value, label);
+  return { parsed, databaseName };
+}
+
 export function assertCanonicalArgs(args) {
   if (args.length !== 1 || !['--run', '--self-test'].includes(args[0])) {
     throw new Error(
@@ -109,15 +119,43 @@ export function assertNamedDevEnv(apiSource, webappSource) {
   ];
   for (const [label, value] of targets) {
     if (!value) throw new Error(`${label} is required for the canonical named DEV runner`);
-    const actual = databaseNameFromUrl(value, label);
-    if (actual !== CANONICAL_DEV_DATABASE) {
-      throw new Error(`${label} targets ${actual}; only ${CANONICAL_DEV_DATABASE} is allowed`);
+    const { parsed, databaseName } = canonicalTargetFromUrl(value, label);
+    if (
+      parsed.hostname !== CANONICAL_DEV_DATABASE_HOST ||
+      parsed.port !== CANONICAL_DEV_DATABASE_PORT ||
+      databaseName !== CANONICAL_DEV_DATABASE
+    ) {
+      throw new Error(
+        `${label} must target exact canonical named DEV at ${CANONICAL_DEV_DATABASE_HOST}:${CANONICAL_DEV_DATABASE_PORT}/${CANONICAL_DEV_DATABASE}`,
+      );
     }
   }
-  const mode = webapp.get('DB_PRINCIPAL_CONTEXT_MODE') ?? api.get('DB_PRINCIPAL_CONTEXT_MODE');
-  if (mode !== 'port-context') {
-    throw new Error('DB_PRINCIPAL_CONTEXT_MODE must be port-context');
+  if (api.get('DB_PRINCIPAL_CONTEXT_MODE') !== 'port-context') {
+    throw new Error('INTEGRATOR DB_PRINCIPAL_CONTEXT_MODE must be port-context');
   }
+  if (webapp.get('DB_PRINCIPAL_CONTEXT_MODE') !== 'port-context') {
+    throw new Error('webapp DB_PRINCIPAL_CONTEXT_MODE must be port-context');
+  }
+}
+
+export async function fetchWithTimeout(input, init = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
+  return fetch(input, { ...init, signal });
+}
+
+export function reminderRuleIdFromRunKey(platformUserId, key) {
+  const bytes = createHash('sha256')
+    .update('bersoncare:patient-reminder:create\0')
+    .update(platformUserId)
+    .update('\0')
+    .update(key)
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `wp-${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function cookiePairs(headers) {
@@ -126,12 +164,13 @@ function cookiePairs(headers) {
 }
 
 class DevSession {
-  constructor(label, token, expectedRole) {
+  constructor(label, token, expectedRole, runSignal) {
     this.label = label;
     this.token = token;
     this.expectedRole = expectedRole;
     this.cookies = new Map();
     this.me = null;
+    this.runSignal = runSignal;
   }
 
   absorbCookies(headers) {
@@ -154,7 +193,7 @@ class DevSession {
     if (options.body !== undefined && !headers.has('content-type')) {
       headers.set('content-type', 'application/json');
     }
-    const response = await fetch(`${CANONICAL_DEV_BASE_URL}${path}`, {
+    const response = await fetchWithTimeout(`${CANONICAL_DEV_BASE_URL}${path}`, {
       method: options.method ?? 'GET',
       redirect: options.redirect ?? 'manual',
       headers,
@@ -164,6 +203,7 @@ class DevSession {
           : typeof options.body === 'string'
             ? options.body
             : JSON.stringify(options.body),
+      signal: options.recovery === true ? undefined : this.runSignal,
     });
     this.absorbCookies(response.headers);
     const text = await response.text();
@@ -210,14 +250,14 @@ function expectNotFound(result, label) {
   assert.equal(result.body?.error, 'not_found', `${label}: expected not_found`);
 }
 
-async function openSessions() {
+async function openSessions(runSignal) {
   const sessions = {
-    globalAdmin: new DevSession('global-admin', 'dev:admin', 'admin'),
-    clinicAdmin: new DevSession('clinic-admin', 'dev:clinic-admin', 'doctor'),
-    doctor: new DevSession('doctor', 'dev:doctor', 'doctor'),
-    isolatedDoctor: new DevSession('isolated-doctor', 'dev:doctor-isolated', 'doctor'),
-    patient: new DevSession('patient', 'dev:client', 'client'),
-    isolatedPatient: new DevSession('isolated-patient', 'dev:client-isolated', 'client'),
+    globalAdmin: new DevSession('global-admin', 'dev:admin', 'admin', runSignal),
+    clinicAdmin: new DevSession('clinic-admin', 'dev:clinic-admin', 'doctor', runSignal),
+    doctor: new DevSession('doctor', 'dev:doctor', 'doctor', runSignal),
+    isolatedDoctor: new DevSession('isolated-doctor', 'dev:doctor-isolated', 'doctor', runSignal),
+    patient: new DevSession('patient', 'dev:client', 'client', runSignal),
+    isolatedPatient: new DevSession('isolated-patient', 'dev:client-isolated', 'client', runSignal),
   };
   for (const session of Object.values(sessions)) await session.login();
   return sessions;
@@ -326,6 +366,7 @@ async function proveWorkingHours(sessions) {
       await sessions.doctor.request('/api/doctor/booking-engine/working-hours', {
         method: 'PATCH',
         body: { id: row.id, isActive: before },
+        recovery: true,
       }),
       'restore working hours',
     );
@@ -370,21 +411,24 @@ async function proveBookingLifecycle(sessions, runTag) {
     contactFio: { lastName: 'Аудит', firstName: 'Системный', patronymic: 'Проход' },
     contactPhone: phone,
   };
-  const settledAttempts = await Promise.allSettled([
-    sessions.patient.request('/api/booking/create', { method: 'POST', body: payload }),
-    sessions.patient.request('/api/booking/create', { method: 'POST', body: payload }),
-  ]);
-  const attempts = settledAttempts
-    .filter((result) => result.status === 'fulfilled')
-    .map((result) => result.value);
-  const requestFailures = settledAttempts.filter((result) => result.status === 'rejected');
-  const winners = attempts.filter((result) => result.status === 200 && result.body?.ok === true);
-  const rejected = attempts.filter((result) => result.status === 409);
-  const createdBookings = winners
-    .map((result) => result.body?.booking)
-    .filter((booking) => typeof booking?.id === 'string');
+  const createdBookings = [];
   let booking;
   try {
+    const settledAttempts = await Promise.allSettled([
+      sessions.patient.request('/api/booking/create', { method: 'POST', body: payload }),
+      sessions.patient.request('/api/booking/create', { method: 'POST', body: payload }),
+    ]);
+    const attempts = settledAttempts
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value);
+    const requestFailures = settledAttempts.filter((result) => result.status === 'rejected');
+    const winners = attempts.filter((result) => result.status === 200 && result.body?.ok === true);
+    const rejected = attempts.filter((result) => result.status === 409);
+    createdBookings.push(
+      ...winners
+        .map((result) => result.body?.booking)
+        .filter((created) => typeof created?.id === 'string'),
+    );
     assert.equal(requestFailures.length, 0, 'same-slot concurrency request failed before response');
     assert.equal(winners.length, 1, 'same-slot concurrency must have exactly one winner');
     assert.equal(rejected.length, 1, 'same-slot concurrency must reject exactly one contender');
@@ -424,7 +468,7 @@ async function proveBookingLifecycle(sessions, runTag) {
     );
   } finally {
     const cleanupReadback = expectOk(
-      await sessions.patient.request('/api/booking/my'),
+      await sessions.patient.request('/api/booking/my', { recovery: true }),
       'booking cleanup discovery',
     );
     const cleanupBookings = new Map(createdBookings.map((created) => [created.id, created]));
@@ -437,6 +481,7 @@ async function proveBookingLifecycle(sessions, runTag) {
       const cancellation = await sessions.patient.request('/api/booking/cancel', {
         method: 'POST',
         body: { bookingId: created.id, reason: runTag },
+        recovery: true,
       });
       if (cancellation.status !== 200 && cancellation.status !== 409) {
         throw new Error(`booking cleanup failed with status ${cancellation.status}`);
@@ -480,6 +525,7 @@ async function provePatientTimezone(patient) {
       await patient.request('/api/patient/profile/calendar-timezone', {
         method: 'PATCH',
         body: { calendarTimezone: before ?? null },
+        recovery: true,
       }),
       'restore patient timezone',
     );
@@ -495,23 +541,26 @@ async function proveSupportCommunication(sessions, runTag) {
   assert.equal(typeof boot.conversationId, 'string', 'patient conversation id missing');
   assert.equal(boot.readOnly, false, 'patient fixture conversation is read-only');
   const text = `named-dev:${runTag}`;
-  expectOk(
-    await sessions.patient.request('/api/patient/messages', {
-      method: 'POST',
-      body: { conversationId: boot.conversationId, text },
-    }),
-    'patient chat send',
-  );
-  const readback = expectOk(
-    await sessions.patient.request(
-      `/api/patient/messages?conversationId=${encodeURIComponent(boot.conversationId)}`,
-    ),
-    'patient chat readback',
-  );
-  assert(
-    (readback.messages ?? []).some((message) => message.text === text),
-    'chat message missing',
-  );
+  try {
+    expectOk(
+      await sessions.patient.request('/api/patient/messages', {
+        method: 'POST',
+        body: { conversationId: boot.conversationId, text },
+      }),
+      'patient chat send',
+    );
+  } finally {
+    const readback = expectOk(
+      await sessions.patient.request(
+        `/api/patient/messages?conversationId=${encodeURIComponent(boot.conversationId)}`,
+        { recovery: true },
+      ),
+      'patient chat readback',
+    );
+    const tagged = (readback.messages ?? []).filter((message) => message.text === text);
+    assert(tagged.length >= 1, 'chat message missing');
+    assert(tagged.length <= 1, 'chat retry retained more than one tagged message');
+  }
 
   const doctorList = expectOk(
     await sessions.clinicAdmin.request('/api/doctor/messages/conversations'),
@@ -536,7 +585,7 @@ async function proveSupportCommunication(sessions, runTag) {
   return { retainedTaggedMessages: 1, tag: runTag };
 }
 
-async function proveReminderRuleLifecycle(sessions) {
+export async function proveReminderRuleLifecycle(sessions, runTag) {
   const programs = expectOk(
     await sessions.patient.request('/api/patient/treatment-program-instances'),
     'read existing patient treatment programs',
@@ -553,28 +602,33 @@ async function proveReminderRuleLifecycle(sessions) {
     'string',
     'canonical patient fixture needs an existing active treatment program',
   );
-  const created = expectOk(
-    await sessions.patient.request('/api/patient/reminders/create', {
-      method: 'POST',
-      body: {
-        linkedObjectType: 'rehab_program',
-        linkedObjectId: activeProgram.id,
-        enabled: true,
-        schedule: {
-          scheduleType: 'interval_window',
-          intervalMinutes: 120,
-          windowStartMinute: 600,
-          windowEndMinute: 1200,
-          daysMask: '1111111',
-        },
+  const idempotencyKey = `named-dev-reminder-${runTag}`;
+  const platformUserId = sessions.patient.me?.userId ?? sessions.patient.me?.id;
+  assert.equal(typeof platformUserId, 'string', 'patient platform user id missing');
+  const id = reminderRuleIdFromRunKey(platformUserId, idempotencyKey);
+  const createOptions = {
+    method: 'POST',
+    headers: { 'idempotency-key': idempotencyKey },
+    body: {
+      linkedObjectType: 'rehab_program',
+      linkedObjectId: activeProgram.id,
+      enabled: false,
+      schedule: {
+        scheduleType: 'interval_window',
+        intervalMinutes: 120,
+        windowStartMinute: 600,
+        windowEndMinute: 1200,
+        daysMask: '1111111',
       },
-    }),
-    'create patient reminder',
-    201,
-  );
-  const id = created.reminder?.id;
-  assert.equal(typeof id, 'string', 'created reminder id missing');
+    },
+  };
   try {
+    const created = expectOk(
+      await sessions.patient.request('/api/patient/reminders/create', createOptions),
+      'create patient reminder',
+      201,
+    );
+    assert.equal(created.reminder?.id, id, 'created reminder idempotency id mismatch');
     const foreign = await sessions.isolatedPatient.request(
       `/api/patient/reminders/${encodeURIComponent(id)}`,
       { method: 'PATCH', body: { enabled: false } },
@@ -589,29 +643,65 @@ async function proveReminderRuleLifecycle(sessions) {
     );
     assert.equal(updated.reminder?.enabled, false, 'reminder update did not persist');
   } finally {
-    expectOk(
-      await sessions.patient.request(`/api/patient/reminders/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }),
-      'delete patient reminder',
-    );
+    // Reissuing the idempotent create serializes behind a first request whose response was lost.
+    // Cleanup therefore cannot race ahead of the original commit. The rule is disabled throughout.
+    let reconciled = false;
+    let recoveryFailure = 'no response';
+    for (let attempt = 1; attempt <= 3 && !reconciled; attempt += 1) {
+      try {
+        const recovered = await sessions.patient.request('/api/patient/reminders/create', {
+          ...createOptions,
+          recovery: true,
+        });
+        reconciled = recovered.status === 201 && recovered.body?.reminder?.id === id;
+        if (!reconciled) recoveryFailure = `status ${recovered.status}`;
+      } catch (error) {
+        recoveryFailure = error instanceof Error ? error.message : String(error);
+      }
+    }
+    if (!reconciled) {
+      throw new Error(`reminder ${id} cleanup reconcile failed after 3 attempts: ${recoveryFailure}`);
+    }
+
+    let deleted = false;
+    let deleteFailure = 'no response';
+    for (let attempt = 1; attempt <= 3 && !deleted; attempt += 1) {
+      try {
+        const result = await sessions.patient.request(
+          `/api/patient/reminders/${encodeURIComponent(id)}`,
+          { method: 'DELETE', recovery: true },
+        );
+        deleted = [200, 404].includes(result.status);
+        if (!deleted) deleteFailure = `status ${result.status}`;
+      } catch (error) {
+        deleteFailure = error instanceof Error ? error.message : String(error);
+      }
+    }
+    if (!deleted) {
+      throw new Error(`reminder ${id} cleanup delete failed after 3 attempts: ${deleteFailure}`);
+    }
   }
   return { deleted: true };
 }
 
 async function runLive() {
   assertCanonicalNamedDevEnvFiles();
-  const health = await fetch(`${CANONICAL_DEV_BASE_URL}/api/auth/dev-public`, {
-    redirect: 'manual',
-  });
-  assert(
-    [200, 303].includes(health.status),
-    'shared DEV webapp is not reachable on 127.0.0.1:5200',
+  const runController = new AbortController();
+  const deadline = setTimeout(
+    () => runController.abort(new Error('whole run deadline exceeded')),
+    WHOLE_RUN_TIMEOUT_MS,
   );
-
   const runTag = randomUUID();
   try {
-    const sessions = await openSessions();
+    const health = await fetchWithTimeout(`${CANONICAL_DEV_BASE_URL}/api/auth/dev-public`, {
+      redirect: 'manual',
+      signal: runController.signal,
+    });
+    assert(
+      [200, 303].includes(health.status),
+      'shared DEV webapp is not reachable on 127.0.0.1:5200',
+    );
+    const sessions = await openSessions(runController.signal);
     const scenarios = {};
     scenarios.adminAudit = await proveAdminAudit(sessions.globalAdmin);
     scenarios.doctorTenantWalls = await proveDoctorTenantWalls(sessions);
@@ -619,7 +709,7 @@ async function runLive() {
     scenarios.booking = await proveBookingLifecycle(sessions, runTag);
     scenarios.patientTimezone = await provePatientTimezone(sessions.patient);
     scenarios.supportCommunication = await proveSupportCommunication(sessions, runTag);
-    scenarios.reminderRule = await proveReminderRuleLifecycle(sessions);
+    scenarios.reminderRule = await proveReminderRuleLifecycle(sessions, runTag);
     return {
       ok: true,
       target: CANONICAL_DEV_DATABASE,
@@ -631,6 +721,8 @@ async function runLive() {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`run ${runTag} failed: ${message}`);
+  } finally {
+    clearTimeout(deadline);
   }
 }
 
@@ -641,7 +733,7 @@ export function selfTestRegistry(candidate = LIVE_COVERAGE) {
   for (const [key, expected] of Object.entries(LIVE_COVERAGE)) {
     assert.equal(candidate[key], expected, `live coverage count changed for ${key}`);
   }
-  assert.equal(LIVE_COVERED_CALLS, 33, 'live coverage total must stay explicit');
+  assert.equal(LIVE_COVERED_CALLS, 10, 'live coverage total must stay explicit');
 }
 
 async function main() {
@@ -649,7 +741,7 @@ async function main() {
   if (process.argv[2] === '--self-test') {
     assertCanonicalNamedDevEnvFiles();
     selfTestRegistry();
-    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 33-call registry)');
+    console.log('named-dev-db-behavior-runner: SELF-TEST PASS (target refusal + 10-call registry)');
     return;
   }
   const result = await runLive();

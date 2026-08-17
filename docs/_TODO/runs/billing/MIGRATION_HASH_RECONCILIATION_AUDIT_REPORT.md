@@ -90,14 +90,14 @@ bash apps/webapp/scripts/check-drizzle-journal-sync.sh
 bash apps/webapp/scripts/check-legacy-migrations-frozen.sh
 → exit 0
 
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --static-only
 → smoke-phase3-specialist-signup-provisioning: static guards OK
 
 git diff --check
 → exit 0
 ```
 
-`node apps/webapp/scripts/check-access-ladder-transitions.mjs` намеренно не запускался: он создаёт private
+`node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` намеренно не запускался: он создаёт private
 PostgreSQL cluster, что прямо запрещено audit brief; кроме того, он извлекает тело из `0320`, а не проверяет итог после
 `0326`.
 

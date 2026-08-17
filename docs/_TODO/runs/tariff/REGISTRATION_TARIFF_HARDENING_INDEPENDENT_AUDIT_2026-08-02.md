@@ -38,7 +38,7 @@ without a shared lock with `archiveTariff`; archive's policy lookup can observe 
 set commits. The red command is:
 
 ```bash
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 ```
 
 Observed terminal assertion:
@@ -50,7 +50,7 @@ concurrent registration policy set and tariff archive committed an inactive poli
 The non-race portion is green with:
 
 ```bash
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --skip-registration-policy-race
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --skip-registration-policy-race
 ```
 
 It proves legal NULL/missing policy with disabled trial, stable stale-reference error, and rollback of intent,
@@ -73,10 +73,10 @@ organization and membership. It completed `OK` on the candidate.
 ```bash
 pnpm --dir apps/webapp exec vitest run src/modules/org-entitlements/service.test.ts
 # 48 passed
-node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only
+node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md --static-only
 # static guards OK
 bash -n deploy/host/deploy-prod.sh
-node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs
+node --check docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md
 pnpm --dir packages/platform-merge run build
 pnpm --dir packages/error-tracking run build
 pnpm --dir apps/webapp run typecheck

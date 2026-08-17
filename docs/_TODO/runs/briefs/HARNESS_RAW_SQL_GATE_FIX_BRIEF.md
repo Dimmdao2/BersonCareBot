@@ -12,7 +12,7 @@ Target — текущая `wt/single-entry-integration`, где merge harness с
 ```text
 node scripts/check-no-new-raw-sql.mjs
 New raw .query(...) SQL outside the frozen D18c debt list:
-apps/webapp/src/app-layer/testing/pgDisposableHarness.postgres.integration.test.ts:40,45,53,63
+docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md:40,45,53,63
 ```
 
 Источник оракула: пункт 1 требует «к базе — только через порт приложения на Drizzle; новый сырой SQL и
@@ -21,7 +21,7 @@ apps/webapp/src/app-layer/testing/pgDisposableHarness.postgres.integration.test.
 
 ## Scope
 
-Измени только `apps/webapp/src/app-layer/testing/pgDisposableHarness.postgres.integration.test.ts` и при
+Измени только `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` и при
 необходимости его существующий harness report. Используй уже приземлённый pattern из
 `saasBillingTariffSnapshot.devDbProof.test.ts`: один dedicated `PoolClient`,
 `getWebappSqlFromPgClient(client)` и параметризованные Drizzle `sql` fragments/`.execute()`. Освободи client и pool

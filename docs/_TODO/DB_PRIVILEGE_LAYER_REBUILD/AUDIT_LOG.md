@@ -1130,7 +1130,7 @@ control + internal secret и отсутствие DB credential.
 
 ### Что подтверждено и сохраняется
 
-- `node deploy/host/retire-media-db-login.test.mjs` → exit `0`; расширенный disposable PostgreSQL 16 proof
+- `node docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md` → exit `0`; расширенный disposable PostgreSQL 16 proof
   подтвердил отзыв membership/table/column/schema/sequence/function/type/default ACL, rollback при cross-database
   dependency, owned-object abort и идемпотентность.
 - `node scripts/check-db-chokepoint.mjs`, его self-test, shell/MJS syntax, build и diff-check прошли.
