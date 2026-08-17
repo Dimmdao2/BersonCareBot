@@ -42,7 +42,7 @@ const platformSession = {
 const CLINIC_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const CLINIC_BOOLEAN_KEY = 'booking_allow_doctor_unlink_past_package_sessions';
 
-function patchSettings(body: unknown) {
+function patch(body: unknown) {
   return PATCH(
     new Request('https://app.example.test/api/admin/settings', {
       method: 'PATCH',
@@ -72,7 +72,7 @@ describe('global-admin settings HTTP boundary', () => {
     };
     fakes.updateSetting.mockResolvedValue(saved);
 
-    const response = await patchSettings({
+    const response = await patch({
       key: 'notifications_topics',
       value: [{ id: 'test', title: 'Тест тема' }],
     });
@@ -95,7 +95,7 @@ describe('global-admin settings HTTP boundary', () => {
   });
 
   it('keeps notification topic uniqueness validation before any write', async () => {
-    const response = await patchSettings({
+    const response = await patch({
       key: 'notifications_topics',
       value: [
         { id: 'test', title: 'Тест тема' },
@@ -120,7 +120,7 @@ describe('global-admin settings HTTP boundary', () => {
       },
     ]);
 
-    const response = await patchSettings({
+    const response = await patch({
       items: [
         { key: 'patient_booking_url', value: 'https://booking.example.test' },
         { key: 'material_ratings_enabled', value: false },
@@ -140,7 +140,7 @@ describe('global-admin settings HTTP boundary', () => {
   });
 
   it('rejects duplicate batch keys before the transaction port is reached', async () => {
-    const response = await patchSettings({
+    const response = await patch({
       items: [
         { key: 'patient_booking_url', value: 'https://booking.example.test' },
         { key: 'patient_booking_url', value: 'https://other.example.test' },
@@ -171,7 +171,7 @@ describe('global-admin settings HTTP boundary', () => {
       },
     });
 
-    const response = await patchSettings({ key: 'material_ratings_enabled', value: false });
+    const response = await patch({ key: 'material_ratings_enabled', value: false });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
@@ -229,7 +229,7 @@ describe('global-admin settings HTTP boundary', () => {
       updatedBy: doctorSession.user.userId,
     });
 
-    const response = await patchSettings({
+    const response = await patch({
       key: 'patient_booking_url',
       value: 'https://clinic-booking.example.test',
     });
@@ -274,7 +274,7 @@ describe('clinic-owner atomic settings readback', () => {
   });
 
   it.each([true, false])('saves and reads back the boolean value %s', async (value) => {
-    const response = await patchSettings({ key: CLINIC_BOOLEAN_KEY, value: { value } });
+    const response = await patch({ key: CLINIC_BOOLEAN_KEY, value: { value } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -296,7 +296,7 @@ describe('clinic-owner atomic settings readback', () => {
   });
 
   it('refuses a non-boolean instead of weakening validation', async () => {
-    const response = await patchSettings({
+    const response = await patch({
       key: CLINIC_BOOLEAN_KEY,
       value: { value: 'sometimes' },
     });
