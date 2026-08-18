@@ -520,23 +520,50 @@ BEGIN SELECT integrator_user_id INTO value FROM app_ext.accepted_port_contexts W
 
 -- The identity owner alone holds physical→opaque state.  No port context row
 -- contains a physical platform_users id.
+--
+-- Read first, insert only when the row is genuinely missing.  The previous shape
+-- was a bare upsert ending in `ON CONFLICT (physical_user_id) DO UPDATE SET
+-- physical_user_id = EXCLUDED.physical_user_id` -- an assignment of a column to
+-- its own value, written only to make RETURNING produce a row on the conflict
+-- path.  PostgreSQL has no no-op UPDATE: it writes a new row version and its WAL
+-- and leaves the old version as garbage, so every identity resolution of an
+-- ALREADY-KNOWN user dirtied the table.  Measured on `bcb_webapp_dev`: 142 778
+-- updates and 589 autovacuum cycles over a table holding 13 live rows.
+--
+-- The map is append-only and `opaque_ref` is a pure function of
+-- `physical_user_id`, so an existing row never needs rewriting and the common
+-- path is a single primary-key lookup with no write at all.  The insert keeps
+-- `ON CONFLICT DO NOTHING` for the concurrent-first-resolution race; because
+-- DO NOTHING returns no row, the losing session re-reads.  That re-read can miss
+-- a row the winner has inserted but not yet committed, which is why the read is
+-- a bounded retry rather than a single attempt -- the winner's commit makes the
+-- row visible and the next pass finds it.  The return value is unchanged.
 CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-DECLARE opaque uuid;
+DECLARE opaque uuid; attempt integer;
 BEGIN
   -- The exact public identity root has already checked function/purpose/args;
   -- this private resolver remains executable only by its identity owner.
-  INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
-  VALUES (p_platform_user_id, (
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),9,4) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),13,4) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),17,4) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),21,12)
-  )::uuid)
-  ON CONFLICT (physical_user_id) DO UPDATE SET physical_user_id = EXCLUDED.physical_user_id
-  RETURNING opaque_ref INTO opaque;
-  RETURN opaque;
+  FOR attempt IN 1..5 LOOP
+    SELECT opaque_ref INTO opaque
+      FROM app_ext.variant_a_identity_refs
+     WHERE physical_user_id = p_platform_user_id;
+    IF opaque IS NOT NULL THEN RETURN opaque; END IF;
+
+    INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
+    VALUES (p_platform_user_id, (
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),9,4) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),13,4) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),17,4) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),21,12)
+    )::uuid)
+    ON CONFLICT (physical_user_id) DO NOTHING
+    RETURNING opaque_ref INTO opaque;
+    IF opaque IS NOT NULL THEN RETURN opaque; END IF;
+  END LOOP;
+  RAISE EXCEPTION USING ERRCODE = '40001',
+    MESSAGE = 'variant-a identity reference could not be resolved';
 END $$;
 
 CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)
