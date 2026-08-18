@@ -93,6 +93,18 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'media.transcode.enqueue', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
   },
+  // Один корень на все исходящие сообщения. Два дескриптора — потому что классов контекста два
+  // (пациент и staff), а дверь одна: вид сообщения — это `purpose` в аргументах, а не своя функция.
+  'app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)': {
+    port: 'webapp', argCount: 7, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_patient', contextClass: 'patient',
+        purpose: 'outbound.message.enqueue' },
+      { targetRole: 'app_staff', contextClass: 'staff',
+        purpose: 'outbound.message.enqueue' },
+    ],
+    source: 'apps/webapp/src/infra/repos/pgOutboundMessageQueue.ts',
+  },
   'app.enqueue_media_transcode_job_for_service(uuid)': {
     port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
     purpose: 'media.transcode.enqueue', argCount: 1,

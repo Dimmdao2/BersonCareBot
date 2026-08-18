@@ -350,6 +350,7 @@ import { getDeliveryTargetsForUser } from '@/modules/channel-preferences/deliver
 import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegratorDeliveryTargets';
 import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
+import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
 import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
@@ -1260,6 +1261,9 @@ const coursesService = createCoursesService({
 });
 
 patientBookingService = createPatientBookingService({
+  // Один объявленный корень постановки исходящего сообщения — письмо-подтверждение записи
+  // больше не ждёт SMTP внутри запроса (решение владельца 19.08).
+  outboundMessageQueue: createPgOutboundMessageQueue(),
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
   bookingEngine: bookingEngineService,

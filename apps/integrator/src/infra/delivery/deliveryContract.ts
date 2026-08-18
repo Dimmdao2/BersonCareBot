@@ -19,7 +19,8 @@ export type OutgoingDeliveryKind =
   | 'specialist_task_reminder'
   | 'operator_health_digest'
   | 'appointment_reminder'
-  | 'auth_email_otp';
+  | 'auth_email_otp'
+  | 'outbound_message';
 
 /** Kinds whose rows are already complete transport intents and need no product-specific worker logic. */
 export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([
@@ -27,6 +28,11 @@ export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([
   'operator_health_digest',
   'appointment_reminder',
   'auth_email_otp',
+  // The universal kind (owner ruling 19.08). Every future outbound message is a new `purpose`
+  // INSIDE this kind, so no new kind is ever added here again -- that is the whole point: an
+  // unrecognised kind is quarantined dead by the scope resolver, and per-kind lists are what made
+  // that happen to every login OTP on 04.08.
+  'outbound_message',
 ]);
 
 /**
@@ -35,6 +41,15 @@ export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([
  * second inbound-reply row) but shares its fast retry ladder and short attempt budget.
  */
 export const AUTH_EMAIL_OTP_QUEUE_KIND = 'auth_email_otp' as const satisfies OutgoingDeliveryKind;
+
+/**
+ * The one universal outbound-message kind (owner ruling 19.08). Message types are `purpose` values
+ * inside this kind, not new kinds: `app.enqueue_outbound_message` composes the row, the scope
+ * resolver classifies it by `organization_id` before any per-kind branch, and the worker treats it
+ * as a complete transport intent.
+ */
+export const OUTBOUND_MESSAGE_QUEUE_KIND =
+  'outbound_message' as const satisfies OutgoingDeliveryKind;
 
 export const DOCTOR_BROADCAST_INTENT_QUEUE_KIND =
   'doctor_broadcast_intent' as const satisfies OutgoingDeliveryKind;

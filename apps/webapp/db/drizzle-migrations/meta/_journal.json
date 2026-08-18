@@ -232,6 +232,13 @@
       "when": 1800000033000,
       "tag": "0032_a_shown_photo_is_our_own_re_encode",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1800000034000,
+      "tag": "0033_one_declared_root_puts_a_message_in_the_queue",
+      "breakpoints": true
     }
   ]
 }
