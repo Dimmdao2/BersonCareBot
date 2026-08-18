@@ -6271,10 +6271,24 @@ function revision10MediaFilesPolicies(index: number): PolicyDecl[] {
     + " AND (usage_purpose IS DISTINCT FROM 'program_item_submission'"
     + ' OR uploaded_by = app.current_patient_user_id())';
   const worker = "current_user = 'app_operational_media_worker'::name";
+  // Drizzle names EVERY column of the table in an INSERT, including the ones it sends as `default`,
+  // and PostgreSQL checks the privilege on each named column — so the staff INSERT grant has to
+  // cover the whole table or no staff upload can start at all. Six of those columns are transcode
+  // output owned by the media worker (`owner_kind` is the patient read discriminator); staff writes
+  // none of them anywhere in the app. The grant is plumbing, this policy is the wall: a staff INSERT
+  // is accepted only while those six still carry their column default.
+  const staffInsertDefaults = "current_user <> 'app_staff'::name"
+    + " OR (owner_kind = 'organization'"
+    + ' AND hls_master_playlist_s3_key IS NULL AND hls_artifact_prefix IS NULL'
+    + ' AND poster_s3_key IS NULL AND video_duration_seconds IS NULL'
+    + ' AND available_qualities_json IS NULL)';
   return [
     { name: `rev10_media_files_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: `(${staffOrg})`, withCheck: `(${staffOrg})`,
       note: 'clinic staff manages media only inside the current clinic' },
+    { name: `rev10_media_files_staff_worker_columns_${index + 1}`, as: 'RESTRICTIVE', cmd: 'INSERT',
+      to: ['app_staff'], withCheck: `(${staffInsertDefaults})`,
+      note: 'staff creates media rows but never authors transcode output or the patient read discriminator' },
     { name: `rev10_media_files_patient_read_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_patient'], using: `(${patientMedia})`,
       note: 'patient reads current-clinic presentation media and only submissions uploaded by itself' },
