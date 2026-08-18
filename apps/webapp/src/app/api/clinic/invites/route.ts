@@ -7,6 +7,7 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import { sendEmailSetupLinkViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
+import { seatOverageQuoteBody } from '@/modules/saas-billing/seatOverageQuote';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 
 const bodySchema = z.object({
@@ -63,11 +64,14 @@ export async function POST(request: Request) {
     // clinic hasn't created anything yet and hasn't been charged. 402 (not 409) so the UI can tell
     // "show me the price and let me confirm" apart from a real conflict/hard block.
     if (result.code === 'seat_overage_confirmation_required') {
-      return jsonError(
-        result.code,
-        { priceMinor: result.priceMinor, currency: result.currency },
-        { status: 402 },
-      );
+      // Цену выпускает сервер: вместе с числом уходит подписанная котировка, и только она
+      // возвращается на покупку. Денежное значение из браузера сервер не принимает нигде.
+      const { error, ...quoted } = seatOverageQuoteBody({
+        organizationId: gate.ctx.organizationId,
+        priceMinor: result.priceMinor,
+        currency: result.currency,
+      });
+      return jsonError(error, quoted, { status: 402 });
     }
     return jsonError(result.code, {}, { status: 409 });
   }

@@ -852,8 +852,8 @@ export function createInMemorySaasBillingRepository(
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
       // Как в pg-репозитории: цену места считает сервер — из тарифа, пропорционально дням до конца
-      // оплаченного периода, — а число от клиента только СВЕРЯЕТСЯ. Двойник, который выставлял бы
-      // счёт на присланную клиентом сумму, описывал бы контракт, которого нет.
+      // оплаченного периода, — а цена из котировки только СВЕРЯЕТСЯ. Двойник, который выставлял бы
+      // счёт на присланную сумму, описывал бы контракт, которого нет.
       const seatTariff = tariffs.get(purchasedTariffId(authority));
       const seatPriceMinor = seatTariff?.additionalSeatPriceMinor ?? null;
       const seatCurrency = seatTariff?.currency ?? null;
@@ -866,7 +866,7 @@ export function createInMemorySaasBillingRepository(
         periodEndsAt: authority.currentPeriodEndsAt,
         asOf: input.servicePeriodStartsAt,
       });
-      if (input.quotedAmountMinor !== priceMinor || input.quotedCurrency !== seatCurrency) {
+      if (input.quotePriceMinor !== priceMinor || input.quoteCurrency !== seatCurrency) {
         return { outcome: 'price_changed' as const, priceMinor, currency: seatCurrency };
       }
       const row: SaasBillingInvoice = {

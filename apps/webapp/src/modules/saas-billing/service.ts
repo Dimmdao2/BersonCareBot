@@ -19,6 +19,7 @@ import type {
 } from './ports';
 import { paidPeriodEndsAtForCode } from './paidPeriod';
 import { saasBillingInvoiceExpiresAt } from './invoiceValidity';
+import type { SeatOverageQuote } from './seatOverageQuote';
 import {
   SAAS_BILLING_TARIFF_NOT_PAYABLE,
   isFreeTariffPrice,
@@ -540,9 +541,8 @@ export function createSaasBillingService(dependencies: {
 
   async function purchaseSeatOverage(input: {
     organizationId: string;
-    requestKey: string;
-    quotedAmountMinor: number;
-    quotedCurrency: string;
+    /** Уже проверенная котировка сервера: из неё берутся и цена, и личность покупки. */
+    quote: SeatOverageQuote;
   }) {
     const subscription = await dependencies.repository.requireOwnTariffBillingSubscription(
       input.organizationId,
@@ -561,10 +561,13 @@ export function createSaasBillingService(dependencies: {
     const result = await dependencies.repository.createSeatOverageInvoiceIfNeeded({
       organizationId: input.organizationId,
       saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
-      quotedAmountMinor: input.quotedAmountMinor,
-      quotedCurrency: input.quotedCurrency,
+      quotePriceMinor: input.quote.priceMinor,
+      quoteCurrency: input.quote.currency,
       providerId: provider.providerId,
-      providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.requestKey}`,
+      // Идемпотентность НЕ удваивается: ключ провайдера, который уже был единственным механизмом,
+      // теперь выводится из личности покупки внутри котировки. Повтор той же котировки — тот же
+      // ключ, то есть тот же счёт. Второй счёт требует второй котировки.
+      providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.quote.purchaseKey}`,
       expiresAt: saasBillingInvoiceExpiresAt(periodStart, provider.invoiceValidityDays),
       servicePeriodStartsAt: periodStart,
       servicePeriodEndsAt: subscription.currentPeriodEndsAt,

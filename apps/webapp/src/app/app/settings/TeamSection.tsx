@@ -47,7 +47,8 @@ const SEAT_OVERAGE_INVITE_STORAGE_KEY = 'clinic-seat-overage-invite';
 type StoredSeatOverageInvite = {
   email: string;
   role: OrganizationInviteRole;
-  requestKey: string;
+  /** Котировка сервера — единственное, что уходит на покупку. Суммы клиент никуда не отправляет. */
+  quote: string;
   invoiceId?: string;
 };
 
@@ -61,7 +62,7 @@ function readStoredSeatOverageInvite(): StoredSeatOverageInvite | null {
     if (
       typeof candidate.email !== 'string' ||
       (candidate.role !== 'doctor' && candidate.role !== 'admin') ||
-      typeof candidate.requestKey !== 'string'
+      typeof candidate.quote !== 'string'
     ) {
       return null;
     }
@@ -124,7 +125,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
   const [seatOverageConfirm, setSeatOverageConfirm] = useState<{
     priceMinor: number;
     currency: string;
-    requestKey: string;
+    quote: string;
   } | null>(null);
   const resumedSeatPayment = useRef(false);
 
@@ -151,19 +152,20 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
       });
       const body = (await res.json().catch(() => null)) as
         | { ok: true }
-        | { ok: false; error: string; priceMinor?: number; currency?: string }
+        | { ok: false; error: string; quote?: string; priceMinor?: number; currency?: string }
         | null;
       if (!res.ok || body?.ok === false) {
         if (
           body?.ok === false &&
           body.error === 'seat_overage_confirmation_required' &&
+          typeof body.quote === 'string' &&
           typeof body.priceMinor === 'number' &&
           typeof body.currency === 'string'
         ) {
           setSeatOverageConfirm({
             priceMinor: body.priceMinor,
             currency: body.currency,
-            requestKey: seatOverageConfirm?.requestKey ?? crypto.randomUUID(),
+            quote: body.quote,
           });
           return;
         }
@@ -196,7 +198,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
     const stored: StoredSeatOverageInvite = {
       email: email.trim(),
       role,
-      requestKey: seatOverageConfirm.requestKey,
+      quote: seatOverageConfirm.quote,
     };
     sessionStorage.setItem(SEAT_OVERAGE_INVITE_STORAGE_KEY, JSON.stringify(stored));
     setSubmitting(true);
@@ -204,16 +206,11 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
       const response = await fetch('/api/clinic/billing', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          purchase: 'seat_overage',
-          requestKey: stored.requestKey,
-          quotedAmountMinor: seatOverageConfirm.priceMinor,
-          quotedCurrency: seatOverageConfirm.currency,
-        }),
+        body: JSON.stringify({ purchase: 'seat_overage', quote: stored.quote }),
       });
       const body = (await response.json().catch(() => null)) as
         | { ok: true; outcome?: 'seat_available'; checkoutUrl?: string; invoiceId?: string }
-        | { ok: false; error: string; priceMinor?: number; currency?: string }
+        | { ok: false; error: string; quote?: string; priceMinor?: number; currency?: string }
         | null;
       if (body?.ok && body.outcome === 'seat_available') {
         sessionStorage.removeItem(SEAT_OVERAGE_INVITE_STORAGE_KEY);
@@ -229,17 +226,28 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
         window.location.assign(body.checkoutUrl);
         return;
       }
+      // Цена сдвинулась, пока человек думал: сервер прислал новую вместе с новой котировкой.
+      // Старая не перевыпускается молча — подтверждать заново будет человек.
       if (
         body?.ok === false &&
         body.error === 'seat_overage_confirmation_required' &&
+        typeof body.quote === 'string' &&
         typeof body.priceMinor === 'number' &&
         typeof body.currency === 'string'
       ) {
         setSeatOverageConfirm({
           priceMinor: body.priceMinor,
           currency: body.currency,
-          requestKey: stored.requestKey,
+          quote: body.quote,
         });
+        return;
+      }
+      // Котировка истекла (в том числе через полночь UTC, где цена пересчитывается) — цены у этой
+      // двери нет. Идём за свежей туда, где она выпускается: экран снова покажет цену и вопрос.
+      if (body?.ok === false && body.error === 'seat_overage_quote_expired') {
+        sessionStorage.removeItem(SEAT_OVERAGE_INVITE_STORAGE_KEY);
+        setSeatOverageConfirm(null);
+        await submitInvite();
         return;
       }
       setInviteError('Не удалось создать оплату дополнительного места');

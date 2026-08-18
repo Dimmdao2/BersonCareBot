@@ -517,13 +517,13 @@ export type SaasBillingRepositoryPort = {
     organizationId: string;
     saasBillingSubscriptionId: string;
     /**
-     * НЕ ЦЕНА, А ПОДТВЕРЖДЕНИЕ: the price the clinic was shown and clicked "yes" on. The
-     * implementation prices the seat itself and only COMPARES this number with its own; a
-     * mismatch is refused as `price_changed`, and the invoice is always written with the price
-     * the server computed. Nothing a client sends ever becomes money.
+     * Цена из котировки, которую выписал САМ сервер и подпись которой уже проверена. Реализация
+     * пересчитывает цену под блокировкой и СВЕРЯЕТ: разошлись — `price_changed`, счёт не пишется.
+     * Совпали — счёт пишется свежерассчитанным числом. Ни одно значение из браузера не становится
+     * деньгами ни на одном шаге.
      */
-    quotedAmountMinor: number;
-    quotedCurrency: string;
+    quotePriceMinor: number;
+    quoteCurrency: string;
     providerId: string;
     providerIdempotencyKey: string;
     servicePeriodStartsAt: string;

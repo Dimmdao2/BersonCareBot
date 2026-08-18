@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createClinicSeatsService } from '@/modules/clinic-seats/service';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
@@ -87,7 +87,7 @@ describe('TeamSection paid-seat return', () => {
       JSON.stringify({
         email: 'doctor@example.com',
         role: 'doctor',
-        requestKey: 'stable-request-key',
+        quote: 'sq1.stub-quote.signature',
         invoiceId: 'seat-invoice-1',
       }),
     );
@@ -131,6 +131,93 @@ describe('TeamSection paid-seat return', () => {
     });
     expect(
       fetchMock.mock.calls.filter(([input]) => String(input) === '/api/clinic/invites'),
+    ).toHaveLength(1);
+    expect(sessionStorage.getItem('clinic-seat-overage-invite')).toBeNull();
+  });
+});
+
+describe('TeamSection seat overage quote', () => {
+  const seats = { configured: true, used: 2, limit: 2, available: 0 } as const;
+
+  function priceQuoteResponse(quote: string, priceMinor: number) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: 'seat_overage_confirmation_required',
+        quote,
+        priceMinor,
+        currency: 'RUB',
+        quoteExpiresAt: '2026-08-19T10:15:00.000Z',
+      }),
+      { status: 402, headers: { 'content-type': 'application/json' } },
+    );
+  }
+
+  async function openConfirmation(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal('fetch', fetchMock);
+    render(<TeamSection members={[]} invites={[]} seats={seats} canMutateTeam />);
+    fireEvent.change(screen.getByPlaceholderText('email@example.com'), {
+      target: { value: 'new-doctor@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Пригласить' }));
+    await screen.findByRole('button', { name: 'Оплатить место' });
+  }
+
+  /**
+   * Владелец 19.08: денежное значение из браузера не уходит никуда. Пробивается: покупка снова
+   * кладёт в тело сумму, и сервер получает от клиента число, похожее на цену.
+   */
+  it('sends only the server quote on purchase — no amount, no currency, no request key', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/clinic/invites') return priceQuoteResponse('quote-a', 15_000);
+      return new Response(
+        JSON.stringify({ ok: false, error: 'saas_billing_seat_overage_unavailable' }),
+        { status: 409, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    await openConfirmation(fetchMock);
+    expect(screen.getByText(/150/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Оплатить место' }));
+
+    await waitFor(() => {
+      const billingCall = fetchMock.mock.calls.find(
+        ([input]) => String(input) === '/api/clinic/billing',
+      );
+      expect(billingCall).toBeDefined();
+      expect(JSON.parse(String(billingCall![1]?.body))).toEqual({
+        purchase: 'seat_overage',
+        quote: 'quote-a',
+      });
+    });
+  });
+
+  /**
+   * Котировка истекла — экран не платит по ней и не выдумывает цену, а запрашивает её заново и
+   * показывает новую человеку. Пробивается: истечение проглатывается и покупка повторяется.
+   */
+  it('asks for a fresh price instead of paying on an expired quote', async () => {
+    let invitePrice = 15_000;
+    let inviteQuote = 'quote-a';
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/clinic/invites') {
+        return priceQuoteResponse(inviteQuote, invitePrice);
+      }
+      return new Response(JSON.stringify({ ok: false, error: 'seat_overage_quote_expired' }), {
+        status: 402,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    await openConfirmation(fetchMock);
+
+    invitePrice = 12_000;
+    inviteQuote = 'quote-b';
+    fireEvent.click(screen.getByRole('button', { name: 'Оплатить место' }));
+
+    // Новая цена на экране, оплата по старой котировке не состоялась, ничего не списано.
+    await screen.findByText(/120/);
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input) === '/api/clinic/billing'),
     ).toHaveLength(1);
     expect(sessionStorage.getItem('clinic-seat-overage-invite')).toBeNull();
   });

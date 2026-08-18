@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import type { SaasBillingService } from '@/modules/saas-billing/service';
+import {
+  seatOverageQuoteBody,
+  verifySeatOverageQuote,
+} from '@/modules/saas-billing/seatOverageQuote';
 
 export type SeatOveragePurchase = {
-  requestKey: string;
-  /** Цена, показанная клинике и ею подтверждённая — сверяется сервером, никогда не выставляется. */
-  quotedAmountMinor: number;
-  quotedCurrency: string;
+  /** Котировка, выписанная сервером. Единственное поле покупки — денег в запросе нет. */
+  quote: string;
 };
 
 type PurchaseSeatOverage = SaasBillingService['purchaseSeatOverage'];
@@ -25,11 +27,23 @@ export async function handleSeatOveragePurchase(
   const entitlement = await requireEntitlementForMutation(ctx, 'clinic_team');
   if (!entitlement.ok) return entitlement.response;
 
+  const quote = verifySeatOverageQuote(purchase.quote, {
+    organizationId: ctx.organizationId,
+  });
+  // Просрочена, подделана или выписана другой клинике — все три неотличимы для покупателя и
+  // одинаково означают «этой цены больше нет». Отдельный код, а не `price_changed`: новой цены у
+  // этой двери нет, её выдаёт дверь приглашения, и экран идёт туда за свежей котировкой.
+  // Молчаливый перевыпуск здесь означал бы списание по цене, которой человек не видел.
+  if (!quote) {
+    return NextResponse.json(
+      { ok: false, error: 'seat_overage_quote_expired' },
+      { status: 402 },
+    );
+  }
+
   const result = await purchaseSeatOverage({
     organizationId: ctx.organizationId,
-    requestKey: purchase.requestKey,
-    quotedAmountMinor: purchase.quotedAmountMinor,
-    quotedCurrency: purchase.quotedCurrency,
+    quote,
   });
   if (result.outcome === 'seat_available') {
     return NextResponse.json({ ok: true, outcome: 'seat_available' });
@@ -38,9 +52,11 @@ export async function handleSeatOveragePurchase(
     return NextResponse.json(
       {
         ok: false,
-        error: 'seat_overage_confirmation_required',
-        priceMinor: result.priceMinor,
-        currency: result.currency,
+        ...seatOverageQuoteBody({
+          organizationId: ctx.organizationId,
+          priceMinor: result.priceMinor,
+          currency: result.currency,
+        }),
       },
       { status: 402 },
     );

@@ -17,6 +17,7 @@ vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({
 }));
 
 import { POST, GET } from './route';
+import { verifySeatOverageQuote } from '@/modules/saas-billing/seatOverageQuote';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const platformUserId = 'platform-user-1';
@@ -151,8 +152,19 @@ describe('POST /api/clinic/invites — §5a item 5.1 seat overage confirmation',
 
     const quoted = await POST(postRequest({ email: 'new-doctor@example.com', role: 'doctor' }));
     expect(quoted.status).toBe(402);
-    const quotedBody = (await quoted.json()) as { priceMinor: number; currency: string };
+    const quotedBody = (await quoted.json()) as {
+      priceMinor: number;
+      currency: string;
+      quote: string;
+    };
     expect(quotedBody.priceMinor).toBe(priceMinor);
+    // Вместе с ценой уходит котировка сервера — обратно на покупку вернётся только она, а цена
+    // будет взята из её подписи, а не из тела запроса.
+    expect(verifySeatOverageQuote(quotedBody.quote, { organizationId })).toMatchObject({
+      organizationId,
+      priceMinor,
+      currency,
+    });
     expect(createManualSaasBillingInvoice).not.toHaveBeenCalled();
 
     expect(createInvite).toHaveBeenCalledTimes(1);

@@ -19,6 +19,23 @@ import { PaymentProviderRequestRefusedError, type PaymentProviderPort } from '@/
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 import { resolveCommercialAccess } from '@/infra/repos/commercialAccessComputation';
 import type { BillingPeriodOption } from './billingPeriodCatalog';
+import type { SeatOverageQuote } from './seatOverageQuote';
+
+/** Котировка, уже прошедшая проверку подписи: сервис получает именно её, а не тело запроса. */
+function seatQuote(input: {
+  organizationId: string;
+  purchaseKey: string;
+  priceMinor: number;
+  currency?: string;
+}): SeatOverageQuote {
+  return {
+    organizationId: input.organizationId,
+    purchaseKey: input.purchaseKey,
+    priceMinor: input.priceMinor,
+    currency: input.currency ?? 'RUB',
+    expiresAt: '2999-01-01T00:00:00.000Z',
+  };
+}
 
 const DEFAULT_TEST_BILLING_PERIODS: BillingPeriodOption[] = [
   { code: 'day', label: 'День', months: 0, isSelectable: false, sortOrder: 0 },
@@ -1417,9 +1434,7 @@ describe('§5.1 paid additional-seat state machine', () => {
 
     await service.purchaseSeatOverage({
       organizationId: 'org-1',
-      requestKey: 'req-mid-period',
-      quotedAmountMinor: 75_000,
-      quotedCurrency: 'RUB',
+      quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'req-mid-period', priceMinor: 75_000 }),
     });
 
     expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
@@ -1456,9 +1471,7 @@ describe('§5.1 paid additional-seat state machine', () => {
     await expect(
       service.purchaseSeatOverage({
         organizationId: 'org-1',
-        requestKey: 'req-no-period',
-        quotedAmountMinor: 150_000,
-        quotedCurrency: 'RUB',
+        quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'req-no-period', priceMinor: 150_000 }),
       }),
     ).resolves.toEqual({ outcome: 'seat_overage_unavailable' });
     expect(createSeatOverageInvoiceIfNeeded).not.toHaveBeenCalled();
@@ -1512,9 +1525,7 @@ describe('§5.1 paid additional-seat state machine', () => {
 
     const result = await service.purchaseSeatOverage({
       organizationId: 'org-1',
-      requestKey: 'stable-key',
-      quotedAmountMinor: 15_000,
-      quotedCurrency: 'RUB',
+      quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'stable-key', priceMinor: 15_000 }),
     });
 
     expect(result).toMatchObject({ outcome: 'checkout', invoice: { id: 'seat-draft' } });
@@ -1576,9 +1587,7 @@ describe('§5.1 paid additional-seat state machine', () => {
     clock = new Date('2026-07-16T12:00:00.000Z');
     const purchase = await service.purchaseSeatOverage({
       organizationId: 'org-seat',
-      requestKey: 'request-1',
-      quotedAmountMinor: 77_420,
-      quotedCurrency: 'RUB',
+      quote: seatQuote({ organizationId: 'org-seat', purchaseKey: 'request-1', priceMinor: 77_420 }),
     });
     if (purchase.outcome !== 'checkout') throw new Error('expected seat checkout');
     expect(purchase.invoice).toMatchObject({
@@ -1618,6 +1627,103 @@ describe('§5.1 paid additional-seat state machine', () => {
       currentPeriodStartsAt: before?.currentPeriodStartsAt,
       currentPeriodEndsAt: before?.currentPeriodEndsAt,
     });
+  });
+
+  /**
+   * Котировка живёт минуты, но за эти минуты тариф мог измениться. Тогда счёт не выставляется
+   * вовсе: человеку возвращают новую цену, и решает снова он. Пробивается: цену на счёт берут из
+   * котировки, а не пересчитывают, — и клиника платит по устаревшему обещанию.
+   */
+  it('writes no invoice and returns the fresh price when the quote no longer matches', async () => {
+    let clock = new Date('2026-07-01T00:00:00.000Z');
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [
+        {
+          id: 'tariff-stale',
+          name: 'Клиника',
+          priceMinor: 500_000,
+          currency: 'RUB',
+          billingPeriod: 'month',
+          additionalSeatPriceMinor: 150_000,
+        },
+      ],
+      trialPolicy: null,
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-seat',
+            checkoutUrl: 'https://pay.example/seat',
+          }),
+        }) as never,
+      now: () => clock,
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-stale',
+      tariffId: 'tariff-stale',
+      audit: { actorId: 'admin', reason: 'seed' },
+    });
+    const periodInvoice = await service.createOwnTariffRenewalInvoice('org-stale');
+    await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-stale',
+      saasBillingInvoiceId: periodInvoice.id,
+      providerId: 'mock',
+      verified: {
+        idempotencyKey: 'event-seed-period',
+        eventType: 'payment.succeeded',
+        amountMinor: 500_000,
+        payload: { currency: 'RUB' },
+      },
+    });
+
+    clock = new Date('2026-07-16T12:00:00.000Z');
+    const invoicesBefore = (await service.getOrganizationBillingOverview('org-stale')).invoices
+      .length;
+    const stale = await service.purchaseSeatOverage({
+      organizationId: 'org-stale',
+      quote: seatQuote({
+        organizationId: 'org-stale',
+        purchaseKey: 'stale-quote',
+        priceMinor: 150_000,
+      }),
+    });
+
+    expect(stale).toEqual({ outcome: 'price_changed', priceMinor: 77_420, currency: 'RUB' });
+    expect((await service.getOrganizationBillingOverview('org-stale')).invoices).toHaveLength(
+      invoicesBefore,
+    );
+
+    // Та же покупка со свежей котировкой пишет счёт ровно на пересчитанную сервером цену.
+    const fresh = await service.purchaseSeatOverage({
+      organizationId: 'org-stale',
+      quote: seatQuote({
+        organizationId: 'org-stale',
+        purchaseKey: 'fresh-quote',
+        priceMinor: 77_420,
+      }),
+    });
+    if (fresh.outcome !== 'checkout') throw new Error('expected seat checkout');
+    expect(fresh.invoice.amountMinor).toBe(77_420);
+
+    // Повтор той же котировки — тот же счёт, а не второй: ключ идемпотентности выводится из неё.
+    const replay = await service.purchaseSeatOverage({
+      organizationId: 'org-stale',
+      quote: seatQuote({
+        organizationId: 'org-stale',
+        purchaseKey: 'fresh-quote',
+        priceMinor: 77_420,
+      }),
+    });
+    if (replay.outcome !== 'checkout') throw new Error('expected seat checkout');
+    expect(replay.invoice.id).toBe(fresh.invoice.id);
+    expect(
+      (await service.getOrganizationBillingOverview('org-stale')).invoices.filter(
+        (row) => row.invoiceKind === 'seat_overage',
+      ),
+    ).toHaveLength(1);
   });
 
   it('rejects a partial seat refund before resolving or calling the provider', async () => {
@@ -3726,9 +3832,7 @@ describe('срок жизни счёта берётся из настройки 
 
     await service.purchaseSeatOverage({
       organizationId: 'org-1',
-      requestKey: 'req-1',
-      quotedAmountMinor: 1_000,
-      quotedCurrency: 'RUB',
+      quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'req-1', priceMinor: 1_000 }),
     });
 
     expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
