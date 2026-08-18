@@ -91,7 +91,14 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // `app.choose_organization_first_tariff`. Раньше её тело жило вне пронумерованных миграций, поэтому
   // в перепись оно не попадало вовсе — прибавка означает, что функция наконец под учётом, а не что
   // появилась новая.
-  assert.equal(functions.length, 84);
+  // 84 → 89 (18.08): миграция 0025 забрала в репозиторий пять тел, которые существовали ТОЛЬКО в
+  // живой DEV-базе (`app.require_attested_target_role`, `app.enqueue_current_reminder_rule_push`,
+  // `app.read_current_patient_treatment_program_description`,
+  // `app.resolve_patient_acquiring_webhook_organization`, `app.append_platform_audit_event`).
+  // Из-за этого TEST их не получал ничем: четыре отсутствовали целиком, а рукописный
+  // `exact_existing`-гейт пятой ронял reconcile-access. Прибавка = функции наконец под учётом,
+  // новых функций не появилось.
+  assert.equal(functions.length, 89);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
