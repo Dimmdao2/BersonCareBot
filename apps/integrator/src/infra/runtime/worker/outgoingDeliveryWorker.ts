@@ -17,6 +17,7 @@ import {
   DOCTOR_BROADCAST_INTENT_QUEUE_KIND,
   INBOUND_REPLY_QUEUE_KIND,
   AUTH_EMAIL_OTP_QUEUE_KIND,
+  OUTBOUND_MESSAGE_QUEUE_KIND,
   GENERIC_TRANSPORT_QUEUE_KINDS,
 } from '../../delivery/deliveryContract.js';
 import {
@@ -424,6 +425,57 @@ async function recordAuthEmailOtpDeliveryDeadIncident(
   }
 }
 
+/**
+ * A universal outbound message that exhausted its retries is the ONLY signal the operator gets:
+ * the producer (a booking confirmation, a notice) returned to the person long before the worker
+ * ran, so nothing upstream is still watching. Same direction as the synchronous send path, so it
+ * feeds the SAME critical-alert/digest cadence rather than a new one.
+ */
+async function recordOutboundMessageDeliveryDeadIncident(
+  row: OutgoingDeliveryQueueRow,
+  safeError: string,
+): Promise<void> {
+  if (row.kind !== OUTBOUND_MESSAGE_QUEUE_KIND) return;
+  try {
+    await recordOperatorFailureIncident({
+      direction: 'outbound_delivery_provider',
+      integration: row.channel,
+      errorClass: classifyOutboundProviderErrorClass(safeError),
+      errorDetail: null,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, rowId: row.id, eventId: row.eventId },
+      'outbound_message_delivery_dead_incident_record_failed',
+    );
+  }
+}
+
+/**
+ * A quarantined row is the worst dead there is: never sent, never retried, and until now visible
+ * only as one log line. 04.08 proved the cost -- an unlisted kind silently buried every login OTP
+ * and nobody was paged. `errorClass` carries the resolver's reason, so the incident dedup key
+ * separates "unsupported kind" from "organization missing" instead of merging them.
+ */
+async function recordOutgoingDeliveryQuarantineIncident(
+  row: OutgoingDeliveryQueueRow,
+  reason: string,
+): Promise<void> {
+  try {
+    await recordOperatorFailureIncident({
+      direction: 'outbound_delivery_quarantine',
+      integration: row.kind,
+      errorClass: reason,
+      errorDetail: null,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, rowId: row.id, eventId: row.eventId },
+      'outgoing_delivery_quarantine_incident_record_failed',
+    );
+  }
+}
+
 async function finalizeOutgoingDeliveryDead(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
@@ -433,6 +485,7 @@ async function finalizeOutgoingDeliveryDead(
   await queueMarkDead(db, row.id, safeError);
   await recordInboundReplyDeliveryDeadIncident(row, safeError);
   await recordAuthEmailOtpDeliveryDeadIncident(row, safeError);
+  await recordOutboundMessageDeliveryDeadIncident(row, safeError);
   await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
     const auditId =
@@ -1075,6 +1128,7 @@ async function processClaimedOutgoingDeliveryRowScoped(
   const scope = await resolveOutgoingDeliveryScope(deps.db, row.id);
   if (scope.queueKind !== row.kind) {
     await queueMarkDead(deps.db, row.id, 'TENANT_SCOPE_QUEUE_KIND_MISMATCH');
+    await recordOutgoingDeliveryQuarantineIncident(row, 'queue_kind_mismatch');
     logger.error(
       { rowId: row.id, eventId: row.eventId, claimedKind: row.kind, resolvedKind: scope.queueKind },
       'outgoing_delivery_scope_quarantined',
@@ -1084,6 +1138,7 @@ async function processClaimedOutgoingDeliveryRowScoped(
   if (scope.kind === 'invalid') {
     const reason = truncateDeliveryErrorMessage(`TENANT_SCOPE_${scope.reason.toUpperCase()}`);
     await queueMarkDead(deps.db, row.id, reason);
+    await recordOutgoingDeliveryQuarantineIncident(row, scope.reason);
     logger.error(
       { rowId: row.id, eventId: row.eventId, queueKind: row.kind, reason: scope.reason },
       'outgoing_delivery_scope_quarantined',

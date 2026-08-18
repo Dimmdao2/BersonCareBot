@@ -113,7 +113,12 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // чтения отношений, новых отношений в обороте не появилось.
   // 95 → 96 (19.08): миграция 0031 — ОДИН именованный корень уборки `app.prune_retention_target(text,integer,boolean)` с закрытым списком целей.
   // Прибавка ровно одна на четыре таблицы: пяти функций владелец не захотел.
-  assert.equal(functions.length, 96);
+  // 96 → 98 (19.08): миграция 0033. Прибавка ДВЕ, но новая функция ОДНА:
+  // `app.enqueue_outbound_message(...)` — единственный корень постановки исходящего сообщения.
+  // Вторая — `app.resolve_outgoing_delivery_scope(uuid)`: её тело существовало ТОЛЬКО в живой базе
+  // и в удалённом снимке, ни один файл репозитория его не создавал (см. заголовок 0033). Она
+  // наконец под учётом, а не появилась.
+  assert.equal(functions.length, 98);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -124,7 +129,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 395 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 396 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -157,17 +162,21 @@ test('all 395 declared functions have the exact source-reconstructed base type a
   // 391 → 392 (19.08): `app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint)` —
   // проверка заявки на арендатора при установке контекста (`deploy/postgres/port-context/contract.sql`).
   // Прибавка — одна новая функция шва личностей, а не перепись существующих.
-  assert.equal(canonical.size, 393);
+  // 393 → 394 (19.08): `app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)` —
+  // миграция 0033. Резолвер области уже был объявлен, поэтому счётчик двигает только новый корень.
+  assert.equal(canonical.size, 394);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
     return counts;
   }, {});
   // SCALAR 267 → 268 (19.08): `app.prune_retention_target(text,integer,boolean)` возвращает bigint.
-  assert.deepEqual(forms, { SCALAR: 269, TABLE: 120, SETOF: 4 });
+  // SCALAR 269 → 270 (19.08): `app.enqueue_outbound_message(...)` возвращает boolean.
+  assert.deepEqual(forms, { SCALAR: 270, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
   // 269 → 270 (19.08): корень уборки скалярный — возвращает число убранных строк.
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 271);
+  // 271 → 272 (19.08): корень постановки исходящего сообщения возвращает boolean — «строка новая».
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 272);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -394,12 +403,13 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // +1 (19.08): `app.prune_retention_target(text,integer,boolean)` — миграция 0031.
   // +1 (19.08): `app_ext.assert_port_context_claim(...)` — проверка заявки на арендатора при
   // установке контекста; SECURITY DEFINER, поэтому двигает и общий счётчик, и счётчик DEFINER.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 380);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 378);
+  // +1 (19.08): `app.enqueue_outbound_message(...)` — миграция 0033, SECURITY DEFINER.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 381);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 379);
   // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
   // DEFINER выше не двигаются.
-  assert.equal(testFunctions.length, 395);
-  assert.equal(devFunctions.length, 393);
+  assert.equal(testFunctions.length, 396);
+  assert.equal(devFunctions.length, 394);
   // 44 → 45 (19.08): у корня уборки собственный владелец шва `app_seam_retention_sweep_owner`.
   // Занять соседнего значило бы расширить его шов на чужие таблицы.
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 45);
@@ -618,7 +628,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 380 : 378;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 381 : 379;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

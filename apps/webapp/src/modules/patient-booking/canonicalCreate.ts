@@ -33,6 +33,7 @@ import {
 } from './bookingLifecycleNotifications';
 import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
+import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
 import { buildPatientCreatedMessageText } from './patientMessageText';
 import { buildDoctorCreatedMessageText } from './doctorMessageText';
 import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
@@ -84,6 +85,8 @@ export type CanonicalBookingDeps = {
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
+  /** Порт постановки исходящего сообщения в очередь доставки (письмо-подтверждение записи). */
+  outboundMessageQueue: OutboundMessageQueuePort;
 };
 
 function toPendingRowOnline(
@@ -613,9 +616,13 @@ export async function createBookingOnCanonicalEngine(
     // Notifications are best-effort.
   }
 
-  // #81: отправить пациенту письмо с .ics-вложением (best-effort, не роняет booking).
+  // #81: письмо пациенту с .ics-вложением. Владелец 19.08: «письмо и уведомление не надо ждать —
+  // абсолютно точно». `await` остаётся НАМЕРЕННО: он ждёт одну постановку строки в очередь, а не
+  // SMTP. Плавающий промис здесь недопустим — ответ убил бы его, и письма не было бы вовсе; ждать
+  // при этом больше нечего, потому что отправляет воркер доставки интегратора.
   await sendBookingConfirmationEmail({
     bookingId: (confirmed ?? pending).id,
+    organizationId: orgId,
     contactEmail: createInput.contactEmail,
     slotStart: pendingRow.slotStart,
     slotEnd: pendingRow.slotEnd,
@@ -623,7 +630,7 @@ export async function createBookingOnCanonicalEngine(
     locationLabel:
       pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === 'online' ? 'Онлайн' : null),
     contactName: createInput.contactName,
-  });
+  }, { outboundMessageQueue: deps.outboundMessageQueue });
 
   await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;

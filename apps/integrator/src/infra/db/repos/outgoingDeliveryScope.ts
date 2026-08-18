@@ -6,7 +6,12 @@ export type OutgoingDeliveryScope =
   | { kind: 'tenant'; queueKind: string; organizationId: string }
   | {
       kind: 'operator';
-      queueKind: 'operator_alert' | 'inbound_reply' | 'operator_health_digest' | 'auth_email_otp';
+      queueKind:
+        | 'operator_alert'
+        | 'inbound_reply'
+        | 'operator_health_digest'
+        | 'auth_email_otp'
+        | 'outbound_message';
     }
   | { kind: 'invalid'; queueKind: string | null; reason: string };
 
@@ -33,7 +38,8 @@ export async function resolveOutgoingDeliveryScope(
     (row.queue_kind === 'operator_alert' ||
       row.queue_kind === 'inbound_reply' ||
       row.queue_kind === 'operator_health_digest' ||
-      row.queue_kind === 'auth_email_otp')
+      row.queue_kind === 'auth_email_otp' ||
+      row.queue_kind === 'outbound_message')
   ) {
     return { kind: 'operator', queueKind: row.queue_kind };
   }

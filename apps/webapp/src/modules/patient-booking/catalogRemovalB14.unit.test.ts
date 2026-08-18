@@ -56,6 +56,9 @@ function bookingRecord(overrides: Partial<PatientBookingRecord> = {}): PatientBo
 function bookingDeps(): CanonicalBookingDeps {
   let stored = bookingRecord();
   return {
+    // Постановка письма в очередь: в этих тестах доставка не проверяется, но порт обязателен —
+    // запись без пути доставки подтверждения неполна, поэтому он не необязательный.
+    outboundMessageQueue: { enqueue: async () => true },
     bookingsPort: {
       async createPending() {
         return stored;
