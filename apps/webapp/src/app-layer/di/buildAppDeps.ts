@@ -375,6 +375,7 @@ import {
   wrapContentSectionsPortWithWriteClearance,
 } from '@/app-layer/content/contentWriteClearancePorts';
 import { wrapSystemSettingsServiceWithPatientHomeWriteClearance } from '@/app-layer/patient-home/patientHomeSettingsWriteClearance';
+import { wrapSystemSettingsServiceWithRequestLocalScopeReads } from '@/app-layer/system-settings/requestLocalSettingsByScope';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -820,12 +821,16 @@ const systemSettingsServiceBase = createSystemSettingsService(systemSettingsPort
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
   shouldCompareRuntimeWithLegacy: () => getCurrentDbPrincipal()?.kind !== 'patient',
 });
-const systemSettingsService = wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
-  wrapSystemSettingsServiceWithPatientHomeWriteClearance(
-    systemSettingsServiceBase,
+// Один список настроек области на запрос: память живёт в самом сервисе, поэтому её получают все
+// спрашивающие сразу. Обоснование и границы — в `requestLocalSettingsByScope.ts`.
+const systemSettingsService = wrapSystemSettingsServiceWithRequestLocalScopeReads(
+  wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
+    wrapSystemSettingsServiceWithPatientHomeWriteClearance(
+      systemSettingsServiceBase,
+      assertMechanicWriteClearance,
+    ),
     assertMechanicWriteClearance,
   ),
-  assertMechanicWriteClearance,
 );
 const specialistTasksPort = !inMemoryRepos
   ? createPgSpecialistTasksPort((task) =>
