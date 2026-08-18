@@ -218,6 +218,13 @@
       "when": 1800000031000,
       "tag": "0030_a_delivery_audience_is_resolved_in_one_place",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1800000032000,
+      "tag": "0031_one_retention_root_with_a_closed_list_of_targets",
+      "breakpoints": true
     }
   ]
 }
