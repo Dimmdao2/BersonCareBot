@@ -346,6 +346,9 @@ import {
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTargetsApi';
+import { getDeliveryTargetsForUser } from '@/modules/channel-preferences/deliveryTargets';
+import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegratorDeliveryTargets';
+import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
@@ -1534,20 +1537,13 @@ function _buildAppDeps() {
       }),
     getDoctorSupportDefault: (key, context) => runtimeConfig.getBoolean(key, context),
   });
+  // Аудитория доставки интегратора — один объявленный корень, а не сборка из сырых чтений.
+  // Стена участия, сверка integratorUserId, привязки, предпочтения и готовность каналов живут
+  // внутри `app.read_integrator_delivery_target_snapshot(...)`.
   const integratorDeliveryTargetsDeps = {
-    userByPhonePort,
-    identityResolutionPort,
-    preferencesPort: channelPreferencesPort,
-    topicChannelPrefsPort,
-    readReminderNotifyGate: readReminderWebappNotifyGate,
-    getProfileEmailFields: userProjectionPort.getProfileEmailFields,
-    webPushSubscriptions: webPushSubscriptionsPort,
-    systemSettings: systemSettingsService,
-    hasActivePatientEnrollment: (platformUserId: string, organizationId: string) =>
-      patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
-      Promise.resolve(false),
-    findPlatformUserByIntegratorId: userProjectionPort.findByIntegratorId,
-    getChannelBindings: loadPlatformUserChannelBindings,
+    integratorDeliveryTargets: inMemoryRepos
+      ? inMemoryIntegratorDeliveryTargetsPort
+      : createPgIntegratorDeliveryTargetsPort(),
   };
   return {
     auth: {
@@ -1650,8 +1646,25 @@ function _buildAppDeps() {
         const p = await doctorClients.getClientProfile(userId);
         return p?.identity ?? null;
       },
-      getDeliveryTargets: (params) =>
-        getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
+      // Кабинет врача работает под штатным принципалом и своей организации, поэтому идёт не через
+      // интеграторский корень (он требует организацию в аргументе и стену участия пациента), а
+      // ровно теми двумя чтениями, которые ему и нужны: личность по привязке канала и глобальное
+      // предпочтение уведомлений.
+      getDeliveryTargets: async (params) => {
+        const user = params.telegramId?.trim()
+          ? await identityResolutionPort.findByChannelBinding({
+              channelCode: 'telegram',
+              externalId: params.telegramId.trim(),
+            })
+          : params.maxId?.trim()
+            ? await identityResolutionPort.findByChannelBinding({
+                channelCode: 'max',
+                externalId: params.maxId.trim(),
+              })
+            : null;
+        if (!user) return null;
+        return getDeliveryTargetsForUser(user.userId, user.bindings, channelPreferencesPort);
+      },
       messageLogPort,
     }),
     doctorAppointments: createDoctorAppointmentsService({
@@ -1865,8 +1878,10 @@ function _buildAppDeps() {
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
     adminNotificationTargets: {
+      // Читает маршрут `/api/integrator/admin-notification-targets`, который принципалом не входит
+      // и попадает в `pre_session`; тик дайджеста читает то же тело под инфра-принципалом.
       loadTargets: !inMemoryRepos
-        ? loadAdminNotificationTargetsFromDb
+        ? () => loadAdminNotificationTargetsFromDb('pre_session')
         : async () => ({ telegram: [], max: [], sms: [], email: [] }),
     },
     appointmentReminderMaterialization,
