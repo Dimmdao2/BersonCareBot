@@ -33,6 +33,21 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'reminder.materialization.commit', argCount: 8,
     source: 'apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts',
   },
+  'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.delivery-targets.read', argCount: 8,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorDeliveryTargets.ts',
+  },
+  'app.read_admin_notification_targets(text)': {
+    port: 'webapp', argCount: 1, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_pre_session', contextClass: 'pre_session',
+        purpose: 'notifications.admin-targets.read' },
+      { targetRole: 'app_worker', contextClass: 'service',
+        purpose: 'notifications.admin-targets.read' },
+    ],
+    source: 'apps/webapp/src/infra/repos/pgAdminNotificationTargets.ts',
+  },
   'app.password_login_acquire(text,text,uuid,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'auth.password.acquire', argCount: 4,

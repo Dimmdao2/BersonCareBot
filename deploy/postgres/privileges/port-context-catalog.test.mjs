@@ -15,8 +15,10 @@ import {
   resolvePortContextCapabilities,
 } from './generate.mjs';
 
+// +3 (19.08): три возможности миграции 0030 — один корень аудитории доставки под `tenant_service`
+// и два класса (`pre_session`, `service`) на одном теле операторских адресатов.
 const EXPECTED = {
-  webapp: 180,
+  webapp: 183,
   integrator: 34,
 };
 
@@ -34,8 +36,8 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 214);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 214);
+  assert.equal(rows.length, 217);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 217);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -86,7 +88,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 199);
+  assert.equal(roots.length, 202);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
