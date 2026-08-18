@@ -6,6 +6,7 @@ import { createDbPort } from '../../infra/db/client.js';
 import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import { loadAdminMessengerIdLists } from '../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js';
+import { reportEmptyNotificationAudience } from '../../infra/operatorIncident/reportEmptyNotificationAudience.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type {
   DbWritePort,
@@ -26,6 +27,10 @@ import {
   type BookingLifecycleEventValidated,
   type BookingLifecyclePayloadValidated,
 } from './bookingLifecycleSchema.js';
+
+/** Темы уведомлений записи. Низкая кардинальность: они входят в dedup-ключ инцидента. */
+export const BOOKING_LINKED_CHANNEL_TOPIC = 'booking_linked_channel_message';
+export const BOOKING_STAFF_MESSAGE_TOPIC = 'booking_staff_message';
 
 const WINDOW_SECONDS = 300;
 const BOOKING_EVENT_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
@@ -186,19 +191,27 @@ async function sendLinkedChannelMessage(input: {
   const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
     organizationId: input.organizationId,
   });
-  const bindings = fetched?.channelBindings;
-  if (!bindings) {
-    // D-b: пустая аудитория не бывает тихим успехом. Счётчик живёт в webapp и отсюда
-    // недостижим, поэтому здесь оставлен структурированный след с тем же именем события.
-    logger.warn(
-      {
-        scope: 'notification_delivery',
-        event: 'notification_audience_empty',
-        topic: 'booking_linked_channel_message',
-        severity: 'user_facing',
-      },
-      'booking confirmation had no delivery target',
-    );
+  // D-b: пустая аудитория не бывает тихим успехом — и отказ резолвера не смеет выглядеть
+  // как «получателей нет». Обе ветки уходят в единый порт инцидентов, каждая со своей причиной.
+  if (!fetched?.channelBindings) {
+    await reportEmptyNotificationAudience({
+      topic: BOOKING_LINKED_CHANNEL_TOPIC,
+      severity: 'user_facing',
+      reason: 'resolution_failed',
+      organizationId: input.organizationId,
+    });
+    return;
+  }
+  const bindings = fetched.channelBindings;
+  const hasTelegram = typeof bindings.telegramId === 'string' && bindings.telegramId.trim() !== '';
+  const hasMax = typeof bindings.maxId === 'string' && bindings.maxId.trim() !== '';
+  if (!hasTelegram && !hasMax) {
+    await reportEmptyNotificationAudience({
+      topic: BOOKING_LINKED_CHANNEL_TOPIC,
+      severity: 'user_facing',
+      reason: 'no_channel_bindings',
+      organizationId: input.organizationId,
+    });
     return;
   }
 
@@ -238,8 +251,33 @@ async function sendDoctorMessage(
   dispatchPort: DispatchPort,
   text: string,
   eventId: string,
+  organizationId: string,
 ): Promise<void> {
-  const recipients = await loadAdminMessengerIdLists();
+  let recipients: Awaited<ReturnType<typeof loadAdminMessengerIdLists>>;
+  try {
+    recipients = await loadAdminMessengerIdLists();
+  } catch (err) {
+    // Резолвер штатной аудитории отказал — врач не узнает о записи. Инцидент поднимается ЗДЕСЬ,
+    // а ошибка летит дальше НАМЕРЕННО: ретрай события (502 + освобождение dedup-ключа) — прежний
+    // контракт для отказа, который может быть временным, и он остаётся в силе. Чинится не ретрай,
+    // а тишина: раньше отказ уходил только в `err: {type: 'Error'}` без текста.
+    await reportEmptyNotificationAudience({
+      topic: BOOKING_STAFF_MESSAGE_TOPIC,
+      severity: 'user_facing',
+      reason: 'resolution_failed',
+      organizationId,
+    });
+    throw err;
+  }
+  if (recipients.telegram.length === 0 && recipients.max.length === 0) {
+    await reportEmptyNotificationAudience({
+      topic: BOOKING_STAFF_MESSAGE_TOPIC,
+      severity: 'user_facing',
+      reason: 'no_channel_bindings',
+      organizationId,
+    });
+    return;
+  }
   for (const chatId of recipients.telegram) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
@@ -523,6 +561,7 @@ export async function handleBookingLifecycleEvent(
           dispatchPort,
           resolveDoctorMessageText(payload, doctorCreatedText(payload, timeZone)),
           `booking-created:${bookingId}`,
+          payload.organizationId,
         );
       }
       await scheduleBookingReminders({
@@ -587,6 +626,7 @@ export async function handleBookingLifecycleEvent(
           dispatchPort,
           resolveDoctorMessageText(payload, doctorCancelledText(payload, timeZone)),
           `booking-cancelled:${bookingId}`,
+          payload.organizationId,
         );
       }
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
@@ -607,6 +647,7 @@ export async function handleBookingLifecycleEvent(
           dispatchPort,
           resolveDoctorMessageText(payload, doctorRescheduledText(payload, timeZone)),
           `booking-rescheduled:${bookingId}`,
+          payload.organizationId,
         );
       }
       const rescheduledPushVariant = resolvePatientPushVariant(payload, 'rescheduled');
@@ -679,6 +720,7 @@ export async function handleBookingLifecycleEvent(
             `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
           ),
           `booking-payment:${bookingId}`,
+          payload.organizationId,
         );
       }
       await scheduleBookingReminders({
