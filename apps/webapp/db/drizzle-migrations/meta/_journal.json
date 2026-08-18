@@ -183,6 +183,13 @@
       "when": 1800000025000,
       "tag": "0025_definer_bodies_that_lived_only_in_dev",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1800000028000,
+      "tag": "0028_port_context_rows_die_with_their_transaction",
+      "breakpoints": true
     }
   ]
 }

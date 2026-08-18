@@ -5073,6 +5073,22 @@ const REV10_CONTEXT = {
     'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
+    // Deferred constraint trigger on app_ext.accepted_port_contexts: the accepted context is deleted
+    // at COMMIT of the very transaction that installed it, so a committed context row cannot exist
+    // and no periodic sweep is needed. DEFINER on the table owner because the effective role at
+    // COMMIT is the bare login, which holds no USAGE on app_ext.
+    'app_ext.expire_accepted_port_context()': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [], purpose: 'delete the accepted port context at COMMIT of its own transaction',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app_ext, pg_temp'], invocation: 'trigger' as const,
+      relationSurfaces: [{
+        relation: 'app_ext.accepted_port_contexts',
+        columns: ['database_oid', 'backend_pid', 'transaction_id'],
+        operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const,
+      }],
+    }),
     'app_ext.resolve_variant_a_physical(uuid)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
       purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid'],
