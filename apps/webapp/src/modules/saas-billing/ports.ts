@@ -516,8 +516,14 @@ export type SaasBillingRepositoryPort = {
   createSeatOverageInvoiceIfNeeded(input: {
     organizationId: string;
     saasBillingSubscriptionId: string;
-    confirmedAmountMinor: number;
-    confirmedCurrency: string;
+    /**
+     * НЕ ЦЕНА, А ПОДТВЕРЖДЕНИЕ: the price the clinic was shown and clicked "yes" on. The
+     * implementation prices the seat itself and only COMPARES this number with its own; a
+     * mismatch is refused as `price_changed`, and the invoice is always written with the price
+     * the server computed. Nothing a client sends ever becomes money.
+     */
+    quotedAmountMinor: number;
+    quotedCurrency: string;
     providerId: string;
     providerIdempotencyKey: string;
     servicePeriodStartsAt: string;

@@ -222,8 +222,8 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       request({
         purchase: 'seat_overage',
         requestKey: 'stable-key',
-        amountMinor: 15_000,
-        currency: 'RUB',
+        quotedAmountMinor: 15_000,
+        quotedCurrency: 'RUB',
       }),
     );
 
@@ -242,8 +242,8 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       request({
         purchase: 'seat_overage',
         requestKey: 'stable-key',
-        amountMinor: 15_000,
-        currency: 'RUB',
+        quotedAmountMinor: 15_000,
+        quotedCurrency: 'RUB',
       }),
     );
 
@@ -266,8 +266,8 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       request({
         purchase: 'seat_overage',
         requestKey: 'stable-key',
-        amountMinor: 15_000,
-        currency: 'RUB',
+        quotedAmountMinor: 15_000,
+        quotedCurrency: 'RUB',
       }),
     );
 
@@ -291,8 +291,8 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       request({
         purchase: 'seat_overage',
         requestKey: 'stable-key',
-        amountMinor: 15_000,
-        currency: 'RUB',
+        quotedAmountMinor: 15_000,
+        quotedCurrency: 'RUB',
       }),
     );
 

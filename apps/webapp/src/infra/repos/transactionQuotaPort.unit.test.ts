@@ -43,6 +43,11 @@ describe('transaction quota decisions', () => {
     );
   });
 
+  const PAID_PERIOD = {
+    currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+    currentPeriodEndsAt: '2026-08-31T00:00:00.000Z',
+  };
+
   it('requires paid-seat confirmation until capture increases the shared allowance', () => {
     const atBaseLimit = {
       includedSeats: 1,
@@ -50,6 +55,8 @@ describe('transaction quota decisions', () => {
       used: 1,
       additionalSeatPriceMinor: 1_500,
       currency: 'RUB',
+      ...PAID_PERIOD,
+      asOf: PAID_PERIOD.currentPeriodStartsAt,
     };
 
     expect(decideClinicTeamQuota(atBaseLimit)).toEqual({
@@ -71,7 +78,34 @@ describe('transaction quota decisions', () => {
         used: 0,
         additionalSeatPriceMinor: 1_500,
         currency: 'RUB',
+        ...PAID_PERIOD,
+        asOf: PAID_PERIOD.currentPeriodStartsAt,
       }),
     ).toEqual({ allowed: false, code: 'seat_limit_reached' });
+  });
+
+  /**
+   * Решение владельца 18.08: место, купленное посреди периода, оплачивается «до конца оплаченного
+   * периода», а не полным тарифом места. Это ЕДИНСТВЕННОЕ место, где место получает цену: и
+   * подтверждение клинике, и сумма счёта берутся из этого решения, поэтому цена на экране и цена в
+   * счёте не могут разойтись. Пробивается: середина 30-дневного периода снова стоит полные 150 000.
+   */
+  it('quotes a mid-period seat at the days left in the already-paid period', () => {
+    expect(
+      decideClinicTeamQuota({
+        includedSeats: 1,
+        paidAdditionalSeats: 0,
+        used: 1,
+        additionalSeatPriceMinor: 150_000,
+        currency: 'RUB',
+        ...PAID_PERIOD,
+        asOf: '2026-08-16T09:41:00.000Z',
+      }),
+    ).toEqual({
+      allowed: false,
+      code: 'seat_overage_confirmation_required',
+      priceMinor: 75_000,
+      currency: 'RUB',
+    });
   });
 });

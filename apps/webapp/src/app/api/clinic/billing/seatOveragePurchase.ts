@@ -5,8 +5,9 @@ import type { SaasBillingService } from '@/modules/saas-billing/service';
 
 export type SeatOveragePurchase = {
   requestKey: string;
-  amountMinor: number;
-  currency: string;
+  /** Цена, показанная клинике и ею подтверждённая — сверяется сервером, никогда не выставляется. */
+  quotedAmountMinor: number;
+  quotedCurrency: string;
 };
 
 type PurchaseSeatOverage = SaasBillingService['purchaseSeatOverage'];
@@ -27,8 +28,8 @@ export async function handleSeatOveragePurchase(
   const result = await purchaseSeatOverage({
     organizationId: ctx.organizationId,
     requestKey: purchase.requestKey,
-    confirmedAmountMinor: purchase.amountMinor,
-    confirmedCurrency: purchase.currency,
+    quotedAmountMinor: purchase.quotedAmountMinor,
+    quotedCurrency: purchase.quotedCurrency,
   });
   if (result.outcome === 'seat_available') {
     return NextResponse.json({ ok: true, outcome: 'seat_available' });
