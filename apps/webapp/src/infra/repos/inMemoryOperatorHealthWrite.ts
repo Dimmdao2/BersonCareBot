@@ -1,11 +1,15 @@
-import type { OperatorHealthWritePort } from '@/modules/operator-health/ports';
-import { CRITICAL_ALERT_CADENCE_INTEGRATION } from '@/modules/operator-health/ports';
+import type {
+  OperatorHealthWritePort,
+  OperatorIncidentCadenceIntegration,
+} from '@/modules/operator-health/ports';
 
 /** In-memory mirror of `operator_incidents` for the generic critical-alert cadence (#1038). */
 type CriticalAlertIncidentRow = {
   id: string;
   dedupKey: string;
   direction: string;
+  /** Which cadence opened the row — the resolve sweep never crosses this line, same as in Postgres. */
+  integration: OperatorIncidentCadenceIntegration;
   openedAt: string;
   lastSeenAt: string;
   occurrenceCount: number;
@@ -165,6 +169,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
       id: `in-memory-critical-incident-${criticalAlertIncidentSeq}`,
       dedupKey: input.dedupKey,
       direction: input.direction,
+      integration: input.integration,
       openedAt: input.nowIso,
       lastSeenAt: input.nowIso,
       occurrenceCount: 1,
@@ -199,7 +204,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
       id: row.id,
       dedupKey: row.dedupKey,
       direction: row.direction,
-      integration: CRITICAL_ALERT_CADENCE_INTEGRATION,
+      integration: row.integration,
       errorClass: 'critical',
       errorDetail: row.errorDetail,
       openedAt: row.openedAt,
@@ -220,6 +225,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
     let resolved = 0;
     for (const row of criticalAlertIncidentsByDedupKey.values()) {
       if (row.resolvedAt !== null) continue;
+      if (row.integration !== input.integration) continue;
       if (active.has(row.dedupKey)) continue;
       row.resolvedAt = nowIso;
       row.alertClaimToken = null;
