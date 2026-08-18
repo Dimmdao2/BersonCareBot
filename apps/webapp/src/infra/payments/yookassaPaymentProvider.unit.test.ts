@@ -131,3 +131,99 @@ describe('yookassa createIntent — refused vs ambiguous failure classification'
     });
   });
 });
+
+// Этап 1 (1.1/1.2) — the reconciliation sweep compares this list against our journal. Two things
+// make it either a check or a false-alarm generator: it must ask for arrived money only, and it
+// must name each payment by the SAME ref `verifyWebhook` derives and the journal stored.
+describe('yookassa listPayments — what the reconciliation actually gets', () => {
+  it('asks the provider for succeeded payments only', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) =>
+      jsonResponse(200, { type: 'list', items: [], _url: String(url) }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createYookassaPaymentProvider();
+
+    await provider.listPayments!({
+      periodFromIso: '2026-08-01T00:00:00.000Z',
+      periodToIso: '2026-08-18T23:59:59.999Z',
+      providerConfig,
+    });
+
+    const requestedUrl = new URL(String(fetchMock.mock.calls[0]![0]));
+    expect(requestedUrl.searchParams.get('status')).toBe('succeeded');
+  });
+
+  it('names an invoice-paid payment by the invoice id the journal stored, not the payment id', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(200, {
+          type: 'list',
+          items: [
+            {
+              id: 'payment-2f0',
+              status: 'succeeded',
+              amount: { value: '4900.00', currency: 'RUB' },
+              invoice_details: { id: 'in-9021' },
+              metadata: { saasBillingInvoiceId: 'invoice-1', organizationId: 'org-1' },
+              refunded_amount: { value: '100.00', currency: 'RUB' },
+            },
+          ],
+        }),
+      ),
+    );
+    const provider = createYookassaPaymentProvider();
+
+    await expect(
+      provider.listPayments!({
+        periodFromIso: '2026-08-01T00:00:00.000Z',
+        periodToIso: '2026-08-18T23:59:59.999Z',
+        providerConfig,
+      }),
+    ).resolves.toEqual({
+      truncated: false,
+      items: [
+        {
+          providerPaymentRef: 'in-9021',
+          status: 'succeeded',
+          amountMinor: 490_000,
+          currency: 'RUB',
+          metadata: { saasBillingInvoiceId: 'invoice-1', organizationId: 'org-1' },
+          refundedAmountMinor: 10_000,
+        },
+      ],
+    });
+  });
+
+  it('a direct payment (no invoice) keeps its own id and reports no refunds as 0', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(200, {
+          type: 'list',
+          items: [
+            { id: 'payment-77', status: 'succeeded', amount: { value: '1500.00', currency: 'RUB' } },
+          ],
+        }),
+      ),
+    );
+    const provider = createYookassaPaymentProvider();
+
+    const result = await provider.listPayments!({
+      periodFromIso: '2026-08-01T00:00:00.000Z',
+      periodToIso: '2026-08-18T23:59:59.999Z',
+      providerConfig,
+    });
+
+    expect(result.items).toEqual([
+      {
+        providerPaymentRef: 'payment-77',
+        status: 'succeeded',
+        amountMinor: 150_000,
+        currency: 'RUB',
+        metadata: undefined,
+        refundedAmountMinor: 0,
+      },
+    ]);
+  });
+});

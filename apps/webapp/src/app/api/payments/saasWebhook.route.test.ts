@@ -85,7 +85,6 @@ async function seedManualInvoice(service: ReturnType<typeof buildService>) {
     amountMinor: 5000,
     currency: 'RUB',
     description: 'Ручной счёт — тест',
-    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
   });
 }
 

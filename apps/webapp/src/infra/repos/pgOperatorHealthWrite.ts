@@ -7,10 +7,7 @@ import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
-import {
-  CRITICAL_ALERT_CADENCE_INTEGRATION,
-  type OperatorHealthWritePort,
-} from '@/modules/operator-health/ports';
+import { type OperatorHealthWritePort } from '@/modules/operator-health/ports';
 
 const MAX_JOB_ERROR_CHARS = 2_048;
 
@@ -298,7 +295,7 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       .values({
         dedupKey: input.dedupKey,
         direction: input.direction,
-        integration: CRITICAL_ALERT_CADENCE_INTEGRATION,
+        integration: input.integration,
         errorClass: 'critical',
         errorDetail: input.errorDetail ?? null,
         openedAt: input.nowIso,
@@ -403,7 +400,8 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
     const finishedIso = new Date().toISOString();
     // Mirrors `claimDueOutboundProviderAlert`'s exclude-list pattern (jsonb array -> NOT IN),
     // which is empty-array-safe: an empty `activeDedupKeys` correctly resolves every open
-    // generic incident (a fully healthy tick with no critical candidates left).
+    // incident OF THIS CADENCE (a fully healthy tick with no critical candidates left) — and only
+    // of this cadence, so a sweep never closes rows it cannot see the candidates for.
     const result = await db.execute<{ id: string }>(sql`
       UPDATE public.operator_incidents
       SET resolved_at = ${finishedIso}::timestamptz,
@@ -411,7 +409,7 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
           alert_claim_token = NULL,
           alert_claimed_at = NULL
       WHERE resolved_at IS NULL
-        AND integration = ${CRITICAL_ALERT_CADENCE_INTEGRATION}
+        AND integration = ${input.integration}
         AND dedup_key NOT IN (
           SELECT value
           FROM jsonb_array_elements_text(${JSON.stringify(input.activeDedupKeys)}::jsonb) AS excluded(value)

@@ -34,7 +34,6 @@ const requestBody = {
   amountMinor: 5_000,
   currency: 'RUB',
   description: 'Счёт за тариф',
-  expiresAt: '2026-08-20T00:00:00.000+03:00',
 };
 
 function request(body: unknown = requestBody) {
