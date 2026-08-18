@@ -1,7 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_seam_passkey_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- TEMPORARY LOCAL MIGRATION NUMBER 0026
+-- TEMPORARY LOCAL MIGRATION NUMBER 0027
 --
 -- Три тела SECURITY DEFINER с РУКОПИСНЫМ гейтом `app.require_accepted_context(...)` не создаёт ни
 -- один файл репозитория. Проверено 18.08:
