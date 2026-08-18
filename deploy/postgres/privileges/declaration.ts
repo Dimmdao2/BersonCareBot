@@ -1817,6 +1817,7 @@ const REV10_SEAM_OWNERS = [
   'app_seam_telemetry_exclusion_owner', 'saas_telemetry_owner', 'saas_system_health_owner',
   'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
   'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
+  'app_seam_retention_sweep_owner',
 ] as const;
 
 function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
@@ -2610,6 +2611,13 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.failure-archive.prune',
       functionIdentity: 'app.prune_operator_health_failure_archive(integer)' },
+    // Одна уборка по сроку хранения на все запертые арендаторские таблицы: цель выбирается
+    // параметром из ЗАКРЫТОГО списка внутри тела, окно приходит константой вызывающего тика.
+    // Каждый тик сохраняет свою личность — общей у них только эта дверь.
+    webapp_retention_sweep: { port: 'webapp', runtimeName: 'retention_sweep',
+      sessionRole: 'app_staff', targetRole: 'app_operational_maintenance', contextClass: 'service',
+      purpose: 'retention.locked-tenant-table.sweep',
+      functionIdentity: 'app.prune_retention_target(text,integer,boolean)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -3790,6 +3798,34 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // ОДИН корень уборки по сроку хранения на четыре запертые арендаторские таблицы. Цель —
+    // не имя таблицы: это метка из ЗАКРЫТОГО списка, развёрнутого ветками внутри тела, где
+    // каждая ветка — статический DELETE по одной названной таблице. Динамического SQL в теле
+    // нет и быть не может: definer с подстановкой идентификатора от вызывающего был бы
+    // отмычкой ко всей базе. Незнакомая метка не выполняется, а отказывает (22023).
+    // Владелец 19.08: «уборка — это одинаковое действие, и не хочется плодить дубли»,
+    // «закрытый список — супер».
+    'app.prune_retention_target(text,integer,boolean)': rev10Function({
+      owner: 'app_seam_retention_sweep_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
+      execute: ['app_operational_maintenance'],
+      purpose: 'delete only rows of one closed-list retention target older than the attested window',
+      typedArgs: ['text', 'integer', 'boolean'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_hls_proxy_error_events', columns: ['created_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_events_recent', columns: ['occurred_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_user_hourly', columns: ['bucket_hour'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_push_notifications', columns: ['created_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.read_integrator_provider_runtime_setting(text)': rev10Function({
@@ -5696,11 +5732,13 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.media_hls_proxy_error_events': {
     kind: 'direct',
-    purpose: 'the accepted media housekeeping worker deletes expired HLS proxy diagnostics',
+    purpose: 'expired HLS proxy diagnostics are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/app-layer/media/hlsProxyErrorEvents.ts'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.org_brand_revisions': {
     kind: 'direct', purpose: 'patient reads only the published brand revision of its active clinic',
@@ -5769,19 +5807,23 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.product_analytics_events_recent': {
     kind: 'direct',
-    purpose: 'the accepted housekeeping worker deletes expired recent product events',
+    purpose: 'expired recent product events are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgeRecentOlderThan'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.product_analytics_user_hourly': {
     kind: 'direct',
-    purpose: 'the accepted housekeeping worker deletes expired per-user analytics aggregates',
+    purpose: 'expired per-user analytics aggregates are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgeUserHourlyOlderThan'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.product_analytics_hourly': {
     kind: 'direct',
@@ -5793,11 +5835,13 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.product_push_notifications': {
     kind: 'direct',
-    purpose: 'the accepted housekeeping worker deletes expired push analytics correlation rows',
+    purpose: 'expired push analytics correlation rows are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgePushNotificationsOlderThan'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.outgoing_delivery_queue': {
     kind: 'direct',

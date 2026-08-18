@@ -1,6 +1,6 @@
-import { lt, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { logger } from '@/app-layer/logging/logger';
+import { clampRetentionDays, pruneRetentionTarget } from '@/infra/db/pruneRetentionTarget';
 import { mediaHlsProxyErrorEvents } from '../../../db/schema';
 import {
   type HlsProxyArtifactKind,
@@ -56,27 +56,18 @@ export async function recordMediaHlsProxyErrorEventIfNeeded(input: {
   }
 }
 
+/**
+ * The table sits under a locked tenant descriptor: a relation DELETE from the maintenance role can
+ * never pass its wall, because a sweep across all clinics has no organization. It goes through the
+ * one declared retention root instead — see `pruneRetentionTarget`.
+ */
 export async function purgeStaleMediaHlsProxyErrorEvents(input: {
   retentionDays: number;
   dryRun: boolean;
 }): Promise<{ deleted: number; dryRun: boolean; retentionDays: number }> {
-  const days = Math.max(1, Math.floor(input.retentionDays));
-  const db = getDrizzle();
-  const cutoffExpr = sql`(now() - (${days}::integer * interval '1 day'))`;
-
-  if (input.dryRun) {
-    const row = await db
-      .select({ c: sql<string>`count(*)::text` })
-      .from(mediaHlsProxyErrorEvents)
-      .where(lt(mediaHlsProxyErrorEvents.createdAt, cutoffExpr));
-    const deleted = Number.parseInt(row[0]?.c ?? '0', 10) || 0;
-    return { deleted, dryRun: true, retentionDays: days };
-  }
-
-  const removed = await db
-    .delete(mediaHlsProxyErrorEvents)
-    .where(lt(mediaHlsProxyErrorEvents.createdAt, cutoffExpr))
-    .returning({ id: mediaHlsProxyErrorEvents.id });
-
-  return { deleted: removed.length, dryRun: false, retentionDays: days };
+  const days = clampRetentionDays(input.retentionDays);
+  const deleted = await pruneRetentionTarget('media_hls_proxy_error_events', days, {
+    dryRun: input.dryRun,
+  });
+  return { deleted, dryRun: input.dryRun, retentionDays: days };
 }

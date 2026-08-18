@@ -428,6 +428,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'health.failure-archive.prune', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts',
   },
+  // Один корень уборки по сроку хранения на четыре запертые арендаторские таблицы; цель
+  // приходит меткой из закрытого списка, а не именем таблицы. Один callsite на все тики —
+  // тики сохраняют свою личность, общая у них только эта дверь.
+  'app.prune_retention_target(text,integer,boolean)': {
+    port: 'webapp', targetRole: 'app_operational_maintenance', contextClass: 'service',
+    purpose: 'retention.locked-tenant-table.sweep', argCount: 3,
+    source: 'apps/webapp/src/infra/db/pruneRetentionTarget.ts',
+  },
   'app.resolve_outgoing_delivery_scope(uuid)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
     purpose: 'delivery.resolve-scope', argCount: 1,
