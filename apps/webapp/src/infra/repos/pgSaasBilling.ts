@@ -1432,12 +1432,13 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           | undefined;
         if (!tariff) return { outcome: 'seat_overage_unavailable' as const };
 
-        // The client's number is only ever COMPARED here. `decision.priceMinor` — computed by
-        // `decideClinicTeamQuota` from the tariff and the days left in the paid period — is what
-        // gets written on the invoice below.
+        // Котировка сервера сверяется со свежим расчётом под той же блокировкой. Расхождение
+        // возможно, пока котировка жива: тариф отредактировали, период сдвинулся. На счёт всегда
+        // идёт `decision.priceMinor` — то, что посчитал `decideClinicTeamQuota` здесь и сейчас, —
+        // а не число из запроса; равенство лишь доказывает, что человеку показали именно его.
         if (
-          input.quotedAmountMinor !== decision.priceMinor ||
-          input.quotedCurrency !== decision.currency
+          input.quotePriceMinor !== decision.priceMinor ||
+          input.quoteCurrency !== decision.currency
         ) {
           return {
             outcome: 'price_changed' as const,

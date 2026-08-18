@@ -196,12 +196,9 @@ export async function DELETE() {
  */
 const purchaseSchema = z.object({
   purchase: z.literal('seat_overage'),
-  requestKey: z.string().min(1).max(200),
-  // Названо «quoted», а не «amount», потому что это НЕ цена: это то, что клинике показали и с чем
-  // она согласилась. Сервер считает цену сам и лишь СВЕРЯЕТ с этим числом; расходятся — 402
-  // `seat_overage_confirmation_required` с настоящей ценой, и клиника подтверждает заново.
-  quotedAmountMinor: z.number().int().nonnegative(),
-  quotedCurrency: z.string().regex(/^[A-Z]{3}$/),
+  // Единственное, что приходит от браузера, — котировка, выписанная этим же сервером. Ни суммы, ни
+  // валюты, ни ключа запроса: цену и личность покупки сервер берёт из собственной подписи.
+  quote: z.string().min(1).max(2000),
 });
 
 export async function POST(request: Request) {

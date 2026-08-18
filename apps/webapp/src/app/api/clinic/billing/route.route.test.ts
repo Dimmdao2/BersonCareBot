@@ -14,6 +14,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 }));
 
 import { DELETE, GET, PATCH, POST } from './route';
+import { issueSeatOverageQuote } from '@/modules/saas-billing/seatOverageQuote';
 import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
 import { PaymentProviderRequestRefusedError } from '@/modules/payments/providerPort';
 
@@ -215,20 +216,133 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     });
   }
 
+  function quoteFor(priceMinor: number, organization: string = organizationId): string {
+    return issueSeatOverageQuote({ organizationId: organization, priceMinor, currency: 'RUB' })
+      .token;
+  }
+
   it('does not issue an invoice when a seat became available', async () => {
     purchaseSeatOverage.mockResolvedValue({ outcome: 'seat_available' });
 
-    const response = await POST(
-      request({
-        purchase: 'seat_overage',
-        requestKey: 'stable-key',
-        quotedAmountMinor: 15_000,
-        quotedCurrency: 'RUB',
-      }),
-    );
+    const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, outcome: 'seat_available' });
+  });
+
+  /**
+   * Единственное денежное число, которое видит сервис, приходит из собственной подписи сервера,
+   * а не из тела запроса. Пробивается: покупка снова берёт сумму из JSON.
+   */
+  it('takes the price from its own signed quote, never from the request body', async () => {
+    purchaseSeatOverage.mockResolvedValue({ outcome: 'seat_available' });
+
+    await POST(
+      request({
+        purchase: 'seat_overage',
+        quote: quoteFor(15_000),
+        // Числа, которые клиент мог бы попытаться навязать: сервер их не читает.
+        quotedAmountMinor: 1,
+        quotedCurrency: 'RUB',
+        priceMinor: 1,
+      }),
+    );
+
+    expect(purchaseSeatOverage).toHaveBeenCalledWith({
+      organizationId,
+      quote: expect.objectContaining({ priceMinor: 15_000, currency: 'RUB' }),
+    });
+  });
+
+  /** Подделанная котировка — не «дешевле», а вообще не покупка. */
+  it('refuses a tampered quote without reaching the billing service', async () => {
+    const [version, payload, signature] = quoteFor(15_000).split('.');
+    const forgedPayload = Buffer.from(
+      JSON.stringify({
+        ...(JSON.parse(Buffer.from(payload!, 'base64url').toString('utf8')) as object),
+        amt: 1,
+      }),
+      'utf8',
+    ).toString('base64url');
+
+    const response = await POST(
+      request({ purchase: 'seat_overage', quote: `${version}.${forgedPayload}.${signature}` }),
+    );
+
+    expect(response.status).toBe(402);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'seat_overage_quote_expired',
+    });
+    expect(purchaseSeatOverage).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Котировка выписана конкретной клинике. Валидная подпись чужой организации не делает покупку
+   * своей — иначе одна клиника покупала бы место по цене другой.
+   */
+  it('refuses a validly signed quote issued to another clinic', async () => {
+    const response = await POST(
+      request({
+        purchase: 'seat_overage',
+        quote: quoteFor(15_000, '33333333-3333-4333-8333-333333333333'),
+      }),
+    );
+
+    expect(response.status).toBe(402);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'seat_overage_quote_expired',
+    });
+    expect(purchaseSeatOverage).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Просроченная котировка не перевыпускается молча: цена, которую человек видел, больше не
+   * действует, и решение принимает он, а не сервер.
+   */
+  it('refuses an expired quote instead of repricing it', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-08-19T10:00:00.000Z'));
+      const quote = quoteFor(15_000);
+      vi.setSystemTime(new Date('2026-08-19T10:15:01.000Z'));
+
+      const response = await POST(request({ purchase: 'seat_overage', quote }));
+
+      expect(response.status).toBe(402);
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        error: 'seat_overage_quote_expired',
+      });
+      expect(purchaseSeatOverage).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * Цена округляется по целым суткам UTC, поэтому котировка не имеет права пережить полночь: за
+   * полночью остаток оплаченного периода короче и место дешевле. Прежняя сверка сумм отказывала
+   * ровно здесь — отказ сохранён.
+   */
+  it('refuses a quote that would cross the UTC day boundary its price is rounded by', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-08-19T23:55:00.000Z'));
+      const quote = quoteFor(15_000);
+      vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'));
+
+      const response = await POST(request({ purchase: 'seat_overage', quote }));
+
+      expect(response.status).toBe(402);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'seat_overage_quote_expired',
+      });
+      expect(purchaseSeatOverage).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('returns the fresh server quote without an invoice when the price changed', async () => {
@@ -238,21 +352,28 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       currency: 'RUB',
     });
 
-    const response = await POST(
-      request({
-        purchase: 'seat_overage',
-        requestKey: 'stable-key',
-        quotedAmountMinor: 15_000,
-        quotedCurrency: 'RUB',
-      }),
-    );
+    const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
 
     expect(response.status).toBe(402);
-    await expect(response.json()).resolves.toEqual({
+    const body = (await response.json()) as {
+      ok: boolean;
+      error: string;
+      quote: string;
+      priceMinor: number;
+      currency: string;
+    };
+    expect(body).toMatchObject({
       ok: false,
       error: 'seat_overage_confirmation_required',
       priceMinor: 18_000,
       currency: 'RUB',
+    });
+    // Экран получает НОВУЮ цену вместе с котировкой на неё — подтверждает снова человек.
+    purchaseSeatOverage.mockResolvedValue({ outcome: 'seat_available' });
+    await POST(request({ purchase: 'seat_overage', quote: body.quote }));
+    expect(purchaseSeatOverage).toHaveBeenLastCalledWith({
+      organizationId,
+      quote: expect.objectContaining({ priceMinor: 18_000 }),
     });
   });
 
@@ -262,14 +383,7 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       invoice: { id: 'seat-invoice', providerCheckoutUrl: 'https://pay.example/seat' },
     });
 
-    const response = await POST(
-      request({
-        purchase: 'seat_overage',
-        requestKey: 'stable-key',
-        quotedAmountMinor: 15_000,
-        quotedCurrency: 'RUB',
-      }),
-    );
+    const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -277,6 +391,35 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       checkoutUrl: 'https://pay.example/seat',
       invoiceId: 'seat-invoice',
     });
+  });
+
+  /**
+   * Двойной клик — это дважды одна и та же котировка, значит один и тот же `purchaseKey`, значит
+   * один и тот же ключ идемпотентности провайдера. Второго механизма не добавлено.
+   */
+  it('sends one and the same purchase identity when the same quote is submitted twice', async () => {
+    purchaseSeatOverage.mockResolvedValue({
+      outcome: 'checkout',
+      invoice: { id: 'seat-invoice', providerCheckoutUrl: 'https://pay.example/seat' },
+    });
+    const quote = quoteFor(15_000);
+
+    await Promise.all([
+      POST(request({ purchase: 'seat_overage', quote })),
+      POST(request({ purchase: 'seat_overage', quote })),
+    ]);
+
+    const purchaseKeys = () =>
+      (purchaseSeatOverage.mock.calls as Array<[{ quote: { purchaseKey: string } }]>).map(
+        (call) => call[0].quote.purchaseKey,
+      );
+    const keys = purchaseKeys();
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(1);
+
+    // А отдельная покупка — отдельная котировка и отдельная личность покупки.
+    await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
+    expect(purchaseKeys()[2]).not.toBe(keys[0]);
   });
 
   it('rejects a direct seat purchase in read-only before the billing service', async () => {
@@ -287,14 +430,7 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       saasBilling: { purchaseSeatOverage },
     });
 
-    const response = await POST(
-      request({
-        purchase: 'seat_overage',
-        requestKey: 'stable-key',
-        quotedAmountMinor: 15_000,
-        quotedCurrency: 'RUB',
-      }),
-    );
+    const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
@@ -302,7 +438,7 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
   });
 
   it('rejects a malformed typed purchase instead of falling through to tariff renewal', async () => {
-    const response = await POST(request({ purchase: 'seat_overage', requestKey: '' }));
+    const response = await POST(request({ purchase: 'seat_overage', quote: '' }));
 
     expect(response.status).toBe(400);
     expect(purchaseSeatOverage).not.toHaveBeenCalled();
