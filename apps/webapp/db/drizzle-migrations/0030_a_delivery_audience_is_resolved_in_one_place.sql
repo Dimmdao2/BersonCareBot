@@ -91,7 +91,7 @@ BEGIN
     -- `user_contacts` — источник истины по телефону (одна учётка = один телефон). Несколько
     -- канонических строк на один телефон — это дефект данных, а не пустая аудитория: молча
     -- выбрать первую значило бы отправить уведомление постороннему.
-    SELECT count(*), min(contact.platform_user_id)
+    SELECT count(*), (array_agg(contact.platform_user_id))[1]
     INTO v_match_count, v_user_id
     FROM public.user_contacts AS contact
     JOIN public.platform_users AS holder ON holder.id = contact.platform_user_id
