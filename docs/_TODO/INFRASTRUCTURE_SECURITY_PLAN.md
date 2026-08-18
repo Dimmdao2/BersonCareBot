@@ -196,10 +196,14 @@ plans либо текущему отдельному DB privilege plan. В эт�
       protocol/cipher/certificate проверяются автоматически снаружи.
 - [ ] **IS-I1-09. PostgreSQL host prerequisite.** Cluster создаётся с checksums, не слушает public interface и
       предоставляет только host/mTLS prerequisites текущему DB privilege plan. Roles/grants/RLS здесь не описываются.
-- [ ] **IS-I1-10. Host malware protection.** На host действует обновляемая malware protection с scheduled/on-demand
-      scan, quarantine/alert и исключениями только по доказанной необходимости. Сканирование пользовательских upload
-      остаётся продуктовым security control и не подменяется host scanner.
-
+- [x] **IS-I1-10. Host malware protection — закрыто 18.08 как принятый риск.** Решением владельца антивирус не
+      ставится ни на хост, ни в конвейер загрузки. Основания и полный перечень компенсирующих мер —
+      [`DEFERRED_INFRA_TRIGGERS.md`](DEFERRED_INFRA_TRIGGERS.md) D-7. Коротко: сканер разбирает враждебный ввод
+      от root и сам является поверхностью атаки; сигнатуры ClamAV из РФ недоступны (проверено, `403`), а сканер
+      без сигнатур рапортует «чисто» на любом хосте; на сервере ничего загруженного не исполняется. Вместо него
+      работает переупаковка видео, закрытый список форматов, запрет SVG, выдача документов вложением, отдельные
+      учётки и песочница systemd, контроль целостности AIDE. Остаточный риск — заражённый файл, открытый врачом
+      у себя; сильнейший невзятый рычаг — перекодирование изображений (`SECURITY_CANON.md` §5).
 ## I2 — S3, дисковое и прикладное шифрование
 
 - [ ] **IS-I2-01. Storage split.** Patient clinical files и doctor/CMS/HLS content находятся в разных bucket либо
