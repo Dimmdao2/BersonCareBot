@@ -124,7 +124,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 394 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 395 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -154,17 +154,20 @@ test('all 394 declared functions have the exact source-reconstructed base type a
   // прибавка — одна новая функция, а не перепись существующих.
   // 389 → 391 (19.08): два корня аудитории доставки из миграции 0030.
   // 391 → 392 (19.08): миграция 0031 — ОДИН именованный корень уборки `app.prune_retention_target(text,integer,boolean)` с закрытым списком целей.
-  assert.equal(canonical.size, 392);
+  // 391 → 392 (19.08): `app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint)` —
+  // проверка заявки на арендатора при установке контекста (`deploy/postgres/port-context/contract.sql`).
+  // Прибавка — одна новая функция шва личностей, а не перепись существующих.
+  assert.equal(canonical.size, 393);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
     return counts;
   }, {});
   // SCALAR 267 → 268 (19.08): `app.prune_retention_target(text,integer,boolean)` возвращает bigint.
-  assert.deepEqual(forms, { SCALAR: 268, TABLE: 120, SETOF: 4 });
+  assert.deepEqual(forms, { SCALAR: 269, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
   // 269 → 270 (19.08): корень уборки скалярный — возвращает число убранных строк.
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 270);
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 271);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -389,12 +392,14 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // +1 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029.
   // +2 (19.08): оба корня аудитории доставки из миграции 0030.
   // +1 (19.08): `app.prune_retention_target(text,integer,boolean)` — миграция 0031.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 379);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 377);
+  // +1 (19.08): `app_ext.assert_port_context_claim(...)` — проверка заявки на арендатора при
+  // установке контекста; SECURITY DEFINER, поэтому двигает и общий счётчик, и счётчик DEFINER.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 380);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 378);
   // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
   // DEFINER выше не двигаются.
-  assert.equal(testFunctions.length, 394);
-  assert.equal(devFunctions.length, 392);
+  assert.equal(testFunctions.length, 395);
+  assert.equal(devFunctions.length, 393);
   // 44 → 45 (19.08): у корня уборки собственный владелец шва `app_seam_retention_sweep_owner`.
   // Занять соседнего значило бы расширить его шов на чужие таблицы.
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 45);
@@ -613,7 +618,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 379 : 377;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 380 : 378;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),
