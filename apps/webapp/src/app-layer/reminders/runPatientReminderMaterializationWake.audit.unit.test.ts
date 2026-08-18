@@ -28,23 +28,31 @@ const rule: PatientReminderRuleForMaterialization = {
   displayTitle: null,
   reminderIntent: 'warmup',
   notificationTopicCode: 'warmup_reminders',
+  linkedTitle: null,
 };
 
 describe('D30 Ш4 saved oracle: canonical snooze generation', () => {
   it('materializes a planned snoozed occurrence even after its original rule slot is past', async () => {
     const materializeOccurrence = vi.fn(async () => 'materialized' as const);
     const port: PatientReminderMaterializationPort = {
-      listEnabledRules: vi.fn(async () => [rule]),
-      listDuePlannedOccurrences: vi.fn(async () => [
-        {
-          ruleId: rule.id,
-          draft: {
-            occurrenceKey: 'rule-snoozed:2026-08-03T07:00:00.000Z',
-            plannedAt: '2026-08-03T07:04:00.000Z',
+      readSnapshot: vi.fn(async () => ({
+        rules: [rule],
+        dueOccurrences: [
+          {
+            ruleId: rule.id,
+            draft: {
+              occurrenceKey: 'rule-snoozed:2026-08-03T07:00:00.000Z',
+              plannedAt: '2026-08-03T07:04:00.000Z',
+            },
+            occurrence: {
+              id: 'occurrence-snoozed',
+              deliveryGeneration: 1,
+              plannedAt: '2026-08-03T07:04:00.000Z',
+            },
           },
-        },
-      ]),
-      resolveLinkedTitle: vi.fn(async () => null),
+        ],
+      })),
+      readDeliveryTargetSnapshot: vi.fn(async () => null),
       materializeOccurrence,
     };
 

@@ -763,6 +763,15 @@ export function collectGaps(declaration, dbName) {
       if (fn.invocation === 'trigger' && fn.execute.length !== 0) {
         add(`portContext.functions.${signature}.execute`, 'trigger root must not have a runtime EXECUTE grantee');
       }
+      // A declared relation surface is what makes the generator grant the OWNER column access and
+      // write the owner's seam RLS policies. A SECURITY INVOKER body never assumes that owner, so
+      // those grants land on a role the function never runs as while the body keeps the privileges
+      // of whoever happened to call it. Under a deferred constraint trigger that caller is the bare
+      // login role at COMMIT, and the check dies with 42501 instead of deciding anything.
+      if ((fn.relationSurfaces?.length ?? 0) > 0 && fn.security !== 'DEFINER') {
+        add(`portContext.functions.${signature}.security`,
+          'a declared relation surface is reachable only through SECURITY DEFINER');
+      }
       if (fn.bodyRelationSurfaceContract && (fn.security !== 'DEFINER'
         || (fn.relationSurfaces?.length ?? 0) > 0 || (fn.delegatesTo?.length ?? 0) > 0)) {
         add(`portContext.functions.${signature}.bodyRelationSurfaceContract`,
@@ -782,6 +791,28 @@ export function collectGaps(declaration, dbName) {
           if (!surface.operations.includes(operation) || !Array.isArray(columns) || columns.length === 0
             || columns.some((column) => !surface.columns.includes(column))) {
             add(ssite, `operation-specific columns are invalid for '${operation}'`);
+          }
+        }
+        // INSERT + UPDATE на одной таблице — это `INSERT … ON CONFLICT DO UPDATE`. PostgreSQL под
+        // FORCE RLS требует на таком стейтменте SELECT по ВСЕМ колонкам поверхности: он читает
+        // конфликтующую строку, чтобы проверить USING-квалы UPDATE-политики. Урезанный SELECT даёт
+        // «permission denied for table», а не «for column», поэтому лексический анализ тела функции
+        // этот случай не видит: в тексте функции колонка на чтение не упомянута.
+        // Провал 17-18.08: c77a799c4 и c4c9b3a85 сузили здесь SELECT — у пациента молча перестали
+        // работать настройки уведомлений, оценка материала и смена ФИО.
+        if (surface.operations.includes('INSERT') && surface.operations.includes('UPDATE')) {
+          if (!surface.operations.includes('SELECT')) {
+            add(ssite, 'upsert surface (INSERT+UPDATE) must declare SELECT: '
+              + 'ON CONFLICT DO UPDATE reads the conflicting row under FORCE RLS');
+          }
+          if (surface.operationColumns?.SELECT) {
+            add(ssite, 'upsert surface (INSERT+UPDATE) must not narrow SELECT via operationColumns: '
+              + 'ON CONFLICT DO UPDATE needs SELECT on every surface column under FORCE RLS');
+          }
+        }
+        for (const operation of surface.tableOperations ?? []) {
+          if (!surface.operations.includes(operation)) {
+            add(ssite, `table operation is absent from the canonical surface operations: '${operation}'`);
           }
         }
       }
@@ -1523,7 +1554,7 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
 /* ─────────────────────────── генерация SQL ─────────────────────────── */
 
 /**
- * Exact per-database function closure. It is exported separately so a disposable PostgreSQL 16
+ * Exact per-database function closure. It is exported separately so a named-environment catalog
  * catalog can prove the census even while unrelated relation-access gaps keep the full artifact
  * fail-closed.
  */

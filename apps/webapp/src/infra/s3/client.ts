@@ -83,15 +83,61 @@ export async function presignPutUrl(key: string, mimeType: string): Promise<stri
   return getSignedUrl(client, cmd, { expiresIn: PRESIGN_PUT_EXPIRES_SEC });
 }
 
-/** Presigned GET for objects stored under S3_PRIVATE_BUCKET (media_files, intake attachments). */
+/**
+ * Formats a browser may render in place. Everything else is handed over as a download.
+ *
+ * The list is short on purpose. A PDF carries scripts and its viewer is an attack surface; a text or CSV
+ * file gets re-interpreted as HTML by browsers that sniff; an Office document opens in a desktop
+ * application. Images are here because upload validation already proved their bytes match the declared
+ * format, so a "PNG" cannot in fact be a script.
+ */
+const INLINE_RENDERABLE_MIME: ReadonlySet<string> = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/aac',
+  'audio/mp4',
+  'audio/x-m4a',
+  'application/vnd.apple.mpegurl',
+]);
+
+/** RFC 5987 — a filename with a comma or a quote in it must not be able to inject header parameters. */
+function contentDispositionFor(mimeType: string | undefined, filename: string | undefined): string {
+  const kind = mimeType && INLINE_RENDERABLE_MIME.has(mimeType) ? 'inline' : 'attachment';
+  if (!filename) return kind;
+  const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+/**
+ * Presigned GET for objects stored under S3_PRIVATE_BUCKET (media_files, intake attachments).
+ *
+ * A presigned redirect takes the browser to the storage host, where none of this application's response
+ * headers apply: whatever content type the object carries is what the browser acts on. Passing the type we
+ * validated at upload time, and a disposition, moves those two decisions back to us. Callers that omit them
+ * keep the previous behaviour, so this cannot silently change how existing media is delivered.
+ */
 export async function presignGetUrl(
   key: string,
   expiresSec: number = PRESIGN_GET_DEFAULT_SEC,
+  serve?: { mimeType?: string; filename?: string },
 ): Promise<string> {
   const client = getS3Client();
   const cmd = new GetObjectCommand({
     Bucket: privateBucket(),
     Key: key,
+    ...(serve?.mimeType ? { ResponseContentType: serve.mimeType } : {}),
+    ...(serve?.mimeType || serve?.filename
+      ? { ResponseContentDisposition: contentDispositionFor(serve.mimeType, serve.filename) }
+      : {}),
   });
   return getSignedUrl(client, cmd, { expiresIn: expiresSec });
 }

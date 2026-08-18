@@ -1885,6 +1885,21 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
 
 const rev10Function = <T extends DeclaredFunction>(entry: T): T => entry;
 
+function retainFunctionSurfaceOperationsWithTableRequirements(
+  identity: string,
+  requiredByRelation: Readonly<Record<string, readonly Privilege[]>>,
+): readonly FunctionRelationSurface[] {
+  return (BUSINESS_SEAM_FUNCTIONS[identity]?.relationSurfaces ?? []).map((surface) => {
+    const required = requiredByRelation[surface.relation] ?? [];
+    for (const operation of required) {
+      if (!surface.operations.includes(operation)) {
+        throw new Error(`${identity}:${surface.relation} table operation ${operation} is absent from the canonical function surface`);
+      }
+    }
+    return { ...surface, ...(required.length > 0 ? { tableOperations: required } : {}) };
+  });
+}
+
 const patientSelfCapability = (purpose: string, functionIdentity: string) => ({
   port: 'webapp' as const,
   sessionRole: 'app_patient',
@@ -2216,7 +2231,6 @@ const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
   'api/internal/product-analytics/retention:POST',
-  'operator-health-failure-archive:prune',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
@@ -2592,6 +2606,10 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.webhook-errors.prune',
       functionIdentity: 'app.prune_integration_webhook_error_events(integer)' },
+    webapp_health_archive_prune: { port: 'webapp', runtimeName: 'health_archive_prune',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.failure-archive.prune',
+      functionIdentity: 'app.prune_operator_health_failure_archive(integer)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -2689,6 +2707,18 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.reminder-occurrence-finalized.record',
       functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
+    patient_reminder_materialization_snapshot_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.snapshot.read',
+      functionIdentity: 'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)' },
+    patient_reminder_materialization_targets_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.targets.read',
+      functionIdentity: 'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)' },
+    patient_reminder_materialization_commit: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.commit',
+      functionIdentity: 'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)' },
     integrator_web_push_subscriptions_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.web-push-subscriptions.read',
@@ -3083,6 +3113,42 @@ const REV10_CONTEXT = {
         'app_clinic_billing',
       ],
     },
+    // L-10 (миграция 0023). `amount_minor` — колонка, которую арендная роль не переписывает никогда,
+    // поэтому у `app_clinic_billing` нет и не появляется UPDATE на неё: сумму счёта выводит этот шов,
+    // из строки тарифа ЭТОЙ подписки, и не принимает от вызывающего. Аргумент `p_tariff_id` выбирает
+    // только между текущим и запланированным тарифом той же подписки — всё прочее шов отклоняет.
+    'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_clinic_billing'],
+      purpose: 'refresh one unclaimed period draft onto the purchased tariff with a derived amount',
+      typedArgs: ['uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_invoices',
+          columns: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
+            'expires_at', 'status', 'provider_invoice_ref', 'tariff_id', 'tariff_name', 'amount_minor',
+            'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: {
+            SELECT: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
+              'expires_at', 'status', 'provider_invoice_ref'],
+            UPDATE: ['tariff_id', 'tariff_name', 'amount_minor', 'currency', 'tariff_billing_period',
+              'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_billing_subscriptions',
+          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'paid_additional_seats'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // `SELECT *` — снимок тарифа в счёте есть копия живой строки целиком (`to_jsonb`), поэтому
+        // верхняя граница чтения здесь вся таблица; ровно её этот владелец шва уже читает сегодня.
+        { relation: 'public.saas_tariffs',
+          columns: ['additional_seat_price_minor', 'billing_period', 'created_at', 'currency', 'description',
+            'discounted_price_minor', 'downgrade_policies', 'id', 'included_seats', 'is_active',
+            'mailing_templates', 'mechanic_access_policies', 'mechanics', 'name', 'price_minor', 'quotas',
+            'system_access_policy', 'updated_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.touch_current_patient_support_conversation_activity(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.touch_current_patient_support_conversation_activity(uuid)'],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
@@ -3287,17 +3353,45 @@ const REV10_CONTEXT = {
       invocation: 'trigger' as const,
       bodyRelationSurfaceContract: 'relation-birth-wall' as const,
     }),
+    // Both slug guards are CONSTRAINT TRIGGERs declared DEFERRABLE INITIALLY DEFERRED, so their
+    // bodies execute at COMMIT — after withPortContextTransaction has already run RESET ROLE and
+    // app.clear_port_context(). As SECURITY INVOKER they therefore ran as the bare login role
+    // (bcb_dev_webapp_staff), which holds no USAGE on schema public, and every clinic slug rename
+    // died with 42501 "permission denied for schema public". Owning them by the existing public-slug
+    // seam makes the deferred check independent of whichever role is in effect at COMMIT; the
+    // surfaces below are exactly the columns the two bodies read and nothing else.
     'app.assert_organization_slug_alias_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [],
       purpose: 'deferred organization slug alias completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims',
+          columns: ['kind', 'organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.organization_slug_rename_events',
+          columns: ['next_slug', 'organization_id', 'previous_slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.assert_organization_slug_rename_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [],
       purpose: 'deferred organization slug rename completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims',
+          columns: ['kind', 'organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.clinic_public_directory_entries',
+          columns: ['organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.organization_slug_rename_events',
+          columns: ['next_slug', 'organization_id', 'previous_slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.enforce_lfk_child_owner()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
@@ -3443,12 +3537,10 @@ const REV10_CONTEXT = {
       typedArgs: ['text', 'text', 'integer', 'integer', 'text', 'integer', 'integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
-      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
-        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'
-      ].relationSurfaces?.map((surface) => ({
-        ...surface,
-        tableOperations: ['SELECT' as const],
-      })) ?? [],
+      relationSurfaces: retainFunctionSurfaceOperationsWithTableRequirements(
+        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)',
+        { 'public.auth_rate_limit_events': ['SELECT', 'DELETE'] },
+      ),
     }),
     'app.read_public_runtime_setting(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_public_runtime_setting(text,text)'],
@@ -3633,6 +3725,14 @@ const REV10_CONTEXT = {
       purpose: 'delete only webhook error events older than the attested retention window', typedArgs: ['integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.integration_webhook_error_events', columns: ['occurred_at'],
+        operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.prune_operator_health_failure_archive(integer)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: ['app_worker'],
+      purpose: 'delete only archived health failures older than the attested retention window', typedArgs: ['integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_health_failure_archive', columns: ['archived_at'],
         operations: ['SELECT' as const, 'DELETE' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
@@ -4351,7 +4451,6 @@ const REV10_CONTEXT = {
         { relation: 'public.material_ratings', columns: [
           'organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'target_kind', 'target_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4381,7 +4480,6 @@ const REV10_CONTEXT = {
         { relation: 'public.user_identity',
           columns: ['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['platform_user_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.admin_audit_log',
           columns: ['organization_id', 'actor_id', 'action', 'target_id', 'details'],
@@ -4419,7 +4517,6 @@ const REV10_CONTEXT = {
           'organization_id', 'user_id', 'content_page_id', 'last_rotation_at',
           'skip_next_scheduled_rotation', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'content_page_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4563,7 +4660,6 @@ const REV10_CONTEXT = {
         { relation: 'public.user_notification_topics', columns: [
           'user_id', 'topic_code', 'is_enabled', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'topic_code'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4580,7 +4676,6 @@ const REV10_CONTEXT = {
         { relation: 'public.user_notification_topic_channels', columns: [
           'user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'topic_code', 'channel_code'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4870,7 +4965,7 @@ const REV10_CONTEXT = {
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       bodyRelationSurfaceContract: 'port-context' as const }),
     'app.require_attested_context_for_roles(name,name[])': rev10Function({
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_SEAM_OWNERS],
@@ -4976,7 +5071,7 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
@@ -4984,6 +5079,22 @@ const REV10_CONTEXT = {
     'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
+    // Deferred constraint trigger on app_ext.accepted_port_contexts: the accepted context is deleted
+    // at COMMIT of the very transaction that installed it, so a committed context row cannot exist
+    // and no periodic sweep is needed. DEFINER on the table owner because the effective role at
+    // COMMIT is the bare login, which holds no USAGE on app_ext.
+    'app_ext.expire_accepted_port_context()': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [], purpose: 'delete the accepted port context at COMMIT of its own transaction',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app_ext, pg_temp'], invocation: 'trigger' as const,
+      relationSurfaces: [{
+        relation: 'app_ext.accepted_port_contexts',
+        columns: ['database_oid', 'backend_pid', 'transaction_id'],
+        operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const,
+      }],
+    }),
     'app_ext.resolve_variant_a_physical(uuid)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
       purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid'],
@@ -5061,11 +5172,14 @@ function withoutConvertedPatientWrites(
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.admin_audit_log': {
-    kind: 'direct', purpose: 'platform operations reads and appends the non-clinical administrative event journal',
+    kind: 'direct',
+    purpose: 'platform operations reads and appends the non-clinical administrative event journal; '
+      + 'the clinic billing role appends only its own organization row when the clinic owner changes tariff',
     codePaths: [
       'apps/webapp/src/infra/adminAuditLog.ts#listAdminAuditLog',
       'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts#appendAudit',
       'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts#appendManualAssignmentAudit',
     ],
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: [
@@ -5073,6 +5187,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         'last_seen_at', 'resolved_at', 'created_at',
       ] },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
+        'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
+      ] },
+      // Стена `platform-role+clinic` уже объявляет: org-строки живут под стеной клиники. Владелец
+      // клиники меняет тариф под ролью app_clinic_billing, и тот же путь обязан записать «кто что
+      // сделал». Даём ТОЛЬКО INSERT: читать журнал арендатор по-прежнему не может, править и удалять
+      // записи — тоже. Колонки перечислены все, потому что drizzle именует в INSERT каждую колонку
+      // таблицы (включая DEFAULT-ные), а PostgreSQL проверяет привилегию на каждую названную.
+      { role: 'app_clinic_billing', operations: ['INSERT'], columns: [
         'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
         'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
       ] },
@@ -5647,11 +5770,10 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.operator_health_failure_archive': {
-    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; the maintenance worker prunes expired rows; platform access is sanitized through named seams',
+    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; retention and platform access are sanitized through named seams',
     codePaths: ['apps/webapp/src/app/api/doctor/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
   },
   'integrator.projection_outbox': {
@@ -5811,7 +5933,7 @@ const REV10_EMPTY_TYPED_ARGS_HASH = "decode('0355fd5ea0ae72a2f99fa916e9a78d189b3
 
 function revision10ContextGates(table: string, index: number, access: RelationAccess): PolicyDecl[] {
   const directRoles = access.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
-  const ordinaryPredicate = `app.require_accepted_context(current_user::name, current_user::name, ${REV10_CONTEXT_ROLE_CLASS}, 'relation', ${REV10_EMPTY_TYPED_ARGS_HASH}, NULL::regprocedure)`;
+  const ordinaryPredicate = `(SELECT app.require_accepted_context(current_user::name, current_user::name, ${REV10_CONTEXT_ROLE_CLASS}, 'relation', ${REV10_EMPTY_TYPED_ARGS_HASH}, NULL::regprocedure))`;
   const ordinaryDirectRoles = directRoles;
   const seams = access.kind === 'direct' || access.kind === 'named-seams' ? access.seams : [];
   const seamOwners = [...new Set(seams.map((seam) => seam.owner))].sort();
@@ -5965,10 +6087,10 @@ function revision10TenantMemberPredicate(tableKey: string, ref: TenantMembership
     ? `tenant_patient.platform_user_id = ${outerColumn}`
     : `tenant_patient.platform_user_id::text = ${outerColumn}`;
   return `(EXISTS (SELECT 1 FROM public.be_organization_members tenant_staff`
-    + ` WHERE ${staffMatch} AND tenant_staff.organization_id = app.current_org_id()`
+    + ` WHERE ${staffMatch} AND tenant_staff.organization_id = (SELECT app.current_org_id())`
     + ` AND tenant_staff.status = 'active')`
     + ` OR EXISTS (SELECT 1 FROM public.org_enrollments tenant_patient`
-    + ` WHERE ${patientMatch} AND tenant_patient.organization_id = app.current_org_id()`
+    + ` WHERE ${patientMatch} AND tenant_patient.organization_id = (SELECT app.current_org_id())`
     + ` AND tenant_patient.status = 'active'))`;
 }
 
@@ -5986,18 +6108,18 @@ function revision10TenantMembershipPredicate(
 function revision10TenantBasePredicate(tableKey: string): string {
   if (REV10_TENANT_DIRECT_ORG.has(tableKey)) {
     return tableKey === 'public.be_organizations'
-      ? '(id = app.current_org_id())'
-      : '(organization_id = app.current_org_id())';
+      ? '(id = (SELECT app.current_org_id()))'
+      : '(organization_id = (SELECT app.current_org_id()))';
   }
   const membership = REV10_TENANT_MEMBERSHIP_BASE[tableKey];
   if (membership) return revision10TenantMembershipPredicate(tableKey, membership, true);
   if (tableKey === 'public.be_patient_package_items') {
     return `(EXISTS (SELECT 1 FROM public.be_patient_packages tenant_package`
       + ` WHERE tenant_package.id = be_patient_package_items.patient_package_id`
-      + ` AND tenant_package.organization_id = app.current_org_id())`
+      + ` AND tenant_package.organization_id = (SELECT app.current_org_id()))`
       + ` AND EXISTS (SELECT 1 FROM public.be_clinic_services tenant_service`
       + ` WHERE tenant_service.id = be_patient_package_items.service_id`
-      + ` AND tenant_service.organization_id = app.current_org_id()))`;
+      + ` AND tenant_service.organization_id = (SELECT app.current_org_id())))`;
   }
   throw new Error(`missing tenant D/M/P base predicate for ${tableKey}`);
 }
@@ -6008,29 +6130,29 @@ function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSE
   if (tableKey === 'public.support_conversation_messages') {
     return `EXISTS (SELECT 1 FROM public.support_conversations tenant_conversation`
       + ` WHERE tenant_conversation.id = support_conversation_messages.conversation_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`;
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.support_delivery_events' && operation === 'INSERT') {
     return nullableParent('conversation_message_id', `EXISTS (SELECT 1 FROM public.support_conversation_messages tenant_message`
       + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_message.conversation_id`
       + ` WHERE tenant_message.id = support_delivery_events.conversation_message_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`);
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`);
   }
   if (tableKey === 'public.support_question_messages' && operation === 'INSERT') {
     return `EXISTS (SELECT 1 FROM public.support_questions tenant_question`
       + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_question.conversation_id`
       + ` WHERE tenant_question.id = support_question_messages.question_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`;
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.support_questions') {
     return nullableParent('conversation_id', `EXISTS (SELECT 1 FROM public.support_conversations tenant_conversation`
       + ` WHERE tenant_conversation.id = support_questions.conversation_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`);
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`);
   }
   if (tableKey === 'public.treatment_program_events' && operation === 'INSERT') {
     return `EXISTS (SELECT 1 FROM public.treatment_program_instances tenant_instance`
       + ` WHERE tenant_instance.id = treatment_program_events.instance_id`
-      + ` AND tenant_instance.organization_id = app.current_org_id())`;
+      + ` AND tenant_instance.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.program_action_log' && operation === 'UPDATE') {
     return `EXISTS (SELECT 1 FROM public.treatment_program_instances tenant_instance`
@@ -6038,12 +6160,12 @@ function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSE
       + ` JOIN public.treatment_program_instance_stage_items tenant_item ON tenant_item.stage_id = tenant_stage.id`
       + ` WHERE tenant_instance.id = program_action_log.instance_id`
       + ` AND tenant_item.id = program_action_log.instance_stage_item_id`
-      + ` AND tenant_instance.organization_id = app.current_org_id())`;
+      + ` AND tenant_instance.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.symptom_entries' && operation === 'UPDATE') {
     return `EXISTS (SELECT 1 FROM public.symptom_trackings tenant_tracking`
       + ` WHERE tenant_tracking.id = symptom_entries.tracking_id`
-      + ` AND tenant_tracking.organization_id = app.current_org_id())`;
+      + ` AND tenant_tracking.organization_id = (SELECT app.current_org_id()))`;
   }
   return undefined;
 }
@@ -6097,22 +6219,22 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   const rolePredicate = ordinaryRoles.length > 0
     ? ordinaryRoles.map((role) => `current_user = '${role}'::name`).join(' OR ')
     : 'false';
-  if (tableKey === 'public.clinical_test_regions') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
-    + ' AND EXISTS (SELECT 1 FROM public.tests parent_test WHERE parent_test.id = clinical_test_id AND parent_test.organization_id = app.current_org_id())'
-    + ' AND EXISTS (SELECT 1 FROM public.reference_items parent_region WHERE parent_region.id = body_region_id AND parent_region.organization_id = app.current_org_id()))';
-  if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
-    + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = app.current_org_id()))';
-  if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = app.current_org_id())";
-  if (tableKey === 'public.content_pages') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_published = true AND archived_at IS NULL AND deleted_at IS NULL ELSE false END)";
-  if (tableKey === 'public.content_sections') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_visible = true ELSE false END)";
-  if (tableKey === 'public.content_section_slug_history') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = app.current_org_id())";
-  if (tableKey === 'public.doctor_patient_support') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND patient_user_id = app.current_patient_user_id() ELSE false END)";
-  if (tableKey === 'public.reference_categories' || tableKey === 'public.reference_items') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = app.current_org_id())";
-  if (tableKey === 'public.reminder_occurrence_history') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() ELSE false END)";
-  if (tableKey === 'public.support_conversations') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() AND (organization_id IS NULL OR organization_id = app.current_org_id()) ELSE false END)";
-  if (tableKey === 'public.be_organizations') return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name) THEN id = app.current_org_id() ELSE false END)";
-  if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
-  if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  if (tableKey === 'public.clinical_test_regions') return `(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())`
+    + ' AND EXISTS (SELECT 1 FROM public.tests parent_test WHERE parent_test.id = clinical_test_id AND parent_test.organization_id = (SELECT app.current_org_id()))'
+    + ' AND EXISTS (SELECT 1 FROM public.reference_items parent_region WHERE parent_region.id = body_region_id AND parent_region.organization_id = (SELECT app.current_org_id())))';
+  if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())`
+    + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = (SELECT app.current_org_id())))';
+  if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id()))";
+  if (tableKey === 'public.content_pages') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND is_published = true AND archived_at IS NULL AND deleted_at IS NULL ELSE false END)";
+  if (tableKey === 'public.content_sections') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND is_visible = true ELSE false END)";
+  if (tableKey === 'public.content_section_slug_history') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = (SELECT app.current_org_id()))";
+  if (tableKey === 'public.doctor_patient_support') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND patient_user_id = app.current_patient_user_id() ELSE false END)";
+  if (tableKey === 'public.reference_categories' || tableKey === 'public.reference_items') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = (SELECT app.current_org_id()))";
+  if (tableKey === 'public.reminder_occurrence_history') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() ELSE false END)";
+  if (tableKey === 'public.support_conversations') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() AND (organization_id IS NULL OR organization_id = (SELECT app.current_org_id())) ELSE false END)";
+  if (tableKey === 'public.be_organizations') return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name) THEN id = (SELECT app.current_org_id()) ELSE false END)";
+  if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
+  if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   if (
     REV10_EXPLICIT_ORG_COLUMN.has(tableKey)
     && PLATFORM_ROLE_SCOPE.mayTouch.includes(tableKey)
@@ -6122,21 +6244,21 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
     const organizationBoundPredicate = organizationBoundRoles.length > 0
       ? `current_user IN (${organizationBoundRoles.map((role) => `'${role}'::name`).join(', ')})`
       : 'false';
-    return `(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN ${organizationBoundPredicate} THEN organization_id = app.current_org_id() ELSE false END)`;
+    return `(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN ${organizationBoundPredicate} THEN organization_id = (SELECT app.current_org_id()) ELSE false END)`;
   }
   const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
   if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
-    + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active'))`;
-  if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = app.current_org_id())`;
+    + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = (SELECT app.current_org_id()) AND access_member.status = 'active'))`;
+  if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = (SELECT app.current_org_id()))`;
   return `(${rolePredicate})`;
 }
 
 function revision10CoursesPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientAssignment = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientAssignment = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND app.current_patient_user_id() IS NOT NULL'
     + ' AND EXISTS (SELECT 1 FROM public.treatment_program_instances assigned_instance'
-    + ' WHERE assigned_instance.organization_id = app.current_org_id()'
+    + ' WHERE assigned_instance.organization_id = (SELECT app.current_org_id())'
     + ' AND assigned_instance.patient_user_id = app.current_patient_user_id()'
     + ' AND assigned_instance.template_id = courses.program_template_id)';
   return [
@@ -6150,8 +6272,8 @@ function revision10CoursesPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10OrgBrandRevisionPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientPublished = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientPublished = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + " AND status = 'published' AND app.current_patient_has_active_org_enrollment(organization_id)";
   return [
     { name: `rev10_org_brand_revision_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -6164,16 +6286,30 @@ function revision10OrgBrandRevisionPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10MediaFilesPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientMedia = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientMedia = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + " AND owner_kind = 'organization'"
     + " AND (usage_purpose IS DISTINCT FROM 'program_item_submission'"
     + ' OR uploaded_by = app.current_patient_user_id())';
   const worker = "current_user = 'app_operational_media_worker'::name";
+  // Drizzle names EVERY column of the table in an INSERT, including the ones it sends as `default`,
+  // and PostgreSQL checks the privilege on each named column — so the staff INSERT grant has to
+  // cover the whole table or no staff upload can start at all. Six of those columns are transcode
+  // output owned by the media worker (`owner_kind` is the patient read discriminator); staff writes
+  // none of them anywhere in the app. The grant is plumbing, this policy is the wall: a staff INSERT
+  // is accepted only while those six still carry their column default.
+  const staffInsertDefaults = "current_user <> 'app_staff'::name"
+    + " OR (owner_kind = 'organization'"
+    + ' AND hls_master_playlist_s3_key IS NULL AND hls_artifact_prefix IS NULL'
+    + ' AND poster_s3_key IS NULL AND video_duration_seconds IS NULL'
+    + ' AND available_qualities_json IS NULL)';
   return [
     { name: `rev10_media_files_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: `(${staffOrg})`, withCheck: `(${staffOrg})`,
       note: 'clinic staff manages media only inside the current clinic' },
+    { name: `rev10_media_files_staff_worker_columns_${index + 1}`, as: 'RESTRICTIVE', cmd: 'INSERT',
+      to: ['app_staff'], withCheck: `(${staffInsertDefaults})`,
+      note: 'staff creates media rows but never authors transcode output or the patient read discriminator' },
     { name: `rev10_media_files_patient_read_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_patient'], using: `(${patientMedia})`,
       note: 'patient reads current-clinic presentation media and only submissions uploaded by itself' },
@@ -6187,7 +6323,7 @@ function revision10PatientPlaybackTelemetryPolicies(
   tableKey: 'public.media_playback_client_events' | 'public.media_playback_user_video_first_resolve',
   index: number,
 ): PolicyDecl[] {
-  const patientOwn = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const patientOwn = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND user_id = app.current_patient_user_id()';
   if (tableKey === 'public.media_playback_client_events') {
     return [{
@@ -6196,7 +6332,7 @@ function revision10PatientPlaybackTelemetryPolicies(
       note: 'patient appends browser playback errors only for itself in the current clinic',
     }];
   }
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   return [{
     name: `rev10_playback_first_resolve_self_${index + 1}`,
     as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff', 'app_patient'],
@@ -6206,8 +6342,8 @@ function revision10PatientPlaybackTelemetryPolicies(
 }
 
 function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientOrg = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()";
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientOrg = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())";
   const patientOwn = `${patientOrg} AND user_id = app.current_patient_user_id()`;
   return [
     { name: `rev10_material_ratings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -6226,8 +6362,8 @@ function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10PatientRatingFeedbackPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientOwn = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientOwn = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND user_id = app.current_patient_user_id()';
   return [
     { name: `rev10_patient_rating_feedback_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -6243,12 +6379,12 @@ function revision10PatientHomeCatalogPolicies(
   tableKey: 'public.patient_home_blocks' | 'public.patient_home_block_items',
   index: number,
 ): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   const patientVisible = tableKey === 'public.patient_home_blocks'
-    ? "current_user = 'app_patient'::name AND organization_id = app.current_org_id() AND is_visible = true"
-    : "current_user = 'app_patient'::name AND organization_id = app.current_org_id() AND is_visible = true"
+    ? "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id()) AND is_visible = true"
+    : "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id()) AND is_visible = true"
       + ' AND EXISTS (SELECT 1 FROM public.patient_home_blocks parent_block'
-      + ' WHERE parent_block.code = block_code AND parent_block.organization_id = app.current_org_id()'
+      + ' WHERE parent_block.code = block_code AND parent_block.organization_id = (SELECT app.current_org_id())'
       + ' AND parent_block.is_visible = true)';
   return [{
     name: `rev10_patient_home_catalog_${index + 1}`,
@@ -6260,8 +6396,8 @@ function revision10PatientHomeCatalogPolicies(
 }
 
 function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = app.current_org_id()) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL WHEN current_user = 'app_worker'::name THEN organization_id IS NULL AND scope = 'admin' AND key IN ('operator_health_alert_config', 'admin_incident_alert_config', 'operator_health_projection_thresholds', 'operator_heartbeat_config') ELSE false END)";
-  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = (SELECT app.current_org_id())) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL WHEN current_user = 'app_worker'::name THEN organization_id IS NULL AND scope = 'admin' AND key IN ('operator_health_alert_config', 'admin_incident_alert_config', 'operator_health_projection_thresholds', 'operator_heartbeat_config') ELSE false END)";
+  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   return [
     { name: `rev10_system_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_staff', 'app_platform_settings', 'app_worker'], using: readWall,
@@ -6280,8 +6416,8 @@ function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10AppRuntimeSettingsPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN audience IN ('public','authenticated_client') AND CASE WHEN organization_id IS NULL THEN true ELSE organization_id = app.current_org_id() END WHEN current_user = 'app_staff'::name THEN CASE WHEN organization_id IS NULL THEN true ELSE organization_id = app.current_org_id() END WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
-  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN audience IN ('public','authenticated_client') AND CASE WHEN organization_id IS NULL THEN true ELSE organization_id = (SELECT app.current_org_id()) END WHEN current_user = 'app_staff'::name THEN CASE WHEN organization_id IS NULL THEN true ELSE organization_id = (SELECT app.current_org_id()) END WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   return [
     { name: `rev10_app_runtime_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_patient', 'app_staff', 'app_platform_settings'], using: readWall,
@@ -6304,11 +6440,11 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       to: ['app_staff'],
       using: '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
         + ' WHERE access_member.platform_user_id = platform_users.id'
-        + ' AND access_member.organization_id = app.current_org_id()'
+        + ' AND access_member.organization_id = (SELECT app.current_org_id())'
         + " AND access_member.status = 'active'))"
         + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
         + ' WHERE access_patient.platform_user_id = platform_users.id'
-        + ' AND access_patient.organization_id = app.current_org_id()'
+        + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
         + " AND access_patient.status IN ('invited', 'active'))))",
       note: 'staff may read explicitly granted profile columns of current-clinic members and enrolled patients' },
     { name: `rev10_platform_users_platform_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -6334,6 +6470,14 @@ function revision10AdminAuditLogPolicies(index: number): PolicyDecl[] {
       as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_platform_settings'], withCheck: platformWall,
       note: 'platform commercial transactions append their audit rows directly in the same transaction',
     },
+    {
+      name: `rev10_admin_audit_clinic_insert_${index + 1}`,
+      as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_clinic_billing'],
+      withCheck: "(current_user = 'app_clinic_billing'::name"
+        + ' AND organization_id = (SELECT app.current_org_id()))',
+      note: 'clinic billing appends only its own organization row; the NULL-organization platform '
+        + 'branch stays unreachable for the tenant, and no SELECT/UPDATE/DELETE policy is added',
+    },
   ];
 }
 
@@ -6355,11 +6499,11 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
   const patientWall = `(${userColumn} = app.current_patient_user_id())`;
   const staffWall = '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
     + ` WHERE access_member.platform_user_id = ${relationName}.${userColumn}`
-    + ' AND access_member.organization_id = app.current_org_id()'
+    + ' AND access_member.organization_id = (SELECT app.current_org_id())'
     + " AND access_member.status = 'active'))"
     + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
     + ` WHERE access_patient.platform_user_id = ${relationName}.${userColumn}`
-    + ' AND access_patient.organization_id = app.current_org_id()'
+    + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
     + " AND access_patient.status IN ('invited', 'active'))))";
   return [
     { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
@@ -6396,12 +6540,18 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const ordinaryDirectRoles = directRoles.filter((role) =>
       !['app_tenant_service'].includes(role));
     const classSafe = (predicate: string, policyRoles: string[] = ordinaryDirectRoles) => {
-      let result = predicate.replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
+      // Каждый вызов организационного аксессора в квале политики оборачивается в собственный
+      // скалярный под-запрос: планировщик считает его один раз (InitPlan), а не на каждую строку.
+      // Обёртка остаётся РОВНО на месте вызова — вынос её выше своей ветки CASE дал бы 42501 на
+      // каждом чтении тем ролям, у которых организации нет.
+      let result = predicate
+        .replace(/(?<!\(SELECT )app\.current_org_id\(\)/gu, '(SELECT app.current_org_id())')
+        .replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
       if (table.org === true) result = result.replaceAll(
         '(app.current_patient_user_id() IS NOT NULL AND ',
-        '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND ');
+        '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = (SELECT app.current_org_id()) AND ');
       result = result.replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()',
-        '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
+        '"b4f_appt"."organization_id" = (SELECT app.current_org_id()) AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
       const hasPatientAccessor = result.includes('app.current_patient_user_id()');
       const hasSafeClassBranch = /CASE\s+WHEN\s+current_user/u.test(result);
       const staffPolicy = policyRoles.includes('app_staff');

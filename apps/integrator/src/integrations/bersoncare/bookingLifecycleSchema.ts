@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const BookingLifecyclePayloadSchema = z.object({
-  organizationId: z.string().uuid().optional(),
+  organizationId: z.string().uuid(),
   bookingId: z.string().uuid(),
   userId: z.string().min(1),
   bookingType: z.enum(['in_person', 'online']),

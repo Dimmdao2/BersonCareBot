@@ -4275,20 +4275,37 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "available_qualities_json",
+          "created_at",
+          "delete_attempts",
           "display_name",
           "folder_id",
+          "hls_artifact_prefix",
+          "hls_master_playlist_s3_key",
           "id",
           "mime_type",
+          "next_attempt_at",
           "organization_id",
           "original_name",
+          "owner_kind",
+          "poster_s3_key",
+          "preview_attempts",
+          "preview_md_key",
+          "preview_next_attempt_at",
+          "preview_sm_key",
           "preview_status",
           "s3_key",
           "size_bytes",
+          "source_height",
+          "source_width",
           "status",
           "stored_path",
           "uploaded_by",
           "usage_purpose",
-          "video_delivery_override"
+          "video_delivery_override",
+          "video_duration_seconds",
+          "video_processing_error",
+          "video_processing_status"
         ]
       },
       {
@@ -4356,12 +4373,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_by",
+          "id",
           "kind",
           "name",
           "organization_id",
           "parent_id",
-          "patient_user_id"
+          "patient_user_id",
+          "updated_at"
         ]
       },
       {
@@ -5487,7 +5507,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "category",
+          "created_at",
           "file_name",
+          "id",
           "media_file_id",
           "mime_type",
           "organization_id",
@@ -5495,7 +5517,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "s3_bucket",
           "s3_key",
           "size_bytes",
-          "uploaded_by_user_id"
+          "uploaded_by_user_id",
+          "visit_id"
         ]
       },
       {
@@ -7451,13 +7474,18 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "additional_seat_quantity",
           "amount_minor",
+          "created_at",
           "currency",
           "description",
           "expires_at",
+          "id",
           "invoice_kind",
           "organization_id",
+          "paid_at",
+          "provider_checkout_url",
           "provider_id",
           "provider_idempotency_key",
+          "provider_invoice_ref",
           "saas_billing_account_id",
           "saas_billing_subscription_id",
           "service_period_ends_at",
@@ -7466,7 +7494,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "tariff_billing_period",
           "tariff_id",
           "tariff_name",
-          "tariff_snapshot"
+          "tariff_snapshot",
+          "updated_at"
         ]
       },
       {

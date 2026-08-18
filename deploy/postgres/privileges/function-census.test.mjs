@@ -87,7 +87,27 @@ test('all 47 current-patient B0-forward roots have exact executable relation-ope
 
 test('all latest active B0-forward definers have exact executable relation-operation surfaces', () => {
   const functions = latestArtifactFunctions(B0_FORWARD_MIGRATIONS);
-  assert.equal(functions.length, 78);
+  // 83 → 84 (18.08, L-11): миграция 0024 стала последним определением
+  // `app.choose_organization_first_tariff`. Раньше её тело жило вне пронумерованных миграций, поэтому
+  // в перепись оно не попадало вовсе — прибавка означает, что функция наконец под учётом, а не что
+  // появилась новая.
+  // 84 → 89 (18.08): миграция 0025 забрала в репозиторий пять тел, которые существовали ТОЛЬКО в
+  // живой DEV-базе (`app.require_attested_target_role`, `app.enqueue_current_reminder_rule_push`,
+  // `app.read_current_patient_treatment_program_description`,
+  // `app.resolve_patient_acquiring_webhook_organization`, `app.append_platform_audit_event`).
+  // Из-за этого TEST их не получал ничем: четыре отсутствовали целиком, а рукописный
+  // `exact_existing`-гейт пятой ронял reconcile-access. Прибавка = функции наконец под учётом,
+  // новых функций не появилось.
+  // 89 → 92 (18.08): миграция 0026 забрала три тела с РУКОПИСНЫМ `exact_existing`-гейтом, которые
+  // не создавал ни один файл репозитория (`app.passkey_issue_challenge`,
+  // `app.passkey_read_challenge`, `app.resolve_staff_workspace_memberships`). Все три стоят на пути
+  // входа, а генератор такой гейт только сверяет с декларацией и никогда не создаёт, поэтому в
+  // существующую TEST-базу тело не попадало ничем. Прибавка = функции наконец под учётом,
+  // новых функций не появилось. `app.pre_session_resolve_identity` в счёт не входит: её создаёт
+  // `deploy/postgres/port-context/contract.sql`, а не пронумерованная миграция.
+  // 92 → 93 (18.08): миграция 0029 добавила `app.prune_operator_health_failure_archive(integer)` —
+  // именованный корень TTL-подметания архива отказов, снявший relation-DELETE от арендной роли.
+  assert.equal(functions.length, 93);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -98,7 +118,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 384 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 390 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -116,15 +136,21 @@ test('all 384 declared functions have the exact source-reconstructed base type a
     'app_ext.digest(text,text)': { returns: 'bytea', returnsSet: false },
     'app_ext.hmac(text,text,text)': { returns: 'bytea', returnsSet: false },
   };
-  assert.equal(canonical.size, 382);
+  // 386 → 387 (18.08): `app_ext.expire_accepted_port_context()` — отложенный constraint-триггер,
+  // удаляющий принятый port-контекст на COMMIT его собственной транзакции
+  // (`deploy/postgres/port-context/contract.sql`). Прибавка — одна новая функция шва контекста,
+  // а не перепись существующих.
+  // 387 → 388 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029,
+  // именованный корень TTL-подметания архива отказов.
+  assert.equal(canonical.size, 388);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
     return counts;
   }, {});
-  assert.deepEqual(forms, { SCALAR: 258, TABLE: 120, SETOF: 4 });
+  assert.deepEqual(forms, { SCALAR: 264, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 260);
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 266);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -192,9 +218,10 @@ test('function parser removes real comments without truncating comment markers i
 });
 
 test('aggregated runtime surface findings separate invoker triggers from exact definer corrections', () => {
+  // Both organization-slug guards left this list on 2026-08-18: they are DEFERRABLE INITIALLY
+  // DEFERRED constraint triggers, so as SECURITY INVOKER they ran at COMMIT under the bare login
+  // role and could not reach schema public at all — see the dedicated test below.
   const invokerTriggers = [
-    'app.assert_organization_slug_alias_complete()',
-    'app.assert_organization_slug_rename_complete()',
     'app.enforce_lfk_child_owner()',
     'app.guard_clinic_directory_current_slug()',
     'app.guard_org_brand_revision()',
@@ -213,8 +240,11 @@ test('aggregated runtime surface findings separate invoker triggers from exact d
     ['SELECT', 'INSERT']);
   assert.deepEqual(surface('app.update_current_patient_fio(text,text,text)', 'public.platform_users').operationColumns,
     { SELECT: ['id', 'role', 'merged_into_id'] });
-  assert.deepEqual(surface('app.update_current_patient_fio(text,text,text)', 'public.user_identity').operationColumns,
-    { SELECT: ['platform_user_id'] });
+  // user_identity — поверхность upsert (INSERT+UPDATE), поэтому SELECT здесь НЕ сужается:
+  // `INSERT … ON CONFLICT DO UPDATE` под FORCE RLS читает конфликтующую строку целиком. Сужение,
+  // стоявшее тут до 18.08, ломало смену ФИО пациента с «permission denied for table».
+  assert.equal(surface('app.update_current_patient_fio(text,text,text)', 'public.user_identity').operationColumns,
+    undefined);
   assert.deepEqual(surface('app.patient_cancel_pending_reminder_occurrences(text)', 'public.reminder_rules'), {
     relation: 'public.reminder_rules',
     columns: ['integrator_rule_id', 'organization_id', 'platform_user_id'],
@@ -238,6 +268,29 @@ test('aggregated runtime surface findings separate invoker triggers from exact d
   assert.deepEqual(serviceEnqueue.delegatesTo, ['app.enqueue_media_transcode_job_core(uuid)']);
 });
 
+// Поверхность с INSERT+UPDATE на одной таблице — это `INSERT … ON CONFLICT DO UPDATE`. Под FORCE RLS
+// PostgreSQL читает конфликтующую строку, чтобы проверить USING-квалы UPDATE-политики, и требует
+// SELECT по ВСЕМ колонкам поверхности. Урезанный SELECT падает как «permission denied for TABLE»
+// (не «for column»), поэтому лексический разбор тела функции этот случай не видит: колонка на чтение
+// в тексте функции не упомянута. Замер 18.08 на bersoncarebot_test: у app_seam_patient_self_actions_owner
+// был SELECT на 3 из 5 колонок user_notification_topic_channels — тот же INSERT падал, а у
+// app_seam_reminder_patient_owner с SELECT на всех 5 проходил.
+test('upsert surfaces never narrow SELECT — ON CONFLICT DO UPDATE reads the conflicting row', () => {
+  const offenders = [];
+  for (const [signature, fn] of Object.entries(declaration.portContext.functions)) {
+    for (const surface of fn.relationSurfaces ?? []) {
+      const operations = surface.operations ?? [];
+      if (!operations.includes('INSERT') || !operations.includes('UPDATE')) continue;
+      if (!operations.includes('SELECT')) offenders.push(`${signature} → ${surface.relation}: no SELECT`);
+      if (surface.operationColumns?.SELECT) {
+        offenders.push(`${signature} → ${surface.relation}: SELECT narrowed to `
+          + surface.operationColumns.SELECT.join(','));
+      }
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
 test('current-patient surface gate catches missing operation, absent relation, and overbroad SELECT together', () => {
   const functions = [{
     name: 'app.fixture_current_patient_root',
@@ -256,6 +309,7 @@ test('current-patient surface gate catches missing operation, absent relation, a
         from public.fixture_update_source s where t.id = s.id;
       delete from public.fixture_delete_target t
         using public.fixture_delete_source s where t.id = s.id;
+      if p_id is distinct from public.fixture_comparison_only() then return; end if;
     `,
   }];
   const declaredFunctions = {
@@ -291,15 +345,15 @@ test('current-patient surface gate catches missing operation, absent relation, a
 test('legacy census is restored without obsolete context and overlaid by the active B0-forward roots', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 229,
+    functions: 232,
     owners: 40,
-    test: 229,
-    dev: 227,
+    test: 232,
+    dev: 230,
     triggers: 3,
-    relationEdges: 470,
+    relationEdges: 487,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 229);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 229);
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 232);
+  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 232);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -315,10 +369,13 @@ test('legacy census is restored without obsolete context and overlaid by the act
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 368);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 366);
-  assert.equal(testFunctions.length, 384);
-  assert.equal(devFunctions.length, 382);
+  // +2 on 2026-08-18: both organization-slug deferred constraint-trigger guards became DEFINER seams.
+  // +1 (18.08): `app_ext.expire_accepted_port_context()` — см. комментарий у canonical.size.
+  // +1 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 376);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 374);
+  assert.equal(testFunctions.length, 390);
+  assert.equal(devFunctions.length, 388);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -326,7 +383,7 @@ test('legacy census is restored without obsolete context and overlaid by the act
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
   assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 223);
+    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 226);
   assert.deepEqual(proconfigExceptions, [
     ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],
@@ -414,6 +471,44 @@ test('complete relation APIs leave no generation gap', () => {
   }
 });
 
+// Live defect 2026-08-18 (L-7): both organization-slug guards are CONSTRAINT TRIGGERs declared
+// DEFERRABLE INITIALLY DEFERRED, so their bodies run at COMMIT — after the DB port has already
+// executed RESET ROLE. Declared SECURITY INVOKER they therefore executed as the bare login role,
+// which holds no USAGE on schema public, and every attempt by a clinic owner to change the public
+// address of the clinic died with SQLSTATE 42501 and a 503 the screen could not explain.
+test('a function that declares a relation surface can only reach it as SECURITY DEFINER', () => {
+  const functions = declaration.portContext.functions;
+  for (const signature of [
+    'app.assert_organization_slug_rename_complete()',
+    'app.assert_organization_slug_alias_complete()',
+  ]) {
+    const guard = functions[signature];
+    assert.equal(guard.security, 'DEFINER', signature);
+    assert.equal(guard.owner, 'app_seam_public_slug_owner', signature);
+    assert.ok(guard.relationSurfaces.length > 0, signature);
+    for (const surface of guard.relationSurfaces) {
+      assert.deepEqual(surface.operations, ['SELECT'], `${signature} ${surface.relation}`);
+    }
+  }
+  const renameSurfaces = Object.fromEntries(
+    functions['app.assert_organization_slug_rename_complete()'].relationSurfaces
+      .map((surface) => [surface.relation, [...surface.columns].sort()]),
+  );
+  assert.deepEqual(renameSurfaces, {
+    'public.organization_slug_claims': ['kind', 'organization_id', 'slug'],
+    'public.clinic_public_directory_entries': ['organization_id', 'slug'],
+    'public.organization_slug_rename_events': ['next_slug', 'organization_id', 'previous_slug'],
+  });
+
+  const invoker = structuredClone(declaration);
+  invoker.portContext.functions['app.assert_organization_slug_rename_complete()'].security = 'INVOKER';
+  for (const database of DATABASES) {
+    assert.ok(collectGaps(invoker, database).some((gap) =>
+      gap.site === 'portContext.functions.app.assert_organization_slug_rename_complete().security'
+      && gap.reason === 'a declared relation surface is reachable only through SECURITY DEFINER'), database);
+  }
+});
+
 test('special body relation contracts are an exact closed set and arbitrary bypasses fail', () => {
   const expected = {
     'app_control.enforce_relation_birth_wall()': 'relation-birth-wall',
@@ -496,7 +591,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 368 : 366;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 376 : 374;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),
@@ -517,7 +612,7 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.ok(surfaceVerifier.includes("('app.install_port_context(uuid,app.port_context_claims)', 'port-context')"));
     assert.ok(surfaceVerifier.includes("('public.audit_app_runtime_settings_change()')"));
     assert.ok(surfaceVerifier.includes("('app.password_login_acquire_impl(text,text,uuid,text)')"));
-    assert.equal(surfaceVerifier.includes("('app.assert_organization_slug_alias_complete()')"), false);
+    assert.ok(surfaceVerifier.includes("('app.assert_organization_slug_alias_complete()')"));
     assert.equal(surfaceVerifier.includes("('public.sync_registered_app_runtime_setting()')"), false);
     assert.ok(surfaceVerifier.includes("('app.enqueue_media_transcode_job_for_staff(uuid)', 'public.media_files'"));
     assert.ok(surfaceVerifier.includes(

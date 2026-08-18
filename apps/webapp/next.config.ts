@@ -52,7 +52,14 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+          // HSTS belongs on the TLS deployment only. The dev server speaks plain HTTP, and this
+          // header pins the whole host — 127.0.0.1, every port, every project on the box — to https
+          // for a year, so a browser that honours it then refuses the very requests the page makes.
+          // RFC 6797 §7.2 is explicit that a UA must ignore it over a non-secure transport, but not
+          // every engine does, and sending it from an http origin is a misconfiguration regardless.
+          ...(process.env.NODE_ENV === 'production'
+            ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000' }]
+            : []),
         ],
       },
       {

@@ -101,10 +101,24 @@ export function assertReceiptMatchesOperation(
 
 /** К3 reconciliation — one payment as the provider itself reports it, not our journal's view of it. */
 export type PaymentProviderListedPayment = {
+  /**
+   * The SAME ref the webhook path derives (`invoice_details.id ?? id`) and the only one our journal
+   * ever stored in `saas_billing_invoices.provider_invoice_ref`: a payment made by paying an invoice
+   * carries the INVOICE's id, never its own, and that invoice id is what we wrote at invoice-creation
+   * time. Returning the payment's own id here would make every invoice-paid payment look unpaired.
+   */
   providerPaymentRef: string;
   status: string;
   amountMinor: number;
   currency: string;
+  /**
+   * The payment's own metadata bag as the provider reports it — for an unpaired payment this is the
+   * only thing that says which organization/invoice the money belongs to. Absent (not `{}`) when the
+   * provider reports no metadata at all, so "no bag" stays distinguishable from "empty bag".
+   */
+  metadata?: Record<string, unknown>;
+  /** Money already returned against this payment; `0` when the provider reports none. */
+  refundedAmountMinor: number;
 };
 
 export type PaymentProviderListPaymentsResult = {

@@ -9,7 +9,10 @@ const fakes = vi.hoisted(() => ({
 vi.mock('../_requireClinicManagementBookingEngine', () => ({
   requireClinicManagementBookingEngine: fakes.requireClinicManagementBookingEngine,
 }));
-vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+// Only the decision is faked; the product sentence stays the real one, so the assertion below
+// cannot pass against a message this test invented.
+vi.mock('@/app-layer/guards/requireEntitlement', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app-layer/guards/requireEntitlement')>()),
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
@@ -72,6 +75,12 @@ describe('clinic-owner branch create', () => {
     );
   });
 
+  /**
+   * Owner live pass 18.08, L-1. A limit-bearing mechanic has no «выключено» state any more, so the
+   * ceiling is the only refusal this write can produce — and it must arrive as the sentence the
+   * Локации section renders (`apiJson` prefers `message`), never as `branch_quota_reached`.
+   * Breakage this pins: the clinic owner is shown a machine code again, the «(ошибка)» he reported.
+   */
   it('returns a precise quota response without retrying the write', async () => {
     fakes.createPhysicalBranch.mockRejectedValue(new Error('saas_quota_reached:branches'));
 
@@ -82,6 +91,9 @@ describe('clinic-owner branch create', () => {
       ok: false,
       error: 'branch_quota_reached',
       mechanic: 'branches',
+      message:
+        'Невозможно создать локацию: в тарифе клиники исчерпан лимит «Филиалы». ' +
+        'Чтобы продолжить, увеличьте лимит в тарифе клиники.',
     });
     expect(fakes.createPhysicalBranch).toHaveBeenCalledTimes(1);
   });

@@ -1,6 +1,7 @@
 /**
  * POST /api/admin/saas-billing/payments/manual — К4: platform admin issues a manual invoice for a
- * clinic's own assigned tariff (amount/description/expiry are admin-chosen), via YooKassa's
+ * clinic's own assigned tariff (amount/description are admin-chosen; the invoice's own lifetime is
+ * NOT an input — it comes from the one настройка `lifecyclePolicy.invoiceValidityDays`), via YooKassa's
  * `/v3/invoices`. Same platform-only gate as the rest of the payments cabinet (К1/К2) — see
  * `docs/_TODO/SAAS_FOUNDATION/PAYMENTS_CABINET_PLAN.md` К4.
  */
@@ -23,7 +24,6 @@ const bodySchema = z.object({
     .toUpperCase()
     .regex(/^[A-Z]{3}$/),
   description: z.string().trim().min(1).max(500),
-  expiresAt: z.string().datetime({ offset: true }),
 });
 
 export async function POST(request: Request) {

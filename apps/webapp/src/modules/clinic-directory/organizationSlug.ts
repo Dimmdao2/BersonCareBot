@@ -1,3 +1,5 @@
+import { transliterateCyrillic } from '@/shared/lib/cyrillicTransliteration';
+
 const ORGANIZATION_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/;
 
 /** Top-level application/system routes that can never become organization addresses. */
@@ -33,42 +35,6 @@ export const RESERVED_ORGANIZATION_SLUGS = new Set([
   '_next',
 ]);
 
-const CYRILLIC_TRANSLITERATION: Readonly<Record<string, string>> = {
-  а: 'a',
-  б: 'b',
-  в: 'v',
-  г: 'g',
-  д: 'd',
-  е: 'e',
-  ё: 'e',
-  ж: 'zh',
-  з: 'z',
-  и: 'i',
-  й: 'i',
-  к: 'k',
-  л: 'l',
-  м: 'm',
-  н: 'n',
-  о: 'o',
-  п: 'p',
-  р: 'r',
-  с: 's',
-  т: 't',
-  у: 'u',
-  ф: 'f',
-  х: 'h',
-  ц: 'ts',
-  ч: 'ch',
-  ш: 'sh',
-  щ: 'sch',
-  ъ: '',
-  ы: 'y',
-  ь: '',
-  э: 'e',
-  ю: 'yu',
-  я: 'ya',
-};
-
 export type OrganizationSlugValidation =
   | { ok: true; slug: string }
   | {
@@ -97,9 +63,7 @@ export function validateOrganizationSlugCandidate(raw: string): OrganizationSlug
 
 /** Produces a UI suggestion only; persistence still requires explicit candidate validation. */
 export function suggestOrganizationSlug(title: string): string | null {
-  const transliterated = [...title.normalize('NFKC').toLowerCase()]
-    .map((char) => CYRILLIC_TRANSLITERATION[char] ?? char)
-    .join('')
+  const transliterated = transliterateCyrillic(title)
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-');

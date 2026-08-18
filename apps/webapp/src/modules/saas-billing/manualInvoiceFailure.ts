@@ -141,8 +141,7 @@ export function mapManualInvoiceFailure(error: unknown): ManualInvoiceFailure {
   }
   if (
     message === 'saas_billing_manual_invoice_amount_must_be_positive_integer' ||
-    message === 'saas_billing_manual_invoice_description_required' ||
-    message === 'saas_billing_manual_invoice_expiry_invalid'
+    message === 'saas_billing_manual_invoice_description_required'
   ) {
     return { status: 422, error: message };
   }

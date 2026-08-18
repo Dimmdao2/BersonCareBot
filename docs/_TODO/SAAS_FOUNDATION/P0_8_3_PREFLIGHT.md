@@ -1,6 +1,10 @@
 # P0.8.3 preflight — public direct-org SCOPED policies
 
-Status: executed on 2026-07-08 after descriptor hygiene and scratch smoke.
+> OWNER-SUPERSEDED 16.08.2026: this document is historical evidence, not an active preflight or command source.
+> All scratch/disposable setup and replay steps below are retired; current execution is B0 plus forward migrations,
+> with live behavior checked only on named DEV through the application/Drizzle port.
+
+Status: historical execution record from 2026-07-08; superseded on 2026-08-16.
 Real policy migration created, no production/dev/test application DB touched.
 
 ## Purpose
@@ -139,14 +143,16 @@ Minimum smoke per batch:
 9. Verify `rolbypassrls=false` for the app role.
 10. Roll back/drop the scratch objects.
 
-Gate command shape for the later implementation stage:
+OWNER-SUPERSEDED 16.08.2026: scratch/disposable execution in this historical preflight is retired.
+The surviving DB-free generator proof is:
 
 ```bash
-bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && SCRATCH_DATABASE_URL=<scratch-url> node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs && git diff --check"
+node scripts/check-saas-db-regression.mjs
 ```
 
-If local PostgreSQL peer auth only allows the OS `postgres` role to connect to scratch DBs, use the
-`--print-sql` psql-file workaround documented in `P0_8_CODE_FACTS.md`.
+Runtime behavior is re-proved only by the serialized named-DEV application-port matrix documented in
+`docs/_TODO/runs/testsuite-v2/B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md`; this preflight no longer carries a
+database setup or replay recipe.
 
 ## Execution Brief For The Next Implementation Stage
 
@@ -196,22 +202,14 @@ If local PostgreSQL peer auth only allows the OS `postgres` role to connect to s
    - stable policy name format: `saas_org_dormant_p0_8_3`;
    - no raw unquoted table/column interpolation.
 
-4. Add scratch smoke tooling before any committed migration:
-   - use `SCRATCH_DATABASE_URL`, not `DATABASE_URL`;
-   - refuse unless `current_database()` matches `bcb_saas_%` or contains `scratch`;
-   - refuse `bcb_webapp_dev`, `bcb_webapp_prod`, and prod/test host env references;
-   - create synthetic roles/tables in a transaction or disposable schema;
-   - create synthetic rows for `org_a` and `org_b`;
-   - run as non-owner `NOBYPASSRLS` app role;
-   - verify unset/empty `app.org` matches dormant permissive renderer semantics;
-   - verify `org_a` sees only org A and `org_b` sees only org B when `app.org` is set;
-   - rollback/drop all scratch objects.
-   - current implementation: `scripts/smoke-p0-8-3-direct-org-policies.mjs`.
+4. OWNER-SUPERSEDED 16.08.2026: do not create scratch databases, schemas, roles, or replay SQL. Keep the
+   deterministic generator checks DB-free; exercise live policy consequences only through the named-DEV
+   application-port acceptance matrix.
 
 5. Run targeted gate:
 
    ```bash
-   bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && SCRATCH_DATABASE_URL=<scratch-url> node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs && pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/*.mjs scripts/check-saas-db-regression.mjs && git diff --check"
+   node scripts/check-saas-db-regression.mjs
    ```
 
 6. If scratch smoke passes and owner/stage scope allows a real migration in the same pass:

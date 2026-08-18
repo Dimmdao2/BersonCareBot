@@ -7,6 +7,8 @@ import type {
 import type { SlotsV1ScheduleData } from './scheduleSlots';
 
 export type ReminderRuleCreateInput = {
+  /** Stable product id used to make an HTTP create retry idempotent. */
+  integratorRuleId?: string;
   platformUserId: string;
   integratorUserId: string | null;
   linkedObjectType: ReminderLinkedObjectType;

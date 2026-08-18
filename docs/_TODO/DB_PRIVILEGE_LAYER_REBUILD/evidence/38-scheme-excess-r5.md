@@ -176,7 +176,7 @@ ciphertext приватным `K`»), но как зависимость не в
 ```
 grep -rn "pg_stat_activity\|pg_stat_get_activity\|pg_read_all_stats" --include=*.ts --include=*.mjs \
   --include=*.sql --include=*.sh . | grep -v node_modules
-# apps/webapp/scripts/postgres-integration/harness-lib.ts:737      pg_terminate_backend(...)
+# retired pre-B0 disposable harness (Git history only):737      pg_terminate_backend(...)
 # docs/_TODO/SAAS_FOUNDATION/scripts/{smoke-phase3…,prove-u5a…,run-saas-disposable-dormant-rehearsal}.mjs
 ```
 

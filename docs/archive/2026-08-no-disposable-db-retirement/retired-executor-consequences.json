@@ -1,0 +1,1932 @@
+{
+  "retirementParent": "0210820cd",
+  "retirementCommit": "fb44002ce",
+  "rows": [
+    {
+      "path": "apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Ч7 audit acceptance test. Owns a disposable PostgreSQL 16 cluster under /tmp. It never reads application environment variables and never connects to DEV, TEST, or PROD. Output contains only aggregate booleans and row counts; credential-shaped fixtures are not printed."
+      ],
+      "proofFunctions": [
+        "assertEqual"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-access-ladder-transitions.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "#1069 этап 2 — executable proof for the access lifecycle ladder (`app.resolve_organization_mechanic_access` and the separate cabinet-access resolver). Behaviour proved against a real, private PostgreSQL 16 cluster (never a configured/shared DB): 1. Transitions by DATE, not by \"now\": full_access -> grace -> read_only -> terminal state, driven"
+      ],
+      "proofFunctions": [
+        "provePrincipalOrgMismatchIsDenied",
+        "proveTransitionsByDate",
+        "provePolicyIsData",
+        "proveLivePolicyChangesAreProspective",
+        "proveGraceShorteningPreservesStartedMechanicStage",
+        "provePaidSnapshotBeatsLiveTariff",
+        "proveMechanicInheritsSystemOnly",
+        "proveCriticalMechanicNeverDegrades",
+        "proveNoAgentMechanicExclusions",
+        "proveCabinetTransitionsAndDataRestoration",
+        "provePaidPeriodDrivesTheLadder",
+        "provePaidPeriodDrivesTheCabinet"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-b1-payment-capture-replay.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "executable pre-fix crash then duplicate leaves capture unfinished"
+      ],
+      "proofFunctions": [
+        "proveMigrationPreflight",
+        "proveBootstrapAuthorityBoundary",
+        "proveCrashReplay",
+        "provePersistedProviderEventWinsChangedDuplicate",
+        "proveLifecycleIdentity",
+        "proveProductIdentityWriterRollback",
+        "proveConcurrentReplayAndPostCommitDelivery",
+        "proveDeliveryFailureRemainsReplayable"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-branches-quota-race.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "#1069 §5a stage 5.3/5.7 — executable last-slot proof for the `branches` квота. Extracts the verbatim SQL text `assertStockQuotaAvailable` (src/infra/repos/stockQuotaCheck.ts) and `createPhysicalBranchWithDefaultColor`'s usage-count query (src/infra/repos/pgBookingEngine.ts) issue, and replays them through a real, disposable"
+      ],
+      "proofFunctions": [
+        "proveLastSlotRace",
+        "proveDeactivatingFreesSlot",
+        "proveNoTariffIsCompatibilityUnlimited"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "C4A #843 / #1057 / #1069 — disposable PostgreSQL proof for clinic-seat billing. The parent process owns a private PostgreSQL 16 cluster under /tmp and installs only the relations needed by this proof. It then re-executes this same file through the repository's TypeScript loader. The child imports and calls the real Drizzle ports; no capture, renewal,"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-c5a-courses-quota-race.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "C5A executable last-slot proof. It starts a private PostgreSQL 16 cluster below /tmp, extracts the authoritative trigger function from the C5A migration, and runs two independent connections against it. It never reads application environment files or a configured database."
+      ],
+      "proofFunctions": [
+        "proveLastSlotRace"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-cms-pages-quota-race.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "#1069 executable last-slot proof for cms_pages. It starts a private PostgreSQL 16 cluster below /tmp, extracts the authoritative trigger function from the CMS quota migration, and runs two independent connections against it. It never reads application env files or a configured DB."
+      ],
+      "proofFunctions": [
+        "proveCountOnlyQuotaUsage",
+        "proveLastSlotRace",
+        "proveAtLimitUpsert",
+        "proveRepeatableReadUnderLimit",
+        "proveRepeatableReadStaleSnapshotCannotOverflow"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-patient-acquiring-webhook-bootstrap.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Disposable PostgreSQL acceptance for the pre-principal patient acquiring resolver. It reads only the forward migration, starts a socket-only private cluster in /tmp, and never reads application database configuration or contacts DEV/TEST/PROD."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-patient-count-quota-race.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "#1069 §5a stage 5.2/5.7 — executable last-slot proof for the `patient_count` квота. Extracts the verbatim SQL text `assertStockQuotaAvailable` (src/infra/repos/stockQuotaCheck.ts) and `ensureInvitedOrganizationClientRelationship`'s usage-count query (src/infra/repos/pgPatientOrganizationEnrollment.ts) issue, and replays them through a real,"
+      ],
+      "proofFunctions": [
+        "proveLastSlotRace",
+        "proveArchivingFreesSlot",
+        "proveExistingPatientNeverBlockedAtLimit",
+        "proveNoTariffIsCompatibilityUnlimited"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/check-storage-quota-race.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "#987/#1069 §5a stage 5.4/5.7 — executable last-byte proof for the `files` (объём) квота. Extracts the verbatim SQL text of `assertStockQuotaAvailable` (src/infra/repos/stockQuotaCheck.ts) and replays it through a real, disposable PostgreSQL 16 server with two concurrent connections — same pattern as check-branches-quota-race.mjs / check-patient-count-quota-race.mjs."
+      ],
+      "proofFunctions": [
+        "assertFilesUsageQueryShape",
+        "proveLastBytesRace",
+        "proveUploadWithinLimitPassesAndOverflowFails",
+        "proveDeletingFreesBytes",
+        "proveReadsIgnoreTheLimit",
+        "proveNoTariffIsCompatibilityUnlimited"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/postgres-integration/cli.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "CLI for the disposable-PostgreSQL harness (block Б1/Б1а/Б1б, #1081, round 2 fix). Thin argv dispatch over ./harness-lib.ts -- see that file's header for the \"why\". Usage: tsx scripts/postgres-integration/cli.ts build-template"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/postgres-integration/harness-lib.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "Disposable-PostgreSQL harness lifecycle (block Б1/Б1а/Б1б, #1081, round 2 fix). The harness owns a PRIVATE, ephemeral PostgreSQL cluster for the lifetime of one `pnpm run test:webapp:postgres` invocation -- it never touches the box's shared cluster on :5432 (where `bcb_webapp_dev`/`bersoncarebot_test` live) and never asks for `sudo` or an"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/smoke-c2-identity-invite.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Disposable C2 database proof. It never reads application env or connects to DEV/TEST/PROD. The private PostgreSQL harness follows the existing SaaS scratch-smoke pattern."
+      ],
+      "proofFunctions": [
+        "assertEq",
+        "assertRepairAndFreshChain",
+        "assertInviteLifecycleAndConcurrency"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "S5-1 disposable migration proof. This owns a PostgreSQL 16 cluster under /tmp and never reads application environment variables or connects to DEV, TEST, or PROD. Output is purposely aggregate-only: fixtures include secret-shaped fields only to prove that the"
+      ],
+      "proofFunctions": [
+        "assertSqlTrue",
+        "assertSchemaContract",
+        "assertBackfillContract",
+        "assertIdempotenceAndAuditTransaction",
+        "assertDoctorTodayPreferencesMigrationContract",
+        "assertS53DualWriteTriggerContract"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "apps/webapp/scripts/u3s-current-contract-binding-smoke.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "Internal child of smoke-phase3-specialist-signup-provisioning.mjs. It intentionally has no standalone defaults: every target must be supplied by the parent and the database name must match the disposable U3S scratch convention. This invokes the production pgOrganizationProvisioning port; it is not a second binding implementation."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/src/app-layer/testing/pg-harness.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "Phase 0 intentionally exposes no connection string and no lifecycle operations. A later, separately authorized worker can implement disposable-cluster plumbing behind this contract; it cannot accidentally select DEV, TEST, or PROD here."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/src/app-layer/testing/pgDisposableHarness.postgres.integration.test.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "runs against a freshly cloned database whose schema came from the real migration chain",
+        "transplants the committed A0 integrator ledger without running integrator migrations"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/src/app-layer/testing/pgDisposableHarnessLifecycle.postgres.integration.test.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "rejects an env-shaped foreign root and preserves an own root when pg_ctl stop fails"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/src/infra/adminAuditLog.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "listAdminAuditLog returns empty page for impossible action filter",
+        "listAdminAuditLog returns the real fixture row for its action",
+        "countOpenAutoMergeConflicts counts the real unresolved fixture row"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listAdminAuditLog returns empty page for impossible action filter",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "listAdminAuditLog returns the real fixture row for its action",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "countOpenAutoMergeConflicts counts the real unresolved fixture row",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/platformUserFullPurge.patientFiles.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "collects the s3 key of a standalone patient file (no media library link)",
+        "folds a media-library-linked patient file into mediaFiles even when the doctor uploaded it",
+        "the row disappears via cascade once the webapp purge core runs -- proving collection must happen first"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "collects the s3 key of a standalone patient file (no media library link)",
+          "state": "static-product",
+          "evidence": "pnpm --dir apps/webapp exec vitest run src/infra/platformUserFullPurge.collectPurgeArtifactKeys.test.ts"
+        },
+        {
+          "title": "folds a media-library-linked patient file into mediaFiles even when the doctor uploaded it",
+          "state": "static-product",
+          "evidence": "pnpm --dir apps/webapp exec vitest run src/infra/platformUserFullPurge.collectPurgeArtifactKeys.test.ts"
+        },
+        {
+          "title": "the row disappears via cascade once the webapp purge core runs -- proving collection must happen first",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/platformUserFullPurge.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "getPurgePlatformUserRowForTests returns null for unknown user id",
+        "getPurgePlatformUserRowForTests loads a client row without mutating data"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "getPurgePlatformUserRowForTests returns null for unknown user id",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        },
+        {
+          "title": "getPurgePlatformUserRowForTests loads a client row without mutating data",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/platformUserMergePreview.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "searchMergeUsersForManualMerge returns [] for empty query without DB hit",
+        "searchMergeUsersForManualMerge runs read-only SELECT when query is non-empty",
+        "buildMergePreview returns same_id without touching DB writes"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "searchMergeUsersForManualMerge returns [] for empty query without DB hit",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        },
+        {
+          "title": "searchMergeUsersForManualMerge runs read-only SELECT when query is non-empty",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        },
+        {
+          "title": "buildMergePreview returns same_id without touching DB writes",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/appointmentReminderDelivery.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "revalidates the exact canonical generation and terminalizes it after reschedule",
+        "advances Telegram→MAX once under concurrent retry completion",
+        "terminalizes before provider when the current appointment recipient becomes blocked",
+        "terminalizes before provider when the recipient becomes %s"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "revalidates the exact canonical generation and terminalizes it after reschedule",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "advances Telegram→MAX once under concurrent retry completion",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "terminalizes before provider when the current appointment recipient becomes blocked",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "terminalizes before provider when the recipient becomes %s",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/authEmailOtpDeliveryOwnership.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "audit attack 1 verbatim: a bare challenge_id (no token) can no longer force a send",
+        "a stranger who never claimed the row cannot enqueue it at all (unknown/absent token)",
+        "audit attack 2 verbatim: overwriting a victim's pending code is refused, code stays the real one",
+        "a claim cannot be reopened after the challenge has already been sent (delivery_claimed_at survives the send)",
+        "golden path under app_patient: insert -> purpose -> claim -> enqueue reaches a real pending queue row"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "audit attack 1 verbatim: a bare challenge_id (no token) can no longer force a send",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "a stranger who never claimed the row cannot enqueue it at all (unknown/absent token)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "audit attack 2 verbatim: overwriting a victim's pending code is refused, code stays the real one",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "a claim cannot be reopened after the challenge has already been sent (delivery_claimed_at survives the send)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "golden path under app_patient: insert -> purpose -> claim -> enqueue reaches a real pending queue row",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/loginBootstrapDefinerAccessors.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "denies the plain platform_users read under this role",
+        "denies the plain user_channel_preferences read under this role",
+        "finds the exact user by email through the narrow accessor without raising 42501",
+        "returns no rows (not an error) for an unknown email",
+        "resolves the preferred auth channel through the narrow accessor without raising 42501",
+        "returns null (not an error) for a user with no preferred auth channel"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "denies the plain platform_users read under this role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "denies the plain user_channel_preferences read under this role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "finds the exact user by email through the narrow accessor without raising 42501",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns no rows (not an error) for an unknown email",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "resolves the preferred auth channel through the narrow accessor without raising 42501",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns null (not an error) for a user with no preferred auth channel",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/orgBrandRevisionGuard.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "rejects a DIRECT logo-clearing UPDATE on published and archived revisions (M-1)",
+        "lets the media purge delete a logo referenced by a PUBLISHED revision (FK SET NULL)",
+        "lets the media purge delete a logo referenced by an ARCHIVED revision",
+        "lets the media purge delete a logo referenced by a DRAFT revision",
+        "still rejects every other edit of a published or archived revision"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "rejects a DIRECT logo-clearing UPDATE on published and archived revisions (M-1)",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "lets the media purge delete a logo referenced by a PUBLISHED revision (FK SET NULL)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "lets the media purge delete a logo referenced by an ARCHIVED revision",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "lets the media purge delete a logo referenced by a DRAFT revision",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "still rejects every other edit of a published or archived revision",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/patientReminderMaterialization.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "rejects cross-tenant materialization at the exact capability",
+        "rolls back the production port when queue materialization fails",
+        "does not materialize an unavailable patient",
+        "atomically binds exact queue event/generation and revalidates the live recipient",
+        "converges concurrent wake upserts to one occurrence key",
+        "does not reset snoozed generation or terminal evidence on an old wake replay",
+        "owns all four materialization capabilities as app_owner, not the migration-runner role",
+        "grants only exact capability execution to locked runtime roles"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "rejects cross-tenant materialization at the exact capability",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "rolls back the production port when queue materialization fails",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "does not materialize an unavailable patient",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "atomically binds exact queue event/generation and revalidates the live recipient",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "converges concurrent wake upserts to one occurrence key",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "does not reset snoozed generation or terminal evidence on an old wake replay",
+          "state": "static-product",
+          "evidence": "pnpm --dir apps/webapp exec vitest --run src/app-layer/reminders/runPatientReminderMaterializationWake.audit.unit.test.ts"
+        },
+        {
+          "title": "owns all four materialization capabilities as app_owner, not the migration-runner role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/reminder-materialization-declaration.test.mjs"
+        },
+        {
+          "title": "grants only exact capability execution to locked runtime roles",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/reminder-materialization-declaration.test.mjs"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgAuthRateLimitEvents.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "records events and enforces maxPerWindow inside a transaction"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "records events and enforces maxPerWindow inside a transaction",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgBookingScheduling.deactivateWorkingHours.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "flips is_active to false in the database via the real service (id, organizationId) order",
+        "demonstrates the ORIGINAL bug shape: swapped args match zero rows (UPDATE 0), row stays active"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "flips is_active to false in the database via the real service (id, organizationId) order",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "demonstrates the ORIGINAL bug shape: swapped args match zero rows (UPDATE 0), row stays active",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgBookingScheduling.readChokepoint.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "positive: Clinic A staff sees its own working-hours row via the real repo function",
+        "positive: Clinic B staff sees its own working-hours row via the real repo function",
+        "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is issued under a run()-scoped principal and awaited via Promise.all (payment-timeline/route.ts shape) alongside an unrelated concurrent read"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "positive: Clinic A staff sees its own working-hours row via the real repo function",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "positive: Clinic B staff sees its own working-hours row via the real repo function",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "negative: Clinic B staff never sees a Clinic A row, and vice versa, even when the query is issued under a run()-scoped principal and awaited via Promise.all (payment-timeline/route.ts shape) alongside an unrelated concurrent read",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgCanonicalAppointments.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "resolves both canonical and retained Rubitime external identifiers through the real port",
+        "soft-deletes the canonical appointment when called with a retained Rubitime identifier"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "resolves both canonical and retained Rubitime external identifiers through the real port",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "soft-deletes the canonical appointment when called with a retained Rubitime identifier",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "listMetricAccounts clients_total returns the real fixture client"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listMetricAccounts clients_total returns the real fixture client",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "keeps complete audit row shape, append/list order and the default list limit",
+        "preserves distinct and merged-user channel counts",
+        "commits the audit, every job and deduplicated recipients atomically and returns that audit",
+        "rolls back a duplicate event and a forced job-insert failure without leaving audit, jobs or recipients"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "keeps complete audit row shape, append/list order and the default list limit",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "preserves distinct and merged-user channel counts",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "commits the audit, every job and deduplicated recipients atomically and returns that audit",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "rolls back a duplicate event and a forced job-insert failure without leaving audit, jobs or recipients",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgDoctorClients.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "listClients returns the real fixture client",
+        "getDashboardPatientMetrics counts the real fixture client",
+        "isolates lists and dashboard metrics between specialists in one organization"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listClients returns the real fixture client",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "getDashboardPatientMetrics counts the real fixture client",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "isolates lists and dashboard metrics between specialists in one organization",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgEmailChallengeAtomicAttempts.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "serializes two real concurrent increments through the row lock: both land, attempts reaches 2",
+        "returns zero rows for a challenge that no longer exists (deleted by a concurrent resend/expiry/success)"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "serializes two real concurrent increments through the row lock: both land, attempts reaches 2",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns zero rows for a challenge that no longer exists (deleted by a concurrent resend/expiry/success)",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgEmailOtpPublicAtomicConsume.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "serializes two consumes through the principal lock: exactly one succeeds and the replay expires"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "serializes two consumes through the principal lock: exactly one succeeds and the replay expires",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgGlobalAdminWebPushRecipients.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "returns only active canonical platform admins"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "returns only active canonical platform admins",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgMediaWorkerControl.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "atomically gives one pending job to one of two concurrent claimers",
+        "reclaims a stale processing job but leaves a future pending job unclaimed",
+        "quarantines missing and mismatched media ownership and never returns either row",
+        "rejects wrong owner, stale state, spoofed media, and cross-org mutations without changing rows",
+        "preserves retry and permanent-failure queue/media state semantics",
+        "commits complete HLS and program outcomes and rejects a terminal replay",
+        "rolls back the media update when the second completion update fails"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "atomically gives one pending job to one of two concurrent claimers",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "reclaims a stale processing job but leaves a future pending job unclaimed",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "quarantines missing and mismatched media ownership and never returns either row",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "rejects wrong owner, stale state, spoofed media, and cross-org mutations without changing rows",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "preserves retry and permanent-failure queue/media state semantics",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "commits complete HLS and program outcomes and rejects a terminal replay",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "rolls back the media update when the second completion update fails",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "email: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s",
+        "phone: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "email: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "phone: serializes two real concurrent escalations through the row lock -- cycle 1 (120s) then cycle 2 (240s), never two cycle-1s",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgPatientBookings.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "getById returns null for unknown booking id",
+        "listHistoryByUser returns the real booking created via the same port"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "getById returns null for unknown booking id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "listHistoryByUser returns the real booking created via the same port",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgPhase14DCommsTail.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "broadcast audit list returns an empty array with nothing appended",
+        "broadcast audit list returns a real appended entry",
+        "getPatientCalendarTimezoneIana returns null for unknown user",
+        "getPatientCalendarTimezoneIana returns the real value for a known user"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "broadcast audit list returns an empty array with nothing appended",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "broadcast audit list returns a real appended entry",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getPatientCalendarTimezoneIana returns null for unknown user",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getPatientCalendarTimezoneIana returns the real value for a known user",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgPhoneChallengeAtomicAttempts.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "serializes two real concurrent increments through the row lock: both land, verify_attempts reaches 2",
+        "returns zero rows for a challenge that no longer exists (raw SQL, same predicate the port uses)"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "serializes two real concurrent increments through the row lock: both land, verify_attempts reaches 2",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns zero rows for a challenge that no longer exists (raw SQL, same predicate the port uses)",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgPlatformUserMerge.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "projection merge: trusted phone on the canon, phoneless duplicate → merged_into_id",
+        "merges colliding product_analytics_user_hourly rows by summing counters, both org-scoped and global buckets"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "projection merge: trusted phone on the canon, phoneless duplicate → merged_into_id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "merges colliding product_analytics_user_hourly rows by summing counters, both org-scoped and global buckets",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgProgramItemDiscussion.doctorComments.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "listUnreadExerciseCommentsForDoctor executes without SQL error and returns an array",
+        "listExerciseCommentsForDoctor (history) executes and paginates by cursor without SQL error"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listUnreadExerciseCommentsForDoctor executes without SQL error and returns an array",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "listExerciseCommentsForDoctor (history) executes and paginates by cursor without SQL error",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgSaasBillingCapture.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "updates the invoice and applies the tariff under a real organization principal",
+        "fails loudly instead of silently writing zero rows when no organization context is active"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "updates the invoice and applies the tariff under a real organization principal",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "fails loudly instead of silently writing zero rows when no organization context is active",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgSupportCommunication.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "listOpenConversationsForAdmin returns an array via runWebappPgText executor",
+        "conversationExists is false for unknown uuid",
+        "conversationExists is true for a real conversation",
+        "countUnreadUserMessagesForAdmin counts the real unread fixture message",
+        "limits conversation list and unread count to patients assigned to the specialist"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "listOpenConversationsForAdmin returns an array via runWebappPgText executor",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "conversationExists is false for unknown uuid",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "conversationExists is true for a real conversation",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "countUnreadUserMessagesForAdmin counts the real unread fixture message",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "limits conversation list and unread count to patients assigned to the specialist",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/pgUserProjection.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "findByPhoneNormalized returns null for unknown phone",
+        "findByPhoneNormalized returns the real row for a known phone",
+        "getProfileEmailFields returns nulls for unknown user id",
+        "getProfileEmailFields returns the real verified email for a known user id",
+        "clearStaffAccountEmail is no-op for unknown staff id",
+        "clearStaffAccountEmail clears the real email for a known staff id"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "findByPhoneNormalized returns null for unknown phone",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "findByPhoneNormalized returns the real row for a known phone",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getProfileEmailFields returns nulls for unknown user id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "getProfileEmailFields returns the real verified email for a known user id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "clearStaffAccountEmail is no-op for unknown staff id",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "clearStaffAccountEmail clears the real email for a known staff id",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/reminderCallbackCapabilities.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "rejects invalid and expired signed callback contexts before canonical state changes",
+        "fails closed for an actor/org mismatch without changing the foreign occurrence",
+        "writes canonical done history exactly once and returns a safe repeat result",
+        "changes only the exact-org occurrence for skip",
+        "atomically reschedules exactly the signed snoozed occurrence and never replays it",
+        "leaves canonical snooze state absent when its exact operational occurrence is absent",
+        "persists mute and channel-topic settings through canonical public state",
+        "exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC or operational tables"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "rejects invalid and expired signed callback contexts before canonical state changes",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "fails closed for an actor/org mismatch without changing the foreign occurrence",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "writes canonical done history exactly once and returns a safe repeat result",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "changes only the exact-org occurrence for skip",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "atomically reschedules exactly the signed snoozed occurrence and never replays it",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "leaves canonical snooze state absent when its exact operational occurrence is absent",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "persists mute and channel-topic settings through canonical public state",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC or operational tables",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/reminderOccurrenceD21Migration.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "preserves actionable legacy pending state when the unified key already exists"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "preserves actionable legacy pending state when the unified key already exists",
+          "state": "retired-owner",
+          "evidence": "B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md#six-retired-implementation-contracts"
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/reminderRulesD5Migration.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "uses public.reminder_rules as the occurrence parent, preserves delivery history, and fails closed on parent deletion"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "uses public.reminder_rules as the occurrence parent, preserves delivery history, and fails closed on parent deletion",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/saasBillingPaidTariffApplyAccessor.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "applies the tariff for an invoice that is actually paid, under app_staff",
+        "refuses an unpaid invoice (no-op, not an error)",
+        "refuses a paid invoice presented against a foreign organization",
+        "leaves the direct app_staff guard trigger refusing tariff_id writes",
+        "reports success from the tariff write, not from ending a trial the organization never had (#1057 B0.3 regression)",
+        "applies the tariff for the second, still-foreign-organization-owned paid invoice under its own org"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "applies the tariff for an invoice that is actually paid, under app_staff",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "refuses an unpaid invoice (no-op, not an error)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "refuses a paid invoice presented against a foreign organization",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "leaves the direct app_staff guard trigger refusing tariff_id writes",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "reports success from the tariff write, not from ending a trial the organization never had (#1057 B0.3 regression)",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "applies the tariff for the second, still-foreign-organization-owned paid invoice under its own org",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/saasBillingWebhookBootstrapInvoiceResolver.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "denies the plain table read the webhook used to issue under this role",
+        "reaches the exact invoice through the narrow resolver without raising 42501",
+        "returns no rows (not an error) for an unknown provider reference"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "denies the plain table read the webhook used to issue under this role",
+          "state": "static-security",
+          "evidence": "node --experimental-strip-types --test deploy/postgres/privileges/retired-db-security-oracles.test.mjs"
+        },
+        {
+          "title": "reaches the exact invoice through the narrow resolver without raising 42501",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "returns no rows (not an error) for an unknown provider reference",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/src/infra/repos/tenantIsolationMatrix.postgres.integration.test.ts",
+      "classification": "product-postgres-oracle",
+      "consequences": [
+        "positive: clinic A staff sees its own enrollment row",
+        "negative: clinic A staff gets nothing for clinic B, even asking for it by id",
+        "positive: patient P sees their own enrollment row with no org principal set",
+        "negative: patient P (clinic A only) never sees patient Q (clinic B) enrollment row",
+        "positive: clinic A staff sees its own clinic’s visit record",
+        "negative: clinic A staff gets nothing for clinic B’s visit record",
+        "positive: patient P sees their own visit record",
+        "negative: patient P (clinic A) never sees patient Q’s (clinic B) visit record",
+        "org_enrollments: the exact negative query returns the foreign row once the wall is removed",
+        "clinical_visit: the exact negative query returns the foreign row once the wall is removed"
+      ],
+      "replacementState": "mixed-see-named-dev-matrix",
+      "declarations": [
+        {
+          "title": "positive: clinic A staff sees its own enrollment row",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "negative: clinic A staff gets nothing for clinic B, even asking for it by id",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "positive: patient P sees their own enrollment row with no org principal set",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "negative: patient P (clinic A only) never sees patient Q (clinic B) enrollment row",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "positive: clinic A staff sees its own clinic’s visit record",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "negative: clinic A staff gets nothing for clinic B’s visit record",
+          "state": "named-dev-ready",
+          "evidence": "pnpm --dir apps/webapp run test:db-behavior:named-dev"
+        },
+        {
+          "title": "positive: patient P sees their own visit record",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "negative: patient P (clinic A) never sees patient Q’s (clinic B) visit record",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "org_enrollments: the exact negative query returns the foreign row once the wall is removed",
+          "state": "required-current-oracle",
+          "evidence": null
+        },
+        {
+          "title": "clinical_visit: the exact negative query returns the foreign row once the wall is removed",
+          "state": "required-current-oracle",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "path": "apps/webapp/vitest.postgres.config.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "Disposable-PostgreSQL integration project (block Б1, #1081). Deliberately NOT one of the `projects` entries in the main `vitest.config.ts`: `pnpm --dir apps/webapp test` (plain `vitest --run`, no --project filter) must stay untouched by this -- these tests build a real database from the migration chain per run and are not part of the fast PR shard. Run explicitly"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/vitest.postgres.globalSetup.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "globalSetup for the `postgres-integration` Vitest project (block Б1/Б1а/Б1б, #1081, round 2 fix). Runs ONCE per `pnpm run test:postgres` invocation, in the main Vitest process: starts a private PostgreSQL cluster and builds exactly one template database from the a0-greenfield baseline plus every migration not yet represented in it (see harness-lib.ts header). The cluster's coordinates"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "apps/webapp/vitest.postgres.setup.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "Per-file setup for the `postgres-integration` Vitest project (block Б1/Б1а/Б1б, #1081, round 2 fix). Clones a brand-new disposable database from the template built once in `vitest.postgres.globalSetup.ts` and points `process.env.DATABASE_URL` at the clone."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/host/retire-media-db-login.test.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const image = 'postgres:16'; const container = `bcb-media-retire-${randomUUID().slice(0, 8)}`; const role = 'bcb_test_operational_media_login'; const database = 'bersoncarebot_test';"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "deploy/host/smoke-set-postgres-role-password.sh",
+      "classification": "independent-oracle",
+      "consequences": [
+        "set +x set -euo pipefail PROJECT_ROOT=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/../..\" && pwd)\" HELPER=\"$PROJECT_ROOT/deploy/host/set-postgres-role-password.mjs\""
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "deploy/postgres/port-context/acceptance-fixture.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "-- Disposable-only behavior fixture for acceptance.sh. -- Never include this file from a host cutover or application deploy. INSERT INTO app_control.relation_wall_registry (schema_name, table_name, data_class, wall, expected_owner)"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/port-context/acceptance.sh",
+      "classification": "independent-oracle",
+      "consequences": [
+        "# Disposable PostgreSQL 16 acceptance for SCHEME revision 10.  It creates all # passwords and key material below mktemp and never reads project environment. set -euo pipefail pg_bin=/usr/lib/postgresql/16/bin"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "deploy/postgres/pre-migration-target-bridge.sql",
+      "classification": "retired-history",
+      "consequences": [
+        "-- Temporary target-DB bridge for a fresh PROD-copy migration rehearsal. -- -- The historical cross-app chain contains three prerequisites that are true on the final schema -- but are not true on the current PROD schema at the point where the webapp runner first needs"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/catalog-verifier.mjs",
+      "classification": "retired-support",
+      "consequences": [
+        "// Catalog-side revision-10 verifier. It deliberately reads the real PostgreSQL catalog before // reapply; a generator that merely replays SQL cannot claim a repaired catalog by itself. function arg(name) { const index = process.argv.indexOf(`--${name}`);"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/function-shells.mjs",
+      "classification": "retired-support",
+      "consequences": [
+        "Emits disposable-only bodies for declaration functions absent from a schema-only source."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/generated/org-allowlist.bcb_privproof.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "-- ============================================================================ -- СГЕНЕРИРОВАННЫЙ ФАЙЛ — НЕ РЕДАКТИРОВАТЬ РУКАМИ. -- источник:   deploy/postgres/privileges/fixtures/proof-declaration.ts (tables[*].org === true, SCHEME §A.9) -- генератор:  deploy/postgres/privileges/generate.mjs (версия 1)"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/generated/privileges.bcb_privproof.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "-- ============================================================================ -- СГЕНЕРИРОВАННЫЙ ФАЙЛ — НЕ РЕДАКТИРОВАТЬ РУКАМИ. -- источник:   deploy/postgres/privileges/fixtures/proof-declaration.ts -- генератор:  deploy/postgres/privileges/generate.mjs (версия 1)"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/migration-window-backfill.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "UPDATE public.migration_window_probe SET value = 'backfilled' WHERE id = 1;"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/migration-window-kill-seam.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "CREATE FUNCTION public.migration_window_killed_seam() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$; -- The proof waits only here: table DDL, function DDL and both temporary owner switches have -- already run. A killed run therefore proves rollback of every materialized pre-marker object."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/migration-window-kill.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "CREATE TABLE public.migration_window_killed (id integer PRIMARY KEY); CREATE TABLE public.migration_window_kill_marker (id integer PRIMARY KEY); GRANT INSERT ON public.migration_window_kill_marker TO app_proof_seam_owner;"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/migration-window-post.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "DO $$ BEGIN IF (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'public.migration_window_probe'::regclass) <> 'app_proof_owner' THEN"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/migration-window-seam.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "CREATE FUNCTION public.migration_window_seam() RETURNS text LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog AS $$ SELECT 'seam'::text $$;"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/migration-window.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "CREATE TABLE public.migration_window_probe (id integer PRIMARY KEY, value text NOT NULL); INSERT INTO public.migration_window_probe VALUES (1, 'created');"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/post-legacy-schema.mjs",
+      "classification": "retired-support",
+      "consequences": [
+        "Disposable-only schema normalization representing the externally completed legacy stage."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/production-catalog.mjs",
+      "classification": "retired-support",
+      "consequences": [
+        "// Disposable catalog only: it materializes the existing revision-10 declaration so the real // production artifact can be applied without touching DEV/TEST.  It does not grant policy/ACL. getPhase4LockedPolicyTargets, renderPhase4StrictPredicate,"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/proof-declaration.ts",
+      "classification": "retired-support",
+      "consequences": [
+        "proof-declaration.ts — ПРУФ-ФИКСТУРА генератора (SCHEME §B, приёмка Ф2.3). Это НЕ производственная декларация. Это МИНИМАЛЬНАЯ декларация той же ФОРМЫ (`PrivilegeDeclaration` из `../declaration.ts`), которая: 1) воспроизводит ДВА РЕАЛЬНЫХ дефекта живой базы на одноразовом кластере:"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/proof-setup-db.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "-- proof-setup-db.sql — состояние базы ДО генератора (живой дефект). Применяется к одноразовой -- базе `bcb_privproof` на временном кластере. Продолжение `proof-setup.sql` (кластерные роли). -- -- Всё, что здесь есть, — власть МИГРАЦИЙ (DDL + тела definer-функций), а НЕ генератора"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/proof-setup.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "-- proof-setup.sql — ВОСПРОИЗВЕДЕНИЕ ЖИВОГО ДЕФЕКТА на ОДНОРАЗОВОМ кластере (приёмка Ф2.3). -- -- Кластер создаётся отдельно (initdb во временный каталог, unix-сокет, listen_addresses='') -- и удаляется в конце. Ни TEST, ни dev, ни прод этим файлом не затрагиваются."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/fixtures/proof-snapshot.sql",
+      "classification": "retired-support",
+      "consequences": [
+        "-- proof-snapshot.sql — детерминированный СНИМОК каталога прав (для доказательства идемпотентности -- и атомарности). Каждая строка — один факт; порядок фиксирован сортировкой. -- Классы совпадают с тем, что сверяет §F: ACL таблиц/колонок/схем/базы/функций/последовательностей, -- RLS-флаги, политики, владельцы, дефолтные права, атрибуты и членства ролей."
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/function-census.acceptance.sh",
+      "classification": "independent-oracle",
+      "consequences": [
+        "# Disposable PostgreSQL 16 proof for the exact per-database SECURITY DEFINER census. set -euo pipefail pg_bin=${PGBIN:-/usr/lib/postgresql/16/bin} repo_root=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/../../..\" && pwd)"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "deploy/postgres/privileges/reminder-fallback-capabilities.acceptance.sh",
+      "classification": "independent-oracle",
+      "consequences": [
+        "# Disposable real-SQL proof for the reminder fallback and clinic credential port capabilities. set -euo pipefail pg_bin=/usr/lib/postgresql/16/bin repo_root=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/../../..\" && pwd)"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "deploy/postgres/smoke-reference-catalog-0184-forward.sql",
+      "classification": "retired-history",
+      "consequences": [
+        "-- Exact forward-migration rehearsal for a DB where 0182/0183 are already applied and a live -- organization received an invalid receipt without a catalog. Entire rehearsal rolls back. \\set ON_ERROR_STOP on \\pset pager off"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "deploy/postgres/smoke-reference-catalog-cutover-concurrency.sh",
+      "classification": "independent-oracle",
+      "consequences": [
+        "set -euo pipefail # Two-session adversarial proof for migration 0184. Run on a migrated disposable/DEV database as # an operator able to connect as postgres. Session 1 holds the same cutover lock; session 2 attempts # a live organization INSERT and must wait, then commit only after the trigger created its snapshot."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "deploy/postgres/smoke-reference-catalog-force-rls.sql",
+      "classification": "independent-oracle",
+      "consequences": [
+        "-- Executable transactional proof for a fully migrated DB with P2-B roles/context installed. -- Run as a PostgreSQL superuser; every fixture and baseline v2 is rolled back. \\set ON_ERROR_STOP on \\pset pager off"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-synthetic-fixtures.mjs",
+      "classification": "retired-support",
+      "consequences": [
+        "assertScratchDatabaseName, getP013SyntheticFixtureRows, p013SyntheticFixture, renderP013SyntheticFixtureManifestTsv,"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/p0-13-synthetic-fixtures.mjs",
+      "classification": "retired-support",
+      "consequences": [
+        "export const fixtureVersion = 'p0.13.1'; export const syntheticFixtureIds = Object.freeze({ orgA: '13000000-0000-4000-8000-0000000000a1', orgB: '13000000-0000-4000-8000-0000000000b1',"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/prove-u5a-patient-organization-test-lifecycle.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const scriptDir = path.dirname(fileURLToPath(import.meta.url)); const repoRoot = path.resolve(scriptDir, '..', '..', '..', '..'); const pgBin = '/usr/lib/postgresql/16/bin'; const scratchRoot = mkdtempSync(path.join(tmpdir(), 'bcb-u5a-strict-proof.'));"
+      ],
+      "proofFunctions": [
+        "assertRegularNoSymlink",
+        "proveUriOptionsRejectedBeforeCliConnection",
+        "proveConcurrentSetProtection",
+        "assertNoResidue"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-curated-system-health-diagnostics.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const suffix = `${Date.now()}_${process.pid}`; const db = `bcb_health_scratch_${suffix}`; const runtimeRole = `${db}_operator`.slice(0, 63); const roleNames = ["
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-current-patient-ui-capabilities.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const suffix = `${process.pid}_${Date.now()}`; const database = `bcb_saas_patient_ui_scratch_${suffix}`; if (!/^bcb_saas_patient_ui_scratch_[0-9_]+$/.test(database)) throw new Error('unsafe scratch database name');"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const suffix = `${process.pid}_${Date.now()}`; const database = `bcb_saas_e1_c5a_scratch_${suffix}`; if (!/^bcb_saas_e1_c5a_scratch_[0-9_]+$/.test(database)) { throw new Error('unsafe scratch database name');"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Live multitenant isolation rehearsal. Full host mode restores the newest production dump into a disposable bcb_saas_multitenant_rehearsal_* database, runs the SaaS 667 chain, flips the locked helper policies to enforce+FORCE, seeds a second clinic and multi-org"
+      ],
+      "proofFunctions": [
+        "assertSafeDisposableName",
+        "proveLegacyDormantCompatibility",
+        "provePhoneHistoryTransitionUnderForce",
+        "proveIsolation",
+        "assertForgeBlocked",
+        "proveNoSignedContextFailsClosed"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-patient-support-activity-capability.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Disposable PostgreSQL 16 proof for the locked-patient support activity capability. Creates a scratch database and unique runtime roles, installs the real protected principal context plus migration 0234, and proves own/current-message success with cross-patient, cross-organization, stale-message, forged-message and closed-conversation rejection. The closed"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-saas-isolation-diagnostics.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const args = new Map( process.argv.slice(2).map((arg) => { const [key, ...rest] = arg.split('='); return [key, rest.join('=')];"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-support-conversation-isolation.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Disposable PostgreSQL 16 + FORCE-RLS proof; never opens dev/test/prod."
+      ],
+      "proofFunctions": [
+        "assertRepositoryContract"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs",
+      "classification": "retired-support",
+      "consequences": [
+        "const __dirname = path.dirname(fileURLToPath(import.meta.url)); const repoRoot = path.resolve(__dirname, '..', '..', '..', '..'); const p2ScriptsDir = 'docs/_TODO/SAAS_FOUNDATION/scripts'; const scratchSmokeScripts = ["
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "B4 locked runtime principal smoke. Scratch-only live proof that the Node runtime principal carrier from packages/db-principal can install and clear the P2-B protected context through real disposable app-role connections."
+      ],
+      "proofFunctions": [
+        "assertSafeScratchName",
+        "assertMissingSigningSecretFailsBeforeDbUse",
+        "assertCleared",
+        "assertScopedReadFailsClosed",
+        "assertLabels",
+        "proveStaffPrincipal",
+        "provePatientPrincipal",
+        "proveIntegratorPrincipal",
+        "proveLockedMissingPrincipalFailsClosed",
+        "proveShadowMissingPrincipalLogs",
+        "proveLegacyGucMissingPrincipalStaysCompatible"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-roles-1-staff-role-boundary.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "B4-roles-1 (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #662) — proves the staff-bypass MECHANISM change (GUC `app.actor='staff'` -> role-membership `app.is_staff()`) live on Postgres, on a fresh scratch DB. Complements (does not replace) smoke-r2-real-policy-isolation.mjs, which continues to exercise the pre-0175 GUC-based shape against the historical 0161-0174 migrations unmodified."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-c0-locked-topology.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "C0 locked topology proof. Scratch-only proof for the Tenant Hard Mode decision: two runtime login roles and two pools. Creates a private local PostgreSQL cluster under /tmp, applies the real P0.5b app_staff/app_patient role-wall SQL, proves the C0 runtime login membership boundaries, and removes the cluster."
+      ],
+      "proofFunctions": [
+        "assertSafeScratchName"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-d3-4-runtime-helper-grants.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "getP09EnforceDescriptorByTable, renderP09EnforcePolicyStatements, } from './p0-9-enforce-descriptors.mjs'; const repoRoot = process.cwd();"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-e1-webapp-runtime-config.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const suffix = `${process.pid}_${Date.now()}`; const db = `bcb_saas_e1_config_scratch_${suffix}`; const publicRole = `bcb_e1_public_${suffix}`; const migrationOwner = `bcb_e1_owner_${suffix}`;"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-integrator-smtp-restricted-access.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const repoRoot = resolve(process.cwd()); const pgBin = process.env.PG_BINDIR?.trim() || '/usr/lib/postgresql/16/bin'; const scratchRoot = mkdtempSync(join(tmpdir(), 'bcb-integrator-smtp-acl-')); const dataDir = join(scratchRoot, 'data');"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-11-system-settings-storage.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const repoRoot = process.cwd(); const dbName = `bcb_saas_p0_11_1_scratch_${process.pid}_${Date.now()}`; if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) { throw new Error(`refusing unsafe scratch DB name: ${dbName}`);"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-11-system-settings-write-path.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const repoRoot = process.cwd(); const dbName = `bcb_saas_p0_11_3_scratch_${process.pid}_${Date.now()}`; if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) { throw new Error(`refusing unsafe scratch DB name: ${dbName}`);"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-13-db-isolation.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "renderP013SyntheticFixtureCompatSchemaSql, renderP013SyntheticFixtureScratchSql, syntheticFixtureIds, syntheticIntegratorUserIds,"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-13-synthetic-fixtures.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "renderP013SyntheticFixtureCompatSchemaSql, renderP013SyntheticFixtureScratchSql, } from './p0-13-synthetic-fixtures.mjs'; const repoRoot = process.cwd();"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "P0.5b-v2 / B5 (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #655) — proves the app_staff/app_patient table-level GRANT boundary live on a scratch Postgres, using the REAL generated grant metadata (getAppStaffGrantTables / getAppPatientGrantTables / appPatientColumnGrants from p0-5b-grants-sql.mjs) against a SMALL, representative subset of real schema-qualified table names"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "getP083PublicDirectOrgDescriptors, renderP083PolicyStatements, } from './p0-8-3-policy-targets.mjs'; const orgA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';"
+      ],
+      "proofFunctions": [
+        "assertSafeScratchUrl"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-4-public-path-policies.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "getP084PublicDenormDescriptors, getP084PublicFkPathDescriptors, renderP084PolicyStatements, } from './p0-8-4-policy-targets.mjs';"
+      ],
+      "proofFunctions": [
+        "assertSafeScratchUrl"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-5-integrator-scoped-policies.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "getP085IntegratorDirectUserBridgeDescriptors, getP085IntegratorIdentityBridgeDescriptors, getP085IntegratorParentDenormDescriptors, getP085IntegratorScopedDescriptors,"
+      ],
+      "proofFunctions": [
+        "assertSafeScratchUrl"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-6-bootstrap-hybrid-policies.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "getP086BootstrapHybridDescriptors, renderP086PolicyStatements, } from './p0-8-6-policy-targets.mjs'; const orgA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';"
+      ],
+      "proofFunctions": [
+        "assertSafeScratchUrl"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-9-default-deny-enforce.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const scratchUrl = process.env.SCRATCH_DATABASE_URL; const psqlAsPostgres = process.env.P0_9_1_PSQL_AS_POSTGRES === '1'; function fail(message) { console.error(message);"
+      ],
+      "proofFunctions": [
+        "assertSafeScratchUrl"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "P2-B protected principal context smoke. Scratch-only proof that applies deploy/postgres/p2-b-protected-principal-context.sql and then proves the locked-context helper contract. It creates a disposable database and disposable roles, refuses dev/prod/test-shaped DB names, and drops scratch resources in finally."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "P2-C1 patient value-level guards smoke. Scratch-only proof for deploy/postgres/p2-c1-patient-value-guards.sql. It applies the P2-B protected context artifact first, then applies P2-C1 triggers against a synthetic schema carrying the real table/column names needed by the guards."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "P2-C2 patient value-level guards smoke. Scratch-only proof for deploy/postgres/p2-c2-patient-value-guards.sql. It applies the P2-B protected context artifact first, then applies P2-C2 triggers against a synthetic schema carrying the real table/column names needed by the guards."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c3-patient-booking-lfk-guards.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "P2-C3 patient booking/LFK value-level guards smoke. Scratch-only proof for deploy/postgres/p2-c3-patient-booking-lfk-guards.sql. It applies the P2-B protected context artifact first, then applies P2-C3 triggers against a synthetic schema carrying the real table/column names needed by the guards."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-composed-rls-grants-value-guards.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Phase 2 composed closeout smoke. Scratch-only representative proof that the Phase 2 layers work together: - P2-B protected principal context helpers, with role-derived app.is_staff(); - P2-C1/C2/C3 patient value guards;"
+      ],
+      "proofFunctions": [
+        "assertNoUnsafeParentDbHints"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-patient-playback-telemetry-accessors.sql",
+      "classification": "independent-oracle",
+      "consequences": [
+        "\\set ON_ERROR_STOP on \\pset pager off -- Run as PostgreSQL superuser against DEV or an explicitly disposable SaaS scratch DB. -- All fixture writes and principal-context rows are rolled back; output is aggregate-only."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Phase 1 locked-label proof package. Scratch-only proof for the accepted design: - protected backend context table; - signed SECURITY DEFINER setter;"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "U3S specialist signup/provisioning/binding smoke. This proof never connects to DEV, TEST, or PROD. It starts a private PostgreSQL cluster under /tmp, installs the canonical migrations/overlays needed by the U3S contract, exercises the canonical `app.provision_specialist_owner(uuid)` function through a locked app_patient"
+      ],
+      "proofFunctions": [
+        "assertSafeScratchName",
+        "assertNoUnsafeParentDbHints",
+        "assertRegistrationTariffPolicyWriteRace",
+        "assertRegistrationTariffPolicyContracts",
+        "assertStaffCommercialReadWall",
+        "assertStaffCommercialStatementDenied",
+        "assertSlugRaceLoserRolledBack",
+        "assertSameReceipt",
+        "assertProvisioningState",
+        "assertBindingState",
+        "assertStaticSourceGuards",
+        "assertOrder"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-r2-real-policy-isolation.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "R2 real-policy isolation smoke. Applies the real deploy artifact `deploy/postgres/phase4-locked-helper-rls-policies.sql` on a fresh disposable scratch DB, with P2-B protected principal helpers installed first. The schema is a generated policy-surface stub: every Phase 4 wall target table exists, so the full artifact is"
+      ],
+      "proofFunctions": [
+        "assertSql"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-s5-2-settings-security.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "Private PostgreSQL real-role proof for the complete S5-2 RLS/grant/config-reader contract."
+      ],
+      "proofFunctions": [
+        "assertTrue",
+        "assertRoleMatrix",
+        "assertConfigReaderMatrix",
+        "assertConfigReaderArtifactRepeatability"
+      ],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-u6b-organization-slug-invariants.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "U6B executable slug-ownership proof. It starts a disposable PostgreSQL 16 cluster below /tmp, applies the complete 0218 -> 0255 -> 0257 -> 0269 -> 0271 migration stack, then proves the owner rule and the database-only case-insensitive uniqueness guarantee."
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "scripts/verify-b3-booking-concurrency.mjs",
+      "classification": "independent-oracle",
+      "consequences": [
+        "const operatorRole = 'bcb_b3_operator'; const postgresPort = String(57000 + (process.pid % 1000)); const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bcb_hardening_b3_')); const dataDir = path.join(scratchRoot, 'data');"
+      ],
+      "proofFunctions": [],
+      "replacementState": "required-current-oracle"
+    },
+    {
+      "path": "scripts/verify-offline-legacy-appointment-cut.mjs",
+      "classification": "retired-history",
+      "consequences": [
+        "const migrationSql = fs.readFileSync( path.join( repoRoot, 'apps/webapp/db/drizzle-migrations/0386_offline_drop_legacy_appointment_records_local.sql',"
+      ],
+      "replacementState": "retired-non-oracle"
+    },
+    {
+      "path": "scripts/verify-offline-legacy-identity-cut.mjs",
+      "classification": "retired-history",
+      "consequences": [
+        "const migrationPath = path.join( repoRoot, 'apps', 'integrator',"
+      ],
+      "replacementState": "retired-non-oracle"
+    }
+  ]
+}

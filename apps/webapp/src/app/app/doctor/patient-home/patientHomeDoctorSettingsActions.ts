@@ -26,7 +26,7 @@ function revalidatePatientHomePages(): void {
 
 /**
  * P0.11.3: these actions write PER-ORG keys (`patient_home_daily_practice_target`,
- * `patient_home_*_repeat_cooldown_minutes`, `patient_home_mood_icons` — see `orgScopedKeys.ts`), so the
+ * `patient_home_*_repeat_cooldown_minutes` — see `orgScopedKeys.ts`), so the
  * caller's own clinic `organizationId` must be resolved here (server actions have no route-level
  * workspace gate). No active membership → `forbidden`, matching this file's existing throw-on-denial style.
  */
@@ -69,18 +69,6 @@ async function requireWarmupsEntitlementOrThrow(organizationId: string): Promise
     throw new Error(entitlementMutationRefusalMessage('изменить настройки разминок'));
   }
 }
-
-const moodRowSchema = z.object({
-  score: z.number().int().min(1).max(5),
-  label: z.string().min(1).max(200),
-  imageUrl: z.union([
-    z.null(),
-    z
-      .string()
-      .min(1)
-      .regex(/^\/api\/media\//),
-  ]),
-});
 
 export async function savePatientHomePracticeTargetAction(
   target: number,
@@ -193,39 +181,6 @@ export async function savePatientHomeWarmupRotationAction(input: {
           { organizationId },
         ),
       ]),
-    );
-    revalidatePatientHomePages();
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
-  }
-}
-
-export async function savePatientHomeMoodIconsAction(
-  rows: Array<{ score: number; label: string; imageUrl: string | null }>,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
-    const parsed = z.array(moodRowSchema).length(5).safeParse(rows);
-    if (!parsed.success) {
-      return { ok: false, error: 'invalid_body' };
-    }
-    const scores = new Set(parsed.data.map((r) => r.score));
-    if (scores.size !== 5) {
-      return { ok: false, error: 'invalid_scores' };
-    }
-    const sorted = [...parsed.data].sort((a, b) => a.score - b.score);
-    const deps = buildAppDeps();
-    await withDoctorWorkspacePrincipal({ organizationId }, () =>
-      deps.systemSettings.updateSetting(
-        'patient_home_mood_icons',
-        'admin',
-        { value: sorted },
-        userId,
-        {
-          organizationId,
-        },
-      ),
     );
     revalidatePatientHomePages();
     return { ok: true };

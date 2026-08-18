@@ -10,7 +10,17 @@ import type {
 import type { RecordOperatorFailureIncidentInput } from '../../infra/operatorIncident/reportOperatorFailure.js';
 import { OutboundMessagePolicyError } from '../../infra/adapters/outboundMessagePolicy.js';
 import { createDefaultDispatchPort } from '../../infra/adapters/dispatchPort.js';
+import { createEmailDeliveryAdapter } from '../email/deliveryAdapter.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import { sendMail } from '../email/mailer.js';
 import { registerBersoncareRelayOutboundRoute } from './relayOutboundRoute.js';
+
+vi.mock('../email/mailer.js', () => ({
+  sendMail: vi.fn(async (_cfg: unknown, params: { to: string | string[] }) => ({
+    accepted: Array.isArray(params.to) ? params.to : [params.to],
+    rejected: [] as string[],
+  })),
+}));
 
 vi.mock('../../shared/devDeliveryRedirect.js', () => ({
   isDevRedirectActive: () => false,
@@ -57,6 +67,9 @@ type RelayPayload = {
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
   senderScope?: 'clinic_required';
+  html?: string;
+  icsContent?: string;
+  icsFilename?: string;
 };
 
 function relayPayload(overrides: Partial<RelayPayload> = {}): RelayPayload {
@@ -207,6 +220,55 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     expect(
       (send.mock.calls[0]?.[0].payload as { delivery?: Record<string, unknown> }).delivery,
     ).toMatchObject({ clinicCredential: { channel: 'email' } });
+  });
+
+  it('carries the booking .ics from the relay body through to the sent email attachment', async () => {
+    // Regression: the schema declared neither icsContent nor icsFilename, so zod stripped both
+    // and the confirmation letter promised an attachment it never carried. This walks the whole
+    // chain the webapp uses — signed relay body → schema → buildIntent → dispatch → email adapter
+    // → sendMail — and asserts the calendar file survives every hop.
+    const icsText =
+      'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:booking-77\r\nEND:VEVENT\r\nEND:VCALENDAR';
+    const sendMailMock = vi.mocked(sendMail);
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: [createEmailDeliveryAdapter({ getDb: () => ({}) as DbPort })],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'email',
+        smtp: {
+          configured: true,
+          smtpHost: 'smtp.clinic.test',
+          smtpPort: 587,
+          smtpSecure: false,
+          smtpUser: 'clinic',
+          smtpPass: 'secret',
+          fromAddress: 'clinic@example.test',
+        },
+      }),
+    });
+    const app = await buildApp(dispatchPort.dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'email',
+        recipient: 'patient@example.test',
+        text: 'Файл .ics во вложении — добавьте событие в свой календарь.',
+        metadata: { subject: 'Запись подтверждена' },
+        icsContent: Buffer.from(icsText, 'utf-8').toString('base64'),
+        icsFilename: 'bersoncare-booking-77.ics',
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(sendMailMock).toHaveBeenCalledOnce();
+    const attachments = sendMailMock.mock.calls[0]?.[1].attachments;
+    expect(attachments).toHaveLength(1);
+    expect(attachments?.[0]).toMatchObject({
+      filename: 'bersoncare-booking-77.ics',
+      contentType: 'text/calendar; charset=utf-8',
+    });
+    expect(Buffer.from(attachments?.[0]?.content ?? '').toString('utf-8')).toBe(icsText);
   });
 
   it('rejects missing, invalid, and stale authentication without dispatching', async () => {

@@ -69,6 +69,12 @@ export function BillingSection({
   billing,
   tariffChange,
 }: Props) {
+  // Решение владельца 18.08 (L-11): выбранный, но не оплаченный тариф не действует, поэтому
+  // `tariffName` (действующий тариф из снимка прав) здесь пуст. Имя показываем из самого выбора —
+  // иначе клиника не видит, что именно она выбрала и за что ей платить.
+  const chosenUnpaidTariffName = tariffChange.awaitingFirstPayment
+    ? tariffChange.choices.find((choice) => choice.id === tariffChange.currentTariffId)?.name ?? null
+    : null;
   return (
     <>
       <DoctorSection>
@@ -78,13 +84,21 @@ export function BillingSection({
         <div className="flex items-start justify-between gap-3 text-sm">
           <span className="text-muted-foreground">Тариф</span>
           <span className="text-right font-medium text-foreground">
-            {tariffName ?? 'Тариф не назначен'}
+            {tariffName ?? chosenUnpaidTariffName ?? 'Тариф не назначен'}
           </span>
         </div>
-        <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
-        {tariffName !== null && (
-          <PayTariffButton tariffChange={tariffChange} billingEmail={billing.billingEmail} />
-        )}
+        {/* Состояние доступа. Пока выбранный тариф не оплачен, `commercialStateLabel` сказал бы
+            «Тариф не назначен … выберите тариф в админке» — это отправило бы клинику к
+            администратору платформы вместо кассы. Счёт здесь ещё не выставлен: его создаёт кнопка
+            оплаты ниже, поэтому обещать выставленный счёт нельзя. */}
+        <p className="text-sm text-muted-foreground">
+          {chosenUnpaidTariffName
+            ? 'Тариф выбран, но не оплачен — доступ откроется после оплаты.'
+            : commercialStateLabel}
+        </p>
+        {/* Выбор тарифа и оплата живут в одном элементе, поэтому он рендерится всегда: клинику без
+            действующего тарифа нельзя оставить на экране, где не выбрать и не оплатить. */}
+        <PayTariffButton tariffChange={tariffChange} billingEmail={billing.billingEmail} />
         {tariffName !== null && (
           <AutopayToggleButton
             subscription={

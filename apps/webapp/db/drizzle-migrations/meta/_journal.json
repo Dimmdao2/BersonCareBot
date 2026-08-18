@@ -134,6 +134,83 @@
       "when": 1800000018000,
       "tag": "0018_clinic_owner_tariff_branch_quotas",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1800000019000,
+      "tag": "0019_patient_reminder_materialization_runtime_capabilities",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1800000020000,
+      "tag": "0020_patient_reminder_materialization_narrow_column_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1800000021000,
+      "tag": "0021_patient_program_item_narrow_column_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1800000022000,
+      "tag": "0022_quota_mechanics_have_no_off_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1800000023000,
+      "tag": "0023_purchased_tariff_invoice_refresh",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1800000024000,
+      "tag": "0024_first_tariff_choice_awaits_payment",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1800000025000,
+      "tag": "0025_definer_bodies_that_lived_only_in_dev",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1800000027000,
+      "tag": "0026_handwritten_login_gates_that_lived_only_in_dev",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1800000028000,
+      "tag": "0027_warmup_feeling_uses_the_whole_five_point_scale",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1800000029000,
+      "tag": "0028_port_context_rows_die_with_their_transaction",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1800000030000,
+      "tag": "0029_retention_of_the_failure_archive_is_not_tenant_work",
+      "breakpoints": true
     }
   ]
 }

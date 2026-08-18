@@ -6,7 +6,7 @@ import { effectiveAccessForPlatform } from './pgPlatformEntitlements';
 /**
  * #1069 §5a Т5-Т8 (owner 03.08) — behavioral proof for the TS mirrors of the patient-projection
  * access computation (`resolveAccess` / `effectiveAccessForPlatform`; the SQL door itself is proved
- * by `scripts/check-access-ladder-transitions.mjs` against a real cluster). Both take the SAME
+ * by the named-DEV role/catalog and live access-ladder pass). Both take the SAME
  * shaped trial record the database now stores: no own `tariffId` binding beyond the one recorded at
  * trial creation, and no `graceEndsAt` at all.
  */

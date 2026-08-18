@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe('webapp events client patient reminder materialization wake', () => {
   it('signs the exact organization-bound body and idempotency key', async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn<typeof fetch>(async () =>
       Promise.resolve(
         new Response(JSON.stringify({ ok: true }), {
           status: 200,
@@ -34,7 +34,10 @@ describe('webapp events client patient reminder materialization wake', () => {
 
     expect(result).toMatchObject({ ok: true, status: 200 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    const call = fetchMock.mock.calls[0];
+    expect(call).toBeDefined();
+    if (!call) throw new Error('expected one fetch call');
+    const [url, init] = call;
     const body = JSON.stringify({ organizationId, wakeId });
     expect(url).toBe('https://app.example/api/integrator/patient-reminders/materialize-wake');
     expect(init).toMatchObject({ method: 'POST', body });

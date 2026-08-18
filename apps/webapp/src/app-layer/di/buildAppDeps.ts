@@ -1864,6 +1864,11 @@ function _buildAppDeps() {
         integratorUserId?: string;
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
+    adminNotificationTargets: {
+      loadTargets: !inMemoryRepos
+        ? loadAdminNotificationTargetsFromDb
+        : async () => ({ telegram: [], max: [], sms: [], email: [] }),
+    },
     appointmentReminderMaterialization,
     appDisplayTimeZone: getAppDisplayTimeZone,
     topicChannelPrefs: topicChannelPrefsPort,

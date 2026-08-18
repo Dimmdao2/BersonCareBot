@@ -175,6 +175,7 @@ function doctorRescheduledText(
 async function sendLinkedChannelMessage(input: {
   dispatchPort: DispatchPort;
   phoneNormalized: string | null;
+  organizationId: string;
   text: string;
   eventId: string;
 }): Promise<void> {
@@ -182,7 +183,9 @@ async function sendLinkedChannelMessage(input: {
   const deliveryTargets = createDeliveryTargetsPort({
     getAppBaseUrl: async () => env.APP_BASE_URL,
   });
-  const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
+  const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
+    organizationId: input.organizationId,
+  });
   const bindings = fetched?.channelBindings;
   if (!bindings) {
     // D-b: пустая аудитория не бывает тихим успехом. Счётчик живёт в webapp и отсюда
@@ -236,7 +239,7 @@ async function sendDoctorMessage(
   text: string,
   eventId: string,
 ): Promise<void> {
-  const recipients = await loadAdminMessengerIdLists(createDbPort());
+  const recipients = await loadAdminMessengerIdLists();
   for (const chatId of recipients.telegram) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
@@ -306,7 +309,7 @@ function resolveCalendarTitleMarker(
 }
 
 export async function scheduleBookingReminders(input: {
-  organizationId?: string;
+  organizationId: string;
   appointmentId?: string;
   platformUserId?: string;
   bookingId: string;
@@ -338,7 +341,7 @@ export async function scheduleBookingReminders(input: {
     );
     return;
   }
-  if (!input.organizationId || !input.appointmentId) {
+  if (!input.appointmentId) {
     logger.warn(
       { bookingId: input.bookingId },
       'appointment reminder canonical scope missing; legacy enqueue is intentionally disabled',
@@ -365,7 +368,7 @@ export async function scheduleBookingReminders(input: {
 }
 
 async function sendBookingWebPush(input: {
-  organizationId?: string;
+  organizationId: string;
   webappEventsPort?: WebappEventsPort;
   phoneNormalized: string | null;
   intentType: 'appointment_lifecycle' | 'appointment_reminder';
@@ -374,12 +377,7 @@ async function sendBookingWebPush(input: {
   variant?: 'created' | 'cancelled' | 'rescheduled';
   nowIso?: string;
 }): Promise<void> {
-  if (
-    !input.webappEventsPort?.notifyPatientWebPush ||
-    !input.phoneNormalized ||
-    !input.organizationId
-  )
-    return;
+  if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized) return;
   const base = env.APP_BASE_URL.replace(/\/$/, '');
   const openUrl =
     input.intentType === 'appointment_lifecycle'
@@ -419,7 +417,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
           {
             action: resolveCalendarAction(payload, 'canceled'),
             appointmentId,
-            organizationId: payload.organizationId ?? '',
+            organizationId: payload.organizationId,
             startAt: payload.slotStart,
             endAt: payload.slotEnd,
             clientName: payload.contactName,
@@ -457,7 +455,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       {
         action: resolveCalendarAction(payload, computedAction),
         appointmentId,
-        organizationId: payload.organizationId ?? '',
+        organizationId: payload.organizationId,
         startAt: payload.slotStart,
         endAt: payload.slotEnd,
         clientName: payload.contactName,
@@ -516,6 +514,7 @@ export async function handleBookingLifecycleEvent(
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
+        organizationId: payload.organizationId,
         text: patientText,
         eventId: `booking-created:${bookingId}`,
       });
@@ -527,7 +526,7 @@ export async function handleBookingLifecycleEvent(
         );
       }
       await scheduleBookingReminders({
-        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        organizationId: payload.organizationId,
         ...(payload.canonicalAppointmentId
           ? { appointmentId: payload.canonicalAppointmentId }
           : {}),
@@ -547,7 +546,7 @@ export async function handleBookingLifecycleEvent(
 
     if (eventType === 'booking.cancelled') {
       await scheduleBookingReminders({
-        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        organizationId: payload.organizationId,
         ...(payload.canonicalAppointmentId
           ? { appointmentId: payload.canonicalAppointmentId }
           : {}),
@@ -566,13 +565,14 @@ export async function handleBookingLifecycleEvent(
         await sendLinkedChannelMessage({
           dispatchPort,
           phoneNormalized: contactPhone,
+          organizationId: payload.organizationId,
           text: patientText,
           eventId: `booking-cancelled:${bookingId}`,
         });
         const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
         if (cancelledPushVariant) {
           await sendBookingWebPush({
-            ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+            organizationId: payload.organizationId,
             ...(webappEventsPort ? { webappEventsPort } : {}),
             phoneNormalized: contactPhone,
             intentType: 'appointment_lifecycle',
@@ -598,6 +598,7 @@ export async function handleBookingLifecycleEvent(
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
+        organizationId: payload.organizationId,
         text: patientText,
         eventId: `booking-rescheduled:${bookingId}`,
       });
@@ -611,7 +612,7 @@ export async function handleBookingLifecycleEvent(
       const rescheduledPushVariant = resolvePatientPushVariant(payload, 'rescheduled');
       if (rescheduledPushVariant) {
         await sendBookingWebPush({
-          ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+          organizationId: payload.organizationId,
           ...(webappEventsPort ? { webappEventsPort } : {}),
           phoneNormalized: contactPhone,
           intentType: 'appointment_lifecycle',
@@ -621,7 +622,7 @@ export async function handleBookingLifecycleEvent(
         });
       }
       await scheduleBookingReminders({
-        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        organizationId: payload.organizationId,
         ...(payload.canonicalAppointmentId
           ? { appointmentId: payload.canonicalAppointmentId }
           : {}),
@@ -641,7 +642,7 @@ export async function handleBookingLifecycleEvent(
 
     if (eventType === 'booking.reminder_updated') {
       await scheduleBookingReminders({
-        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        organizationId: payload.organizationId,
         ...(payload.canonicalAppointmentId
           ? { appointmentId: payload.canonicalAppointmentId }
           : {}),
@@ -666,6 +667,7 @@ export async function handleBookingLifecycleEvent(
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
+        organizationId: payload.organizationId,
         text: patientText,
         eventId: `booking-payment:${bookingId}`,
       });
@@ -680,7 +682,7 @@ export async function handleBookingLifecycleEvent(
         );
       }
       await scheduleBookingReminders({
-        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        organizationId: payload.organizationId,
         ...(payload.canonicalAppointmentId
           ? { appointmentId: payload.canonicalAppointmentId }
           : {}),
@@ -728,12 +730,7 @@ export async function handleBookingEventRequest(
         idempotencyPort: deps.idempotencyPort,
         ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
       });
-    const organizationId = parsed.data.payload.organizationId;
-    if (organizationId) {
-      await runWithOrganizationPrincipal(organizationId, handleEvent);
-    } else {
-      await handleEvent();
-    }
+    await runWithOrganizationPrincipal(parsed.data.payload.organizationId, handleEvent);
     return reply.code(200).send({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

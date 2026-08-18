@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { collectCriticalHealthSignals } from '@/app-layer/health/collectCriticalHealthSignals';
 import { classifyCriticalHealthSignals } from '@/modules/operator-health/criticalHealthSignals';
 import { dispatchOperatorAlert } from '@/modules/operator-alerts/dispatchOperatorAlert';
+import { CRITICAL_ALERT_CADENCE_INTEGRATION } from '@/modules/operator-health/ports';
 import {
   pingPipelineHeartbeatOnConfirmedDelivery,
   readOperatorHeartbeatVerdicts,
@@ -128,6 +129,7 @@ export async function runOperatorHealthCriticalTick(
     const touched = await writePort.openOrTouchCriticalAlertIncident({
       dedupKey: c.dedupKey,
       direction: c.topic,
+      integration: CRITICAL_ALERT_CADENCE_INTEGRATION,
       nowIso: now.toISOString(),
       errorDetail: c.lines[0] ?? null,
     });
@@ -177,7 +179,13 @@ export async function runOperatorHealthCriticalTick(
 
   // Anything not active this tick has cleared — resolve it so a later recurrence pages fresh
   // instead of staying silent behind an incident row that never got marked resolved.
-  await writePort.resolveStaleCriticalAlertIncidents({ activeDedupKeys: activeGenericDedupKeys });
+  // Scoped to THIS cadence: the reconciliation sweep's incidents are not in `activeGenericDedupKeys`
+  // and must not be closed here — a five-minute tick closing an hourly sweep's incident would make
+  // the next sweep reopen it and page the owner every hour for one unchanged discrepancy.
+  await writePort.resolveStaleCriticalAlertIncidents({
+    integration: CRITICAL_ALERT_CADENCE_INTEGRATION,
+    activeDedupKeys: activeGenericDedupKeys,
+  });
 
   return { alerted, keys };
 }

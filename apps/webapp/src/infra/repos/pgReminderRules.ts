@@ -238,7 +238,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
 
     async create(input) {
       const principalOrganizationId = currentPrincipalOrganizationId();
-      const integratorRuleId = `wp-${randomUUID()}`;
+      const integratorRuleId = input.integratorRuleId ?? `wp-${randomUUID()}`;
       const category = mapLinkedTypeToCategory(input.linkedObjectType);
       const scheduleType = input.scheduleType ?? 'interval_window';
       let scheduleData: SlotsV1ScheduleData | null = input.scheduleData ?? null;

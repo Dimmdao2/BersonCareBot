@@ -18,6 +18,21 @@ const patientRoot = (purpose, argCount, source) => ({
 });
 
 const EXPECTED_ROOTS = new Map(Object.entries({
+  'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.materialization.snapshot.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts',
+  },
+  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.materialization.targets.read', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts',
+  },
+  'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.materialization.commit', argCount: 8,
+    source: 'apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts',
+  },
   'app.password_login_acquire(text,text,uuid,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'auth.password.acquire', argCount: 4,
@@ -392,6 +407,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'health.webhook-errors.prune', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
+  'app.prune_operator_health_failure_archive(integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.failure-archive.prune', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts',
   },
   'app.resolve_outgoing_delivery_scope(uuid)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
@@ -888,7 +908,6 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/internal/media-hls-proxy-errors/retention:POST',
     'api/internal/media-playback-stats/retention:POST',
     'api/internal/product-analytics/retention:POST',
-    'operator-health-failure-archive:prune',
   ],
   'webapp:telemetry': ['webapp-saas-isolation-telemetry'],
 }));

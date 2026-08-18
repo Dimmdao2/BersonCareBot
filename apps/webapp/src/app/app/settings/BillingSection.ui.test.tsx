@@ -19,6 +19,8 @@ const tariffChange = {
   currentTariffId: null,
   pendingTariffId: null,
   pendingEffectiveAt: null,
+  awaitingFirstPayment: false,
+  payable: true,
 };
 
 describe('§5a stage 6.1 — clinic sees "used out of included" per number', () => {
@@ -39,6 +41,8 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           currentTariffId: 'current',
           pendingTariffId: 'small',
           pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          awaitingFirstPayment: false,
+          payable: true,
         }}
       />,
     );
@@ -66,6 +70,8 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           currentTariffId: 'current',
           pendingTariffId: 'small',
           pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          awaitingFirstPayment: false,
+          payable: true,
         }}
       />,
     );
@@ -93,6 +99,8 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         tariffChange={{
           choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
           currentTariffId: 'current', pendingTariffId: 'small', pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          awaitingFirstPayment: false,
+          payable: true,
         }}
       />,
     );
@@ -100,6 +108,41 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     fireEvent.click(screen.getByRole('button', { name: 'Перейти на тариф' }));
 
     expect(await screen.findByText('Понижение недоступно: освободите места специалистов, пациенты.')).toBeInTheDocument();
+  });
+
+  /**
+   * L-11 (владелец 18.08): «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ ПОЛУЧАЕТ ДОСТУП».
+   * Поломка: клиника выбрала тариф, доступа нет — и экран показывает «Тариф не назначен» с советом
+   * идти в админку платформы, без имени выбранного тарифа и без кнопки оплаты. Человек заперт:
+   * кабинет закрыт (`unconfigured` уводит сюда), а заплатить отсюда нечем. Отказ дорогой (клиника
+   * не может купить) и молчаливый (экран выглядит исправным).
+   */
+  it('выбранный, но не оплаченный тариф: клиника видит свой выбор и кнопку оплаты', () => {
+    render(
+      <BillingSection
+        // Снимок прав пуст — действующего тарифа нет, доступа нет.
+        tariffName={null}
+        commercialStateLabel="Тариф не назначен — доступа нет. Выберите тариф в админке, чтобы вернуть работу кабинета."
+        mechanics={[]}
+        quotaUsage={[]}
+        billing={{ ...emptyBilling, billingEmail: 'clinic@example.test' }}
+        tariffChange={{
+          choices: [{ id: 'chosen', name: 'Базовый' }, { id: 'other', name: 'Стандарт' }],
+          currentTariffId: 'chosen',
+          pendingTariffId: null,
+          pendingEffectiveAt: null,
+          awaitingFirstPayment: true,
+          payable: true,
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText('Базовый').length).toBeGreaterThan(0);
+    expect(
+      screen.getByText('Тариф выбран, но не оплачен — доступ откроется после оплаты.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Выберите тариф в админке/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Оплатить тариф' })).toBeInTheDocument();
   });
 
   it('renders each configured number with its usage and limit, and hides the section when there are none', () => {

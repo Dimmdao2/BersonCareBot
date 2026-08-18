@@ -109,8 +109,9 @@ async function handleDeliveryInner(
     const incoming = asRecord((ctx.event.payload as { incoming?: unknown })?.incoming);
     const phone =
       asString(incoming?.phone) ?? asString(asRecord(resolvedParams.recipient).phoneNormalized);
-    if (deps.deliveryTargetsPort && phone) {
-      const fetched = await deps.deliveryTargetsPort.getTargetsByPhone(phone);
+    const organizationId = asString(ctx.base.actor.tenantId);
+    if (deps.deliveryTargetsPort && phone && organizationId) {
+      const fetched = await deps.deliveryTargetsPort.getTargetsByPhone(phone, { organizationId });
       const targets = channelBindingsToTargets(fetched?.channelBindings);
       if (targets.length > 0) {
         const delivery = asRecord(resolvedParams.delivery);

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ReminderDoneDayStats, ReminderJournalPort } from './reminderJournalPort';
 import type { ReminderRulesPort } from './ports';
 import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
@@ -26,6 +27,20 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSect
 import { isWarmupsContentSectionReminderRule } from './warmupsReminderRuleMatch';
 
 export type { ReminderCategory, ReminderRule } from './types';
+
+export function reminderRuleIdFromIdempotencyKey(platformUserId: string, key: string): string {
+  const bytes = createHash('sha256')
+    .update('bersoncare:patient-reminder:create\0')
+    .update(platformUserId)
+    .update('\0')
+    .update(key)
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `wp-${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Legacy dispatch validator (used by integrator webhook route)
@@ -320,12 +335,23 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         enabled?: boolean;
         scheduleType?: 'interval_window' | 'slots_v1';
         scheduleData?: SlotsV1ScheduleData | null;
+        idempotencyKey?: string;
       },
     ): Promise<ServiceResult<ReminderRule>> {
       const err = validateLinkedFields(params.linkedObjectType, params.linkedObjectId, null, null);
       if (err) return { ok: false, error: err };
 
       const scheduleType = params.scheduleType ?? 'interval_window';
+      const integratorRuleId = params.idempotencyKey
+        ? reminderRuleIdFromIdempotencyKey(platformUserId, params.idempotencyKey)
+        : undefined;
+      if (integratorRuleId) {
+        const existing = (await port.listByPlatformUserWithObjects(platformUserId)).find(
+          (rule) => rule.id === integratorRuleId,
+        );
+        if (existing) return { ok: true, data: existing };
+      }
+
       const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
       const hasWebPush = await hasNotificationChannel(platformUserId);
       // Allow creation if has bot linking OR has web push subscription
@@ -341,6 +367,20 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         deps?.assertWriteClearance?.('warmups');
       }
 
+      const createRule = async (input: Parameters<ReminderRulesPort['create']>[0]) => {
+        try {
+          return await port.create(input);
+        } catch (error) {
+          if (integratorRuleId) {
+            const recovered = (await port.listByPlatformUserWithObjects(platformUserId)).find(
+              (rule) => rule.id === integratorRuleId,
+            );
+            if (recovered) return recovered;
+          }
+          throw error;
+        }
+      };
+
       if (scheduleType === 'slots_v1') {
         let sdInput: SlotsV1ScheduleData | null | undefined = params.scheduleData ?? null;
         if (!sdInput && params.linkedObjectType === 'rehab_program') {
@@ -350,7 +390,8 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         const norm = normalizeSlotsV1ScheduleData(sdInput);
         if (!norm.ok) return { ok: false, error: norm.error };
 
-        const rule = await port.create({
+        const rule = await createRule({
+          integratorRuleId,
           platformUserId,
           integratorUserId,
           linkedObjectType: params.linkedObjectType,
@@ -381,7 +422,8 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       const schedErr = validateSchedule(params.schedule);
       if (schedErr) return { ok: false, error: schedErr };
 
-      const rule = await port.create({
+      const rule = await createRule({
+        integratorRuleId,
         platformUserId,
         integratorUserId,
         linkedObjectType: params.linkedObjectType,

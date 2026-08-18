@@ -14,11 +14,6 @@ import * as schema from '../db/schema';
 
 const REQUIRED_DATABASE = 'bersoncarebot_test';
 const PACKET_PATH_ENV = 'SAAS_TEST_FIXTURE_ENV_FILE';
-const REHEARSAL_MODE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_MODE';
-const REHEARSAL_DATABASE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_DATABASE';
-const REHEARSAL_DATABASE_PATTERN = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/;
-const UNSAFE_DATABASE_TOKEN_PATTERN =
-  /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Reserved NANP 555-01xx numbers: valid E.164, non-routable fictional TEST identities. */
@@ -638,64 +633,18 @@ export function assertRequiredDatabaseName(databaseName: string): void {
     throw new Error(`refusing_database_target:expected_${REQUIRED_DATABASE}`);
 }
 
-function isLoopbackDatabaseUrl(databaseUrl: string): boolean {
-  try {
-    const hostname = new URL(databaseUrl).hostname.toLowerCase();
-    return (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname === '[::1]'
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function assertAllowedFixtureDatabaseTarget(input: {
   databaseName: string;
-  databaseUrl: string;
-  attestedRehearsalDatabaseName?: string;
-  rehearsalMode: boolean;
 }): void {
-  if (!input.rehearsalMode) {
-    assertRequiredDatabaseName(input.databaseName);
-    return;
-  }
-  if (
-    !REHEARSAL_DATABASE_PATTERN.test(input.databaseName) ||
-    UNSAFE_DATABASE_TOKEN_PATTERN.test(input.databaseName) ||
-    input.attestedRehearsalDatabaseName !== input.databaseName ||
-    (() => {
-      try {
-        return (
-          decodeURIComponent(new URL(input.databaseUrl).pathname.replace(/^\/+/, '')) !==
-          input.databaseName
-        );
-      } catch {
-        return true;
-      }
-    })() ||
-    !isLoopbackDatabaseUrl(input.databaseUrl)
-  ) {
-    throw new Error('refusing_fixture_rehearsal_target');
-  }
+  assertRequiredDatabaseName(input.databaseName);
 }
 
-async function assertFixtureDatabaseTarget(
-  db: FixtureDb,
-  databaseUrl: string,
-  rehearsalMode: boolean,
-  attestedRehearsalDatabaseName?: string,
-): Promise<void> {
+async function assertFixtureDatabaseTarget(db: FixtureDb): Promise<void> {
   const result = await db.execute<{ database_name: string }>(
     sql`SELECT current_database()::text AS database_name`,
   );
   assertAllowedFixtureDatabaseTarget({
     databaseName: result.rows[0]?.database_name ?? '',
-    databaseUrl,
-    attestedRehearsalDatabaseName,
-    rehearsalMode,
   });
 }
 
@@ -2059,28 +2008,14 @@ async function proveDoubleSeedConvergence(
 }
 
 export async function runSaasTestFixtureSeeder(env: NodeJS.ProcessEnv): Promise<void> {
-  const rehearsalModeValue = env[REHEARSAL_MODE_ENV]?.trim() ?? '';
-  if (rehearsalModeValue !== '' && rehearsalModeValue !== '1') {
-    throw new Error('fixture_rehearsal_mode_must_be_exactly_1');
-  }
-  const rehearsalMode = rehearsalModeValue === '1';
-  const config = rehearsalMode
-    ? readSaasTestFixtureConfig({
-        SAAS_TEST_FIXTURE_CLINIC_A_EMAIL: 'rehearsal-clinic-a@saas-fixture.test',
-        SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD: 'disposable-rehearsal-a',
-        SAAS_TEST_FIXTURE_CLINIC_B_EMAIL: 'rehearsal-clinic-b@saas-fixture.test',
-        SAAS_TEST_FIXTURE_CLINIC_B_PASSWORD: 'disposable-rehearsal-b',
-      })
-    : (() => {
-        const packetPath = env[PACKET_PATH_ENV]?.trim() ?? '';
-        if (!packetPath) throw new Error('fixture_packet_path_required');
-        return readSaasTestFixtureConfig(
-          readSaasTestFixturePacket({
-            filePath: packetPath,
-            expectedGroupId: resolveDeployGroupId(),
-          }),
-        );
-      })();
+  const packetPath = env[PACKET_PATH_ENV]?.trim() ?? '';
+  if (!packetPath) throw new Error('fixture_packet_path_required');
+  const config = readSaasTestFixtureConfig(
+    readSaasTestFixturePacket({
+      filePath: packetPath,
+      expectedGroupId: resolveDeployGroupId(),
+    }),
+  );
   const databaseUrl = env.DATABASE_URL?.trim() ?? '';
   if (!databaseUrl) throw new Error('fixture_database_url_required');
   const pgOptions = env.PGOPTIONS?.trim();
@@ -2090,12 +2025,7 @@ export async function runSaasTestFixtureSeeder(env: NodeJS.ProcessEnv): Promise<
   });
   const db = drizzle(pool, { schema });
   try {
-    await assertFixtureDatabaseTarget(
-      db,
-      databaseUrl,
-      rehearsalMode,
-      env[REHEARSAL_DATABASE_ENV]?.trim(),
-    );
+    await assertFixtureDatabaseTarget(db);
     if (env.SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF === '1') {
       await proveDoubleSeedConvergence(db, config);
     } else {

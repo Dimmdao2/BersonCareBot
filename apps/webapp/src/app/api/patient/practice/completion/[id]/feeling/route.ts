@@ -6,6 +6,10 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import {
+  isWarmupFeelingRefusedError,
+  warmupFeelingRefusalMessage,
+} from '@/modules/patient-practice/warmupFeelingCompletionPort';
 
 /** Та же шкала 1–5, что чек-ин на главной и `POST /api/patient/practice/completion` (симптом `warmup_feeling`). */
 const bodySchema = z.object({
@@ -78,28 +82,40 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   }
   const generalRef = items.find((i) => i.code === 'general_wellbeing');
 
-  const result = await withPatientOrganizationPrincipal(
-    {
-      organizationId: tenant.organizationId,
-      platformUserId: userId,
-      source: 'api/patient/practice/completion/[id]/feeling:PATCH:write',
-    },
-    () =>
-      deps.warmupFeelingCompletion.applyDailyWarmupFeeling({
-        userId,
-        completionId,
-        feeling,
-        completedAtIso: completion.completedAt,
-        symptomTypeRefId: warmupRef.id,
-        symptomTitle: warmupRef.title,
-        ...(generalRef
-          ? {
-              generalWellbeingSymptomTypeRefId: generalRef.id,
-              generalWellbeingSymptomTitle: generalRef.title?.trim() || 'Общее самочувствие',
-            }
-          : {}),
-      }),
-  );
+  let result: { duplicate: boolean };
+  try {
+    result = await withPatientOrganizationPrincipal(
+      {
+        organizationId: tenant.organizationId,
+        platformUserId: userId,
+        source: 'api/patient/practice/completion/[id]/feeling:PATCH:write',
+      },
+      () =>
+        deps.warmupFeelingCompletion.applyDailyWarmupFeeling({
+          userId,
+          completionId,
+          feeling,
+          completedAtIso: completion.completedAt,
+          symptomTypeRefId: warmupRef.id,
+          symptomTitle: warmupRef.title,
+          ...(generalRef
+            ? {
+                generalWellbeingSymptomTypeRefId: generalRef.id,
+                generalWellbeingSymptomTitle: generalRef.title?.trim() || 'Общее самочувствие',
+              }
+            : {}),
+        }),
+    );
+  } catch (e) {
+    // Отказ шва — ожидаемый исход, и человек читает его причину; всё остальное остаётся сбоем.
+    if (isWarmupFeelingRefusedError(e)) {
+      return NextResponse.json(
+        { ok: false, error: e.reason, message: warmupFeelingRefusalMessage(e.reason) },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
 
   revalidatePath(routePaths.patient);
   return NextResponse.json(result.duplicate ? { ok: true, duplicate: true } : { ok: true });

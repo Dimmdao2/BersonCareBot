@@ -1,0 +1,31 @@
+-- BCB-MIGRATION-OWNER: app_seam_context_owner
+-- TEMPORARY LOCAL MIGRATION NUMBER 0028
+--
+-- Одноразовая уборка остатка, который копил прежний контракт port-context. Определения функций и
+-- триггера сюда НЕ дублируются: `app.install_port_context`, `app.clear_port_context` и новый
+-- `app_ext.expire_accepted_port_context` живут в `deploy/postgres/port-context/contract.sql`,
+-- который `reconcile-access.mjs` переприменяет целиком после миграций в том же деплое
+-- (`deploy/host/migrate-dev.sh` строка 209). Второе определение той же функции в пронумерованной
+-- миграции — ровно тот источник расхождения тел, который разбирала миграция 0025.
+--
+-- Почему уборка нужна отдельным шагом. До 18.08 `install_port_context` и `clear_port_context`
+-- держали закрытые контексты 24 часа и подметали их
+-- `DELETE ... WHERE cleared_at < clock_timestamp() - interval '24 hours'`. Новый контракт удаляет
+-- строку отложенным constraint-триггером на COMMIT её собственной транзакции, поэтому подметать
+-- больше нечего — но и старый остаток после снятия подметалки не удалит уже никто.
+--
+-- Замер 18.08 на `bersoncarebot_test` (только чтение, `pg_stat_user_tables` + `pg_class`):
+-- 120 616 строк / 71 МБ, накопленные за 110 минут трафика; `cleared_at IS NULL` — 0 строк, то есть
+-- порт закрывает контекст всегда, и весь остаток — это удержание на 24 часа, а не утечка клиентов.
+-- `seq_tup_read` по этой таблице = 260 080 292 780 строк.
+--
+-- Предикат удаляет только то, что уже нельзя использовать ни одним гейтом:
+--   * `cleared_at IS NOT NULL` — контекст закрыт, а каждый гейт требует `cleared_at IS NULL`;
+--   * `transaction_id < pg_snapshot_xmin(pg_current_snapshot())` — транзакция, поставившая строку,
+--     заведомо завершена, а `pg_current_xact_id()` живой транзакции такого значения уже не вернёт
+--     (`xid8` не переиспользуется).
+-- Строку идущей прямо сейчас чужой port-context транзакции предикат не трогает: у неё
+-- `cleared_at IS NULL` и `transaction_id >= xmin`.
+DELETE FROM app_ext.accepted_port_contexts
+ WHERE cleared_at IS NOT NULL
+    OR transaction_id < pg_snapshot_xmin(pg_current_snapshot());

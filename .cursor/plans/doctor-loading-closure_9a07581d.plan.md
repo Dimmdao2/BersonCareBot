@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 ---
 name: doctor-loading-closure
 overview: Закрыть все подтверждённые дефекты doctor-loading-аудита на одном каноническом плане, сначала зафиксировать acceptance-oracle, затем исправить продукт, пройти свежий CI/security/TEST acceptance и закрыть требования только доказательствами на связанных SHA.

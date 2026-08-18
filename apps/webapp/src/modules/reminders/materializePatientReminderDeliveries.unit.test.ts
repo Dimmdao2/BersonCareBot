@@ -46,6 +46,45 @@ describe('patient reminder ready-delivery materializer', () => {
       'rem:occurrence-1:g3:email',
     ]);
     expect(deliveries.every((delivery) => delivery.kind === 'reminder_dispatch')).toBe(true);
+    for (const delivery of deliveries) {
+      expect(delivery.intent.meta).toMatchObject({
+        eventId: delivery.eventId,
+        source: delivery.channel,
+        userId: input.rule.integratorUserId,
+        outboundMessageClass: 'routine_product',
+        outboundCapability:
+          delivery.channel === 'web_push' ? 'app_push' : 'essential_delivery',
+      });
+      expect(Number.isNaN(Date.parse(delivery.intent.meta.occurredAt))).toBe(false);
+      expect(delivery.intent.payload).toMatchObject({
+        message: { text: expect.any(String) },
+        delivery: { channels: [delivery.channel], maxAttempts: 1 },
+      });
+      const recipient = delivery.intent.payload.recipient as Record<string, unknown>;
+      const recipientKey = {
+        telegram: 'chatId',
+        max: 'userId',
+        email: 'email',
+        web_push: 'pushUserId',
+      }[delivery.channel];
+      expect(recipient[recipientKey]).toBe(delivery.externalId);
+    }
+  });
+
+  it('bounds caller-controlled copy before creating a ready envelope', () => {
+    const [delivery] = materializePatientReminderDeliveries({
+      ...input,
+      rule: {
+        ...input.rule,
+        customTitle: 'T'.repeat(500),
+        customText: '&'.repeat(20_000),
+      },
+      targets: { selectedChannels: ['telegram'] as const, telegramId: '1001' },
+    });
+
+    expect(delivery?.logText.length).toBe(8000);
+    const message = delivery?.intent.payload.message as { text: string } | undefined;
+    expect(message?.text.length).toBeLessThanOrEqual(65_536);
   });
 
   it('owns copy, deep-link and callback keyboard before enqueue', () => {

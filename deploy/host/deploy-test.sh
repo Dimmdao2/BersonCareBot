@@ -56,7 +56,15 @@ for command in curl flock git mktemp node pnpm realpath sudo systemctl; do
   command -v "$command" >/dev/null 2>&1 || fail "required command is unavailable: $command"
 done
 for env_file in "$API_ENV" "$WEBAPP_ENV"; do
-  [[ ! -L "$env_file" && -f "$env_file" ]] || fail "canonical TEST env is missing: $env_file"
+  # Проверять наличие обязан тот, кому эти файлы вообще положено видеть. `/opt/env` закрыт группой
+  # `deploy`, а выкатку запускает владелец репозитория (`dev`), которого в этой группе нет и не было
+  # (`/etc/group` не менялся с 26.07). Прежняя редакция этой проверки, добавленная 17.08 в
+  # `609a19f94`, спрашивала `-f` от вызывающего и потому падала «canonical TEST env is missing» на
+  # файлах, которые лежат на месте, — блокируя выкатку целиком. Смысл проверки сохранён дословно:
+  # существует, обычный файл, не символическая ссылка. Ниже (строка ~71) скрипт читает эти же файлы
+  # ровно так же — через `sudo -u deploy`.
+  sudo -n -u deploy test -f "$env_file" || fail "canonical TEST env is missing: $env_file"
+  ! sudo -n -u deploy test -L "$env_file" || fail "canonical TEST env must not be a symlink: $env_file"
 done
 
 for address in $(hostname -I 2>/dev/null || true); do

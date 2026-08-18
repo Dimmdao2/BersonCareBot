@@ -5,7 +5,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { createDoctorClient } from '@/app-layer/doctor/createDoctorClient';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  quotaLimitReachedRefusalMessage,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
@@ -95,7 +98,21 @@ export async function POST(request: Request) {
           : result.error.startsWith('invalid_')
             ? 400
             : 409;
-    return NextResponse.json({ ok: false, error: result.error }, { status });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: result.error,
+        // Owner 18.08 (L-1): the patient ceiling is the one refusal left for a limit-bearing
+        // mechanic, so it reaches the screen as a sentence instead of `patient_count_limit_reached`.
+        ...(result.error === 'patient_count_limit_reached'
+          ? {
+              mechanic: 'patient_count',
+              message: quotaLimitReachedRefusalMessage('patient_count', 'создать пациента'),
+            }
+          : {}),
+      },
+      { status },
+    );
   }
 
   return NextResponse.json({

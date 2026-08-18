@@ -10,8 +10,6 @@ import { PatientHomeBlocksSettingsPageClient } from '@/app/app/settings/patient-
 import { PatientHomePracticeTargetPanel } from '@/app/app/settings/patient-home/PatientHomePracticeTargetPanel';
 import { PatientHomeDailyWarmupRotationPanel } from '@/app/app/settings/patient-home/PatientHomeDailyWarmupRotationPanel';
 import { PatientHomeRepeatCooldownPanel } from '@/app/app/settings/patient-home/PatientHomeRepeatCooldownPanel';
-import { PatientHomeMoodIconsPanel } from './PatientHomeMoodIconsPanel';
-import { parsePatientHomeMoodIcons } from '@/modules/patient-home/patientHomeMoodIcons';
 import {
   parsePatientHomeDailyWarmupRepeatCooldownMinutes,
   parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes,
@@ -45,7 +43,6 @@ export default async function DoctorPatientHomeSettingsPage() {
     sections,
     courses,
     practiceSetting,
-    moodSetting,
     warmupRotationEn,
     warmupRotationTimes,
     warmupCd,
@@ -63,7 +60,6 @@ export default async function DoctorPatientHomeSettingsPage() {
             organizationId,
           })
         : Promise.resolve(null),
-      deps.systemSettings.getSetting('patient_home_mood_icons', 'admin', { organizationId }),
       canManagePatientHome
         ? deps.systemSettings.getSetting('patient_home_daily_warmup_rotation_enabled', 'admin', {
             organizationId,
@@ -89,7 +85,6 @@ export default async function DoctorPatientHomeSettingsPage() {
   const initialPracticeTarget = parsePatientHomeDailyPracticeTarget(
     practiceSetting?.valueJson ?? null,
   );
-  const moodOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
   const initialWarmupRotationEnabled = parsePatientHomeDailyWarmupRotationEnabled(
     warmupRotationEn?.valueJson ?? null,
   );
@@ -147,7 +142,6 @@ export default async function DoctorPatientHomeSettingsPage() {
       {canManagePatientHome ? (
         <PatientHomePracticeTargetPanel initialTarget={initialPracticeTarget} />
       ) : null}
-      <PatientHomeMoodIconsPanel initialOptions={moodOptions} />
       <PatientHomeRepeatCooldownPanel
         initialWarmupMinutes={initialWarmupRepeatMinutes}
         initialPlanItemMinutes={initialPlanItemRepeatMinutes}

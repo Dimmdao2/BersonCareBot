@@ -1,4 +1,5 @@
 import type { PaymentProviderConfig } from '@/modules/payments/types';
+import { SAAS_BILLING_INVOICE_VALIDITY_DAYS } from './invoiceValidity';
 
 export const DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'yookassa';
 
@@ -18,10 +19,22 @@ const YOOKASSA_VAT_CODES = new Set([
 ]);
 const YOOKASSA_TAX_SYSTEM_CODES = new Set(['1', '2', '3', '4', '5', '6']);
 
+/**
+ * Числа политики жизненного цикла биллинга — админ-редактируемая часть системной настройки
+ * `saas_billing_payment_provider`. Поле, не заданное администратором, здесь `null`: у каждого свой
+ * читатель, и неполнота одного не должна прятать остальные.
+ *
+ * Владелец, 18.08: срок жизни счёта — НАСТРОЙКА, одна на все счета, а не константа в коде и не
+ * поле в форме выставления. Поэтому `invoiceValidityDays` — единственное поле здесь без `null`:
+ * читатель есть всегда (любое выставление счёта), и при пустой настройке действует документированный
+ * дефолт `SAAS_BILLING_INVOICE_VALIDITY_DAYS`.
+ */
 export type SaasBillingLifecyclePolicy = {
-  graceDays: number;
-  chargeAttempts: number;
-  readOnlyDays: number;
+  graceDays: number | null;
+  chargeAttempts: number | null;
+  readOnlyDays: number | null;
+  /** Сколько дней живёт выставленный счёт. Дом правила; второго нет. */
+  invoiceValidityDays: number;
 };
 
 export type SaasBillingPayeeRequisites = {
@@ -41,7 +54,7 @@ export type SaasBillingPaymentProviderSettings = {
   defaultProviderId: string;
   providers: PaymentProviderConfig[];
   payeeRequisites: SaasBillingPayeeRequisites;
-  lifecyclePolicy: SaasBillingLifecyclePolicy | null;
+  lifecyclePolicy: SaasBillingLifecyclePolicy;
 };
 
 function unwrap(envelope: unknown): unknown {
@@ -105,15 +118,18 @@ function parsePayeeRequisites(raw: unknown): SaasBillingPayeeRequisites {
   };
 }
 
-function parseLifecyclePolicy(raw: unknown): SaasBillingLifecyclePolicy | null {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const row = raw as Record<string, unknown>;
-  const graceDays = positiveInteger(row.graceDays);
-  const chargeAttempts = positiveInteger(row.chargeAttempts);
-  const readOnlyDays = positiveInteger(row.readOnlyDays);
-  return graceDays && chargeAttempts && readOnlyDays
-    ? { graceDays, chargeAttempts, readOnlyDays }
-    : null;
+function parseLifecyclePolicy(raw: unknown): SaasBillingLifecyclePolicy {
+  const row =
+    raw !== null && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  return {
+    graceDays: positiveInteger(row.graceDays),
+    chargeAttempts: positiveInteger(row.chargeAttempts),
+    readOnlyDays: positiveInteger(row.readOnlyDays),
+    invoiceValidityDays:
+      positiveInteger(row.invoiceValidityDays) ?? SAAS_BILLING_INVOICE_VALIDITY_DAYS,
+  };
 }
 
 export function parseSaasBillingPaymentProviderSettings(

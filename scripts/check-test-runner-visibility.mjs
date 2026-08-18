@@ -37,13 +37,6 @@ const APPS = [
     name: 'webapp',
     dir: 'apps/webapp',
     testRoots: ['src'],
-    runnerInvocations: [
-      { args: [], env: {} },
-      {
-        args: ['--config', 'vitest.postgres.config.ts'],
-        env: { POSTGRES_INTEGRATION_LIST_ONLY: '1' },
-      },
-    ],
   },
   { name: 'media-worker', dir: 'apps/media-worker', testRoots: ['src'] },
 ];

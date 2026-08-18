@@ -6,8 +6,9 @@ umask 077
 # Apply ordinary pending migrations to the existing post-cutover DEV database.
 # This entrypoint never restores, drops, recreates or copies a database.  It uses only the local
 # PostgreSQL administrator channel: integrator DDL runs as app_object_owner, while webapp Drizzle
-# statements run through the declaration-owner-aware NOLOGIN bcb_dev_migrator.  The declaration
-# reconcile is the final mandatory step, so newly-created objects cannot retain migration access.
+# statements run through the declaration-owner-aware NOLOGIN bcb_dev_migrator. Preflight compiles
+# pending webapp DDL in one transaction and rolls it back. The declaration reconcile is the final
+# mandatory execute step, so newly-created objects cannot retain migration access.
 
 TARGET_DB="bcb_webapp_dev"
 MIGRATOR_ROLE="bcb_dev_migrator"
@@ -31,10 +32,10 @@ usage() {
   cat <<'EOF'
 Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
 
-Validates the exact existing local bcb_webapp_dev target. --execute applies pending
-integrator migrations through the local app_object_owner identity, pending webapp
-Drizzle statements through the NOLOGIN bcb_dev_migrator and their declared owners,
-then atomically reconciles and audits the declaration-owned access state.
+Validates the exact existing local bcb_webapp_dev target. --preflight executes pending
+webapp Drizzle DDL through the NOLOGIN bcb_dev_migrator and its declared owners in a
+single transaction ending in ROLLBACK. --execute applies pending integrator and webapp
+migrations, then atomically reconciles and audits the declaration-owned access state.
 EOF
 }
 
@@ -154,7 +155,13 @@ owner_state="$(postgres_scalar \
   fatal "$OBJECT_OWNER_ROLE must be a stationary NOLOGIN/NOBYPASSRLS/NOINHERIT owner"
 
 if [[ "$MODE" == "--preflight" ]]; then
-  echo "migrate-dev preflight: PASS (post-cutover DEV; no changes made)"
+  run_tracked node "$OWNER_MIGRATOR" \
+    --db "$TARGET_DB" \
+    --migrator "$MIGRATOR_ROLE" \
+    --drizzle-folder "$DRIZZLE_FOLDER" \
+    --sudo-postgres \
+    --rollback-only
+  echo "migrate-dev preflight: PASS (post-cutover DEV; rollback-only webapp DDL validation complete)"
   exit 0
 fi
 

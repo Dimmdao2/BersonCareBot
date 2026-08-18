@@ -18,6 +18,52 @@ export const OBSOLETE_CONTEXT_SIGNATURES = [
 ] as const;
 
 export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
+  'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)': {
+    owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+    returnsSet: false, volatility: 'VOLATILE', parallel: 'UNSAFE',
+    proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
+    purpose: 'atomically validates and materializes one tenant reminder occurrence and its queue rows',
+    typedArgs: ['uuid', 'text', 'text', 'uuid', 'text', 'timestamp with time zone', 'integer', 'text'],
+    databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    relationSurfaces: [
+      { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'is_enabled', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.platform_users', columns: ['id', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'integrator.user_reminder_occurrences', columns: ['id', 'rule_id', 'platform_user_id', 'occurrence_key', 'planned_at', 'status', 'queued_at', 'delivery_generation', 'organization_id', 'created_at', 'updated_at'], operations: ['SELECT', 'INSERT', 'UPDATE'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'last_error', 'dead_at', 'priority', 'created_at', 'updated_at'], operations: ['SELECT', 'INSERT', 'UPDATE'], evidence: 'pg16-function-body-lexical-upper-bound' },
+    ], delegatesTo: ['app.patient_reminder_materialization_fingerprint(text,text)'], invocation: 'runtime',
+  },
+  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)': {
+    owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+    returnsSet: false, volatility: 'STABLE', parallel: 'RESTRICTED',
+    proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
+    purpose: 'reads one tenant patient delivery-target snapshot without exposing relations',
+    typedArgs: ['uuid', 'uuid', 'bigint', 'text', 'timestamp with time zone'],
+    databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    relationSurfaces: [
+      { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.platform_users', columns: ['id', 'integrator_user_id', 'email', 'email_verified_at', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'bot_blocked_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_channel_preferences', columns: ['platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_notification_topic_channels', columns: ['user_id', 'topic_code', 'channel_code', 'is_enabled'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_notification_topics', columns: ['user_id', 'topic_code', 'is_enabled'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.user_web_push_subscriptions', columns: ['user_id'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+    ], invocation: 'runtime',
+  },
+  'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)': {
+    owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+    returnsSet: false, volatility: 'STABLE', parallel: 'RESTRICTED',
+    proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
+    purpose: 'reads one tenant reminder rule, due occurrence, and linked-title snapshot',
+    typedArgs: ['uuid', 'timestamp with time zone'], databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    relationSurfaces: [
+      { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'schedule_data', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'display_title', 'reminder_intent', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'integrator.user_reminder_occurrences', columns: ['id', 'rule_id', 'platform_user_id', 'occurrence_key', 'planned_at', 'status', 'delivery_generation', 'organization_id'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.content_pages', columns: ['id', 'organization_id', 'slug', 'title', 'is_published', 'updated_at', 'deleted_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.content_sections', columns: ['id', 'organization_id', 'slug', 'title', 'is_visible', 'updated_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+    ], invocation: 'runtime',
+  },
   "app.accept_org_invite(text,uuid,text)": {
     "owner": "app_seam_org_invite_owner",
     "security": "DEFINER",
@@ -3654,11 +3700,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "UPDATE"
         ],
         "operationColumns": {
-          "SELECT": [
-            "key",
-            "request_hash",
-            "expires_at"
-          ],
           "INSERT": [
             "key",
             "request_hash",
@@ -4527,10 +4568,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "proconfig": [
       "search_path=pg_catalog"
     ],
-    "execute": [
-      "app_staff"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_materialization_owner",
+    "execute": [],
+    "purpose": "retired private split mutation root; the atomic materialization root replaces it",
     "typedArgs": [
       "text",
       "integer",
@@ -4593,7 +4632,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
-    "invocation": "runtime"
+    "invocation": "internal"
   },
   "app.open_or_touch_operator_incident(text,text,text,text,text)": {
     "owner": "app_seam_telemetry_operator_owner",
@@ -5902,10 +5941,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "proconfig": [
       "search_path=pg_catalog"
     ],
-    "execute": [
-      "app_operational_scheduler"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_materialization_owner",
+    "execute": [],
+    "purpose": "private helper delegated only by the atomic reminder materialization root",
     "typedArgs": [
       "text",
       "text"
@@ -6076,7 +6113,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
-    "invocation": "runtime"
+    "invocation": "internal"
   },
   "app.patient_reminder_notification_settings(text,text)": {
     "owner": "app_seam_reminder_patient_owner",
@@ -12703,10 +12740,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "proconfig": [
       "search_path=pg_catalog"
     ],
-    "execute": [
-      "app_staff"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_materialization_owner",
+    "execute": [],
+    "purpose": "retired private split mutation root; the atomic materialization root replaces it",
     "typedArgs": [
       "text",
       "text",
@@ -12774,7 +12809,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
-    "invocation": "runtime"
+    "invocation": "internal"
   },
   "app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)": {
     "owner": "app_seam_patient_invite_owner",

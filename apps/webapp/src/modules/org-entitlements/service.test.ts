@@ -376,53 +376,13 @@ describe('org entitlement mechanic classes', () => {
     );
   });
 
-  it('refuses file growth for an assigned tariff that never configured a file limit', async () => {
-    const snapshot = {
-      tariff: { mechanics: {}, quotas: {}, includedSeats: null, ...unconfiguredPolicies },
-      overrides: [],
-      access: activeAccess,
-    };
-    const port: OrgEntitlementsPort = {
-      ...openCabinet,
-      ...lifecycleNotificationStub,
-      resolveMechanicAccess: async (_organizationId, mechanic) => ({
-        mechanic,
-        state: 'disabled',
-        policySource: 'unconfigured',
-        warning: null,
-      }),
-      resolveCabinetAccess: async () => ({
-        state: 'full_access' as const,
-        policySource: 'system' as const,
-        warning: null,
-      }),
-      getSnapshot: async () => snapshot,
-      getTariffForOrg: async () => snapshot.tariff,
-      getActiveTariffById: async () => null,
-      listOverrides: async () => [],
-      getEffectiveCommercialAccess: async () => activeAccess,
-      getEnforcedQuotaUsage: async () => ({ files: 0 }),
-      getOwnQuotaUsage: async () => ({ files: 0 }),
-    };
-
-    expect(entitlementsFromSnapshot(snapshot).files).toBe(false);
-    expect(fileStorageLimitFromSnapshot(snapshot)).toBeUndefined();
-    vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
-      typeof buildAppDeps
-    >);
-    const result = await requireEntitlementForMutation({ organizationId: 'org' }, 'files');
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.response.status).toBe(403);
-      await expect(result.response.json()).resolves.toMatchObject({
-        error: 'entitlement_required',
-        mechanic: 'files',
-      });
-    }
-  });
-
-  it('refuses patient and branch growth for an assigned tariff without their configured limits', () => {
+  /**
+   * Owner 18.08 (L-1): «ТАМ НЕ НАДО ВООБЩЕ СТАВИТЬ ВАРИАНТ ВЫКЛЮЧЕН — ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА
+   * для всех таких механик с лимитом». Breakage this pins: an unfilled number goes back to meaning
+   * «механика выключена», and a clinic on СТАРТ/ПРОФИ/КЛИНИКА (quotas = {}) is refused its first
+   * location, patient and file — the live 403 of 18.08.
+   */
+  it('treats a tariff that named no number as «без лимита», not as a missing mechanic', () => {
     const snapshot = {
       tariff: { mechanics: {}, quotas: {}, includedSeats: null, ...unconfiguredPolicies },
       overrides: [],
@@ -431,8 +391,28 @@ describe('org entitlement mechanic classes', () => {
 
     const entitlements = entitlementsFromSnapshot(snapshot);
 
-    expect(entitlements.patient_count).toBe(false);
-    expect(entitlements.branches).toBe(false);
+    expect(entitlements.branches).toBe(true);
+    expect(entitlements.patient_count).toBe(true);
+    expect(entitlements.files).toBe(true);
+    expect(fileStorageLimitFromSnapshot(snapshot)).toBeNull();
+  });
+
+  // The other half of the same rule: a number the owner DID set stays a ceiling.
+  it('keeps the owner number as the file ceiling when the tariff set one', () => {
+    const snapshot = {
+      tariff: {
+        mechanics: {},
+        quotas: {
+          files: { kind: 'numeric' as const, limit: 1024, unit: 'bytes' as const, warningAtPercent: null },
+        },
+        includedSeats: null,
+        ...unconfiguredPolicies,
+      },
+      overrides: [],
+      access: activeAccess,
+    };
+
+    expect(fileStorageLimitFromSnapshot(snapshot)).toBe(1024);
   });
 
   it('accepts owner numbers for stock mechanics without opening numbers for possibility mechanics', async () => {
@@ -1476,10 +1456,16 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
     expect(created.includedSeats).toBe(0);
   });
 
-  it('refuses to save an active tariff without an explicit branches stock', () => {
-    expect(() =>
-      service().createTariff(tariffInput({ quotas: {} }), { actorId: null, reason: '' }),
-    ).toThrow('tariff_branches_quota_required');
+  // Owner 18.08 (L-1): the number is a ceiling, not a switch, so a tariff that names none is a
+  // legal «без лимита» state. Breakage this pins: the save refusal comes back and the constructor
+  // can no longer express «без лимита» by leaving the number out.
+  it('saves an active tariff that names no branch number', async () => {
+    const created = await service().createTariff(tariffInput({ quotas: {} }), {
+      actorId: null,
+      reason: '',
+    });
+
+    expect(created.quotas.branches).toBeUndefined();
   });
 
   // Owner 31.07: «процент для предупреждения надо считать только от количества доступных клиентов

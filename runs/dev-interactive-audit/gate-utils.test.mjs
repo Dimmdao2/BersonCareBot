@@ -4,6 +4,7 @@ import {
   canonicalAuditUrl,
   exactUrlMatches,
   evaluatePageObservation,
+  listRowNamePattern,
   routeContractMatches,
   routePatternMatches,
   routeTemplateKey,
@@ -220,4 +221,21 @@ test('binary gate fails for identity, page, action, network, or console evidence
   assert.deepEqual(summarizeBinaryGate([clean], ['doctor', 'patient']).violations, [
     'patient:missing_role_artifact',
   ]);
+});
+
+test('accepts a list row whose name carries the on-support marker and rejects a different person', () => {
+  const pattern = listRowNamePattern('Берсон Дмитрий');
+  // Rendered by DoctorCommentsTab PatientRow: the name span also contains the «★» marker.
+  assert.equal(pattern.test('Берсон Дмитрий★'), true);
+  assert.equal(pattern.test('Берсон Дмитрий'), true);
+  // A different person must never satisfy the exact-identity contract.
+  assert.equal(pattern.test('Берсон Дмитрий Юрьевич'), false);
+  assert.equal(pattern.test('Берсон Дмитрий Юрьевич★'), false);
+  assert.equal(pattern.test('Не Берсон Дмитрий'), false);
+});
+
+test('escapes regex metacharacters in the expected name instead of interpreting them', () => {
+  const pattern = listRowNamePattern('A.B (C)');
+  assert.equal(pattern.test('A.B (C)★'), true);
+  assert.equal(pattern.test('AXB (C)'), false);
 });

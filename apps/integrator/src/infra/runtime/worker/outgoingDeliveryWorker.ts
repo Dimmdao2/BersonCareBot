@@ -1002,13 +1002,11 @@ export async function processOutgoingDeliveryRow(
           (row.channel === 'telegram' || row.channel === 'max') &&
           classifyRecipientBlockedBotError(err, row.channel) !== null;
         if (isRecipientBlocked || isOutgoingDeliveryDispatchErrorRetryable(message)) {
-          const transition = await runWithDeliveryQueueCapability(() =>
-            advanceAppointmentReminderMessengerLadder(db, {
-              queueId: row.id,
-              expectedAttemptCount: row.attemptCount,
-              error: message,
-            }),
-          );
+          const transition = await advanceAppointmentReminderMessengerLadder(db, {
+            queueId: row.id,
+            expectedAttemptCount: row.attemptCount,
+            error: message,
+          });
           if (transition === 'not_transitioned') {
             logger.info(
               { rowId: row.id, eventId: row.eventId },

@@ -17,6 +17,7 @@ import type {
 } from './ports';
 import { PaymentProviderRequestRefusedError, type PaymentProviderPort } from '@/modules/payments/providerPort';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
+import { resolveCommercialAccess } from '@/infra/repos/commercialAccessComputation';
 import type { BillingPeriodOption } from './billingPeriodCatalog';
 
 const DEFAULT_TEST_BILLING_PERIODS: BillingPeriodOption[] = [
@@ -878,6 +879,141 @@ describe('§5a #1069 T5 (owner 03.08) — first tariff attachment gets the one-t
     expect(result.outcome).toBe('checkout');
     if (result.outcome !== 'checkout') throw new Error('checkout expected');
     expect(result.invoice.providerCheckoutUrl).toBeTruthy();
+  });
+});
+
+/**
+ * L-11, решение владельца 18.08 дословно: «про клинику, у которой он уже закончился: она выбирает
+ * платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ ПОЛУЧАЕТ ДОСТУП».
+ *
+ * Поломка, которую ловит этот блок: выбор первого тарифа записывает его как ДЕЙСТВУЮЩИЙ тариф
+ * организации (`be_organizations.tariff_id`) до всякой оплаты. Отказ дорогой и молчаливый: у
+ * организации без записи о пробном периоде `resolveCommercialAccess` берёт ветку `assignment`
+ * прямо из этого поля и отдаёт все механики выбранного тарифа бесплатно — денег нет, доступ есть,
+ * и снаружи это выглядит как обычная работающая клиника.
+ *
+ * Oracle — решение владельца, не реализация: действующий тариф появляется только по факту оплаты
+ * (`app.apply_paid_saas_billing_tariff`), а до неё доступа нет.
+ */
+describe('L-11: выбранный тариф не действует, действующим его делает оплата', () => {
+  const basicTariff = {
+    id: 'tariff-basic',
+    name: 'Базовый',
+    priceMinor: 250_000,
+    currency: 'RUB',
+    billingPeriod: 'month',
+  };
+
+  /**
+   * `trialPolicy: null` — организация, которой пробный период дать неоткуда (политика владельца
+   * выключена либо её пробный период уже прожит). Именно эта организация в проде и получала
+   * выбранный тариф даром.
+   */
+  function firstChoiceService(options: { trialPolicy?: { durationDays: number } | null } = {}) {
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [basicTariff],
+      trialPolicy: options.trialPolicy
+        ? {
+            // Длительность здесь — произвольная величина фикстуры, а не «наш пробный период»:
+            // настоящая живёт в настройке владельца `saas_trial_policy` и меняется им в любой момент.
+            durationDays: options.trialPolicy.durationDays,
+            discountWindowDays: 0,
+            postTrialBehavior: 'blocked',
+            postTrialTariffId: null,
+          }
+        : null,
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-18T00:00:00.000Z'),
+      // Как в проде: «есть ли уже действующий тариф» читается из назначения организации, а не из
+      // строки подписки, — иначе первый выбор перестал бы быть первым сразу после самого себя.
+      getTariffTransition: async (organizationId, tariffId) => ({
+        currentTariffId: await repository.getOrganizationAssignedTariffId(organizationId),
+        targetTariffId: tariffId,
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+    return { repository, service };
+  }
+
+  /** Что видит живая клиника: тариф в силе или нет. Та же функция, что и на снимке прав. */
+  async function tariffInForce(
+    repository: ReturnType<typeof firstChoiceService>['repository'],
+    organizationId: string,
+  ) {
+    return resolveCommercialAccess({
+      organizationTariffId: await repository.getOrganizationAssignedTariffId(organizationId),
+      trial: null,
+      paidPeriod: null,
+      now: Date.parse('2026-08-18T00:00:00.000Z'),
+    }).tariffId;
+  }
+
+  it('выбор платного тарифа не даёт ничего: счёт выставлен, тариф не действует', async () => {
+    const { repository, service } = firstChoiceService({ trialPolicy: null });
+
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-no-trial',
+      tariffId: basicTariff.id,
+      actorId: 'owner-1',
+    });
+
+    expect(result.outcome).toBe('checkout');
+    if (result.outcome !== 'checkout') throw new Error('checkout expected');
+    // Клиника не брошена: у неё есть счёт ровно на выбранный тариф и ссылка на оплату.
+    expect(result.invoice).toMatchObject({
+      tariffId: basicTariff.id,
+      amountMinor: basicTariff.priceMinor,
+    });
+    expect(result.invoice.providerCheckoutUrl).toBeTruthy();
+    // И при этом — ни одной механики: действующего тарифа нет.
+    expect(await tariffInForce(repository, 'org-no-trial')).toBeNull();
+  });
+
+  it('оплата счёта делает выбранный тариф действующим', async () => {
+    const { repository, service } = firstChoiceService({ trialPolicy: null });
+    const chosen = await service.scheduleOwnTariffChange({
+      organizationId: 'org-pays',
+      tariffId: basicTariff.id,
+      actorId: 'owner-1',
+    });
+    if (chosen.outcome !== 'checkout') throw new Error('checkout expected');
+    expect(await tariffInForce(repository, 'org-pays')).toBeNull();
+
+    await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-pays',
+      saasBillingInvoiceId: chosen.invoice.id,
+      providerId: chosen.invoice.providerId,
+      verified: {
+        idempotencyKey: 'provider-event-1',
+        eventType: 'payment.succeeded',
+        amountMinor: basicTariff.priceMinor,
+        payload: { currency: basicTariff.currency },
+      },
+    });
+
+    expect(await tariffInForce(repository, 'org-pays')).toBe(basicTariff.id);
+  });
+
+  it('единственный доступ без оплаты — начавшийся пробный период', async () => {
+    const { repository, service } = firstChoiceService({ trialPolicy: { durationDays: 3 } });
+
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-trial',
+      tariffId: basicTariff.id,
+      actorId: 'owner-1',
+    });
+
+    expect(result.outcome).toBe('trial_started');
+    expect(await tariffInForce(repository, 'org-trial')).toBe(basicTariff.id);
   });
 });
 
@@ -2401,6 +2537,7 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         }),
       },
       resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
     });
     await seedOrgWithTariff(service);
 
@@ -2409,7 +2546,6 @@ describe('К4 round 2: повторное «Выставить счёт» не �
       amountMinor: 5_000,
       currency: 'RUB',
       description: 'Счёт за тариф',
-      expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
     };
 
     const first = await service.createManualSaasBillingInvoice(request);
@@ -2431,7 +2567,8 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         purpose: 'saas_billing_tariff_renewal',
         subjectRef: first.id,
         returnUrl: expect.stringMatching(/^https?:\/\/[^/]+\/app\/settings\?tab=billing$/),
-        invoice: { description: 'Счёт за тариф', expiresAt: request.expiresAt },
+        // Этап 1, пункт 1.3 — 30 дней от момента выставления, не выбор администратора.
+        invoice: { description: 'Счёт за тариф', expiresAt: '2026-09-01T00:00:00.000Z' },
       }),
     );
 
@@ -2475,7 +2612,6 @@ describe('К4 round 2: повторное «Выставить счёт» не �
       amountMinor: 5_000,
       currency: 'RUB',
       description: 'Счёт за тариф',
-      expiresAt: '2026-08-05T00:00:00.000Z',
     };
 
     const first = await service.createManualSaasBillingInvoice(request);
@@ -2528,7 +2664,6 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         amountMinor: 5_000,
         currency: 'RUB',
         description: 'Счёт за тариф',
-        expiresAt: '2026-08-20T00:00:00.000Z',
       }),
     ).rejects.toThrow('saas_billing_receipt_vat_code_missing');
 
@@ -2546,7 +2681,6 @@ describe('К4: черновик после сбоя провайдера мож�
     amountMinor: 5_000,
     currency: 'RUB',
     description: 'Счёт за тариф',
-    expiresAt: '2026-08-05T00:00:00.000Z',
   };
 
   async function createService(createIntent: ReturnType<typeof vi.fn>) {
@@ -2945,5 +3079,673 @@ describe('К6: неудачное автосписание возвращает 
       saasBillingInvoiceId: 'invoice-1',
       organizationId: 'org-1',
     });
+  });
+});
+
+// Решение владельца 18.08.2026, дословно: «Считать бесплатный тариф неоплачиваемым». Поломка,
+// которую ловит этот блок: клиника на тарифе ценой 0 ₽ нажимает «Оплатить тариф», код доходит до
+// чека с нулевой позицией (`payment_receipt_item_amount_invalid`) и отвечает «оплата временно
+// недоступна» — молчаливый и дорогой отказ: платить нечего, а человеку сказано, что сломалось.
+describe('бесплатный тариф неоплачиваем (решение владельца 18.08)', () => {
+  function createService(
+    createIntent: ReturnType<typeof vi.fn>,
+    tariffs: Array<{ id: string; name: string; priceMinor: number; currency: string; billingPeriod: string }>,
+  ) {
+    const repository = createInMemorySaasBillingRepository({ tariffs });
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [
+            { id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' },
+          ],
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-18T00:00:00.000Z'),
+    });
+    return { repository, service };
+  }
+
+  const freeTariff = {
+    id: 'tariff-free',
+    name: 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК',
+    priceMinor: 0,
+    currency: 'RUB',
+    billingPeriod: 'month',
+  };
+  const paidTariff = {
+    id: 'tariff-paid',
+    name: 'ПРОФИ',
+    priceMinor: 490_000,
+    currency: 'RUB',
+    billingPeriod: 'month',
+  };
+
+  it('счёт на бесплатный тариф не выставляется: причина названа, счёта нет, провайдер не тронут', async () => {
+    const createIntent = vi.fn();
+    const { repository, service } = createService(createIntent, [freeTariff, paidTariff]);
+    await service.assignManualTariff({
+      organizationId: 'org-free',
+      tariffId: freeTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    await expect(service.createOwnTariffRenewalInvoice('org-free')).rejects.toThrow(
+      'saas_billing_tariff_not_payable',
+    );
+    expect(createIntent).not.toHaveBeenCalled();
+    expect((await repository.getOrganizationBillingOverview('org-free')).invoices).toHaveLength(0);
+  });
+
+  it('платный тариф по-прежнему доходит до платёжной двери и получает ссылку', async () => {
+    // Дверь объявлена с аргументом намеренно: тест проверяет не только факт вызова, но и сумму,
+    // с которой в неё вошли, — без типа параметра `mock.calls[0][0]` недостижим.
+    const createIntent = vi.fn(async (_intent: { amountMinor: number; currency: string }) => ({
+      providerIntentRef: 'provider-paid-1',
+      checkoutUrl: 'https://pay.example/paid-1',
+    }));
+    const { service } = createService(createIntent, [freeTariff, paidTariff]);
+    await service.assignManualTariff({
+      organizationId: 'org-paid',
+      tariffId: paidTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    const raised = await service.createOwnTariffRenewalInvoice('org-paid');
+
+    expect(raised.providerCheckoutUrl).toBe('https://pay.example/paid-1');
+    expect(createIntent).toHaveBeenCalledTimes(1);
+    expect(createIntent.mock.calls[0]?.[0]).toMatchObject({
+      amountMinor: paidTariff.priceMinor,
+      currency: 'RUB',
+    });
+  });
+
+  it('экран узнаёт то же правило: бесплатный тариф не платится, платный платится', async () => {
+    const { service } = createService(vi.fn(), [freeTariff, paidTariff]);
+    await service.assignManualTariff({
+      organizationId: 'org-free',
+      tariffId: freeTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-paid',
+      tariffId: paidTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    await expect(service.getOwnTariffChangeState('org-free')).resolves.toMatchObject({
+      payable: false,
+    });
+    await expect(service.getOwnTariffChangeState('org-paid')).resolves.toMatchObject({
+      payable: true,
+    });
+  });
+});
+
+// Решение владельца 18.08.2026, дословно: «клиент получает то что оплачено. То что не оплачено не
+// получает. Вот и все». Поломка, которую ловит этот блок: пока смена тарифа запланирована, счёт
+// собирается из ДВУХ тарифов — сумма из текущего, длина периода из запланированного. Клиника платит
+// месячную цену за год (или годовую за месяц), и никто этого не видит: в счёте оба числа выглядят
+// правдоподобно по отдельности. Отказ дорогой (деньги) и молчаливый (проверить нечем, кроме самого
+// счёта) — поэтому здесь тест, а не «сходить посмотреть».
+describe('счёт целиком по одному тарифу — тому, за который платят (решение владельца 18.08)', () => {
+  const monthlyTariff = {
+    id: 'tariff-month',
+    name: 'СТАРТ',
+    priceMinor: 300_000,
+    currency: 'RUB',
+    billingPeriod: 'month',
+  };
+  const yearlyTariff = {
+    id: 'tariff-year',
+    name: 'ГОДОВОЙ',
+    priceMinor: 3_000_000,
+    currency: 'RUB',
+    billingPeriod: 'year',
+  };
+  const freeYearlyTariff = {
+    id: 'tariff-free-year',
+    name: 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК',
+    priceMinor: 0,
+    currency: 'RUB',
+    billingPeriod: 'year',
+  };
+
+  function createService(
+    tariffs: Array<{ id: string; name: string; priceMinor: number; currency: string; billingPeriod: string }>,
+  ) {
+    const createIntent = vi.fn(
+      async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+        providerIntentRef: `provider-${input.subjectRef}`,
+        checkoutUrl: `https://pay.example/${input.subjectRef}`,
+      }),
+    );
+    const repository = createInMemorySaasBillingRepository({ tariffs, trialPolicy: null });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-18T00:00:00.000Z'),
+      // Смена тарифа на следующий период: сам переход и его блокировки здесь не предмет проверки.
+      getTariffTransition: async (_organizationId, tariffId) => ({
+        currentTariffId: 'seeded-current-tariff',
+        targetTariffId: tariffId,
+        blocks: [],
+        appliesNextPeriod: true,
+      }),
+    });
+    return { repository, service, createIntent };
+  }
+
+  /** Клиника с открытым оплаченным периодом на `currentTariffId` (период: 18.08 → 18.09). */
+  async function seedPaidPeriod(
+    service: ReturnType<typeof createService>['service'],
+    repository: ReturnType<typeof createService>['repository'],
+    organizationId: string,
+    currentTariffId: string,
+  ) {
+    await repository.chooseOrganizationFirstTariff({
+      organizationId,
+      tariffId: currentTariffId,
+      actorId: null,
+    });
+    await service.assignManualTariff({
+      organizationId,
+      tariffId: currentTariffId,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+  }
+
+  it('при запланированной смене и сумма, и период, и длина периода — из запланированного тарифа', async () => {
+    const { repository, service, createIntent } = createService([monthlyTariff, yearlyTariff]);
+    await seedPaidPeriod(service, repository, 'org-scheduled', monthlyTariff.id);
+
+    await expect(
+      service.scheduleOwnTariffChange({
+        organizationId: 'org-scheduled',
+        tariffId: yearlyTariff.id,
+        actorId: 'clinic-owner',
+      }),
+    ).resolves.toMatchObject({ outcome: 'scheduled' });
+
+    const raised = await service.createOwnTariffRenewalInvoice('org-scheduled');
+
+    expect(raised).toMatchObject({
+      tariffId: yearlyTariff.id,
+      amountMinor: yearlyTariff.priceMinor,
+      tariffBillingPeriod: yearlyTariff.billingPeriod,
+      // Следующий период начинается на границе оплаченного и длится ГОД — столько же, сколько
+      // стоит выставленная сумма.
+      servicePeriodStartsAt: '2026-09-18T00:00:00.000Z',
+      servicePeriodEndsAt: '2027-09-18T00:00:00.000Z',
+    });
+    expect(createIntent.mock.calls[0]?.[0]).toMatchObject({
+      amountMinor: yearlyTariff.priceMinor,
+      currency: 'RUB',
+    });
+  });
+
+  it('обычное продление без запланированной смены не изменилось: всё из текущего тарифа', async () => {
+    const { repository, service } = createService([monthlyTariff, yearlyTariff]);
+    await seedPaidPeriod(service, repository, 'org-renewal', monthlyTariff.id);
+
+    const raised = await service.createOwnTariffRenewalInvoice('org-renewal');
+
+    expect(raised).toMatchObject({
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      tariffBillingPeriod: monthlyTariff.billingPeriod,
+      servicePeriodStartsAt: '2026-09-18T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-10-18T00:00:00.000Z',
+    });
+  });
+
+  it('с бесплатного тарифа на платный: счёт на платный, а не отказ «бесплатный тариф неоплачиваем»', async () => {
+    const { repository, service } = createService([freeYearlyTariff, monthlyTariff]);
+    await seedPaidPeriod(service, repository, 'org-free-to-paid', freeYearlyTariff.id);
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org-free-to-paid',
+      tariffId: monthlyTariff.id,
+      actorId: 'clinic-owner',
+    });
+
+    const raised = await service.createOwnTariffRenewalInvoice('org-free-to-paid');
+
+    expect(raised).toMatchObject({
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      tariffBillingPeriod: monthlyTariff.billingPeriod,
+      servicePeriodEndsAt: '2026-10-18T00:00:00.000Z',
+    });
+    // Экран обязан предлагать ровно то, что маршрут принимает: платить есть за что.
+    await expect(service.getOwnTariffChangeState('org-free-to-paid')).resolves.toMatchObject({
+      payable: true,
+    });
+  });
+  it('черновик, выставленный до смены плана, не отправляет платить за прежний тариф', async () => {
+    // Тот же период, два разных тарифа: у счёта за период есть уникальный индекс, поэтому второй
+    // строкой такой счёт не выставишь. Незанятый черновик обязан обновиться под тот тариф, который
+    // покупают СЕЙЧАС, иначе клиника уходит платить за тариф, которого не получит.
+    const cheaperMonthly = {
+      id: 'tariff-month-cheap',
+      name: 'СТАРТ',
+      priceMinor: 80_000,
+      currency: 'RUB',
+      billingPeriod: 'month',
+    };
+    let providerAvailable = false;
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => {
+      // Первый заход обрывается ДО заказа у провайдера (ровно так этот черновик и появился на DEV:
+      // чек с нулевой позицией). Черновик остаётся незанятым — без ссылки и без заказа.
+      if (!providerAvailable) throw new Error('payment_receipt_item_amount_invalid');
+      return {
+        providerIntentRef: `provider-${input.subjectRef}`,
+        checkoutUrl: `https://pay.example/${input.subjectRef}`,
+      };
+    });
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [monthlyTariff, cheaperMonthly],
+      trialPolicy: null,
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-18T00:00:00.000Z'),
+      getTariffTransition: async (_organizationId, tariffId) => ({
+        currentTariffId: 'seeded-current-tariff',
+        targetTariffId: tariffId,
+        blocks: [],
+        appliesNextPeriod: true,
+      }),
+    });
+    await seedPaidPeriod(service, repository, 'org-restaged', monthlyTariff.id);
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org-restaged',
+      tariffId: cheaperMonthly.id,
+      actorId: 'clinic-owner',
+    });
+    await expect(service.createOwnTariffRenewalInvoice('org-restaged')).rejects.toThrow();
+
+    // Клиника передумала: запланированная смена отменена, покупается снова текущий тариф.
+    await service.cancelOwnTariffChange({ organizationId: 'org-restaged', actorId: 'clinic-owner' });
+    providerAvailable = true;
+    const raisedAfterCancel = await service.createOwnTariffRenewalInvoice('org-restaged');
+
+    expect(raisedAfterCancel).toMatchObject({
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      tariffBillingPeriod: monthlyTariff.billingPeriod,
+      servicePeriodStartsAt: '2026-09-18T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-10-18T00:00:00.000Z',
+    });
+    expect(createIntent.mock.calls.at(-1)?.[0]).toMatchObject({
+      amountMinor: monthlyTariff.priceMinor,
+    });
+  });
+
+  it('счёт, на который у провайдера уже есть заказ, не переписывается под другой тариф', async () => {
+    // Обратная сторона того же правила и граница, за которую обновление не заходит. Заказ,
+    // который провайдер уже держит, — настоящий: он выставлен на конкретную сумму, и человек
+    // может платить по нему прямо сейчас. Переписать нашу копию такого счёта значит развести
+    // деньги и запись о них: провайдер возьмёт старую сумму за тариф, который в счёте уже другой.
+    // Отказ дорогой (деньги) и молчаливый (обе стороны по отдельности выглядят правдоподобно).
+    const cheaperMonthly = {
+      id: 'tariff-month-cheap',
+      name: 'СТАРТ',
+      priceMinor: 80_000,
+      currency: 'RUB',
+      billingPeriod: 'month',
+    };
+    const { repository, service, createIntent } = createService([monthlyTariff, cheaperMonthly]);
+    await seedPaidPeriod(service, repository, 'org-claimed', monthlyTariff.id);
+
+    const claimed = await service.createOwnTariffRenewalInvoice('org-claimed');
+    expect(claimed).toMatchObject({
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      providerInvoiceRef: `provider-${claimed.id}`,
+    });
+
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org-claimed',
+      tariffId: cheaperMonthly.id,
+      actorId: 'clinic-owner',
+    });
+    const raisedAgain = await service.createOwnTariffRenewalInvoice('org-claimed');
+
+    expect(raisedAgain).toMatchObject({
+      id: claimed.id,
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      providerInvoiceRef: `provider-${claimed.id}`,
+    });
+    // И второго заказа у провайдера не появилось: счёт остался тем же самым.
+    expect(createIntent).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Владелец, 18.08 (правка того же дня): срок жизни счёта — ОДНА админ-настройка, действующая на
+// КАЖДЫЙ счёт, а не константа в коде и не поле в форме выставления. Провал, который эти проверки
+// ловят: путь выставления, который «забыли» подключить к настройке и который поэтому молча живёт
+// по своему сроку. Проверяется весь список путей, а не два из пяти.
+// Арбитр: верните в любом из этих путей `SAAS_BILLING_INVOICE_VALIDITY_DAYS` вместо
+// `provider.invoiceValidityDays` — соответствующее ожидание покраснеет.
+describe('срок жизни счёта берётся из настройки на КАЖДОМ пути выставления', () => {
+  const ISSUED_AT = '2026-08-02T00:00:00.000Z';
+  /** 7 дней от ISSUED_AT — заведомо не дефолтные 30, иначе проверка не отличит настройку от константы. */
+  const EXPECTED_EXPIRES_AT = '2026-08-09T00:00:00.000Z';
+
+  const settingsWithValidityDays = (invoiceValidityDays: number) => ({
+    getSaasBillingPaymentProviderValue: async () => ({
+      defaultProviderId: 'mock',
+      providers: [{ id: 'mock', label: 'Mock', enabled: true, shopId: 's', apiKey: 'k' }],
+      lifecyclePolicy: { invoiceValidityDays },
+    }),
+  });
+
+  it('счёт, выставленный администратором вручную, живёт настроенный срок', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'provider-invoice-1',
+      checkoutUrl: 'https://yookassa.example.test/checkout-1',
+    }));
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-validity',
+      tariffId: 'tariff-validity',
+      audit: { actorId: 'operator', reason: 'test seed' },
+    });
+
+    const issued = await service.createManualSaasBillingInvoice({
+      organizationId: 'org-validity',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+    });
+
+    expect(issued.expiresAt).toBe(EXPECTED_EXPIRES_AT);
+    expect(createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoice: { description: 'Счёт за тариф', expiresAt: EXPECTED_EXPIRES_AT },
+      }),
+    );
+  });
+
+  it('счёт продления, поднятый клиникой из кабинета, живёт тот же настроенный срок', async () => {
+    const createSaasBillingInvoice = vi.fn(async (input: { expiresAt: string }) => ({
+      invoice: { ...invoice, expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          purchasedTariffPriceMinor: 10_000,
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: null,
+          currentPeriodEndsAt: null,
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: null,
+          currency: 'RUB',
+        }),
+        createSaasBillingInvoice,
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.createOwnTariffRenewalInvoice('org-1');
+
+    expect(createSaasBillingInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('счёт, поднятый фоновым тиком продления, живёт тот же настроенный срок', async () => {
+    const createSaasBillingRenewalInvoiceIfAbsent = vi.fn(async (input: { expiresAt: string }) => ({
+      invoice: { ...invoice, id: 'invoice-tick', expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        listSaasBillingSubscriptionsDueForRenewal: async () => [
+          {
+            saasBillingSubscriptionId: 'subscription-1',
+            organizationId: 'org-1',
+            tariffId: 'tariff-1',
+            billingPeriod: 'month' as const,
+            currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+            savedPaymentMethodId: null,
+            autopayConsentedAt: null,
+            autopayRevokedAt: null,
+          },
+        ],
+        promoteDueSaasBillingPaidInvoice: async () => false,
+        createSaasBillingRenewalInvoiceIfAbsent,
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.runDueSaasBillingRenewals();
+
+    expect(createSaasBillingRenewalInvoiceIfAbsent).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('счёт за место сверх тарифа живёт тот же настроенный срок, а не до конца периода услуги', async () => {
+    const createSeatOverageInvoiceIfNeeded = vi.fn(async (input: { expiresAt: string }) => ({
+      outcome: 'invoice' as const,
+      invoice: { ...invoice, invoiceKind: 'seat_overage' as const, expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          purchasedTariffPriceMinor: 10_000,
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: null,
+          currentPeriodEndsAt: null,
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: 1_000,
+          currency: 'RUB',
+        }),
+        createSeatOverageInvoiceIfNeeded,
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.purchaseSeatOverage({
+      organizationId: 'org-1',
+      requestKey: 'req-1',
+      confirmedAmountMinor: 1_000,
+      confirmedCurrency: 'RUB',
+    });
+
+    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('счёт за апгрейд тарифа с пропорцией живёт тот же настроенный срок', async () => {
+    const createProratedTariffUpgradeInvoice = vi.fn(async (input: { expiresAt: string }) => ({
+      outcome: 'checkout' as const,
+      invoice: { ...invoice, expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        createProratedTariffUpgradeInvoice,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          purchasedTariffPriceMinor: 10_000,
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: null,
+          currency: 'RUB',
+        }),
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      getTariffTransition: async () => ({
+        currentTariffId: 'tariff-1',
+        targetTariffId: 'tariff-2',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org-1',
+      tariffId: 'tariff-2',
+      actorId: 'operator',
+    });
+
+    expect(createProratedTariffUpgradeInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('без заданной настройки счёт живёт документированный дефолт', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'provider-invoice-default',
+      checkoutUrl: 'https://yookassa.example.test/checkout-default',
+    }));
+    const service = createSaasBillingService({
+      repository: createInMemorySaasBillingRepository(),
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, shopId: 's', apiKey: 'k' }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-validity-default',
+      tariffId: 'tariff-validity-default',
+      audit: { actorId: 'operator', reason: 'test seed' },
+    });
+
+    const issued = await service.createManualSaasBillingInvoice({
+      organizationId: 'org-validity-default',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+    });
+
+    expect(issued.expiresAt).toBe('2026-09-01T00:00:00.000Z');
+  });
+
+  // Свойство, которое правка срока НЕ должна была сломать: два клика по одной форме — один счёт.
+  // Ключ идемпотентности хешит ДЕНЬ выставления, а не срок; поэтому смена настройки между кликами
+  // не имеет права родить второй счёт на те же деньги.
+  it('двойной клик остаётся одним счётом, даже если срок между кликами переставили', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: `provider-invoice-${createIntent.mock.calls.length}`,
+      checkoutUrl: `https://yookassa.example.test/checkout-${createIntent.mock.calls.length}`,
+    }));
+    const repository = createInMemorySaasBillingRepository();
+    let invoiceValidityDays = 7;
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, shopId: 's', apiKey: 'k' }],
+          lifecyclePolicy: { invoiceValidityDays },
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-validity-idem',
+      tariffId: 'tariff-validity-idem',
+      audit: { actorId: 'operator', reason: 'test seed' },
+    });
+    const request = {
+      organizationId: 'org-validity-idem',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+    };
+
+    const first = await service.createManualSaasBillingInvoice(request);
+    invoiceValidityDays = 21;
+    const second = await service.createManualSaasBillingInvoice({ ...request });
+
+    expect(second.id).toBe(first.id);
+    expect(second.expiresAt).toBe(EXPECTED_EXPIRES_AT);
+    expect(createIntent).toHaveBeenCalledTimes(1);
   });
 });

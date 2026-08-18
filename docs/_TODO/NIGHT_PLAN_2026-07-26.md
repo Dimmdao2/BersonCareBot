@@ -1,6 +1,30 @@
 # Night plan 2026-07-26 — every owner instruction from this evening, as a checklist
 
-**This file is the single source of "todo" and "done".** Not the chat, not any audit report. An auditor
+## ⛔ ПЛАН ЗАКРЫТ 17.08.2026 — ЖИВЫХ СТРОК ЗДЕСЬ НЕТ
+
+Владелец 17.08: «Галочки в ночном плане должны быть все закрыты, всё что актуально — перенести с открытыми
+галочками в нужные планы». Файл перестал быть источником работы: он последний раз правился 30.07, а с 16.08
+работа идёт по `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`. Каждый открытый бокс либо закрыт доказательством, либо
+отменён владельцем с причиной, либо превращён в указатель на живой план. **Ни одну строку отсюда брать в
+работу нельзя** — брать из плана, на который указывает строка.
+
+Куда что уехало:
+
+| Было здесь                                   | Живёт теперь                                                                |
+| -------------------------------------------- | --------------------------------------------------------------------------- |
+| A-1, A-2, A-4 — архитектура слоя доступа     | `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` §Ф7a                                    |
+| B-1 — разделение учёток хоста                | `PRE_PRODUCTION_TODO.md` §5                                                  |
+| B-3 — разделение секретов по потребителям    | `INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-07                                   |
+| B-4 — key id, ротация без разлогина          | `INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-08                                   |
+| E-2 — токен бота открытым текстом в базе     | `INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-09                                   |
+| D-1 — четыре недостающие проверки живости    | `PRE_PRODUCTION_TODO.md` §7.5–7.7                                            |
+| D-3 — приложение с уведомлениями админу      | `PRE_PRODUCTION_TODO.md` §3                                                  |
+| F-3 — отложенные сообщения                   | `OWNER_PUNCHLIST_2026-07-28.md` §18 (минимальный вариант)                    |
+| H-2 — четыре вопроса владельцу               | `OWNER_PUNCHLIST_2026-07-28.md`, развилки D-14…D-17                          |
+| H-5 — публичная запись без входа             | `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` §Ф8                                     |
+| E-3 — письмо мессенджер-аккаунтам            | ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 17.08 (и там же в `PRE_PRODUCTION_TODO.md` §1)           |
+
+**This file is the single source of "todo" and "done".** ~~Не действует с 17.08 — см. шапку выше.~~ Not the chat, not any audit report. An auditor
 finding that has no line here is a QUESTION for the owner, never work (see `docs/ORCHESTRATION_BINDINGS.md`).
 
 **Reconciliation pass 2026-07-27.** Markers were re-counted in this file after the audit corrections:
@@ -33,7 +57,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-- [ ] **A-1 (C1) Split the definer owner + policies instead of bypass + a gate.** Owner: «думаю надо делать
+- ВЕДЁТСЯ В `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` §Ф7a (перенесено 17.08) → **A-1 (C1) Split the definer owner + policies instead of bypass + a gate.** Owner: «думаю надо делать
       все 1+2+3». Corrected facts: 46 anon-reachable definers, of which only **17** are owned by the
       BYPASSRLS `app_owner`; 28 belong to the DB owner (no BYPASSRLS, 162/209 tables are FORCE RLS); 2 with
       dynamic SQL are inert constant literals. All 115 definers already pin `search_path` and none is granted
@@ -95,7 +119,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       `pgPlatformLfkMediaAccess.test.ts`, `patientActionAccessorsMigration.test.ts` — 20/20, re-run during
       this reconciliation. Still does not complete A-1 stages 2–3 (the structural owner-split and allowlist
       gate remain open).
-- [ ] **A-2 (C2) Public read surface.** Owner: study which actions genuinely need it; do not serve public
+- ВЕДЁТСЯ В `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` §Ф7a (перенесено 17.08) → **A-2 (C2) Public read surface.** Owner: study which actions genuinely need it; do not serve public
       data under system roles. External research says a policy over a mixed table is NOT enough (RLS is
       row-granular; covert channels are documented by PostgreSQL itself) — the shape is a **separate public
       projection** plus a dedicated read-only role. Material already in repo: `app_config_reader` (written,
@@ -126,7 +150,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       committed. The commit's own live proof (challenge/confirm round trip, lockout, replay-refused) was
       run on DEV only — the anonymous end-to-end click-through **on TEST** is H-5's job, not re-done here,
       and stays open there.
-- [ ] **A-4 (C3) `platform_users` rebuild.** Owner: «ну значит переделывать». Practice says do NOT bolt RLS
+- ВЕДЁТСЯ В `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` §Ф7a (перенесено 17.08) → **A-4 (C3) `platform_users` rebuild.** Owner: «ну значит переделывать». Practice says do NOT bolt RLS
       onto it — move identity out of the RLS surface (private schema + dedicated role, Supabase `auth` shape)
       or expose 2-3 accessors returning scalars not rows (PostgREST `basic_auth` shape); split PII satellite
       (GDPR Art. 4(5)). Must keep ~40 pre-auth read sites and ~8 pre-auth write sites working. Same class:
@@ -153,7 +177,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       Proven: `og:url` was `http://127.0.0.1:5200`, is now `https://test.bersoncare.ru`. Also settled: `/` is
       dynamic, not statically rendered, so the wrong origin was never frozen beyond the 60 s cache.
 
-- [ ] **A-5 first pass, SUPERSEDED — its gate was false assurance.**
+- УСТАРЕЛО/ЗАМЕНЕНО 27.07 своим же преемником ниже, работой не является → **A-5 first pass, SUPERSEDED — its gate was false assurance.**
   ПРЕЕМНИК 27.07:
   live A-5 is the AST gate in `0f4035e7b` above.
   The independent auditor kept all four assertions green with a live instance of the bug present, and the
@@ -177,7 +201,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
   setting name — poisoning it for ~60 s for authenticated consumers too: clinic invite links, booking
   confirmation e-mails, OAuth redirect base. Being fixed with the gate.
 
-- [ ] **A-5 first pass (superseded above)** (`bf7e951f7`).
+- УСТАРЕЛО/ЗАМЕНЕНО 27.07, работой не является → **A-5 first pass (superseded above)** (`bf7e951f7`).
   ПРЕЕМНИК 27.07:
   live A-5 is the AST gate in `0f4035e7b` above.
   **The class was far smaller than the denial count implied, and the count was misleading.** Census: 173
@@ -212,7 +236,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-- [ ] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
+- ВЕДЁТСЯ В `docs/_TODO/PRE_PRODUCTION_TODO.md` §5 (перенесено 17.08) → **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
       Runtime account with no sudo and **no `docker` group** (docker membership is root by itself and
       survives any sudo trim); deploy stays separate; delete the dormant old deploy path. Also: create a
       root-capable account for me with **no external access** (no SSH, no password login).
@@ -241,9 +265,9 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       persistent journal (actor + full command) — confirmed as the existing audited path rather than
       inventing a new one. Moving the DB to its own host is explicitly the item's own "fuller answer",
       not a requirement of this line.
-- [ ] **B-3 (B1) Split the five secrets by consumer** now; a secret store when there is more than one host —
+- ВЕДЁТСЯ В `docs/_TODO/INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-07 (перенесено 17.08) → **B-3 (B1) Split the five secrets by consumer** now; a secret store when there is more than one host —
       the owner tied this to B-2 himself.
-- [ ] **B-4 (B2) Key ids so signing keys can rotate** without a forced global logout.
+- ВЕДЁТСЯ В `docs/_TODO/INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-08 (перенесено 17.08) → **B-4 (B2) Key ids so signing keys can rotate** without a forced global logout.
 
 ## C. Authentication
 
@@ -381,7 +405,24 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-- [ ] **D-1 (D5) Routing by role + an owner-facing matrix**: per notification/error type choose push /
+- РАСЩЕПЛЕНО 17.08 — составной пункт разнесён по природе, ниже исходный текст как история:
+  - [x] **Пользовательская матрица маршрутизации построена.** Проверено 17.08 по коду: экраны настроек
+        `NotificationsTopicsSection.tsx`, `DoctorNotificationChannelsSection.tsx`,
+        `DoctorNotificationsTopicMatrix.tsx`, `ClinicDeliveryChannelsSection.tsx`,
+        `BookingEventNotificationsSection.tsx` дают выбор темы и канала. Владелец 17.08: «остальные
+        уведомления уже вроде настраиваются и так вручную. Админу тоже всё настраивается в кабинете».
+  - [x] **Адресаты аварий и поведение при пустой аудитории — сделано.** Адреса берутся автоматически из
+        контактов главного администратора (`loadAdminRelayTargets()`, вызов —
+        `apps/webapp/src/modules/operator-alerts/dispatchOperatorAlert.ts:159`); отдельный настраиваемый
+        список не нужен, администратор один. Пустая аудитория не проглатывается: при нуле доставок
+        срабатывает `reportEmptyAudience` в резервный канал из настроек сервера, из кабинета не
+        отключаемый (там же, ветка `if (!anyChannelAttempted)`). Требуемая настройка
+        `operator_alert_fallback_email` описана в `PRE_PRODUCTION_TODO.md` §7.2.
+  - ВЕДЁТСЯ В `docs/_TODO/PRE_PRODUCTION_TODO.md` §7.5 → четыре недостающие проверки живости (почтовый
+        сервер, ежедневная тестовая отправка, остаток SMS, уведомления в браузере).
+  - ВЕДЁТСЯ В `docs/_TODO/PRE_PRODUCTION_TODO.md` §7.7 → тишина на время выкладки закрыта как неактуальная
+        при blue/green; §7.6 несёт решение владельца 17.08 по длине окна тишины.
+- Исходный текст требования (история): **D-1 (D5) Routing by role + an owner-facing matrix**: per notification/error type choose push /
       e-mail / SMS. SMS is mechanism-only for now. Operational alerts get their own channel (the July
       SMTP-quota outage went unnoticed for a day because alerts shared a channel).
       **Landed subset, not closure:** `b81b539db` added the admin e-mail alert channel, but audit found it
@@ -444,7 +485,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       `operator_job_status.meta_json` is the smallest safe addition, not the proper dedicated table the
       full support design (`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`) describes. No operator-facing
       list screen exists — that is the natural next increment if wanted.
-- [ ] **D-3** PWA + push for the global admin (pre-production list).
+- ВЕДЁТСЯ В `docs/_TODO/PRE_PRODUCTION_TODO.md` §3 (перенесено 17.08) → **D-3** PWA + push for the global admin (pre-production list).
 
 ## E. Messengers
 
@@ -479,8 +520,12 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
   Remaining, and unchanged: the legal restriction is about **what content** travels over a foreign
   messenger, not about having the channel at all — see D-1/#913 for the field-level matrix.
 
-- [ ] **E-2** Bot-token plaintext in `system_settings` retires with the bot.
-- [ ] **E-3** Pre-production: message the messenger-only accounts while the bots still work.
+- ВЕДЁТСЯ В `docs/_TODO/INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-09 (перенесено 17.08) → **E-2** Bot-token plaintext in `system_settings` retires with the bot.
+- [-] ~~**E-3** Pre-production: message the messenger-only accounts while the bots still work.~~ — ОТМЕНЕНО
+      ВЛАДЕЛЬЦЕМ 17.08.2026: «письмо тем у кого вход через мессенджер — бред, похоже не актуальные задачи
+      вообще». Пункт существовал только под сценарий изъятия бота; действующее решение владельца 26.07 —
+      «ничего не вырезаем из кода, делаем гибко настраиваемым». Предупреждать некого. Та же отмена внесена
+      в `docs/_TODO/PRE_PRODUCTION_TODO.md` §1.
 
 ## F. Product / UI
 
@@ -509,7 +554,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       blank-reason `POST update_tariff` → 200, persisted, reverted; screenshot
       `host-orch/shots/20260726-1708/i0_app_doctor_commercial_2026-07-26T14-08-13Z.png` shows the label
       live. Not yet reviewed by the owner — that review, not more engineering, is what remains.
-- [ ] **F-3 (#964) Scheduled messages** — unblocked. Alarm icon + time replaces the first delivery tick;
+- ВЕДЁТСЯ В `docs/_TODO/OWNER_PUNCHLIST_2026-07-28.md` §18, минимальный вариант (владелец 17.08) → **F-3 (#964) Scheduled messages** — unblocked. Alarm icon + time replaces the first delivery tick;
       click to reschedule or cancel; pending messages last in the thread under a divider; collapsing later.
       ~3000 lines exist on `agent/ui964-20260722`; migration must be renumbered, `DoctorCommentsTab` was
       rewritten in feat.
@@ -757,7 +802,13 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 - [x] Global-admin settings page — grant moved into the closure where it survives deploys, `80cc09abe`.
 - [x] Two 500s were a missing PRINCIPAL, not a missing grant — `19f52fed2` (my diagnosis was wrong; the
       worker refuted it with PostgreSQL's own logs).
-- [ ] Session-revocation code restored and finished — `12e263e63` (unproven against a DB).
+- [x] Session-revocation code restored and finished — ~~`12e263e63` (unproven against a DB)~~. **ЗАКРЫТО
+      17.08 по проверке кода, не по отчёту.** Отзыв работает и сверяется с базой: на каждом обращении
+      перечитывается строка человека и её счётчик отзыва (`apps/webapp/src/modules/auth/service.ts:189`,
+      `:224` — `fresh.sessionEpoch`), а кука с отсутствующим `issuedAt` или `sessionEpoch` отвергается до
+      всех проверок (`apps/webapp/src/modules/auth/sessionCookie.ts:107-120`) — именно та лазейка, через
+      которую подделанная кука раньше проходила и revocation-проверку, и потолок возраста. Действующий
+      механизм — преемник C-1 (`988f0decd`).
   ПРЕЕМНИК 27.07: C-1's live mechanism is `988f0decd`, proven against a DB; see C-1 above.
 - [x] Unmerged branches reconciled — no side branch explains any broken page.
 - [x] Pre-production list opened — `docs/_TODO/PRE_PRODUCTION_TODO.md`.
@@ -784,7 +835,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       `modules/booking-scheduling/` (checked directly). Added 3 tests at the service level pinning all
       three branches of the rule, including the no-schedule-at-all → zero-slots case. 10/10 tests re-run
       clean during this reconciliation.
-- [ ] **H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
+- ВЕДЁТСЯ В `docs/_TODO/OWNER_PUNCHLIST_2026-07-28.md`, развилки D-14…D-17 (перенесено 17.08) → **H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
   личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.
   ИЗМЕНЕНО 27.07 для рассылки: `fcd956395` восстановил полное тело в
   `fanOutBroadcastEmail.ts` и `deliveryJobs.ts`; действующее правило владельца —
@@ -845,7 +896,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       проверки `NODE_ENV`/`isProduction` (прямой grep по каждому файлу). Решение владельца есть, кода нет.
       ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
       уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). `15ad7ba6f` — пять способов подтвердить оплату без банка закрыты вне разработки, гейт fail-closed.
-- [ ] **H-5 (#805) Публичная запись без входа** — открыть ссылку на TEST как посторонний, создать записи
+- ВЕДЁТСЯ В `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` §Ф8 (перенесено 17.08, владелец: «надо пройти») → **H-5 (#805) Публичная запись без входа** — открыть ссылку на TEST как посторонний, создать записи
       (владелец: «конечно, можно и не одну»), проверить правильную клинику и отсутствие чужих данных.
       **Проверено — разрешение получено, само действие не выполнено.** taskdb #805 остаётся в статусе
       `blocked`; никаких новых артефактов (скриншотов, логов запроса) с сегодняшней датой не найдено.
@@ -892,19 +943,26 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 
 ## НЕ СДЕЛАНО
 
-Открытые пункты и их честный остаток (эта сводка не добавляет новых чекбоксов):
+**СВОДКА ЗАКРЫТА 17.08.2026. Открытых боксов в файле ноль** (проверено `grep -cE '^\s*-\s*\[ \]'` → `0`).
+Куда уехало актуальное — таблица в шапке файла.
 
-- **A-1:** stages 2–3 — отдельный владелец для 28 definer-функций и структурный allowlist; группы A/C
-  privilege sweep закрыты, B не реализована, D частична.
-- **A-2:** отдельная публичная read-model/роль и остальные названные поверхности.
-- **A-4:** rebuild `platform_users` и связанных identity-сurface.
-- **B-1:** удалить старый deploy path и создать запрошенную отдельную root-capable identity без внешнего
-  доступа; выполнен только split runtime OS identities.
-- **B-3, B-4:** разделение секретов по потребителям и key IDs для ротации.
-- **C-3:** fallback каналов доставки OTP.
-- **D-1:** owner-facing routing matrix и решение по каждому типу уведомления; e-mail relay и outage fix —
-  только закрытые части этого более широкого пункта.
-- **D-3:** PWA/push глобального администратора.
-- **E-2, E-3:** retirement plaintext bot token и предупреждение messenger-only accounts до pre-production.
-- **F-3:** scheduled messages.
-- **H-5:** независимый анонимный TEST click-through публичной записи.
+⚠️ **Прежняя редакция этой сводки врала, и на неё успели сослаться.** Она числила открытым **C-3** (запасной
+канал доставки кода), хотя в теле файла он закрыт `[x]` ещё 27.07 решением владельца: телефон → SMS, при
+недоступности — подтверждённая почта; уведомления в браузере намеренно не используются для кодов входа.
+Расхождение между сводкой и телем файла продержалось три недели. Урок записан здесь, а не в отдельном
+документе: сводка, которая пересказывает чекбоксы вместо ссылки на них, устаревает первой и делает это молча.
+
+~~Открытые пункты и их честный остаток (эта сводка не добавляет новых чекбоксов):~~
+
+- ~~**A-1:** stages 2–3 — отдельный владелец для 28 definer-функций и структурный allowlist~~ → §Ф7a плана прав.
+- ~~**A-2:** отдельная публичная read-model/роль~~ → §Ф7a плана прав.
+- ~~**A-4:** rebuild `platform_users`~~ → §Ф7a плана прав.
+- ~~**B-1:** удалить старый deploy path и создать отдельную root-capable identity~~ → `PRE_PRODUCTION_TODO.md` §5.
+- ~~**B-3, B-4:** разделение секретов и key IDs~~ → `INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-07, IS-I4-08.
+- ~~**C-3:** fallback каналов доставки OTP~~ — **никогда не был открыт после 27.07, запись ошибочна.**
+- ~~**D-1:** owner-facing routing matrix~~ — пользовательская часть сделана, остаток → `PRE_PRODUCTION_TODO.md` §7.
+- ~~**D-3:** PWA/push глобального администратора~~ → `PRE_PRODUCTION_TODO.md` §3.
+- ~~**E-2:** retirement plaintext bot token~~ → `INFRASTRUCTURE_SECURITY_PLAN.md` IS-I4-09.
+- ~~**E-3:** предупреждение messenger-only accounts~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 17.08.
+- ~~**F-3:** scheduled messages~~ → `OWNER_PUNCHLIST_2026-07-28.md` §18, минимальный вариант.
+- ~~**H-5:** анонимный TEST click-through публичной записи~~ → §Ф8 плана прав, владелец: «надо пройти».

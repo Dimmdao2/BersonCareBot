@@ -128,6 +128,21 @@ export function shouldIgnoreRequestFailure({
   }
 }
 
+/**
+ * Doctor list rows render the person's name together with the decorative status glyphs that
+ * qualify it («★» = на сопровождении) inside the SAME element, so the rendered name cell reads
+ * `Берсон Дмитрий★`. An exact-string text locator against the bare name therefore matches
+ * nothing even while the row is on screen, and a substring locator would instead also accept a
+ * different person whose name merely starts with the expected one. This pattern keeps the
+ * identity exact and tolerates only trailing decoration.
+ */
+const DECORATIVE_ROW_GLYPHS = '★☆•';
+
+export function listRowNamePattern(name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped}[${DECORATIVE_ROW_GLYPHS}\\s]*$`);
+}
+
 export function summarizeBinaryGate(results, requiredRoles = []) {
   const violations = [];
   const observedRoles = new Set(results.map((result) => result.role));

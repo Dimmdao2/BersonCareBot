@@ -1,0 +1,89 @@
+{
+  "audit": "LIVE_DEV_AUDIT_A_2026-08-17",
+  "environment": "DEV only",
+  "base_url": "http://127.0.0.1:5200",
+  "pii_redacted": true,
+  "findings": [
+    {
+      "id": "A-DEV-RUNNER",
+      "status": "FAIL",
+      "impact": "A one-worker browser crawl cannot finish in bounded time; the dev server recompiles warm routes, grows to multi-gigabyte RSS, and has crashed with a stack overflow.",
+      "evidence": {
+        "patient_home_http": 200,
+        "patient_home_total": "2.7min",
+        "patient_home_application_code": "2.3min",
+        "doctor_schedule_total": "87s",
+        "account_total": "62s",
+        "observed_peak_rss_before_first_restart": "18-19GiB",
+        "observed_rss_after_cache_reset_and_11min": "8.65-9.24GiB",
+        "runtime_errors": [
+          "TypeError: Cannot read properties of undefined (reading 'call')",
+          "RangeError: Maximum call stack size exceeded"
+        ]
+      }
+    },
+    {
+      "id": "A-BOOT-WATCHDOG",
+      "status": "FAIL",
+      "impact": "During slow DEV compilation the 10-second watchdog mutates fallback visibility before React hydrates, emits a false unsupported-client report for an in-matrix Chrome browser, and causes a hydration mismatch.",
+      "evidence": {
+        "doctor_schedule_navigation_ms": 86798,
+        "next_chunks_200": 12,
+        "react_fiber_present": true,
+        "client_toggle_worked": true,
+        "watchdog_timing_ms": 10002
+      }
+    },
+    {
+      "id": "A-AUTH-RATE-LIMIT-GRANT",
+      "status": "FAIL",
+      "impact": "The database-backed login limiter permanently falls back to per-process memory after the first DB error, losing cross-process persistence until restart.",
+      "evidence": {
+        "log_event": "auth_rate_limit_db_fallback",
+        "message": "database unavailable; permanently using in-memory fallback",
+        "source_contract": "auth_rate_limit_check_and_record needs SELECT/DELETE/INSERT on public.auth_rate_limit_events while the surface declaration exposes SELECT only"
+      }
+    },
+    {
+      "id": "A-REMINDER-WAKE",
+      "status": "FAIL",
+      "impact": "Scheduled patient reminder materialization is not delivered; scheduler wake IDs generated for UUID organizations exceed the route contract and the common DEV route repeatedly returns 400/500.",
+      "evidence": {
+        "generated_wake_id_length": 77,
+        "route_max_length": 64,
+        "event_shape": "sch:<organization UUID>:<wake UUID>",
+        "post_statuses": [400, 500]
+      }
+    },
+    {
+      "id": "A-BOOKING-LIFECYCLE-DELIVERY",
+      "status": "FAIL",
+      "impact": "Creating a confirmed patient booking succeeds, but its lifecycle notification retries three times and returns 502; linked-channel recipient lookup returns 400 and admin messenger lookup fails with PostgreSQL 42501. A fallback confirmation email was nevertheless dispatched to the configured owner sink.",
+      "evidence": {
+        "booking_create_status": 200,
+        "lifecycle_retry_count": 3,
+        "delivery_targets_status": 400,
+        "database_code": "42501",
+        "query_fingerprint": "0d1989829196a849",
+        "lifecycle_status": 502,
+        "dev_redirect_dispatched": true,
+        "recovery_cancel_status": 200,
+        "recovery_absent_from_upcoming": true,
+        "recovery_cancelled_in_history": true,
+        "remaining_test_data_debt": false
+      }
+    }
+  ],
+  "journeys": {
+    "global_admin_routes": "partial; 13 first-pass route events, commercial reversible cycles returned 200 and restored",
+    "doctor_routes": {
+      "attempted": 19,
+      "substantive_pass": 13,
+      "blank_or_loading": 3,
+      "runtime_timeout_or_abort": 3
+    },
+    "doctor_working_schedule": "INCONCLUSIVE_HARNESS: POST/readback/restore all 200, strict field diff unavailable",
+    "patient_booking": "PARTIAL: create and upcoming read/recovery cancel/history proven; reschedule blocked by lifecycle/delivery defect",
+    "patient_route_crawl": "BLOCKED: first route 2.7min, second route interrupted after >60s compile, no third route started"
+  }
+}

@@ -340,7 +340,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     'boolean',
     'false',
   ),
-  patient_home_mood_icons: runtime('admin', 'per_org', 'authenticated_client', 'structured', '[]'),
   notifications_topics: runtime('admin', 'per_org', 'authenticated_client', 'structured', '[]'),
   smtp_outbound: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
   /** Clinic-owned SMTP is used first for essential delivery and exclusively for clinic mailings. */

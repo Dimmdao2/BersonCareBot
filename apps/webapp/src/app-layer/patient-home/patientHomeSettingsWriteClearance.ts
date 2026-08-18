@@ -30,7 +30,6 @@ type SystemSettingsServiceLike = {
 
 const PATIENT_HOME_SETTING_MECHANICS: Partial<Record<string, readonly OrgMechanic[]>> = {
   patient_home_daily_practice_target: ['patient_home_today'],
-  patient_home_mood_icons: ['patient_home_today'],
   patient_home_daily_warmup_repeat_cooldown_minutes: ['patient_home_today', 'warmups'],
   patient_treatment_plan_item_done_repeat_cooldown_minutes: ['patient_home_today', 'warmups'],
   patient_home_daily_warmup_rotation_enabled: ['patient_home_today', 'warmups'],

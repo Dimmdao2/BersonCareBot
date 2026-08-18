@@ -67,17 +67,33 @@ describe('ProgramItemDiscussionMessageBody image delivery', () => {
     });
   });
 
-  it('shows the unavailable state without issuing an image request when preview generation failed', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          ...playback,
-          preview: { status: 'failed', smUrl: null, mdUrl: null },
+  // ЗАМЕНЕНО 18.08. Прежний кейс требовал «Превью недоступно» и НИ ОДНОЙ картинки, когда превью не
+  // готово. Владелец 18.08 прошёл пациентом по TEST и сообщил: «медиа не прикрепляется к
+  // комментарию» — запись в БД проходила, а в пузыре был пустой серый прямоугольник, и клик по нему
+  // ничего не открывал. Превью на TEST не готово никогда: крон превью на боксе не установлен
+  // (`deploy/HOST_DEPLOY_README.md`), поэтому «ждать превью» — ожидание без конца.
+  // Превью остаётся предпочтительным источником (кейс выше), но единственным условием показа — нет.
+  it.each(['pending', 'skipped', 'failed'] as const)(
+    'показывает оригинал, когда превью в статусе %s',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ ...playback, preview: { status, smUrl: null, mdUrl: null } }),
         }),
-      }),
-    );
+      );
+
+      const { container } = render(<ProgramItemDiscussionMessageBody message={message} mine />);
+
+      await waitFor(() => {
+        expect(container.querySelector('img')).toHaveAttribute('src', originalUrl);
+      });
+    },
+  );
+
+  it('оставляет состояние ошибки, когда метаданные воспроизведения не отдались', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
 
     const { container, getByText } = render(
       <ProgramItemDiscussionMessageBody message={message} mine />,

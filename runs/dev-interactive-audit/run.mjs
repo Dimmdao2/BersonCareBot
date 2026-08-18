@@ -8,6 +8,7 @@ import { chromium } from '../clickthrough/lib/browser.mjs';
 import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   canonicalAuditUrl,
+  listRowNamePattern,
   routeContractMatches,
   evaluatePageObservation,
   routePatternMatches,
@@ -54,6 +55,14 @@ if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1' || base.port !== 
 const nowMs = () => performance.now();
 const compactError = (error) =>
   (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').slice(0, 300);
+/** What the surface actually rendered at the moment an action check gave up. */
+const observedSurfaceText = async (page, selector) => {
+  try {
+    return (await page.locator(selector).first().innerText()).replace(/\s+/g, ' ').slice(0, 600);
+  } catch (error) {
+    return `unreadable:${compactError(error)}`;
+  }
+};
 const sameOrigin = (url) => {
   try {
     return new URL(url).origin === base.origin;
@@ -869,7 +878,7 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
     const comments = page.locator('#doctor-communications-comments');
     if ((await comments.count()) !== 1) throw new Error(`comments_surface_count:${await comments.count()}`);
     await comments.waitFor({ state: 'visible', timeout: 15_000 });
-    const patientRows = comments.getByText(patientName, { exact: true });
+    const patientRows = comments.getByText(listRowNamePattern(patientName));
     await patientRows.first().waitFor({ state: 'visible', timeout: 15_000 });
     if ((await patientRows.count()) !== 1)
       throw new Error(`comments_patient_match_count:${await patientRows.count()}`);
@@ -883,6 +892,10 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
       id: 'doctor.comments-patient-list',
       pass: false,
       failure: compactError(error),
+      // A Playwright timeout only says the locator never matched; it never says what the list
+      // actually held. Without the rendered list the artifact cannot distinguish a missing
+      // patient from a locator that no longer matches the rendered row.
+      observed_patient_list: await observedSurfaceText(page, '#doctor-communications-comments'),
       duration_ms: Math.round(nowMs() - started),
     });
   }

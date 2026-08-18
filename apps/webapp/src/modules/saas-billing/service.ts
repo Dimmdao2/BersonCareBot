@@ -18,6 +18,12 @@ import type {
   SaasBillingSettingsReadPort,
 } from './ports';
 import { paidPeriodEndsAtForCode } from './paidPeriod';
+import { saasBillingInvoiceExpiresAt } from './invoiceValidity';
+import {
+  SAAS_BILLING_TARIFF_NOT_PAYABLE,
+  isFreeTariffPrice,
+  purchasedTariffId,
+} from './payableTariff';
 import { billingPeriodMonthsMap } from './billingPeriodCatalog';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
@@ -181,6 +187,7 @@ export function createSaasBillingService(dependencies: {
       providerConfig,
       adapter,
       payeeRequisites: settings.payeeRequisites,
+      invoiceValidityDays: settings.lifecyclePolicy.invoiceValidityDays,
     };
   }
 
@@ -233,6 +240,7 @@ export function createSaasBillingService(dependencies: {
       servicePeriodEndsAt: input.servicePeriodEndsAt,
       providerIdempotencyKey: input.providerIdempotencyKey,
       providerId: provider.providerId,
+      expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
     });
     if (!created && invoice.providerCheckoutUrl) return invoice;
     let checkoutInvoice = invoice;
@@ -324,6 +332,7 @@ export function createSaasBillingService(dependencies: {
       saasBillingSubscriptionId: input.saasBillingSubscriptionId,
       targetTariffId: input.targetTariffId,
       asOf: now().toISOString(),
+      expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
       providerId: provider.providerId,
       providerIdempotencyKey: `saas_tariff_upgrade:${deriveSaasBillingIdempotencyKey([
         input.organizationId,
@@ -399,15 +408,19 @@ export function createSaasBillingService(dependencies: {
   /**
    * К4 — platform-admin-issued invoice for the organization's OWN currently assigned tariff. The
    * invoice format is an adapter detail behind `createIntent`, never a second payment entrance.
-   * Amount/description/expiry are admin-chosen; the tariff, subscription and resulting service
-   * period are server-resolved from the organization's existing assignment, same authority K0 uses.
+   * Amount/description are admin-chosen; the tariff, subscription and resulting service period are
+   * server-resolved from the organization's existing assignment, same authority K0 uses.
+   *
+   * Этап 1, пункт 1.3 — the invoice's own lifetime is NOT among the admin's per-invoice choices:
+   * it is the ONE configured validity period (`lifecyclePolicy.invoiceValidityDays`) counted from
+   * the moment of issue, exactly like every other issuing path. The admin changes it once, in the
+   * settings, not per invoice (owner, 18.08).
    */
   async function createManualSaasBillingInvoice(input: {
     organizationId: string;
     amountMinor: number;
     currency: string;
     description: string;
-    expiresAt: string;
   }) {
     if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
       throw new Error('saas_billing_manual_invoice_amount_must_be_positive_integer');
@@ -416,15 +429,12 @@ export function createSaasBillingService(dependencies: {
     if (!description) {
       throw new Error('saas_billing_manual_invoice_description_required');
     }
-    const expiresAtMs = new Date(input.expiresAt).getTime();
-    if (Number.isNaN(expiresAtMs) || expiresAtMs <= now().getTime()) {
-      throw new Error('saas_billing_manual_invoice_expiry_invalid');
-    }
+    const issuedAt = now();
 
     const { saasBillingSubscriptionId, billingPeriod } = await withManualInvoiceDatabaseBoundary(
       () => dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId),
     );
-    const servicePeriodStartsAt = now().toISOString();
+    const servicePeriodStartsAt = issuedAt.toISOString();
     const servicePeriodEndsAt = await withManualInvoiceDatabaseBoundary(() =>
       paidPeriodEndsAtForBillingCode(
         dependencies.repository,
@@ -437,6 +447,7 @@ export function createSaasBillingService(dependencies: {
       undefined,
       withManualInvoiceDatabaseBoundary,
     );
+    const expiresAt = saasBillingInvoiceExpiresAt(issuedAt, provider.invoiceValidityDays);
     if (!provider.adapter.supportsInvoice) {
       throw new Error(`saas_billing_provider_invoices_unsupported:${provider.providerId}`);
     }
@@ -445,12 +456,19 @@ export function createSaasBillingService(dependencies: {
     // submitted twice hashes to the same key, so the DB's unique index on
     // `(providerId, providerIdempotencyKey)` catches the repeat below; a deliberately different
     // request (different amount, different clinic, ...) hashes to a different key and is created.
+    // The expiry used to be part of this hash because it was admin-chosen and therefore stable
+    // across a double-submit of the same form. It is now derived from `now()` plus a настройка, so
+    // the DAY of issue takes its place: two submits of the same form still hash to one key and the
+    // DB's unique index catches the repeat, while genuinely re-issuing the same amount+description
+    // later is a new key and a new invoice instead of silently handing back the old, already paid
+    // one. The expiry must stay OUT of this hash — otherwise changing the настройка between two
+    // clicks of one form would mint a second invoice for the same money.
     const providerIdempotencyKey = `saas_manual_invoice:${deriveSaasBillingIdempotencyKey([
       input.organizationId,
       input.amountMinor,
       input.currency,
       description,
-      input.expiresAt,
+      issuedAt.toISOString().slice(0, 10),
     ])}`;
 
     const { invoice, created: wasCreated } = await withManualInvoiceDatabaseBoundary(() =>
@@ -462,7 +480,7 @@ export function createSaasBillingService(dependencies: {
         description,
         servicePeriodStartsAt,
         servicePeriodEndsAt,
-        expiresAt: input.expiresAt,
+        expiresAt,
         providerId: provider.providerId,
         providerIdempotencyKey,
         invoiceKind: 'tariff_period',
@@ -492,7 +510,7 @@ export function createSaasBillingService(dependencies: {
           purpose: 'saas_billing_tariff_renewal',
           subjectRef: invoice.id,
           returnUrl: SAAS_BILLING_RETURN_URL,
-          invoice: { description, expiresAt: input.expiresAt },
+          invoice: { description, expiresAt },
           metadata: {
             organizationId: invoice.organizationId,
             saasBillingInvoiceId: invoice.id,
@@ -538,6 +556,7 @@ export function createSaasBillingService(dependencies: {
       confirmedCurrency: input.confirmedCurrency,
       providerId: provider.providerId,
       providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.requestKey}`,
+      expiresAt: saasBillingInvoiceExpiresAt(periodStart, provider.invoiceValidityDays),
       servicePeriodStartsAt: periodStart,
       servicePeriodEndsAt: await paidPeriodEndsAtForBillingCode(
         dependencies.repository,
@@ -623,10 +642,16 @@ export function createSaasBillingService(dependencies: {
         return { outcome: 'provider_unavailable', providerId: provider.providerId };
       }
 
+      // Этап 1, пункт 1.4 — the two directions are asked DIFFERENT questions and therefore need
+      // different windows. Journal → provider: "we recorded this money as received in this period,
+      // does the provider agree?" — so the journal side is windowed by the date money arrived
+      // (`paidAt`), which is the same clock the provider's `created_at` window runs on. Cutting the
+      // journal by `createdAt` instead made every invoice raised earlier and paid inside the window
+      // a permanent discrepancy.
       const [journalRows, providerList] = await Promise.all([
         dependencies.repository.listPlatformInvoices({
-          periodFrom: input.periodFrom,
-          periodTo: input.periodTo,
+          paidFrom: input.periodFrom,
+          paidTo: input.periodTo,
         }),
         provider.adapter
           .listPayments({
@@ -645,11 +670,22 @@ export function createSaasBillingService(dependencies: {
       const comparableJournalRows = journalRows.filter(
         (row) => row.providerId === provider.providerId && row.providerInvoiceRef,
       );
-      const journalByRef = new Map(
-        comparableJournalRows.map((row) => [row.providerInvoiceRef as string, row]),
-      );
       const providerByRef = new Map(
         providerList.items.map((item) => [item.providerPaymentRef, item]),
+      );
+
+      // Provider → journal: "the provider has this money, do we?" — a point lookup by ref over the
+      // WHOLE journal, no date window at all. The invoice this payment settles may have been raised
+      // any time before; `saas_billing_invoices_provider_ref_uidx` makes the lookup exact.
+      const journalRowsByProviderRef = providerList.items.length
+        ? await dependencies.repository.listPlatformInvoices({
+            providerInvoiceRefs: providerList.items.map((item) => item.providerPaymentRef),
+          })
+        : [];
+      const journalByRef = new Map(
+        journalRowsByProviderRef
+          .filter((row) => row.providerId === provider.providerId && row.providerInvoiceRef)
+          .map((row) => [row.providerInvoiceRef as string, row]),
       );
 
       const discrepancies: SaasBillingReconciliationDiscrepancy[] = [];
@@ -949,6 +985,7 @@ export function createSaasBillingService(dependencies: {
               providerIdempotencyKey: `saas_tariff_auto_renewal:${subscription.saasBillingSubscriptionId}:${servicePeriodStartsAt}`,
               servicePeriodStartsAt,
               servicePeriodEndsAt,
+              expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
             });
           if (!wasCreated) {
             alreadyInvoiced += 1;
@@ -1010,20 +1047,27 @@ export function createSaasBillingService(dependencies: {
 
     /**
      * K0 — the clinic-facing "pay for our tariff" entry point. Amount, tariff and organization are
-     * ALL server-derived: the tariff is whatever the platform admin already assigned
-     * (`requireOwnTariffBillingSubscription`), the amount comes from that tariff's own price row
-     * (`createSaasBillingInvoice`), and the organization is the caller's own, never a request body
-     * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
+     * ALL server-derived: the tariff is the one being purchased (`purchasedTariffId` — the
+     * scheduled next tariff while a change is pending, otherwise the assigned one), the amount and
+     * the period length both come from THAT tariff's own row (`requireOwnTariffBillingSubscription`
+     * + `createSaasBillingInvoice`), and the organization is the caller's own, never a request body
+     * field. One renewal period starting at the paid boundary (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
       const {
         saasBillingSubscriptionId,
         currentTariffId,
+        purchasedTariffPriceMinor,
         tariffId,
         billingPeriod,
         savedPaymentMethodId,
         currentPeriodEndsAt,
       } = await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
+      // Owner ruling 18.08.2026 — a free tariff is not payable. Refuse here, before any invoice row
+      // exists and long before the provider: an invoice for 0 ₽ can neither be fiscalized nor paid.
+      if (isFreeTariffPrice(purchasedTariffPriceMinor)) {
+        throw new Error(SAAS_BILLING_TARIFF_NOT_PAYABLE);
+      }
       // A normal renewal pays the tariff already assigned to this clinic.  Its route runs under
       // the clinic-billing principal and must not enter the platform-only transition port.  A
       // scheduled next tariff is different: retain the downgrade recheck before selling that
@@ -1066,11 +1110,29 @@ export function createSaasBillingService(dependencies: {
       const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
       const assignedTariffId =
         await dependencies.repository.getOrganizationAssignedTariffId(organizationId);
+      const choices = await dependencies.repository.listActiveTariffChoices();
+      const currentTariffId = subscription?.tariffId ?? assignedTariffId;
+      const pendingTariffId = subscription?.pendingTariffId ?? null;
       return {
-        choices: await dependencies.repository.listActiveTariffChoices(),
-        currentTariffId: subscription?.tariffId ?? assignedTariffId,
-        pendingTariffId: subscription?.pendingTariffId ?? null,
-        pendingEffectiveAt: subscription?.pendingTariffId ? subscription.currentPeriodEndsAt : null,
+        choices: choices.map(({ id, name }) => ({ id, name })),
+        currentTariffId,
+        pendingTariffId,
+        // Решение владельца 18.08 (L-11), дословно: «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И
+        // ПОТОМ ПОЛУЧАЕТ ДОСТУП». Выбранный тариф живёт в строке подписки, действующий — в
+        // назначении организации (`be_organizations.tariff_id`, миграция 0024). Разошлись — значит
+        // выбор сделан, а доступ ещё не куплен: экран обязан сказать это прямо и довести до оплаты,
+        // а не выдать выбор за действующий тариф.
+        awaitingFirstPayment: assignedTariffId === null && currentTariffId !== null,
+        pendingEffectiveAt: pendingTariffId ? subscription?.currentPeriodEndsAt ?? null : null,
+        // Owner ruling 18.08.2026 — the screen weighs the price of the tariff the pay route would
+        // actually bill: the same `purchasedTariffId` rule, so it never offers a payment the route
+        // refuses and never hides one the route would accept.
+        payable: !isFreeTariffPrice(
+          choices.find(
+            (choice) =>
+              choice.id === purchasedTariffId({ tariffId: currentTariffId, pendingTariffId }),
+          )?.priceMinor,
+        ),
       };
     },
 
