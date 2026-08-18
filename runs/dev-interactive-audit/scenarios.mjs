@@ -216,6 +216,8 @@ export const ROLE_SCENARIOS = Object.freeze({
   },
   patient: {
     syntheticToken: 'client',
+    emailEnv: 'DEV_AUDIT_PATIENT_EMAIL',
+    defaultEmail: 'kinesiospace@gmail.com',
     sessionCookieEnv: 'DEV_AUDIT_PATIENT_SESSION_COOKIE',
     identity: { role: 'client', contactKind: 'phone', contactValue: '+79189000782' },
     allowedPathnames: ['/app/patient'],
