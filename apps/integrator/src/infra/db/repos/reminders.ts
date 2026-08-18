@@ -15,6 +15,7 @@ import { reminderRules } from '../schema/integratorPublicProduct.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   getCurrentOrganizationPrincipalId,
+  runWithDeliveryWorkerPrincipal,
   runWithOrganizationPrincipal,
 } from '../../principal/organizationPrincipal.js';
 
@@ -256,13 +257,15 @@ export async function isReminderTransactionalEmailRateLimited(
   db: DbPort,
   platformUserId: string,
 ): Promise<boolean> {
-  const result = await runIntegratorSql<{ rate_limited: boolean }>(
-    db,
-    sql`SELECT COALESCE(
+  const result = await runWithDeliveryWorkerPrincipal(() =>
+    runIntegratorSql<{ rate_limited: boolean }>(
+      db,
+      sql`SELECT COALESCE(
           app.read_reminder_transactional_email_cooldown(${platformUserId}::uuid)
             > statement_timestamp() - interval '45 seconds',
           false
         ) AS rate_limited`,
+    ),
   );
   return result.rows[0]?.rate_limited === true;
 }
@@ -271,9 +274,11 @@ export async function recordReminderTransactionalEmailSent(
   db: DbPort,
   platformUserId: string,
 ): Promise<void> {
-  await runIntegratorSql(
-    db,
-    sql`SELECT app.record_reminder_transactional_email_cooldown(${platformUserId}::uuid)`,
+  await runWithDeliveryWorkerPrincipal(() =>
+    runIntegratorSql(
+      db,
+      sql`SELECT app.record_reminder_transactional_email_cooldown(${platformUserId}::uuid)`,
+    ),
   );
 }
 
