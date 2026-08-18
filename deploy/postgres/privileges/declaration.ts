@@ -4508,7 +4508,6 @@ const REV10_CONTEXT = {
           'organization_id', 'user_id', 'content_page_id', 'last_rotation_at',
           'skip_next_scheduled_rotation', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'content_page_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
