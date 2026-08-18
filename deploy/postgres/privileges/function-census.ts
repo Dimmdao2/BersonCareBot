@@ -3700,11 +3700,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "UPDATE"
         ],
         "operationColumns": {
-          "SELECT": [
-            "key",
-            "request_hash",
-            "expires_at"
-          ],
           "INSERT": [
             "key",
             "request_hash",

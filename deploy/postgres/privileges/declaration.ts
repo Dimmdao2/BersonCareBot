@@ -4451,7 +4451,6 @@ const REV10_CONTEXT = {
         { relation: 'public.material_ratings', columns: [
           'organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'target_kind', 'target_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4481,7 +4480,6 @@ const REV10_CONTEXT = {
         { relation: 'public.user_identity',
           columns: ['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['platform_user_id'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.admin_audit_log',
           columns: ['organization_id', 'actor_id', 'action', 'target_id', 'details'],
@@ -4662,7 +4660,6 @@ const REV10_CONTEXT = {
         { relation: 'public.user_notification_topics', columns: [
           'user_id', 'topic_code', 'is_enabled', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'topic_code'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -4679,7 +4676,6 @@ const REV10_CONTEXT = {
         { relation: 'public.user_notification_topic_channels', columns: [
           'user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at',
         ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          operationColumns: { SELECT: ['user_id', 'topic_code', 'channel_code'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

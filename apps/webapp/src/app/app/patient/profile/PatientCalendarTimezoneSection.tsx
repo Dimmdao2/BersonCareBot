@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import type { StylesConfig } from 'react-select';
 import TimezoneSelect, { type ITimezone, type ITimezoneOption } from 'react-timezone-select';
 import { Button } from '@/shared/ui/patient/primitives/button';
@@ -126,6 +127,10 @@ export function PatientCalendarTimezoneSection() {
         );
         return false;
       }
+      // Тем же тостом отвечают соседние секции этой страницы (AuthOtpChannelPreference,
+      // DiaryDataPurgeSection). Без него сохранение пояса ничем себя не проявляло: `msg`
+      // показывался только при ошибке, и человек не мог отличить успех от «кнопка не сработала».
+      toast.success('Часовой пояс сохранён');
       router.refresh();
       return true;
     } finally {

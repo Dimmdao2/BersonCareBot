@@ -793,6 +793,23 @@ export function collectGaps(declaration, dbName) {
             add(ssite, `operation-specific columns are invalid for '${operation}'`);
           }
         }
+        // INSERT + UPDATE на одной таблице — это `INSERT … ON CONFLICT DO UPDATE`. PostgreSQL под
+        // FORCE RLS требует на таком стейтменте SELECT по ВСЕМ колонкам поверхности: он читает
+        // конфликтующую строку, чтобы проверить USING-квалы UPDATE-политики. Урезанный SELECT даёт
+        // «permission denied for table», а не «for column», поэтому лексический анализ тела функции
+        // этот случай не видит: в тексте функции колонка на чтение не упомянута.
+        // Провал 17-18.08: c77a799c4 и c4c9b3a85 сузили здесь SELECT — у пациента молча перестали
+        // работать настройки уведомлений, оценка материала и смена ФИО.
+        if (surface.operations.includes('INSERT') && surface.operations.includes('UPDATE')) {
+          if (!surface.operations.includes('SELECT')) {
+            add(ssite, 'upsert surface (INSERT+UPDATE) must declare SELECT: '
+              + 'ON CONFLICT DO UPDATE reads the conflicting row under FORCE RLS');
+          }
+          if (surface.operationColumns?.SELECT) {
+            add(ssite, 'upsert surface (INSERT+UPDATE) must not narrow SELECT via operationColumns: '
+              + 'ON CONFLICT DO UPDATE needs SELECT on every surface column under FORCE RLS');
+          }
+        }
         for (const operation of surface.tableOperations ?? []) {
           if (!surface.operations.includes(operation)) {
             add(ssite, `table operation is absent from the canonical surface operations: '${operation}'`);

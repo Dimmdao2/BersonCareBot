@@ -54,13 +54,21 @@ export function ProgramItemDiscussionMessageBody(props: {
     const playback = playbackResult?.mediaId === mediaId ? playbackResult.payload : null;
     const playbackFailed = failedMediaId === mediaId;
     const isVideo = playback?.delivery === 'mp4' || playback?.delivery === 'hls';
+    // Превью воркера — оптимизация, а не условие показа. Пока оно не готово (`pending`) или не
+    // сделано вовсе (`skipped`/`failed`), фото в пузыре берётся из оригинала через ту же
+    // авторизованную дверь `/api/media/<id>`, которой пользуется видео ниже. Так же уже устроены
+    // `recommendationMediaItemToPreviewUi` и `templateListPreviewToPreviewUi` — для изображений
+    // источником миниатюры служит сам файл. Без этого пациент видит пустой серый прямоугольник
+    // вместо только что отправленного фото, и клик по нему ничего не открывает.
+    const originalUrl = `/api/media/${encodeURIComponent(mediaId)}`;
+    const workerThumbReady = playback?.preview.status === 'ready' && Boolean(playback.preview.smUrl);
     const imagePreview: MediaPreviewUiModel = {
       id: mediaId,
       kind: 'image',
-      url: '',
-      previewStatus: playbackFailed ? 'failed' : (playback?.preview.status ?? 'pending'),
-      previewSmUrl: playback?.preview.smUrl ?? null,
-      previewMdUrl: playback?.preview.mdUrl ?? null,
+      url: originalUrl,
+      previewStatus: playbackFailed ? 'failed' : playback ? 'ready' : 'pending',
+      previewSmUrl: workerThumbReady ? playback.preview.smUrl : playback ? originalUrl : null,
+      previewMdUrl: workerThumbReady ? (playback.preview.mdUrl ?? null) : null,
     };
     const videoThumbMedia: import('@/modules/recommendations/types').RecommendationMediaItem | null =
       isVideo && playback?.posterUrl
