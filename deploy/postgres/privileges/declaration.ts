@@ -3110,6 +3110,42 @@ const REV10_CONTEXT = {
         'app_clinic_billing',
       ],
     },
+    // L-10 (миграция 0023). `amount_minor` — колонка, которую арендная роль не переписывает никогда,
+    // поэтому у `app_clinic_billing` нет и не появляется UPDATE на неё: сумму счёта выводит этот шов,
+    // из строки тарифа ЭТОЙ подписки, и не принимает от вызывающего. Аргумент `p_tariff_id` выбирает
+    // только между текущим и запланированным тарифом той же подписки — всё прочее шов отклоняет.
+    'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_clinic_billing'],
+      purpose: 'refresh one unclaimed period draft onto the purchased tariff with a derived amount',
+      typedArgs: ['uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_invoices',
+          columns: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
+            'expires_at', 'status', 'provider_invoice_ref', 'tariff_id', 'tariff_name', 'amount_minor',
+            'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: {
+            SELECT: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
+              'expires_at', 'status', 'provider_invoice_ref'],
+            UPDATE: ['tariff_id', 'tariff_name', 'amount_minor', 'currency', 'tariff_billing_period',
+              'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_billing_subscriptions',
+          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'paid_additional_seats'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // `SELECT *` — снимок тарифа в счёте есть копия живой строки целиком (`to_jsonb`), поэтому
+        // верхняя граница чтения здесь вся таблица; ровно её этот владелец шва уже читает сегодня.
+        { relation: 'public.saas_tariffs',
+          columns: ['additional_seat_price_minor', 'billing_period', 'created_at', 'currency', 'description',
+            'discounted_price_minor', 'downgrade_policies', 'id', 'included_seats', 'is_active',
+            'mailing_templates', 'mechanic_access_policies', 'mechanics', 'name', 'price_minor', 'quotas',
+            'system_access_policy', 'updated_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.touch_current_patient_support_conversation_activity(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.touch_current_patient_support_conversation_activity(uuid)'],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS[

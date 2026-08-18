@@ -162,6 +162,13 @@
       "when": 1800000022000,
       "tag": "0022_quota_mechanics_have_no_off_state",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1800000023000,
+      "tag": "0023_purchased_tariff_invoice_refresh",
+      "breakpoints": true
     }
   ]
 }
