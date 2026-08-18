@@ -1,0 +1,7 @@
+# Превью медиатеки: JPEG sm/md для media_files с preview_status='pending' (каждую минуту, limit=10).
+# Требует INTERNAL_JOB_SECRET в webapp.prod и ffmpeg на хосте (FFMPEG_PATH), см. deploy/HOST_DEPLOY_README.md.
+# HTTP-вариант, а не `pnpm run media-preview:tick`, намеренно: тик в public.operator_job_status
+# (job_family=media, ключ media_preview.process) пишет только route — иначе «Превью медиа» в
+# «Здоровье системы» навсегда остаётся «нет данных», и невыполненная задача не видна оператору.
+# Для TEST — тот же файл с webapp.test и loopback 127.0.0.1:6300.
+* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-preview/process?limit=10" >/dev/null'
