@@ -92,7 +92,12 @@ check "no unexpected sudo rights" \
 
 section "updates and time"
 check "unattended-upgrades enabled" 'systemctl is-enabled unattended-upgrades'
-check "clock is synchronised" 'timedatectl show -p NTPSynchronized --value | grep -q yes'
+# Given a moment to settle. Run seconds after boot, the time service has not answered yet and a healthy
+# machine reports its clock as unsynchronised — a red result that says nothing about the host.
+# The retry runs in a SUBSHELL. Predicates are evaluated with eval in the current shell, so a bare `exit`
+# inside one ends the whole verifier — the first version of this line stopped the run at this check and
+# reported success for a pass that never examined the remaining half of the host.
+check "clock is synchronised" '( for i in 1 2 3 4 5 6; do timedatectl show -p NTPSynchronized --value | grep -q yes && exit 0; sleep 5; done; exit 1 )'
 
 section "no leftovers from the build"
 check "temporary passphrase file absent" '! ls /root/*passphrase* /root/*.pass 2>/dev/null | grep -q .'
