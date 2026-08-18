@@ -366,6 +366,21 @@ describe('POST /api/clinic/billing own-tariff renewal', () => {
     });
   });
 
+  // Решение владельца 18.08.2026: «Считать бесплатный тариф неоплачиваемым». Поломка, которую
+  // ловит тест: отказ «платить нечего» приезжает как 503 «временно недоступно» — человеку сказано,
+  // что система сломалась, и он будет жать кнопку снова.
+  it('отказывает на бесплатном тарифе своей причиной, а не 503 «недоступно»', async () => {
+    createOwnTariffRenewalInvoice.mockRejectedValue(new Error('saas_billing_tariff_not_payable'));
+
+    const response = await POST(new Request('http://test/api/clinic/billing', { method: 'POST' }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_tariff_not_payable',
+    });
+  });
+
   it('fails closed when the provider cannot carry fiscal receipt data', async () => {
     createOwnTariffRenewalInvoice.mockRejectedValue(
       new Error('payment_provider_receipt_unsupported:legacy-provider'),

@@ -205,7 +205,11 @@ export function createInMemorySaasBillingRepository(
         ]),
       ]
         .sort()
-        .map((id) => ({ id, name: tariffs.get(id)?.name ?? 'In-memory tariff' }));
+        .map((id) => ({
+          id,
+          name: tariffs.get(id)?.name ?? 'In-memory tariff',
+          priceMinor: tariffs.get(id)?.priceMinor ?? null,
+        }));
     },
 
     async listPlatformInvoices(filter) {
@@ -864,6 +868,7 @@ export function createInMemorySaasBillingRepository(
       return {
         saasBillingSubscriptionId: row.id,
         currentTariffId: row.tariffId,
+        currentTariffPriceMinor: tariffs.get(row.tariffId)?.priceMinor ?? null,
         tariffId,
         billingPeriod: tariff?.billingPeriod ?? 'month',
         savedPaymentMethodId: row.savedPaymentMethodId,

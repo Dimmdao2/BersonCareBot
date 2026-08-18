@@ -18,6 +18,7 @@ import type {
   SaasBillingSettingsReadPort,
 } from './ports';
 import { paidPeriodEndsAtForCode } from './paidPeriod';
+import { SAAS_BILLING_TARIFF_NOT_PAYABLE, isFreeTariffPrice } from './payableTariff';
 import { billingPeriodMonthsMap } from './billingPeriodCatalog';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
@@ -1019,11 +1020,17 @@ export function createSaasBillingService(dependencies: {
       const {
         saasBillingSubscriptionId,
         currentTariffId,
+        currentTariffPriceMinor,
         tariffId,
         billingPeriod,
         savedPaymentMethodId,
         currentPeriodEndsAt,
       } = await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
+      // Owner ruling 18.08.2026 — a free tariff is not payable. Refuse here, before any invoice row
+      // exists and long before the provider: an invoice for 0 ₽ can neither be fiscalized nor paid.
+      if (isFreeTariffPrice(currentTariffPriceMinor)) {
+        throw new Error(SAAS_BILLING_TARIFF_NOT_PAYABLE);
+      }
       // A normal renewal pays the tariff already assigned to this clinic.  Its route runs under
       // the clinic-billing principal and must not enter the platform-only transition port.  A
       // scheduled next tariff is different: retain the downgrade recheck before selling that
@@ -1066,11 +1073,19 @@ export function createSaasBillingService(dependencies: {
       const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
       const assignedTariffId =
         await dependencies.repository.getOrganizationAssignedTariffId(organizationId);
+      const choices = await dependencies.repository.listActiveTariffChoices();
+      const currentTariffId = subscription?.tariffId ?? assignedTariffId;
       return {
-        choices: await dependencies.repository.listActiveTariffChoices(),
-        currentTariffId: subscription?.tariffId ?? assignedTariffId,
+        choices: choices.map(({ id, name }) => ({ id, name })),
+        currentTariffId,
         pendingTariffId: subscription?.pendingTariffId ?? null,
         pendingEffectiveAt: subscription?.pendingTariffId ? subscription.currentPeriodEndsAt : null,
+        // Owner ruling 18.08.2026 — the same rule the pay route applies, read off the same price
+        // (the current tariff, whose row becomes the invoice amount), so the screen never offers a
+        // payment the route would refuse.
+        payable: !isFreeTariffPrice(
+          choices.find((choice) => choice.id === currentTariffId)?.priceMinor,
+        ),
       };
     },
 
