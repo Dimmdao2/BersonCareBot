@@ -11,27 +11,52 @@
 
 ## Этап 1 — предусловия свёрки (без них расписание = генератор ложных тревог)
 
-- [ ] 1.1 Фильтр `status=succeeded` в запросе списка платежей.
+- [x] 1.1 Фильтр `status=succeeded` в запросе списка платежей.
       Сейчас забираем все статусы, и каждый `pending`/`canceled` выглядит расхождением.
-      `apps/webapp/src/infra/payments/yookassaPaymentProvider.ts` (~212-216)
-- [ ] 1.2 Список платежей отдаёт те же поля, что и вебхук: `invoice_details.id ?? id`, `metadata`,
+      Сделано: `apps/webapp/src/infra/payments/yookassaPaymentProvider.ts:233` (константа `:219`),
+      тест `apps/webapp/src/infra/payments/yookassaPaymentProvider.unit.test.ts:139`.
+- [x] 1.2 Список платежей отдаёт те же поля, что и вебхук: `invoice_details.id ?? id`, `metadata`,
       `refunded_amount`. Сейчас отдаёт только `id` — **спящий баг**: в день включения Счетов каждый
       выставленный счёт покажется расхождением. Вебхук уже берёт ref правильно (`:459`).
-      `modules/payments/providerPort.ts` (тип `PaymentProviderListedPayment`) + `yookassaPaymentProvider.ts` (~196-200, 484-495)
-- [ ] 1.3 Единственный дом срока жизни счёта: `modules/saas-billing/invoiceValidity.ts` —
+      Сделано: тип `apps/webapp/src/modules/payments/providerPort.ts:103-122`; вывод ref
+      `apps/webapp/src/infra/payments/yookassaPaymentProvider.ts:503`, поля `:512-516`, объявление
+      полей ответа `:203-216`; тесты `yookassaPaymentProvider.unit.test.ts:156,198`.
+- [x] 1.3 Единственный дом срока жизни счёта: `modules/saas-billing/invoiceValidity.ts` —
       `SAAS_BILLING_INVOICE_VALIDITY_DAYS = 30`, `saasBillingInvoiceExpiresAt()`, `isSaasBillingInvoicePayable()`.
-      Три читателя и ни одного четвёртого: выставление счёта, кнопка оплаты в кабинете, окно свёрки по журналу.
-- [ ] 1.4 Развести окна сравнения: провайдер→журнал — точечный поиск по ref без окна;
+      Сделано: `apps/webapp/src/modules/saas-billing/invoiceValidity.ts:18,23,38`;
+      тест `invoiceValidity.unit.test.ts:9`.
+      Читатели: **выставление счёта** — `modules/saas-billing/service.ts:429` (срок больше не приходит
+      из запроса; из API и формы поле убрано: `app/api/admin/saas-billing/payments/manual/route.ts:26`,
+      `app/app/admin/payments/PlatformPaymentsSection.tsx:759`); **экран платежей платформы** —
+      `PlatformPaymentsSection.tsx:76` (было собственное вычисление «просрочен» в компоненте).
+      **Расхождение с планом:** третьим читателем названо «окно свёрки по журналу», но после 1.4
+      окно журнала считается по `paidAt` и срок жизни счёта ему не нужен — фиктивного читателя не
+      заводил. Оставшийся настоящий читатель — кнопка оплаты в кабинете клиники: это пункт 4.1
+      («просроченный счёт недоступен к оплате»), поведение меняется там, не здесь.
+- [x] 1.4 Развести окна сравнения: провайдер→журнал — точечный поиск по ref без окна;
       журнал→провайдер — окно по дате оплаты. Сейчас обе стороны режутся одним окном, и счёт,
       выставленный месяц назад и оплаченный сегодня, всегда «расхождение».
-      `modules/saas-billing/service.ts` (~622-711), `ports.ts`
-- [ ] 1.5 Развести пространство имён происшествий: `SAAS_BILLING_RECONCILE_CADENCE_INTEGRATION` +
+      Сделано: `modules/saas-billing/service.ts:646` (окно по `paidAt`) и `:675` (точечный поиск по
+      ref, без дат); фильтр `modules/saas-billing/ports.ts:128-152`; SQL
+      `infra/repos/pgSaasBilling.ts:396-408`; двойник `infra/repos/inMemorySaasBilling.ts:228-240`.
+      Тест `modules/saas-billing/reconcileWindows.unit.test.ts:103` (краснеет при возврате к одному окну).
+- [x] 1.5 Развести пространство имён происшествий: `SAAS_BILLING_RECONCILE_CADENCE_INTEGRATION` +
       параметр `integration` в open/resolve. Иначе пятиминутный тик здоровья закрывает наши происшествия,
       следующая сверка открывает заново — и алерт приходит **каждый час**. Ровно то, что владелец запретил.
-      `modules/operator-health/ports.ts` (~223), `infra/repos/pgOperatorHealthWrite.ts` (~294, ~401), in-memory двойник
+      Сделано: `modules/operator-health/ports.ts:241` (маркер), `:249-251` (закрытый тип),
+      `:197`/`:222` (обязательный параметр); `infra/repos/pgOperatorHealthWrite.ts:298,412`;
+      двойник `infra/repos/inMemoryOperatorHealthWrite.ts:228`; вызывающий
+      `app-layer/health/runOperatorHealthCriticalTick.ts:132,186`.
+      Тест `infra/repos/operatorIncidentCadenceNamespace.unit.test.ts:23` (краснеет без разделения).
 
 Гейт этапа: живой запрос к тестовому магазину подтверждает, что провайдер принимает фильтр по статусу
 и возвращает `metadata` в списке. Пока не подтверждено — на этом строить нельзя.
+
+**Гейт НЕ пройден (этап 1 его не закрывал).** Код 1.1/1.2 написан по документации ЮKassa и живой API
+не вызывался. Допущение, которое обязан снять живой запрос: `GET /v3/payments` принимает `status=succeeded`
+и отдаёт в элементах списка `metadata`, `invoice_details` и `refunded_amount` — те же поля, что и
+`GET /v3/payments/{id}`. Если списочный ответ окажется урезанным, 1.2 придётся достраивать точечным
+дочитыванием каждого платежа, и это меняет цену прогона свёрки.
 
 ## Этап 2 — расписание и алерт
 
@@ -62,3 +87,11 @@
 ## Не сделано / вне скоупа
 
 - Сверка возвратов (`GET /v3/refunds`) — отдельным заходом
+- Найдено при работе над этапом 1, **не чинил**: `reconcilePlatformPaymentsWithProvider` не сравнивает
+  возвращённые деньги. `refunded_amount` теперь доезжает из списка провайдера (1.2), но сравнение
+  сумм смотрит только на `amountMinor`, поэтому платёж, возвращённый у провайдера и не отражённый
+  в `saas_billing_refunds`, расхождением не станет. Место: `modules/saas-billing/service.ts:699`.
+- Найдено при работе над этапом 1, **не чинил**: ключ идемпотентности ручного счёта теперь
+  включает ДЕНЬ выставления вместо выбранного администратором срока (иначе после 1.3 два клика по
+  одной форме создавали бы два счёта). Следствие: два одинаковых счёта одной клинике в один день —
+  по-прежнему один счёт, в разные дни — два. Это ожидаемо, но соседствует с открытым вопросом G1.
