@@ -363,7 +363,7 @@ END $$;
 -- owner in a root.  target_role stays the installed runtime target: they are
 -- intentionally different on a SECURITY DEFINER path.
 CREATE OR REPLACE FUNCTION app.require_accepted_context(p_effective_role name, p_target_role name, p_context_class app.port_context_class, p_purpose text, p_typed_args_hash bytea, p_function_identity regprocedure)
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE database_id oid;
 BEGIN
   IF p_effective_role IS NULL OR p_target_role IS NULL
@@ -443,7 +443,7 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE FUNCTION app.current_org_id()
-RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE value uuid;
 BEGIN
   SELECT organization_id INTO value FROM app_ext.accepted_port_contexts
