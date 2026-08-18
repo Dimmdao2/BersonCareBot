@@ -8,6 +8,7 @@ import type {
   TariffBillingPeriodCode,
 } from '@/modules/saas-billing/ports';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
+import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
 import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
@@ -454,13 +455,13 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
-      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
+      const tariff = tariffs.get(purchasedTariffId(authority));
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
         saasBillingAccountId: authority.saasBillingAccountId,
         saasBillingSubscriptionId: authority.id,
-        tariffId: authority.pendingTariffId ?? authority.tariffId,
+        tariffId: purchasedTariffId(authority),
         tariffName: tariff?.name ?? 'In-memory tariff',
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
@@ -760,7 +761,9 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
-      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
+      // An admin-issued invoice is not a tariff purchase: its amount, description and expiry are
+      // typed by the admin and it names the CURRENT tariff, exactly as the pg repository does.
+      const tariff = tariffs.get(authority.tariffId);
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
@@ -864,12 +867,16 @@ export function createInMemorySaasBillingRepository(
         paidAdditionalSeats: current?.paidAdditionalSeats ?? 0,
       };
       rows.set(key, row);
-      const tariff = tariffs.get(tariffId);
+      // Owner ruling 18.08.2026 — price AND billing period come from the ONE tariff being
+      // purchased, by the same shared rule the pg repository uses; a fake that decided this its
+      // own way is exactly why a mixed invoice went unnoticed.
+      const purchasedId = purchasedTariffId(row);
+      const tariff = tariffs.get(purchasedId);
       return {
         saasBillingSubscriptionId: row.id,
         currentTariffId: row.tariffId,
-        currentTariffPriceMinor: tariffs.get(row.tariffId)?.priceMinor ?? null,
-        tariffId,
+        purchasedTariffPriceMinor: tariff?.priceMinor ?? null,
+        tariffId: purchasedId,
         billingPeriod: tariff?.billingPeriod ?? 'month',
         savedPaymentMethodId: row.savedPaymentMethodId,
         additionalSeatPriceMinor: null,
@@ -892,11 +899,9 @@ export function createInMemorySaasBillingRepository(
         .map((row) => ({
           saasBillingSubscriptionId: row.id,
           organizationId: row.organizationId,
-          tariffId: row.tariffId,
+          tariffId: purchasedTariffId(row),
           pendingTariffId: row.pendingTariffId,
-          // No tariff-detail store in this fake (see `createSaasBillingInvoice` above) — the real
-          // (pg) repository is what the renewal tick actually runs against.
-          billingPeriod: 'month' as const,
+          billingPeriod: tariffs.get(purchasedTariffId(row))?.billingPeriod ?? 'month',
           currentPeriodEndsAt: row.currentPeriodEndsAt as string,
           savedPaymentMethodId: row.savedPaymentMethodId,
           autopayConsentedAt: row.autopayConsentedAt,
@@ -918,13 +923,13 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
-      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
+      const tariff = tariffs.get(purchasedTariffId(authority));
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
         saasBillingAccountId: authority.saasBillingAccountId,
         saasBillingSubscriptionId: authority.id,
-        tariffId: authority.pendingTariffId ?? authority.tariffId,
+        tariffId: purchasedTariffId(authority),
         tariffName: 'In-memory tariff',
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,

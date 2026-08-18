@@ -524,12 +524,14 @@ export type SaasBillingRepositoryPort = {
     /** Tariff currently assigned to the paid subscription; may differ from a scheduled next tariff. */
     currentTariffId: string;
     /**
-     * Price of `currentTariffId` — the very row `createSaasBillingInvoice` turns into the renewal
-     * invoice's amount, which is why the free-tariff rule reads THIS price and not the target's.
-     * `null` when the tariff carries no price at all (a different refusal, see `payableTariff.ts`).
+     * Price of the tariff being PURCHASED (`purchasedTariffId`, `payableTariff.ts`) — the very row
+     * `createSaasBillingInvoice` turns into the invoice amount, which is why the free-tariff rule
+     * weighs THIS price. `null` when that tariff carries no price at all (a different refusal).
      */
-    currentTariffPriceMinor: number | null;
+    purchasedTariffPriceMinor: number | null;
+    /** The tariff being purchased: the scheduled one while a change is pending, else the current one. */
     tariffId: string;
+    /** Billing period of `tariffId` — the same tariff the amount above comes from, never the other one. */
     billingPeriod: TariffBillingPeriodCode;
     /** Existing paid period is the renewal anchor; `null` only before the first payment. */
     currentPeriodStartsAt: string | null;

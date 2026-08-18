@@ -18,7 +18,11 @@ import type {
   SaasBillingSettingsReadPort,
 } from './ports';
 import { paidPeriodEndsAtForCode } from './paidPeriod';
-import { SAAS_BILLING_TARIFF_NOT_PAYABLE, isFreeTariffPrice } from './payableTariff';
+import {
+  SAAS_BILLING_TARIFF_NOT_PAYABLE,
+  isFreeTariffPrice,
+  purchasedTariffId,
+} from './payableTariff';
 import { billingPeriodMonthsMap } from './billingPeriodCatalog';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
@@ -1011,16 +1015,17 @@ export function createSaasBillingService(dependencies: {
 
     /**
      * K0 — the clinic-facing "pay for our tariff" entry point. Amount, tariff and organization are
-     * ALL server-derived: the tariff is whatever the platform admin already assigned
-     * (`requireOwnTariffBillingSubscription`), the amount comes from that tariff's own price row
-     * (`createSaasBillingInvoice`), and the organization is the caller's own, never a request body
-     * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
+     * ALL server-derived: the tariff is the one being purchased (`purchasedTariffId` — the
+     * scheduled next tariff while a change is pending, otherwise the assigned one), the amount and
+     * the period length both come from THAT tariff's own row (`requireOwnTariffBillingSubscription`
+     * + `createSaasBillingInvoice`), and the organization is the caller's own, never a request body
+     * field. One renewal period starting at the paid boundary (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
       const {
         saasBillingSubscriptionId,
         currentTariffId,
-        currentTariffPriceMinor,
+        purchasedTariffPriceMinor,
         tariffId,
         billingPeriod,
         savedPaymentMethodId,
@@ -1028,7 +1033,7 @@ export function createSaasBillingService(dependencies: {
       } = await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
       // Owner ruling 18.08.2026 — a free tariff is not payable. Refuse here, before any invoice row
       // exists and long before the provider: an invoice for 0 ₽ can neither be fiscalized nor paid.
-      if (isFreeTariffPrice(currentTariffPriceMinor)) {
+      if (isFreeTariffPrice(purchasedTariffPriceMinor)) {
         throw new Error(SAAS_BILLING_TARIFF_NOT_PAYABLE);
       }
       // A normal renewal pays the tariff already assigned to this clinic.  Its route runs under
@@ -1075,16 +1080,20 @@ export function createSaasBillingService(dependencies: {
         await dependencies.repository.getOrganizationAssignedTariffId(organizationId);
       const choices = await dependencies.repository.listActiveTariffChoices();
       const currentTariffId = subscription?.tariffId ?? assignedTariffId;
+      const pendingTariffId = subscription?.pendingTariffId ?? null;
       return {
         choices: choices.map(({ id, name }) => ({ id, name })),
         currentTariffId,
-        pendingTariffId: subscription?.pendingTariffId ?? null,
-        pendingEffectiveAt: subscription?.pendingTariffId ? subscription.currentPeriodEndsAt : null,
-        // Owner ruling 18.08.2026 — the same rule the pay route applies, read off the same price
-        // (the current tariff, whose row becomes the invoice amount), so the screen never offers a
-        // payment the route would refuse.
+        pendingTariffId,
+        pendingEffectiveAt: pendingTariffId ? subscription?.currentPeriodEndsAt ?? null : null,
+        // Owner ruling 18.08.2026 — the screen weighs the price of the tariff the pay route would
+        // actually bill: the same `purchasedTariffId` rule, so it never offers a payment the route
+        // refuses and never hides one the route would accept.
         payable: !isFreeTariffPrice(
-          choices.find((choice) => choice.id === currentTariffId)?.priceMinor,
+          choices.find(
+            (choice) =>
+              choice.id === purchasedTariffId({ tariffId: currentTariffId, pendingTariffId }),
+          )?.priceMinor,
         ),
       };
     },
