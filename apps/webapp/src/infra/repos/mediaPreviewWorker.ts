@@ -16,7 +16,19 @@ import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql'
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { logger } from '@/infra/logging/logger';
 import { mediaReadableStatusPredicate } from '@/infra/repos/mediaSqlPredicates';
-import { presignGetUrl, s3GetObjectBody, s3PreviewKey, s3PutObjectBody } from '@/infra/s3/client';
+import {
+  presignGetUrl,
+  s3DeleteObject,
+  s3GetObjectBody,
+  s3HeadObject,
+  s3PreviewKey,
+  s3PutObjectBody,
+  s3StandardImageKey,
+} from '@/infra/s3/client';
+import {
+  buildImageStandardRendition,
+  encodeStandardImageRendition,
+} from '@/modules/media/imageStandardRendition';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 
 const resolvedFfmpegPath = env.FFMPEG_PATH || ffmpegInstaller.path;
@@ -47,6 +59,12 @@ export type ProcessMediaPreviewBatchResult = {
 
 type MediaPreviewIterationOutcome = 'empty' | 'processed' | 'error';
 
+type MediaPreviewIterationResult = {
+  outcome: MediaPreviewIterationOutcome;
+  /** Raw upload superseded by a standard rendition; deleted only after the transaction commits. */
+  supersededOriginalKey?: string | null;
+};
+
 function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
   const exp = Math.min(attemptsAfterIncrement, 20);
   return Math.min(1440, Math.pow(2, exp));
@@ -55,31 +73,6 @@ function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
 function isPermanentPreviewError(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   return PERMANENT_ERROR_PATTERNS.some((p) => msg.includes(p));
-}
-
-async function generateImagePreviews(original: Buffer): Promise<{
-  sm: Buffer;
-  md: Buffer;
-  sourceWidth: number | null;
-  sourceHeight: number | null;
-}> {
-  const meta = await sharp(original).metadata();
-  const sm = await sharp(original)
-    .rotate()
-    .resize(160, 160, { fit: 'inside' })
-    .jpeg({ quality: 82 })
-    .toBuffer();
-  const md = await sharp(original)
-    .rotate()
-    .resize(400, 400, { fit: 'inside' })
-    .jpeg({ quality: 85 })
-    .toBuffer();
-  return {
-    sm,
-    md,
-    sourceWidth: meta.width ?? null,
-    sourceHeight: meta.height ?? null,
-  };
 }
 
 /** Best-effort width/height from ffprobe (video or still image in container). */
@@ -177,7 +170,8 @@ async function videoPosterJpegRaw(s3Key: string): Promise<Buffer> {
   }
 }
 
-async function posterJpegToSmMd(raw: Buffer): Promise<{ sm: Buffer; md: Buffer }> {
+/** Thumbnails are derived from our own re-encoded output, never from the raw upload. */
+async function thumbnailsSmMd(raw: Buffer): Promise<{ sm: Buffer; md: Buffer }> {
   const sm = await sharp(raw)
     .rotate()
     .resize(160, 160, { fit: 'inside' })
@@ -269,25 +263,14 @@ function runMagickConvert(inputPath: string, outPath: string): Promise<void> {
   });
 }
 
-async function heicPosterBuffers(s3Key: string): Promise<{
-  sm: Buffer;
-  md: Buffer;
-  sourceWidth: number | null;
-  sourceHeight: number | null;
-}> {
+/**
+ * Full-size JPEG decoded from a HEIC/HEIF upload. sharp's HEIC support is not guaranteed on the
+ * deploy host, so decoding stays on the proven ffmpeg path with an ImageMagick fallback
+ * (`-auto-orient`); the JPEG it produces is what the standard-rendition encoder re-encodes.
+ */
+async function heicFullSizeJpeg(s3Key: string): Promise<Buffer> {
   try {
-    const raw = await videoPosterJpegRaw(s3Key);
-    let sourceWidth: number | null = null;
-    let sourceHeight: number | null = null;
-    try {
-      const meta = await sharp(raw).metadata();
-      sourceWidth = meta.width ?? null;
-      sourceHeight = meta.height ?? null;
-    } catch {
-      /* ignore */
-    }
-    const { sm, md } = await posterJpegToSmMd(raw);
-    return { sm, md, sourceWidth, sourceHeight };
+    return await videoPosterJpegRaw(s3Key);
   } catch (ffmpegErr) {
     logger.warn(
       { err: ffmpegErr },
@@ -303,23 +286,76 @@ async function heicPosterBuffers(s3Key: string): Promise<{
     const url = await presignGetUrl(s3Key);
     await downloadFileToPath(url, inputPath);
     await runMagickConvert(inputPath, outputPath);
-    const raw = await readFile(outputPath);
-    let sourceWidth: number | null = null;
-    let sourceHeight: number | null = null;
-    try {
-      const meta = await sharp(raw).metadata();
-      sourceWidth = meta.width ?? null;
-      sourceHeight = meta.height ?? null;
-    } catch {
-      /* ignore */
-    }
-    const { sm, md } = await posterJpegToSmMd(raw);
-    return { sm, md, sourceWidth, sourceHeight };
+    return await readFile(outputPath);
   } finally {
     if (dir) {
       await rm(dir, { recursive: true, force: true }).catch(() => {});
     }
   }
+}
+
+type WebappTxSql = Parameters<typeof runWebappSql>[0];
+
+/**
+ * Re-encodes an image to the standard rendition, repoints the row at it, and reports the raw
+ * upload the caller must delete AFTER this transaction commits.
+ *
+ * Ordering (owner ruling 19.08.2026, SECURITY_CANON §5) — the original is the only copy until
+ * every one of these has succeeded:
+ *   encode -> PUT rendition -> HEAD verify -> PUT thumbnails -> UPDATE row -> COMMIT -> delete.
+ * A failure at any step throws into the caller's retry/backoff path with the original intact;
+ * a rollback after the UPDATE leaves the row pointing at the original and only strands a
+ * deterministic `standard.webp` that the next attempt overwrites.
+ */
+async function applyStandardImageRendition(
+  db: WebappTxSql,
+  mediaId: string,
+  originalKey: string,
+  source: Buffer,
+  smKey: string,
+  mdKey: string,
+): Promise<string | null> {
+  const outcome = await buildImageStandardRendition(
+    {
+      originalKey,
+      standardKey: s3StandardImageKey(mediaId),
+      smKey,
+      mdKey,
+      source,
+    },
+    {
+      encode: encodeStandardImageRendition,
+      putObject: s3PutObjectBody,
+      headObject: s3HeadObject,
+      thumbnails: thumbnailsSmMd,
+    },
+  );
+  await runWebappSql(
+    db,
+    sql`UPDATE media_files SET
+           s3_key = ${outcome.standardKey},
+           mime_type = ${outcome.mimeType},
+           size_bytes = ${outcome.sizeBytes},
+           preview_status = 'ready',
+           preview_sm_key = ${outcome.smKey},
+           preview_md_key = ${outcome.mdKey},
+           preview_attempts = 0,
+           preview_next_attempt_at = NULL,
+           source_width = ${outcome.width},
+           source_height = ${outcome.height}
+         WHERE id = ${mediaId}::uuid`,
+  );
+  logger.info(
+    {
+      mediaId,
+      standardKey: outcome.standardKey,
+      sizeBytes: outcome.sizeBytes,
+      width: outcome.width,
+      height: outcome.height,
+    },
+    '[mediaPreviewWorker] standard rendition stored',
+  );
+  return outcome.supersededOriginalKey;
 }
 
 /**
@@ -335,9 +371,10 @@ export async function processMediaPreviewBatch(
   let errors = 0;
 
   for (let i = 0; i < take; i++) {
-    const outcome = await withPoolTransaction<MediaPreviewIterationOutcome>(
+    const result = await withPoolTransaction<MediaPreviewIterationResult>(
       pool,
       async (client) => {
+        let supersededOriginalKey: string | null = null;
         const db = getWebappSqlFromPgClient(client);
         const claim = await runWebappSql<{
           id: string;
@@ -363,7 +400,7 @@ export async function processMediaPreviewBatch(
         const rows = claim.rows;
 
         if (rows.length === 0) {
-          return 'empty';
+          return { outcome: 'empty' };
         }
 
         const row = rows[0]!;
@@ -390,47 +427,15 @@ export async function processMediaPreviewBatch(
                 '[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped',
               );
             } else {
-              const {
-                sm: posterSm,
-                md: posterMd,
-                sourceWidth: jpegW,
-                sourceHeight: jpegH,
-              } = await heicPosterBuffers(row.s3_key);
-              await s3PutObjectBody(smKey, posterSm, 'image/jpeg');
-              await s3PutObjectBody(mdKey, posterMd, 'image/jpeg');
-              let sw: number | null = jpegW;
-              let sh: number | null = jpegH;
-              try {
-                const presigned = await presignGetUrl(row.s3_key);
-                const dims = await ffprobeSourceDimensions(presigned);
-                if (dims) {
-                  sw = dims.width;
-                  sh = dims.height;
-                }
-              } catch (e) {
-                logger.warn(
-                  { err: e, mediaId: row.id },
-                  '[mediaPreviewWorker] heic dimension probe failed',
-                );
-              }
-              await runWebappSql(
+              const decoded = await heicFullSizeJpeg(row.s3_key);
+              supersededOriginalKey = await applyStandardImageRendition(
                 db,
-                sql`UPDATE media_files SET
-               preview_status = 'ready',
-               preview_sm_key = ${smKey},
-               preview_md_key = ${mdKey},
-               preview_attempts = 0,
-               preview_next_attempt_at = NULL,
-               source_width = ${sw},
-               source_height = ${sh}
-             WHERE id = ${row.id}::uuid`,
+                row.id,
+                row.s3_key,
+                decoded,
+                smKey,
+                mdKey,
               );
-              if (sw != null && sh != null) {
-                logger.info(
-                  { mediaId: row.id, width: sw, height: sh },
-                  '[mediaPreviewWorker] source dimensions stored',
-                );
-              }
             }
           } else if (mime.startsWith('image/') && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
             await runWebappSql(
@@ -455,27 +460,14 @@ export async function processMediaPreviewBatch(
             if (!raw) {
               throw new Error('s3_get_object_empty');
             }
-            const { sm, md, sourceWidth, sourceHeight } = await generateImagePreviews(raw);
-            await s3PutObjectBody(smKey, sm, 'image/jpeg');
-            await s3PutObjectBody(mdKey, md, 'image/jpeg');
-            await runWebappSql(
+            supersededOriginalKey = await applyStandardImageRendition(
               db,
-              sql`UPDATE media_files SET
-               preview_status = 'ready',
-               preview_sm_key = ${smKey},
-               preview_md_key = ${mdKey},
-               preview_attempts = 0,
-               preview_next_attempt_at = NULL,
-               source_width = ${sourceWidth},
-               source_height = ${sourceHeight}
-             WHERE id = ${row.id}::uuid`,
+              row.id,
+              row.s3_key,
+              raw,
+              smKey,
+              mdKey,
             );
-            if (sourceWidth != null && sourceHeight != null) {
-              logger.info(
-                { mediaId: row.id, width: sourceWidth, height: sourceHeight },
-                '[mediaPreviewWorker] source dimensions stored',
-              );
-            }
           } else if (mime.startsWith('video/')) {
             const presigned = await presignGetUrl(row.s3_key);
             let sw: number | null = null;
@@ -493,7 +485,7 @@ export async function processMediaPreviewBatch(
               );
             }
             const rawPoster = await videoPosterJpegRaw(row.s3_key);
-            const { sm: posterSm, md: posterMd } = await posterJpegToSmMd(rawPoster);
+            const { sm: posterSm, md: posterMd } = await thumbnailsSmMd(rawPoster);
             await s3PutObjectBody(smKey, posterSm, 'image/jpeg');
             await s3PutObjectBody(mdKey, posterMd, 'image/jpeg');
             await runWebappSql(
@@ -530,7 +522,7 @@ export async function processMediaPreviewBatch(
               { err: e, mediaId: row.id },
               '[processMediaPreviewBatch] permanent error, skipped',
             );
-            return 'error';
+            return { outcome: 'error' };
           }
           const prev = row.preview_attempts ?? 0;
           const nextAttempts = prev + 1;
@@ -554,12 +546,31 @@ export async function processMediaPreviewBatch(
             );
           }
           logger.error({ err: e, mediaId: row.id }, '[processMediaPreviewBatch] preview failed');
-          return 'error';
+          return { outcome: 'error' };
         }
 
-        return 'processed';
+        return { outcome: 'processed', supersededOriginalKey };
       },
     );
+
+    const { outcome, supersededOriginalKey } = result;
+
+    // Only now is the rendition durable AND the row committed to point at it, so the raw upload
+    // is no longer the only copy. Best-effort: a failure here leaks bytes, never a patient photo.
+    if (supersededOriginalKey) {
+      try {
+        await s3DeleteObject(supersededOriginalKey);
+        logger.info(
+          { sourceKey: supersededOriginalKey },
+          '[mediaPreviewWorker] original deleted after standard rendition',
+        );
+      } catch (e) {
+        logger.warn(
+          { err: e, sourceKey: supersededOriginalKey },
+          '[mediaPreviewWorker] original delete failed, non-fatal',
+        );
+      }
+    }
 
     if (outcome === 'empty') {
       break;
