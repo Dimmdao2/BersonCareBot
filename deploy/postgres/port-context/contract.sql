@@ -387,6 +387,22 @@ END $$;
 -- p_effective_role is the querying runtime role in RLS, or the exact definer
 -- owner in a root.  target_role stays the installed runtime target: they are
 -- intentionally different on a SECURITY DEFINER path.
+--
+-- This gate deliberately does NOT re-validate the SHAPE of p_purpose.  The
+-- value never arrives here from a request: every one of the ~1100 call sites
+-- passes a literal written into the policy or definer body at DDL time (the
+-- single exception picks between two such literals with CASE).  The value that
+-- *does* enter from outside is `claims.purpose` at install time, and it is
+-- checked exactly where it enters, twice: `app.install_port_context` rejects
+-- `p_claims.purpose !~ '^[a-z][a-z0-9._:-]{0,127}$'`, and
+-- `app_ext.port_context_capabilities.purpose` carries the same regex as a CHECK
+-- constraint, so a row with a malformed purpose cannot exist to be matched.
+-- Re-running the regex here therefore validated a constant on every gate
+-- evaluation, and it cost ~5-7 us of the call's ~22 us on `bcb_webapp_dev` --
+-- a quarter of the most expensive thing on the RLS read path.  Removing it does
+-- not open a door: a caller that hands this function a malformed purpose simply
+-- finds no matching accepted row below and still gets 42501, and a NULL purpose
+-- likewise fails the equality and still gets 42501.  Fail-closed either way.
 CREATE OR REPLACE FUNCTION app.require_accepted_context(p_effective_role name, p_target_role name, p_context_class app.port_context_class, p_purpose text, p_typed_args_hash bytea, p_function_identity regprocedure)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE database_id oid;
@@ -400,7 +416,7 @@ BEGIN
            AND pg_catalog.pg_get_userbyid(p.proowner) = p_effective_role
       ))
     )
-    OR p_purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_typed_args_hash) <> 32 THEN
+    OR octet_length(p_typed_args_hash) <> 32 THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'accepted port context required';
   END IF;
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
