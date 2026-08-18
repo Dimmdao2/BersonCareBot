@@ -240,8 +240,11 @@ test('aggregated runtime surface findings separate invoker triggers from exact d
     ['SELECT', 'INSERT']);
   assert.deepEqual(surface('app.update_current_patient_fio(text,text,text)', 'public.platform_users').operationColumns,
     { SELECT: ['id', 'role', 'merged_into_id'] });
-  assert.deepEqual(surface('app.update_current_patient_fio(text,text,text)', 'public.user_identity').operationColumns,
-    { SELECT: ['platform_user_id'] });
+  // user_identity — поверхность upsert (INSERT+UPDATE), поэтому SELECT здесь НЕ сужается:
+  // `INSERT … ON CONFLICT DO UPDATE` под FORCE RLS читает конфликтующую строку целиком. Сужение,
+  // стоявшее тут до 18.08, ломало смену ФИО пациента с «permission denied for table».
+  assert.equal(surface('app.update_current_patient_fio(text,text,text)', 'public.user_identity').operationColumns,
+    undefined);
   assert.deepEqual(surface('app.patient_cancel_pending_reminder_occurrences(text)', 'public.reminder_rules'), {
     relation: 'public.reminder_rules',
     columns: ['integrator_rule_id', 'organization_id', 'platform_user_id'],
@@ -263,6 +266,29 @@ test('aggregated runtime surface findings separate invoker triggers from exact d
   const serviceEnqueue = declaration.portContext.functions['app.enqueue_media_transcode_job_for_service(uuid)'];
   assert.deepEqual(serviceEnqueue.relationSurfaces, []);
   assert.deepEqual(serviceEnqueue.delegatesTo, ['app.enqueue_media_transcode_job_core(uuid)']);
+});
+
+// Поверхность с INSERT+UPDATE на одной таблице — это `INSERT … ON CONFLICT DO UPDATE`. Под FORCE RLS
+// PostgreSQL читает конфликтующую строку, чтобы проверить USING-квалы UPDATE-политики, и требует
+// SELECT по ВСЕМ колонкам поверхности. Урезанный SELECT падает как «permission denied for TABLE»
+// (не «for column»), поэтому лексический разбор тела функции этот случай не видит: колонка на чтение
+// в тексте функции не упомянута. Замер 18.08 на bersoncarebot_test: у app_seam_patient_self_actions_owner
+// был SELECT на 3 из 5 колонок user_notification_topic_channels — тот же INSERT падал, а у
+// app_seam_reminder_patient_owner с SELECT на всех 5 проходил.
+test('upsert surfaces never narrow SELECT — ON CONFLICT DO UPDATE reads the conflicting row', () => {
+  const offenders = [];
+  for (const [signature, fn] of Object.entries(declaration.portContext.functions)) {
+    for (const surface of fn.relationSurfaces ?? []) {
+      const operations = surface.operations ?? [];
+      if (!operations.includes('INSERT') || !operations.includes('UPDATE')) continue;
+      if (!operations.includes('SELECT')) offenders.push(`${signature} → ${surface.relation}: no SELECT`);
+      if (surface.operationColumns?.SELECT) {
+        offenders.push(`${signature} → ${surface.relation}: SELECT narrowed to `
+          + surface.operationColumns.SELECT.join(','));
+      }
+    }
+  }
+  assert.deepEqual(offenders, []);
 });
 
 test('current-patient surface gate catches missing operation, absent relation, and overbroad SELECT together', () => {
