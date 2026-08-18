@@ -19,6 +19,7 @@ const tariffChange = {
   currentTariffId: null,
   pendingTariffId: null,
   pendingEffectiveAt: null,
+  payable: true,
 };
 
 describe('§5a stage 6.1 — clinic sees "used out of included" per number', () => {
@@ -39,6 +40,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           currentTariffId: 'current',
           pendingTariffId: 'small',
           pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          payable: true,
         }}
       />,
     );
@@ -66,6 +68,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           currentTariffId: 'current',
           pendingTariffId: 'small',
           pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          payable: true,
         }}
       />,
     );
@@ -93,6 +96,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         tariffChange={{
           choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
           currentTariffId: 'current', pendingTariffId: 'small', pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          payable: true,
         }}
       />,
     );

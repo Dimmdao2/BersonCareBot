@@ -356,8 +356,12 @@ export type SaasBillingRepositoryPort = {
     | { outcome: 'trial_started'; endsAt: string }
     | { outcome: 'payment_required' }
   >;
-  /** Active public tariff names available to the caller's own clinic billing screen. */
-  listActiveTariffChoices(): Promise<Array<{ id: string; name: string }>>;
+  /**
+   * Active public tariff names available to the caller's own clinic billing screen. `priceMinor`
+   * is what the free-tariff rule reads (`payableTariff.ts`); `null` means the tariff carries no
+   * price at all, which is not the same thing as free.
+   */
+  listActiveTariffChoices(): Promise<Array<{ id: string; name: string; priceMinor: number | null }>>;
   /** К1 — cross-org payments list for the platform cabinet. Never organization-scoped by design. */
   listPlatformInvoices(
     filter: SaasBillingPlatformInvoiceFilter,
@@ -519,6 +523,12 @@ export type SaasBillingRepositoryPort = {
     saasBillingSubscriptionId: string;
     /** Tariff currently assigned to the paid subscription; may differ from a scheduled next tariff. */
     currentTariffId: string;
+    /**
+     * Price of `currentTariffId` — the very row `createSaasBillingInvoice` turns into the renewal
+     * invoice's amount, which is why the free-tariff rule reads THIS price and not the target's.
+     * `null` when the tariff carries no price at all (a different refusal, see `payableTariff.ts`).
+     */
+    currentTariffPriceMinor: number | null;
     tariffId: string;
     billingPeriod: TariffBillingPeriodCode;
     /** Existing paid period is the renewal anchor; `null` only before the first payment. */

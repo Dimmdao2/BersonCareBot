@@ -2947,3 +2947,104 @@ describe('К6: неудачное автосписание возвращает 
     });
   });
 });
+
+// Решение владельца 18.08.2026, дословно: «Считать бесплатный тариф неоплачиваемым». Поломка,
+// которую ловит этот блок: клиника на тарифе ценой 0 ₽ нажимает «Оплатить тариф», код доходит до
+// чека с нулевой позицией (`payment_receipt_item_amount_invalid`) и отвечает «оплата временно
+// недоступна» — молчаливый и дорогой отказ: платить нечего, а человеку сказано, что сломалось.
+describe('бесплатный тариф неоплачиваем (решение владельца 18.08)', () => {
+  function createService(
+    createIntent: ReturnType<typeof vi.fn>,
+    tariffs: Array<{ id: string; name: string; priceMinor: number; currency: string; billingPeriod: string }>,
+  ) {
+    const repository = createInMemorySaasBillingRepository({ tariffs });
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [
+            { id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' },
+          ],
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-18T00:00:00.000Z'),
+    });
+    return { repository, service };
+  }
+
+  const freeTariff = {
+    id: 'tariff-free',
+    name: 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК',
+    priceMinor: 0,
+    currency: 'RUB',
+    billingPeriod: 'month',
+  };
+  const paidTariff = {
+    id: 'tariff-paid',
+    name: 'ПРОФИ',
+    priceMinor: 490_000,
+    currency: 'RUB',
+    billingPeriod: 'month',
+  };
+
+  it('счёт на бесплатный тариф не выставляется: причина названа, счёта нет, провайдер не тронут', async () => {
+    const createIntent = vi.fn();
+    const { repository, service } = createService(createIntent, [freeTariff, paidTariff]);
+    await service.assignManualTariff({
+      organizationId: 'org-free',
+      tariffId: freeTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    await expect(service.createOwnTariffRenewalInvoice('org-free')).rejects.toThrow(
+      'saas_billing_tariff_not_payable',
+    );
+    expect(createIntent).not.toHaveBeenCalled();
+    expect((await repository.getOrganizationBillingOverview('org-free')).invoices).toHaveLength(0);
+  });
+
+  it('платный тариф по-прежнему доходит до платёжной двери и получает ссылку', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'provider-paid-1',
+      checkoutUrl: 'https://pay.example/paid-1',
+    }));
+    const { service } = createService(createIntent, [freeTariff, paidTariff]);
+    await service.assignManualTariff({
+      organizationId: 'org-paid',
+      tariffId: paidTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    const raised = await service.createOwnTariffRenewalInvoice('org-paid');
+
+    expect(raised.providerCheckoutUrl).toBe('https://pay.example/paid-1');
+    expect(createIntent).toHaveBeenCalledTimes(1);
+    expect(createIntent.mock.calls[0]?.[0]).toMatchObject({
+      amountMinor: paidTariff.priceMinor,
+      currency: 'RUB',
+    });
+  });
+
+  it('экран узнаёт то же правило: бесплатный тариф не платится, платный платится', async () => {
+    const { service } = createService(vi.fn(), [freeTariff, paidTariff]);
+    await service.assignManualTariff({
+      organizationId: 'org-free',
+      tariffId: freeTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-paid',
+      tariffId: paidTariff.id,
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    await expect(service.getOwnTariffChangeState('org-free')).resolves.toMatchObject({
+      payable: false,
+    });
+    await expect(service.getOwnTariffChangeState('org-paid')).resolves.toMatchObject({
+      payable: true,
+    });
+  });
+});

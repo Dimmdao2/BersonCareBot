@@ -5,6 +5,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
 import { PaymentProviderRequestRefusedError } from '@/modules/payments/providerPort';
+import { SAAS_BILLING_TARIFF_NOT_PAYABLE } from '@/modules/saas-billing/payableTariff';
 import { handleSeatOveragePurchase } from './seatOveragePurchase';
 
 type BillingOperation = 'overview' | 'tariff-change' | 'renewal';
@@ -76,6 +77,7 @@ function tariffChangeError(error: unknown) {
   }
   const message = error instanceof Error ? error.message : '';
   if (
+    message === SAAS_BILLING_TARIFF_NOT_PAYABLE ||
     message === 'saas_billing_tariff_upgrade_proration_unavailable' ||
     message === 'saas_billing_tariff_upgrade_not_more_expensive' ||
     message === 'saas_billing_upgrade_no_remaining_period' ||
@@ -243,6 +245,14 @@ export async function POST(request: Request) {
     if (message === 'saas_billing_no_tariff_assigned') {
       return NextResponse.json(
         { ok: false, error: 'saas_billing_no_tariff_assigned' },
+        { status: 409 },
+      );
+    }
+    // Owner ruling 18.08.2026 — a free tariff is not payable. Nothing broke and nothing is
+    // temporarily unavailable, so this is a plain refusal with its own reason, never a 503.
+    if (message === SAAS_BILLING_TARIFF_NOT_PAYABLE) {
+      return NextResponse.json(
+        { ok: false, error: SAAS_BILLING_TARIFF_NOT_PAYABLE },
         { status: 409 },
       );
     }

@@ -21,6 +21,7 @@ describe('PayTariffButton', () => {
           currentTariffId: null,
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          payable: true,
         }}
       />,
     );
@@ -67,6 +68,7 @@ describe('PayTariffButton', () => {
           currentTariffId: null,
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          payable: true,
         }}
       />,
     );
@@ -78,5 +80,29 @@ describe('PayTariffButton', () => {
         screen.getByText('Оплата тарифа временно недоступна: платёжный магазин платформы не настроен.'),
       ).toBeInTheDocument(),
     );
+  });
+
+  // Решение владельца 18.08.2026: «Считать бесплатный тариф неоплачиваемым». Поломка, которую
+  // ловит тест: экран предлагает оплатить тариф ценой 0 ₽, клик уходит на сервер и возвращается
+  // отказом, который владелец клиники ничем исправить не может.
+  it('на бесплатном тарифе объясняет, что платить нечего, и не предлагает оплату', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    render(
+      <PayTariffButton
+        billingEmail="clinic@example.test"
+        tariffChange={{
+          choices: [],
+          currentTariffId: null,
+          pendingTariffId: null,
+          pendingEffectiveAt: null,
+          payable: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Тариф бесплатный — платить нечего.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Оплатить тариф' })).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

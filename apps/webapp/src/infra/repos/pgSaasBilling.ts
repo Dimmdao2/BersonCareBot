@@ -360,7 +360,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async listActiveTariffChoices() {
       return getDrizzle()
-        .select({ id: saasTariffs.id, name: saasTariffs.name })
+        .select({ id: saasTariffs.id, name: saasTariffs.name, priceMinor: saasTariffs.priceMinor })
         .from(saasTariffs)
         .where(eq(saasTariffs.isActive, true))
         .orderBy(saasTariffs.name);
@@ -1448,9 +1448,18 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         })
           .from(saasTariffs).where(and(eq(saasTariffs.id, targetTariffId), eq(saasTariffs.isActive, true))).limit(1);
         if (!targetTariff) throw new Error('saas_billing_tariff_not_billable');
+        // The renewal invoice takes its amount from the CURRENT tariff row
+        // (`createSaasBillingInvoice` joins on `saasBillingSubscriptions.tariffId`), so the
+        // free-tariff rule has to weigh that same price, not the scheduled next one.
+        const [currentTariff] = await tx
+          .select({ priceMinor: saasTariffs.priceMinor })
+          .from(saasTariffs)
+          .where(eq(saasTariffs.id, row.tariffId))
+          .limit(1);
         return {
           saasBillingSubscriptionId: row.id,
           currentTariffId: row.tariffId,
+          currentTariffPriceMinor: currentTariff?.priceMinor ?? null,
           tariffId: targetTariffId,
           billingPeriod: targetTariff.billingPeriod,
           savedPaymentMethodId: row.savedPaymentMethodId,
