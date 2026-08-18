@@ -118,7 +118,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 390 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 391 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -142,15 +142,19 @@ test('all 390 declared functions have the exact source-reconstructed base type a
   // а не перепись существующих.
   // 387 → 388 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029,
   // именованный корень TTL-подметания архива отказов.
-  assert.equal(canonical.size, 388);
+  // 388 → 389 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — SECURITY INVOKER
+  // обёртка, ставящая контекст и принимающая целевую роль за одну поездку в базу
+  // (`deploy/postgres/port-context/contract.sql`). Операторы шва те же и в том же порядке;
+  // прибавка — одна новая функция, а не перепись существующих.
+  assert.equal(canonical.size, 389);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
     return counts;
   }, {});
-  assert.deepEqual(forms, { SCALAR: 264, TABLE: 120, SETOF: 4 });
+  assert.deepEqual(forms, { SCALAR: 265, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 266);
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 267);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -334,6 +338,7 @@ test('legacy census is restored without obsolete context and overlaid by the act
   for (const signature of [
     'app.install_port_context(uuid,app.port_context_claims)',
     'app.clear_port_context()',
+    'app.begin_port_context(uuid,app.port_context_claims)',
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)',
     'app.require_attested_target_role(name,name[])',
     'app.require_platform_principal()',
@@ -348,8 +353,10 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // +1 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029.
   assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 376);
   assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 374);
-  assert.equal(testFunctions.length, 390);
-  assert.equal(devFunctions.length, 388);
+  // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
+  // DEFINER выше не двигаются.
+  assert.equal(testFunctions.length, 391);
+  assert.equal(devFunctions.length, 389);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
