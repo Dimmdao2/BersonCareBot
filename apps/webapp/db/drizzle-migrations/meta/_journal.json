@@ -225,6 +225,13 @@
       "when": 1800000032000,
       "tag": "0031_one_retention_root_with_a_closed_list_of_targets",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1800000033000,
+      "tag": "0032_a_shown_photo_is_our_own_re_encode",
+      "breakpoints": true
     }
   ]
 }

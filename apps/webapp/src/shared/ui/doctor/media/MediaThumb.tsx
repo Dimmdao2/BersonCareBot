@@ -31,6 +31,7 @@ export function MediaThumb({
     kind: media.kind,
     previewStatus: media.previewStatus,
     previewSmUrl: media.previewSmUrl,
+    standardRendition: media.standardRendition,
   });
   const smUrl = media.previewSmUrl;
   const mdUrl = media.previewMdUrl;
@@ -59,7 +60,24 @@ export function MediaThumb({
     );
   }
 
-  if (phase === 'pending') {
+  /**
+   * Thumbnail not ready yet, but the stored object is our own re-encode (bounded WebP), so the
+   * file itself is shown instead of a placeholder. Never reached for a raw upload.
+   */
+  if (phase === 'source' && media.url.trim()) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={media.url.trim()}
+        alt={alt}
+        className={cn(imgClassName, className)}
+        loading={lazy ? 'lazy' : 'eager'}
+        decoding="async"
+      />
+    );
+  }
+
+  if (phase === 'pending' || phase === 'source') {
     return <div className={cn('animate-pulse bg-muted/50', className)} aria-hidden />;
   }
 

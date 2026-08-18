@@ -108,6 +108,7 @@ export async function resolveMediaPlaybackPayload(input: {
       previewStatus === 'ready' && row.preview_md_key?.trim()
         ? mediaPreviewUrlById(id, 'md')
         : null,
+    standardRendition: row.standard_rendition_at != null,
   };
 
   const videoProcessingStatus = parseVideoProcessingStatus(row.video_processing_status);

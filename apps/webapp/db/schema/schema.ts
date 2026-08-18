@@ -2046,6 +2046,14 @@ export const mediaFiles = pgTable(
     }),
     sourceWidth: integer('source_width'),
     sourceHeight: integer('source_height'),
+    /**
+     * Момент замены объекта по `s3_key` выводом нашего энкодера (SECURITY_CANON §5).
+     * NULL = файл не перекодирован, показывать его пользователю нельзя.
+     */
+    standardRenditionAt: timestamp('standard_rendition_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     /** VIDEO_HLS_DELIVERY: transcode pipeline status; NULL = legacy / not yet tracked (MP4-only). */
     videoProcessingStatus: text('video_processing_status'),
     videoProcessingError: text('video_processing_error'),
