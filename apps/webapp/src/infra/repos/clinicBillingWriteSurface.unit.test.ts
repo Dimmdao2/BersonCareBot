@@ -144,7 +144,7 @@ describe('clinic-billing write surface: drizzle INSERT ⊆ гранты, кот�
           artifact,
         );
       expect(policy, 'нет стены клиники на INSERT в admin_audit_log').not.toBeNull();
-      expect(policy?.[1]).toContain('organization_id = app.current_org_id()');
+      expect(policy?.[1]).toContain('organization_id = (SELECT app.current_org_id())');
       expect(policy?.[1]).toContain("current_user = 'app_clinic_billing'::name");
     });
   }
