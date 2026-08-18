@@ -18,7 +18,8 @@ import {
 // +3 (19.08): три возможности миграции 0030 — один корень аудитории доставки под `tenant_service`
 // и два класса (`pre_session`, `service`) на одном теле операторских адресатов.
 const EXPECTED = {
-  webapp: 183,
+  // 183 → 184 (19.08): `retention_sweep` — одна дверь уборки по сроку хранения (миграция 0031).
+  webapp: 184,
   integrator: 34,
 };
 
@@ -36,8 +37,10 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 217);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 217);
+  // 217 → 218 (19.08): `webapp_retention_sweep` — одна дверь уборки по сроку хранения на четыре
+  // запертые арендаторские таблицы (миграция 0031). Прибавка одна, а не по одной на таблицу.
+  assert.equal(rows.length, 218);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 218);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -88,7 +91,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 202);
+  // 202 → 203 (19.08): корень уборки по сроку хранения `app.prune_retention_target(...)`.
+  assert.equal(roots.length, 203);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

@@ -20,8 +20,6 @@ export const RETENTION_SWEEP_TARGETS = [
 
 export type RetentionSweepTarget = (typeof RETENTION_SWEEP_TARGETS)[number];
 
-const RETENTION_ROOT = 'app.prune_retention_target(text,integer,boolean)';
-
 /** Same bounds the root enforces; the root refuses anything outside them with 23514. */
 export function clampRetentionDays(retentionDays: number): number {
   return Math.min(3650, Math.max(1, Math.trunc(retentionDays)));
@@ -36,7 +34,7 @@ export async function pruneRetentionTarget(
   const dryRun = options?.dryRun === true;
   const result = await runWebappNamedRoot<{ affected_count: number | string }>(
     getWebappSqlDb(),
-    RETENTION_ROOT,
+    'app.prune_retention_target(text,integer,boolean)',
     [target, days, dryRun],
     sql`SELECT app.prune_retention_target(${target}, ${days}, ${dryRun}) AS affected_count`,
   );
