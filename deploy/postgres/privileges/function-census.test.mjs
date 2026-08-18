@@ -87,7 +87,11 @@ test('all 47 current-patient B0-forward roots have exact executable relation-ope
 
 test('all latest active B0-forward definers have exact executable relation-operation surfaces', () => {
   const functions = latestArtifactFunctions(B0_FORWARD_MIGRATIONS);
-  assert.equal(functions.length, 83);
+  // 83 → 84 (18.08, L-11): миграция 0024 стала последним определением
+  // `app.choose_organization_first_tariff`. Раньше её тело жило вне пронумерованных миграций, поэтому
+  // в перепись оно не попадало вовсе — прибавка означает, что функция наконец под учётом, а не что
+  // появилась новая.
+  assert.equal(functions.length, 84);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
