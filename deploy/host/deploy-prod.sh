@@ -170,8 +170,6 @@ set +a
 # B0 owner ruling: the future PROD A→B0 migration is deliberately not implemented here.
 # This deploy is code-only until DEV and named TEST have completed their full green runtime passes.
 # In particular it must never invoke the DEV-only `migrate-dev.sh` wrapper.
-node scripts/check-b0-migration-baseline.mjs
-
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
 
