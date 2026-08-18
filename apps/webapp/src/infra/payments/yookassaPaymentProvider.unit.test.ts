@@ -137,7 +137,9 @@ describe('yookassa createIntent — refused vs ambiguous failure classification'
 // must name each payment by the SAME ref `verifyWebhook` derives and the journal stored.
 describe('yookassa listPayments — what the reconciliation actually gets', () => {
   it('asks the provider for succeeded payments only', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(200, { type: 'list', items: [] }));
+    const fetchMock = vi.fn(async (url: string | URL) =>
+      jsonResponse(200, { type: 'list', items: [], _url: String(url) }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const provider = createYookassaPaymentProvider();
 
