@@ -449,13 +449,41 @@ export function createInMemorySaasBillingRepository(
           row.description === null &&
           row.expiresAt === null,
       );
-      if (existingRenewal) return { invoice: existingRenewal, created: false };
       const authority = [...rows.values()].find(
         (row) =>
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
       const tariff = tariffs.get(purchasedTariffId(authority));
+      if (existingRenewal) {
+        // Same refresh rule as the pg repository: an unclaimed draft for this period that names a
+        // tariff the clinic is no longer buying is rewritten, never handed back as is.
+        if (existingRenewal.tariffId === purchasedTariffId(authority)) {
+          return { invoice: existingRenewal, created: false };
+        }
+        if (existingRenewal.status !== 'draft' || existingRenewal.providerInvoiceRef !== null) {
+          return { invoice: existingRenewal, created: false };
+        }
+        const refreshed: SaasBillingInvoice = {
+          ...existingRenewal,
+          tariffId: purchasedTariffId(authority),
+          tariffName: tariff?.name ?? 'In-memory tariff',
+          amountMinor: tariff?.priceMinor ?? 0,
+          currency: tariff?.currency ?? 'RUB',
+          tariffBillingPeriod: tariff?.billingPeriod ?? 'month',
+          additionalSeatQuantity: authority.paidAdditionalSeats,
+          tariffSnapshot: tariff
+            ? {
+                id: tariff.id,
+                price_minor: tariff.priceMinor,
+                currency: tariff.currency,
+                billing_period: tariff.billingPeriod,
+              }
+            : null,
+        };
+        invoices.set(refreshed.id, refreshed);
+        return { invoice: refreshed, created: false };
+      }
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,

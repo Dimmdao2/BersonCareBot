@@ -797,7 +797,6 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             ),
           )
           .limit(1);
-        if (existingRenewal) return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
 
         // Owner ruling 18.08.2026 — price, billing period and snapshot all come from the ONE tariff
         // this period is sold under (`purchasedTariffId`), never from a mix of the current and the
@@ -839,6 +838,45 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (subscription.paidAdditionalSeats > 0 && tariff.additionalSeatPriceMinor === null) {
           throw new Error('saas_billing_additional_seat_price_missing');
         }
+        const amountMinor =
+          tariff.amountMinor + subscription.paidAdditionalSeats * (tariff.additionalSeatPriceMinor ?? 0);
+
+        if (existingRenewal) {
+          // Same rule, one step further: the draft raised earlier for THIS period describes the
+          // tariff that was being purchased then. If the clinic has since scheduled (or cancelled)
+          // a change, that draft now names the wrong tariff — and `saas_billing_invoices_period_uidx`
+          // forbids a second row for the period, so it is refreshed in place rather than left to
+          // send the clinic to a checkout for a tariff it will not get. Only while it is still an
+          // unclaimed draft: once the provider holds an order (`providerInvoiceRef`) or the invoice
+          // left `draft`, the order is real and rewriting our copy of it would lie about it.
+          if (
+            existingRenewal.tariffId === tariff.tariffId &&
+            existingRenewal.amountMinor === amountMinor
+          ) {
+            return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
+          }
+          if (existingRenewal.status !== 'draft' || existingRenewal.providerInvoiceRef !== null) {
+            return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
+          }
+          const [refreshed] = await tx
+            .update(saasBillingInvoices)
+            .set({
+              tariffId: tariff.tariffId,
+              tariffName: tariff.tariffName,
+              amountMinor,
+              currency: tariff.currency,
+              tariffBillingPeriod: tariff.tariffBillingPeriod,
+              additionalSeatQuantity: subscription.paidAdditionalSeats,
+              // A fresh tariff snapshot also drops the fiscal receipt snapshot stored inside it
+              // (`withReceiptSnapshot`): a receipt for the old amount must not survive the refresh.
+              tariffSnapshot: await readTariffSnapshotForPeriod(tx, tariff.tariffId),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(saasBillingInvoices.id, existingRenewal.id))
+            .returning();
+          if (!refreshed) throw new Error('saas_billing_invoice_refresh_failed');
+          return { invoice: toSaasBillingInvoice(refreshed), created: false };
+        }
 
         const tariffSnapshot = await readTariffSnapshotForPeriod(tx, tariff.tariffId);
         return insertSaasBillingInvoiceIdempotent(tx, {
@@ -849,7 +887,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           tariffName: tariff.tariffName,
           invoiceKind: 'tariff_period',
           additionalSeatQuantity: subscription.paidAdditionalSeats,
-          amountMinor: tariff.amountMinor + subscription.paidAdditionalSeats * (tariff.additionalSeatPriceMinor ?? 0),
+          amountMinor,
           currency: tariff.currency,
           tariffBillingPeriod: tariff.tariffBillingPeriod,
           tariffSnapshot,

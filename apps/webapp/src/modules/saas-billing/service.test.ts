@@ -3191,4 +3191,65 @@ describe('счёт целиком по одному тарифу — тому, �
       payable: true,
     });
   });
+  it('черновик, выставленный до смены плана, не отправляет платить за прежний тариф', async () => {
+    // Тот же период, два разных тарифа: у счёта за период есть уникальный индекс, поэтому второй
+    // строкой такой счёт не выставишь. Незанятый черновик обязан обновиться под тот тариф, который
+    // покупают СЕЙЧАС, иначе клиника уходит платить за тариф, которого не получит.
+    const cheaperMonthly = {
+      id: 'tariff-month-cheap',
+      name: 'СТАРТ',
+      priceMinor: 80_000,
+      currency: 'RUB',
+      billingPeriod: 'month',
+    };
+    let providerAvailable = false;
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => {
+      // Первый заход обрывается ДО заказа у провайдера (ровно так этот черновик и появился на DEV:
+      // чек с нулевой позицией). Черновик остаётся незанятым — без ссылки и без заказа.
+      if (!providerAvailable) throw new Error('payment_receipt_item_amount_invalid');
+      return {
+        providerIntentRef: `provider-${input.subjectRef}`,
+        checkoutUrl: `https://pay.example/${input.subjectRef}`,
+      };
+    });
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [monthlyTariff, cheaperMonthly],
+      trialPolicy: null,
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-18T00:00:00.000Z'),
+      getTariffTransition: async (_organizationId, tariffId) => ({
+        currentTariffId: 'seeded-current-tariff',
+        targetTariffId: tariffId,
+        blocks: [],
+        appliesNextPeriod: true,
+      }),
+    });
+    await seedPaidPeriod(service, repository, 'org-restaged', monthlyTariff.id);
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org-restaged',
+      tariffId: cheaperMonthly.id,
+      actorId: 'clinic-owner',
+    });
+    await expect(service.createOwnTariffRenewalInvoice('org-restaged')).rejects.toThrow();
+
+    // Клиника передумала: запланированная смена отменена, покупается снова текущий тариф.
+    await service.cancelOwnTariffChange({ organizationId: 'org-restaged', actorId: 'clinic-owner' });
+    providerAvailable = true;
+    const raisedAfterCancel = await service.createOwnTariffRenewalInvoice('org-restaged');
+
+    expect(raisedAfterCancel).toMatchObject({
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      tariffBillingPeriod: monthlyTariff.billingPeriod,
+      servicePeriodStartsAt: '2026-09-18T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-10-18T00:00:00.000Z',
+    });
+    expect(createIntent.mock.calls.at(-1)?.[0]).toMatchObject({
+      amountMinor: monthlyTariff.priceMinor,
+    });
+  });
 });
