@@ -196,14 +196,21 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     return { items, nextCursor };
   },
 
-  async deleteArchivedBefore(cutoffIso: string): Promise<number> {
-    const db = getDrizzle();
-    return db.transaction(async (tx) => {
-      const deleted = await tx
-        .delete(operatorHealthFailureArchive)
-        .where(lt(operatorHealthFailureArchive.archivedAt, cutoffIso))
-        .returning({ id: operatorHealthFailureArchive.id });
-      return deleted.length;
-    });
+  /**
+   * Retention is cross-organization work: it must not depend on a tenant context. Relation DELETE
+   * here is closed by the tenant wall of `operator_health_failure_archive` (its only permissive
+   * runtime policy demands `app_staff` plus an accepted organization), so the sweep goes through the
+   * declared named root owned by the same seam owner as the archive's other two operations —
+   * exactly the shape of `app.prune_integration_webhook_error_events(integer)`.
+   */
+  async pruneArchivedOlderThanDays(retentionDays: number): Promise<number> {
+    const days = Math.min(3650, Math.max(1, Math.trunc(retentionDays)));
+    const result = await runWebappNamedRoot<{ deleted_count: number | string }>(
+      getWebappSqlDb(),
+      'app.prune_operator_health_failure_archive(integer)',
+      [days],
+      sql`SELECT app.prune_operator_health_failure_archive(${days}) AS deleted_count`,
+    );
+    return Number(result.rows[0]?.deleted_count ?? 0);
   },
 };

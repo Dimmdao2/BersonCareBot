@@ -51,5 +51,6 @@ export type HealthFailureArchivePort = {
     limit: number;
     cursor: string | null;
   }): Promise<HealthFailureArchiveListResult>;
-  deleteArchivedBefore(cutoffIso: string): Promise<number>;
+  /** Cross-organization retention sweep; runs through a named root, never a tenant relation. */
+  pruneArchivedOlderThanDays(retentionDays: number): Promise<number>;
 };
