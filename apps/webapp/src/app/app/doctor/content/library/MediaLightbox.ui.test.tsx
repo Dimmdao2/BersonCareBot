@@ -55,13 +55,14 @@ describe('MediaLightbox image source', () => {
     expect(document.querySelector('img')).toBeNull();
   });
 
+  /* `standardRendition: true` on purpose: the status must win over the conversion fact. */
   it.each(['skipped', 'failed'] as const)(
-    'keeps the unavailable state for preview_status=%s',
+    'keeps the unavailable state for preview_status=%s even on a converted file',
     (previewStatus) => {
       const { getByText } = render(
         <MediaLightbox
           open
-          item={item({ previewStatus, standardRendition: false })}
+          item={item({ previewStatus, standardRendition: true })}
           onOpenChange={() => {}}
         />,
       );

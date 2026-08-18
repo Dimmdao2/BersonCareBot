@@ -74,7 +74,7 @@ describe('ProgramItemDiscussionMessageBody image delivery', () => {
         ok: true,
         json: async () => ({
           ...playback,
-          preview: { status: 'failed', smUrl: null, mdUrl: null, standardRendition: false },
+          preview: { status: 'failed', smUrl: null, mdUrl: null, standardRendition: true },
         }),
       }),
     );
@@ -132,6 +132,7 @@ describe('ProgramItemDiscussionMessageBody image delivery', () => {
     expect(document.querySelector('img')).toBeNull();
   });
 
+  /* `standardRendition: true` on purpose: the status must win over the conversion fact. */
   it('keeps the unavailable state for an image the size guard never converted', async () => {
     vi.stubGlobal(
       'fetch',
@@ -139,7 +140,7 @@ describe('ProgramItemDiscussionMessageBody image delivery', () => {
         ok: true,
         json: async () => ({
           ...playback,
-          preview: { status: 'skipped', smUrl: null, mdUrl: null, standardRendition: false },
+          preview: { status: 'skipped', smUrl: null, mdUrl: null, standardRendition: true },
         }),
       }),
     );
