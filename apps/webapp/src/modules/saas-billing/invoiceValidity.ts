@@ -1,31 +1,47 @@
 /**
- * Единственный дом срока жизни счёта (Этап 1, пункт 1.3 плана
+ * Единственный дом правила «сколько живёт счёт» (Этап 1, пункт 1.3 плана
  * `docs/_TODO/SAAS_BILLING_RECONCILE_2026-08-18.md`).
  *
- * Владелец, 18.08: «оплатить можно только актуальный счёт, срок жизни счёта — константа 30 дней в
- * коде». Раньше срок жил в двух разных местах и ни одно не было домом: форма выставления счёта в
- * админке подставляла свои трое суток, а «просрочен» на экране считался прямо в компоненте. Две
- * копии одного правила расходятся, и первой ломается та, о которой забыли.
+ * Раньше срок жил в двух разных местах и ни одно не было домом: форма выставления счёта в админке
+ * подставляла свои трое суток, а «просрочен» на экране считался прямо в компоненте. Две копии
+ * одного правила расходятся, и первой ломается та, о которой забыли.
  *
- * Читателей ровно три и четвёртого быть не должно: выставление счёта, кнопка оплаты в кабинете и
- * экран платежей платформы. Срок НЕ хранится статусом — он выводится из даты выставления
- * (`db/schema/saasBilling.ts`: «просрочка считается от срока действия, а не выставляется вручную»).
+ * Владелец, 18.08 (правка того же дня): срок жизни счёта — НАСТРОЙКА, а не константа в коде и не
+ * поле в форме. Одна на все счета — и на выставленные администратором вручную, и на автоматические
+ * при продлении, — и администратор её меняет. Живёт она там же, где остальные числа политики
+ * биллинга: `saas_billing_payment_provider.value.lifecyclePolicy.invoiceValidityDays`
+ * (`settings.ts`). Здесь остаётся ТОЛЬКО документированный дефолт на случай пустой настройки и
+ * арифметика — само число этот файл больше не решает.
+ *
+ * Срок НЕ хранится статусом — он выводится из даты выставления (`db/schema/saasBilling.ts`:
+ * «просрочка считается от срока действия, а не выставляется вручную»).
  */
 
 import type { SaasBillingInvoiceStatus } from './ports';
 
-/** Сколько живёт выставленный счёт. Константа владельца, не настройка и не колонка в БД. */
+/** Дефолт, когда администратор не задал срок в настройке. Не политика — только запасное значение. */
 export const SAAS_BILLING_INVOICE_VALIDITY_DAYS = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
-/** Срок действия счёта, выставленного в момент `issuedAt`. */
-export function saasBillingInvoiceExpiresAt(issuedAt: Date | string): string {
+/**
+ * Срок действия счёта, выставленного в момент `issuedAt`.
+ *
+ * `validityDays` обязателен: у вызывающего нет права решать этот вопрос молча — он обязан принести
+ * настроенное значение (`parseSaasBillingPaymentProviderSettings(...).lifecyclePolicy.invoiceValidityDays`).
+ */
+export function saasBillingInvoiceExpiresAt(
+  issuedAt: Date | string,
+  validityDays: number,
+): string {
   const issuedMs = issuedAt instanceof Date ? issuedAt.getTime() : Date.parse(issuedAt);
   if (!Number.isFinite(issuedMs)) {
     throw new Error('saas_billing_invoice_issued_at_invalid');
   }
-  return new Date(issuedMs + SAAS_BILLING_INVOICE_VALIDITY_DAYS * DAY_MS).toISOString();
+  if (!Number.isInteger(validityDays) || validityDays <= 0) {
+    throw new Error('saas_billing_invoice_validity_days_invalid');
+  }
+  return new Date(issuedMs + validityDays * DAY_MS).toISOString();
 }
 
 /**

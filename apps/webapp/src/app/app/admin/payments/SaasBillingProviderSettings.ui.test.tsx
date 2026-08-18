@@ -96,4 +96,60 @@ describe('SaasBillingProviderSettings', () => {
       },
     });
   });
+
+  /**
+   * Владелец, 18.08: срок жизни счёта — админ-настройка, которую он должен видеть и менять. Без
+   * этой проверки экран мог бы показывать число и не сохранять его — или сохранять НЕ туда, откуда
+   * его потом читают все пути выставления (`lifecyclePolicy.invoiceValidityDays`).
+   */
+  it('показывает дефолтный срок оплаты счёта и сохраняет новый в lifecyclePolicy', async () => {
+    let patchBody: unknown = null;
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        patchBody = JSON.parse(String(init.body)) as unknown;
+        return {
+          ok: true,
+          text: async () => JSON.stringify({ ok: true, setting: storedSetting }),
+        };
+      }
+      return {
+        ok: true,
+        text: async () => JSON.stringify({ ok: true, settings: [storedSetting] }),
+      };
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    render(<SaasBillingProviderSettings />);
+
+    const validity = await screen.findByLabelText('Срок оплаты счёта, дней');
+    // Настройка не задана в storedSetting — экран показывает документированный дефолт, не пустоту.
+    expect(validity).toHaveValue(30);
+
+    fireEvent.change(validity, { target: { value: '14' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(patchBody).not.toBeNull());
+    expect(patchBody).toMatchObject({
+      key: 'saas_billing_payment_provider',
+      value: { value: { lifecyclePolicy: { invoiceValidityDays: 14 } } },
+    });
+  });
+
+  it('не даёт сохранить бессмысленный срок вместо того, чтобы записать его в настройку', async () => {
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') throw new Error('PATCH не должен был уйти');
+      return {
+        ok: true,
+        text: async () => JSON.stringify({ ok: true, settings: [storedSetting] }),
+      };
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    render(<SaasBillingProviderSettings />);
+
+    const validity = await screen.findByLabelText('Срок оплаты счёта, дней');
+    fireEvent.change(validity, { target: { value: '0' } });
+
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+  });
 });

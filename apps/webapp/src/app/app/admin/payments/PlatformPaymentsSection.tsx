@@ -10,10 +10,7 @@ import type {
   SaasBillingRefund,
 } from '@/modules/saas-billing/ports';
 import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
-import {
-  isSaasBillingInvoicePayable,
-  SAAS_BILLING_INVOICE_VALIDITY_DAYS,
-} from '@/modules/saas-billing/invoiceValidity';
+import { isSaasBillingInvoicePayable } from '@/modules/saas-billing/invoiceValidity';
 import {
   Card,
   CardAction,
@@ -755,8 +752,8 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
         <DialogHeader>
           <DialogTitle>Выставить счёт</DialogTitle>
           <DialogDescription>
-            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике. Оплатить его
-            можно {SAAS_BILLING_INVOICE_VALIDITY_DAYS} дней.
+            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике. Срок оплаты
+            — общий для всех счетов, он задаётся ниже, в настройках магазина.
           </DialogDescription>
         </DialogHeader>
 

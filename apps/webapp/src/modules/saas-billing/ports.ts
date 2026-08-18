@@ -56,7 +56,11 @@ export type SaasBillingInvoice = {
   tariffSnapshot: Record<string, unknown> | null;
   servicePeriodStartsAt: string;
   servicePeriodEndsAt: string;
-  /** К4 — the invoice's own payment deadline; `null` for auto/renewal invoices, which never expire. */
+  /**
+   * Срок оплаты счёта. Заполняется на КАЖДОМ пути выставления из настройки
+   * `lifecyclePolicy.invoiceValidityDays` (владелец, 18.08). `null` — только у строк, выставленных
+   * до этой настройки; читатели трактуют его как «срок не ограничен» (`invoiceValidity.ts`).
+   */
   expiresAt: string | null;
   status: SaasBillingInvoiceStatus;
   providerId: string;
@@ -408,6 +412,8 @@ export type SaasBillingRepositoryPort = {
     providerIdempotencyKey: string;
     servicePeriodStartsAt: string;
     servicePeriodEndsAt: string;
+    /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
+    expiresAt: string;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
   /**
    * Locks the current paid subscription, derives both tariff prices and the exact remaining time,
@@ -420,6 +426,8 @@ export type SaasBillingRepositoryPort = {
     asOf: string;
     providerId: string;
     providerIdempotencyKey: string;
+    /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
+    expiresAt: string;
   }): Promise<
     | { outcome: 'checkout'; invoice: SaasBillingInvoice; created: boolean }
     | { outcome: 'scheduled' }
@@ -475,7 +483,9 @@ export type SaasBillingRepositoryPort = {
   /**
    * К4 — a platform-admin-issued invoice for the organization's OWN currently assigned tariff
    * (same subscription row `requireOwnTariffBillingSubscription` resolves), with an admin-chosen
-   * amount/description/expiry instead of the tariff's list price. `tariffName`/`tariffBillingPeriod`
+   * amount/description instead of the tariff's list price. `expiresAt` is NOT among the admin's
+   * per-invoice choices: it comes from the one настройка срока жизни счёта, same as every other
+   * issuing path. `tariffName`/`tariffBillingPeriod`
    * are still derived from the live tariff row, same as `createSaasBillingInvoice`.
    *
    * К4 round 2 — idempotent by construction, same shape as `createSaasBillingInvoice`: a second
@@ -512,6 +522,8 @@ export type SaasBillingRepositoryPort = {
     providerIdempotencyKey: string;
     servicePeriodStartsAt: string;
     servicePeriodEndsAt: string;
+    /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
+    expiresAt: string;
   }): Promise<SaasBillingSeatOverageInvoiceResult>;
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
@@ -587,6 +599,8 @@ export type SaasBillingRepositoryPort = {
     providerIdempotencyKey: string;
     servicePeriodStartsAt: string;
     servicePeriodEndsAt: string;
+    /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
+    expiresAt: string;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
 
   /**
@@ -691,4 +705,9 @@ export type ResolvedSaasBillingPaymentProvider = {
   providerConfig: PaymentProviderConfig;
   adapter: PaymentProviderPort;
   payeeRequisites: import('./settings').SaasBillingPayeeRequisites;
+  /**
+   * Сколько дней живёт счёт, выставленный сейчас. Приходит из той же системной настройки, что и
+   * провайдер, поэтому у каждого пути выставления счёта он уже под рукой и второго чтения не нужно.
+   */
+  invoiceValidityDays: number;
 };
