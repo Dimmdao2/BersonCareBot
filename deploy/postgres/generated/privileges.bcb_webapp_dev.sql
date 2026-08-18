@@ -2769,7 +2769,7 @@ INSERT INTO bcb_function_surface_special_contracts(signature,contract) VALUES
 CREATE TEMP TABLE bcb_function_relation_surfaces(signature text NOT NULL, relation_name text NOT NULL, columns text[] NOT NULL, operations text[] NOT NULL) ON COMMIT DROP;
 INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,operations) VALUES
   ('app_ext.expire_accepted_port_context()', 'app_ext.accepted_port_contexts', ARRAY['database_oid', 'backend_pid', 'transaction_id']::text[], ARRAY['SELECT', 'DELETE']::text[]),
-  ('app_ext.resolve_variant_a_identity(uuid)', 'app_ext.variant_a_identity_refs', ARRAY['physical_user_id', 'opaque_ref']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app_ext.resolve_variant_a_identity(uuid)', 'app_ext.variant_a_identity_refs', ARRAY['physical_user_id', 'opaque_ref']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app_ext.resolve_variant_a_physical(uuid)', 'app_ext.variant_a_identity_refs', ARRAY['physical_user_id', 'opaque_ref']::text[], ARRAY['SELECT']::text[]),
   ('app.abort_patient_program_submission_media(uuid)', 'public.media_files', ARRAY['id', 'organization_id', 'uploaded_by', 'usage_purpose', 'status']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.accept_org_invite(text,uuid,text)', 'public.be_organization_members', ARRAY['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
