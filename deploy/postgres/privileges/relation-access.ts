@@ -7481,6 +7481,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "additional_seat_quantity",
+          "amount_minor",
           "currency",
           "paid_at",
           "provider_checkout_url",
