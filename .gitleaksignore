@@ -4,6 +4,13 @@
 # separately. Review/remove fingerprints when repository history is intentionally rewritten.
 
 # Retired integration/config history.
+# The line-12 entry below is the token the `telegram-bot-token-assignment` rule was written for
+# (rule added 17.08 in 484f1ceda because the bundled v8.30.1 rule misses the `botToken: '…'`
+# spelling). Same commit and file as the line-14 entry, caught by a second rule. That credential was
+# ROTATED by the owner on 17.08.2026 and the file does not exist in HEAD; what remains is history.
+# Purging it would mean rewriting 7456 commits and force-pushing both remotes — an owner decision,
+# not a CI workaround. Reopen this line if the history is ever rewritten.
+03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/telegram/config.ts:telegram-bot-token-assignment:12
 03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/rubitime/config.ts:generic-api-key:10
 03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/rubitime/config.ts:generic-api-key:11
 03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/telegram/config.ts:generic-api-key:14
