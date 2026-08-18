@@ -343,9 +343,22 @@ Canonical linking rules:
   "recipient": "channel recipient; platform user UUID for web_push",
   "text": "Текст сообщения",
   "idempotencyKey": "organizationId-or-global:messageId:channel:recipient",
-  "metadata": { "optional": "meta" }
+  "metadata": { "optional": "meta" },
+  "html": "опц. HTML-тело письма (только email)",
+  "icsContent": "опц. base64 .ics-вложения (только email)",
+  "icsFilename": "опц. имя .ics-файла (только email); по умолчанию bersoncare-booking.ics",
+  "senderScope": "опц. clinic_required — отправка только через отправителя клиники"
 }
 ```
+
+**Поля вне этого списка integrator вырезает молча** (zod `.object` в `relayPayloadSchema` работает в режиме
+strip). Поэтому новое поле обязано появляться одновременно в трёх местах: в схеме роутера, в ветке нужного
+канала в `buildIntent` и здесь. Пропуск этого шага уже стоил вложения: письмо-подтверждение записи обещало
+файл `.ics`, а `icsContent`/`icsFilename` исчезали при разборе запроса.
+
+`icsContent` / `icsFilename` доходят только до email-ветки `buildIntent` и попадают в `payload.icsContent` /
+`payload.icsFilename`, откуда их читает `createEmailDeliveryAdapter` и прикрепляет как
+`text/calendar; charset=utf-8`.
 
 **Idempotency key:** `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}` — TTL 24 часа, хранится durable в `integrator.idempotency_keys` (через `IdempotencyPort`, тот же store, что и у event gateway / booking-lifecycle) и переживает рестарт процесса и смену реплики. Tenant входит в ключ; одновременный дубль в рамках одного процесса, пока первая отправка ещё не завершена, получает retryable `503 dispatch_in_flight` (in-memory guard, не переживает рестарт); после рестарта или на другой реплике повтор с тем же ключом получает `200 duplicate` сразу, без повторной доставки.
 

@@ -34,6 +34,15 @@ const relayPayloadSchema = z
     text: z.string().min(1),
     /** Опц. HTML-тело письма (email-канал) — мапится в payload.html для email-адаптера. */
     html: z.string().optional(),
+    /**
+     * Опц. base64-тело .ics-вложения (email-канал) — мапится в payload.icsContent,
+     * email-адаптер декодирует его и прикрепляет как `text/calendar`.
+     * Незадекларированное поле zod вырезает молча: письмо-подтверждение записи обещало
+     * вложение, которого не было, потому что эти два поля здесь отсутствовали.
+     */
+    icsContent: z.string().min(1).optional(),
+    /** Опц. имя .ics-вложения (email-канал) — мапится в payload.icsFilename. */
+    icsFilename: z.string().min(1).optional(),
     idempotencyKey: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()).optional(),
     senderScope: z.literal('clinic_required').optional(),
@@ -153,6 +162,8 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         subject,
         message: { text: parsed.text },
         ...(parsed.html ? { html: parsed.html } : {}),
+        ...(parsed.icsContent ? { icsContent: parsed.icsContent } : {}),
+        ...(parsed.icsFilename ? { icsFilename: parsed.icsFilename } : {}),
         delivery: {
           channels: ['email'],
           ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
