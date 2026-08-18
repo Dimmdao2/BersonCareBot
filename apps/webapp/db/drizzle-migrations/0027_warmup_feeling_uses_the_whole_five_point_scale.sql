@@ -1,7 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- TEMPORARY LOCAL MIGRATION NUMBER 0028
+-- TEMPORARY LOCAL MIGRATION NUMBER 0027
 --
 -- Живой прогон владельца на TEST 18.08: после разминки он выбрал вторую по счёту иконку
 -- самочувствия и получил «Не удалось сохранить». В журнале

@@ -1,5 +1,5 @@
 -- BCB-MIGRATION-OWNER: app_seam_context_owner
--- TEMPORARY LOCAL MIGRATION NUMBER 0029
+-- TEMPORARY LOCAL MIGRATION NUMBER 0028
 --
 -- Одноразовая уборка остатка, который копил прежний контракт port-context. Определения функций и
 -- триггера сюда НЕ дублируются: `app.install_port_context`, `app.clear_port_context` и новый
