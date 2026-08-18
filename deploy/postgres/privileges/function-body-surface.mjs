@@ -80,7 +80,10 @@ export function extractRelationOperations(body) {
 
     const read = new RegExp(`\\b(from|join|using)\\s+${escaped}\\b`, 'g');
     for (const match of body.matchAll(read)) {
-      const prefix = body.slice(Math.max(0, match.index - 16), match.index);
+      const prefix = body.slice(Math.max(0, match.index - 24), match.index);
+      // `IS [NOT] DISTINCT FROM app.f()` is a comparison operator, never a FROM clause: without
+      // this the lexical upper bound reports a read of a relation the body never touches.
+      if (match[1] === 'from' && /\bdistinct\s+$/.test(prefix)) continue;
       if (match[1] !== 'from' || !/delete\s+$/.test(prefix)) operations.add('SELECT');
     }
     if (new RegExp(`\\bfrom\\b[^;]*,\\s*${escaped}\\b`).test(body)) operations.add('SELECT');

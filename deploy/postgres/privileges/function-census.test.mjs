@@ -98,7 +98,14 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // Из-за этого TEST их не получал ничем: четыре отсутствовали целиком, а рукописный
   // `exact_existing`-гейт пятой ронял reconcile-access. Прибавка = функции наконец под учётом,
   // новых функций не появилось.
-  assert.equal(functions.length, 89);
+  // 89 → 92 (18.08): миграция 0026 забрала три тела с РУКОПИСНЫМ `exact_existing`-гейтом, которые
+  // не создавал ни один файл репозитория (`app.passkey_issue_challenge`,
+  // `app.passkey_read_challenge`, `app.resolve_staff_workspace_memberships`). Все три стоят на пути
+  // входа, а генератор такой гейт только сверяет с декларацией и никогда не создаёт, поэтому в
+  // существующую TEST-базу тело не попадало ничем. Прибавка = функции наконец под учётом,
+  // новых функций не появилось. `app.pre_session_resolve_identity` в счёт не входит: её создаёт
+  // `deploy/postgres/port-context/contract.sql`, а не пронумерованная миграция.
+  assert.equal(functions.length, 92);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -268,6 +275,7 @@ test('current-patient surface gate catches missing operation, absent relation, a
         from public.fixture_update_source s where t.id = s.id;
       delete from public.fixture_delete_target t
         using public.fixture_delete_source s where t.id = s.id;
+      if p_id is distinct from public.fixture_comparison_only() then return; end if;
     `,
   }];
   const declaredFunctions = {
