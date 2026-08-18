@@ -141,6 +141,50 @@ REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM PUBLIC, :"app_staff_login", :"ap
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM app_pre_session, app_staff, app_patient, app_platform_settings,
   app_integrator_request, app_integrator_resolver, app_tenant_service, app_service, app_seam_password_auth_owner;
 
+-- An accepted context is addressable only by the transaction that installed it: every gate below
+-- matches `transaction_id = pg_current_xact_id()`, and `xid8` is never reused.  A row that outlives
+-- its own transaction is therefore unreadable garbage, and until 18.08 the seam kept that garbage on
+-- purpose: `install`/`clear` marked rows `cleared_at` and swept them 24 hours later with
+-- `DELETE ... WHERE cleared_at < clock_timestamp() - interval '24 hours'`.  Two consequences, both
+-- measured on `bersoncarebot_test`: the table held every context of the last 24 hours (120 616 rows /
+-- 71 MB after 110 minutes of traffic), and each of the three sweeps a single port transaction runs
+-- (clear on BEGIN, install, clear before COMMIT) was a full sequential scan of all of it — 21-24 ms
+-- of CPU each, ~889 scans and 105 million rows read for ONE load of `/app/doctor`.  No index fixes
+-- that sweep: `clock_timestamp()` is VOLATILE, so PostgreSQL 16 can only use it as a Filter, never as
+-- an Index Cond (proved on `idx_admin_audit_log_created` with `enable_seqscan=off`).
+--
+-- The row is removed instead of retained, and by construction rather than by a later sweep: this
+-- DEFERRABLE INITIALLY DEFERRED constraint trigger fires at COMMIT, inside the still-open
+-- transaction, so a committed `accepted_port_contexts` row cannot exist.  Nothing accumulates, so
+-- nothing has to be swept.  `clear_port_context` deliberately keeps writing `cleared_at` instead of
+-- deleting: the surviving row is what makes the primary key reject a second `install_port_context`
+-- in the same transaction ("port context already installed for transaction"), and that one-context-
+-- per-transaction rule is part of the wall.
+--
+-- SECURITY DEFINER is mandatory, not decoration: at COMMIT the effective role is whatever the
+-- session left behind — normally the bare login role, which holds no USAGE on `app_ext` at all.  The
+-- body must run as the table owner to reach the row.  A session that runs `SET CONSTRAINTS ALL
+-- IMMEDIATE` only deletes its own context early and loses every gate for the rest of the
+-- transaction: fail-closed, no way to keep a context alive past COMMIT.
+CREATE OR REPLACE FUNCTION app_ext.expire_accepted_port_context()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app_ext, pg_temp
+AS $$
+BEGIN
+  DELETE FROM app_ext.accepted_port_contexts
+   WHERE database_oid = NEW.database_oid
+     AND backend_pid = NEW.backend_pid
+     AND transaction_id = NEW.transaction_id;
+  RETURN NULL;
+END $$;
+ALTER FUNCTION app_ext.expire_accepted_port_context() OWNER TO app_seam_context_owner;
+DROP TRIGGER IF EXISTS accepted_port_contexts_expire_at_commit ON app_ext.accepted_port_contexts;
+CREATE CONSTRAINT TRIGGER accepted_port_contexts_expire_at_commit
+  AFTER INSERT ON app_ext.accepted_port_contexts
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION app_ext.expire_accepted_port_context();
+
 CREATE OR REPLACE FUNCTION app_control.enforce_relation_birth_wall()
 RETURNS event_trigger
 LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
@@ -301,7 +345,6 @@ BEGIN
     PERFORM app_ext.resolve_variant_a_physical(p_claims.subject_ref);
   END IF;
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
-  DELETE FROM app_ext.accepted_port_contexts WHERE cleared_at < clock_timestamp() - interval '24 hours';
   INSERT INTO app_ext.accepted_port_contexts (database_oid, backend_pid, transaction_id, capability_id, session_login, port, target_role, context_class, purpose, function_identity, typed_args_hash, actor_ref, subject_ref, organization_id, integrator_user_id, request_id)
   VALUES (database_id, pg_backend_pid(), pg_current_xact_id(), cap.capability_id, session_user, cap.port, p_claims.target_role, p_claims.context_class, p_claims.purpose, p_claims.function_identity, p_claims.typed_args_hash, p_claims.actor_ref, p_claims.subject_ref, p_claims.organization_id, p_claims.integrator_user_id, p_claims.request_id);
 EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context already installed for transaction';
@@ -314,7 +357,6 @@ BEGIN
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
   UPDATE app_ext.accepted_port_contexts SET cleared_at = clock_timestamp()
     WHERE database_oid = database_id AND backend_pid = pg_backend_pid() AND transaction_id = pg_current_xact_id() AND cleared_at IS NULL;
-  DELETE FROM app_ext.accepted_port_contexts WHERE cleared_at < clock_timestamp() - interval '24 hours';
 END $$;
 
 -- p_effective_role is the querying runtime role in RLS, or the exact definer
