@@ -49,6 +49,19 @@ export function entitlementMutationRefusalMessage(
   }
 }
 
+/**
+ * Owner 18.08 (L-1): a limit-bearing mechanic has no «выключено» state, so the only refusal its
+ * write can still produce is «число тарифа исчерпано». That refusal reaches a person the same way
+ * the missing-mechanic one already does — as a sentence naming the limit, not as
+ * `branch_quota_reached`.
+ */
+export function quotaLimitReachedRefusalMessage(mechanic: OrgMechanic, action: string): string {
+  return (
+    `Невозможно ${action}: в тарифе клиники исчерпан лимит «${MECHANIC_REGISTRY[mechanic].label}». ` +
+    'Чтобы продолжить, увеличьте лимит в тарифе клиники.'
+  );
+}
+
 export function entitlementMutationRefusalResponse(
   mechanic: OrgMechanic,
   action: string,
