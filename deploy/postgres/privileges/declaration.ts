@@ -5170,6 +5170,25 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    // Проверка заявки на арендатора при установке контекста (19.08).  Живёт у шва личностей, а не
+    // у шва контекста: контекст ещё не установлен, а этому владельцу RLS-политики членства открыты
+    // без контекста, и ровно эти колонки у него уже есть под другие его функции — новых прав
+    // проверка не требует.  Подробности и разбор порядка — в теле функции.
+    'app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_seam_context_owner'],
+      purpose: 'refuse a port context whose organization claim is not backed by the actor own membership, enrollment or platform role',
+      typedArgs: ['text', 'name', 'uuid', 'uuid', 'uuid', 'bigint'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id', 'integrator_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.pre_session_resolve_identity(uuid)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_pre_session', 'app_platform_admin'],
       purpose: 'exact physical-to-opaque handoff before a human transaction', typedArgs: ['uuid'],

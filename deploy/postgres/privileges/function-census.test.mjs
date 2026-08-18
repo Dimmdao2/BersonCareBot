@@ -151,15 +151,18 @@ test('all 393 declared functions have the exact source-reconstructed base type a
   // (`deploy/postgres/port-context/contract.sql`). Операторы шва те же и в том же порядке;
   // прибавка — одна новая функция, а не перепись существующих.
   // 389 → 391 (19.08): два корня аудитории доставки из миграции 0030.
-  assert.equal(canonical.size, 391);
+  // 391 → 392 (19.08): `app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint)` —
+  // проверка заявки на арендатора при установке контекста (`deploy/postgres/port-context/contract.sql`).
+  // Прибавка — одна новая функция шва личностей, а не перепись существующих.
+  assert.equal(canonical.size, 392);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
     return counts;
   }, {});
-  assert.deepEqual(forms, { SCALAR: 267, TABLE: 120, SETOF: 4 });
+  assert.deepEqual(forms, { SCALAR: 268, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 269);
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 270);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -383,12 +386,14 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // +1 (18.08): `app_ext.expire_accepted_port_context()` — см. комментарий у canonical.size.
   // +1 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029.
   // +2 (19.08): оба корня аудитории доставки из миграции 0030.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 378);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 376);
+  // +1 (19.08): `app_ext.assert_port_context_claim(...)` — проверка заявки на арендатора при
+  // установке контекста; SECURITY DEFINER, поэтому двигает и общий счётчик, и счётчик DEFINER.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 379);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 377);
   // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
   // DEFINER выше не двигаются.
-  assert.equal(testFunctions.length, 393);
-  assert.equal(devFunctions.length, 391);
+  assert.equal(testFunctions.length, 394);
+  assert.equal(devFunctions.length, 392);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -604,7 +609,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 378 : 376;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 379 : 377;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

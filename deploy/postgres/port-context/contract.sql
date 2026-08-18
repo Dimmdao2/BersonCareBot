@@ -337,13 +337,14 @@ BEGIN
   END IF;
   -- Context capabilities carry only Variant-A opaque references.  The context
   -- seam deliberately does not read the physical map: the identity seam owns
-  -- that lookup and is the sole place Variant I will replace.
-  IF p_claims.actor_ref IS NOT NULL THEN
-    PERFORM app_ext.resolve_variant_a_physical(p_claims.actor_ref);
-  END IF;
-  IF p_claims.subject_ref IS NOT NULL THEN
-    PERFORM app_ext.resolve_variant_a_physical(p_claims.subject_ref);
-  END IF;
+  -- that lookup and is the sole place Variant I will replace.  That same seam
+  -- now also answers the question this function used to skip entirely — whether
+  -- the claimed tenant belongs to the claimed identity.  Nothing physical comes
+  -- back across the boundary: either it returns, or it raises 42501 and no
+  -- context is ever inserted.  Once per transaction, not per row.
+  PERFORM app_ext.assert_port_context_claim(
+    p_claims.context_class::text, p_claims.target_role, p_claims.actor_ref,
+    p_claims.subject_ref, p_claims.organization_id, p_claims.integrator_user_id);
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
   INSERT INTO app_ext.accepted_port_contexts (database_oid, backend_pid, transaction_id, capability_id, session_login, port, target_role, context_class, purpose, function_identity, typed_args_hash, actor_ref, subject_ref, organization_id, integrator_user_id, request_id)
   VALUES (database_id, pg_backend_pid(), pg_current_xact_id(), cap.capability_id, session_user, cap.port, p_claims.target_role, p_claims.context_class, p_claims.purpose, p_claims.function_identity, p_claims.typed_args_hash, p_claims.actor_ref, p_claims.subject_ref, p_claims.organization_id, p_claims.integrator_user_id, p_claims.request_id);
@@ -532,6 +533,151 @@ BEGIN
   RETURN physical_id;
 END $$;
 
+-- Заявку на арендатора проверяет БАЗА, а не приложение.  До 19.08 `install_port_context` разбирал
+-- кортеж возможностей досконально, а про организацию спрашивал лишь `organization_id IS NOT NULL`:
+-- кто угодно, кто мог выполнить SQL под рабочим логином, называл себе любую клинику и получал её
+-- (замер на dev: чужая организация — установка принята, `current_org_id()` вернула чужую, строки
+-- видны).  Вся конструкция строилась ровно против этого, поэтому проверка стоит ВНУТРИ установки:
+-- отказ 42501 до того, как контекст появился, а не тихий ноль строк потом.
+--
+-- ПОЧЕМУ ВЛАДЕЛЕЦ ИМЕННО `app_seam_identity_lookup_owner`, А НЕ `app_seam_context_owner`.
+-- Порядок: контекст ЕЩЁ НЕ УСТАНОВЛЕН, поэтому читать членство под политиками, которым нужен
+-- контекст, невозможно по построению.  У этого шва такой зависимости нет:
+--   * `be_organization_members`, `org_enrollments`, `platform_users` принадлежат `app_object_owner`
+--     и стоят под FORCE RLS, поэтому политики применяются и к владельцу функции;
+--   * PERMISSIVE `rev10_seam_business_*` перечисляет `app_seam_identity_lookup_owner` поимённо —
+--     строки видны все;
+--   * RESTRICTIVE `rev10_named_root_owner_gate_*` тоже перечисляет его, и его условие — чистая
+--     проверка `CURRENT_USER`, без обращения к контексту;
+--   * RESTRICTIVE `rev10_context_gate_*` — единственная политика, которой нужен принятый контекст, —
+--     навешена на роли {app_staff, app_patient, app_platform_settings, app_tenant_service} и к
+--     швам-владельцам НЕ применяется.
+-- Значит чтение идёт правами владельца функции и НЕ требует того контекста, который мы только
+-- собираемся установить.  Никаких новых прав при этом не выдаётся: ровно эти три колонки обеих
+-- таблиц членства и `platform_users(id, role, merged_into_id)` у этого владельца уже есть под
+-- другие его функции — поэтому проверка помещена сюда, а не в новую роль со своими грантами.
+--
+-- Разрешение opaque→physical живёт здесь же, а не в шве контекста: шов контекста намеренно не
+-- читает физическую карту личностей.  Раньше `install_port_context` дважды звал
+-- `resolve_variant_a_physical` вхолостую (PERFORM ради проверки существования) — теперь тот же
+-- вызов делается один раз и его результат сразу используется для проверки заявки.
+-- Класс приходит `text`, а не `app.port_context_class`, сознательно: тип принадлежит шву контекста
+-- и выдан ему одному, а протаскивать сюда ещё и грант на тип ради имени класса — лишнее расширение
+-- поверхности.  Вызывающий приводит значение явно.
+CREATE OR REPLACE FUNCTION app_ext.assert_port_context_claim(
+  p_context_class text,
+  p_target_role name,
+  p_actor_ref uuid,
+  p_subject_ref uuid,
+  p_organization_id uuid,
+  p_integrator_user_id bigint
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+DECLARE actor_id uuid; subject_id uuid;
+BEGIN
+  IF p_actor_ref IS NOT NULL THEN actor_id := app_ext.resolve_variant_a_physical(p_actor_ref); END IF;
+  IF p_subject_ref IS NOT NULL THEN subject_id := app_ext.resolve_variant_a_physical(p_subject_ref); END IF;
+
+  -- staff (app_staff, app_clinic_billing): актор обязан иметь ДЕЙСТВУЮЩЕЕ членство именно в
+  -- заявленной организации.  `status='active'` — не украшение: на dev тот же человек числится
+  -- `disabled` в соседней клинике, и до проверки это его туда пускало.
+  IF p_context_class = 'staff' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.be_organization_members member
+       WHERE member.platform_user_id = actor_id
+         AND member.organization_id = p_organization_id
+         AND member.status = 'active'
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not an active membership of the actor';
+    END IF;
+
+  -- patient: стена пациента — ТОЛЬКО свои данные, поэтому, во-первых, актор и субъект обязаны быть
+  -- одним человеком (иначе «свои данные» определяет заявка, а не личность), во-вторых, заявленная
+  -- организация обязана быть его ДЕЙСТВУЮЩИМ зачислением — членство персонала здесь не годится.
+  -- Организации может не быть вовсе: `relation` в спящем режиме и `patient.organization.resolve`
+  -- работают до того, как организация выбрана, и матрица классов выше это уже разрешила точечно.
+  -- Проверять там нечего — зачисления ещё нет; личность при этом всё равно разрешена выше.
+  ELSIF p_context_class = 'patient' THEN
+    IF actor_id IS DISTINCT FROM subject_id THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'patient port context actor and subject must be the same identity';
+    END IF;
+    IF p_organization_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.org_enrollments enrollment
+       WHERE enrollment.platform_user_id = subject_id
+         AND enrollment.organization_id = p_organization_id
+         AND enrollment.status = 'active'
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not an active enrollment of the patient';
+    END IF;
+
+  -- platform: организации у класса нет по построению (матрица выше требует NULL), поэтому
+  -- проверять надо не арендатора, а саму заявку на класс: актор обязан быть НАСТОЯЩИМ
+  -- администратором платформы.  Источник роли — `platform_users.role='admin'`, ровно тот, который
+  -- ставит закреплённая личность владельца (deploy/postgres/platform-owner-identity-pin.sql);
+  -- слитая учётка исключается.  `is_archived` намеренно НЕ читается: этой колонки у шва нет, а
+  -- добавлять грант ради неё — расширение прав; `role`+`merged_into_id` достаточно.
+  ELSIF p_context_class = 'platform' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.platform_users platform_user
+       WHERE platform_user.id = actor_id
+         AND platform_user.role = 'admin'
+         AND platform_user.merged_into_id IS NULL
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'platform port context actor is not a platform administrator';
+    END IF;
+
+  -- integrator: у `app_integrator_request` личность — числовой `integrator_user_id`, и связка
+  -- «этот пользователь ↔ эта организация» уже описана в базе — в
+  -- `app.resolve_active_organization_for_integrator_user_id`, которым порт и выбирает организацию.
+  -- Здесь повторяется ЕГО предикат (действующее зачисление ИЛИ действующее членство), чтобы
+  -- принять можно было только то, что резолвер и мог вернуть.  У `app_integrator_resolver`
+  -- личности нет вовсе: это и есть тот вызов, который личность ещё только разрешает; матрица
+  -- классов выше уже требует у него пустые actor/subject/organization/integrator_user_id, так что
+  -- заявки на арендатора он не несёт и подделать ею нечего.
+  ELSIF p_context_class = 'integrator' AND p_target_role = 'app_integrator_request' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.platform_users platform_user
+       WHERE platform_user.integrator_user_id = p_integrator_user_id
+         AND (EXISTS (
+               SELECT 1 FROM public.org_enrollments enrollment
+                WHERE enrollment.platform_user_id = platform_user.id
+                  AND enrollment.organization_id = p_organization_id
+                  AND enrollment.status = 'active')
+           OR EXISTS (
+               SELECT 1 FROM public.be_organization_members member
+                WHERE member.platform_user_id = platform_user.id
+                  AND member.organization_id = p_organization_id
+                  AND member.status = 'active'))
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not active for the integrator user';
+    END IF;
+
+  -- tenant_service и service: актора нет НИ ОДНОГО — это классы доверенного сервера (фоновые
+  -- рассылки, планировщик, обслуживание очереди), и связать заявку не с кем.  Что здесь всё-таки
+  -- проверяемо — что названная организация СУЩЕСТВУЕТ: выдуманный uuid отвергается, а не даёт
+  -- тихий ноль.  Существование берётся по графу арендатора (есть хоть один участник или хоть одно
+  -- зачисление), потому что `be_organizations` этому шву не выдана и выдавать её ради проверки —
+  -- расширение прав.  Честная граница: подмена ОДНОЙ РЕАЛЬНОЙ организации на ДРУГУЮ РЕАЛЬНУЮ этими
+  -- двумя классами базой не ловится и пойматься не может, пока класс не несёт личности.
+  ELSIF p_context_class IN ('tenant_service', 'service') AND p_organization_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM public.be_organization_members member
+                    WHERE member.organization_id = p_organization_id)
+      AND NOT EXISTS (SELECT 1 FROM public.org_enrollments enrollment
+                       WHERE enrollment.organization_id = p_organization_id) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not a known organization';
+    END IF;
+  END IF;
+  -- pre_session: матрица классов выше уже требует пустые actor/subject/organization — заявки на
+  -- арендатора у класса нет, проверять нечего.
+END $$;
+
 -- Exact physical-to-opaque handoff used by each authenticated human pool.
 CREATE OR REPLACE FUNCTION app.pre_session_resolve_identity(p_platform_user_id uuid)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
@@ -562,6 +708,7 @@ ALTER FUNCTION app.current_patient_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_integrator_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_object_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
@@ -580,4 +727,6 @@ GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_req
 GRANT EXECUTE ON FUNCTION app.pre_session_resolve_identity(uuid) TO app_pre_session, app_platform_admin;
 REVOKE ALL ON FUNCTION app_ext.resolve_variant_a_identity(uuid) FROM app_pre_session, app_seam_password_auth_owner;
 GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid) TO app_seam_context_owner;
+REVOKE ALL ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) TO app_seam_context_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA app FROM PUBLIC, :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
