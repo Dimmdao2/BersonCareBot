@@ -1385,6 +1385,85 @@ describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
 });
 
 describe('§5.1 paid additional-seat state machine', () => {
+  /**
+   * Решение владельца 18.08: «Доп счёт только один раз, и только до конца основного оплаченного
+   * периода». Счёт за место продаётся В уже оплаченный период, а не открывает новый полный период
+   * от сегодня поверх него. Пробивается: окно счёта снова считается как now + один период тарифа,
+   * то есть перекрывает уже оплаченные дни и берёт за них деньги второй раз.
+   */
+  it('sells the seat into the already-paid period, not into a fresh full period', async () => {
+    const createSeatOverageInvoiceIfNeeded = vi.fn(async () => ({
+      outcome: 'seat_overage_unavailable' as const,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+          currentPeriodEndsAt: '2026-08-31T00:00:00.000Z',
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: 150_000,
+          currency: 'RUB',
+        }),
+        createSeatOverageInvoiceIfNeeded,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent: async () => ({}) }) as never,
+      now: () => new Date('2026-08-16T09:41:00.000Z'),
+    });
+
+    await service.purchaseSeatOverage({
+      organizationId: 'org-1',
+      requestKey: 'req-mid-period',
+      quotedAmountMinor: 75_000,
+      quotedCurrency: 'RUB',
+    });
+
+    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePeriodStartsAt: '2026-08-16T09:41:00.000Z',
+        servicePeriodEndsAt: '2026-08-31T00:00:00.000Z',
+      }),
+    );
+  });
+
+  /** Нет оплаченного периода — место продавать не во что: клиника сначала платит за тариф. */
+  it('refuses a seat when no paid period is running', async () => {
+    const createSeatOverageInvoiceIfNeeded = vi.fn();
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: null,
+          currentPeriodEndsAt: null,
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: 150_000,
+          currency: 'RUB',
+        }),
+        createSeatOverageInvoiceIfNeeded,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent: async () => ({}) }) as never,
+      now: () => new Date('2026-08-16T09:41:00.000Z'),
+    });
+
+    await expect(
+      service.purchaseSeatOverage({
+        organizationId: 'org-1',
+        requestKey: 'req-no-period',
+        quotedAmountMinor: 150_000,
+        quotedCurrency: 'RUB',
+      }),
+    ).resolves.toEqual({ outcome: 'seat_overage_unavailable' });
+    expect(createSeatOverageInvoiceIfNeeded).not.toHaveBeenCalled();
+  });
+
   it('retries an existing draft with the same provider key instead of returning an unusable draft', async () => {
     const draft: SaasBillingInvoice = {
       ...invoice,
@@ -1413,7 +1492,8 @@ describe('§5.1 paid additional-seat state machine', () => {
           saasBillingSubscriptionId: 'subscription-1',
           tariffId: 'tariff-1',
           billingPeriod: 'month' as const,
-          currentPeriodEndsAt: null,
+          currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
           savedPaymentMethodId: null,
           additionalSeatPriceMinor: 15_000,
           currency: 'RUB',
@@ -1433,8 +1513,8 @@ describe('§5.1 paid additional-seat state machine', () => {
     const result = await service.purchaseSeatOverage({
       organizationId: 'org-1',
       requestKey: 'stable-key',
-      confirmedAmountMinor: 15_000,
-      confirmedCurrency: 'RUB',
+      quotedAmountMinor: 15_000,
+      quotedCurrency: 'RUB',
     });
 
     expect(result).toMatchObject({ outcome: 'checkout', invoice: { id: 'seat-draft' } });
@@ -1447,7 +1527,20 @@ describe('§5.1 paid additional-seat state machine', () => {
   });
 
   it('adds allowance once while preserving tariff state, even under a different-event replay', async () => {
-    const repository = createInMemorySaasBillingRepository();
+    let clock = new Date('2026-07-01T00:00:00.000Z');
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [
+        {
+          id: 'tariff-seat',
+          name: 'Клиника',
+          priceMinor: 500_000,
+          currency: 'RUB',
+          billingPeriod: 'month',
+          additionalSeatPriceMinor: 150_000,
+        },
+      ],
+      trialPolicy: null,
+    });
     const service = createSaasBillingService({
       repository,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
@@ -1457,20 +1550,44 @@ describe('§5.1 paid additional-seat state machine', () => {
           checkoutUrl: 'https://pay.example/seat',
         }),
       }) as never,
-      now: () => new Date('2026-08-02T00:00:00.000Z'),
+      now: () => clock,
     });
     await service.assignManualTariff({
       organizationId: 'org-seat',
       tariffId: 'tariff-seat',
       audit: { actorId: 'admin', reason: 'seed' },
     });
+    // Оплаченный период 01.07 → 01.08 (31 день).
+    const periodInvoice = await service.createOwnTariffRenewalInvoice('org-seat');
+    await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-seat',
+      saasBillingInvoiceId: periodInvoice.id,
+      providerId: 'mock',
+      verified: {
+        idempotencyKey: 'event-seed-period',
+        eventType: 'payment.succeeded',
+        amountMinor: 500_000,
+        payload: { currency: 'RUB' },
+      },
+    });
+
+    // Посреди периода: с 16.07 до 01.08 остаётся 16 дней из 31 → 150 000 × 16 / 31 = 77 419,35…,
+    // округляется вверх до 77 420. Полная цена места — 150 000: за уже оплаченные дни не платят.
+    clock = new Date('2026-07-16T12:00:00.000Z');
     const purchase = await service.purchaseSeatOverage({
       organizationId: 'org-seat',
       requestKey: 'request-1',
-      confirmedAmountMinor: 15_000,
-      confirmedCurrency: 'RUB',
+      quotedAmountMinor: 77_420,
+      quotedCurrency: 'RUB',
     });
     if (purchase.outcome !== 'checkout') throw new Error('expected seat checkout');
+    expect(purchase.invoice).toMatchObject({
+      amountMinor: 77_420,
+      currency: 'RUB',
+      additionalSeatQuantity: 1,
+      // «Доп счёт … только до конца основного оплаченного периода».
+      servicePeriodEndsAt: '2026-08-01T00:00:00.000Z',
+    });
     const before = (await service.getOrganizationBillingOverview('org-seat')).subscriptions.find(
       (row) => row.source === 'paid_subscription',
     );
@@ -1483,7 +1600,7 @@ describe('§5.1 paid additional-seat state machine', () => {
         verified: {
           idempotencyKey: eventId,
           eventType: 'payment.succeeded',
-          amountMinor: 15_000,
+          amountMinor: 77_420,
           payload: { currency: 'RUB' },
         },
       });
@@ -3584,8 +3701,8 @@ describe('срок жизни счёта берётся из настройки 
           purchasedTariffPriceMinor: 10_000,
           tariffId: 'tariff-1',
           billingPeriod: 'month' as const,
-          currentPeriodStartsAt: null,
-          currentPeriodEndsAt: null,
+          currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
           savedPaymentMethodId: null,
           additionalSeatPriceMinor: 1_000,
           currency: 'RUB',
@@ -3610,8 +3727,8 @@ describe('срок жизни счёта берётся из настройки 
     await service.purchaseSeatOverage({
       organizationId: 'org-1',
       requestKey: 'req-1',
-      confirmedAmountMinor: 1_000,
-      confirmedCurrency: 'RUB',
+      quotedAmountMinor: 1_000,
+      quotedCurrency: 'RUB',
     });
 
     expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(

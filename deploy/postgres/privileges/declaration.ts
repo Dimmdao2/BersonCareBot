@@ -5018,6 +5018,19 @@ const REV10_CONTEXT = {
       execute: [], purpose: 'clear', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       bodyRelationSurfaceContract: 'port-context' as const }),
+    // Сетевая обёртка установки контекста: SECURITY INVOKER, собственных прав на отношения не
+    // имеет и иметь не должна — она только зовёт два корня шва и переходит в целевую роль правами
+    // вызывающего логина. DEFINER здесь невозможен: PostgreSQL запрещает `SET ROLE` внутри
+    // security-definer тела.
+    'app.begin_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'void', returnsSet: false, loginExecute: true as const,
+      execute: [], purpose: 'install a port context and assume its declared target role in one round trip',
+      typedArgs: ['uuid', 'app.port_context_claims'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, pg_temp'],
+      relationSurfaces: [],
+      delegatesTo: [
+        'app.clear_port_context()',
+        'app.install_port_context(uuid,app.port_context_claims)',
+      ] }),
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],

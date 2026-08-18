@@ -359,6 +359,31 @@ BEGIN
     WHERE database_oid = database_id AND backend_pid = pg_backend_pid() AND transaction_id = pg_current_xact_id() AND cleared_at IS NULL;
 END $$;
 
+-- Одна поездка в базу вместо четырёх на установку контекста.  Обёртка НЕ меняет контракт:
+-- те же операторы, в том же порядке, в той же транзакции — `clear`, `install`, затем переход в
+-- целевую роль.  Экономится только сеть: девять round-trip'ов на один полезный запрос
+-- (`BEGIN · RESET ROLE · clear · install · SET LOCAL ROLE · <запрос> · RESET ROLE · clear · COMMIT`)
+-- превращаются в четыре.
+--
+-- SECURITY INVOKER здесь ОБЯЗАТЕЛЕН и является всей причиной, по которой обёртка отдельная, а
+-- `SET LOCAL ROLE` не внесён внутрь `app.install_port_context`: PostgreSQL 16 запрещает менять
+-- параметр `role` внутри SECURITY DEFINER-функции («cannot set parameter "role" within
+-- security-definer function»).  В SECURITY INVOKER-теле смена роли разрешена, выполняется правами
+-- вызывающего логина — ровно та же проверка членства, что и у прежнего `SET LOCAL ROLE` из порта, —
+-- и, будучи LOCAL, переживает возврат из функции и живёт до конца транзакции (проверено живым
+-- опытом на `bcb_webapp_dev`: после вызова `current_user` = целевая роль, RLS-политики применяются).
+--
+-- Роль берётся из `p_claims.target_role`, а `install_port_context` строкой выше уже отверг claims,
+-- чей `target_role` расходится с capability.  Поэтому принять можно только ту роль, которую
+-- capability разрешает, а `format('%I')` не даёт собрать из имени роли второй оператор.
+CREATE OR REPLACE FUNCTION app.begin_port_context(p_capability_id uuid, p_claims app.port_context_claims)
+RETURNS void LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, pg_temp AS $$
+BEGIN
+  PERFORM app.clear_port_context();
+  PERFORM app.install_port_context(p_capability_id, p_claims);
+  EXECUTE pg_catalog.format('SET LOCAL ROLE %I', p_claims.target_role);
+END $$;
+
 -- p_effective_role is the querying runtime role in RLS, or the exact definer
 -- owner in a root.  target_role stays the installed runtime target: they are
 -- intentionally different on a SECURITY DEFINER path.
@@ -527,6 +552,7 @@ END $$;
 
 ALTER FUNCTION app.install_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.clear_port_context() OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.begin_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_attested_context_for_roles(name,name[]) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_platform_principal() OWNER TO app_seam_context_owner;
@@ -541,6 +567,7 @@ ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_objec
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_ext FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.install_port_context(uuid,app.port_context_claims), app.clear_port_context() TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
+GRANT EXECUTE ON FUNCTION app.begin_port_context(uuid,app.port_context_claims) TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
 GRANT EXECUTE ON FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) TO app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_payment_webhook_owner;
 GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_staff_security_owner, app_seam_patient_self_actions_owner, app_seam_settings_runtime_owner, app_seam_org_commerce_owner, app_seam_delivery_scope_owner, app_seam_phone_binding_owner, app_seam_payment_webhook_owner;
 REVOKE ALL ON FUNCTION app.require_attested_context_for_roles(name,name[]) FROM PUBLIC;

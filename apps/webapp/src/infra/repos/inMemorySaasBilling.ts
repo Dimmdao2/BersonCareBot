@@ -9,7 +9,10 @@ import type {
 } from '@/modules/saas-billing/ports';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
-import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
+import {
+  proratedRemainingPeriodAmountMinor,
+  proratedSeatPriceMinor,
+} from '@/modules/saas-billing/proration';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
 
@@ -562,7 +565,7 @@ export function createInMemorySaasBillingRepository(
         throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
       }
       if (targetTariff.priceMinor <= currentTariff.priceMinor) return { outcome: 'scheduled' };
-      const currentPeriodAdjustmentMinor = proratedTariffUpgradeAmountMinor({
+      const currentPeriodAdjustmentMinor = proratedRemainingPeriodAmountMinor({
         currentPriceMinor: currentTariff.priceMinor,
         targetPriceMinor: targetTariff.priceMinor,
         periodStartsAt: subscription.currentPeriodStartsAt,
@@ -848,6 +851,24 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
+      // Как в pg-репозитории: цену места считает сервер — из тарифа, пропорционально дням до конца
+      // оплаченного периода, — а число от клиента только СВЕРЯЕТСЯ. Двойник, который выставлял бы
+      // счёт на присланную клиентом сумму, описывал бы контракт, которого нет.
+      const seatTariff = tariffs.get(purchasedTariffId(authority));
+      const seatPriceMinor = seatTariff?.additionalSeatPriceMinor ?? null;
+      const seatCurrency = seatTariff?.currency ?? null;
+      if (seatPriceMinor === null || seatCurrency === null) {
+        return { outcome: 'seat_overage_unavailable' as const };
+      }
+      const priceMinor = proratedSeatPriceMinor({
+        seatPriceMinor,
+        periodStartsAt: authority.currentPeriodStartsAt,
+        periodEndsAt: authority.currentPeriodEndsAt,
+        asOf: input.servicePeriodStartsAt,
+      });
+      if (input.quotedAmountMinor !== priceMinor || input.quotedCurrency !== seatCurrency) {
+        return { outcome: 'price_changed' as const, priceMinor, currency: seatCurrency };
+      }
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
@@ -858,8 +879,8 @@ export function createInMemorySaasBillingRepository(
         invoiceKind: 'seat_overage',
         additionalSeatQuantity: 1,
         description: 'Дополнительное место специалиста сверх тарифа',
-        amountMinor: input.confirmedAmountMinor,
-        currency: input.confirmedCurrency,
+        amountMinor: priceMinor,
+        currency: seatCurrency,
         tariffBillingPeriod: 'month',
         tariffSnapshot: null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,

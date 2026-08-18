@@ -368,6 +368,7 @@ import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemory
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import { withRequestLocalMechanicAccess } from '@/app-layer/entitlements/requestLocalMechanicAccess';
 import { wrapSystemSettingsServiceWithTariffMechanicWriteClearance } from '@/app-layer/entitlements/mechanicSettingsWriteClearance';
 import {
   wrapContentPagesPortWithWriteClearance,
@@ -595,9 +596,12 @@ const organizationMembershipPort = !inMemoryRepos
 const organizationMembershipService = createOrganizationMembershipService({
   membershipPort: organizationMembershipPort,
 });
-const orgEntitlementsPort = !inMemoryRepos
-  ? createPgOrgEntitlementsPort()
-  : createInMemoryOrgEntitlementsPort();
+// Одно разрешение механики на запрос: память живёт в самом порту, поэтому её получают и гейты
+// `requireEntitlement*`, и потребители внутри этого файла. Обоснование и границы — в
+// `requestLocalMechanicAccess.ts`.
+const orgEntitlementsPort = withRequestLocalMechanicAccess(
+  !inMemoryRepos ? createPgOrgEntitlementsPort() : createInMemoryOrgEntitlementsPort(),
+);
 /**
  * UX-05 B1: organization brand publication. Paid additions resolve through the SAME entitlement
  * resolver as every other mechanic; core organization context is never gated by it.
