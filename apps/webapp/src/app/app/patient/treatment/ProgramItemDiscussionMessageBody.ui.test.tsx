@@ -27,7 +27,7 @@ const playback: MediaPlaybackPayload = {
   mimeType: 'image/jpeg',
   durationSeconds: null,
   posterUrl: null,
-  preview: { status: 'ready', smUrl, mdUrl },
+  preview: { status: 'ready', smUrl, mdUrl, standardRendition: true },
   hls: null,
   mp4: { url: originalUrl },
   fallbackUsed: false,
@@ -74,7 +74,7 @@ describe('ProgramItemDiscussionMessageBody image delivery', () => {
         ok: true,
         json: async () => ({
           ...playback,
-          preview: { status: 'failed', smUrl: null, mdUrl: null },
+          preview: { status: 'failed', smUrl: null, mdUrl: null, standardRendition: false },
         }),
       }),
     );
@@ -85,6 +85,71 @@ describe('ProgramItemDiscussionMessageBody image delivery', () => {
 
     await waitFor(() => {
       expect(getByText('Превью недоступно')).toBeInTheDocument();
+    });
+    expect(container.querySelector('img')).toBeNull();
+  });
+  it('shows the stored file while the thumbnail is still missing once the upload was converted', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...playback,
+          mimeType: 'image/webp',
+          preview: { status: 'pending', smUrl: null, mdUrl: null, standardRendition: true },
+        }),
+      }),
+    );
+
+    const { container } = render(<ProgramItemDiscussionMessageBody message={message} mine />);
+
+    await waitFor(() => {
+      expect(container.querySelector('img')).toHaveAttribute('src', originalUrl);
+    });
+    /* The stored object IS the standard rendition; there is no 1x/2x pair to advertise. */
+    expect(container.querySelector('img')).not.toHaveAttribute('srcset');
+  });
+
+  it('requests no image at all while the thumbnail is missing and the upload was not converted', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...playback,
+          preview: { status: 'pending', smUrl: null, mdUrl: null, standardRendition: false },
+        }),
+      }),
+    );
+
+    const { container } = render(<ProgramItemDiscussionMessageBody message={message} mine />);
+
+    await waitFor(() => {
+      expect(container.querySelector('button')).toBeInTheDocument();
+    });
+    expect(container.querySelector('img')).toBeNull();
+    fireEvent.click(container.querySelector('button')!);
+    expect(document.querySelector('img')).toBeNull();
+  });
+
+  it('keeps the unavailable state for an image the size guard never converted', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...playback,
+          preview: { status: 'skipped', smUrl: null, mdUrl: null, standardRendition: false },
+        }),
+      }),
+    );
+
+    const { container, getByText } = render(
+      <ProgramItemDiscussionMessageBody message={message} mine />,
+    );
+
+    await waitFor(() => {
+      expect(getByText('Превью не создаётся')).toBeInTheDocument();
     });
     expect(container.querySelector('img')).toBeNull();
   });

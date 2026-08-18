@@ -20,6 +20,8 @@ type MediaItem = {
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus;
+  /** `media_files.standard_rendition_at IS NOT NULL` — the stored object is our own re-encode. */
+  standardRendition?: boolean;
 };
 
 type Props = {
@@ -32,10 +34,24 @@ type Props = {
 
 export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Props) {
   const title = item ? item.displayName?.trim() || item.filename : 'Просмотр файла';
-  const imagePreviewSrc =
-    item?.kind === 'image' && item.previewStatus === 'ready' && canRenderInlineImage(item.mimeType)
+  const isInlineImage = item?.kind === 'image' && canRenderInlineImage(item.mimeType);
+  const generatedPreviewSrc =
+    isInlineImage && item?.previewStatus === 'ready'
       ? item.previewMdUrl?.trim() || item.previewSmUrl?.trim() || null
       : null;
+  /**
+   * No generated preview yet. The stored file may stand in for it only after the standard
+   * rendition (owner ruling 19.08) — a raw upload is never shown at full size. `failed`/`skipped`
+   * mean the rendition did not happen, so they keep the unavailable state below.
+   */
+  const imagePreviewSrc =
+    generatedPreviewSrc ??
+    (isInlineImage &&
+    item?.standardRendition === true &&
+    item.previewStatus !== 'failed' &&
+    item.previewStatus !== 'skipped'
+      ? item.url.trim() || null
+      : null);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl overflow-auto">

@@ -5670,7 +5670,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         'available_qualities_json', 'created_at', 'display_name', 'hls_artifact_prefix',
         'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id', 'original_name',
         'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status', 's3_key',
-        'size_bytes', 'source_height', 'source_width', 'status', 'stored_path', 'uploaded_by',
+        'size_bytes', 'source_height', 'source_width', 'standard_rendition_at', 'status',
+        'stored_path', 'uploaded_by',
         'usage_purpose', 'video_delivery_override', 'video_duration_seconds',
         'video_processing_error', 'video_processing_status',
       ] },
@@ -6363,15 +6364,19 @@ function revision10MediaFilesPolicies(index: number): PolicyDecl[] {
   const worker = "current_user = 'app_operational_media_worker'::name";
   // Drizzle names EVERY column of the table in an INSERT, including the ones it sends as `default`,
   // and PostgreSQL checks the privilege on each named column — so the staff INSERT grant has to
-  // cover the whole table or no staff upload can start at all. Six of those columns are transcode
-  // output owned by the media worker (`owner_kind` is the patient read discriminator); staff writes
-  // none of them anywhere in the app. The grant is plumbing, this policy is the wall: a staff INSERT
-  // is accepted only while those six still carry their column default.
+  // cover the whole table or no staff upload can start at all. Seven of those columns are worker
+  // output (`owner_kind` is the patient read discriminator); staff writes none of them anywhere in
+  // the app. The grant is plumbing, this policy is the wall: a staff INSERT is accepted only while
+  // those seven still carry their column default.
+  // `standard_rendition_at` is on that list because the UI trusts it: it is the row's only fact
+  // that the stored object is our encoder's output, and a raw upload is shown to nobody. If an
+  // uploader could set it, the fact would be forgeable by the upload that it is meant to describe.
   const staffInsertDefaults = "current_user <> 'app_staff'::name"
     + " OR (owner_kind = 'organization'"
     + ' AND hls_master_playlist_s3_key IS NULL AND hls_artifact_prefix IS NULL'
     + ' AND poster_s3_key IS NULL AND video_duration_seconds IS NULL'
-    + ' AND available_qualities_json IS NULL)';
+    + ' AND available_qualities_json IS NULL'
+    + ' AND standard_rendition_at IS NULL)';
   return [
     { name: `rev10_media_files_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: `(${staffOrg})`, withCheck: `(${staffOrg})`,

@@ -7,11 +7,16 @@ export type MediaPlaybackPayload = {
   mimeType: string;
   durationSeconds: number | null;
   posterUrl: string | null;
-  /** Canonical generated-preview state and same-origin routes; originals are never preview fallbacks. */
+  /** Canonical generated-preview state and same-origin routes; raw uploads are never shown. */
   preview: {
     status: MediaPreviewStatus;
     smUrl: string | null;
     mdUrl: string | null;
+    /**
+     * `media_files.standard_rendition_at IS NOT NULL`: the stored object is our encoder's bounded
+     * output, so it may be shown while the thumbnail is still missing (owner ruling 19.08).
+     */
+    standardRendition: boolean;
   };
   /** When delivery is HLS, `masterUrl` is same-origin `/api/media/{id}/hls/master.m3u8` (cookie session). */
   hls: { masterUrl: string; qualities?: MediaAvailableQuality[] } | null;

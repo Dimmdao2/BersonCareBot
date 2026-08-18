@@ -54,13 +54,19 @@ export function ProgramItemDiscussionMessageBody(props: {
     const playback = playbackResult?.mediaId === mediaId ? playbackResult.payload : null;
     const playbackFailed = failedMediaId === mediaId;
     const isVideo = playback?.delivery === 'mp4' || playback?.delivery === 'hls';
+    /**
+     * While the thumbnail is missing the bubble shows the stored file itself, but only once the
+     * upload has been through the standard rendition (owner ruling 19.08); before that the file is
+     * still the user's own bytes at full size and only the placeholder is shown.
+     */
     const imagePreview: MediaPreviewUiModel = {
       id: mediaId,
       kind: 'image',
-      url: '',
+      url: `/api/media/${encodeURIComponent(mediaId)}`,
       previewStatus: playbackFailed ? 'failed' : (playback?.preview.status ?? 'pending'),
       previewSmUrl: playback?.preview.smUrl ?? null,
       previewMdUrl: playback?.preview.mdUrl ?? null,
+      standardRendition: playback?.preview.standardRendition === true,
     };
     const videoThumbMedia: import('@/modules/recommendations/types').RecommendationMediaItem | null =
       isVideo && playback?.posterUrl
@@ -79,7 +85,8 @@ export function ProgramItemDiscussionMessageBody(props: {
           type="button"
           className="block max-w-full overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]"
           onClick={() => {
-            if (playback && (isVideo || imagePreview.previewSmUrl)) setPlayerOpen(true);
+            if (playback && (isVideo || imagePreview.previewSmUrl || imagePreview.standardRendition))
+              setPlayerOpen(true);
           }}
         >
           {isVideo ? (

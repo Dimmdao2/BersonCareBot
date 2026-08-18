@@ -15,6 +15,12 @@ export type MediaPreviewUiModel = {
   previewStatus?: MediaPreviewStatus | null;
   previewSmUrl: string | null;
   previewMdUrl?: string | null;
+  /**
+   * `media_files.standard_rendition_at IS NOT NULL`: the object behind `url` is our encoder's
+   * bounded output. Set only by surfaces that read that column; absent everywhere else, so a
+   * surface that does not plumb it keeps the placeholder.
+   */
+  standardRendition?: boolean | null;
   sourceWidth?: number | null;
   sourceHeight?: number | null;
 };

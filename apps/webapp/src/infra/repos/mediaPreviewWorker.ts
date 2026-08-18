@@ -306,6 +306,11 @@ type WebappTxSql = Parameters<typeof runWebappSql>[0];
  * A failure at any step throws into the caller's retry/backoff path with the original intact;
  * a rollback after the UPDATE leaves the row pointing at the original and only strands a
  * deterministic `standard.webp` that the next attempt overwrites.
+ *
+ * `standard_rendition_at` is set by this same UPDATE and by nothing else: it is the row's only
+ * fact that the object at `s3_key` is our encoder's output rather than the user's upload. The UI
+ * may show a stored file before its thumbnail exists only when this column is set — a key suffix
+ * or a `image/webp` mime type would be a naming convention and a user-controlled field, not a fact.
  */
 async function applyStandardImageRendition(
   db: WebappTxSql,
@@ -342,7 +347,8 @@ async function applyStandardImageRendition(
            preview_attempts = 0,
            preview_next_attempt_at = NULL,
            source_width = ${outcome.width},
-           source_height = ${outcome.height}
+           source_height = ${outcome.height},
+           standard_rendition_at = now()
          WHERE id = ${mediaId}::uuid`,
   );
   logger.info(

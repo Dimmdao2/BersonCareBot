@@ -43,6 +43,11 @@ export type MediaRecord = {
   previewMdUrl?: string | null;
   /** Background preview generation state. */
   previewStatus?: MediaPreviewStatus;
+  /**
+   * `media_files.standard_rendition_at IS NOT NULL` — the object behind `url` is our encoder's
+   * bounded output, not the raw upload. Only then may a surface show the file itself.
+   */
+  standardRendition?: boolean;
   /** Original pixel dimensions (from worker / ffprobe); null for legacy rows until backfill. */
   sourceWidth?: number | null;
   sourceHeight?: number | null;

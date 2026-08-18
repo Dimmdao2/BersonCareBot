@@ -4298,6 +4298,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "size_bytes",
           "source_height",
           "source_width",
+          "standard_rendition_at",
           "status",
           "stored_path",
           "uploaded_by",
