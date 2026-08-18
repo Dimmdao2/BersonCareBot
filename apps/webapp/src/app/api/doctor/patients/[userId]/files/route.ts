@@ -153,7 +153,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     deps.orgEntitlements,
     gate.ctx.organizationId,
   );
-  // A concurrent tariff edit cannot turn an omitted configuration into an unlimited upload.
+  // `undefined` now means one thing only: the organization has no tariff at all (#1069 §2.13), and
+  // that still refuses. An assigned tariff that simply named no file number resolves to `null` —
+  // «без лимита» (owner 18.08, L-1) — and passes the ceiling check below untouched.
   if (storageLimitBytes === undefined) {
     return NextResponse.json(
       { ok: false, error: 'file_storage_limit_not_configured' },
