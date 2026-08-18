@@ -1,7 +1,7 @@
 /**
  * POST /api/admin/saas-billing/payments/manual — К4: platform admin issues a manual invoice for a
  * clinic's own assigned tariff (amount/description are admin-chosen; the invoice's own lifetime is
- * the constant in `modules/saas-billing/invoiceValidity.ts`, not an input), via YooKassa's
+ * NOT an input — it comes from the one настройка `lifecyclePolicy.invoiceValidityDays`), via YooKassa's
  * `/v3/invoices`. Same platform-only gate as the rest of the payments cabinet (К1/К2) — see
  * `docs/_TODO/SAAS_FOUNDATION/PAYMENTS_CABINET_PLAN.md` К4.
  */

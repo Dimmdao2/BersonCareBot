@@ -457,15 +457,15 @@ export function createInMemorySaasBillingRepository(
     async createSaasBillingInvoice(input) {
       // #1057 — old K0 keys were clock-bucketed. A retry after that bucket changed must still use
       // the empty renewal invoice for this exact subscription period. Manual invoices have a
-      // description/expiry and seat overage has a different kind, so neither can alias this path.
+      // description and seat overage has a different kind, so neither can alias this path. The
+      // expiry is not a discriminator: every invoice now carries one from the настройка.
       const existingRenewal = [...invoices.values()].find(
         (row) =>
           row.saasBillingSubscriptionId === input.saasBillingSubscriptionId &&
           row.servicePeriodStartsAt === input.servicePeriodStartsAt &&
           row.servicePeriodEndsAt === input.servicePeriodEndsAt &&
           row.invoiceKind === 'tariff_period' &&
-          row.description === null &&
-          row.expiresAt === null,
+          row.description === null,
       );
       const authority = [...rows.values()].find(
         (row) =>
@@ -525,7 +525,7 @@ export function createInMemorySaasBillingRepository(
           : null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
-        expiresAt: null,
+        expiresAt: input.expiresAt,
         status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,
@@ -622,7 +622,7 @@ export function createInMemorySaasBillingRepository(
         },
         servicePeriodStartsAt: input.asOf,
         servicePeriodEndsAt: subscription.currentPeriodEndsAt,
-        expiresAt: null,
+        expiresAt: input.expiresAt,
         status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,
@@ -864,7 +864,7 @@ export function createInMemorySaasBillingRepository(
         tariffSnapshot: null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
-        expiresAt: input.servicePeriodEndsAt,
+        expiresAt: input.expiresAt,
         status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,
@@ -995,7 +995,7 @@ export function createInMemorySaasBillingRepository(
           : null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
-        expiresAt: null,
+        expiresAt: input.expiresAt,
         status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,

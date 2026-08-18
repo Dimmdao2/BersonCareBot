@@ -187,6 +187,7 @@ export function createSaasBillingService(dependencies: {
       providerConfig,
       adapter,
       payeeRequisites: settings.payeeRequisites,
+      invoiceValidityDays: settings.lifecyclePolicy.invoiceValidityDays,
     };
   }
 
@@ -239,6 +240,7 @@ export function createSaasBillingService(dependencies: {
       servicePeriodEndsAt: input.servicePeriodEndsAt,
       providerIdempotencyKey: input.providerIdempotencyKey,
       providerId: provider.providerId,
+      expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
     });
     if (!created && invoice.providerCheckoutUrl) return invoice;
     let checkoutInvoice = invoice;
@@ -330,6 +332,7 @@ export function createSaasBillingService(dependencies: {
       saasBillingSubscriptionId: input.saasBillingSubscriptionId,
       targetTariffId: input.targetTariffId,
       asOf: now().toISOString(),
+      expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
       providerId: provider.providerId,
       providerIdempotencyKey: `saas_tariff_upgrade:${deriveSaasBillingIdempotencyKey([
         input.organizationId,
@@ -408,9 +411,10 @@ export function createSaasBillingService(dependencies: {
    * Amount/description are admin-chosen; the tariff, subscription and resulting service period are
    * server-resolved from the organization's existing assignment, same authority K0 uses.
    *
-   * Этап 1, пункт 1.3 — the invoice's own lifetime is NOT among the admin's choices: it is
-   * `SAAS_BILLING_INVOICE_VALIDITY_DAYS` from the moment of issue (owner, 18.08: «срок жизни счёта —
-   * константа 30 дней в коде»). This is the issuing reader of `invoiceValidity.ts`.
+   * Этап 1, пункт 1.3 — the invoice's own lifetime is NOT among the admin's per-invoice choices:
+   * it is the ONE configured validity period (`lifecyclePolicy.invoiceValidityDays`) counted from
+   * the moment of issue, exactly like every other issuing path. The admin changes it once, in the
+   * settings, not per invoice (owner, 18.08).
    */
   async function createManualSaasBillingInvoice(input: {
     organizationId: string;
@@ -426,7 +430,6 @@ export function createSaasBillingService(dependencies: {
       throw new Error('saas_billing_manual_invoice_description_required');
     }
     const issuedAt = now();
-    const expiresAt = saasBillingInvoiceExpiresAt(issuedAt);
 
     const { saasBillingSubscriptionId, billingPeriod } = await withManualInvoiceDatabaseBoundary(
       () => dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId),
@@ -444,6 +447,7 @@ export function createSaasBillingService(dependencies: {
       undefined,
       withManualInvoiceDatabaseBoundary,
     );
+    const expiresAt = saasBillingInvoiceExpiresAt(issuedAt, provider.invoiceValidityDays);
     if (!provider.adapter.supportsInvoice) {
       throw new Error(`saas_billing_provider_invoices_unsupported:${provider.providerId}`);
     }
@@ -453,10 +457,12 @@ export function createSaasBillingService(dependencies: {
     // `(providerId, providerIdempotencyKey)` catches the repeat below; a deliberately different
     // request (different amount, different clinic, ...) hashes to a different key and is created.
     // The expiry used to be part of this hash because it was admin-chosen and therefore stable
-    // across a double-submit of the same form. Now it is derived from `now()`, so the DAY of issue
-    // takes its place: two submits of the same form still hash to one key and the DB's unique index
-    // catches the repeat, while genuinely re-issuing the same amount+description later is a new key
-    // and a new invoice instead of silently handing back the old, already paid one.
+    // across a double-submit of the same form. It is now derived from `now()` plus a настройка, so
+    // the DAY of issue takes its place: two submits of the same form still hash to one key and the
+    // DB's unique index catches the repeat, while genuinely re-issuing the same amount+description
+    // later is a new key and a new invoice instead of silently handing back the old, already paid
+    // one. The expiry must stay OUT of this hash — otherwise changing the настройка between two
+    // clicks of one form would mint a second invoice for the same money.
     const providerIdempotencyKey = `saas_manual_invoice:${deriveSaasBillingIdempotencyKey([
       input.organizationId,
       input.amountMinor,
@@ -550,6 +556,7 @@ export function createSaasBillingService(dependencies: {
       confirmedCurrency: input.confirmedCurrency,
       providerId: provider.providerId,
       providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.requestKey}`,
+      expiresAt: saasBillingInvoiceExpiresAt(periodStart, provider.invoiceValidityDays),
       servicePeriodStartsAt: periodStart,
       servicePeriodEndsAt: await paidPeriodEndsAtForBillingCode(
         dependencies.repository,
@@ -978,6 +985,7 @@ export function createSaasBillingService(dependencies: {
               providerIdempotencyKey: `saas_tariff_auto_renewal:${subscription.saasBillingSubscriptionId}:${servicePeriodStartsAt}`,
               servicePeriodStartsAt,
               servicePeriodEndsAt,
+              expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
             });
           if (!wasCreated) {
             alreadyInvoiced += 1;

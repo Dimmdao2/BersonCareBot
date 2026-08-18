@@ -815,7 +815,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         // #1057 — K0 originally derived the provider key from a short clock bucket. A historical
         // empty renewal draft can therefore have a different key even though it is the same
         // subscription period. The period is authoritative for this renewal path; manual invoices
-        // (description + expiry) and seat overage invoices do not participate in this lookup.
+        // (they always carry a description) and seat overage invoices (different kind) do not
+        // participate in this lookup. The expiry is NOT a discriminator any more — every invoice
+        // now gets one from the настройка, so matching on `expires_at IS NULL` would miss the
+        // renewal draft this lookup exists to find and raise a duplicate.
         const [existingRenewal] = await tx
           .select()
           .from(saasBillingInvoices)
@@ -826,7 +829,6 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               eq(saasBillingInvoices.servicePeriodEndsAt, input.servicePeriodEndsAt),
               eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
               isNull(saasBillingInvoices.description),
-              isNull(saasBillingInvoices.expiresAt),
             ),
           )
           .limit(1);
@@ -928,6 +930,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           tariffSnapshot,
           servicePeriodStartsAt: input.servicePeriodStartsAt,
           servicePeriodEndsAt: input.servicePeriodEndsAt,
+          expiresAt: input.expiresAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
@@ -1068,6 +1071,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           },
           servicePeriodStartsAt: input.asOf,
           servicePeriodEndsAt: subscription.currentPeriodEndsAt,
+          expiresAt: input.expiresAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
@@ -1433,7 +1437,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           tariffSnapshot: tariff.tariff_snapshot,
           servicePeriodStartsAt: input.servicePeriodStartsAt,
           servicePeriodEndsAt: input.servicePeriodEndsAt,
-          expiresAt: input.servicePeriodEndsAt,
+          expiresAt: input.expiresAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
@@ -1679,6 +1683,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             tariffSnapshot,
             servicePeriodStartsAt: input.servicePeriodStartsAt,
             servicePeriodEndsAt: input.servicePeriodEndsAt,
+            expiresAt: input.expiresAt,
             status: 'draft',
             providerId: input.providerId,
             providerIdempotencyKey: input.providerIdempotencyKey,

@@ -3427,3 +3427,325 @@ describe('счёт целиком по одному тарифу — тому, �
     expect(createIntent).toHaveBeenCalledTimes(1);
   });
 });
+
+// Владелец, 18.08 (правка того же дня): срок жизни счёта — ОДНА админ-настройка, действующая на
+// КАЖДЫЙ счёт, а не константа в коде и не поле в форме выставления. Провал, который эти проверки
+// ловят: путь выставления, который «забыли» подключить к настройке и который поэтому молча живёт
+// по своему сроку. Проверяется весь список путей, а не два из пяти.
+// Арбитр: верните в любом из этих путей `SAAS_BILLING_INVOICE_VALIDITY_DAYS` вместо
+// `provider.invoiceValidityDays` — соответствующее ожидание покраснеет.
+describe('срок жизни счёта берётся из настройки на КАЖДОМ пути выставления', () => {
+  const ISSUED_AT = '2026-08-02T00:00:00.000Z';
+  /** 7 дней от ISSUED_AT — заведомо не дефолтные 30, иначе проверка не отличит настройку от константы. */
+  const EXPECTED_EXPIRES_AT = '2026-08-09T00:00:00.000Z';
+
+  const settingsWithValidityDays = (invoiceValidityDays: number) => ({
+    getSaasBillingPaymentProviderValue: async () => ({
+      defaultProviderId: 'mock',
+      providers: [{ id: 'mock', label: 'Mock', enabled: true, shopId: 's', apiKey: 'k' }],
+      lifecyclePolicy: { invoiceValidityDays },
+    }),
+  });
+
+  it('счёт, выставленный администратором вручную, живёт настроенный срок', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'provider-invoice-1',
+      checkoutUrl: 'https://yookassa.example.test/checkout-1',
+    }));
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-validity',
+      tariffId: 'tariff-validity',
+      audit: { actorId: 'operator', reason: 'test seed' },
+    });
+
+    const issued = await service.createManualSaasBillingInvoice({
+      organizationId: 'org-validity',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+    });
+
+    expect(issued.expiresAt).toBe(EXPECTED_EXPIRES_AT);
+    expect(createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoice: { description: 'Счёт за тариф', expiresAt: EXPECTED_EXPIRES_AT },
+      }),
+    );
+  });
+
+  it('счёт продления, поднятый клиникой из кабинета, живёт тот же настроенный срок', async () => {
+    const createSaasBillingInvoice = vi.fn(async (input: { expiresAt: string }) => ({
+      invoice: { ...invoice, expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          purchasedTariffPriceMinor: 10_000,
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: null,
+          currentPeriodEndsAt: null,
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: null,
+          currency: 'RUB',
+        }),
+        createSaasBillingInvoice,
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.createOwnTariffRenewalInvoice('org-1');
+
+    expect(createSaasBillingInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('счёт, поднятый фоновым тиком продления, живёт тот же настроенный срок', async () => {
+    const createSaasBillingRenewalInvoiceIfAbsent = vi.fn(async (input: { expiresAt: string }) => ({
+      invoice: { ...invoice, id: 'invoice-tick', expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        listSaasBillingSubscriptionsDueForRenewal: async () => [
+          {
+            saasBillingSubscriptionId: 'subscription-1',
+            organizationId: 'org-1',
+            tariffId: 'tariff-1',
+            billingPeriod: 'month' as const,
+            currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+            savedPaymentMethodId: null,
+            autopayConsentedAt: null,
+            autopayRevokedAt: null,
+          },
+        ],
+        promoteDueSaasBillingPaidInvoice: async () => false,
+        createSaasBillingRenewalInvoiceIfAbsent,
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.runDueSaasBillingRenewals();
+
+    expect(createSaasBillingRenewalInvoiceIfAbsent).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('счёт за место сверх тарифа живёт тот же настроенный срок, а не до конца периода услуги', async () => {
+    const createSeatOverageInvoiceIfNeeded = vi.fn(async (input: { expiresAt: string }) => ({
+      outcome: 'invoice' as const,
+      invoice: { ...invoice, invoiceKind: 'seat_overage' as const, expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          purchasedTariffPriceMinor: 10_000,
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: null,
+          currentPeriodEndsAt: null,
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: 1_000,
+          currency: 'RUB',
+        }),
+        createSeatOverageInvoiceIfNeeded,
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.purchaseSeatOverage({
+      organizationId: 'org-1',
+      requestKey: 'req-1',
+      confirmedAmountMinor: 1_000,
+      confirmedCurrency: 'RUB',
+    });
+
+    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('счёт за апгрейд тарифа с пропорцией живёт тот же настроенный срок', async () => {
+    const createProratedTariffUpgradeInvoice = vi.fn(async (input: { expiresAt: string }) => ({
+      outcome: 'checkout' as const,
+      invoice: { ...invoice, expiresAt: input.expiresAt },
+      created: true,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
+        createProratedTariffUpgradeInvoice,
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          purchasedTariffPriceMinor: 10_000,
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: null,
+          currency: 'RUB',
+        }),
+        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
+          ...invoice,
+          ...(input as object),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: settingsWithValidityDays(7),
+      getTariffTransition: async () => ({
+        currentTariffId: 'tariff-1',
+        targetTariffId: 'tariff-2',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-intent-1',
+            checkoutUrl: 'https://yookassa.example.test/checkout-1',
+          }),
+        }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org-1',
+      tariffId: 'tariff-2',
+      actorId: 'operator',
+    });
+
+    expect(createProratedTariffUpgradeInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
+    );
+  });
+
+  it('без заданной настройки счёт живёт документированный дефолт', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'provider-invoice-default',
+      checkoutUrl: 'https://yookassa.example.test/checkout-default',
+    }));
+    const service = createSaasBillingService({
+      repository: createInMemorySaasBillingRepository(),
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, shopId: 's', apiKey: 'k' }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-validity-default',
+      tariffId: 'tariff-validity-default',
+      audit: { actorId: 'operator', reason: 'test seed' },
+    });
+
+    const issued = await service.createManualSaasBillingInvoice({
+      organizationId: 'org-validity-default',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+    });
+
+    expect(issued.expiresAt).toBe('2026-09-01T00:00:00.000Z');
+  });
+
+  // Свойство, которое правка срока НЕ должна была сломать: два клика по одной форме — один счёт.
+  // Ключ идемпотентности хешит ДЕНЬ выставления, а не срок; поэтому смена настройки между кликами
+  // не имеет права родить второй счёт на те же деньги.
+  it('двойной клик остаётся одним счётом, даже если срок между кликами переставили', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: `provider-invoice-${createIntent.mock.calls.length}`,
+      checkoutUrl: `https://yookassa.example.test/checkout-${createIntent.mock.calls.length}`,
+    }));
+    const repository = createInMemorySaasBillingRepository();
+    let invoiceValidityDays = 7;
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, shopId: 's', apiKey: 'k' }],
+          lifecyclePolicy: { invoiceValidityDays },
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date(ISSUED_AT),
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-validity-idem',
+      tariffId: 'tariff-validity-idem',
+      audit: { actorId: 'operator', reason: 'test seed' },
+    });
+    const request = {
+      organizationId: 'org-validity-idem',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+    };
+
+    const first = await service.createManualSaasBillingInvoice(request);
+    invoiceValidityDays = 21;
+    const second = await service.createManualSaasBillingInvoice({ ...request });
+
+    expect(second.id).toBe(first.id);
+    expect(second.expiresAt).toBe(EXPECTED_EXPIRES_AT);
+    expect(createIntent).toHaveBeenCalledTimes(1);
+  });
+});
