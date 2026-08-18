@@ -12,6 +12,7 @@ import {
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { logger, serializeError } from '@/infra/logging/logger';
 
 const bodySchema = z.object({
   contentPageId: z.string().uuid(),
@@ -71,11 +72,21 @@ export async function POST(req: Request) {
   }
 
   if (parsed.data.source === 'daily_warmup') {
-    await advanceDailyWarmupPresentationManually(
-      gate.session.user.userId,
-      parsed.data.contentPageId,
-      buildDailyWarmupPresentationSyncDeps(deps),
-    );
+    // Выполнение уже записано. Смена «разминки дня» — бухгалтерия ротации, и её отказ не имеет
+    // права отменить действие человека: иначе он видит «Не удалось сохранить» над сохранённой
+    // строкой и повторным нажатием заводит вторую. Отказ остаётся громким — уходит в журнал.
+    try {
+      await advanceDailyWarmupPresentationManually(
+        gate.session.user.userId,
+        parsed.data.contentPageId,
+        buildDailyWarmupPresentationSyncDeps(deps),
+      );
+    } catch (e) {
+      logger.error(
+        { err: serializeError(e), completionId: result.id },
+        '[patient/practice/completion] daily_warmup_presentation_advance_failed',
+      );
+    }
   }
 
   revalidatePath(routePaths.patient);

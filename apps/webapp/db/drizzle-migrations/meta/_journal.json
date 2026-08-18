@@ -185,6 +185,13 @@
       "breakpoints": true
     },
     {
+      "idx": 26,
+      "version": "7",
+      "when": 1800000026000,
+      "tag": "0026_warmup_feeling_uses_the_whole_five_point_scale",
+      "breakpoints": true
+    },
+    {
       "idx": 27,
       "version": "7",
       "when": 1800000027000,
