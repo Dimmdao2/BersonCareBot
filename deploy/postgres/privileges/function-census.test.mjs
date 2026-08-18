@@ -87,7 +87,7 @@ test('all 47 current-patient B0-forward roots have exact executable relation-ope
 
 test('all latest active B0-forward definers have exact executable relation-operation surfaces', () => {
   const functions = latestArtifactFunctions(B0_FORWARD_MIGRATIONS);
-  assert.equal(functions.length, 82);
+  assert.equal(functions.length, 83);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -98,7 +98,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 387 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 388 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -116,15 +116,15 @@ test('all 387 declared functions have the exact source-reconstructed base type a
     'app_ext.digest(text,text)': { returns: 'bytea', returnsSet: false },
     'app_ext.hmac(text,text,text)': { returns: 'bytea', returnsSet: false },
   };
-  assert.equal(canonical.size, 385);
+  assert.equal(canonical.size, 386);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
     return counts;
   }, {});
-  assert.deepEqual(forms, { SCALAR: 261, TABLE: 120, SETOF: 4 });
+  assert.deepEqual(forms, { SCALAR: 262, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 263);
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 264);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -317,10 +317,10 @@ test('legacy census is restored without obsolete context and overlaid by the act
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
   // +2 on 2026-08-18: both organization-slug deferred constraint-trigger guards became DEFINER seams.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 373);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 371);
-  assert.equal(testFunctions.length, 387);
-  assert.equal(devFunctions.length, 385);
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 374);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 372);
+  assert.equal(testFunctions.length, 388);
+  assert.equal(devFunctions.length, 386);
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 44);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
@@ -536,7 +536,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 373 : 371;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 374 : 372;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

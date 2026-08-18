@@ -128,6 +128,27 @@ async function applyPaidSaasBillingTariff(
   if (!row?.applied) throw new Error('saas_billing_tariff_apply_failed');
 }
 
+// L-10 (0023): refreshing an unclaimed period draft rewrites `amount_minor` — the one column a
+// tenant role must never be able to write, because the worst a coerced `app_clinic_billing` call
+// site could then do is change what a clinic owes instead of merely failing. The role therefore
+// holds no UPDATE on it; the narrow accessor below re-derives the amount from the subscription's own
+// tariff row and never takes it from the caller. `tariffId` is not «how much» but «which of this
+// subscription's two tariffs» — the seam refuses anything that is neither the current nor the
+// pending one, and refuses (returns false) exactly where this repository refuses: a draft the
+// provider already holds an order for is never rewritten.
+async function refreshSaasBillingInvoicePurchasedTariff(
+  tx: Transaction,
+  saasBillingInvoiceId: string,
+  organizationId: string,
+  tariffId: string,
+): Promise<boolean> {
+  const result = await tx.execute(
+    sql`SELECT app.refresh_saas_billing_invoice_purchased_tariff(${saasBillingInvoiceId}::uuid, ${organizationId}::uuid, ${tariffId}::uuid) AS refreshed`,
+  );
+  const row = result.rows[0] as { refreshed: boolean } | undefined;
+  return row?.refreshed === true;
+}
+
 async function upsertSaasBillingAccount(
   tx: Transaction,
   organizationId: string,
@@ -858,22 +879,24 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           if (existingRenewal.status !== 'draft' || existingRenewal.providerInvoiceRef !== null) {
             return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
           }
+          // The amount is NOT passed in: the seam derives it from this subscription's tariff row, so
+          // the money column stays outside the tenant role's reach. A fresh tariff snapshot also
+          // drops the fiscal receipt snapshot stored inside it (`withReceiptSnapshot`): a receipt for
+          // the old amount must not survive the refresh.
+          const applied = await refreshSaasBillingInvoicePurchasedTariff(
+            tx,
+            existingRenewal.id,
+            input.organizationId,
+            tariff.tariffId,
+          );
+          // Same failure as the previous direct UPDATE returning no row: the draft was claimed (or
+          // removed) between the read and the write, so nothing was refreshed.
+          if (!applied) throw new Error('saas_billing_invoice_refresh_failed');
           const [refreshed] = await tx
-            .update(saasBillingInvoices)
-            .set({
-              tariffId: tariff.tariffId,
-              tariffName: tariff.tariffName,
-              amountMinor,
-              currency: tariff.currency,
-              tariffBillingPeriod: tariff.tariffBillingPeriod,
-              additionalSeatQuantity: subscription.paidAdditionalSeats,
-              // A fresh tariff snapshot also drops the fiscal receipt snapshot stored inside it
-              // (`withReceiptSnapshot`): a receipt for the old amount must not survive the refresh.
-              tariffSnapshot: await readTariffSnapshotForPeriod(tx, tariff.tariffId),
-              updatedAt: new Date().toISOString(),
-            })
+            .select()
+            .from(saasBillingInvoices)
             .where(eq(saasBillingInvoices.id, existingRenewal.id))
-            .returning();
+            .limit(1);
           if (!refreshed) throw new Error('saas_billing_invoice_refresh_failed');
           return { invoice: toSaasBillingInvoice(refreshed), created: false };
         }

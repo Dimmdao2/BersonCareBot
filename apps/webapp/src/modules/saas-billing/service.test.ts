@@ -3252,4 +3252,44 @@ describe('счёт целиком по одному тарифу — тому, �
       amountMinor: monthlyTariff.priceMinor,
     });
   });
+
+  it('счёт, на который у провайдера уже есть заказ, не переписывается под другой тариф', async () => {
+    // Обратная сторона того же правила и граница, за которую обновление не заходит. Заказ,
+    // который провайдер уже держит, — настоящий: он выставлен на конкретную сумму, и человек
+    // может платить по нему прямо сейчас. Переписать нашу копию такого счёта значит развести
+    // деньги и запись о них: провайдер возьмёт старую сумму за тариф, который в счёте уже другой.
+    // Отказ дорогой (деньги) и молчаливый (обе стороны по отдельности выглядят правдоподобно).
+    const cheaperMonthly = {
+      id: 'tariff-month-cheap',
+      name: 'СТАРТ',
+      priceMinor: 80_000,
+      currency: 'RUB',
+      billingPeriod: 'month',
+    };
+    const { repository, service, createIntent } = createService([monthlyTariff, cheaperMonthly]);
+    await seedPaidPeriod(service, repository, 'org-claimed', monthlyTariff.id);
+
+    const claimed = await service.createOwnTariffRenewalInvoice('org-claimed');
+    expect(claimed).toMatchObject({
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      providerInvoiceRef: `provider-${claimed.id}`,
+    });
+
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org-claimed',
+      tariffId: cheaperMonthly.id,
+      actorId: 'clinic-owner',
+    });
+    const raisedAgain = await service.createOwnTariffRenewalInvoice('org-claimed');
+
+    expect(raisedAgain).toMatchObject({
+      id: claimed.id,
+      tariffId: monthlyTariff.id,
+      amountMinor: monthlyTariff.priceMinor,
+      providerInvoiceRef: `provider-${claimed.id}`,
+    });
+    // И второго заказа у провайдера не появилось: счёт остался тем же самым.
+    expect(createIntent).toHaveBeenCalledTimes(1);
+  });
 });
