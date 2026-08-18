@@ -57,6 +57,15 @@ export function s3ObjectKey(mediaId: string, filename: string): string {
   return `${S3_KEY_PREFIX}/${mediaId}/${safe}`;
 }
 
+/**
+ * Stable key of the standard-size image rendition that replaces the raw upload
+ * (SECURITY_CANON §5, owner ruling 19.08.2026). Deterministic, so a retried preview job
+ * overwrites its own half-written output instead of leaving a second object behind.
+ */
+export function s3StandardImageKey(mediaId: string): string {
+  return `${S3_KEY_PREFIX}/${mediaId}/standard.webp`;
+}
+
 /** Stable preview object keys (JPEG); content-addressed by media id + size tier. */
 export function s3PreviewKey(mediaId: string, size: 'sm' | 'md'): string {
   return `previews/${size}/${mediaId}.jpg`;
