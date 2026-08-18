@@ -68,10 +68,12 @@ function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool 
     async query(input: FakeQueryInput, values?: readonly unknown[]) {
       const { text } = normalizeFakeQuery(input, values);
       log.push(text);
+      // Отказ уборки на выходе: теперь `RESET ROLE`, `clear` и `COMMIT` едут одной группой, и
+      // ломается именно она — первая же закрывающая поездка (транзакция pre_session).
       if (
         cleanupFails &&
-        text === 'SELECT app.clear_port_context()' &&
-        log.filter((entry) => entry === text).length === 2
+        text === 'RESET ROLE; SELECT app.clear_port_context(); COMMIT' &&
+        log.filter((entry) => entry === text).length === 1
       ) {
         throw new Error('clear failed');
       }
@@ -134,25 +136,19 @@ describe('webapp port-context runtime', () => {
     );
 
     expect(result.rows[0]).toHaveProperty('client');
+    // Тот же контракт, три поездки вместо восьми: `SET LOCAL ROLE` уехал внутрь
+    // `app.begin_port_context`, непараметризованные операторы сгруппированы простым протоколом.
+    // Целевая роль здесь больше не видна в тексте запроса — её проверяет отдельный тест значений
+    // ниже, и в базе её берут из claims, а не из строки, собранной портом.
     expect(log).toEqual([
-      'BEGIN',
-      'RESET ROLE',
-      'SELECT app.clear_port_context()',
-      'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
-      'SET LOCAL ROLE app_pre_session',
+      'BEGIN; RESET ROLE',
+      'SELECT app.begin_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
       'SELECT app.pre_session_resolve_identity($1::uuid) AS opaque_ref',
-      'RESET ROLE',
-      'SELECT app.clear_port_context()',
-      'COMMIT',
-      'BEGIN',
-      'RESET ROLE',
-      'SELECT app.clear_port_context()',
-      'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
-      'SET LOCAL ROLE app_staff',
+      'RESET ROLE; SELECT app.clear_port_context(); COMMIT',
+      'BEGIN; RESET ROLE',
+      'SELECT app.begin_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
       'SELECT exact_client',
-      'RESET ROLE',
-      'SELECT app.clear_port_context()',
-      'COMMIT',
+      'RESET ROLE; SELECT app.clear_port_context(); COMMIT',
     ]);
     expect(releases).toHaveLength(0);
   });
@@ -375,7 +371,7 @@ describe('webapp port-context runtime', () => {
         const client = {
           query: async (input: FakeQueryInput, values?: readonly unknown[]) => {
             const query = normalizeFakeQuery(input, values);
-            if (query.text.includes('app.install_port_context')) installs.push([...query.values]);
+            if (query.text.includes('app.begin_port_context')) installs.push([...query.values]);
             if (query.text.startsWith('SELECT app.pre_session_resolve_identity')) {
               return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
             }

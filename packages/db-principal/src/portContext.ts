@@ -380,6 +380,27 @@ function normalizeIntegratorUserId(value: string | number | bigint | undefined):
 }
 
 /**
+ * Три поездки в базу на служебную часть транзакции вместо восьми. Контракт не изменился: те же
+ * операторы, в том же порядке, в той же транзакции, с теми же переходами роли — экономится
+ * исключительно сеть.
+ *
+ * Почему именно так разложено. Расширенный протокол PostgreSQL запрещает несколько операторов в
+ * одном параметризованном запросе, поэтому `install_port_context` обязан ехать своим сообщением;
+ * зато `SET LOCAL ROLE` уезжает вместе с ним внутрь `app.begin_port_context` (см. комментарий у
+ * тела функции в `deploy/postgres/port-context/contract.sql`), а непараметризованные `BEGIN`,
+ * `RESET ROLE`, `clear` и `COMMIT` группируются простым протоколом.
+ *
+ * Поведение при отказе не меняется: ошибка любого из трёх сообщений долетает до `catch` ниже,
+ * который откатывает транзакцию и УНИЧТОЖАЕТ checkout, а не возвращает его в пул. Ошибка внутри
+ * группы простого протокола прерывает группу: `COMMIT` из неё уже не выполнится, транзакция
+ * останется незафиксированной.
+ */
+const PORT_CONTEXT_OPEN_SQL = 'BEGIN; RESET ROLE';
+const PORT_CONTEXT_BEGIN_SQL =
+  'SELECT app.begin_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)';
+const PORT_CONTEXT_CLOSE_SQL = 'RESET ROLE; SELECT app.clear_port_context(); COMMIT';
+
+/**
  * The only checkout lifecycle allowed by the mTLS contract. Any failure is deliberately
  * propagated so callers can destroy the checked-out pg client instead of returning it to a pool.
  */
@@ -397,31 +418,23 @@ export async function withPortContextTransaction<T>(
     const subjectRef = assertUuid('subjectRef', principal.subjectRef);
     const organizationId = assertUuid('organizationId', principal.organizationId);
     const typedArgsHash = hashPortTypedArgs(principal.typedArgs ?? []);
-    await client.query('BEGIN');
+    await client.query(PORT_CONTEXT_OPEN_SQL);
     begun = true;
-    await client.query('RESET ROLE');
-    await client.query('SELECT app.clear_port_context()');
-    await client.query(
-      'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
-      [
-        principal.capabilityId,
-        principal.contextClass,
-        principal.targetRole,
-        principal.purpose,
-        principal.functionIdentity ?? null,
-        typedArgsHash,
-        actorRef,
-        subjectRef,
-        organizationId,
-        integratorUserId,
-        requestId,
-      ],
-    );
-    await client.query(`SET LOCAL ROLE ${principal.targetRole}`);
+    await client.query(PORT_CONTEXT_BEGIN_SQL, [
+      principal.capabilityId,
+      principal.contextClass,
+      principal.targetRole,
+      principal.purpose,
+      principal.functionIdentity ?? null,
+      typedArgsHash,
+      actorRef,
+      subjectRef,
+      organizationId,
+      integratorUserId,
+      requestId,
+    ]);
     const result = await fn(client);
-    await client.query('RESET ROLE');
-    await client.query('SELECT app.clear_port_context()');
-    await client.query('COMMIT');
+    await client.query(PORT_CONTEXT_CLOSE_SQL);
     return result;
   } catch (error) {
     const failure = error instanceof Error ? error : new Error(String(error));
@@ -477,27 +490,21 @@ export async function startPortContextTransaction(
     const subjectRef = assertUuid('subjectRef', principal.subjectRef);
     const organizationId = assertUuid('organizationId', principal.organizationId);
     const typedArgsHash = hashPortTypedArgs(principal.typedArgs ?? []);
-    await client.query('BEGIN');
+    await client.query(PORT_CONTEXT_OPEN_SQL);
     begun = true;
-    await client.query('RESET ROLE');
-    await client.query('SELECT app.clear_port_context()');
-    await client.query(
-      'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
-      [
-        principal.capabilityId,
-        principal.contextClass,
-        principal.targetRole,
-        principal.purpose,
-        principal.functionIdentity ?? null,
-        typedArgsHash,
-        actorRef,
-        subjectRef,
-        organizationId,
-        integratorUserId,
-        requestId,
-      ],
-    );
-    await client.query(`SET LOCAL ROLE ${principal.targetRole}`);
+    await client.query(PORT_CONTEXT_BEGIN_SQL, [
+      principal.capabilityId,
+      principal.contextClass,
+      principal.targetRole,
+      principal.purpose,
+      principal.functionIdentity ?? null,
+      typedArgsHash,
+      actorRef,
+      subjectRef,
+      organizationId,
+      integratorUserId,
+      requestId,
+    ]);
   } catch (error) {
     const failure = fail(error);
     if (begun) {
@@ -515,9 +522,7 @@ export async function startPortContextTransaction(
     client,
     commit: async () => {
       try {
-        await client.query('RESET ROLE');
-        await client.query('SELECT app.clear_port_context()');
-        await client.query('COMMIT');
+        await client.query(PORT_CONTEXT_CLOSE_SQL);
       } catch (error) {
         throw fail(error);
       }

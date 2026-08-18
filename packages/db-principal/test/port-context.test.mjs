@@ -49,19 +49,39 @@ test('sends no request id for a staff context', async () => {
 
   await withPortContextTransaction(client, STAFF_PRINCIPAL, async () => undefined);
 
-  const install = queries.find(([sql]) => sql.includes('app.install_port_context'));
-  assert.ok(install, 'install_port_context was not called');
+  const install = queries.find(([sql]) => sql.includes('app.begin_port_context'));
+  assert.ok(install, 'begin_port_context was not called');
   assert.equal(install[1][10], null);
 });
 
+/**
+ * Что ловит: молчаливую потерю оператора шва при сборке поездок в базу. Порядок операторов —
+ * это и есть контракт: контекст ставится ПОСЛЕ `RESET ROLE`, целевая роль принимается ПОСЛЕ
+ * установки контекста, и обе уборки (`RESET ROLE`, `clear`) уходят ДО `COMMIT`, в той же
+ * транзакции. Тест сравнивает точный текст, а не число поездок.
+ */
+test('opens, installs and closes a port context in exactly three round trips', async () => {
+  const { client, queries } = recordingClient();
+
+  await withPortContextTransaction(client, STAFF_PRINCIPAL, async () => undefined);
+
+  assert.deepEqual(
+    queries.map(([sql]) => sql),
+    [
+      'BEGIN; RESET ROLE',
+      'SELECT app.begin_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
+      'RESET ROLE; SELECT app.clear_port_context(); COMMIT',
+    ],
+  );
+  // Роль, которую примет база, приезжает значением claims — порт больше не собирает `SET LOCAL
+  // ROLE` из строки, и подменить её мимо capability нечем.
+  assert.equal(queries[1][1][2], 'app_staff');
+});
+
 test('destroys the checkout when success-path cleanup fails', async () => {
-  let clearCalls = 0;
   const cleanupFailure = new Error('injected cleanup failure');
   const { client, releases } = recordingClient(async (sql) => {
-    if (sql === 'SELECT app.clear_port_context()') {
-      clearCalls += 1;
-      if (clearCalls === 2) throw cleanupFailure;
-    }
+    if (sql.includes('app.clear_port_context') && sql.includes('COMMIT')) throw cleanupFailure;
   });
 
   await assert.rejects(
@@ -125,7 +145,7 @@ test('accepts an exact named root for a staff context and installs its canonical
     },
     async () => undefined,
   );
-  const install = queries.find(([sql]) => sql.includes('app.install_port_context'));
+  const install = queries.find(([sql]) => sql.includes('app.begin_port_context'));
   assert.ok(install);
   assert.equal(install[1][4], 'app.save_staff_profile(uuid,text)');
   assert.deepEqual(
@@ -152,7 +172,7 @@ test('allows patient relation context and the exact organization resolver before
     },
     async () => undefined,
   );
-  assert.ok(queries.some(([sql]) => sql.includes('app.install_port_context')));
+  assert.ok(queries.some(([sql]) => sql.includes('app.begin_port_context')));
 
   const relation = recordingClient();
   await withPortContextTransaction(
@@ -167,7 +187,7 @@ test('allows patient relation context and the exact organization resolver before
       },
       async () => undefined,
   );
-  assert.ok(relation.queries.some(([sql]) => sql.includes('app.install_port_context')));
+  assert.ok(relation.queries.some(([sql]) => sql.includes('app.begin_port_context')));
 });
 
 test('allows the narrow integrator resolver without a routed user or organization', async () => {
@@ -184,7 +204,7 @@ test('allows the narrow integrator resolver without a routed user or organizatio
     },
     async () => undefined,
   );
-  const install = queries.find(([sql]) => sql.includes('app.install_port_context'));
+  const install = queries.find(([sql]) => sql.includes('app.begin_port_context'));
   assert.ok(install);
   assert.equal(install[1][2], 'app_integrator_resolver');
   assert.equal(install[1][7], null);

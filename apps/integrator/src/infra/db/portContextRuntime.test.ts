@@ -207,7 +207,7 @@ describe('integrator port-context runtime', () => {
       poolFactory: () => {
         const client = {
           query: async (query: string, values?: readonly unknown[]) => {
-            if (query.includes('app.install_port_context')) installs.push([...(values ?? [])]);
+            if (query.includes('app.begin_port_context')) installs.push([...(values ?? [])]);
             return { rows: [], rowCount: 0 };
           },
           release: () => undefined,
