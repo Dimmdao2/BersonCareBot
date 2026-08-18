@@ -3006,7 +3006,9 @@ describe('бесплатный тариф неоплачиваем (решени
   });
 
   it('платный тариф по-прежнему доходит до платёжной двери и получает ссылку', async () => {
-    const createIntent = vi.fn(async () => ({
+    // Дверь объявлена с аргументом намеренно: тест проверяет не только факт вызова, но и сумму,
+    // с которой в неё вошли, — без типа параметра `mock.calls[0][0]` недостижим.
+    const createIntent = vi.fn(async (_intent: { amountMinor: number; currency: string }) => ({
       providerIntentRef: 'provider-paid-1',
       checkoutUrl: 'https://pay.example/paid-1',
     }));
