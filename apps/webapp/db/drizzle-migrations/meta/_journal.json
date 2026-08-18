@@ -169,6 +169,13 @@
       "when": 1800000023000,
       "tag": "0023_purchased_tariff_invoice_refresh",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1800000024000,
+      "tag": "0024_first_tariff_choice_awaits_payment",
+      "breakpoints": true
     }
   ]
 }

@@ -17,10 +17,11 @@ describe('PayTariffButton', () => {
       <PayTariffButton
         billingEmail={null}
         tariffChange={{
-          choices: [],
-          currentTariffId: null,
+          choices: [{ id: 'tariff-1', name: 'Базовый' }],
+          currentTariffId: 'tariff-1',
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          awaitingFirstPayment: false,
           payable: true,
         }}
       />,
@@ -64,10 +65,11 @@ describe('PayTariffButton', () => {
       <PayTariffButton
         billingEmail="clinic@example.test"
         tariffChange={{
-          choices: [],
-          currentTariffId: null,
+          choices: [{ id: 'tariff-1', name: 'Базовый' }],
+          currentTariffId: 'tariff-1',
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          awaitingFirstPayment: false,
           payable: true,
         }}
       />,
@@ -92,10 +94,11 @@ describe('PayTariffButton', () => {
       <PayTariffButton
         billingEmail="clinic@example.test"
         tariffChange={{
-          choices: [],
-          currentTariffId: null,
+          choices: [{ id: 'tariff-free', name: 'Бесплатный' }],
+          currentTariffId: 'tariff-free',
           pendingTariffId: null,
           pendingEffectiveAt: null,
+          awaitingFirstPayment: false,
           payable: false,
         }}
       />,
