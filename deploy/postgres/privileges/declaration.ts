@@ -2231,7 +2231,6 @@ const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
   'api/internal/product-analytics/retention:POST',
-  'operator-health-failure-archive:prune',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
@@ -2607,6 +2606,10 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.webhook-errors.prune',
       functionIdentity: 'app.prune_integration_webhook_error_events(integer)' },
+    webapp_health_archive_prune: { port: 'webapp', runtimeName: 'health_archive_prune',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.failure-archive.prune',
+      functionIdentity: 'app.prune_operator_health_failure_archive(integer)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -3722,6 +3725,14 @@ const REV10_CONTEXT = {
       purpose: 'delete only webhook error events older than the attested retention window', typedArgs: ['integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.integration_webhook_error_events', columns: ['occurred_at'],
+        operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.prune_operator_health_failure_archive(integer)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: ['app_worker'],
+      purpose: 'delete only archived health failures older than the attested retention window', typedArgs: ['integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_health_failure_archive', columns: ['archived_at'],
         operations: ['SELECT' as const, 'DELETE' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
@@ -5763,11 +5774,10 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
   },
   'public.operator_health_failure_archive': {
-    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; the maintenance worker prunes expired rows; platform access is sanitized through named seams',
+    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; retention and platform access are sanitized through named seams',
     codePaths: ['apps/webapp/src/app/api/doctor/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
   },
   'integrator.projection_outbox': {

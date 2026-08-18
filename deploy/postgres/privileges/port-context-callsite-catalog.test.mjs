@@ -408,6 +408,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'health.webhook-errors.prune', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
   },
+  'app.prune_operator_health_failure_archive(integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.failure-archive.prune', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts',
+  },
   'app.resolve_outgoing_delivery_scope(uuid)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
     purpose: 'delivery.resolve-scope', argCount: 1,
@@ -903,7 +908,6 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/internal/media-hls-proxy-errors/retention:POST',
     'api/internal/media-playback-stats/retention:POST',
     'api/internal/product-analytics/retention:POST',
-    'operator-health-failure-archive:prune',
   ],
   'webapp:telemetry': ['webapp-saas-isolation-telemetry'],
 }));

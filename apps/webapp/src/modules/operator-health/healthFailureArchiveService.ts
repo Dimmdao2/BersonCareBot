@@ -66,10 +66,7 @@ export function createHealthFailureArchiveService(port: HealthFailureArchivePort
     listForDoctor: port.listForDoctor.bind(port),
 
     async purgeExpired(): Promise<{ deleted: number }> {
-      const cutoff = new Date(
-        Date.now() - HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS * 86400000,
-      ).toISOString();
-      const deleted = await port.deleteArchivedBefore(cutoff);
+      const deleted = await port.pruneArchivedOlderThanDays(HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS);
       return { deleted };
     },
   };

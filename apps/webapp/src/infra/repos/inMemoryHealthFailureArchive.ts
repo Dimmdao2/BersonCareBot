@@ -23,7 +23,7 @@ export const inMemoryHealthFailureArchivePort: HealthFailureArchivePort = {
   async listForDoctor(): Promise<HealthFailureArchiveListResult> {
     return { items: [], nextCursor: null };
   },
-  async deleteArchivedBefore(): Promise<number> {
+  async pruneArchivedOlderThanDays(): Promise<number> {
     return 0;
   },
 };
