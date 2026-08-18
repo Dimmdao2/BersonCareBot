@@ -4,6 +4,10 @@ import { beOrganizationMembers, beOrganizations } from '../../../db/schema/booki
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
+import {
+  billableAdditionalSeats,
+  proratedSeatPriceMinor,
+} from '@/modules/saas-billing/proration';
 
 export type StockQuotaMechanic = 'patient_count' | 'branches' | 'files';
 export type TransactionQuotaMechanic = StockQuotaMechanic | 'clinic_team';
@@ -64,13 +68,22 @@ export function decideStockQuota(input: {
   return input.used + input.increment > limit ? 'reached' : 'allowed';
 }
 
-/** Pure decision shared by the transaction-scoped clinic-team seat recount. */
+/**
+ * Pure decision shared by the transaction-scoped clinic-team seat recount.
+ *
+ * This is the ONE place a paid seat is priced: the number quoted to the clinic on the team screen
+ * and the number written on its invoice are the same call, so they cannot disagree. The price is
+ * prorated to the days left in the already-paid period (owner 18.08) — see `proratedSeatPriceMinor`.
+ */
 export function decideClinicTeamQuota(input: {
   includedSeats: number | null;
   paidAdditionalSeats: number;
   used: number;
   additionalSeatPriceMinor: number | null;
   currency: string | null;
+  currentPeriodStartsAt: string | null;
+  currentPeriodEndsAt: string | null;
+  asOf: string;
 }): ClinicTeamQuotaDecision {
   if (input.includedSeats === null) {
     return { allowed: false, code: 'seat_limit_reached' };
@@ -83,7 +96,12 @@ export function decideClinicTeamQuota(input: {
   return {
     allowed: false,
     code: 'seat_overage_confirmation_required',
-    priceMinor: input.additionalSeatPriceMinor,
+    priceMinor: proratedSeatPriceMinor({
+      seatPriceMinor: input.additionalSeatPriceMinor,
+      periodStartsAt: input.currentPeriodStartsAt,
+      periodEndsAt: input.currentPeriodEndsAt,
+      asOf: input.asOf,
+    }),
     currency: input.currency,
   };
 }
@@ -150,7 +168,11 @@ async function readClinicTeamContext(tx: WebappSqlExecutor, organizationId: stri
     )
     .limit(1);
   const [subscription] = await tx
-    .select({ value: saasBillingSubscriptions.paidAdditionalSeats })
+    .select({
+      value: saasBillingSubscriptions.paidAdditionalSeats,
+      currentPeriodStartsAt: saasBillingSubscriptions.currentPeriodStartsAt,
+      currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+    })
     .from(saasBillingSubscriptions)
     .where(
       and(
@@ -164,6 +186,8 @@ async function readClinicTeamContext(tx: WebappSqlExecutor, organizationId: stri
     paidAdditionalSeats: subscription?.value ?? 0,
     additionalSeatPriceMinor: tariff?.additional_seat_price_minor ?? null,
     currency: tariff?.currency ?? null,
+    currentPeriodStartsAt: subscription?.currentPeriodStartsAt ?? null,
+    currentPeriodEndsAt: subscription?.currentPeriodEndsAt ?? null,
   };
 }
 
@@ -232,6 +256,7 @@ export function createTransactionQuotaPort() {
         resolveClinicTeamAvailability(input?: {
           excludedPendingEmail?: string;
         }): Promise<ClinicTeamQuotaDecision>;
+        resolveBillableAdditionalSeats(paidAdditionalSeats: number): Promise<number>;
       }) => Promise<T>,
     ): Promise<T> {
       const lockKey = input.mechanic === 'clinic_team'
@@ -260,6 +285,21 @@ export function createTransactionQuotaPort() {
           return decideClinicTeamQuota({
             ...context,
             used: await countClinicTeamUsage(tx, input.organizationId, options.excludedPendingEmail),
+            asOf: new Date().toISOString(),
+          });
+        },
+        /**
+         * How many paid seats the NEXT period actually bills. Same lock and same usage count as
+         * the purchase door above, so a seat bought and a seat billed can never be counted by two
+         * different rules. `paidAdditionalSeats` is passed in by the caller, which already holds
+         * the subscription row `FOR UPDATE`.
+         */
+        async resolveBillableAdditionalSeats(paidAdditionalSeats) {
+          const context = await readClinicTeamContext(tx, input.organizationId);
+          return billableAdditionalSeats({
+            includedSeats: context.includedSeats,
+            paidAdditionalSeats,
+            activeSeatsUsed: await countClinicTeamUsage(tx, input.organizationId, undefined),
           });
         },
       });

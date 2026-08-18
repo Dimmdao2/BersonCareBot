@@ -15,7 +15,10 @@ import type {
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
 import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
-import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
+import {
+  proratedRemainingPeriodAmountMinor,
+  saasBillingPeriodAmountMinor,
+} from '@/modules/saas-billing/proration';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
@@ -186,10 +189,18 @@ async function promotePaidInvoice(
       invoice.tariffId !== (subscription.pendingTariffId ?? subscription.tariffId))
   ) return false;
   const tariffSnapshot = invoice.tariffSnapshot ?? await readTariffSnapshotForPeriod(tx, invoice.tariffId);
+  // Решение владельца 18.08: «Удалили/отключили сотрудника — со следующего периода стоимость
+  // меньше». The new period starts owing exactly the seats its own invoice billed, so the
+  // allowance and the money agree by construction and the counter can go DOWN, not only up.
+  // Only a renewal period invoice carries that quantity: a manual invoice always has a
+  // description, and mid-period seat/upgrade invoices never reach this boundary promotion.
+  const isRenewalPeriodInvoice =
+    invoice.invoiceKind === 'tariff_period' && invoice.description === null;
   await tx.update(saasBillingSubscriptions).set({
     tariffId: invoice.tariffId, pendingTariffId: null, status: 'active', lifecycleState: 'active',
     cancelledAt: null, currentPeriodStartsAt: invoice.servicePeriodStartsAt,
     currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
+    ...(isRenewalPeriodInvoice ? { paidAdditionalSeats: invoice.additionalSeatQuantity } : {}),
   }).where(eq(saasBillingSubscriptions.id, subscription.id));
   await applyPaidSaasBillingTariff(tx, invoice.id, organizationId);
   if (subscription.pendingTariffId !== null) {
@@ -870,11 +881,19 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (tariff.amountMinor === null || tariff.currency === null) {
           throw new Error('saas_billing_tariff_not_billable');
         }
-        if (subscription.paidAdditionalSeats > 0 && tariff.additionalSeatPriceMinor === null) {
-          throw new Error('saas_billing_additional_seat_price_missing');
-        }
-        const amountMinor =
-          tariff.amountMinor + subscription.paidAdditionalSeats * (tariff.additionalSeatPriceMinor ?? 0);
+        // Решение владельца 18.08: «Удалили/отключили сотрудника — со следующего периода стоимость
+        // меньше». The seats this period bills are recounted from live membership under the same
+        // clinic-team lock the seat purchase door uses, capped by what was actually paid for.
+        const additionalSeatQuantity = await transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'clinic_team' },
+          (quota) => quota.resolveBillableAdditionalSeats(subscription.paidAdditionalSeats),
+        );
+        const amountMinor = saasBillingPeriodAmountMinor({
+          tariffPriceMinor: tariff.amountMinor,
+          additionalSeatPriceMinor: tariff.additionalSeatPriceMinor,
+          additionalSeatQuantity,
+        });
 
         if (existingRenewal) {
           // Same rule, one step further: the draft raised earlier for THIS period describes the
@@ -884,9 +903,18 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           // send the clinic to a checkout for a tariff it will not get. Only while it is still an
           // unclaimed draft: once the provider holds an order (`providerInvoiceRef`) or the invoice
           // left `draft`, the order is real and rewriting our copy of it would lie about it.
+          // Weighed against the seat count THIS draft was raised with, not today's: a draft
+          // already standing for the period is only refreshed when the TARIFF changed under it.
+          // Seat churn while an invoice for the period is open does not re-price it — the next
+          // period's own invoice is where a changed seat count lands.
           if (
             existingRenewal.tariffId === tariff.tariffId &&
-            existingRenewal.amountMinor === amountMinor
+            existingRenewal.amountMinor ===
+              saasBillingPeriodAmountMinor({
+                tariffPriceMinor: tariff.amountMinor,
+                additionalSeatPriceMinor: tariff.additionalSeatPriceMinor,
+                additionalSeatQuantity: existingRenewal.additionalSeatQuantity,
+              })
           ) {
             return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
           }
@@ -923,7 +951,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           tariffId: tariff.tariffId,
           tariffName: tariff.tariffName,
           invoiceKind: 'tariff_period',
-          additionalSeatQuantity: subscription.paidAdditionalSeats,
+          additionalSeatQuantity,
           amountMinor,
           currency: tariff.currency,
           tariffBillingPeriod: tariff.tariffBillingPeriod,
@@ -1006,7 +1034,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
         }
         if (targetTariff.priceMinor <= currentTariff.priceMinor) return { outcome: 'scheduled' };
-        const currentPeriodAdjustmentMinor = proratedTariffUpgradeAmountMinor({
+        const currentPeriodAdjustmentMinor = proratedRemainingPeriodAmountMinor({
           currentPriceMinor: currentTariff.priceMinor,
           targetPriceMinor: targetTariff.priceMinor,
           periodStartsAt: subscription.currentPeriodStartsAt,
@@ -1404,9 +1432,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           | undefined;
         if (!tariff) return { outcome: 'seat_overage_unavailable' as const };
 
+        // The client's number is only ever COMPARED here. `decision.priceMinor` — computed by
+        // `decideClinicTeamQuota` from the tariff and the days left in the paid period — is what
+        // gets written on the invoice below.
         if (
-          input.confirmedAmountMinor !== decision.priceMinor ||
-          input.confirmedCurrency !== decision.currency
+          input.quotedAmountMinor !== decision.priceMinor ||
+          input.quotedCurrency !== decision.currency
         ) {
           return {
             outcome: 'price_changed' as const,
@@ -1660,11 +1691,18 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (authority.amountMinor === null || authority.currency === null) {
           throw new Error('saas_billing_tariff_not_billable');
         }
-        if (subscription.paidAdditionalSeats > 0 && authority.additionalSeatPriceMinor === null) {
-          throw new Error('saas_billing_additional_seat_price_missing');
-        }
-        const additionalSeatQuantity = subscription.paidAdditionalSeats;
-        const amountMinor = authority.amountMinor + additionalSeatQuantity * (authority.additionalSeatPriceMinor ?? 0);
+        // Same recount as the clinic-initiated renewal above, through the same lock: one rule for
+        // "how many seats does the next period bill", whoever raises the invoice.
+        const additionalSeatQuantity = await transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'clinic_team' },
+          (quota) => quota.resolveBillableAdditionalSeats(subscription.paidAdditionalSeats),
+        );
+        const amountMinor = saasBillingPeriodAmountMinor({
+          tariffPriceMinor: authority.amountMinor,
+          additionalSeatPriceMinor: authority.additionalSeatPriceMinor,
+          additionalSeatQuantity,
+        });
 
         const tariffSnapshot = await readTariffSnapshotForPeriod(tx, authority.tariffId);
         const [inserted] = await tx

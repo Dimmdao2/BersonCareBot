@@ -197,8 +197,11 @@ export async function DELETE() {
 const purchaseSchema = z.object({
   purchase: z.literal('seat_overage'),
   requestKey: z.string().min(1).max(200),
-  amountMinor: z.number().int().nonnegative(),
-  currency: z.string().regex(/^[A-Z]{3}$/),
+  // Названо «quoted», а не «amount», потому что это НЕ цена: это то, что клинике показали и с чем
+  // она согласилась. Сервер считает цену сам и лишь СВЕРЯЕТ с этим числом; расходятся — 402
+  // `seat_overage_confirmation_required` с настоящей ценой, и клиника подтверждает заново.
+  quotedAmountMinor: z.number().int().nonnegative(),
+  quotedCurrency: z.string().regex(/^[A-Z]{3}$/),
 });
 
 export async function POST(request: Request) {

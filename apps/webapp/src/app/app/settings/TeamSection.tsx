@@ -207,8 +207,8 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
         body: JSON.stringify({
           purchase: 'seat_overage',
           requestKey: stored.requestKey,
-          amountMinor: seatOverageConfirm.priceMinor,
-          currency: seatOverageConfirm.currency,
+          quotedAmountMinor: seatOverageConfirm.priceMinor,
+          quotedCurrency: seatOverageConfirm.currency,
         }),
       });
       const body = (await response.json().catch(() => null)) as
