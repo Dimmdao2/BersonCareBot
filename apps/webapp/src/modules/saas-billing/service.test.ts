@@ -2537,6 +2537,7 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         }),
       },
       resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
     });
     await seedOrgWithTariff(service);
 
@@ -2545,7 +2546,6 @@ describe('К4 round 2: повторное «Выставить счёт» не �
       amountMinor: 5_000,
       currency: 'RUB',
       description: 'Счёт за тариф',
-      expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
     };
 
     const first = await service.createManualSaasBillingInvoice(request);
@@ -2567,7 +2567,8 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         purpose: 'saas_billing_tariff_renewal',
         subjectRef: first.id,
         returnUrl: expect.stringMatching(/^https?:\/\/[^/]+\/app\/settings\?tab=billing$/),
-        invoice: { description: 'Счёт за тариф', expiresAt: request.expiresAt },
+        // Этап 1, пункт 1.3 — 30 дней от момента выставления, не выбор администратора.
+        invoice: { description: 'Счёт за тариф', expiresAt: '2026-09-01T00:00:00.000Z' },
       }),
     );
 
@@ -2611,7 +2612,6 @@ describe('К4 round 2: повторное «Выставить счёт» не �
       amountMinor: 5_000,
       currency: 'RUB',
       description: 'Счёт за тариф',
-      expiresAt: '2026-08-05T00:00:00.000Z',
     };
 
     const first = await service.createManualSaasBillingInvoice(request);
@@ -2664,7 +2664,6 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         amountMinor: 5_000,
         currency: 'RUB',
         description: 'Счёт за тариф',
-        expiresAt: '2026-08-20T00:00:00.000Z',
       }),
     ).rejects.toThrow('saas_billing_receipt_vat_code_missing');
 
@@ -2682,7 +2681,6 @@ describe('К4: черновик после сбоя провайдера мож�
     amountMinor: 5_000,
     currency: 'RUB',
     description: 'Счёт за тариф',
-    expiresAt: '2026-08-05T00:00:00.000Z',
   };
 
   async function createService(createIntent: ReturnType<typeof vi.fn>) {

@@ -11,6 +11,10 @@ import type {
 } from '@/modules/saas-billing/ports';
 import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
 import {
+  isSaasBillingInvoicePayable,
+  SAAS_BILLING_INVOICE_VALIDITY_DAYS,
+} from '@/modules/saas-billing/invoiceValidity';
+import {
   Card,
   CardAction,
   CardContent,
@@ -61,14 +65,15 @@ function statusBadgeVariant(
 }
 
 /**
- * К4 — "просрочен" is never a stored status: derived here from `expiresAt` vs now, only for a row
- * still awaiting payment. See PAYMENTS_CABINET_PLAN.md К4 item 3.
+ * К4 — "просрочен" is never a stored status: derived from `expiresAt` vs now, only for a row still
+ * awaiting payment. See PAYMENTS_CABINET_PLAN.md К4 item 3. Этап 1, пункт 1.3 — the "is this
+ * invoice still alive" rule itself lives in `modules/saas-billing/invoiceValidity.ts` and is read
+ * from there, never re-derived on the screen.
  */
 function isInvoiceOverdue(row: SaasBillingPlatformInvoiceRow): boolean {
   return (
     (row.status === 'draft' || row.status === 'pending') &&
-    row.expiresAt !== null &&
-    new Date(row.expiresAt).getTime() < Date.now()
+    !isSaasBillingInvoicePayable(row, new Date())
   );
 }
 
@@ -102,7 +107,6 @@ const MANUAL_INVOICE_ERROR_LABELS: Record<string, string> = {
   saas_billing_no_tariff_assigned: 'У клиники нет назначенного тарифа — сначала назначьте его.',
   saas_billing_manual_invoice_amount_must_be_positive_integer: 'Сумма должна быть больше нуля.',
   saas_billing_manual_invoice_description_required: 'Укажите, за что счёт.',
-  saas_billing_manual_invoice_expiry_invalid: 'Срок действия должен быть в будущем.',
   saas_billing_payment_provider_unavailable: 'У провайдера нет рабочих ключей для платформенного магазина.',
   saas_billing_provider_invoices_unsupported: 'Выбранный провайдер не поддерживает выставление счетов.',
   saas_billing_provider_rejected_invoice: 'Провайдер отклонил выставление счёта.',
@@ -640,12 +644,6 @@ type TariffOption = {
 };
 
 /** `datetime-local` input value, three days out — a visible, editable default, not a hidden one. */
-function defaultExpiresAtLocal(): string {
-  const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 type ManualInvoiceApiResponse =
   | { ok: true; invoice: SaasBillingPlatformInvoiceRow }
   | { ok: false; error?: string };
@@ -665,7 +663,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [amountRub, setAmountRub] = useState('');
   const [currency, setCurrency] = useState('RUB');
   const [description, setDescription] = useState('');
-  const [expiresAtLocal, setExpiresAtLocal] = useState(defaultExpiresAtLocal);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
@@ -727,11 +724,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
       setError('Укажите, за что счёт.');
       return;
     }
-    const expiresAtDate = new Date(expiresAtLocal);
-    if (Number.isNaN(expiresAtDate.getTime()) || expiresAtDate.getTime() <= Date.now()) {
-      setError('Срок действия должен быть в будущем.');
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
@@ -744,7 +736,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
           amountMinor,
           currency,
           description: description.trim(),
-          expiresAt: expiresAtDate.toISOString(),
         }),
       });
       if (json.ok) {
@@ -756,7 +747,7 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
     } finally {
       setSubmitting(false);
     }
-  }, [amountRub, currency, description, expiresAtLocal, organizationId, onCreated]);
+  }, [amountRub, currency, description, organizationId, onCreated]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -764,7 +755,8 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
         <DialogHeader>
           <DialogTitle>Выставить счёт</DialogTitle>
           <DialogDescription>
-            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике.
+            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике. Оплатить его
+            можно {SAAS_BILLING_INVOICE_VALIDITY_DAYS} дней.
           </DialogDescription>
         </DialogHeader>
 
@@ -846,15 +838,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="manual-invoice-expires">Срок действия (до)</Label>
-              <Input
-                id="manual-invoice-expires"
-                type="datetime-local"
-                value={expiresAtLocal}
-                onChange={(e) => setExpiresAtLocal(e.target.value)}
               />
             </div>
             {error && (
