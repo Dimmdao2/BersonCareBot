@@ -393,6 +393,18 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       const conds = [];
       if (filter.periodFrom) conds.push(gte(saasBillingInvoices.createdAt, filter.periodFrom));
       if (filter.periodTo) conds.push(lte(saasBillingInvoices.createdAt, filter.periodTo));
+      if (filter.paidFrom) conds.push(gte(saasBillingInvoices.paidAt, filter.paidFrom));
+      if (filter.paidTo) conds.push(lte(saasBillingInvoices.paidAt, filter.paidTo));
+      if (filter.providerInvoiceRefs) {
+        // An empty request matches nothing. `inArray` with an empty list is not a safe way to say
+        // that, so the impossible predicate is written out — otherwise "look up these zero refs"
+        // would silently mean "give me the whole journal".
+        conds.push(
+          filter.providerInvoiceRefs.length
+            ? inArray(saasBillingInvoices.providerInvoiceRef, filter.providerInvoiceRefs)
+            : sql`false`,
+        );
+      }
       if (filter.status) conds.push(eq(saasBillingInvoices.status, filter.status));
       const payerSearch = filter.payerSearch?.trim();
       if (payerSearch) conds.push(ilike(beOrganizations.title, `%${payerSearch}%`));

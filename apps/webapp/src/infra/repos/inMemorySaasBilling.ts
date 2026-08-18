@@ -220,13 +220,26 @@ export function createInMemorySaasBillingRepository(
 
     async listPlatformInvoices(filter) {
       const now = new Date().toISOString();
+      const paidAtOf = (row: { status: string }) => (row.status === 'paid' ? now : null);
       return [...invoices.values()]
         .filter((row) => !filter.status || row.status === filter.status)
         .filter((row) => !filter.periodFrom || now >= filter.periodFrom)
         .filter((row) => !filter.periodTo || now <= filter.periodTo)
+        .filter((row) => {
+          const paidAt = paidAtOf(row);
+          if (filter.paidFrom && (paidAt === null || paidAt < filter.paidFrom)) return false;
+          if (filter.paidTo && (paidAt === null || paidAt > filter.paidTo)) return false;
+          return true;
+        })
+        .filter(
+          (row) =>
+            !filter.providerInvoiceRefs ||
+            (row.providerInvoiceRef !== null &&
+              filter.providerInvoiceRefs.includes(row.providerInvoiceRef)),
+        )
         .map((row) => ({
           ...row,
-          paidAt: row.status === 'paid' ? now : null,
+          paidAt: paidAtOf(row),
           createdAt: now,
           updatedAt: now,
           organizationId: row.organizationId,

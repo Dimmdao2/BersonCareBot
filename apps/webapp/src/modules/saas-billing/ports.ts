@@ -130,6 +130,21 @@ export type SaasBillingPlatformInvoiceFilter = {
   periodFrom?: string;
   /** Inclusive upper bound on `createdAt`. */
   periodTo?: string;
+  /**
+   * Этап 1, пункт 1.4 — inclusive bounds on `paidAt`, the date MONEY arrived, which is a different
+   * date from `createdAt`: an invoice raised a month ago and paid today belongs in today's window,
+   * not in last month's. The reconciliation compares the journal against the provider's list of
+   * payments created in a period, so the journal side must be windowed by payment date or every
+   * such invoice reads as a discrepancy. Unpaid invoices have no `paidAt` and never match.
+   */
+  paidFrom?: string;
+  paidTo?: string;
+  /**
+   * Этап 1, пункт 1.4 — point lookup by the provider's ref, deliberately WITHOUT any date window:
+   * the opposite direction (a payment the provider has, is it in our journal?) must find the
+   * invoice however long ago it was raised. An EMPTY array matches nothing, never everything.
+   */
+  providerInvoiceRefs?: string[];
   status?: SaasBillingInvoiceStatus;
   /** Matched against the payer's (clinic's) organization title, case-insensitive substring. */
   payerSearch?: string;

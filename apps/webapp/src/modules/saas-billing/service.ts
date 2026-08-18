@@ -635,10 +635,16 @@ export function createSaasBillingService(dependencies: {
         return { outcome: 'provider_unavailable', providerId: provider.providerId };
       }
 
+      // Этап 1, пункт 1.4 — the two directions are asked DIFFERENT questions and therefore need
+      // different windows. Journal → provider: "we recorded this money as received in this period,
+      // does the provider agree?" — so the journal side is windowed by the date money arrived
+      // (`paidAt`), which is the same clock the provider's `created_at` window runs on. Cutting the
+      // journal by `createdAt` instead made every invoice raised earlier and paid inside the window
+      // a permanent discrepancy.
       const [journalRows, providerList] = await Promise.all([
         dependencies.repository.listPlatformInvoices({
-          periodFrom: input.periodFrom,
-          periodTo: input.periodTo,
+          paidFrom: input.periodFrom,
+          paidTo: input.periodTo,
         }),
         provider.adapter
           .listPayments({
@@ -657,11 +663,22 @@ export function createSaasBillingService(dependencies: {
       const comparableJournalRows = journalRows.filter(
         (row) => row.providerId === provider.providerId && row.providerInvoiceRef,
       );
-      const journalByRef = new Map(
-        comparableJournalRows.map((row) => [row.providerInvoiceRef as string, row]),
-      );
       const providerByRef = new Map(
         providerList.items.map((item) => [item.providerPaymentRef, item]),
+      );
+
+      // Provider → journal: "the provider has this money, do we?" — a point lookup by ref over the
+      // WHOLE journal, no date window at all. The invoice this payment settles may have been raised
+      // any time before; `saas_billing_invoices_provider_ref_uidx` makes the lookup exact.
+      const journalRowsByProviderRef = providerList.items.length
+        ? await dependencies.repository.listPlatformInvoices({
+            providerInvoiceRefs: providerList.items.map((item) => item.providerPaymentRef),
+          })
+        : [];
+      const journalByRef = new Map(
+        journalRowsByProviderRef
+          .filter((row) => row.providerId === provider.providerId && row.providerInvoiceRef)
+          .map((row) => [row.providerInvoiceRef as string, row]),
       );
 
       const discrepancies: SaasBillingReconciliationDiscrepancy[] = [];
