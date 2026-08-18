@@ -1085,6 +1085,12 @@ export function createSaasBillingService(dependencies: {
         choices: choices.map(({ id, name }) => ({ id, name })),
         currentTariffId,
         pendingTariffId,
+        // Решение владельца 18.08 (L-11), дословно: «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И
+        // ПОТОМ ПОЛУЧАЕТ ДОСТУП». Выбранный тариф живёт в строке подписки, действующий — в
+        // назначении организации (`be_organizations.tariff_id`, миграция 0024). Разошлись — значит
+        // выбор сделан, а доступ ещё не куплен: экран обязан сказать это прямо и довести до оплаты,
+        // а не выдать выбор за действующий тариф.
+        awaitingFirstPayment: assignedTariffId === null && currentTariffId !== null,
         pendingEffectiveAt: pendingTariffId ? subscription?.currentPeriodEndsAt ?? null : null,
         // Owner ruling 18.08.2026 — the screen weighs the price of the tariff the pay route would
         // actually bill: the same `purchasedTariffId` rule, so it never offers a payment the route

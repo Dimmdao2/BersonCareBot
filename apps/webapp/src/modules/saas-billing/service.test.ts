@@ -17,6 +17,7 @@ import type {
 } from './ports';
 import { PaymentProviderRequestRefusedError, type PaymentProviderPort } from '@/modules/payments/providerPort';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
+import { resolveCommercialAccess } from '@/infra/repos/commercialAccessComputation';
 import type { BillingPeriodOption } from './billingPeriodCatalog';
 
 const DEFAULT_TEST_BILLING_PERIODS: BillingPeriodOption[] = [
@@ -878,6 +879,141 @@ describe('§5a #1069 T5 (owner 03.08) — first tariff attachment gets the one-t
     expect(result.outcome).toBe('checkout');
     if (result.outcome !== 'checkout') throw new Error('checkout expected');
     expect(result.invoice.providerCheckoutUrl).toBeTruthy();
+  });
+});
+
+/**
+ * L-11, решение владельца 18.08 дословно: «про клинику, у которой он уже закончился: она выбирает
+ * платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ ПОЛУЧАЕТ ДОСТУП».
+ *
+ * Поломка, которую ловит этот блок: выбор первого тарифа записывает его как ДЕЙСТВУЮЩИЙ тариф
+ * организации (`be_organizations.tariff_id`) до всякой оплаты. Отказ дорогой и молчаливый: у
+ * организации без записи о пробном периоде `resolveCommercialAccess` берёт ветку `assignment`
+ * прямо из этого поля и отдаёт все механики выбранного тарифа бесплатно — денег нет, доступ есть,
+ * и снаружи это выглядит как обычная работающая клиника.
+ *
+ * Oracle — решение владельца, не реализация: действующий тариф появляется только по факту оплаты
+ * (`app.apply_paid_saas_billing_tariff`), а до неё доступа нет.
+ */
+describe('L-11: выбранный тариф не действует, действующим его делает оплата', () => {
+  const basicTariff = {
+    id: 'tariff-basic',
+    name: 'Базовый',
+    priceMinor: 250_000,
+    currency: 'RUB',
+    billingPeriod: 'month',
+  };
+
+  /**
+   * `trialPolicy: null` — организация, которой пробный период дать неоткуда (политика владельца
+   * выключена либо её пробный период уже прожит). Именно эта организация в проде и получала
+   * выбранный тариф даром.
+   */
+  function firstChoiceService(options: { trialPolicy?: { durationDays: number } | null } = {}) {
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [basicTariff],
+      trialPolicy: options.trialPolicy
+        ? {
+            // Длительность здесь — произвольная величина фикстуры, а не «наш пробный период»:
+            // настоящая живёт в настройке владельца `saas_trial_policy` и меняется им в любой момент.
+            durationDays: options.trialPolicy.durationDays,
+            discountWindowDays: 0,
+            postTrialBehavior: 'blocked',
+            postTrialTariffId: null,
+          }
+        : null,
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-18T00:00:00.000Z'),
+      // Как в проде: «есть ли уже действующий тариф» читается из назначения организации, а не из
+      // строки подписки, — иначе первый выбор перестал бы быть первым сразу после самого себя.
+      getTariffTransition: async (organizationId, tariffId) => ({
+        currentTariffId: await repository.getOrganizationAssignedTariffId(organizationId),
+        targetTariffId: tariffId,
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+    return { repository, service };
+  }
+
+  /** Что видит живая клиника: тариф в силе или нет. Та же функция, что и на снимке прав. */
+  async function tariffInForce(
+    repository: ReturnType<typeof firstChoiceService>['repository'],
+    organizationId: string,
+  ) {
+    return resolveCommercialAccess({
+      organizationTariffId: await repository.getOrganizationAssignedTariffId(organizationId),
+      trial: null,
+      paidPeriod: null,
+      now: Date.parse('2026-08-18T00:00:00.000Z'),
+    }).tariffId;
+  }
+
+  it('выбор платного тарифа не даёт ничего: счёт выставлен, тариф не действует', async () => {
+    const { repository, service } = firstChoiceService({ trialPolicy: null });
+
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-no-trial',
+      tariffId: basicTariff.id,
+      actorId: 'owner-1',
+    });
+
+    expect(result.outcome).toBe('checkout');
+    if (result.outcome !== 'checkout') throw new Error('checkout expected');
+    // Клиника не брошена: у неё есть счёт ровно на выбранный тариф и ссылка на оплату.
+    expect(result.invoice).toMatchObject({
+      tariffId: basicTariff.id,
+      amountMinor: basicTariff.priceMinor,
+    });
+    expect(result.invoice.providerCheckoutUrl).toBeTruthy();
+    // И при этом — ни одной механики: действующего тарифа нет.
+    expect(await tariffInForce(repository, 'org-no-trial')).toBeNull();
+  });
+
+  it('оплата счёта делает выбранный тариф действующим', async () => {
+    const { repository, service } = firstChoiceService({ trialPolicy: null });
+    const chosen = await service.scheduleOwnTariffChange({
+      organizationId: 'org-pays',
+      tariffId: basicTariff.id,
+      actorId: 'owner-1',
+    });
+    if (chosen.outcome !== 'checkout') throw new Error('checkout expected');
+    expect(await tariffInForce(repository, 'org-pays')).toBeNull();
+
+    await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-pays',
+      saasBillingInvoiceId: chosen.invoice.id,
+      providerId: chosen.invoice.providerId,
+      verified: {
+        idempotencyKey: 'provider-event-1',
+        eventType: 'payment.succeeded',
+        amountMinor: basicTariff.priceMinor,
+        payload: { currency: basicTariff.currency },
+      },
+    });
+
+    expect(await tariffInForce(repository, 'org-pays')).toBe(basicTariff.id);
+  });
+
+  it('единственный доступ без оплаты — начавшийся пробный период', async () => {
+    const { repository, service } = firstChoiceService({ trialPolicy: { durationDays: 3 } });
+
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-trial',
+      tariffId: basicTariff.id,
+      actorId: 'owner-1',
+    });
+
+    expect(result.outcome).toBe('trial_started');
+    expect(await tariffInForce(repository, 'org-trial')).toBe(basicTariff.id);
   });
 });
 

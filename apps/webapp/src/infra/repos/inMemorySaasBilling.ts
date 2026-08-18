@@ -158,7 +158,6 @@ export function createInMemorySaasBillingRepository(
         throw new Error('organization_tariff_already_assigned');
       }
       if (!tariffs.has(tariffId)) throw new Error('tariff_not_found');
-      organizationTariffs.set(organizationId, tariffId);
       const key = subscriptionKey(organizationId, 'paid_subscription');
       rows.set(key, {
         id: crypto.randomUUID(),
@@ -182,6 +181,11 @@ export function createInMemorySaasBillingRepository(
         paidAdditionalSeats: 0,
       });
       void actorId;
+      // Зеркало миграции 0024 (владелец 18.08, L-11): выбор записан строкой подписки
+      // `pending_payment`, но действующим тарифом организации (`organizationTariffs`, он же
+      // `be_organizations.tariff_id`) выбранный НЕ становится. Доступ без оплаты даёт только
+      // реально начавшийся пробный период; в платном случае тариф вступит в силу единственным
+      // путём — когда счёт будет оплачен (`captureSaasBillingPayment` ниже).
       if (organizationTrials.has(organizationId) || !trialPolicy) {
         return { outcome: 'payment_required' };
       }
@@ -195,6 +199,7 @@ export function createInMemorySaasBillingRepository(
         status: 'active',
         endsAt,
       });
+      organizationTariffs.set(organizationId, tariffId);
       return { outcome: 'trial_started', endsAt };
     },
 
@@ -869,10 +874,12 @@ export function createInMemorySaasBillingRepository(
     },
 
     async requireOwnTariffBillingSubscription(organizationId) {
-      const tariffId = organizationTariffs.get(organizationId) ?? null;
-      if (!tariffId) throw new Error('saas_billing_no_tariff_assigned');
       const key = subscriptionKey(organizationId, 'paid_subscription');
       const current = rows.get(key);
+      // Как в pg-репозитории: действующий тариф организации, а если его ещё нет — выбранный,
+      // который ждёт оплаты в собственной строке подписки (владелец 18.08, L-11).
+      const tariffId = organizationTariffs.get(organizationId) ?? current?.tariffId ?? null;
+      if (!tariffId) throw new Error('saas_billing_no_tariff_assigned');
       const row: SaasBillingSubscription = {
         id: current?.id ?? crypto.randomUUID(),
         organizationId,

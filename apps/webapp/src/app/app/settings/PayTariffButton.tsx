@@ -62,6 +62,11 @@ export type ClinicTariffChangeState = {
   currentTariffId: string | null;
   pendingTariffId: string | null;
   pendingEffectiveAt: string | null;
+  /**
+   * Решение владельца 18.08 (L-11): тариф выбран, но ещё не оплачен — значит ещё не действует.
+   * Сервер решает это один раз (`getOwnTariffChangeState`), экран только подчиняется.
+   */
+  awaitingFirstPayment: boolean;
   /** `false` for a tariff priced at zero — the server decides this, the screen only obeys it. */
   payable: boolean;
 };
@@ -208,7 +213,9 @@ export function PayTariffButton({
         </SelectContent>
       </Select>
       <Button size="sm" variant="outline" onClick={changeTariff} disabled={pending || !selectedTariffId}>
-        {selectedTariffId === tariffChange.currentTariffId
+        {/* Пока первый выбор не оплачен, менять нечего и отменять нечего: тариф ещё не действует,
+            и та же кнопка ведёт к оплате выбранного (владелец 18.08, L-11). */}
+        {selectedTariffId === tariffChange.currentTariffId && !tariffChange.awaitingFirstPayment
           ? 'Отменить запланированную смену'
           : 'Перейти на тариф'}
       </Button>
@@ -218,7 +225,10 @@ export function PayTariffButton({
           <Button size="sm" variant="ghost" onClick={cancelChange} disabled={pending}>Отменить</Button>
         </div>
       ) : null}
-      {tariffChange.payable ? (
+      {/* Ничего ещё не выбрано — платить нечего, и «бесплатный тариф» тут ни при чём: сначала
+          выбор выше, потом оплата. Про «выбрано, но не оплачено» говорит строка состояния доступа
+          в `BillingSection` — второй раз здесь она была бы тем же текстом двумя абзацами (§21). */}
+      {tariffChange.currentTariffId === null ? null : tariffChange.payable ? (
         <Button
           size="sm"
           onClick={handlePay}

@@ -1479,12 +1479,29 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .where(eq(beOrganizations.id, organizationId))
           .limit(1);
         if (!organization) throw new Error('organization_not_found');
-        if (!organization.tariffId) throw new Error('saas_billing_no_tariff_assigned');
+
+        // Решение владельца 18.08 (L-11): «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ
+        // ПОЛУЧАЕТ ДОСТУП». Поэтому первый выбор больше НЕ пишет `be_organizations.tariff_id`
+        // (миграция 0024) — там теперь только действующий тариф. Выбранный, но ещё не оплаченный,
+        // живёт в собственной строке подписки `pending_payment`, и счёт выставляется по нему:
+        // иначе клиника выбрала бы тариф и осталась без пути к оплате.
+        const [chosen] = await tx
+          .select({ tariffId: saasBillingSubscriptions.tariffId })
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              eq(saasBillingSubscriptions.organizationId, organizationId),
+              eq(saasBillingSubscriptions.source, 'paid_subscription'),
+            ),
+          )
+          .limit(1);
+        const subscriptionTariffId = organization.tariffId ?? chosen?.tariffId ?? null;
+        if (!subscriptionTariffId) throw new Error('saas_billing_no_tariff_assigned');
 
         const [tariff] = await tx
           .select({ id: saasTariffs.id, billingPeriod: saasTariffs.billingPeriod, additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor, currency: saasTariffs.currency })
           .from(saasTariffs)
-          .where(and(eq(saasTariffs.id, organization.tariffId), eq(saasTariffs.isActive, true)))
+          .where(and(eq(saasTariffs.id, subscriptionTariffId), eq(saasTariffs.isActive, true)))
           .limit(1);
         if (!tariff) throw new Error('saas_billing_tariff_not_billable');
 
