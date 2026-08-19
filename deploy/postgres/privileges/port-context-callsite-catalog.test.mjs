@@ -114,6 +114,19 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'reminder.appointment-generation.replace', argCount: 5,
     source: 'apps/webapp/src/infra/repos/pgAppointmentReminderMaterialization.ts',
   },
+  // Два корня контактов формы записи (миграция 0037). До них вебапп под пациентом звал ВРАЧЕБНЫЙ
+  // порт к `platform_users`, получал 42501 на каждой записи, и пустой перехват съедал отказ —
+  // телефон и почта из формы не сохранялись ни у кого.
+  'app.read_current_patient_identity_contacts()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-identity-contacts.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgPlatformUserContacts.ts',
+  },
+  'app.record_current_patient_booking_contact(text,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-contact.record', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPlatformUserContacts.ts',
+  },
   'app.enqueue_media_transcode_job_for_service(uuid)': {
     port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
     purpose: 'media.transcode.enqueue', argCount: 1,
