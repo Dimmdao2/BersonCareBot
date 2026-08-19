@@ -1,7 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- TEMPORARY LOCAL MIGRATION NUMBER 0043
+-- TEMPORARY LOCAL MIGRATION NUMBER 0047
 --
 -- Замер 19.08 на DEV (`bcb_webapp_dev`, слаг `dmitryberson`, порт-контекст — тот же режим, что на
 -- TEST с 12.08):
