@@ -130,6 +130,33 @@ async function insertSaasBillingInvoiceIdempotent(
   return { invoice: toSaasBillingInvoice(existing), created: false };
 }
 
+/**
+ * ЕДИНСТВЕННОЕ место, где двигается `paid_additional_seats` — счётчик, который в действующей
+ * редакции Р-15 И ЕСТЬ доступ к дополнительному месту: место открывает не платёж, а инкремент
+ * здесь. Пишущих три (выставление счёта, его отмена, успешный возврат), и пока каждый двигал
+ * счётчик своим `update`, забыть подвинуть его было нормальным состоянием кода — так место и
+ * оставалось открытым после отмены счёта. Одна точка делает пропуск видимым: закрыть место, минуя
+ * её, нечем (AGENTS.md §5).
+ *
+ * Замок организации она НЕ берёт сама: все три вызывающих уже держат его (или строку подписки
+ * `FOR UPDATE`) с момента, когда прочитали счётчик, — взять его здесь заново значило бы решать под
+ * замком то, что решили до него.
+ */
+async function moveSeatOverageAllowance(
+  tx: Transaction,
+  saasBillingSubscriptionId: string,
+  delta: number,
+): Promise<void> {
+  await tx
+    .update(saasBillingSubscriptions)
+    .set({
+      // `greatest(…, 0)`: счётчик мест не уходит в минус ни при каком порядке отмен и возвратов.
+      paidAdditionalSeats: sql`greatest(${saasBillingSubscriptions.paidAdditionalSeats} + ${delta}, 0)`,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(saasBillingSubscriptions.id, saasBillingSubscriptionId));
+}
+
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
 const OPEN_REFUND_STATUSES = ['pending', 'succeeded'] as const;
 
@@ -1542,13 +1569,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         // Прежний порядок (открыть по оплате) и был механизмом находки F1 слепого аудита 19.08:
         // приём денег место открывал, а срока счёта не проверял никто.
         if (inserted.created) {
-          await tx
-            .update(saasBillingSubscriptions)
-            .set({
-              paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} + 1`,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(saasBillingSubscriptions.id, subscription.id));
+          await moveSeatOverageAllowance(tx, subscription.id, +1);
         }
         return { outcome: 'invoice' as const, ...inserted };
           },
@@ -1599,9 +1620,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
      * транзакцией: «отменяется И выставляется новый» (Р-15). Порознь это либо прощённые деньги
      * (отменили, не перевыставили), либо два живых счёта за одно место.
      *
-     * Сумму, отрезок услуги и срок нового счёта считает ТА ЖЕ единственная дверь и на НОВЫЙ момент
-     * — отсюда «с пересчитанной суммой, а не продлевается». Место при этом НЕ открывается заново:
-     * оно уже открыто с первого выставления, счётчик здесь не трогается.
+     * Сумму, отрезок услуги и срок нового счёта считает ТА ЖЕ единственная дверь — отсюда «с
+     * пересчитанной суммой, а не продлевается». Пересчитывается при этом ОСТАТОК, а не оказанная
+     * услуга: денежный якорь — момент ОТКРЫТИЯ места из отменяемого счёта, поэтому сумма не тает от
+     * того, что клиника тянет («оплачивается один раз, на момент открытия», Р-15). Меняется только
+     * срок оплаты — он всегда «длительность ОТ ВЫСТАВЛЕНИЯ». Место НЕ открывается заново: оно уже
+     * открыто с первого выставления, счётчик здесь не трогается.
      *
      * Дверь отвечает `seat_available`, когда клиника успела освободить место, и `paid_period_over`,
      * когда период кончился. В обоих случаях перевыставлять нечего — и старый счёт НЕ отменяется:
@@ -1635,6 +1659,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
             const offer = await quota.resolveClinicTeamAvailability({
               invoiceValidityDays: input.invoiceValidityDays,
+              // Момент открытия места лежит в отменяемом счёте (`servicePeriodStartsAt`) с самого
+              // первого выставления — оттуда его и берём. Пересчёт «от сегодня» списал бы уже
+              // оказанную услугу: место работало всё это время, платёж лишь просрочен.
+              reissuedSeatInvoice: toSaasBillingInvoice(expired),
             });
             if (offer.outcome !== 'purchasable') {
               return { outcome: 'skipped' as const, reason: offer.outcome };
@@ -1680,42 +1708,83 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       );
     },
 
-    /** К4 — platform-wide lookup by invoice id alone, same shape as `reserveSaasBillingRefund`. */
+    /**
+     * К4 — platform-wide lookup by invoice id alone, same shape as `reserveSaasBillingRefund`.
+     *
+     * Отмена счёта за место ЗАКРЫВАЕТ место — той же транзакцией и под тем же замком организации,
+     * что и выставление. В действующей редакции Р-15 доступ даёт не платёж, а счётчик
+     * `paid_additional_seats`, поэтому «поставить void и уйти» означало подарить клинике место до
+     * конца оплаченного периода (до 1500,00 ₽ за место). Перевыставление просроченного места НЕ
+     * закрывает намеренно: там на смену отменённому счёту сразу встаёт новый за ту же услугу, а
+     * здесь не встаёт ничего.
+     */
     async cancelSaasBillingInvoice(input) {
       return getDrizzle().transaction(async (tx) => {
-        const [invoiceRow] = await tx
-          .select()
+        // Организацию и подписку читаем до замка: замок берётся ПО организации, а сменить её счёт
+        // не может. Порядок «замок → подписка → счёт» тот же, что у выставления, — иначе отмена и
+        // возврат (`confirmSaasBillingRefund`) брали бы те же две строки в разном порядке.
+        const [identity] = await tx
+          .select({
+            organizationId: saasBillingInvoices.organizationId,
+            saasBillingSubscriptionId: saasBillingInvoices.saasBillingSubscriptionId,
+          })
           .from(saasBillingInvoices)
           .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
-          .limit(1)
-          .for('update');
-        if (!invoiceRow) return { outcome: 'invoice_not_found' as const };
-        const invoice = toSaasBillingInvoice(invoiceRow);
-        if (invoice.status !== 'draft' && invoice.status !== 'pending') {
-          return { outcome: 'invoice_not_cancellable' as const, status: invoice.status };
-        }
+          .limit(1);
+        if (!identity) return { outcome: 'invoice_not_found' as const };
 
-        const [updated] = await tx
-          .update(saasBillingInvoices)
-          .set({ status: 'void', updatedAt: new Date().toISOString() })
-          .where(eq(saasBillingInvoices.id, invoice.id))
-          .returning();
-        if (!updated) throw new Error('saas_billing_invoice_cancel_failed');
+        return transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: identity.organizationId, mechanic: 'clinic_team' },
+          async () => {
+            await tx
+              .select({ id: saasBillingSubscriptions.id })
+              .from(saasBillingSubscriptions)
+              .where(eq(saasBillingSubscriptions.id, identity.saasBillingSubscriptionId))
+              .limit(1)
+              .for('update');
+            const [invoiceRow] = await tx
+              .select()
+              .from(saasBillingInvoices)
+              .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
+              .limit(1)
+              .for('update');
+            if (!invoiceRow) return { outcome: 'invoice_not_found' as const };
+            const invoice = toSaasBillingInvoice(invoiceRow);
+            if (invoice.status !== 'draft' && invoice.status !== 'pending') {
+              return { outcome: 'invoice_not_cancellable' as const, status: invoice.status };
+            }
 
-        await tx.insert(adminAuditLog).values({
-          organizationId: invoice.organizationId,
-          actorId: input.actorId,
-          action: 'saas_billing_invoice_cancelled',
-          targetId: invoice.id,
-          details: {
-            reason: input.reason,
-            amountMinor: invoice.amountMinor,
-            currency: invoice.currency,
+            const [updated] = await tx
+              .update(saasBillingInvoices)
+              .set({ status: 'void', updatedAt: new Date().toISOString() })
+              .where(eq(saasBillingInvoices.id, invoice.id))
+              .returning();
+            if (!updated) throw new Error('saas_billing_invoice_cancel_failed');
+            if (invoice.invoiceKind === 'seat_overage') {
+              await moveSeatOverageAllowance(tx, invoice.saasBillingSubscriptionId, -invoice.additionalSeatQuantity);
+            }
+
+            await tx.insert(adminAuditLog).values({
+              organizationId: invoice.organizationId,
+              actorId: input.actorId,
+              action: 'saas_billing_invoice_cancelled',
+              targetId: invoice.id,
+              details: {
+                reason: input.reason,
+                amountMinor: invoice.amountMinor,
+                currency: invoice.currency,
+                // Видно в аудите, что вместе со счётом закрылось и место, — иначе расследовать
+                // «почему у клиники стало меньше мест» пришлось бы по косвенным следам.
+                releasedAdditionalSeats:
+                  invoice.invoiceKind === 'seat_overage' ? invoice.additionalSeatQuantity : 0,
+              },
+              status: 'ok',
+            });
+
+            return { outcome: 'cancelled' as const, invoice: toSaasBillingInvoice(updated) };
           },
-          status: 'ok',
-        });
-
-        return { outcome: 'cancelled' as const, invoice: toSaasBillingInvoice(updated) };
+        );
       });
     },
 
@@ -2120,10 +2189,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .where(and(eq(saasBillingRefunds.id, refund.id), eq(saasBillingRefunds.status, 'pending'))).returning();
         if (!row) return toSaasBillingRefund(refund);
         if (status === 'succeeded' && invoice.invoiceKind === 'seat_overage') {
-          await tx.update(saasBillingSubscriptions).set({
-            paidAdditionalSeats: sql`greatest(${saasBillingSubscriptions.paidAdditionalSeats} - ${invoice.additionalSeatQuantity}, 0)`,
-            updatedAt: new Date().toISOString(),
-          }).where(eq(saasBillingSubscriptions.id, subscription.id));
+          await moveSeatOverageAllowance(tx, subscription.id, -invoice.additionalSeatQuantity);
         }
         return toSaasBillingRefund(row);
       });

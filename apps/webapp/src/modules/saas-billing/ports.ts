@@ -559,8 +559,10 @@ export type SaasBillingRepositoryPort = {
 
   /**
    * Р-15: «просроченный ОТМЕНЯЕТСЯ и выставляется новый с пересчитанной суммой, а не
-   * продлевается» — обе половины одной транзакцией. Сумма нового счёта считается ТОЙ ЖЕ дверью на
-   * НОВЫЙ момент; место повторно не открывается — оно открыто с первого выставления.
+   * продлевается» — обе половины одной транзакцией. Сумма нового счёта считается ТОЙ ЖЕ дверью и
+   * от того же момента ОТКРЫТИЯ места, что и первая («оплачивается один раз, на момент открытия»),
+   * — новый здесь только срок оплаты. Место повторно не открывается: оно открыто с первого
+   * выставления.
    */
   reissueExpiredSeatOverageInvoice(input: {
     saasBillingInvoiceId: string;
@@ -584,6 +586,10 @@ export type SaasBillingRepositoryPort = {
    * invoice id alone, not organization-scoped (see `reserveSaasBillingRefund`). Only `draft`/
    * `pending` invoices can be cancelled — an already-`paid` invoice cannot, and a `void` one is
    * already cancelled, not re-cancellable.
+   *
+   * Отмена счёта за место (`invoiceKind: 'seat_overage'`) ОБЯЗАНА закрыть место тем же действием:
+   * в действующей редакции Р-15 доступ даёт счётчик `paidAdditionalSeats`, а не платёж, поэтому
+   * отмена без закрытия дарит клинике место до конца оплаченного периода.
    */
   cancelSaasBillingInvoice(input: {
     saasBillingInvoiceId: string;

@@ -4,6 +4,7 @@ import { beOrganizationMembers, beOrganizations } from '../../../db/schema/booki
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
+import type { SaasBillingInvoice } from '@/modules/saas-billing/ports';
 import { billableAdditionalSeats } from '@/modules/saas-billing/proration';
 import {
   decideSeatOverage,
@@ -209,6 +210,7 @@ export function createTransactionQuotaPort() {
         resolveClinicTeamAvailability(input?: {
           excludedPendingEmail?: string;
           invoiceValidityDays?: number;
+          reissuedSeatInvoice?: Pick<SaasBillingInvoice, 'servicePeriodStartsAt'>;
         }): Promise<SeatOverageOffer>;
         resolveBillableAdditionalSeats(paidAdditionalSeats: number): Promise<number>;
       }) => Promise<T>,
@@ -244,6 +246,11 @@ export function createTransactionQuotaPort() {
          * читать её вправе принципал биллинга, а не принципал приглашения. Дверь приглашения счёта
          * не пишет — ей срок не нужен и не выдаётся. Часового пояса здесь больше нет вовсе: в
          * действующей редакции Р-15 суток в расчёте нет, все моменты абсолютные.
+         *
+         * `reissuedSeatInvoice` приносит ТОЛЬКО перевыставление просроченного счёта — и приносит
+         * СТРОКУ отменяемого счёта, прочитанную под этим же замком, а не момент как число: момент
+         * открытия места по Р-15 хранится, а не вычисляется («оплачивается один раз, на момент
+         * открытия»). Своё время сюда подставить нечем — параметра для него нет.
          */
         async resolveClinicTeamAvailability(options = {}) {
           const context = await readClinicTeamContext(tx, input.organizationId);
@@ -252,6 +259,7 @@ export function createTransactionQuotaPort() {
             used: await countClinicTeamUsage(tx, input.organizationId, options.excludedPendingEmail),
             asOf: new Date().toISOString(),
             invoiceValidityDays: options.invoiceValidityDays ?? null,
+            seatOpenedAt: options.reissuedSeatInvoice?.servicePeriodStartsAt ?? null,
           });
         },
         /**

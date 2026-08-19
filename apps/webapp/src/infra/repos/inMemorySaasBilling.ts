@@ -866,6 +866,8 @@ export function createInMemorySaasBillingRepository(
         currentPeriodEndsAt: authority.currentPeriodEndsAt,
         asOf: now().toISOString(),
         invoiceValidityDays: input.invoiceValidityDays,
+        // Места ещё нет — открывает его как раз этот счёт, услуга начинается сейчас.
+        seatOpenedAt: null,
       });
       if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
       if (offer.outcome === 'seat_not_sold') {
@@ -954,7 +956,8 @@ export function createInMemorySaasBillingRepository(
       const authority = [...rows.values()].find((row) => row.id === expired.saasBillingSubscriptionId);
       if (!authority) throw new Error('saas_billing_subscription_not_found');
       const seatTariff = tariffs.get(purchasedTariffId(authority));
-      // ТА ЖЕ единственная дверь и на НОВЫЙ момент — «с пересчитанной суммой, а не продлевается».
+      // ТА ЖЕ единственная дверь: «с пересчитанной суммой, а не продлевается» — но пересчитывается
+      // остаток от момента ОТКРЫТИЯ места, а новым становится только срок оплаты.
       const offer = decideSeatOverage({
         includedSeats: 0,
         paidAdditionalSeats: authority.paidAdditionalSeats,
@@ -965,6 +968,9 @@ export function createInMemorySaasBillingRepository(
         currentPeriodEndsAt: authority.currentPeriodEndsAt,
         asOf: input.asOf,
         invoiceValidityDays: input.invoiceValidityDays,
+        // Как в pg-репозитории: момент открытия места берётся из СТРОКИ отменяемого счёта, а не
+        // считается заново, — иначе перевыставление прощало бы уже отработанный отрезок.
+        seatOpenedAt: expired.servicePeriodStartsAt,
       });
       if (offer.outcome !== 'purchasable') {
         return { outcome: 'skipped' as const, reason: offer.outcome };
@@ -1018,6 +1024,24 @@ export function createInMemorySaasBillingRepository(
       }
       const row: SaasBillingInvoice = { ...current, status: 'void' };
       invoices.set(row.id, row);
+      // Как в pg-репозитории: отмена счёта за место ЗАКРЫВАЕТ место той же операцией — счётчик и
+      // есть доступ, а на смену отменённому счёту здесь, в отличие от перевыставления, ничего не
+      // встаёт.
+      if (row.invoiceKind === 'seat_overage') {
+        const seatEntry = [...rows.entries()].find(
+          ([, subscription]) => subscription.id === row.saasBillingSubscriptionId,
+        );
+        if (seatEntry) {
+          const [key, subscription] = seatEntry;
+          rows.set(key, {
+            ...subscription,
+            paidAdditionalSeats: Math.max(
+              0,
+              subscription.paidAdditionalSeats - row.additionalSeatQuantity,
+            ),
+          });
+        }
+      }
       return { outcome: 'cancelled' as const, invoice: row };
     },
 

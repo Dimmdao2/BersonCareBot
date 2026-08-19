@@ -24,6 +24,9 @@ describe('decideSeatOverage', () => {
     additionalSeatPriceMinor: 150_000,
     currency: 'RUB',
     invoiceValidityDays: 30,
+    // Места ещё нет: эти проверки описывают ПОКУПКУ. Перевыставление уже открытого места
+    // приносит сюда сохранённый момент открытия — см. `seatOverageUnpaidErosion.unit.test.ts`.
+    seatOpenedAt: null,
     ...PAID_PERIOD,
   };
 
