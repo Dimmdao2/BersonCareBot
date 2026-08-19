@@ -109,9 +109,10 @@ INTEGRATOR_MIGRATOR="$DEPLOY_REPO/deploy/postgres/privileges/migrate-integrator-
 RECONCILER="$DEPLOY_REPO/deploy/postgres/privileges/reconcile-access.mjs"
 GENERATOR="$DEPLOY_REPO/deploy/postgres/privileges/generate-cli.mjs"
 PORT_CONTEXT_ENV_BOOTSTRAP="$DEPLOY_REPO/deploy/host/bootstrap-c4-test-env.mjs"
+TENANT_ISOLATION_PROOF="$DEPLOY_REPO/deploy/postgres/privileges/tenant-isolation-wall.devDbProof.test.mjs"
 DRIZZLE_FOLDER="$DEPLOY_REPO/apps/webapp/db/drizzle-migrations"
 for required_path in "$OWNER_MIGRATOR" "$INTEGRATOR_MIGRATOR" "$RECONCILER" "$GENERATOR" \
-  "$PORT_CONTEXT_ENV_BOOTSTRAP" "$DRIZZLE_FOLDER"; do
+  "$PORT_CONTEXT_ENV_BOOTSTRAP" "$TENANT_ISOLATION_PROOF" "$DRIZZLE_FOLDER"; do
   sudo -u deploy test -r "$required_path" || fail "deploy cannot read required B0 artifact: $required_path"
 done
 
@@ -185,6 +186,16 @@ sudo env -i PATH="$NODE_BIN_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bi
       --env test --db "$DB" --admin-socket /var/run/postgresql --admin-port 5432
   '
 sudo node --experimental-strip-types "$PORT_CONTEXT_ENV_BOOTSTRAP" --port-context-execute
+
+# Стена арендатора доказывается на ЖИВОЙ базе — после сверки прав и ДО перезапуска служб, чтобы
+# выкатка, которая открыла клинике чужие строки, остановилась, не дойдя до живых людей.  Место
+# выбрано так: раньше — права ещё не сведены и красный ничего не значит; позже — служба уже
+# отвечает людям.  Проба ходит локальным админ-сокетом (тем же, что все проверки выше), всю работу
+# делает в транзакции с ROLLBACK и ничего не пишет.  В `pnpm run ci` этому места нет: там нет базы.
+printf 'deploy-test: доказательство стены арендатора на %s\n' "$DB"
+RUN_TENANT_ISOLATION_WALL_DB=1 TENANT_ISOLATION_PROOF_DB="$DB" \
+  node --test "$TENANT_ISOLATION_PROOF" ||
+  fail 'стена арендатора не доказана на TEST — службы не перезапускаются'
 
 for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
 for attempt in $(seq 1 30); do
