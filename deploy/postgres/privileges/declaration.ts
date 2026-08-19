@@ -7341,6 +7341,13 @@ export const declaration: PrivilegeDeclaration = {
   },
   zeroState: { legacyRoles: [
     'app_identity_bootstrap',
+    // Снят из живых швов 19.08 (`cfa4e45df`, обе двери визитки переведены на
+    // `app_seam_public_slug_owner`), но в кластере остался: на TEST его DROP держат 54
+    // зависимости, а снявший коммит TEST по условию не трогал. Без этой строки reconcile
+    // валит выкатку на «undeclared managed BCB role survived» из любого дерева с тем
+    // коммитом — что и случилось 19.08, остановив службы теста. Карантин NOLOGIN здесь и
+    // есть объявленный путь для роли, пережившей свой шов.
+    'app_seam_public_clinic_card_owner',
     'app_migrator',
     'app_operational_diagnostic',
     'app_operational_web_push_reminder',
