@@ -33,7 +33,9 @@ const CURRENT_PATIENT_MIGRATIONS = [
   path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0017_patient_shared_core_capabilities.sql'),
 ];
 const B0_FORWARD_MIGRATIONS = fs.readdirSync(path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations'))
-  .filter((file) => /^\d{4}_.+\.sql$/.test(file))
+  // Обе схемы имён. Фильтр только по `^\d{4}_` молча уносил переименованные миграции из-под
+  // переписи: три двери исчезали из гейта, а он оставался зелёным — гейт без предмета не гейт.
+  .filter((file) => /^\d{4}_.+\.sql$/.test(file) || /^\d{8}T\d{6}_.+\.sql$/.test(file))
   .sort()
   .map((file) => path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations', file));
 const B0_EVIDENCE_COMMIT = '2e8ffe851a404da1894cb20b5b9d27e2dd409394';

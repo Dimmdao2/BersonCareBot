@@ -45,7 +45,8 @@ const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
  */
 export function selectMigrationPhase(migrations, beforeTag) {
   if (!beforeTag) return { migrations, bounded: false };
-  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag)) {
+  // Историческая схема NNNN[suffix]_ и канон YYYYMMDDTHHMMSS_ (владелец, 20.08) — обе законны.
+  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag) && !/^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$/.test(beforeTag)) {
     throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG invalid tag=${beforeTag}`);
   }
   const at = migrations.findIndex((migration) => migration.tag === beforeTag);
