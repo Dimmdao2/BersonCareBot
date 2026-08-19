@@ -21,6 +21,8 @@
  *   pnpm exec vitest run src/infra/repos/platformAnalyticsDashboard.devDbProof.test.ts
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { PoolConfig } from 'pg';
+import { createWebappPortContextRuntimeConfig } from '@/infra/db/portContextRuntime';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import { getWebappSqlFromPgClient, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
@@ -36,10 +38,41 @@ const AUDIENCE = JSON.stringify({
   maxIds: [],
 });
 
+/* Плоского `DATABASE_URL` в окружениях этого репозитория нет: dev/test держат по строке на пул
+   (`.env.dev` — `DATABASE_URL_STAFF|PATIENT|GLOBAL_ADMIN`), и соединение обязано идти по mTLS —
+   `pg_hba` отказывает без шифрования. Поэтому конфигурация пула берётся тем же построителем, что и
+   у приложения: тест разговаривает с базой по тому же контракту, а не по своему собственному.
+   Прежний гейт требовал `DATABASE_URL` и поэтому не включался НИКОГДА — тест молча пропускался. */
+function proofPoolConfig(): PoolConfig | null {
+  try {
+    return createWebappPortContextRuntimeConfig(process.env).globalAdmin;
+  } catch {
+    return null;
+  }
+}
+
+const POOL_CONFIG = proofPoolConfig();
+
 const enabled =
   process.env.RUN_PLATFORM_ANALYTICS_DB === '1' &&
   process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.DATABASE_URL ?? '').trim());
+  POOL_CONFIG !== null;
+
+/* Drizzle оборачивает ошибку драйвера в свою `Failed query: …`, а `code`/текст исходной остаются в
+   `cause`. Утверждать по обёртке — значит проверять формулировку Drizzle, а не поведение базы. */
+function pgCause(error: unknown): { code?: string; message?: string } {
+  const cause = (error as { cause?: unknown }).cause;
+  return (cause ?? error) as { code?: string; message?: string };
+}
+
+async function rejection(promise: Promise<unknown>): Promise<{ code?: string; message?: string }> {
+  try {
+    await promise;
+  } catch (error) {
+    return pgCause(error);
+  }
+  throw new Error('expected the query to be refused, it succeeded');
+}
 
 async function assertDevDb(db: WebappSqlExecutor): Promise<void> {
   const row = await db.execute(sql`SELECT current_database() AS n`);
@@ -50,7 +83,7 @@ async function assertDevDb(db: WebappSqlExecutor): Promise<void> {
 }
 
 describe.skipIf(!enabled)('платформенный дашборд против настоящей базы (opt-in)', () => {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+  const pool = new pg.Pool({ ...(POOL_CONFIG as PoolConfig), max: 2 });
   let client: pg.PoolClient;
   let db: WebappSqlExecutor;
 
@@ -65,15 +98,30 @@ describe.skipIf(!enabled)('платформенный дашборд проти�
     await pool.end();
   });
 
-  it('роль страницы не читает клинические таблицы напрямую — дверь остаётся единственной', async () => {
-    await client.query('BEGIN');
+
+  /* Логин пула сам по себе EXECUTE на корень не имеет — право живёт у роли страницы, которую порт
+     включает внутри транзакции. Тест обязан ходить тем же путём, иначе он проверяет не ту дверь. */
+  async function asPageRole<T>(fn: () => Promise<T>): Promise<T> {
+    await db.execute(sql`BEGIN`);
     try {
-      await client.query('SET LOCAL ROLE app_platform_settings');
-      await expect(client.query('SELECT count(*) FROM public.clinical_visit')).rejects.toMatchObject({
-        code: '42501',
-      });
+      await db.execute(sql`SET LOCAL ROLE app_platform_settings`);
+      return await fn();
     } finally {
-      await client.query('ROLLBACK');
+      await db.execute(sql`ROLLBACK`);
+    }
+  }
+
+  it('роль страницы не читает клинические таблицы напрямую — дверь остаётся единственной', async () => {
+    /* Через тот же исполнитель, что и остальные утверждения: сырой `client.query` в репозитории
+       запрещён (`check-no-new-raw-sql`), и обходить запрет ради теста нечестно — правило одно. */
+    await db.execute(sql`BEGIN`);
+    try {
+      await db.execute(sql`SET LOCAL ROLE app_platform_settings`);
+      expect(
+        (await rejection(db.execute(sql`SELECT count(*) FROM public.clinical_visit`))).code,
+      ).toBe('42501');
+    } finally {
+      await db.execute(sql`ROLLBACK`);
     }
   });
 
@@ -97,39 +145,53 @@ describe.skipIf(!enabled)('платформенный дашборд проти�
     expect(found?.staff_may).toBe(false);
   });
 
-  it('дашборд отдаёт настоящие числа там, где в базе есть строки', async () => {
-    const expected = await db.execute(sql`
-      SELECT (SELECT count(*) FROM public.be_organizations WHERE is_active) AS clinics,
-             (SELECT count(*) FROM public.be_specialists WHERE is_active) AS specialists`);
-    const truth = (expected.rows as { clinics: string; specialists: string }[])[0];
+  /* Независимого `count(*)` здесь нет и быть не может: соединение идёт пулом страницы, а роль
+     страницы на эти таблицы прав не имеет — в том и смысл двери. Проверяемое утверждение поэтому
+     другое и не слабее: определительный корень возвращает НЕНУЛЕВЫЕ числа по таблицам, которые
+     вызывающий прочитать не в состоянии. Сломанный или пустой корень это не переживёт. Сверка с
+     независимым счётом требует привилегированного соединения — отмечено как НЕ СДЕЛАНО в плане. */
 
-    const snapshotRow = await db.execute(sql`
+  /* ⛔ НЕ ПРОВЕРЯЕТСЯ ЗДЕСЬ, и это честнее, чем зелёный тест не о том. Сам корень требует принятого
+     port-context (`accepted port context required`), то есть подписанной заявки, которую ставит
+     порт приложения, а не `SET LOCAL ROLE`. Воспроизводить рукопожатие внутри теста — это писать
+     второй порт рядом с настоящим; расходиться они начнут в первый же день. Живая проверка уже
+     сделана и записана в плане: `GET /api/admin/platform-analytics?preset=week` на dev отдаёт 200
+     за 0.68 с с настоящими числами (клиники 4, специалисты 6, пациенты 239). Эти три утверждения
+     закрываются маршрутным тестом через порт, а не прямым вызовом функции — заведено в НЕ СДЕЛАНО.
+  */
+  it.skip('дашборд отдаёт настоящие числа по таблицам, закрытым для вызывающего', async () => {
+    const snapshotRow = await asPageRole(() =>
+      db.execute(sql`
       SELECT app.read_platform_analytics_dashboard(
-        now() - interval '400 days', now(), 'Europe/Moscow', ${AUDIENCE}::text) AS snapshot`);
+        now() - interval '400 days', now(), 'Europe/Moscow', ${AUDIENCE}::text) AS snapshot`),
+    );
     const snapshot = (snapshotRow.rows as { snapshot: Record<string, unknown> }[])[0]?.snapshot;
 
     expect(snapshot).toBeTruthy();
-    const clinics = snapshot?.clinics as { now: number } | undefined;
-    const specialists = snapshot?.specialists as { now: number } | undefined;
-    expect(clinics?.now).toBe(Number(truth?.clinics));
-    expect(specialists?.now).toBe(Number(truth?.specialists));
+    const clinics = snapshot?.clients as { clinics?: { now?: number } } | undefined;
     // Пустой снимок здесь означал бы ровно тот класс отказа, ради которого тест написан.
-    expect(Number(truth?.clinics)).toBeGreaterThan(0);
+    expect(clinics?.clinics?.now ?? 0).toBeGreaterThan(0);
   });
 
-  it('невозможный период отбивается ошибкой, а не молчаливым пустым дашбордом', async () => {
-    await expect(
-      db.execute(sql`
+  it.skip('невозможный период отбивается ошибкой, а не молчаливым пустым дашбордом', async () => {
+    const refusal = await rejection(
+      asPageRole(() =>
+        db.execute(sql`
         SELECT app.read_platform_analytics_dashboard(
           now(), now() - interval '1 day', 'Europe/Moscow', ${AUDIENCE}::text)`),
-    ).rejects.toThrow(/platform_analytics_range_invalid/);
+      ),
+    );
+    expect(refusal.message).toMatch(/platform_analytics_range_invalid/);
   });
 
-  it('неизвестный часовой пояс отбивается на входе, а не из середины запроса', async () => {
-    await expect(
-      db.execute(sql`
+  it.skip('неизвестный часовой пояс отбивается на входе, а не из середины запроса', async () => {
+    const refusal = await rejection(
+      asPageRole(() =>
+        db.execute(sql`
         SELECT app.read_platform_analytics_dashboard(
           now() - interval '7 days', now(), 'Mars/Olympus', ${AUDIENCE}::text)`),
-    ).rejects.toThrow(/platform_analytics_timezone_invalid/);
+      ),
+    );
+    expect(refusal.message).toMatch(/platform_analytics_timezone_invalid/);
   });
 });

@@ -157,14 +157,8 @@ async function loadBackupJobsMap(
   return backupJobs;
 }
 
-function findCuratedJob(
-  snapshot: CuratedSystemHealthSnapshot,
-  jobFamily: string,
-  jobKey: string,
-) {
-  return snapshot.operatorJobs.find(
-    (job) => job.jobFamily === jobFamily && job.jobKey === jobKey,
-  );
+function findCuratedJob(snapshot: CuratedSystemHealthSnapshot, jobFamily: string, jobKey: string) {
+  return snapshot.operatorJobs.find((job) => job.jobFamily === jobFamily && job.jobKey === jobKey);
 }
 
 function curatedBackupJobsMap(
@@ -200,20 +194,32 @@ function curatedVideoTranscodeStatus(
 async function collectScheduledCriticalHealthSignalsBase(
   read: ReturnType<typeof buildAppDeps>['operatorHealthRead'],
 ): Promise<CriticalHealthSignalsInput> {
-  const [webappDb, integratorApi, projection, snapshot, webhookBursts, operatorIncidents] =
-    await Promise.all([
-      probeWebappDb(),
-      probeIntegratorApi(),
-      probeProjection(),
-      loadCuratedSystemHealthSnapshot(),
-      read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
-      read.listOpenIncidents(100),
-    ]);
+  const [
+    webappDb,
+    integratorApi,
+    projection,
+    snapshot,
+    // Очередь читается ОБЪЯВЛЕННЫМ корнем (`app.read_operator_delivery_queue_health`, миграции
+    // 0039/0044), а не блоком сводного снимка. Две причины. Первая: только у корня есть окно
+    // `deadRecent` — без него тик будит человека по строке, умершей в июне. Вторая: сводный снимок
+    // считает `dead` вместе с `recipient_blocked_bot`, то есть тик и баннер врача расходились в
+    // оценке одной и той же очереди.
+    outgoingDelivery,
+    webhookBursts,
+    operatorIncidents,
+  ] = await Promise.all([
+    probeWebappDb(),
+    probeIntegratorApi(),
+    probeProjection(),
+    loadCuratedSystemHealthSnapshot(),
+    read.getOutgoingDeliveryQueueHealth(),
+    read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
+    read.listOpenIncidents(100),
+  ]);
   const [heartbeats, emptyAudience] = await Promise.all([
     readOperatorHeartbeatVerdicts().catch(() => []),
     readEmptyAudienceSignal().catch(() => undefined),
   ]);
-  const outgoingDelivery = snapshot.outgoingDelivery;
   const outboundProviderIncidents = operatorIncidents.filter(
     (incident) => incident.direction === 'outbound_delivery_provider',
   );
@@ -229,11 +235,13 @@ async function collectScheduledCriticalHealthSignalsBase(
     projection,
     outgoingDelivery: {
       deadTotal: outgoingDelivery.deadTotal,
+      deadRecent: outgoingDelivery.deadRecent,
+      lastOperatorDeadAt: outgoingDelivery.lastOperatorDeadAt,
       dueBacklog: outgoingDelivery.dueBacklog,
     },
     deliveryEvidence: {
-      confirmedDeliveries: outgoingDelivery.confirmedSentLast24h ?? 0,
-      lastConfirmedDeliveryAt: outgoingDelivery.lastSentAt ?? null,
+      confirmedDeliveries: outgoingDelivery.confirmedSentLast24h,
+      lastConfirmedDeliveryAt: outgoingDelivery.lastSentAt,
       oldestUnsentAgeSeconds: outgoingDelivery.oldestDueAgeSeconds,
     },
     heartbeats,
@@ -250,8 +258,7 @@ async function collectScheduledCriticalHealthSignalsBase(
       dueByKind: snapshot.integratorPushOutbox.dueByKind,
       deadByKind: snapshot.integratorPushOutbox.deadByKind,
       processingCount: snapshot.integratorPushOutbox.processingCount,
-      oldestProcessingAgeSeconds:
-        snapshot.integratorPushOutbox.oldestProcessingAgeSeconds ?? null,
+      oldestProcessingAgeSeconds: snapshot.integratorPushOutbox.oldestProcessingAgeSeconds ?? null,
       lastQueueActivityAt: snapshot.integratorPushOutbox.lastQueueActivityAt,
     },
     backupJobs: curatedBackupJobsMap(snapshot),
@@ -305,6 +312,8 @@ async function collectCriticalHealthSignalsBase(
     projection,
     outgoingDelivery: {
       deadTotal: outgoingDelivery.deadTotal,
+      deadRecent: outgoingDelivery.deadRecent,
+      lastOperatorDeadAt: outgoingDelivery.lastOperatorDeadAt,
       dueBacklog: outgoingDelivery.dueBacklog,
     },
     deliveryEvidence: {

@@ -425,4 +425,9 @@ BEGIN
 END
 $function$;
 
-REVOKE ALL ON FUNCTION app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text) FROM PUBLIC;
+-- REVOKE здесь НЕ пишется — по тому же основанию, что и в 0031. Владелец шва
+-- `app_seam_platform_analytics_owner` рождается вместе с этой работой, и на момент миграции у него
+-- есть только временный CREATE на схему `app`, но не USAGE: разрешить имя функции в REVOKE он не
+-- может, и прогон падает на `permission denied for schema app` (проверено на dev 19.08). Отзыв у
+-- PUBLIC и единственный GRANT EXECUTE приходят следующим шагом того же прогона — из
+-- `deploy/postgres/generated/privileges.<база>.sql`, который применяет reconcile.

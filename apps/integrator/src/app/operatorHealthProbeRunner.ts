@@ -1,17 +1,25 @@
 import type { DispatchPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { getMaxBotInfo } from '../integrations/max/client.js';
-import { getMaxRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import {
+  getMaxRuntimeConfig,
+  getTelegramRuntimeConfig,
+} from '../infra/adapters/integrationRuntimeConfig.js';
 import { probeGoogleCalendarAccess } from '../integrations/google-calendar/probe.js';
 import {
   getGoogleCalendarConfig,
   listGoogleCalendarProbeOrganizationIds,
 } from '../integrations/google-calendar/runtimeConfig.js';
 import { getBotInstance } from '../integrations/telegram/client.js';
+import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+  classifyOutboundProviderErrorClass,
+  isPageOnFirstOccurrenceProviderErrorClass,
+} from '@bersoncare/operator-db-schema';
 import { reportOperatorFailure } from '../infra/operatorIncident/reportOperatorFailure.js';
 import {
   recordOperatorOutboundProbeRun,
-  resolveOpenOperatorIncidentsByDedupKeyPrefix,
+  resolveOpenOperatorOutboundProbeIncidents,
 } from '../infra/db/repos/operatorHealthDrizzle.js';
 import {
   DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG,
@@ -111,7 +119,7 @@ export async function runOperatorHealthProbes(input: {
     } else {
       max = 'ok';
       details.max = 'ok';
-      const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:max:');
+      const n = await resolveOpenOperatorOutboundProbeIncidents('max');
       if (n > 0) details.maxResolved = String(n);
     }
   } else if (shouldProbe('max')) {
@@ -124,7 +132,7 @@ export async function runOperatorHealthProbes(input: {
       await withProbeTimeout((await getBotInstance()).api.getMe(), config.telegram.timeoutMs);
       telegram = 'ok';
       details.telegram = 'ok';
-      const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:telegram:');
+      const n = await resolveOpenOperatorOutboundProbeIncidents('telegram');
       if (n > 0) details.telegramResolved = String(n);
     } catch (err) {
       telegram = 'fail';
@@ -157,7 +165,7 @@ export async function runOperatorHealthProbes(input: {
         google_calendar = 'ok';
         details.google_calendar = 'ok';
         details.google_calendarConfiguredOrganizations = String(organizationIds.length);
-        const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:google_calendar:');
+        const n = await resolveOpenOperatorOutboundProbeIncidents('google_calendar');
         if (n > 0) details.google_calendarResolved = String(n);
       } else {
         details.google_calendar = 'skipped_not_configured';
@@ -196,21 +204,47 @@ export async function runOperatorHealthProbes(input: {
         'Google Calendar probe failed',
       ],
     ];
-    for (const [name, outcome, integration, errorClass, title] of failures) {
-      if (
-        outcome !== 'fail' ||
-        (streak.consecutiveFailures[name] ?? 0) < config[name].consecutiveFailures
-      )
-        continue;
+    for (const [name, outcome, integration, probeErrorClass, title] of failures) {
+      if (outcome !== 'fail') continue;
       const detail = details[name] ?? 'probe failed';
-      await reportOperatorFailure({
-        dispatchPort: input.dispatchPort,
-        direction: 'outbound',
-        integration,
-        errorClass,
-        errorDetail: detail,
-        alertLines: [title, detail],
-      });
+
+      // Один канал не должен топить отчёт по остальным: `open_or_touch_operator_probe_incident`
+      // умеет отвергнуть незнакомую пару (integration, error_class) исключением (`23514`), и до
+      // этой правки такое исключение рвало ВЕСЬ `for`, теряя отчёт по каналам, идущим следом за
+      // отказавшим (порядок обхода — max, telegram, google_calendar). Каждая итерация теперь
+      // изолирована: сбой репорта по одному каналу — warn и следующий канал, не потеря остальных.
+      try {
+        // Решение владельца 21.07: отказ провайдера по учётным данным/квоте пейджится с ПЕРВОГО
+        // появления. Проба до этого складывала ЛЮБУЮ причину в один класс `<провайдер>_probe_failed`
+        // и ждала трёх промахов подряд, поэтому телеграмный `401 Unauthorized` был неотличим от
+        // таймаута и молчал столько же. Разбор текста ошибки — тот же, что у настоящей отправки;
+        // отдельного словаря у пробы нет.
+        const providerErrorClass = classifyOutboundProviderErrorClass(detail);
+        if (isPageOnFirstOccurrenceProviderErrorClass(providerErrorClass)) {
+          details[`${name}ProviderErrorClass`] = providerErrorClass;
+          await reportOperatorFailure({
+            dispatchPort: input.dispatchPort,
+            direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+            integration,
+            errorClass: providerErrorClass,
+            errorDetail: detail,
+            alertLines: [title, detail],
+          });
+          continue;
+        }
+
+        if ((streak.consecutiveFailures[name] ?? 0) < config[name].consecutiveFailures) continue;
+        await reportOperatorFailure({
+          dispatchPort: input.dispatchPort,
+          direction: 'outbound',
+          integration,
+          errorClass: probeErrorClass,
+          errorDetail: detail,
+          alertLines: [title, detail],
+        });
+      } catch (err) {
+        logger.warn({ err, name, integration }, 'operator_health_probe_report_failure_failed');
+      }
     }
   } catch (err) {
     logger.warn({ err }, 'operator_health_probe_job_status_failed');
