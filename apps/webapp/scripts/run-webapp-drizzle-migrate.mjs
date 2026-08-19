@@ -264,14 +264,19 @@ if (process.argv.includes('--self-test')) {
  * new one that creates no nameable object cannot land without saying how it can be checked.
  */
 if (process.argv.includes('--check-migration-proofs')) {
-  readLegacyJournalEntries(migrationsFolder);
-  const unproved = findUnprovedMigrations(readMigrationFolder(migrationsFolder));
-  if (unproved.length > 0) {
-    console.error(
-      `check-migration-proofs: ${unproved.join(', ')} leave no object this checkout can probe and carry no`
-        + ' `-- BCB-MIGRATION-VERIFY: SELECT …` header, so a ledger row written by hand for them is'
-        + ' indistinguishable from one a runner wrote after executing them.',
-    );
+  try {
+    readLegacyJournalEntries(migrationsFolder);
+    const unproved = findUnprovedMigrations(readMigrationFolder(migrationsFolder));
+    if (unproved.length > 0) {
+      console.error(
+        `check-migration-proofs: ${unproved.join(', ')} leave no object this checkout can probe and carry no`
+          + ' `-- BCB-MIGRATION-VERIFY: SELECT …` header, so a ledger row written by hand for them is'
+          + ' indistinguishable from one a runner wrote after executing them.',
+      );
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`check-migration-proofs: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
   console.log('run-webapp-drizzle-migrate migration proof check: OK');

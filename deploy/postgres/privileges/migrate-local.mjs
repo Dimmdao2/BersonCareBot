@@ -46,6 +46,12 @@ function fail(message) {
   process.exit(1);
 }
 
+// The only two entrypoints that reconcile the privilege declaration after --reapply. The marker is
+// trusted by VALUE, not by presence: an operator (or a bypass) can export the variable with any
+// string, and a check that only asks "is it set" accepts that forgery. `deploy-test.sh` and
+// `migrate-dev.sh` are the ones that actually set it (grep the repo before adding a third).
+const KNOWN_MIGRATION_ENTRYPOINTS = new Set(['migrate-dev.sh', 'deploy-test.sh']);
+
 function sqlIdentifier(value) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value)) throw new Error(`unsafe role name '${value}'`);
   return `"${value}"`;
@@ -181,7 +187,7 @@ if (reapplyTags.length > 0 && !drizzleFolder) {
 // calls it arrive with the privilege declaration, not with the migration.  Reapplied alone, the
 // function comes back disarmed.  So the recovery is only allowed from the entrypoints that
 // reconcile the declaration as their last step; they set this marker for exactly this reason.
-if (reapplyTags.length > 0 && !process.env.BCB_MIGRATION_ENTRYPOINT) {
+if (reapplyTags.length > 0 && !KNOWN_MIGRATION_ENTRYPOINTS.has(process.env.BCB_MIGRATION_ENTRYPOINT ?? '')) {
   fail(
     [
       '--reapply rebuilds the object from the migration file alone, which leaves a definer function '

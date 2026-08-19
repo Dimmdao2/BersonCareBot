@@ -433,6 +433,24 @@ test('a bare --reapply refuses and names the entrypoint that reconciles afterwar
   assert.equal(existsSync(runtime.capture), false, 'nothing may reach psql behind the refusal');
 });
 
+test('a forged entrypoint marker refuses the same as a bare --reapply', () => {
+  // The gate used to ask only "is BCB_MIGRATION_ENTRYPOINT set", so exporting it with any value —
+  // including one no real entrypoint ever sets — passed. Only migrate-dev.sh/deploy-test.sh may
+  // reconcile the privilege declaration afterwards; the value is checked, not just its presence.
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0001_late_arrival', '0002_third', '0003_backfill_only'],
+    absentObject: true,
+  });
+
+  const result = runLedgerMigrator(runtime, ['--reapply', '0000_first'], {
+    BCB_MIGRATION_ENTRYPOINT: 'i_just_made_this_up',
+  });
+
+  assert.notEqual(result.status, 0, 'a forged entrypoint marker must not run');
+  assert.match(result.stderr, /without its attestation seam and without EXECUTE/u);
+  assert.equal(existsSync(runtime.capture), false, 'nothing may reach psql behind the forged marker');
+});
+
 test('a probe answer read out of order does not turn an absent object into a present one', () => {
   // `UNION ALL` promises no row order. The wrapper used to be safe here and the webapp runner was
   // not; both now match answers by the `at` each row carries, and a short answer set is a refusal.
