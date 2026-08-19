@@ -106,7 +106,6 @@ BEGIN
 END
 $function$;
 
-REVOKE ALL ON FUNCTION app.read_operator_delivery_queue_health() FROM PUBLIC;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
@@ -198,5 +197,3 @@ BEGIN
   RETURN v_row_count = 1;
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.enqueue_operator_health_digest_delivery(text,text,text,integer) FROM PUBLIC;
