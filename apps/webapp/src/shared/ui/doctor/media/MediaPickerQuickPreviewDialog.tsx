@@ -1,6 +1,6 @@
 'use client';
 
-import { ImageOff } from 'lucide-react';
+import { ImageOff, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -66,10 +66,17 @@ export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Prop
                     </span>
                   </div>
                 ) : (
+                  /* Ещё не перекодировано — показывать нечего (SECURITY_CANON §5); экран называет
+                     ожидание, а не оставляет серый прямоугольник вместо картинки. */
                   <div
-                    className="h-[45vh] max-h-[65vh] w-full animate-pulse rounded-md bg-muted/50"
-                    aria-hidden
-                  />
+                    className={cn(
+                      'flex h-[45vh] max-h-[65vh] w-full flex-col items-center justify-center gap-2 rounded-md bg-muted/30 p-6 text-sm text-muted-foreground',
+                    )}
+                    role="status"
+                  >
+                    <Loader2 className="h-12 w-12 animate-spin opacity-60" aria-hidden />
+                    <span>Изображение готовится</span>
+                  </div>
                 )
               ) : item.kind === 'video' ? (
                 <DoctorMediaPlaybackVideo
