@@ -137,8 +137,13 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // `app.resolve_public_booking_organization(uuid,uuid)`. Оба перестали читать
   // `public.be_external_entity_mappings`: таблица удалена вместе с Rubitime. Прибавка = функции
   // наконец под учётом, новых функций не появилось.
-  // 110 → 111 (19.08): корень платформенного дашборда (миграция 0043).
-  assert.equal(functions.length, 111);
+  // 110 → 111 (19.08): корень платформенного дашборда (миграция 0045).
+  // 111 → 112 (19.08): миграция 0046 забрала в перепись `app.resolve_operator_probe_incidents(text)` —
+  // её тело владело только `deploy/postgres/c4-operational-runtime.sql` и живой базой, ни одна
+  // пронумерованная миграция его не создавала. `app.read_operator_delivery_queue_health()` в счёт не
+  // входит: та же функция под тем же именем, `CREATE OR REPLACE` только сузил класс отказов, которые
+  // проба умеет закрывать (было — 0039).
+  assert.equal(functions.length, 112);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
