@@ -63,6 +63,18 @@ export type SaasBillingInvoice = {
    */
   expiresAt: string | null;
   status: SaasBillingInvoiceStatus;
+  /**
+   * Долг за место, переехавший в этот счёт с прошлого периода (решение владельца 19.08). Часть
+   * `amountMinor`, а не добавка к нему: сумма счёта — одно число, здесь только видно, сколько в
+   * нём чужого периода. `0` у всех счетов, в которые ничего не переезжало.
+   */
+  carriedDebtMinor: number;
+  /**
+   * Заполнен у счёта, который погашен ПЕРЕВЫСТАВЛЕНИЕМ, и указывает на преемника. Аннулирование с
+   * преемником — «сумма переехала на тот счёт»; аннулирование без преемника — «долга не было».
+   * Отличить их по одному лишь статусу `void` невозможно, поэтому преемник хранится строкой.
+   */
+  supersededByInvoiceId: string | null;
   providerId: string;
   providerInvoiceRef: string | null;
   providerCheckoutUrl: string | null;
@@ -414,6 +426,9 @@ export type SaasBillingRepositoryPort = {
     servicePeriodEndsAt: string;
     /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
     expiresAt: string;
+    /** Момент выставления. Решает, просрочен ли уже счёт за место с прошлого периода, — а значит,
+     *  едет ли его сумма строкой в этот счёт (решение владельца 19.08). */
+    asOf: string;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
   /**
    * Locks the current paid subscription, derives both tariff prices and the exact remaining time,
@@ -536,6 +551,10 @@ export type SaasBillingRepositoryPort = {
    * invoice id alone, not organization-scoped (see `reserveSaasBillingRefund`). Only `draft`/
    * `pending` invoices can be cancelled — an already-`paid` invoice cannot, and a `void` one is
    * already cancelled, not re-cancellable.
+   *
+   * Автоматический счёт за место сюда НЕ ходит вовсе (`seat_invoice_not_cancellable`): решение
+   * владельца 19.08 — его перевыставляют, а не отменяют. Вердикт один на экран и на маршрут —
+   * `invoiceOperations.ts`.
    */
   cancelSaasBillingInvoice(input: {
     saasBillingInvoiceId: string;
@@ -544,7 +563,32 @@ export type SaasBillingRepositoryPort = {
   }): Promise<
     | { outcome: 'invoice_not_found' }
     | { outcome: 'invoice_not_cancellable'; status: SaasBillingInvoiceStatus }
+    | { outcome: 'seat_invoice_not_cancellable' }
     | { outcome: 'cancelled'; invoice: SaasBillingInvoice }
+  >;
+  /**
+   * Перевыставление счёта за место: новый счёт на ТОТ ЖЕ отрезок услуги и ту же сумму, старый
+   * гасится преемником. Обе операции — в ОДНОЙ транзакции под замком организации: сначала
+   * появляется преемник, только потом гаснет старый, иначе долг исчезает в промежутке
+   * (`SEAT_UNPAID_PRACTICE_2026-08-19.md` вопрос 2, «аннулирование БЕЗ преемника значит „долга не
+   * было“»).
+   *
+   * Сумма НЕ пересчитывается «на сейчас»: отрезок услуги тот же, значит и цена та же. Пересчёт от
+   * момента перевыставления был бы скидкой за просрочку — ровно та находка (F-B), из-за которой
+   * место дешевело до 3,2 % цены после девяти перевыставлений.
+   */
+  reissueSeatOverageInvoice(input: {
+    saasBillingInvoiceId: string;
+    actorId: string | null;
+    reason: string;
+    providerId: string;
+    /** Настройка `lifecyclePolicy.invoiceValidityDays`; срок нового счёта считается от «сейчас». */
+    invoiceValidityDays: number;
+  }): Promise<
+    | { outcome: 'invoice_not_found' }
+    | { outcome: 'invoice_not_reissuable'; status: SaasBillingInvoiceStatus }
+    | { outcome: 'invoice_kind_not_reissuable'; invoiceKind: SaasBillingInvoiceKind }
+    | { outcome: 'reissued'; invoice: SaasBillingInvoice; superseded: SaasBillingInvoice }
   >;
   /**
    * K0 — resolves the organization's OWN assigned tariff (the admin's choice, not a client input)
@@ -607,6 +651,9 @@ export type SaasBillingRepositoryPort = {
     servicePeriodEndsAt: string;
     /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
     expiresAt: string;
+    /** Момент выставления. Решает, просрочен ли уже счёт за место с прошлого периода, — а значит,
+     *  едет ли его сумма строкой в этот счёт (решение владельца 19.08). */
+    asOf: string;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
 
   /**

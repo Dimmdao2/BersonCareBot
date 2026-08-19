@@ -10,9 +10,16 @@ import type {
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
 import {
+  carriedSeatDebtMinor,
   proratedRemainingPeriodAmountMinor,
   proratedSeatPriceMinor,
 } from '@/modules/saas-billing/proration';
+import {
+  reissueWithSuccessor,
+  saasBillingInvoiceCancelVerdict,
+  saasBillingInvoiceReissueVerdict,
+} from '@/modules/saas-billing/invoiceOperations';
+import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
 
@@ -113,6 +120,42 @@ export function createInMemorySaasBillingRepository(
     if (existing) return { invoice: existing, created: false };
     invoices.set(row.id, row);
     return { invoice: row, created: true };
+  }
+
+  /** Двойник повторяет правило pg-репозитория дословно: долгом за место считается НЕОПЛАЧЕННЫЙ счёт
+   *  за место, чей отрезок услуги закончился не позже начала нового периода. */
+  function readSeatDebtForPeriod(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    periodStartsAt: string;
+    asOf: string;
+    periodCurrency: string;
+  }): { debts: SaasBillingInvoice[]; totalMinor: number } {
+    const debts = [...invoices.values()].filter(
+      (row) =>
+        row.organizationId === input.organizationId &&
+        row.saasBillingSubscriptionId === input.saasBillingSubscriptionId &&
+        row.invoiceKind === 'seat_overage' &&
+        (row.status === 'draft' || row.status === 'pending') &&
+        row.servicePeriodEndsAt <= input.periodStartsAt &&
+        row.servicePeriodEndsAt <= input.asOf,
+    );
+    return {
+      debts,
+      totalMinor: carriedSeatDebtMinor({ periodCurrency: input.periodCurrency, debts }),
+    };
+  }
+
+  /** Гашение долга ПОСЛЕ появления преемника — место при этом не отбирается: счётчик
+   *  `paidAdditionalSeats` здесь не трогается ни на единицу. */
+  function carrySeatDebtInto(debts: SaasBillingInvoice[], successorInvoiceId: string): void {
+    for (const debt of debts) {
+      invoices.set(debt.id, {
+        ...debt,
+        status: 'void',
+        supersededByInvoiceId: successorInvoiceId,
+      });
+    }
   }
 
   return {
@@ -490,6 +533,8 @@ export function createInMemorySaasBillingRepository(
           tariffId: purchasedTariffId(authority),
           tariffName: tariff?.name ?? 'In-memory tariff',
           amountMinor: tariff?.priceMinor ?? 0,
+          carriedDebtMinor: 0,
+          supersededByInvoiceId: null,
           currency: tariff?.currency ?? 'RUB',
           tariffBillingPeriod: tariff?.billingPeriod ?? 'month',
           additionalSeatQuantity: authority.paidAdditionalSeats,
@@ -505,6 +550,15 @@ export function createInMemorySaasBillingRepository(
         invoices.set(refreshed.id, refreshed);
         return { invoice: refreshed, created: false };
       }
+      // Долг за место с прошлого периода едет строкой сюда — та же дверь и тот же порядок, что в
+      // pg-репозитории: преемник появляется первым, долг гасится только им.
+      const seatDebt = readSeatDebtForPeriod({
+        organizationId: authority.organizationId,
+        saasBillingSubscriptionId: authority.id,
+        periodStartsAt: input.servicePeriodStartsAt,
+        asOf: input.asOf,
+        periodCurrency: tariff?.currency ?? 'RUB',
+      });
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
@@ -515,7 +569,9 @@ export function createInMemorySaasBillingRepository(
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
         description: null,
-        amountMinor: tariff?.priceMinor ?? 0,
+        amountMinor: (tariff?.priceMinor ?? 0) + seatDebt.totalMinor,
+        carriedDebtMinor: seatDebt.totalMinor,
+        supersededByInvoiceId: null,
         currency: tariff?.currency ?? 'RUB',
         tariffBillingPeriod: tariff?.billingPeriod ?? 'month',
         tariffSnapshot: tariff
@@ -535,7 +591,13 @@ export function createInMemorySaasBillingRepository(
         providerCheckoutUrl: null,
         providerIdempotencyKey: input.providerIdempotencyKey,
       };
-      return insertInvoiceIdempotent(row);
+      const { successor } = await reissueWithSuccessor({
+        issueSuccessor: async () => insertInvoiceIdempotent(row),
+        retireSuperseded: async ({ invoice, created }) => {
+          if (created) carrySeatDebtInto(seatDebt.debts, invoice.id);
+        },
+      });
+      return successor;
     },
 
     async createProratedTariffUpgradeInvoice(input) {
@@ -613,6 +675,8 @@ export function createInMemorySaasBillingRepository(
         additionalSeatQuantity: 0,
         description: SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION,
         amountMinor,
+        carriedDebtMinor: 0,
+        supersededByInvoiceId: null,
         currency: targetTariff.currency,
         tariffBillingPeriod: targetTariff.billingPeriod,
         tariffSnapshot: {
@@ -824,6 +888,8 @@ export function createInMemorySaasBillingRepository(
         additionalSeatQuantity: input.additionalSeatQuantity,
         description: input.description,
         amountMinor: input.amountMinor,
+        carriedDebtMinor: 0,
+        supersededByInvoiceId: null,
         currency: input.currency,
         tariffBillingPeriod: 'month',
         tariffSnapshot: null,
@@ -880,6 +946,8 @@ export function createInMemorySaasBillingRepository(
         additionalSeatQuantity: 1,
         description: 'Дополнительное место специалиста сверх тарифа',
         amountMinor: priceMinor,
+        carriedDebtMinor: 0,
+        supersededByInvoiceId: null,
         currency: seatCurrency,
         tariffBillingPeriod: 'month',
         tariffSnapshot: null,
@@ -899,12 +967,61 @@ export function createInMemorySaasBillingRepository(
     async cancelSaasBillingInvoice({ saasBillingInvoiceId }) {
       const current = invoices.get(saasBillingInvoiceId);
       if (!current) return { outcome: 'invoice_not_found' as const };
-      if (current.status !== 'draft' && current.status !== 'pending') {
-        return { outcome: 'invoice_not_cancellable' as const, status: current.status };
+      // Тот же вердикт, что у pg-репозитория, экрана и маршрута: счёт за место не отменяют.
+      const verdict = saasBillingInvoiceCancelVerdict(current);
+      if (!verdict.allowed) {
+        return verdict.refusal === 'seat_invoice_not_cancellable'
+          ? { outcome: 'seat_invoice_not_cancellable' as const }
+          : { outcome: 'invoice_not_cancellable' as const, status: current.status };
       }
       const row: SaasBillingInvoice = { ...current, status: 'void' };
       invoices.set(row.id, row);
       return { outcome: 'cancelled' as const, invoice: row };
+    },
+
+    async reissueSeatOverageInvoice(input) {
+      const current = invoices.get(input.saasBillingInvoiceId);
+      if (!current) return { outcome: 'invoice_not_found' as const };
+      const verdict = saasBillingInvoiceReissueVerdict(current);
+      if (!verdict.allowed) {
+        return verdict.refusal === 'invoice_kind_not_reissuable'
+          ? {
+              outcome: 'invoice_kind_not_reissuable' as const,
+              invoiceKind: current.invoiceKind,
+            }
+          : { outcome: 'invoice_not_reissuable' as const, status: current.status };
+      }
+      const { successor, retired } = await reissueWithSuccessor({
+        issueSuccessor: async () => {
+          // Отрезок услуги и сумма — дословно из отменяемого счёта: перевыставление не пересчитывает
+          // цену «на сейчас», иначе оно превращается в скидку за просрочку.
+          const { invoice } = insertInvoiceIdempotent({
+            ...current,
+            id: crypto.randomUUID(),
+            status: 'draft',
+            supersededByInvoiceId: null,
+            expiresAt: saasBillingInvoiceExpiresAt(
+              new Date().toISOString(),
+              input.invoiceValidityDays,
+            ),
+            providerId: input.providerId,
+            providerInvoiceRef: null,
+            providerCheckoutUrl: null,
+            providerIdempotencyKey: `saas_seat_overage_reissue:${current.id}`,
+          });
+          return invoice;
+        },
+        retireSuperseded: async (replacement) => {
+          const row: SaasBillingInvoice = {
+            ...current,
+            status: 'void',
+            supersededByInvoiceId: replacement.id,
+          };
+          invoices.set(row.id, row);
+          return row;
+        },
+      });
+      return { outcome: 'reissued' as const, invoice: successor, superseded: retired };
     },
 
     async requireOwnTariffBillingSubscription(organizationId) {
@@ -993,6 +1110,13 @@ export function createInMemorySaasBillingRepository(
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
       const tariff = tariffs.get(purchasedTariffId(authority));
+      const seatDebt = readSeatDebtForPeriod({
+        organizationId: authority.organizationId,
+        saasBillingSubscriptionId: authority.id,
+        periodStartsAt: input.servicePeriodStartsAt,
+        asOf: input.asOf,
+        periodCurrency: tariff?.currency ?? 'RUB',
+      });
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
@@ -1003,7 +1127,9 @@ export function createInMemorySaasBillingRepository(
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
         description: null,
-        amountMinor: tariff?.priceMinor ?? 0,
+        amountMinor: (tariff?.priceMinor ?? 0) + seatDebt.totalMinor,
+        carriedDebtMinor: seatDebt.totalMinor,
+        supersededByInvoiceId: null,
         currency: tariff?.currency ?? 'RUB',
         tariffBillingPeriod: tariff?.billingPeriod ?? 'month',
         tariffSnapshot: tariff
@@ -1023,8 +1149,14 @@ export function createInMemorySaasBillingRepository(
         providerCheckoutUrl: null,
         providerIdempotencyKey: input.providerIdempotencyKey,
       };
-      invoices.set(row.id, row);
-      return { invoice: row, created: true };
+      const { successor } = await reissueWithSuccessor({
+        issueSuccessor: async () => {
+          invoices.set(row.id, row);
+          return row;
+        },
+        retireSuperseded: async (inserted) => carrySeatDebtInto(seatDebt.debts, inserted.id),
+      });
+      return { invoice: successor, created: true };
     },
 
     async promoteDueSaasBillingPaidInvoice({ organizationId, saasBillingSubscriptionId, asOf }) {

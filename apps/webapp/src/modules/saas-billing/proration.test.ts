@@ -167,6 +167,7 @@ describe('saasBillingPeriodAmountMinor', () => {
         tariffPriceMinor: 500_000,
         additionalSeatPriceMinor: 150_000,
         additionalSeatQuantity: 2,
+        carriedDebtMinor: 0,
       }),
     ).toBe(800_000);
   });
@@ -177,6 +178,7 @@ describe('saasBillingPeriodAmountMinor', () => {
         tariffPriceMinor: 500_000,
         additionalSeatPriceMinor: 150_000,
         additionalSeatQuantity: 1,
+        carriedDebtMinor: 0,
       }),
     ).toBe(650_000);
   });
@@ -187,6 +189,7 @@ describe('saasBillingPeriodAmountMinor', () => {
         tariffPriceMinor: 500_000,
         additionalSeatPriceMinor: null,
         additionalSeatQuantity: 1,
+        carriedDebtMinor: 0,
       }),
     ).toThrow('saas_billing_additional_seat_price_missing');
   });

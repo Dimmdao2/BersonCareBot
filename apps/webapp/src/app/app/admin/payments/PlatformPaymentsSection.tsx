@@ -12,6 +12,10 @@ import type {
 import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
 import { isSaasBillingInvoicePayable } from '@/modules/saas-billing/invoiceValidity';
 import {
+  saasBillingInvoiceCancelVerdict,
+  saasBillingInvoiceReissueVerdict,
+} from '@/modules/saas-billing/invoiceOperations';
+import {
   Card,
   CardAction,
   CardContent,
@@ -59,6 +63,16 @@ function statusBadgeVariant(
   if (status === 'paid') return 'secondary';
   if (status === 'failed' || status === 'void') return 'destructive';
   return 'outline';
+}
+
+/**
+ * «Аннулирован» и «перевыставлен» — два разных утверждения: первое значит «счёта не было», второе —
+ * «сумма на другом счёте». Отличает их наличие преемника, а не статус: в базе оба `void`. Читать
+ * журнал, где перевыставленный счёт подписан «Аннулирован», значит верить, что долг исчез.
+ */
+function invoiceStatusLabel(row: SaasBillingPlatformInvoiceRow): string {
+  if (row.status === 'void' && row.supersededByInvoiceId) return 'Перевыставлен';
+  return INVOICE_STATUS_LABELS[row.status];
 }
 
 /**
@@ -120,12 +134,26 @@ function manualInvoiceErrorLabel(code: string): string {
 const CANCEL_ERROR_LABELS: Record<string, string> = {
   invoice_not_found: 'Счёт не найден.',
   invoice_not_cancellable: 'Счёт уже оплачен или уже отменён — отменить нельзя.',
+  seat_invoice_not_cancellable:
+    'Счёт за место не отменяют: место продано. Его можно перевыставить.',
   forbidden: 'Нет прав на отмену.',
   unauthorized: 'Сессия истекла — войдите заново.',
 };
 
 function cancelErrorLabel(code: string): string {
   return CANCEL_ERROR_LABELS[code] ?? `Счёт не отменён (${code}).`;
+}
+
+const REISSUE_ERROR_LABELS: Record<string, string> = {
+  invoice_not_found: 'Счёт не найден.',
+  invoice_not_reissuable: 'Счёт уже оплачен или погашен — перевыставлять нечего.',
+  invoice_kind_not_reissuable: 'Перевыставление заведено для счёта за место.',
+  forbidden: 'Нет прав на перевыставление.',
+  unauthorized: 'Сессия истекла — войдите заново.',
+};
+
+function reissueErrorLabel(code: string): string {
+  return REISSUE_ERROR_LABELS[code] ?? `Счёт не перевыставлен (${code}).`;
 }
 
 function formatAmount(amountMinor: number, currency: string): string {
@@ -935,6 +963,89 @@ function CancelInvoiceDialog({
   );
 }
 
+type ReissueApiResponse =
+  | { ok: true; invoice: SaasBillingPlatformInvoiceRow; supersededInvoiceId: string }
+  | { ok: false; error?: string };
+
+/**
+ * Перевыставление счёта за место — замена кнопки «Отменить» там, где отменять не с чего (решение
+ * владельца 19.08). Диалог говорит ровно то, что произойдёт: появится новый счёт на ту же услугу и
+ * ту же сумму, старый погаснет ссылкой на него. Сумма не меняется — отрезок услуги тот же.
+ */
+function ReissueInvoiceDialog({
+  row,
+  onClose,
+  onSuccess,
+}: {
+  row: SaasBillingPlatformInvoiceRow;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = useCallback(async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const json = await apiJson<ReissueApiResponse>(
+        `/api/admin/saas-billing/payments/${row.id}/reissue`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason }),
+        },
+      );
+      if (json.ok) onSuccess();
+    } catch (e) {
+      setError(reissueErrorLabel(e instanceof Error ? e.message : 'network'));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [reason, row.id, onSuccess]);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Перевыставить счёт — {row.organizationTitle}</DialogTitle>
+          <DialogDescription>
+            {row.tariffName}, {formatAmount(row.amountMinor, row.currency)}. Будет выставлен новый
+            счёт на ту же услугу и ту же сумму; этот погаснет со ссылкой на него. Долг не
+            уменьшается.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="reissue-invoice-reason">Причина (необязательно)</Label>
+            <Input
+              id="reissue-invoice-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+            />
+          </div>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
+            Назад
+          </Button>
+          <Button type="button" onClick={submit} disabled={submitting}>
+            {submitting ? 'Перевыставляем…' : 'Перевыставить'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: string }) {
   const [applied, setApplied] = useState<FilterState>(emptyFilters);
   const [draft, setDraft] = useState<FilterState>(emptyFilters);
@@ -943,6 +1054,7 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
   const [payments, setPayments] = useState<SaasBillingPlatformInvoiceRow[] | null>(null);
   const [refundRow, setRefundRow] = useState<SaasBillingPlatformInvoiceRow | null>(null);
   const [cancelRow, setCancelRow] = useState<SaasBillingPlatformInvoiceRow | null>(null);
+  const [reissueRow, setReissueRow] = useState<SaasBillingPlatformInvoiceRow | null>(null);
   const [manualInvoiceOpen, setManualInvoiceOpen] = useState(false);
 
   const queryString = useMemo(() => {
@@ -1145,10 +1257,16 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                         </td>
                         <td className="px-3 py-2 align-top font-medium">
                           {formatAmount(row.amountMinor, row.currency)}
+                          {row.carriedDebtMinor > 0 && (
+                            <span className="block text-xs font-normal text-muted-foreground">
+                              в том числе долг за места:{' '}
+                              {formatAmount(row.carriedDebtMinor, row.currency)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 align-top">
                           <Badge variant={statusBadgeVariant(row.status)}>
-                            {INVOICE_STATUS_LABELS[row.status]}
+                            {invoiceStatusLabel(row)}
                           </Badge>
                           {isInvoiceOverdue(row) && (
                             <Badge variant="destructive" className="ml-1">
@@ -1162,8 +1280,13 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                         <td className="px-3 py-2 align-top">
                           <RefundCell row={row} onOpenRefund={() => setRefundRow(row)} />
                         </td>
+                        {/* Какое действие применимо к счёту, решает не статус на экране, а общий
+                            вердикт `invoiceOperations.ts` — тот же, которым маршрут отказывает
+                            прямому запросу. Автоматический счёт за место получает
+                            «Перевыставить» вместо «Отменить»: место продано, отменять его не с
+                            чего (решение владельца 19.08). */}
                         <td className="px-3 py-2 align-top">
-                          {(row.status === 'draft' || row.status === 'pending') && (
+                          {saasBillingInvoiceCancelVerdict(row).allowed && (
                             <Button
                               type="button"
                               variant="outline"
@@ -1171,6 +1294,16 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                               onClick={() => setCancelRow(row)}
                             >
                               Отменить
+                            </Button>
+                          )}
+                          {saasBillingInvoiceReissueVerdict(row).allowed && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setReissueRow(row)}
+                            >
+                              Перевыставить
                             </Button>
                           )}
                         </td>
@@ -1198,6 +1331,16 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
             onClose={() => setCancelRow(null)}
             onSuccess={() => {
               setCancelRow(null);
+              void load();
+            }}
+          />
+        )}
+        {reissueRow && (
+          <ReissueInvoiceDialog
+            row={reissueRow}
+            onClose={() => setReissueRow(null)}
+            onSuccess={() => {
+              setReissueRow(null);
               void load();
             }}
           />
