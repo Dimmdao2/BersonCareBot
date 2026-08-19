@@ -1,6 +1,7 @@
 export { operatorIncidents, operatorJobStatus } from './operatorHealth.js';
 export {
   OUTBOUND_PROVIDER_ERROR_CLASSES,
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
   PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES,
   classifyOutboundProviderErrorClass,
   describeOutboundProviderErrorClass,

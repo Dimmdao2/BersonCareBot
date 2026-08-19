@@ -21,7 +21,12 @@ export type DigestHealthSnapshotInput = {
     includeRetriesLine: boolean;
     includeStalePendingLine: boolean;
   };
-  outgoingDelivery: { dueBacklog: number; deadTotal: number };
+  outgoingDelivery: {
+    dueBacklog: number;
+    deadTotal: number;
+    /** Окно «отказывает сейчас»; без него сводка снова красна по июньской строке. */
+    deadRecent?: number;
+  };
   outboundDeliveryProvider: { recentIncidentCount: number; openIncidentCount?: number };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;

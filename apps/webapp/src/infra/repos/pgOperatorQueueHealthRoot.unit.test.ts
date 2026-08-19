@@ -24,6 +24,8 @@ import type { OperatorHealthDigestReadyOutgoingDelivery } from '@/modules/messag
 const ROOT_SNAPSHOT = {
   dueBacklog: 91,
   deadTotal: 4,
+  deadRecent: 1,
+  lastOperatorDeadAt: '2026-08-19T04:40:00.000Z',
   blockedRecipientTotal: 87,
   processingCount: 2,
   confirmedSentLast24h: 11,
@@ -62,6 +64,9 @@ it('оператор видит настоящие числа очереди, а
 
   expect(snapshot.dueBacklog).toBe(91);
   expect(snapshot.deadTotal).toBe(4);
+  // Окно отделяет «отказывает сейчас» от «когда-то отказало»: без него один июньский ряд
+  // держал бы операторский баннер красным навсегда.
+  expect(snapshot.deadRecent).toBe(1);
   expect(snapshot.blockedRecipientTotal).toBe(87);
   expect(snapshot.processingCount).toBe(2);
   expect(snapshot.confirmedSentLast24h).toBe(11);
@@ -84,8 +89,9 @@ it('оператор видит настоящие числа очереди, а
 it('суточная сводка попадает в очередь: строка ставится, а не теряется на отказе', async () => {
   fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ inserted: true }] });
 
-  await expect(enqueueOperatorHealthDigestDeliveries([digest('digest:1'), digest('digest:2')]))
-    .resolves.toBe(2);
+  await expect(
+    enqueueOperatorHealthDigestDeliveries([digest('digest:1'), digest('digest:2')]),
+  ).resolves.toBe(2);
 
   expect(fakes.runWebappNamedRoot.mock.calls[0]?.slice(1, 3)).toEqual([
     'app.enqueue_operator_health_digest_delivery(text,text,text,integer)',
