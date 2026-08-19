@@ -1,19 +1,29 @@
 /**
  * Blind acceptance test written by the audit of `wt/public-booking-write-20260819`, not by the
- * author of the change. It fixes the owner ruling of 2026-08-19
+ * author of the change. It originally fixed the owner ruling of 2026-08-19
  * (`OWNER_PRODUCT_RULES.md` §33.2), verbatim: «оплаченное место не должно быть связано с записями
  * на приём вообще никак» — while «специалистов ограничивать — да, это надо».
  *
- * Three behaviours, one per direction the ruling can be broken:
+ * §33.2 kept the `patient_count` ceiling for a staff-opened card and only exempted the public
+ * booking door. Т12 (`docs/OWNER_DECISIONS.md`, owner 19.08, later the same day, дословно: «лимит
+ * клиентов - убрать») superseded that narrower shape: the ceiling is gone from every door, staff
+ * included — a clinic is billed for seats, not for people in its base. See merge note on this file
+ * for the reconciliation; `pgPatientOrganizationEnrollment.noClientCeiling.test.ts` is the dedicated
+ * T12 acceptance test for the staff writer.
+ *
+ * Behaviours this file still fixes, one per direction §33.2/Т12 together can be broken:
  *  1. a public visitor's own booking never consults the paid `patient_count` ceiling, whatever the
- *     clinic's usage is (migration 0052 briefly put it on this path, 0053 took it off);
- *  2. a staff-opened card still does, and a clinic at the ceiling is still refused;
- *  3. the specialist (clinic team) seat is untouched and still refuses at its own ceiling.
+ *     clinic's usage is (migration 0052 briefly put it on this path, 0053 took it off, and Т12 then
+ *     removed the ceiling itself);
+ *  2. a staff-opened card doesn't either any more (Т12) — asserted here too, so a future change that
+ *     reintroduces the door on either path fails in both places;
+ *  3. the specialist (clinic team) seat is untouched and still refuses at its own ceiling — Т12 named
+ *     `patient_count` only, `clinic_team` is a different mechanic and was not ruled on.
  *
  * Plus the contact pair the public form collects, which the write half must carry to the booking
  * unchanged — it is the only place a clinic learns how to call the person back.
  *
- * The `patient_count` ceiling is reached through exactly one door,
+ * The retired `patient_count` ceiling was reached through exactly one door,
  * `app.assert_org_patient_count_quota_available`. The public path is therefore driven with the real
  * `pgPublicBookingUserResolve` over a recording SQL layer, so every named root the path actually
  * invokes is observed by name — a future change that re-attaches the ceiling to this path fails
@@ -54,7 +64,7 @@ vi.mock('@/modules/patient-booking/inPersonBookingResolve', () => ({
 
 import { createVerifiedPublicBooking } from './createVerifiedPublicBooking';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
-import { StockQuotaReachedError, decideClinicTeamQuota } from '@/infra/repos/transactionQuotaPort';
+import { decideClinicTeamQuota } from '@/infra/repos/transactionQuotaPort';
 
 /** Drizzle renders `sql` lazily; the identity of a root is read out of the template chunks. */
 function sqlText(fragment: unknown): string {
@@ -168,41 +178,41 @@ describe('a visitor booking spends no paid client place (owner 19.08 §33.2)', (
   });
 });
 
-describe('a staff-opened card still spends one (the half the owner did NOT revoke)', () => {
+describe('a staff-opened card no longer spends one either (Т12 superseded §33.2)', () => {
   function staffTx(existingStatus: string | null) {
+    let found = existingStatus;
     return {
       select: () => ({
         from: () => ({
-          where: () => ({ limit: async () => (existingStatus ? [{ status: existingStatus }] : []) }),
+          where: () => ({ limit: async () => (found ? [{ status: found }] : []) }),
         }),
       }),
-      insert: () => ({ values: () => ({ onConflictDoNothing: async () => undefined }) }),
+      insert: () => ({
+        values: () => ({
+          onConflictDoNothing: async () => {
+            found = 'invited';
+          },
+        }),
+      }),
     } as never;
   }
 
   /**
-   * Positive control for the detector the public-path test relies on: the SAME rendering of the
-   * SAME SQL layer must show this door by name when it IS called.  Without it, «the public path
-   * never names the ceiling» could pass because nothing is ever visible.
+   * Negative control for the detector the public-path test relies on: the SAME rendering of the
+   * SAME SQL layer must never show this door by name for a genuinely new card either — Т12 removed
+   * the ceiling from this writer, not just from the public path. Full behavioural coverage (no raw
+   * SQL at all, at any existing enrollment count) lives in
+   * `pgPatientOrganizationEnrollment.noClientCeiling.test.ts`; this is just the by-name check the
+   * sibling test in this file relies on for the public path.
    */
-  it('asks the ceiling for a genuinely new card and refuses when it is reached', async () => {
-    fakes.runSql.mockImplementation(async (_db: unknown, fragment: unknown) => {
-      recorded.sql.push(sqlText(fragment));
-      if (sqlText(fragment).includes(PATIENT_COUNT_DOOR)) {
-        throw Object.assign(new Error('failed query'), {
-          cause: Object.assign(new Error('saas_quota_reached:patient_count'), { code: '53400' }),
-        });
-      }
-      return { rows: [] };
-    });
-
+  it('never names the retired ceiling for a genuinely new card', async () => {
     await expect(
       ensureInvitedOrganizationClientRelationship(staffTx(null), ORGANIZATION_ID, PLATFORM_USER_ID),
-    ).rejects.toBeInstanceOf(StockQuotaReachedError);
-    expect(recorded.sql.join('\n')).toContain(PATIENT_COUNT_DOOR);
+    ).resolves.toBe('invited');
+    expect(recorded.sql.join('\n')).not.toContain(PATIENT_COUNT_DOOR);
   });
 
-  it('does not re-ask the ceiling for a card that already exists', async () => {
+  it('does not name it for a card that already exists either', async () => {
     await expect(
       ensureInvitedOrganizationClientRelationship(staffTx('active'), ORGANIZATION_ID, PLATFORM_USER_ID),
     ).resolves.toBe('active');

@@ -71,11 +71,13 @@ export type PublicBookingEnrollment = {
  * MUST run under a patient principal: the door reads the person from `app.current_patient_user_id()`
  * and accepts none from the caller, so nobody can enrol somebody else into a clinic.
  *
- * This door does NOT spend the clinic's paid client ceiling (owner 19.08, `OWNER_PRODUCT_RULES.md`
+ * This door never spent the clinic's paid client ceiling (owner 19.08, `OWNER_PRODUCT_RULES.md`
  * §33.2 — migration 0053, reverting the 2026-08-19 change that briefly put it here): «запись на приём
- * сама по себе лимита не расходует и не должна его расходовать». `app.assert_org_patient_count_quota_available`
- * still exists and is unchanged — the staff card writer (`ensureInvitedOrganizationClientRelationship`)
- * is its only caller again.
+ * сама по себе лимита не расходует и не должна его расходовать». Т12 (owner 19.08, later the same
+ * day, `docs/OWNER_DECISIONS.md`: «лимит клиентов - убрать») then removed the ceiling itself — the
+ * staff card writer (`ensureInvitedOrganizationClientRelationship`) no longer calls
+ * `app.assert_org_patient_count_quota_available` either. The function stays in the schema (migrations
+ * are immutable history) but nothing in the application calls it any more.
  */
 export async function enrollCurrentPatientInPublicBookingClinic(
   organizationId: string,

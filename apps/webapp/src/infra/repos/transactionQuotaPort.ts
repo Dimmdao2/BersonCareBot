@@ -1,5 +1,5 @@
 import { and, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
-import { runWebappSql, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
+import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
@@ -66,49 +66,6 @@ export function decideStockQuota(input: {
   const limit = quota?.kind === 'numeric' ? quota.limit : null;
   if (limit === null) return 'allowed';
   return input.used + input.increment > limit ? 'reached' : 'allowed';
-}
-
-/**
- * `patient_count` — the ONE ceiling, and it is not this file's to decide any more.
- *
- * Owner 19.08 (`OWNER_PRODUCT_RULES.md` §33.2): booking an appointment does not spend a paid client
- * place by itself — only a staff-opened card does. Two functions create an `org_enrollments` row
- * (this application's staff card writer, `ensureInvitedOrganizationClientRelationship`, and the
- * public-booking door `app.enroll_current_patient_in_public_booking_clinic`), but this ceiling has
- * exactly one caller: the staff writer, from here. Migration 0053 removed the door's call after 0052
- * had briefly added it — that made the count symmetric but also refused a visitor's own booking for a
- * reason that is not theirs to bear, which the owner ruled against.
- *
- * The rule lives in `app.assert_org_patient_count_quota_available` because the check needs reads
- * (`be_organizations.tariff_id`, tariff snapshot, entitlement overrides) this application's patient
- * login cannot make relationally. This function is only the transport, run inside the caller's own
- * transaction so the advisory lock and the insert that follows it stay atomic.
- */
-export async function assertOrgPatientCountQuotaAvailable(
-  tx: WebappSqlExecutor,
-  organizationId: string,
-): Promise<void> {
-  try {
-    await runWebappSql(
-      tx,
-      sql`SELECT app.assert_org_patient_count_quota_available(${organizationId}::uuid)`,
-    );
-  } catch (error) {
-    if (isQuotaReachedRefusal(error)) throw new StockQuotaReachedError('patient_count');
-    throw error;
-  }
-}
-
-/**
- * SQLSTATE `53400` (configuration_limit_exceeded) raised by that one door and nothing else on this
- * path. Read through the `cause` chain because drizzle wraps a failed statement in its own error
- * and hangs the driver's error — the one carrying `code` — underneath.
- */
-function isQuotaReachedRefusal(error: unknown): boolean {
-  for (let link: unknown = error; link; link = (link as { cause?: unknown }).cause) {
-    if ((link as { code?: unknown }).code === '53400') return true;
-  }
-  return false;
 }
 
 /**
