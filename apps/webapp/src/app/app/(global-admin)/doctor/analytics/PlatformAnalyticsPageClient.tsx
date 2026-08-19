@@ -6,9 +6,19 @@ import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types'
 import type { PlatformAnalyticsDashboard } from '@/modules/platform-analytics/types';
 import { VIDEO_DURATION_BUCKET_LABELS } from '@/modules/platform-analytics/types';
 import { VIDEO_DURATION_BUCKETS } from '@/modules/platform-analytics/durationBuckets';
+import {
+  PLATFORM_ENTRY_CHANNELS,
+  type PlatformEntryChannel,
+} from '@/modules/platform-analytics/entryChannels';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import {
+  doctorDnaFlatListClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { AnalyticsPeriodToolbar } from '@/app/app/doctor/analytics/clients/AnalyticsPeriodToolbar';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import {
@@ -19,6 +29,15 @@ import {
   type AnalyticsPeriodValue,
 } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
 import { PlatformAnalyticsLineChart } from './PlatformAnalyticsLineChart';
+
+/** Подписи — презентация, поэтому живут в UI, а не рядом с доменными типами. */
+const ENTRY_CHANNEL_LABELS: Record<PlatformEntryChannel, string> = {
+  pwa: 'Приложение',
+  browser: 'Сайт',
+  telegram: 'Telegram',
+  max: 'MAX',
+  other: 'Прочее',
+};
 
 function formatInt(value: number): string {
   return new Intl.NumberFormat('ru-RU').format(Math.round(value));
@@ -188,33 +207,22 @@ function DashboardBody({ data }: { data: PlatformAnalyticsDashboard }) {
 
       <DoctorSection>
         <DoctorSectionTitle>Заходы</DoctorSectionTitle>
-        <DoctorMetricList>
-          <DoctorStatCard
-            id="doc-pages"
-            title="Страницы врачей"
-            value={formatInt(data.visits.doctor.pageViews)}
-          />
-          <DoctorStatCard
-            id="doc-cabinet"
-            title="Кабинет врачей"
-            value={formatInt(data.visits.doctor.cabinetViews)}
-          />
-          <DoctorStatCard
-            id="pat-pages"
-            title="Страницы пациентов"
-            value={formatInt(data.visits.patient.pageViews)}
-          />
-          <DoctorStatCard
-            id="pat-cabinet"
-            title="Кабинет пациентов"
-            value={formatInt(data.visits.patient.cabinetViews)}
-          />
-        </DoctorMetricList>
-        <p className="text-xs text-muted-foreground">
-          Приложение {formatInt(data.visits.doctor.appChannelViews + data.visits.patient.appChannelViews)}
-          {' · '}
-          сайт {formatInt(data.visits.doctor.siteChannelViews + data.visits.patient.siteChannelViews)}
-        </p>
+        <VisitsAudienceBlock
+          idPrefix="doc"
+          audienceLabel="врачей"
+          slice={data.visits.doctor}
+          missingIngestNote={
+            'Продуктовая аналитика собирается только в кабинете пациента: единственный приёмник ' +
+            'событий закрыт пациентским гейтом, врачебной сессии некуда отправить заход. ' +
+            'Чтобы здесь появились цифры, нужен приём событий в кабинете врача.'
+          }
+        />
+        <VisitsAudienceBlock
+          idPrefix="pat"
+          audienceLabel="пациентов"
+          slice={data.visits.patient}
+          missingIngestNote={null}
+        />
       </DoctorSection>
 
       <DoctorSection>
@@ -345,8 +353,102 @@ function DashboardBody({ data }: { data: PlatformAnalyticsDashboard }) {
           />
           <DoctorStatCard id="iframe-shown" title="Показы iframe" value="—" />
         </DoctorMetricList>
+        <DoctorSectionTitle>Выдачи видео по дням</DoctorSectionTitle>
+        <PlatformAnalyticsLineChart
+          days={data.patientActivity.playbackSeries.map((p) => p.day)}
+          series={[
+            {
+              def: { key: 'playback', label: 'Выдачи видео' },
+              values: data.patientActivity.playbackSeries.map((p) => p.count),
+            },
+          ]}
+        />
       </DoctorSection>
     </>
+  );
+}
+
+/**
+ * Одна аудитория блока «Заходы»: страницы, кабинет, разрез входа (мессенджеры отдельной
+ * величиной, не внутри «приложения») и топ страниц за период. Аудитория без приёма событий
+ * показывает заглушку, а не ноль: ноль здесь означал бы «никто не заходил».
+ */
+function VisitsAudienceBlock({
+  idPrefix,
+  audienceLabel,
+  slice,
+  missingIngestNote,
+}: {
+  idPrefix: string;
+  audienceLabel: string;
+  slice: PlatformAnalyticsDashboard['visits']['patient'];
+  missingIngestNote: string | null;
+}) {
+  if (!slice.ingestAvailable) {
+    return (
+      <div className="flex flex-col gap-2">
+        <DoctorMetricList>
+          <DoctorStatCard id={`${idPrefix}-pages`} title={`Страницы ${audienceLabel}`} value="—" />
+          <DoctorStatCard id={`${idPrefix}-cabinet`} title={`Кабинет ${audienceLabel}`} value="—" />
+        </DoctorMetricList>
+        {missingIngestNote ? (
+          <p className="text-xs text-muted-foreground">{missingIngestNote}</p>
+        ) : null}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <DoctorMetricList>
+        <DoctorStatCard
+          id={`${idPrefix}-pages`}
+          title={`Страницы ${audienceLabel}`}
+          value={formatInt(slice.pageViews)}
+        />
+        <DoctorStatCard
+          id={`${idPrefix}-cabinet`}
+          title={`Кабинет ${audienceLabel}`}
+          value={formatInt(slice.cabinetViews)}
+        />
+        {PLATFORM_ENTRY_CHANNELS.map((channel) => (
+          <DoctorStatCard
+            key={channel}
+            id={`${idPrefix}-ch-${channel}`}
+            title={ENTRY_CHANNEL_LABELS[channel]}
+            value={formatInt(slice.byChannel[channel])}
+          />
+        ))}
+      </DoctorMetricList>
+      <TopPagesList idPrefix={idPrefix} audienceLabel={audienceLabel} slice={slice} />
+    </div>
+  );
+}
+
+function TopPagesList({
+  idPrefix,
+  audienceLabel,
+  slice,
+}: {
+  idPrefix: string;
+  audienceLabel: string;
+  slice: PlatformAnalyticsDashboard['visits']['patient'];
+}) {
+  if (slice.topPages.length === 0) {
+    return <DoctorEmptyState>Заходов {audienceLabel} за период нет.</DoctorEmptyState>;
+  }
+  return (
+    <ul className={doctorDnaFlatListClass} data-testid={`${idPrefix}-top-pages`}>
+      {slice.topPages.map((entry) => (
+        <li key={entry.pageKey}>
+          <div className={doctorDnaFlatListRowClass}>
+            <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 flex-1 truncate`}>
+              {entry.pageKey}
+            </span>
+            <span className={doctorDnaFlatListMetaClass}>{formatInt(entry.views)}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 

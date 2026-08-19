@@ -5,6 +5,11 @@ const fakes = vi.hoisted(() => ({
   requirePlatformOperationsApiContext: vi.fn(),
   getDashboard: vi.fn(),
   getAppDisplayTimeZone: vi.fn(),
+  loadPlatformAnalyticsAudienceSpec: vi.fn(),
+}));
+
+vi.mock('@/app-layer/analytics/loadAnalyticsAudience', () => ({
+  loadPlatformAnalyticsAudienceSpec: fakes.loadPlatformAnalyticsAudienceSpec,
 }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
@@ -23,6 +28,12 @@ describe('GET /api/admin/platform-analytics', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.getAppDisplayTimeZone.mockResolvedValue('Europe/Moscow');
+    fakes.loadPlatformAnalyticsAudienceSpec.mockResolvedValue({
+      includeTestAccounts: false,
+      testPhones: ['+79990000009'],
+      testTelegramIds: [],
+      testMaxIds: [],
+    });
     fakes.getDashboard.mockResolvedValue({ clinics: { now: 1 } });
   });
 
@@ -47,11 +58,19 @@ describe('GET /api/admin/platform-analytics', () => {
     );
 
     expect(response.status).toBe(200);
+    // Тестовые учётки владельца и агентов раздували каждую цифру: список отсечения обязан
+    // доехать до сервиса вместе с периодом, а не потеряться в роуте.
     expect(fakes.getDashboard).toHaveBeenCalledWith({
       iana: 'Europe/Moscow',
       preset: 'week',
       customFrom: undefined,
       customTo: undefined,
+      audience: {
+        includeTestAccounts: false,
+        testPhones: ['+79990000009'],
+        testTelegramIds: [],
+        testMaxIds: [],
+      },
     });
   });
 });

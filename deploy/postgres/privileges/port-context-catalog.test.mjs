@@ -28,7 +28,9 @@ const EXPECTED = {
   // 190 → 192 (19.08): `delivery_queue_health_read` + `health_digest_enqueue` — миграция 0039.
   // 192 → 194 (19.08): `operator_alert_staff_push_audience_read` + `saas_renewal_due_list` (0040).
   // 194 → 195 (19.08): `critical_incident_open` — миграция 0041.
-  webapp: 195,
+  // 195 → 196 (19.08): `platform_analytics_dashboard` — дашборд глобального админа читал
+  // девятнадцать таблиц отношением и отдавал 500 на первом же 42501 (миграция 0043).
+  webapp: 196,
   integrator: 34,
 };
 
@@ -59,8 +61,9 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 226 → 228 (19.08): аудитория staff-веб-пуша операторского алерта и межарендное перечисление
   // подписок к продлению — миграция 0040.
   // 228 → 229 (19.08): открытие критического инцидента — миграция 0041.
-  assert.equal(rows.length, 229);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 229);
+  // 229 → 230 (19.08): корень платформенного дашборда — миграция 0043.
+  assert.equal(rows.length, 230);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 230);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -120,7 +123,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 209 → 211 (19.08): корень снимка здоровья очереди и корень постановки сводки (миграция 0039).
   // 211 → 213 (19.08): корень аудитории staff-веб-пуша и корень перечисления подписок (0040).
   // 213 → 214 (19.08): корень открытия критического инцидента (0041).
-  assert.equal(roots.length, 214);
+  // 214 → 215 (19.08): корень платформенного дашборда (0043).
+  assert.equal(roots.length, 215);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

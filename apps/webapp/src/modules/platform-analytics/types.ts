@@ -1,11 +1,14 @@
 import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types';
 import type { VideoDurationBucket } from '@/modules/platform-analytics/durationBuckets';
+import type { PlatformEntryChannel } from '@/modules/platform-analytics/entryChannels';
+import type { PlatformAnalyticsAudienceSpec } from '@/modules/platform-analytics/ports';
 
 export type PlatformAnalyticsRangeInput = {
   iana: string;
   preset: AdminStatsTimePreset;
   customFrom?: string;
   customTo?: string;
+  audience: PlatformAnalyticsAudienceSpec;
 };
 
 export type DayCountPoint = {
@@ -19,12 +22,21 @@ export type NamedDaySeries = {
   series: DayCountPoint[];
 };
 
+export type TopPageEntry = {
+  pageKey: string;
+  views: number;
+};
+
 export type PageViewSlice = {
+  /**
+   * Приём событий для этой аудитории существует. `false` — цифры не «ноль заходов», а
+   * «не измеряется»; экран обязан показать заглушку, а не уверенный ноль.
+   */
+  ingestAvailable: boolean;
   pageViews: number;
   cabinetViews: number;
-  appChannelViews: number;
-  siteChannelViews: number;
-  topPages: { pageKey: string; views: number }[];
+  byChannel: Record<PlatformEntryChannel, number>;
+  topPages: TopPageEntry[];
 };
 
 export type VideoVolumeSlice = {
@@ -86,6 +98,8 @@ export type PlatformAnalyticsDashboard = {
     hlsResolves: number;
     mp4Resolves: number;
     playbackErrors: number;
+    /** GA-A-08a «просмотры файла … ряд» — выдачи видео по дням выбранного периода. */
+    playbackSeries: DayCountPoint[];
     hostingIframeShown: null;
   };
 };

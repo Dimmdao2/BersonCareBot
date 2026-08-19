@@ -1,10 +1,20 @@
 import { resolveAdminStatsLocalRange } from '@/modules/admin-platform-stats/registrationTimeRange';
 import {
+  emptyEntryChannelCounts,
+  platformEntryChannel,
+} from '@/modules/platform-analytics/entryChannels';
+import {
   isDoctorCabinetPageKey,
   isPatientCabinetPageKey,
   pageAudienceFromPageKey,
+  pageAudienceHasIngest,
+  type PageAudience,
 } from '@/modules/platform-analytics/pageAudience';
-import type { PlatformAnalyticsPort, VideoVolumeRaw } from '@/modules/platform-analytics/ports';
+import type {
+  PageViewRaw,
+  PlatformAnalyticsPort,
+  VideoVolumeRaw,
+} from '@/modules/platform-analytics/ports';
 import type {
   NamedDaySeries,
   PageViewSlice,
@@ -13,7 +23,7 @@ import type {
   VideoVolumeSlice,
 } from '@/modules/platform-analytics/types';
 
-const APP_CHANNELS = new Set(['pwa', 'telegram', 'max']);
+const TOP_PAGES_LIMIT = 12;
 
 function seriesFromRaw(
   dayKeys: string[],
@@ -26,35 +36,32 @@ function seriesFromRaw(
   };
 }
 
-function pageSlice(rows: { pageKey: string; entryChannel: string; views: number }[]): PageViewSlice {
+function audienceSlice(
+  audience: PageAudience,
+  rows: PageViewRaw[],
+  isCabinet: (pageKey: string) => boolean,
+): PageViewSlice {
   const byPage = new Map<string, number>();
+  const byChannel = emptyEntryChannelCounts();
   let pageViews = 0;
   let cabinetViews = 0;
-  let appChannelViews = 0;
-  let siteChannelViews = 0;
   for (const row of rows) {
     pageViews += row.views;
     byPage.set(row.pageKey, (byPage.get(row.pageKey) ?? 0) + row.views);
-    if (APP_CHANNELS.has(row.entryChannel)) appChannelViews += row.views;
-    if (row.entryChannel === 'browser') siteChannelViews += row.views;
+    byChannel[platformEntryChannel(row.entryChannel)] += row.views;
+    if (isCabinet(row.pageKey)) cabinetViews += row.views;
   }
   const topPages = [...byPage.entries()]
     .map(([pageKey, views]) => ({ pageKey, views }))
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 12);
-  return { pageViews, cabinetViews, appChannelViews, siteChannelViews, topPages };
-}
-
-function withCabinet(
-  slice: PageViewSlice,
-  rows: { pageKey: string; views: number }[],
-  isCabinet: (pageKey: string) => boolean,
-): PageViewSlice {
-  let cabinetViews = 0;
-  for (const row of rows) {
-    if (isCabinet(row.pageKey)) cabinetViews += row.views;
-  }
-  return { ...slice, cabinetViews };
+    .sort((a, b) => b.views - a.views || a.pageKey.localeCompare(b.pageKey))
+    .slice(0, TOP_PAGES_LIMIT);
+  return {
+    ingestAvailable: pageAudienceHasIngest(audience),
+    pageViews,
+    cabinetViews,
+    byChannel,
+    topPages,
+  };
 }
 
 function volumeSlice(raw: VideoVolumeRaw): VideoVolumeSlice {
@@ -72,58 +79,27 @@ export function createPlatformAnalyticsService(port: PlatformAnalyticsPort) {
     async getDashboard(input: PlatformAnalyticsRangeInput): Promise<PlatformAnalyticsDashboard> {
       const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } =
         resolveAdminStatsLocalRange(input.iana, input.preset, input.customFrom, input.customTo);
-      const window = { iana: input.iana, startUtcIso, endExclusiveUtcIso, dayKeys };
+      const snapshot = await port.readSnapshot({
+        iana: input.iana,
+        startUtcIso,
+        endExclusiveUtcIso,
+        dayKeys,
+        audience: input.audience,
+      });
 
-      const [
-        clinics,
-        specialists,
-        patients,
-        pageViews,
-        bookings,
-        programsAssigned,
-        clinicalVisits,
-        cmsArticlesCreated,
-        exercises,
-        exerciseVolume,
-        cmsVolume,
-        completions,
-        homeWellbeingMarks,
-        programActivity,
-        playback,
-      ] = await Promise.all([
-        port.countClinics(window),
-        port.countSpecialists(window),
-        port.countPatients(window),
-        port.listPageViews(window),
-        port.countBookings(window),
-        port.countProgramsAssigned(window),
-        port.countClinicalVisits(window),
-        port.countCmsArticles(window),
-        port.countExercises(window),
-        port.videoVolumeExercises(window),
-        port.videoVolumeCms(window),
-        port.countCompletions(window),
-        port.countHomeWellbeing(window),
-        port.programActivity(window),
-        port.videoPlayback(window),
-      ]);
+      const doctorRows = snapshot.pageViews.filter(
+        (row) => pageAudienceFromPageKey(row.pageKey) === 'doctor',
+      );
+      const patientRows = snapshot.pageViews.filter(
+        (row) => pageAudienceFromPageKey(row.pageKey) === 'patient',
+      );
 
-      const doctorRows = pageViews.filter((row) => pageAudienceFromPageKey(row.pageKey) === 'doctor');
-      const patientRows = pageViews.filter((row) => pageAudienceFromPageKey(row.pageKey) === 'patient');
-      const doctor = withCabinet(pageSlice(doctorRows), doctorRows, isDoctorCabinetPageKey);
-      const patient = withCabinet(pageSlice(patientRows), patientRows, isPatientCabinetPageKey);
-
-      const avgPerCreator =
-        exercises.creators > 0 ? exercises.created / exercises.creators : null;
-      const patientsWithProgram = programActivity.patientsWithProgram;
-      const avgVisitDays =
-        patientsWithProgram > 0 ? programActivity.visitDaysSum / patientsWithProgram : null;
-      const avgMarkDays =
-        patientsWithProgram > 0 ? programActivity.markDaysSum / patientsWithProgram : null;
-      const avgMarkShareOfVisitDays =
-        programActivity.visitDaysSum > 0
-          ? programActivity.markDaysSum / programActivity.visitDaysSum
-          : null;
+      const exercises = snapshot.exercises;
+      const avgPerCreator = exercises.creators > 0 ? exercises.created / exercises.creators : null;
+      const { patientsWithProgram, visitDaysSum, markDaysSum } = snapshot.programActivity;
+      const avgVisitDays = patientsWithProgram > 0 ? visitDaysSum / patientsWithProgram : null;
+      const avgMarkDays = patientsWithProgram > 0 ? markDaysSum / patientsWithProgram : null;
+      const avgMarkShareOfVisitDays = visitDaysSum > 0 ? markDaysSum / visitDaysSum : null;
 
       return {
         iana: input.iana,
@@ -132,15 +108,18 @@ export function createPlatformAnalyticsService(port: PlatformAnalyticsPort) {
         startUtcIso,
         endExclusiveUtcIso,
         clients: {
-          clinics: seriesFromRaw(dayKeys, clinics),
-          specialists: seriesFromRaw(dayKeys, specialists),
-          patients: seriesFromRaw(dayKeys, patients),
+          clinics: seriesFromRaw(dayKeys, snapshot.clinics),
+          specialists: seriesFromRaw(dayKeys, snapshot.specialists),
+          patients: seriesFromRaw(dayKeys, snapshot.patients),
         },
-        visits: { doctor, patient },
-        bookings,
-        programsAssigned,
-        clinicalVisits,
-        cmsArticlesCreated,
+        visits: {
+          doctor: audienceSlice('doctor', doctorRows, isDoctorCabinetPageKey),
+          patient: audienceSlice('patient', patientRows, isPatientCabinetPageKey),
+        },
+        bookings: snapshot.bookings,
+        programsAssigned: snapshot.programsAssigned,
+        clinicalVisits: snapshot.clinicalVisits,
+        cmsArticlesCreated: snapshot.cmsArticlesCreated,
         exercises: {
           created: exercises.created,
           creators: exercises.creators,
@@ -151,13 +130,13 @@ export function createPlatformAnalyticsService(port: PlatformAnalyticsPort) {
           videoIframe: exercises.videoIframe,
         },
         videoVolume: {
-          exercises: volumeSlice(exerciseVolume),
-          cms: volumeSlice(cmsVolume),
+          exercises: volumeSlice(snapshot.videoVolumeExercises),
+          cms: volumeSlice(snapshot.videoVolumeCms),
         },
         patientActivity: {
-          completions: completions.completions,
-          completionsWithRepsOrDifficulty: completions.withRepsOrDifficulty,
-          homeWellbeingMarks,
+          completions: snapshot.completions.completions,
+          completionsWithRepsOrDifficulty: snapshot.completions.withRepsOrDifficulty,
+          homeWellbeingMarks: snapshot.homeWellbeingMarks,
           symptomDiary: null,
           programActivity: {
             patientsWithProgram,
@@ -165,11 +144,15 @@ export function createPlatformAnalyticsService(port: PlatformAnalyticsPort) {
             avgMarkDays,
             avgMarkShareOfVisitDays,
           },
-          videoViewsTotal: playback.viewsTotal,
-          videoViewsUnique: playback.viewsUnique,
-          hlsResolves: playback.hlsResolves,
-          mp4Resolves: playback.mp4Resolves,
-          playbackErrors: playback.playbackErrors,
+          videoViewsTotal: snapshot.playback.viewsTotal,
+          videoViewsUnique: snapshot.playback.viewsUnique,
+          hlsResolves: snapshot.playback.hlsResolves,
+          mp4Resolves: snapshot.playback.mp4Resolves,
+          playbackErrors: snapshot.playback.playbackErrors,
+          playbackSeries: dayKeys.map((day) => ({
+            day,
+            count: snapshot.playback.byDay.get(day) ?? 0,
+          })),
           hostingIframeShown: null,
         },
       };

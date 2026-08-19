@@ -3,8 +3,9 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import type { TestAccountIdentifiers } from '@/modules/system-settings/testAccounts';
 import { platformUsers, userChannelBindings } from '../../../db/schema/schema';
 
-const STAFF_ANALYTICS_ROLES = ['admin', 'doctor'] as const;
-const ALWAYS_EXCLUDED_ANALYTICS_PHONES = ['+70000000000'] as const;
+/** Единственное определение «служебной учётки» — им пользуются и обычные поверхности, и корень платформенной аналитики. */
+export const STAFF_ANALYTICS_ROLES = ['admin', 'doctor'] as const;
+export const ALWAYS_EXCLUDED_ANALYTICS_PHONES = ['+70000000000'] as const;
 
 export type ResolveExcludedUserIdsOptions = {
   includeTestAccounts: boolean;
