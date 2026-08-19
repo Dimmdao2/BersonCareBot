@@ -151,7 +151,8 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // 118 → 121 (19.08): миграция 0050 — три двери разбора очереди пересборки видео. Прямых ролей у
   // `public.media_transcode_jobs` не осталось вовсе: диспетчер межарендный, а прежние гранты были
   // мертвы (политика роли требовала `app.current_org_id()`, которой у неё нет и быть не может).
-  assert.equal(functions.length, 121);
+  // 118 → 119 (19.08): снятие переехавшего долга со счёта-преемника (миграция 0050).
+  assert.equal(functions.length, 122);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -209,7 +210,8 @@ test('all 409 declared functions have the exact source-reconstructed base type a
   // арендатора уже был объявлен с 0042.
   // 407 → 409 (19.08): две двери визитки клиники.
   // 409 → 412 (19.08): три двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(canonical.size, 412);
+  // 409 → 410 (19.08): снятие переехавшего долга со счёта-преемника (миграция 0050).
+  assert.equal(canonical.size, 413);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
@@ -226,7 +228,9 @@ test('all 409 declared functions have the exact source-reconstructed base type a
   // SCALAR 283 → 285 (19.08): обе двери визитки клиники возвращают jsonb.
   // SCALAR 285 → 288 (19.08): взятие работы и чтение её файла возвращают jsonb, запись исхода —
   // boolean (миграция 0050).
-  assert.deepEqual(forms, { SCALAR: 288, TABLE: 120, SETOF: 4 });
+  // SCALAR 285 → 286 (19.08): снятие переехавшего долга отвечает словом (`text`), а не числом:
+  // сумму шов выводит сам, вызывающему возвращается исход (миграция 0050).
+  assert.deepEqual(forms, { SCALAR: 289, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
   // 269 → 270 (19.08): корень уборки скалярный — возвращает число убранных строк.
   // 271 → 272 (19.08): корень постановки исходящего сообщения возвращает boolean — «строка новая».
@@ -239,7 +243,8 @@ test('all 409 declared functions have the exact source-reconstructed base type a
   // 281 → 282 (19.08): корень платформенного дашборда скалярный.
   // 282 → 285 (19.08): три скалярные двери публичной записи (миграция 0047, ex-0043).
   // 287 → 290 (19.08): три скалярные двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 290);
+  // 287 → 288 (19.08): скалярное снятие переехавшего долга (миграция 0050).
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 291);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -477,8 +482,10 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // `app_seam_public_booking_owner`. Резолвер арендатора уже был объявлен и счётчик не двигает.
   // +3 (19.08): три двери разбора очереди пересборки видео (миграция 0050), все SECURITY DEFINER
   // от `app_seam_patient_lfk_media_owner` — того же шва, что уже владеет постановкой в эту очередь.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 399);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 397);
+  // +1 (19.08): снятие переехавшего долга (миграция 0050), SECURITY DEFINER от
+  // `app_seam_org_commerce_owner` — тот же владелец, что у пересчёта черновика под тариф.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 400);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 398);
   // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
   // DEFINER выше не двигаются.
   // 397 → 399 (19.08): два корня контактов формы записи из миграции 0037.
@@ -490,8 +497,9 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // 406 → 409 (19.08): три двери публичной записи (миграция 0047, ex-0043).
   // 409 → 411 (19.08): обе двери визитки клиники.
   // 411 → 414 (19.08): три двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(testFunctions.length, 414);
-  assert.equal(devFunctions.length, 412);
+  // 411 → 412 (19.08): снятие переехавшего долга со счёта-преемника (миграция 0050).
+  assert.equal(testFunctions.length, 415);
+  assert.equal(devFunctions.length, 413);
   // 44 → 45 (19.08): у корня уборки собственный владелец шва `app_seam_retention_sweep_owner`.
   // Занять соседнего значило бы расширить его шов на чужие таблицы.
   // 45 → 46 (19.08): та же причина у корня платформенного дашборда — собственный владелец шва
@@ -727,7 +735,8 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     const first = generateFunctionCensusSql(declaration, database);
     // 390/388 → 391/389 (19.08): корень платформенного дашборда (миграция 0043).
     // 391/389 → 394/392 (19.08): три двери публичной записи (миграция 0047, ex-0043).
-    const expectedDefiners = database === 'bersoncarebot_test' ? 399 : 397;
+    // 396/394 → 397/395 (19.08): снятие переехавшего долга (миграция 0050).
+    const expectedDefiners = database === 'bersoncarebot_test' ? 400 : 398;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

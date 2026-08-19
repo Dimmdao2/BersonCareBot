@@ -59,6 +59,8 @@ const invoice: SaasBillingInvoice = {
   additionalSeatQuantity: 0,
   description: null,
   amountMinor: 10_000,
+  carriedDebtMinor: 0,
+  supersededByInvoiceId: null,
   currency: 'RUB',
   tariffBillingPeriod: 'month',
   tariffSnapshot: null,

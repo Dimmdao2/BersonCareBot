@@ -147,13 +147,23 @@ export function SaasBillingOverview({
                     {' · '}
                     {invoice.providerId}
                   </span>
+                  {/* Плательщик обязан видеть, откуда в счёте выросшая сумма: долг за место с
+                      прошлого периода входит сюда строкой (решение владельца 19.08). */}
+                  {invoice.carriedDebtMinor > 0 ? (
+                    <span className={doctorDnaFlatListMetaClass}>
+                      Включён долг за места с прошлого периода:{' '}
+                      {formatAmount(invoice.carriedDebtMinor, invoice.currency)}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="text-right">
                   <span className="block text-sm font-medium text-foreground">
                     {formatAmount(invoice.amountMinor, invoice.currency)}
                   </span>
                   <Badge variant={invoice.status === 'failed' ? 'destructive' : 'outline'}>
-                    {INVOICE_STATUS_LABELS[invoice.status]}
+                    {invoice.status === 'void' && invoice.supersededByInvoiceId
+                      ? 'Перевыставлен'
+                      : INVOICE_STATUS_LABELS[invoice.status]}
                   </Badge>
                   {(invoice.status === 'draft' || invoice.status === 'pending') && invoice.providerCheckoutUrl ? (
                     <a className="mt-1 block text-sm text-primary underline" href={invoice.providerCheckoutUrl}>
