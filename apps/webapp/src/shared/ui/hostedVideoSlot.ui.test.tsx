@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { HostedVideoEmbed as PatientHostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
 import { HostedVideoEmbed as DoctorHostedVideoEmbed } from '@/shared/ui/doctor/media/HostedVideoEmbed';
@@ -23,10 +23,20 @@ describe.each([
   ['patient', PatientHostedVideoEmbed],
   ['doctor', DoctorHostedVideoEmbed],
 ])('внешнее видео в слоте плеера (%s)', (_side, HostedVideoEmbed) => {
-  it('показывает ролик проигрывателем хоста', () => {
-    const { container } = render(
+  it('до нажатия наружу не уходит ничего', () => {
+    const { container, getByRole } = render(
       <HostedVideoEmbed url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Приседания" />,
     );
+    /* Ни одного запроса к чужому хосту: плеера в разметке нет, пока человек не попросил. */
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(getByRole('button', { name: /Показать видео/ })).toBeInTheDocument();
+  });
+
+  it('показывает ролик проигрывателем хоста после нажатия', () => {
+    const { container, getByRole } = render(
+      <HostedVideoEmbed url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Приседания" />,
+    );
+    fireEvent.click(getByRole('button', { name: /Показать видео/ }));
     const frame = container.querySelector('iframe');
     expect(frame).not.toBeNull();
     expect(frame?.getAttribute('src')).toBe(
