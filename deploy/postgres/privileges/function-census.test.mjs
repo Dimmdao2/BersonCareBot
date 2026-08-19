@@ -486,8 +486,10 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // Занять соседнего значило бы расширить его шов на чужие таблицы.
   // 45 → 46 (19.08): та же причина у корня платформенного дашборда — собственный владелец шва
   // `app_seam_platform_analytics_owner` (миграция 0043).
-  // 46 → 47 (19.08): у визитки собственный владелец шва `app_seam_public_clinic_card_owner`.
-  assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 47);
+  // 46 → 47 (19.08): у визитки был собственный владелец шва `app_seam_public_clinic_card_owner`.
+  // 47 → 46 (19.08, OWNER_PRODUCT_RULES §33.3/§33.5): он снят — обе двери визитки принадлежат
+  // `app_seam_public_slug_owner`. Роль вокруг публичной витрины не даёт безопасности, только цену.
+  assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 46);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
   const proconfigExceptions = Object.entries(BUSINESS_SEAM_FUNCTIONS)
@@ -505,7 +507,7 @@ test('legacy census is restored without obsolete context and overlaid by the act
   ]);
 });
 
-test('all 43 application seam owners and function callers have the closed role shape', () => {
+test('every application seam owner and function caller has the closed role shape', () => {
   const owners = new Set(Object.values(declaration.portContext.functions)
     .filter((fn) => fn.security === 'DEFINER' && fn.owner !== 'postgres').map((fn) => fn.owner));
   // 43 → 44 (19.08): `app_seam_retention_sweep_owner` — владелец единственного корня уборки.
@@ -513,9 +515,11 @@ test('all 43 application seam owners and function callers have the closed role s
   // `app_seam_platform_analytics_owner`. Занять соседнего значило бы растянуть его шов на
   // аналитику, клинику, упражнения, медиа и телеметрию сразу — четыре чужих заботы.
   // 45 → 46 (19.08): `app_seam_public_clinic_card_owner` — владелец двух дверей визитки.
-  // Соседний `app_seam_public_slug_owner` занять нельзя: визитка добавляет `media_files` и
-  // `be_branches`, то есть растянула бы шов резолвера slug на медиа-библиотеку и филиалы.
-  assert.equal(owners.size, 46);
+  // 46 → 45 (19.08, OWNER_PRODUCT_RULES §33.3/§33.5): владелец снят. Обе двери визитки перешли к
+  // `app_seam_public_slug_owner` — весь его шов публичный целиком, закрытых таблиц в нём нет,
+  // поэтому «растянуть шов» здесь нечего: `media_files` он читает единственным предикатом
+  // «этот файл вписан в опубликованную карточку», а не как медиа-библиотеку.
+  assert.equal(owners.size, 45);
   const loginNames = new Set(Object.values(declaration.envMapping).flatMap((records) => Object.keys(records)));
   for (const owner of owners) {
     const role = declaration.cluster.roles[owner];

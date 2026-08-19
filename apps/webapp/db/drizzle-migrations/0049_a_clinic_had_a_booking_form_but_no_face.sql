@@ -28,14 +28,19 @@
 --    отношение — только EXECUTE на свою дверь (гранты приходят следующим шагом прогона из
 --    `deploy/postgres/generated/privileges.<база>.sql`).
 --
--- 3. Почему СОБСТВЕННЫЙ владелец шва, а не соседний. Ближайший — `app_seam_public_slug_owner`: он
---    уже читает `organization_slug_claims`, `clinic_public_directory_entries` и `be_organizations`.
---    Но визитка добавляет к ним `media_files` (готовность логотипа и фотографий) и `be_branches`
---    (снимок адресов), а запись добавляет `UPDATE` на проекцию. Растянуть шов резолвера slug на
---    медиа-библиотеку и филиалы значило бы расширить его ровно так, как объявленные корни и
---    существуют, чтобы не расширять: после этого ЛЮБАЯ дверь резолвера slug несла бы право читать
---    медиа. Поэтому `app_seam_public_clinic_card_owner` — свой, узкий, и его поверхность целиком
---    описана двумя телами ниже.
+-- 3. Владелец шва — уже существующий `app_seam_public_slug_owner`: он читает те же
+--    `organization_slug_claims`, `clinic_public_directory_entries` и `be_organizations`, и весь его
+--    шов публичный целиком — закрытых таблиц в нём нет. Первая редакция этого файла (19.08) завела
+--    под визитку СОБСТВЕННОГО владельца `app_seam_public_slug_owner`, потому что визитка
+--    добавляет `media_files` и `be_branches`. Владелец продукта это отменил в тот же день
+--    (`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §33.3, §33.5): роль вокруг публичной витрины
+--    охраняет то, что и так на витрине, а стоит строки в декларации, в переписи и отказ выкатки при
+--    рассинхроне. Файл правится на месте, а не форвард-миграцией, ровно по одной причине: снятую из
+--    декларации роль негде взять при воспроизведении B0+forward с нуля, а `SET ROLE` на неё стоит
+--    в заголовке ЭТОГО файла. Для уже применённых баз правка инертна — мигратор берёт pending по
+--    watermark `created_at`, хеш он не сверяет (`deploy/postgres/privileges/migrate-local.mjs:120`);
+--    владельца и текст гейта в живой базе переписывает шаг reconcile из
+--    `deploy/postgres/generated/privileges.<база>.sql`.
 --
 -- 4. Чужой `uuid` в публичной ветке медиа отказывает ПО ПОСТРОЕНИЮ, а не проверкой на месте.
 --    Дверь чтения возвращает карточку ВМЕСТЕ с набором её медиа; публичный маршрут отдаёт файл
@@ -84,7 +89,7 @@ ALTER TABLE public.clinic_public_directory_entries
     array_length(photo_media_ids, 1) IS NULL OR array_length(photo_media_ids, 1) <= 12
   );
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_public_clinic_card_owner
+-- BCB-MIGRATION-OWNER: app_seam_public_slug_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- Дверь чтения визитки. Единственный путь от анонимного slug к содержимому карточки.
@@ -108,7 +113,7 @@ DECLARE
   v_card jsonb;
 BEGIN
   PERFORM app.require_accepted_context(
-    'app_seam_public_clinic_card_owner'::name,
+    'app_seam_public_slug_owner'::name,
     'app_pre_session'::name,
     'pre_session'::app.port_context_class,
     'clinic.public-card.read',
@@ -188,7 +193,7 @@ BEGIN
 END
 $function$;
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_public_clinic_card_owner
+-- BCB-MIGRATION-OWNER: app_seam_public_slug_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- Дверь записи визитки. Гейт роли/организации стоит выше (`requireClinicManagementApiContext`), а
@@ -221,7 +226,7 @@ DECLARE
   v_updated boolean;
 BEGIN
   PERFORM app.require_accepted_context(
-    'app_seam_public_clinic_card_owner'::name,
+    'app_seam_public_slug_owner'::name,
     'app_staff'::name,
     'staff'::app.port_context_class,
     'clinic.public-card.save',
