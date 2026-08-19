@@ -1,57 +1,56 @@
 #!/usr/bin/env node
 /**
  * Canonical webapp DB migration entrypoint (used by `pnpm run migrate`).
- * Runs the Drizzle ORM migrator directly so PostgreSQL failures retain their structured
- * SQLSTATE/cause. Diagnostics expose only the migration tag, index and allowlisted category;
- * SQL, parameters, connection strings and database data are never rendered.
+ *
+ * It selects and applies through `deploy/postgres/privileges/migration-order.mjs`, the same module
+ * the DEV/TEST wrapper uses: order is the file name, applied is a ledger row carrying that name.
+ * The Drizzle ORM migrator is deliberately NOT used here — it applies `when > max(created_at)` from
+ * `meta/_journal.json`, so a migration whose name lands below what is already applied would be
+ * skipped silently and permanently on exactly the databases this entrypoint serves.
+ *
+ * PostgreSQL failures keep their structured SQLSTATE/cause. Diagnostics expose only the migration
+ * tag, index and allowlisted category; SQL, parameters, connection strings and database data are
+ * never rendered.
  */
 import { config } from 'dotenv';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { readMigrationFiles } from 'drizzle-orm/migrator';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
+import {
+  collectExpectedObjects,
+  describeObject,
+  readLegacyJournalEntries,
+  readMigrationFolder,
+  renderLedgerBootstrapSql,
+  renderObjectPresenceSql,
+  selectPendingMigrations,
+  splitStatements,
+} from '../../../deploy/postgres/privileges/migration-order.mjs';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webappRoot = path.join(__dirname, '..');
 const migrationsFolder = path.join(webappRoot, 'db', 'drizzle-migrations');
-const journalPath = path.join(migrationsFolder, 'meta', '_journal.json');
 const TRANSACTION_FORBIDDEN_CONCURRENT_INDEX = /\b(?:CREATE(?:\s+UNIQUE)?|DROP)\s+INDEX\s+CONCURRENTLY\b/iu;
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
-const RECONCILIATION_MARKER = /^-- RECONCILES-MIGRATION-HASH: ([0-9]{4}_[a-z0-9_]+)$/gm;
 
-export function selectMigrationPhase(journalEntries, beforeTag) {
-  if (!beforeTag) return { entries: journalEntries, bounded: false };
-  if (!/^[0-9]{4}_[a-z0-9_]+$/.test(beforeTag)) {
+/**
+ * `WEBAPP_MIGRATIONS_BEFORE_TAG` stops the run just before a named migration, in file-name order.
+ * The bound is exclusive and must name a migration the folder actually has.
+ */
+export function selectMigrationPhase(migrations, beforeTag) {
+  if (!beforeTag) return { migrations, bounded: false };
+  // Историческая схема NNNN[suffix]_ и канон YYYYMMDDTHHMMSS_ (владелец, 20.08) — обе законны.
+  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag) && !/^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$/.test(beforeTag)) {
     throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG invalid tag=${beforeTag}`);
   }
-  const bound = journalEntries.find((entry) => entry.tag === beforeTag);
-  if (!bound) throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG unknown tag=${beforeTag}`);
-  const entries = journalEntries.filter((entry) => entry.when < bound.when);
-  if (entries.length === 0) {
-    throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG empty phase tag=${beforeTag}`);
-  }
-  return { entries, bounded: true };
-}
-
-function materializeMigrationPhase(sourceFolder, sourceJournal, entries) {
-  const phaseFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'bcb-webapp-migrations-'));
-  const metaFolder = path.join(phaseFolder, 'meta');
-  fs.mkdirSync(metaFolder, { mode: 0o700 });
-  for (const entry of entries) {
-    fs.copyFileSync(path.join(sourceFolder, `${entry.tag}.sql`), path.join(phaseFolder, `${entry.tag}.sql`));
-  }
-  fs.writeFileSync(
-    path.join(metaFolder, '_journal.json'),
-    `${JSON.stringify({ ...sourceJournal, entries }, null, 2)}\n`,
-    { mode: 0o600 },
-  );
-  return phaseFolder;
+  const at = migrations.findIndex((migration) => migration.tag === beforeTag);
+  if (at < 0) throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG unknown tag=${beforeTag}`);
+  if (at === 0) throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG empty phase tag=${beforeTag}`);
+  return { migrations: migrations.slice(0, at), bounded: true };
 }
 
 function readCurrentMigrationSources() {
@@ -70,83 +69,6 @@ export function assertNoTransactionForbiddenConcurrentIndexes(migrationSources) 
       throw new Error(`transaction_forbidden_concurrent_index migration=${migration.tag}`);
     }
   }
-}
-
-export function readMigrationReconciliations(folder, entries) {
-  const entryByTag = new Map(entries.map((entry) => [entry.tag, entry]));
-  const reconciliations = [];
-  for (const forward of entries) {
-    const sqlPath = path.join(folder, `${forward.tag}.sql`);
-    const sql = fs.readFileSync(sqlPath, 'utf8');
-    for (const match of sql.matchAll(RECONCILIATION_MARKER)) {
-      const sourceTag = match[1];
-      const source = entryByTag.get(sourceTag);
-      if (!source) {
-        throw new Error(`migration_reconciliation_unknown_source source=${sourceTag} forward=${forward.tag}`);
-      }
-      if (source.when >= forward.when) {
-        throw new Error(`migration_reconciliation_not_forward source=${sourceTag} forward=${forward.tag}`);
-      }
-      reconciliations.push({ sourceTag, forwardTag: forward.tag });
-    }
-  }
-  return reconciliations;
-}
-
-export function inspectMigrationLedgerCompleteness({ migrations, journalEntries, ledgerHashes, reconciliations }) {
-  const migrationByWhen = new Map(migrations.map((migration) => [migration.folderMillis, migration]));
-  const entryByTag = new Map(journalEntries.map((entry) => [entry.tag, entry]));
-  const forwardBySource = new Map();
-
-  for (const reconciliation of reconciliations) {
-    const source = entryByTag.get(reconciliation.sourceTag);
-    const forward = entryByTag.get(reconciliation.forwardTag);
-    if (!source || !forward || source.when >= forward.when) {
-      throw new Error(
-        `migration_reconciliation_invalid source=${reconciliation.sourceTag} forward=${reconciliation.forwardTag}`,
-      );
-    }
-    if (forwardBySource.has(source.tag)) {
-      throw new Error(`migration_reconciliation_ambiguous source=${source.tag}`);
-    }
-    forwardBySource.set(source.tag, forward);
-  }
-
-  const appliedByTag = new Map();
-  const isApplied = (entry) => {
-    const cached = appliedByTag.get(entry.tag);
-    if (cached !== undefined) return cached;
-
-    const migration = migrationByWhen.get(entry.when);
-    if (!migration) throw new Error(`migration_journal_file_missing tag=${entry.tag}`);
-    if (ledgerHashes.has(migration.hash)) {
-      appliedByTag.set(entry.tag, true);
-      return true;
-    }
-
-    const forward = forwardBySource.get(entry.tag);
-    const applied = forward ? isApplied(forward) : false;
-    appliedByTag.set(entry.tag, applied);
-    return applied;
-  };
-
-  const missing = [];
-  let direct = 0;
-  let reconciled = 0;
-  for (const entry of journalEntries) {
-    const migration = migrationByWhen.get(entry.when);
-    if (!migration) throw new Error(`migration_journal_file_missing tag=${entry.tag}`);
-    if (ledgerHashes.has(migration.hash)) {
-      direct += 1;
-      continue;
-    }
-    if (isApplied(entry)) {
-      reconciled += 1;
-      continue;
-    }
-    missing.push(entry.tag);
-  }
-  return { direct, reconciled, missing };
 }
 
 function extractLabeledSqlstate(raw) {
@@ -209,30 +131,6 @@ export function classifyStructuredMigrationFailure(error) {
   );
 }
 
-function normalizeStatement(value) {
-  return String(value ?? '')
-    .trim()
-    .replace(/;\s*$/, '')
-    .trim();
-}
-
-export function findMigrationIdentity(query, migrations, journalEntries) {
-  const normalizedQuery = normalizeStatement(query);
-  if (!normalizedQuery) return null;
-  const matches = migrations.filter((migration) =>
-    migration.sql.some((statement) => normalizeStatement(statement) === normalizedQuery),
-  );
-  // Repeated DDL exists in the historical chain. Never claim a migration identity when the
-  // failing statement is not unique; a safe `unknown` is better than a misleading tag.
-  if (matches.length !== 1) return null;
-  const migration = matches[0];
-  const journal = journalEntries.find((entry) => entry.when === migration.folderMillis);
-  if (!journal || !/^[0-9]{4}_[a-z0-9_]+$/.test(journal.tag) || !Number.isInteger(journal.idx)) {
-    return null;
-  }
-  return { idx: journal.idx, tag: journal.tag };
-}
-
 function queryFromError(error) {
   return (
     errorChain(error)
@@ -241,9 +139,8 @@ function queryFromError(error) {
   );
 }
 
-export function renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries) {
+export function renderStructuredMigrationFailureDiagnostic(error, identity) {
   const diagnostic = classifyStructuredMigrationFailure(error);
-  const identity = findMigrationIdentity(queryFromError(error), migrations, journalEntries);
   return `[migrate] failure migration=${identity?.tag ?? 'unknown'} idx=${identity?.idx ?? 'unknown'} reason=${diagnostic.reason} sqlstate=${diagnostic.sqlstate ?? 'unknown'}`;
 }
 
@@ -263,11 +160,10 @@ if (process.argv.includes('--self-test')) {
     query: "SELECT 'TOP_SECRET'",
     cause: Object.assign(new Error('function private.secret() does not exist'), { code: '42883' }),
   });
-  const rendered = renderStructuredMigrationFailureDiagnostic(
-    structuredError,
-    [{ folderMillis: 123, sql: ["SELECT 'TOP_SECRET';"] }],
-    [{ idx: 198, when: 123, tag: '0198_patient_visible_catalog_reads' }],
-  );
+  const rendered = renderStructuredMigrationFailureDiagnostic(structuredError, {
+    idx: 198,
+    tag: '0198_patient_visible_catalog_reads',
+  });
   if (
     rendered !==
     '[migrate] failure migration=0198_patient_visible_catalog_reads idx=198 reason=schema_mismatch sqlstate=42883'
@@ -276,19 +172,8 @@ if (process.argv.includes('--self-test')) {
       'structured migration diagnostic self-test lost migration identity or SQLSTATE',
     );
   }
-  const ambiguous = renderStructuredMigrationFailureDiagnostic(
-    structuredError,
-    [
-      { folderMillis: 123, sql: ["SELECT 'TOP_SECRET';"] },
-      { folderMillis: 124, sql: ["SELECT 'TOP_SECRET';"] },
-    ],
-    [
-      { idx: 198, when: 123, tag: '0198_patient_visible_catalog_reads' },
-      { idx: 199, when: 124, tag: '0199_current_patient_booking_rows' },
-    ],
-  );
-  if (!ambiguous.includes('migration=unknown idx=unknown')) {
-    throw new Error('structured migration diagnostic self-test misattributed duplicate SQL');
+  if (!renderStructuredMigrationFailureDiagnostic(structuredError, null).includes('migration=unknown idx=unknown')) {
+    throw new Error('structured migration diagnostic self-test invented an identity it did not have');
   }
   for (const forbidden of [
     'TOP_SECRET',
@@ -304,69 +189,19 @@ if (process.argv.includes('--self-test')) {
   if (classifyMigrationFailureOutput('unlabeled 42501').sqlstate !== null) {
     throw new Error('migration diagnostic self-test accepted an unlabeled SQLSTATE');
   }
-  const ledgerFixture = {
-    migrations: [
-      { folderMillis: 100, hash: 'old-current' },
-      { folderMillis: 200, hash: 'forward-current' },
-      { folderMillis: 300, hash: 'new-current' },
-    ],
-    journalEntries: [
-      { idx: 0, when: 100, tag: '0001_old' },
-      { idx: 1, when: 200, tag: '0002_forward' },
-      { idx: 2, when: 300, tag: '0003_new' },
-    ],
-    reconciliations: [{ sourceTag: '0001_old', forwardTag: '0002_forward' }],
-  };
-  const incomplete = inspectMigrationLedgerCompleteness({
-    ...ledgerFixture,
-    ledgerHashes: new Set(['forward-current']),
-  });
-  if (incomplete.missing.join(',') !== '0003_new' || incomplete.reconciled !== 1) {
-    throw new Error('migration ledger self-test did not distinguish reconciled and missing hashes');
+  const ledgerFixture = [
+    { tag: '0001_old' },
+    { tag: '0002_forward' },
+    { tag: '0003_new' },
+  ];
+  // Applied is the ledger naming it, never "above the highest applied timestamp": a migration whose
+  // name sits below everything applied is ordinary pending work.
+  const pendingBelow = selectPendingMigrations(ledgerFixture, [{ tag: '0003_new' }, { tag: '0001_old' }]);
+  if (pendingBelow.map((migration) => migration.tag).join(',') !== '0002_forward') {
+    throw new Error('migration selection self-test lost a migration named below the applied ones');
   }
-  const complete = inspectMigrationLedgerCompleteness({
-    ...ledgerFixture,
-    ledgerHashes: new Set(['forward-current', 'new-current']),
-  });
-  if (complete.missing.length !== 0 || complete.direct !== 2 || complete.reconciled !== 1) {
-    throw new Error('migration ledger self-test rejected an applied forward reconciliation');
-  }
-  const unappliedForward = inspectMigrationLedgerCompleteness({
-    ...ledgerFixture,
-    ledgerHashes: new Set(['new-current']),
-  });
-  if (unappliedForward.missing.join(',') !== '0001_old,0002_forward') {
-    throw new Error('migration ledger self-test accepted an unapplied forward reconciliation');
-  }
-  const chained = inspectMigrationLedgerCompleteness({
-    ...ledgerFixture,
-    ledgerHashes: new Set(['new-current']),
-    reconciliations: [
-      { sourceTag: '0001_old', forwardTag: '0002_forward' },
-      { sourceTag: '0002_forward', forwardTag: '0003_new' },
-    ],
-  });
-  if (chained.missing.length !== 0 || chained.direct !== 1 || chained.reconciled !== 2) {
-    throw new Error('migration ledger self-test rejected a transitive forward reconciliation');
-  }
-  for (const invalidReconciliations of [
-    [{ sourceTag: '9999_unknown', forwardTag: '0002_forward' }],
-    [{ sourceTag: '0002_forward', forwardTag: '0001_old' }],
-    [
-      { sourceTag: '0001_old', forwardTag: '0002_forward' },
-      { sourceTag: '0001_old', forwardTag: '0003_new' },
-    ],
-  ]) {
-    try {
-      inspectMigrationLedgerCompleteness({
-        ...ledgerFixture,
-        ledgerHashes: new Set(['forward-current', 'new-current']),
-        reconciliations: invalidReconciliations,
-      });
-      throw new Error('migration ledger self-test accepted an invalid reconciliation marker');
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
-    }
+  if (selectPendingMigrations(ledgerFixture, ledgerFixture).length !== 0) {
+    throw new Error('migration selection self-test would re-apply an applied migration');
   }
   try {
     assertNoTransactionForbiddenConcurrentIndexes([
@@ -379,13 +214,9 @@ if (process.argv.includes('--self-test')) {
   assertNoTransactionForbiddenConcurrentIndexes([
     { tag: '9999_good', source: 'CREATE INDEX IF NOT EXISTS good_index ON public.example (id);' },
   ]);
-  const phaseFixture = [
-    { idx: 0, when: 100, tag: '0001_first' },
-    { idx: 1, when: 200, tag: '0002_bound' },
-    { idx: 2, when: 300, tag: '0003_later' },
-  ];
+  const phaseFixture = [{ tag: '0001_first' }, { tag: '0002_bound' }, { tag: '0003_later' }];
   const selectedPhase = selectMigrationPhase(phaseFixture, '0002_bound');
-  if (!selectedPhase.bounded || selectedPhase.entries.map((entry) => entry.tag).join(',') !== '0001_first') {
+  if (!selectedPhase.bounded || selectedPhase.migrations.map((migration) => migration.tag).join(',') !== '0001_first') {
     throw new Error('migration phase self-test lost exclusive before-tag semantics');
   }
   for (const invalidBound of ['bad', '9999_unknown']) {
@@ -417,51 +248,64 @@ if (!url) {
 
 assertNoTransactionForbiddenConcurrentIndexes(readCurrentMigrationSources());
 
-const sourceJournal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
-const journalEntries = sourceJournal.entries;
 const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
-const phase = selectMigrationPhase(journalEntries, beforeTag);
-const activeMigrationsFolder = phase.bounded
-  ? materializeMigrationPhase(migrationsFolder, sourceJournal, phase.entries)
-  : migrationsFolder;
-const activeJournalEntries = phase.entries;
-const migrations = readMigrationFiles({ migrationsFolder: activeMigrationsFolder });
-const reconciliations = phase.bounded
-  ? []
-  : readMigrationReconciliations(migrationsFolder, journalEntries);
+const phase = selectMigrationPhase(readMigrationFolder(migrationsFolder), beforeTag);
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
+let running = null;
 try {
-  await migrate(drizzle(pool), { migrationsFolder: activeMigrationsFolder });
-  if (phase.bounded) {
-    console.log(
-      `[migrate] bounded Drizzle phase complete before=${beforeTag} count=${migrations.length}; full ledger verification deferred`,
-    );
-  } else {
-    const ledgerResult = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
-    const completeness = inspectMigrationLedgerCompleteness({
-      migrations,
-      journalEntries,
-      ledgerHashes: new Set(ledgerResult.rows.map((row) => String(row.hash))),
-      reconciliations,
-    });
-    if (completeness.missing.length > 0) {
-      throw new Error(`migration_ledger_incomplete tags=${completeness.missing.join(',')}`);
+  await pool.query(renderLedgerBootstrapSql(readLegacyJournalEntries(migrationsFolder)));
+  const ledgerRows = (await pool.query('SELECT tag FROM drizzle.__drizzle_migrations')).rows;
+  const pending = selectPendingMigrations(phase.migrations, ledgerRows);
+  const pendingTags = new Set(pending.map((migration) => migration.tag));
+  const applied = phase.migrations.filter((migration) => !pendingTags.has(migration.tag));
+
+  // A ledger row is a claim. Before adding to it, make it answer for the schema it describes.
+  const expected = collectExpectedObjects(applied);
+  const presenceSql = renderObjectPresenceSql(expected);
+  if (presenceSql) {
+    const present = (await pool.query(presenceSql)).rows;
+    const missing = expected.filter((_, index) => present[index]?.present === false);
+    if (missing.length > 0) {
+      throw new Error(
+        `migration_ledger_answers_for_absent_objects ${missing.map(describeObject).join('; ')}`,
+      );
     }
-    console.log(
-      `[migrate] Drizzle migrations complete count=${migrations.length} direct=${completeness.direct} reconciled=${completeness.reconciled}`,
-    );
   }
+
+  for (const [index, migration] of pending.entries()) {
+    running = { idx: index, tag: migration.tag };
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const statement of splitStatements(migration.source)) await client.query(statement);
+      await client.query(
+        `INSERT INTO drizzle.__drizzle_migrations (hash, created_at, tag)
+         VALUES ($1, (SELECT COALESCE(MAX(created_at), 0) + 1000 FROM drizzle.__drizzle_migrations), $2)`,
+        [migration.hash, migration.tag],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  running = null;
+  console.log(
+    `[migrate] Drizzle migrations complete total=${phase.migrations.length} applied-now=${pending.length}`
+      + ` verified-objects=${expected.length}${phase.bounded ? ` bounded-before=${beforeTag}` : ''}`,
+  );
 } catch (error) {
   exitCode = 1;
-  if (error instanceof Error && error.message.startsWith('migration_ledger_incomplete ')) {
+  if (error instanceof Error && error.message.startsWith('migration_ledger_answers_for_absent_objects ')) {
     console.error(`[migrate] ${error.message}`);
   } else {
-    console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, activeJournalEntries));
+    console.error(renderStructuredMigrationFailureDiagnostic(error, running));
   }
   console.error('[migrate] Drizzle migration failed; raw SQL and parameters suppressed');
 } finally {
   await pool.end();
-  if (phase.bounded) fs.rmSync(activeMigrationsFolder, { recursive: true, force: true });
 }
 process.exit(exitCode);

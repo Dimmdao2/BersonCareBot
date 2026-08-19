@@ -1,12 +1,19 @@
 import {
   getPlatformUserCalendarTimezone,
-  setPlatformUserCalendarTimezone,
+  syncPlatformUserCalendarTimezoneFromDevice,
 } from '@/infra/repos/pgPlatformUserCalendarTimezone';
 
 export async function getDoctorAccountTimezone(userId: string): Promise<string | null> {
   return getPlatformUserCalendarTimezone(userId);
 }
 
-export async function setDoctorAccountTimezone(userId: string, timezone: string): Promise<void> {
-  await setPlatformUserCalendarTimezone(userId, timezone);
+/**
+ * Пояс сотрудника догоняет устройство (§34): пишется и при первом входе, и после переезда. Ручной
+ * настройки пояса у человека нет — см. `StaffCalendarTimezoneBootstrap`.
+ */
+export async function syncDoctorAccountTimezoneFromDevice(
+  userId: string,
+  browserCalendarIana: string | null,
+): Promise<boolean> {
+  return syncPlatformUserCalendarTimezoneFromDevice(userId, browserCalendarIana);
 }
