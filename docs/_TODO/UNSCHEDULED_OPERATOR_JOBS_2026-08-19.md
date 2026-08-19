@@ -233,3 +233,117 @@
 - **`.env.dev` главного дерева не знает новых возможностей.** `migrate-dev.sh --execute` дописал их в
   `.env.dev` ЭТОГО worktree; `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` остался прежним —
   до слияния ветки запуск новых корней из главного дерева упрётся в «Missing declared webapp port capability».
+
+## Сторож видел инциденты и не мог открыть ни одного (19.08, ветка `wt/worker-incident-insert-20260819`)
+
+Последнее звено цепочки. После 0040 критический тик перестал врать и стал честно падать — но работать не
+начал. Замер на живом TEST, голова `ab1bee3554`:
+
+    2026-08-19 11:28:36 POST /api/internal/operator-health-critical/tick  -->  500 {"ok":false,"error":"internal_error"}
+    2026-08-19 11:28:37.039 bcb_test_webapp_staff@bersoncarebot_test [unknown] 42501
+    ERROR:  permission denied for table operator_incidents
+    STATEMENT: insert into "operator_incidents" ("id", "dedup_key", "direction", "integration",
+               "error_class", "error_detail", "opened_at", "last_seen_at", "occurrence_count",
+               "resolved_at", "alert_sent_at", "acknowledged_at", "initial_alert_sent_at",
+               "one_hour_alert_sent_at", "alert_claim_phase", "alert_claim_token",
+               "alert_claimed_at") values (default, $1, ...) on conflict ("dedup_key")
+               where resolved_at IS NULL do update set ...
+
+Отказ повторялся КАЖДЫЕ пять минут (11:20:02, 11:25:02, 11:27:27, 11:28:37, 11:30:01) — расписание уже
+поставлено, будильник звонит, сторож падает.
+
+- [x] **Что именно было отказано — измерено, а не предположено.** Не «`app_worker` держит только SELECT»:
+      у роли на `public.operator_incidents` табличный SELECT, ПОКОЛОНОЧНЫЙ INSERT на семь колонок
+      (`dedup_key`, `direction`, `integration`, `error_class`, `error_detail`, `opened_at`, `last_seen_at`)
+      и поколоночный UPDATE на десять. `has_table_privilege(...,'INSERT')` отдаёт `f` именно потому, что
+      грант поколоночный. Drizzle же перечисляет в INSERT ВСЕ семнадцать колонок таблицы, подставляя
+      `default` десяти невыданным, — и упирается в них. Отсюда и то, почему до 0040 тик отвечал 200:
+      UPDATE-путь каденции (claim/complete/release/resolve) трогает только выданные колонки, а до INSERT
+      тик доходил лишь тогда, когда появлялся критический кандидат. **Цена человеку:** ровно в ту минуту,
+      когда сторож ДЕЙСТВИТЕЛЬНО что-то заметил, он падал целиком и не оставлял на
+      `/app/admin/system-health` ни строки.
+
+- [x] **Близнец, а не переиспользование — с обоснованием.** `app.open_or_touch_operator_incident
+      (text,text,text,text,text)` действительно существует и у него ТОТ ЖЕ владелец шва
+      (`app_seam_telemetry_operator_owner`). Переиспользовать его нельзя тремя независимыми причинами:
+      (1) его набор исполнителей закрыт утверждением в `deploy/postgres/integrator-server-runtime-config.sql`
+      — дословно `NOT has_function_privilege('app_worker', 'app.open_or_touch_operator_incident
+      (text,text,text,text,text)', 'EXECUTE')` плюс проверка «неожиданных грантополучателей» (владелец +
+      рантайм-роль интегратора + `app_operational_delivery_worker`); выдать `app_worker` EXECUTE — значит
+      переписать проверку, чтобы задача прошла; (2) второй способ «под правильным принципалом» — войти
+      вебаппом как `app_operational_delivery_worker` — отдаёт пятиминутному сторожу ВСЮ личность
+      доставщика вместе с его поверхностью очереди ради одной строки; (3) контракт не тот: тот корень
+      принимает `error_class`/`integration` свободным текстом и возвращает `(id, occurrence_count)`, а
+      каденции нужен `opened_at` (по нему считается T0 -> +1ч). Заведён близнец
+      `app.open_or_touch_operator_critical_incident(text,text,text,timestamptz,text)` того же владельца
+      шва, `execute: ['app_worker']`, класс `service`, цель `health.critical-incident.open-or-touch`,
+      миграция `apps/webapp/db/drizzle-migrations/0041_the_watchman_could_read_incidents_but_not_open_one.sql`.
+      Дверь УЖЕ прежнего пути: `error_class` прибит к `critical` в теле, `integration` закрыт списком двух
+      каденций, `opened_at` приходит часами тика.
+
+- [x] **Рабочей роли не добавлено ни одной привилегии — наоборот, снята.** Весь дифф прав на базу:
+      одна строка `GRANT EXECUTE … TO "app_worker"`, поколоночные гранты ШВУ (`opened_at` на
+      INSERT/SELECT/UPDATE — поверхность его собственного тела) и **удаление**
+      `GRANT INSERT ("dedup_key","direction","error_class","error_detail","integration","last_seen_at","opened_at")
+      … TO "app_worker"`: прямого INSERT в коде больше нет, двух путей к одной записи не оставлено.
+      Вызов — `apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts#openOrTouchCriticalAlertIncident`.
+      `node deploy/postgres/privileges/generate-cli.mjs --check` — побайтно; корень зарегистрирован в
+      каталоге вызовов и каталоге возможностей, датированные счётчики сдвинуты.
+
+- [x] **Живое доказательство: 200 И строка, которую видит человек.** На `bcb_webapp_dev` боевым кодом
+      ветки через настоящий маршрут:
+      `11:42:31 POST /api/internal/operator-health-critical/tick --> 200
+      {"ok":true,"alerted":4,"keys":[...]}`, и в базе появились ЧЕТЫРЕ строки —
+      `critical:tenant_isolation:diagnostics:critical`, `critical:outbound_oldest_unsent:over_threshold`,
+      `critical:heartbeat_absent:digest:never`, `critical:notification_audience_empty:active`
+      (`integration=critical_alert_cadence`, `error_class=critical`, `opened_at=11:42:45.097`). Второй
+      прогон в 11:43:20 дал 200 и `alerted:0`: `occurrence_count` вырос 1 → 2, `opened_at` не сдвинулся,
+      `last_seen_at` ушёл вперёд — то есть работает не только открытие, но и каденция «повтор не будит
+      второй раз». Отказов на `operator_incidents` в логе за это время — ноль.
+
+- [x] **Доказательство поведения:** `apps/webapp/src/infra/repos/pgMachineTickRoots.unit.test.ts` —
+      «замеченный критический сбой открывает инцидент, который человек увидит на панели здоровья» и
+      «дверь ответила без строки инцидента — это отказ, а не открытый инцидент».
+      **Fault injection на живом DEV:** вернул репозиторию прямую вставку отношением
+      (`git stash` правки) → прогон в 11:43:34 дал `500` и в логе
+      `11:43:35.856 42501 permission denied for table operator_incidents` с тем же drizzle-STATEMENT;
+      вернул корень → прогон в 11:43:49 дал `200`, отказов на этой таблице после восстановления ноль.
+
+### Вердикт по двум соседним стенам: доставку рвут, тик — нет
+
+`user_web_push_subscriptions` и `user_channel_preferences` под `app_worker` отказаны — это подтверждено, но
+успеху тика они НЕ мешают. Замер того же успешного прогона 11:42:50 на DEV: 28 отказов
+`permission denied for table user_channel_preferences` и 28 — `user_web_push_subscriptions`, и при этом тик
+вернул 200, инциденты открылись, `alerted:4`. Причина: обе стены стоят ЗА `dispatchOperatorAlert`, внутри
+канала веб-пуша, чей отказ гасится `.catch` и превращается в «канал ничего не доставил»; остальные каналы
+отвечают, поэтому «пусто» не наступает.
+
+Не чинил: та же дорога, но НЕ та же форма. Это не операторская телеметрия, а пер-получательские таблицы
+пользовательских подписок и предпочтений — другой шов, другая дверь и своя приёмка. Своим корнем их сюда не
+затащить, не расширив шов операторской телеметрии на пользовательские данные.
+
+**Что это значит для человека прямо сейчас:** критический тик работает и записывает то, что заметил —
+операторская панель здоровья наполняется. Веб-пуш операторского алерта по-прежнему не уезжает, хотя
+аудитория (0040) теперь находится: он падает на настройках каждого получателя. Остальные каналы
+(telegram/max/sms/email) идут своим путём и не затронуты.
+
+### НЕ СДЕЛАНО (`wt/worker-incident-insert-20260819`)
+
+- **Живая проверка на TEST — не моя: выкатывает ведущий.** Воспроизведение 500/42501 сделано на TEST
+  (только POST тика, состояние хоста не менялось), а починка проверена живьём на DEV. До выкатки
+  критический тик на TEST продолжит отвечать 500 каждые пять минут.
+- **`user_web_push_subscriptions` и `user_channel_preferences` не починены** — вердикт и замер выше:
+  успеху тика не мешают, рвут только канал веб-пуша, форма другая. Своей строки в плане у них нет —
+  это вопрос владельцу, а не работа, которую я завёл сам.
+- **`dispatchOperatorAlert` по-прежнему гасит отказ канала в `.catch`.** Ровно поэтому 56 отказов выше
+  не сделали тик красным. Механизм «канал упал → тик всё равно успех» остался общим для всех каналов;
+  новой машинерии проверок не добавлял (владелец не любит защитное дублирование), но и решения о том,
+  делать ли его громким, в плане нет.
+- **UPDATE-путь каденции остался реляционным** (`claimIncidentAlertIfDue`, `complete/release`,
+  `resolveStaleCriticalAlertIncidents`, `markOpenIncidentsAlertSent`): он работает под выданными
+  поколоночными грантами `app_worker` и в скоуп «дать двери на ОТКРЫТИЕ» не входит. Переносить его на
+  корни — отдельная работа со своей приёмкой; трогать его «заодно» я не стал.
+- **`.env.dev` главного дерева не знает новых возможностей.** `migrate-dev.sh --execute` дописал их в
+  `.env.dev` ЭТОГО worktree; `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` остался прежним.
+- **Расписания из первого раздела этого плана по-прежнему не мои** — установка расписаний меняет
+  состояние хоста и вынесена владельцу.

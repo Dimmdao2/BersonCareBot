@@ -130,7 +130,9 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // 103 → 105 (19.08): миграция 0039 — снимок здоровья очереди и постановка суточной сводки.
   // 105 → 107 (19.08): миграция 0040 — аудитория staff-веб-пуша операторского алерта и
   // межарендное перечисление подписок, у которых кончился оплаченный период.
-  assert.equal(functions.length, 107);
+  // 107 → 108 (19.08): миграция 0041 — открытие критического инцидента: сторож видел инциденты
+  // и не мог открыть ни одного.
+  assert.equal(functions.length, 108);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -141,7 +143,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 402 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 403 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -182,7 +184,8 @@ test('all 402 declared functions have the exact source-reconstructed base type a
   // 397 → 398 (19.08): `app.read_operator_health_digest_last_sent_at()` — миграция 0038.
   // 398 → 400 (19.08): два корня миграции 0039.
   // 400 → 402 (19.08): два корня миграции 0040.
-  assert.equal(canonical.size, 402);
+  // 402 → 403 (19.08): корень открытия критического инцидента (миграция 0041).
+  assert.equal(canonical.size, 403);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
@@ -193,7 +196,8 @@ test('all 402 declared functions have the exact source-reconstructed base type a
   // SCALAR 273 → 274 (19.08): `app.read_operator_health_digest_last_sent_at()` возвращает timestamptz.
   // SCALAR 274 → 276 (19.08): снимок очереди возвращает jsonb, постановка сводки — boolean.
   // SCALAR 276 → 278 (19.08): оба корня миграции 0040 возвращают jsonb.
-  assert.deepEqual(forms, { SCALAR: 278, TABLE: 120, SETOF: 4 });
+  // SCALAR 278 → 279 (19.08): корень открытия критического инцидента возвращает jsonb.
+  assert.deepEqual(forms, { SCALAR: 279, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
   // 269 → 270 (19.08): корень уборки скалярный — возвращает число убранных строк.
   // 271 → 272 (19.08): корень постановки исходящего сообщения возвращает boolean — «строка новая».
@@ -202,7 +206,8 @@ test('all 402 declared functions have the exact source-reconstructed base type a
   // 275 → 276 (19.08): корень времени последней подтверждённой сводки отдаёт timestamptz.
   // 276 → 278 (19.08): оба корня миграции 0039 скалярные.
   // 278 → 280 (19.08): оба корня миграции 0040 скалярные.
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 280);
+  // 280 → 281 (19.08): корень открытия критического инцидента скалярный.
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 281);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -434,16 +439,18 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // +1 (19.08): `app.read_operator_health_digest_last_sent_at()` — миграция 0038, SECURITY DEFINER.
   // +2 (19.08): оба корня миграции 0039, SECURITY DEFINER.
   // +2 (19.08): оба корня миграции 0040, SECURITY DEFINER.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 389);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 387);
+  // +1 (19.08): корень открытия критического инцидента (миграция 0041), SECURITY DEFINER.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 390);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 388);
   // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
   // DEFINER выше не двигаются.
   // 397 → 399 (19.08): два корня контактов формы записи из миграции 0037.
   // 399 → 400 (19.08): корень времени последней подтверждённой сводки (миграция 0038).
   // 400 → 402 (19.08): два корня миграции 0039.
   // 402 → 404 (19.08): два корня миграции 0040.
-  assert.equal(testFunctions.length, 404);
-  assert.equal(devFunctions.length, 402);
+  // 404 → 405 (19.08): корень открытия критического инцидента (миграция 0041).
+  assert.equal(testFunctions.length, 405);
+  assert.equal(devFunctions.length, 403);
   // 44 → 45 (19.08): у корня уборки собственный владелец шва `app_seam_retention_sweep_owner`.
   // Занять соседнего значило бы расширить его шов на чужие таблицы.
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 45);
@@ -662,7 +669,7 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 389 : 387;
+    const expectedDefiners = database === 'bersoncarebot_test' ? 390 : 388;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

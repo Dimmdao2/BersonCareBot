@@ -2657,6 +2657,13 @@ const REV10_CONTEXT = {
       targetRole: 'app_worker', contextClass: 'service',
       purpose: 'notifications.staff-push-audience.read',
       functionIdentity: 'app.list_operator_alert_staff_push_recipients()' },
+    // Открытие критического инцидента: до 0041 писалось отношением под `app_worker` и отбивалось
+    // 42501 на `operator_incidents` — сторож замечал сбой и не мог записать ни строки.
+    webapp_critical_incident_open: { port: 'webapp',
+      runtimeName: 'critical_incident_open', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.critical-incident.open-or-touch',
+      functionIdentity: 'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)' },
     // Часовой тик продления подписок: межарендное перечисление «у кого кончился оплаченный период».
     // До 0040 тик входил платформенным принципалом с выдуманным нулевым UUID вместо актора и падал
     // ещё на установке контекста — строки `billing.saas_renewal.tick` не появилось ни разу.
@@ -5351,6 +5358,27 @@ const REV10_CONTEXT = {
         columns: ['resolved_at', 'acknowledged_at', 'direction', 'alert_claim_phase', 'alert_claim_token', 'alert_claimed_at'],
         operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    // Единственная дверь ОТКРЫТИЯ критического инцидента. До неё пятиминутный сторож писал строку
+    // прямым drizzle-INSERT под `app_worker`, который перечисляет ВСЕ колонки таблицы: семь
+    // выданных поколоночно и десять невыданных с `default`, — и получал
+    // `42501 permission denied for table operator_incidents` каждый прогон (замер 19.08 на TEST).
+    // Сторож читал инциденты и не мог открыть ни одного. Владелец шва тот же, что стоит в гейте
+    // интеграторского `app.open_or_touch_operator_incident(...)`; отдельная дверь, а не
+    // переиспользование, потому что набор исполнителей той закрыт утверждением
+    // `NOT has_function_privilege('app_worker', ...)` в `integrator-server-runtime-config.sql`,
+    // и её контракт не отдаёт `opened_at`, по которому каденция считает T0 -> +1ч.
+    'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'open or touch only one critical-cadence operator incident',
+      typedArgs: ['text', 'text', 'text', 'timestamp with time zone', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_incidents',
+        columns: ['id', 'dedup_key', 'direction', 'integration', 'error_class', 'error_detail',
+          'opened_at', 'last_seen_at', 'occurrence_count', 'resolved_at'],
+        operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+        evidence: 'exact INSERT ON CONFLICT(dedup_key) in migration 0041' as const }],
+    }),
     'app.resolve_all_open_operator_incidents()': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'resolve all open platform operator incidents', typedArgs: [],
@@ -6051,9 +6079,13 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts', 'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts'],
     grants: [
       { role: 'app_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_worker', operations: ['INSERT'], columns: [
-        'dedup_key', 'direction', 'integration', 'error_class', 'error_detail', 'opened_at', 'last_seen_at',
-      ] },
+      // Поколоночного INSERT у рабочей роли больше нет: drizzle перечислял в INSERT ВСЕ колонки
+      // таблицы и упирался в те десять, которых роли не выдавали (замер 19.08 на TEST:
+      // `42501 permission denied for table operator_incidents`, повтор каждые пять минут).
+      // Открытие инцидента переехало на объявленный корень
+      // `app.open_or_touch_operator_critical_incident(...)` — второго пути к той же записи не
+      // оставлено. UPDATE-путь каденции (claim/complete/release/resolve) остаётся реляционным:
+      // он трогает только выданные колонки уже открытой строки.
       { role: 'app_worker', operations: ['UPDATE'], columns: [
         'last_seen_at', 'occurrence_count', 'error_detail', 'alert_sent_at', 'resolved_at',
         'initial_alert_sent_at', 'one_hour_alert_sent_at', 'alert_claim_phase', 'alert_claim_token',

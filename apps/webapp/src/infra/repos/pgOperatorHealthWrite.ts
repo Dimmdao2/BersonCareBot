@@ -11,6 +11,19 @@ import { type OperatorHealthWritePort } from '@/modules/operator-health/ports';
 
 const MAX_JOB_ERROR_CHARS = 2_048;
 
+/**
+ * Разбор ответа `app.open_or_touch_operator_critical_incident(...)`. Строка без `id` — это не
+ * открытый инцидент: каденция считает по нему T0 -> +1ч, и достроить его умолчанием значило бы
+ * рапортовать о записи, которой нет.
+ */
+function parseOpenedCriticalIncident(payload: unknown): { id: string; openedAt: string } {
+  const row = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
+  const id = typeof row?.id === 'string' ? row.id : null;
+  const openedAt = typeof row?.openedAt === 'string' ? row.openedAt : null;
+  if (!id || !openedAt) throw new Error('operator_critical_incident_open_invalid');
+  return { id, openedAt: new Date(openedAt).toISOString() };
+}
+
 function clampErrorMessage(message: string): string {
   if (message.length <= MAX_JOB_ERROR_CHARS) return message;
   return `${message.slice(0, MAX_JOB_ERROR_CHARS)}…`;
@@ -288,35 +301,27 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
     return { updated: rows.length };
   },
 
+  /**
+   * Открытие инцидента идёт объявленным корнем, а не отношением. Прямой INSERT под `app_worker`
+   * отбивался `42501 permission denied for table operator_incidents` (замер 19.08 на TEST,
+   * 11:28:37, и одинаково каждые пять минут): у рабочей роли на этой таблице поколоночный INSERT
+   * на семь колонок, а drizzle перечисляет в INSERT ВСЕ колонки, подставляя `default` десяти
+   * остальным. Сторож читал инциденты и не мог открыть ни одного — в ту минуту, когда он
+   * действительно что-то замечал, тик падал целиком, и человек не видел на
+   * `/app/admin/system-health` ни строки.
+   */
   async openOrTouchCriticalAlertIncident(input) {
-    const db = getDrizzle();
-    const rows = await db
-      .insert(operatorIncidents)
-      .values({
-        dedupKey: input.dedupKey,
-        direction: input.direction,
-        integration: input.integration,
-        errorClass: 'critical',
-        errorDetail: input.errorDetail ?? null,
-        openedAt: input.nowIso,
-        lastSeenAt: input.nowIso,
-      })
-      .onConflictDoUpdate({
-        target: [operatorIncidents.dedupKey],
-        targetWhere: sql`resolved_at IS NULL`,
-        set: {
-          lastSeenAt: input.nowIso,
-          occurrenceCount: sql`${operatorIncidents.occurrenceCount} + 1`,
-          errorDetail:
-            sql`coalesce(excluded.error_detail, ${operatorIncidents.errorDetail})` as unknown as string,
-        },
-      })
-      .returning({ id: operatorIncidents.id, openedAt: operatorIncidents.openedAt });
-    const row = rows[0];
-    if (!row) {
-      throw new Error('openOrTouchCriticalAlertIncident: empty returning');
-    }
-    return { id: row.id, openedAt: row.openedAt };
+    const errorDetail = input.errorDetail ?? null;
+    const result = await runWebappNamedRoot<{ incident: unknown }>(
+      getWebappSqlDb(),
+      'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)',
+      [input.dedupKey, input.direction, input.integration, input.nowIso, errorDetail],
+      sql`SELECT app.open_or_touch_operator_critical_incident(
+        ${input.dedupKey}::text, ${input.direction}::text, ${input.integration}::text,
+        ${input.nowIso}::timestamptz, ${errorDetail}::text
+      ) AS incident`,
+    );
+    return parseOpenedCriticalIncident(result.rows[0]?.incident);
   },
 
   async claimIncidentAlertIfDue(input) {

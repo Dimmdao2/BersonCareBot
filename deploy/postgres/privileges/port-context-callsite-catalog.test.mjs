@@ -495,6 +495,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'billing.saas-renewal.due-list', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
   },
+  // Замер 19.08 на TEST: сторож читал инциденты и не мог открыть ни одного — прямой INSERT под
+  // `app_worker` отбивался `42501 permission denied for table operator_incidents` каждые пять
+  // минут, и тик падал целиком именно тогда, когда что-то заметил (миграция 0041).
+  'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.critical-incident.open-or-touch', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
   'app.prune_operator_health_failure_archive(integer)': {
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'health.failure-archive.prune', argCount: 1,

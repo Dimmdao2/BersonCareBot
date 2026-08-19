@@ -295,7 +295,8 @@ export interface FunctionRelationSurface {
     | 'exact INSERT ON CONFLICT(event_id) in migration 0033, retyped in migration 0036'
     | 'exact currency EXISTS in migration 0034'
     | 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034'
-    | 'exact INSERT ON CONFLICT(event_id) in migration 0039';
+    | 'exact INSERT ON CONFLICT(event_id) in migration 0039'
+    | 'exact INSERT ON CONFLICT(dedup_key) in migration 0041';
 }
 
 export interface DeclaredFunction {
