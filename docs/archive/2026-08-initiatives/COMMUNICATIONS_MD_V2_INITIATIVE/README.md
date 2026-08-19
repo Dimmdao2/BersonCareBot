@@ -1,7 +1,7 @@
 # COMMUNICATIONS_MD_V2_INITIATIVE — ТЗ
 
 > **Статус:** historical ТЗ завершённой инициативы. Для текущей доработки обязательны
-> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
 > §§5-8 и roadmap C1/taskdb `#852`; они побеждают multi-toggle intake, прежнюю ширину split и старые comments/
 > broadcasts states ниже. Этот файл сохраняет прежний implementation context, но не выдаёт новый scope.
 
@@ -58,11 +58,11 @@
 - `npx eslint <изменённые файлы>` — 0.
 - `npx vitest run <релевантные .test>` — зелёные; новые тесты на новую логику.
 - Ручная проверка на dev-логине доктора (см. 0.4).
-- Вести `docs/COMMUNICATIONS_MD_V2_INITIATIVE/LOG.md` (создать) по образцу других инициатив.
+- Вести `docs/archive/2026-08-initiatives/COMMUNICATIONS_MD_V2_INITIATIVE/LOG.md` (создать) по образцу других инициатив.
 
 ### 0.4 Live-проверка (dev-логин доктора)
 
-**Канон:** [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](../ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) — dev-bypass, режимы `pnpm dev` / `dev:turbo` / `dev:visual`, curl, browser MCP.
+**Канон:** [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](../../ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) — dev-bypass, режимы `pnpm dev` / `dev:turbo` / `dev:visual`, curl, browser MCP.
 
 Кратко: `ALLOW_DEV_AUTH_BYPASS=true` в `apps/webapp/.env.dev`, хост **`127.0.0.1:5200`**, токены `dev:admin` | `dev:doctor` | `dev:client`, URL `/api/auth/dev-bypass?token=…`.
 

@@ -62,6 +62,7 @@ import { createDoctorAppointmentsService } from '@/modules/doctor-appointments/s
 import { createDoctorMessagingService } from '@/modules/doctor-messaging/service';
 import { createDoctorStatsService } from '@/modules/doctor-stats/service';
 import { createAdminPlatformUserStatsService } from '@/modules/admin-platform-stats/service';
+import { createPlatformAnalyticsService } from '@/modules/platform-analytics/service';
 import { createProductAnalyticsService } from '@/modules/product-analytics/service';
 import { createPgProductAnalyticsPort } from '@/infra/repos/pgProductAnalytics';
 import { createInMemoryProductAnalyticsPort } from '@/infra/repos/inMemoryProductAnalytics';
@@ -102,6 +103,8 @@ import { createPgMessageLogPort } from '@/infra/repos/pgMessageLog';
 import { createPgDoctorClientsPort } from '@/infra/repos/pgDoctorClients';
 import { createPgAdminPlatformUserStatsPort } from '@/infra/repos/pgAdminPlatformUserStats';
 import { createInMemoryAdminPlatformUserStatsPort } from '@/infra/repos/inMemoryAdminPlatformUserStats';
+import { createPgPlatformAnalyticsPort } from '@/infra/repos/pgPlatformAnalytics';
+import { createInMemoryPlatformAnalyticsPort } from '@/infra/repos/inMemoryPlatformAnalytics';
 import { createPgDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/pgDoctorAnalyticsMetricAccounts';
 import { inMemoryDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts';
 import { createPgDoctorCanonicalAppointmentsPort } from '@/infra/repos/pgDoctorCanonicalAppointments';
@@ -462,6 +465,11 @@ const productAnalyticsPort = !inMemoryRepos
   ? createPgProductAnalyticsPort()
   : createInMemoryProductAnalyticsPort();
 const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
+
+const platformAnalyticsPort = !inMemoryRepos
+  ? createPgPlatformAnalyticsPort()
+  : createInMemoryPlatformAnalyticsPort();
+const platformAnalytics = createPlatformAnalyticsService(platformAnalyticsPort);
 
 const operatorHealthReadPort = !inMemoryRepos
   ? pgOperatorHealthReadPort
@@ -1669,6 +1677,7 @@ function _buildAppDeps() {
     }),
     doctorAnalyticsMetricAccounts: doctorAnalyticsMetricAccountsPort,
     adminPlatformUserStats,
+    platformAnalytics,
     productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({
       assertWriteClearance: assertMechanicWriteClearance,

@@ -1,21 +1,24 @@
-/**
- * Platform analytics is deliberately aggregate-only.  Clinical analytics has a
- * different owner and must never be composed under this platform route.
- */
+import { DateTime } from 'luxon';
 import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
-import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
-import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { PlatformAnalyticsPageClient } from './PlatformAnalyticsPageClient';
 
-export default async function DoctorAnalyticsPage() {
+export default async function PlatformAnalyticsPage() {
   const session = await requirePlatformOperationsPage();
+  const displayIana = await getAppDisplayTimeZone();
+  const calendarTodayYmd =
+    DateTime.now().setZone(displayIana).toISODate() ??
+    DateTime.now().toUTC().toISODate() ??
+    '';
   return (
     <DoctorAppShell title="Аналитика платформы" user={session.user}>
       <DoctorPageHeader title="Аналитика" />
-      <DoctorSection>
-        <DoctorEmptyState>Аналитика пока недоступна.</DoctorEmptyState>
-      </DoctorSection>
+      <PlatformAnalyticsPageClient
+        calendarTodayYmd={calendarTodayYmd}
+        displayIana={displayIana}
+      />
     </DoctorAppShell>
   );
 }

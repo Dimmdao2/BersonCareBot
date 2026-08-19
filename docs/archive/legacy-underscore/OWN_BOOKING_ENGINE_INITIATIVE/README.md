@@ -43,7 +43,7 @@
 
 - Текущий Rubitime-пайплайн: [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 - Нативный модуль записи (текущий, частично через Rubitime): `apps/webapp/src/modules/patient-booking/`
-- Смежная инициатива (онлайн-консультации вне Rubitime): [`docs/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/`](../ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) — поглощается/согласуется этой инициативой (см. `SCOPE_DECISIONS`).
+- Смежная инициатива (онлайн-консультации вне Rubitime): [`docs/archive/2026-08-initiatives/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/`](../2026-08-initiatives/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) — поглощается/согласуется этой инициативой (см. `SCOPE_DECISIONS`).
 - Идентичность пациента из Rubitime: [`docs/LOGIN_REGISTER_NEW_LOGIC/`](../LOGIN_REGISTER_NEW_LOGIC/README.md) (PHASE_01 done; PHASE_07 backfill / PHASE_08 mass-email — deferred).
 - Курсы: [`docs/COURSES_INITIATIVE/`](../COURSES_INITIATIVE/README.md) (продукт «курс» как потребитель платёжного слоя).
 - Конфигурация (ключи интеграций в БД, не в ENV): [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md).

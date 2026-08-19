@@ -1,7 +1,7 @@
 # COMMUNICATIONS_MD_V2 — План выполнения (для агентов sonnet)
 
 > **Статус:** завершённый historical plan, не текущий UI contract. Последний owner-review
-> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
 > §§5-8 заменяет конфликтующие решения: desktop split ≈50/50; comments без выбранного клиента имеют корректный
 > empty state; `Непрочитанные` и `На сопровождении` — независимые toggles без дублей; intake statuses —
 > взаимоисключающий single-select, не мультитоггл; broadcast expanded row занимает собственную высоту. Новая работа
@@ -74,7 +74,7 @@
 `app/doctor/online-intake/**`, `app/doctor/comments/**`, `app/doctor/loadDoctorExerciseComment*.ts`,
 `modules/doctor-broadcasts/**`, `modules/program-item-discussion/**`,
 `modules/messaging/**` (только если правка треда чата), соответствующие `infra/repos/pg*` и
-`inMemory*` для рассылок/комментариев, `app/api/doctor/**` нашего скоупа, `docs/COMMUNICATIONS_MD_V2_INITIATIVE/**`.
+`inMemory*` для рассылок/комментариев, `app/api/doctor/**` нашего скоупа, `docs/archive/2026-08-initiatives/COMMUNICATIONS_MD_V2_INITIATIVE/**`.
 
 ### 0.3 Общий канон (из README §0.2 — повторено для удобства)
 
@@ -93,7 +93,7 @@
 - `cd apps/webapp && npx tsc --noEmit` — 0 ошибок.
 - `npx eslint <изменённые файлы>` — 0.
 - `npx vitest run <релевантные .test>` — зелёные; новые тесты на новую логику. **Полный CI не гонять.**
-- Обновить `docs/COMMUNICATIONS_MD_V2_INITIATIVE/LOG.md` (создаётся в Этапе 1): что сделано, проверки,
+- Обновить `docs/archive/2026-08-initiatives/COMMUNICATIONS_MD_V2_INITIATIVE/LOG.md` (создаётся в Этапе 1): что сделано, проверки,
   сознательно не сделано, продуктовые развилки (по README §7 — фиксировать, не угадывать).
 - Вернуть оркестратору: список изменённых файлов + результаты проверок + замечания.
 
@@ -143,7 +143,7 @@
   занять высоту «вьюпорт − шапка − таб-бар»: обёртка таба `<div hidden=...>` получает классы
   для полной высоты (`min-h-0 flex-1`), `<main>` в `DoctorAppShell` уже `flex flex-col`. Скролл —
   внутри пейнов конкретного таба (этапы 2–5), здесь только подготовить контейнер, не ломая keepMounted/URL-sync.
-- Создать `docs/COMMUNICATIONS_MD_V2_INITIATIVE/LOG.md` по образцу
+- Создать `docs/archive/2026-08-initiatives/COMMUNICATIONS_MD_V2_INITIATIVE/LOG.md` по образцу
   `app/doctor/communications/LOG.md` (заголовок инициативы + раздел «Этап 1»).
 
 **Не делать:** редиректы старых URL, deep-link ключи, нав левого меню.

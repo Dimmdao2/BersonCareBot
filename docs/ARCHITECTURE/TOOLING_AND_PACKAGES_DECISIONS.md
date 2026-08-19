@@ -38,7 +38,7 @@
 
 **Линия (для медданных — осознанная): аналитика ТОЛЬКО self-hosted, стороннего сервиса нет.**
 
-- **Текущее состояние: своя встроенная product-аналитика уже работает** — инициатива `PRODUCT_ANALYTICS_INITIATIVE`
+- **Текущее состояние: своя встроенная product-аналитика уже работает** — инициатива [`PRODUCT_ANALYTICS_INITIATIVE`](../archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/README.md)
   (закрыта 2026-05-27). События (`app_open`, `page_view`, `heartbeat`, `auth_login`, воронка регистрации, push)
   идут в **наши же API-роуты → нашу БД**, агрегируются в докторский дашборд «Использование»
   (`/app/doctor/usage`). Модуль `apps/webapp/src/modules/product-analytics/`.

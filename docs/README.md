@@ -16,7 +16,7 @@
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)
 - **Операционные отчёты / runbook:** [`REPORTS/README.md`](REPORTS/README.md)
 - **ЛФК-комплекс в программе лечения (шаблон + инстанс, cleanup legacy):** журнал [`archive/2026-05-initiatives/TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md`](archive/2026-05-initiatives/TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md); post-prod / миграции [`TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md`](TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md); закрытый план [`.cursor/plans/archive/lfk_expand_instance_cleanup.plan.md`](../.cursor/plans/archive/lfk_expand_instance_cleanup.plan.md).
-- **Продуктовая аналитика webapp (закрыта 2026-05-27; доп. 2026-05-28 — auth registration funnel):** [`PRODUCT_ANALYTICS_INITIATIVE/README.md`](PRODUCT_ANALYTICS_INITIATIVE/README.md) · [`LOG.md`](PRODUCT_ANALYTICS_INITIATIVE/LOG.md) · план [`.cursor/plans/archive/product_analytics.plan.md`](../.cursor/plans/archive/product_analytics.plan.md).
+- **Продуктовая аналитика webapp (закрыта 2026-05-27; доп. 2026-05-28 — auth registration funnel):** [`PRODUCT_ANALYTICS_INITIATIVE/README.md`](archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/README.md) · [`LOG.md`](archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md) · план [`.cursor/plans/archive/product_analytics.plan.md`](../.cursor/plans/archive/product_analytics.plan.md).
 
 ## Архитектура и эксплуатация
 
@@ -82,7 +82,6 @@
 - **PWA — хвосты после фаз 0–5:** [`PWA_INITIATIVE/BACKLOG.md`](archive/legacy-underscore/PWA_INITIATIVE/BACKLOG.md) (broadcast push, офлайн, maskable).
 - **App Restructure — открытые хвосты:** [`APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) (§1.2 дневник, курсы отложены).
 - **Reminders / settings — процесс Drizzle:** [`RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md`](RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md).
-- **Онлайн-консультации (реабилитация/нутрициология):** [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) — черновик ТЗ, в scope own-booking.
 - **Операционный backlog:** [`TODO.md`](TODO.md) · хвосты продукта [`BACKLOG_TAILS.md`](BACKLOG_TAILS.md) · отложенное [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md).
 - **ФИО / identity cleanup:** [`FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`](FIO_IDENTITY_CLEANUP_INITIATIVE/README.md) — структурирование фамилии/имени/отчества, Rubitime-first backfill, уход от `display_name` как источника истины, шаблоны lifecycle-уведомлений.
 
@@ -95,6 +94,10 @@
 - **Doctor patient card / программы:** [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/README.md`](archive/legacy-underscore/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/README.md) — workqueue **закрыт** 2026-06-02.
 - **Operator Health (MVP + Wave 2):** [`OPERATOR_HEALTH_ALERTING_INITIATIVE/README.md`](archive/legacy-underscore/OPERATOR_HEALTH_ALERTING_INITIATIVE/README.md) — **closed** · [`ROADMAP_WAVE2.md`](archive/legacy-underscore/OPERATOR_HEALTH_ALERTING_INITIATIVE/ROADMAP_WAVE2.md).
 - **Integrator → Drizzle:** [`INTEGRATOR_DRIZZLE_MIGRATION/README.md`](INTEGRATOR_DRIZZLE_MIGRATION/README.md) — **completed** 2026-06-06.
+- **Product analytics (webapp ingest/дашборд «Использование»):** [`PRODUCT_ANALYTICS_INITIATIVE/README.md`](archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/README.md) — **закрыта** 2026-05-27.
+- **Product platform (mass/guest/patient modes):** [`PRODUCT_PLATFORM_INITIATIVE/README.md`](archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE/README.md) — **deferred** 2026-06-06; revisit — [`TODO_NOT_NOW/product-platform-mass-patient.md`](TODO_NOT_NOW/product-platform-mass-patient.md).
+- **Communications MD v2:** [`COMMUNICATIONS_MD_V2_INITIATIVE/README.md`](archive/2026-08-initiatives/COMMUNICATIONS_MD_V2_INITIATIVE/README.md) — historical ТЗ, закрыта.
+- **Онлайн-консультации (реабилитация/нутрициология):** [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](archive/2026-08-initiatives/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) — **отменена** 2026-06.
 
 ### Служебное
 

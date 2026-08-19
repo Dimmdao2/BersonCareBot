@@ -5,14 +5,14 @@
 **Сделано:**
 
 - План перенесён в репозиторий: `.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md`.
-- Создана папка инициативы `docs/PRODUCT_PLATFORM_INITIATIVE/` (README, ROADMAP, PHASE_DECOMPOSITION, LOG).
+- Создана папка инициативы `docs/archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE/` (README, ROADMAP, PHASE_DECOMPOSITION, LOG).
 - Зафиксирован канон **access-tier vs product-status**: `docs/ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md`.
 - Декомпозиция этапов 1–4 для агентского исполнения — `PHASE_DECOMPOSITION.md`.
 
 **Проверки:**
 
 ```bash
-rg "productStatus|product_status|productMode" docs/ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md docs/PRODUCT_PLATFORM_INITIATIVE
+rg "productStatus|product_status|productMode" docs/ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md docs/archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE
 rg "tier.*patient" apps/webapp/src/modules/platform-access --glob "*.ts" | head
 ```
 
