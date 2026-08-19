@@ -17,6 +17,7 @@ import {
   collectMigrationProofs,
   describeProof,
   findForeignLedgerRows,
+  findUnprovedMigrations,
   interpretProofAnswers,
   readLegacyJournalEntries,
   readMigrationFolder,
@@ -89,9 +90,16 @@ function spawnPsql(args, options = {}) {
  * map.  It is the journal's only remaining job.
  */
 function bootstrapLedger(db, folder) {
+  let legacyEntries;
+  try {
+    legacyEntries = readLegacyJournalEntries(folder);
+  } catch (error) {
+    // The frozen-map refusal is an operator's next move, not a defect in this process.
+    fail(error instanceof Error ? error.message : String(error));
+  }
   const result = spawnPsql(
     ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-c',
-      renderLedgerBootstrapSql(readLegacyJournalEntries(folder))],
+      renderLedgerBootstrapSql(legacyEntries)],
     { encoding: 'utf8' },
   );
   if (result.status !== 0) {
@@ -191,6 +199,17 @@ if (drizzleFolder) {
   bootstrapLedger(db, drizzleFolder);
   // File name is the order and the identity; the folder listing is the whole plan.
   const migrations = readMigrationFolder(drizzleFolder);
+  // A migration that leaves neither an object nor a VERIFY probe cannot be told apart from a ledger
+  // row somebody typed, so it is refused here too and not only by the lint gate: the gate protects
+  // the repository, this protects the database in front of it.
+  const unproved = findUnprovedMigrations(migrations);
+  if (unproved.length > 0) {
+    fail(
+      `${unproved.join(', ')} leave no object this checkout can probe and carry no `
+        + '`-- BCB-MIGRATION-VERIFY: SELECT …` header, so "applied" for them would be a claim nobody '
+        + 'can check. Give each one a probe of what it did, in its header.',
+    );
+  }
   const appliedRows = readAppliedDrizzleRows(db);
   const pendingByLedger = selectPendingMigrations(migrations, appliedRows);
   const pendingTags = new Set(pendingByLedger.map((migration) => migration.tag));

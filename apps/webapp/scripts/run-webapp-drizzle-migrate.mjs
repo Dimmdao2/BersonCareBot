@@ -294,8 +294,25 @@ if (!url) {
 
 assertNoTransactionForbiddenConcurrentIndexes(readCurrentMigrationSources());
 
+// The frozen historical map is read before anything else, so a hand-extended one refuses here and
+// not three steps later with a stack trace.
+try {
+  readLegacyJournalEntries(migrationsFolder);
+} catch (error) {
+  console.error(`[migrate] ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
+
 const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
-const phase = selectMigrationPhase(readMigrationFolder(migrationsFolder), beforeTag);
+const allMigrations = readMigrationFolder(migrationsFolder);
+// Same refusal the lint gate makes, in front of the database: a migration that owes no proof turns
+// "applied" into a claim nobody can check.
+const unproved = findUnprovedMigrations(allMigrations);
+if (unproved.length > 0) {
+  console.error(`[migrate] migrations_without_a_proof ${unproved.join(', ')}`);
+  process.exit(1);
+}
+const phase = selectMigrationPhase(allMigrations, beforeTag);
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 let running = null;

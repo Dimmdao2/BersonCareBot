@@ -459,3 +459,19 @@ test('a probe that answers for fewer rows than it was asked is a refusal, not a 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /migration proof probe answered for \d+ of \d+ proofs/u);
 });
+
+test('a migration that owes no proof is refused in front of the database, not only at lint', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0002_third', '0003_backfill_only'] });
+  // A file that creates nothing nameable and declares no probe: exactly the shape whose ledger row
+  // nobody can check.
+  writeFileSync(
+    join(runtime.migrations, '0004_no_proof_at_all.sql'),
+    '-- BCB-MIGRATION-BACKFILL\nUPDATE app.doors SET code = 4;\n',
+  );
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /0004_no_proof_at_all leave no object this checkout can probe/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
