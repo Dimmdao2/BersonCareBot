@@ -5,8 +5,10 @@
 # agreed. Two places for one fact is what made merging branches a hand-edit: on 19.08 the journal was
 # corrected by hand three times, and one of those corrections dropped a migration on TEST. The
 # runners now read the folder listing, so there is nothing left to keep in sync — what is checked
-# here is that a file name can be sorted, and that the journal, which survives only as the frozen
-# historical `when -> tag` map used to label pre-existing ledger rows, still points at real files.
+# here is that a file name can be sorted, that the journal — which survives only as the frozen
+# historical `when -> tag` map used to label pre-existing ledger rows — still points at real files and
+# still digests to the pin in meta/_journal.frozen, and that every migration owes the database a
+# proof it actually ran.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -84,5 +86,9 @@ if (( failed != 0 )); then
 fi
 
 node "${ROOT}/scripts/run-webapp-drizzle-migrate.mjs" --check-online-index-layout
+# The frozen historical map really is frozen (its digest matches meta/_journal.frozen), and every
+# migration owes the database a proof it ran — an object it still holds, or a VERIFY probe. A
+# migration that owes nothing makes a hand-written ledger row indistinguishable from a real one.
+node "${ROOT}/scripts/run-webapp-drizzle-migrate.mjs" --check-migration-proofs
 
 echo "check-drizzle-migration-order: OK"

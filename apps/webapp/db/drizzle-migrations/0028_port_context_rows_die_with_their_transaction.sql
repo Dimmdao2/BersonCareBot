@@ -1,4 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_seam_context_owner
+-- Уборка объектов не создаёт, поэтому доказательство — её результат: закрытых контекстов
+-- не осталось (новый контракт удаляет строку на COMMIT её же транзакции).
+-- BCB-MIGRATION-VERIFY: SELECT NOT EXISTS (SELECT 1 FROM app_ext.accepted_port_contexts WHERE cleared_at IS NOT NULL)
 -- TEMPORARY LOCAL MIGRATION NUMBER 0028
 --
 -- Одноразовая уборка остатка, который копил прежний контракт port-context. Определения функций и

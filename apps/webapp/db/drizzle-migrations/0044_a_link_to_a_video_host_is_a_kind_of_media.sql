@@ -1,4 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_object_owner
+-- Ограничение снимается и ставится заново одним ALTER TABLE, поэтому классификатор видит только
+-- снятие; доказательство — что новое значение в ограничении есть.
+-- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname = 'lfk_exercise_media_media_type_check' AND pg_get_constraintdef(oid) LIKE '%hosted_video%')
 --
 -- Решение владельца 19.08: «в упражнение нужно вставить ссылку на YouTube / RuTube / VK Видео /
 -- Vimeo — открывается в iframe» (docs/_TODO/GLOBAL_ADMIN_UI_INITIATIVE/OWNER_DECISIONS.md п. 11;
