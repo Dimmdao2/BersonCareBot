@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `lfk_exercise_media` после того, как врач вставил ссылку, и что видит врач, вставивший не то.
  */
 
-const createExercise = vi.fn(async () => ({ id: 'new-exercise' }));
+type CreatedExerciseInput = { media?: { mediaUrl: string; mediaType: string }[] };
+
+// Параметр объявлен намеренно: без него `mock.calls[0]` — пустой кортеж, и утверждение о том,
+// что именно легло в media, пришлось бы протаскивать через приведение типа.
+const createExercise = vi.fn(async (_input: CreatedExerciseInput) => ({ id: 'new-exercise' }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: async () => ({
@@ -52,9 +56,7 @@ describe('врач прикладывает к упражнению ссылку
     );
 
     expect(res.ok).toBe(true);
-    const [input] = createExercise.mock.calls[0] as [
-      { media?: { mediaUrl: string; mediaType: string }[] },
-    ];
+    const [input] = createExercise.mock.calls[0];
     expect(input.media).toEqual([
       {
         mediaUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
@@ -101,9 +103,7 @@ describe('врач прикладывает к упражнению ссылку
     );
 
     expect(res.ok).toBe(true);
-    const [input] = createExercise.mock.calls[0] as [
-      { media?: { mediaUrl: string; mediaType: string }[] },
-    ];
+    const [input] = createExercise.mock.calls[0];
     expect(input.media).toEqual([{ mediaUrl: url, mediaType: 'video', sortOrder: 0 }]);
   });
 });
