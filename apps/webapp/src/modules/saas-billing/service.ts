@@ -242,6 +242,7 @@ export function createSaasBillingService(dependencies: {
       providerIdempotencyKey: input.providerIdempotencyKey,
       providerId: provider.providerId,
       expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
+      asOf: now().toISOString(),
     });
     if (!created && invoice.providerCheckoutUrl) return invoice;
     let checkoutInvoice = invoice;
@@ -607,6 +608,62 @@ export function createSaasBillingService(dependencies: {
     return { outcome: 'checkout' as const, invoice };
   }
 
+  /**
+   * Перевыставление счёта за место (решение владельца 19.08: «Может перевыставить его»). Замена
+   * счёта и гашение старого происходят В БАЗЕ одной транзакцией — здесь остаётся только то, что
+   * базой быть не может: заказ у провайдера на новый счёт.
+   *
+   * Заказ создаётся ПОСЛЕ транзакции сознательно. Провайдер — внешняя система, и держать на нём
+   * транзакцию базы значит держать замок организации на длительность сетевого вызова. Если заказ
+   * не создастся, новый счёт останется без ссылки на оплату — ровно как счёт, чей `createIntent`
+   * упал при обычной покупке места: строка есть, долг виден, оплату можно открыть повторно.
+   */
+  async function reissueSeatOverageInvoice(input: {
+    saasBillingInvoiceId: string;
+    actorId: string | null;
+    reason: string;
+  }) {
+    const provider = await resolvePaymentProvider();
+    const result = await dependencies.repository.reissueSeatOverageInvoice({
+      saasBillingInvoiceId: input.saasBillingInvoiceId,
+      actorId: input.actorId,
+      reason: input.reason,
+      providerId: provider.providerId,
+      invoiceValidityDays: provider.invoiceValidityDays,
+    });
+    if (result.outcome !== 'reissued') return result;
+    if (result.invoice.providerCheckoutUrl) return result;
+
+    const returnUrl = new URL(SAAS_SEAT_BILLING_RETURN_URL);
+    returnUrl.searchParams.set('seatPayment', result.invoice.id);
+    const fiscalized = await attachFiscalReceiptIfConfigured(
+      result.invoice,
+      provider.payeeRequisites,
+    );
+    const intent = await provider.adapter.createIntent({
+      amountMinor: fiscalized.invoice.amountMinor,
+      currency: fiscalized.invoice.currency,
+      idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
+      payerRef: `organization:${result.invoice.organizationId}`,
+      purpose: 'saas_billing_seat_overage',
+      subjectRef: result.invoice.id,
+      returnUrl: returnUrl.toString(),
+      metadata: {
+        organizationId: result.invoice.organizationId,
+        saasBillingInvoiceId: result.invoice.id,
+        saasBillingSubscriptionId: result.invoice.saasBillingSubscriptionId,
+      },
+      providerConfig: provider.providerConfig,
+      receipt: fiscalized.receipt,
+    });
+    const invoice = await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+      saasBillingInvoiceId: result.invoice.id,
+      providerInvoiceRef: intent.providerIntentRef,
+      providerCheckoutUrl: intent.checkoutUrl ?? null,
+    });
+    return { ...result, invoice };
+  }
+
   return {
     getOrganizationBillingOverview(organizationId: string) {
       return dependencies.repository.getOrganizationBillingOverview(organizationId);
@@ -897,7 +954,11 @@ export function createSaasBillingService(dependencies: {
     createManualSaasBillingInvoice,
     purchaseSeatOverage,
 
-    /** К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port doc. */
+    /**
+     * К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port
+     * doc. Автоматический счёт за место отказывается отменяться: у него есть
+     * {@link reissueSeatOverageInvoice}.
+     */
     cancelSaasBillingInvoice(input: {
       saasBillingInvoiceId: string;
       actorId: string | null;
@@ -905,6 +966,8 @@ export function createSaasBillingService(dependencies: {
     }) {
       return dependencies.repository.cancelSaasBillingInvoice(input);
     },
+
+    reissueSeatOverageInvoice,
 
     /**
      * К5 — the background renewal tick. Called only from the internal cron route
@@ -994,6 +1057,7 @@ export function createSaasBillingService(dependencies: {
               servicePeriodStartsAt,
               servicePeriodEndsAt,
               expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
+              asOf,
             });
           if (!wasCreated) {
             alreadyInvoiced += 1;

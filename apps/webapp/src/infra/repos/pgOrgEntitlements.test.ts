@@ -42,13 +42,13 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
 
   it('reports platform quota usage from the reviewed accessor, never a courses count (courses is a toggle, not a quota)', async () => {
     runWebappPgTextMock.mockResolvedValue({
-      rows: [{ clinic_team_used: 3, patient_count_used: 7, files_used: '12345' }],
+      rows: [{ clinic_team_used: 3, files_used: '12345' }],
     });
     getDrizzleMock.mockReturnValue(stubSequentialDrizzleSelects([[{ value: 2 }]]));
 
     await expect(
       createPgOrgEntitlementsPort().getEnforcedQuotaUsage('11111111-1111-4111-8111-111111111111'),
-    ).resolves.toEqual({ clinic_team: 3, patient_count: 7, files: 12345, branches: 2 });
+    ).resolves.toEqual({ clinic_team: 3, files: 12345, branches: 2 });
   });
 
   it('§5a stage 6.1 — sums the three-part seat formula and reports every quota number for the caller\'s own organization', async () => {
@@ -57,7 +57,6 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
         {
           organization_id: '11111111-1111-4111-8111-111111111111',
           branches_used: 2,
-          patient_count_used: 7,
           files_used: '12345',
           clinic_team_used: 5,
         },
@@ -66,7 +65,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
 
     await expect(
       createPgOrgEntitlementsPort().getOwnQuotaUsage('11111111-1111-4111-8111-111111111111'),
-    ).resolves.toEqual({ branches: 2, patient_count: 7, files: 12345, clinic_team: 5 });
+    ).resolves.toEqual({ branches: 2, files: 12345, clinic_team: 5 });
     expect(runWebappPgTextMock).toHaveBeenCalledWith(
       expect.stringContaining('app.read_current_org_tariff_transition_usage()'),
     );
@@ -78,7 +77,6 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
         {
           organization_id: '22222222-2222-4222-8222-222222222222',
           branches_used: 0,
-          patient_count_used: 0,
           files_used: 0,
           clinic_team_used: 0,
         },

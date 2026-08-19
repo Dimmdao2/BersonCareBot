@@ -167,20 +167,8 @@ test('the active B0-forward journal is executable through the owner-ordered migr
       {
         owner: 'app_seam_reminder_materialization_owner',
         backfill: false,
-        schemaCreate: null,
-        languageUsage: null,
-      },
-      {
-        owner: 'app_seam_reminder_materialization_owner',
-        backfill: false,
         schemaCreate: 'app',
         languageUsage: 'plpgsql',
-      },
-      {
-        owner: 'app_seam_reminder_materialization_owner',
-        backfill: false,
-        schemaCreate: null,
-        languageUsage: null,
       },
     ],
   );
@@ -192,8 +180,8 @@ test('every statement in reminder materialization migration keeps its owner mark
   const source = fs.readFileSync(migrationPath, 'utf8');
   const statements = source.split('--> statement-breakpoint');
 
-  assert.equal(statements.length, 6);
-  assert.equal(parseOwnerStatements(source, tag).length, 6);
+  assert.equal(statements.length, 4);
+  assert.equal(parseOwnerStatements(source, tag).length, 4);
   requireDerivedDdlMetadata(source, tag);
 
   statements.forEach((statement, index) => {
@@ -219,7 +207,7 @@ test('every reminder function statement declares its exact executable language',
     .map((statement, index) => (/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+/imu.test(statement) ? index : -1))
     .filter((index) => index >= 0);
 
-  assert.deepEqual(functionStatementIndexes, [0, 1, 2, 4]);
+  assert.deepEqual(functionStatementIndexes, [0, 1, 2, 3]);
   functionStatementIndexes.forEach((index) => {
     const expectedLanguage = /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/imu.exec(statements[index])?.[1];
     assert.ok(expectedLanguage, `statement ${index + 1} has no executable language`);

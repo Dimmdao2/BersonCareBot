@@ -304,6 +304,8 @@ describe('SaasBillingOverview paid-seat invoice', () => {
               additionalSeatQuantity: 1,
               description: null,
               amountMinor: 15_000,
+              carriedDebtMinor: 0,
+              supersededByInvoiceId: null,
               currency: 'RUB',
               tariffBillingPeriod: 'month',
               tariffSnapshot: null,

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({ apiJson: vi.fn() }));
@@ -67,6 +68,7 @@ function installFakeBookingEngine(initial: Branch[]): Branch[] {
         cityCode: String(body.cityCode),
         shortTitle: body.shortTitle ?? null,
         address: body.address ?? null,
+        timezone: body.timezone ?? 'Europe/Moscow',
         sortOrder: Number(body.sortOrder ?? 0),
       });
       store.push(created);
@@ -109,6 +111,98 @@ describe('BookingSoloLocationsSection', () => {
 
     expect(await screen.findByText('Кабинет на Невском')).toBeInTheDocument();
     expect(screen.queryByText('Локаций пока нет.')).not.toBeInTheDocument();
+  });
+
+  /**
+   * §34 канона владельца: пояс настраивается у ФИЗИЧЕСКОГО МЕСТА. Отказ, который ловят следующие
+   * три проверки: пояс локации нигде не виден и не сохраняется, поэтому у всех локаций молча стоит
+   * `Europe/Moscow`. Локация во Владивостоке отдаёт пациентам слоты по московскому времени —
+   * человек приходит на семь часов мимо. Дорого (пропущенный приём) и молчаливо (нигде не видно).
+   */
+  it('показывает пояс локации, а не подставленную Москву', async () => {
+    installFakeBookingEngine([
+      branch({
+        id: 'vvo',
+        title: 'Кабинет во Владивостоке',
+        cityCode: 'vvo',
+        timezone: 'Asia/Vladivostok',
+      }),
+    ]);
+
+    render(<BookingSoloLocationsSection />);
+
+    const row = (await screen.findByText('Кабинет во Владивостоке')).closest('tr')!;
+    expect(within(row).getByText('Asia/Vladivostok')).toBeInTheDocument();
+  });
+
+  it('сохраняет пояс локации при изменении', async () => {
+    installFakeBookingEngine([
+      branch({
+        id: 'vvo',
+        title: 'Кабинет во Владивостоке',
+        cityCode: 'vvo',
+        timezone: 'Asia/Vladivostok',
+      }),
+    ]);
+
+    render(<BookingSoloLocationsSection />);
+    await screen.findByText('Кабинет во Владивостоке');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Изм.' }));
+    const tzInput = screen.getByLabelText('Часовой пояс — Кабинет во Владивостоке');
+    await userEvent.click(tzInput);
+    await userEvent.type(tzInput, 'Красноярск');
+    await userEvent.keyboard('{Enter}');
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() =>
+      expect(
+        fakes.apiJson.mock.calls.some((call) => call[1]?.method === 'PATCH'),
+      ).toBe(true),
+    );
+    const patch = fakes.apiJson.mock.calls
+      .filter((call: unknown[]) => (call[1] as RequestInit | undefined)?.method === 'PATCH')
+      .at(-1)!;
+    // Конкретный IANA не фиксируем: `react-timezone-select` склеивает зоны с одинаковым смещением
+    // (см. `patientTimezoneSelectLabels.ts`). Проверяем то, ради чего тест написан: выбранное в
+    // списке доезжает до сохранения, а не теряется по дороге.
+    const sent = (JSON.parse(String(patch[1]!.body)) as { timezone?: string }).timezone;
+    expect(typeof sent).toBe('string');
+    expect(sent).not.toBe('Asia/Vladivostok');
+  });
+
+  it('создаёт локацию с выбранным поясом', async () => {
+    installFakeBookingEngine([]);
+
+    render(<BookingSoloLocationsSection />);
+    await screen.findByText('Локаций пока нет.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Дополнительно' }));
+    const tzInput = screen.getByLabelText('Часовой пояс локации');
+    await userEvent.click(tzInput);
+    await userEvent.type(tzInput, 'Красноярск');
+    await userEvent.keyboard('{Enter}');
+
+    fillNewLocation('Кабинет в Красноярске', 'пр. Мира, 1');
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+
+    await waitFor(() =>
+      expect(
+        fakes.apiJson.mock.calls.some(
+          (call) => String(call[0]).endsWith('/branches') && call[1]?.method === 'POST',
+        ),
+      ).toBe(true),
+    );
+    const post = fakes.apiJson.mock.calls
+      .filter(
+        (call: unknown[]) =>
+          String(call[0]).endsWith('/branches') &&
+          (call[1] as RequestInit | undefined)?.method === 'POST',
+      )
+      .at(-1)!;
+    const sent = (JSON.parse(String(post[1]!.body)) as { timezone?: string }).timezone;
+    expect(typeof sent).toBe('string');
+    expect(sent).not.toBe('Europe/Moscow');
   });
 
   /**

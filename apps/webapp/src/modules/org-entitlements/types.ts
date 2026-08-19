@@ -74,7 +74,6 @@ export const MECHANIC_REGISTRY = {
   custom_domain: { class: 'возможность', label: 'Собственный домен', quotaEnforcement: 'declared_no_enforcement' },
   // Checked in pgOrganizationInvites under an org advisory lock, not by a database trigger.
   clinic_team: { class: 'места', label: 'Режим клиники', quotaEnforcement: 'application_transaction_snapshot' },
-  patient_count: { class: 'запас', label: 'Пациенты', quotaEnforcement: 'application_transaction_snapshot' },
   branches: { class: 'запас', label: 'Филиалы', quotaEnforcement: 'application_transaction_snapshot' },
   external_calendar: { class: 'возможность', label: 'Внешний календарь', quotaEnforcement: 'declared_no_enforcement' },
   // Owner 31.07 (#1069): "дневники у пациентов не отбираем" — the mechanic has no toggle at all,
@@ -113,10 +112,11 @@ type NumericQuotaBase = {
 /**
  * §5a item 2.6a (owner 31.07): «процент для предупреждения надо считать только от количества
  * доступных клиентов и объёма файлов». Which mechanics have the threshold FIELD is structural —
- * like the mechanic class — while the percent itself stays an owner value. Branches carry
- * `warningAtPercent?: never` so attaching a threshold to them is a compile error rather than a
- * number silently ignored at runtime; specialist seats lost the field entirely (overage there is
- * billed, not blocked, so there is nothing to warn about).
+ * like the mechanic class — while the percent itself stays an owner value. Т12 (owner 19.08,
+ * «лимит клиентов - убрать») removed the client count entirely, so file volume is the only number
+ * left that warns. Branches carry `warningAtPercent?: never` so attaching a threshold to them is a
+ * compile error rather than a number silently ignored at runtime; specialist seats lost the field
+ * entirely (overage there is billed, not blocked, so there is nothing to warn about).
  */
 type EarlyWarningThreshold = {
   /** `null` means the owner has not configured an early warning for this number. */
@@ -124,12 +124,11 @@ type EarlyWarningThreshold = {
 };
 
 export type StorageQuota = NumericQuotaBase & EarlyWarningThreshold & { unit: 'bytes' };
-export type PatientStockQuota = NumericQuotaBase & EarlyWarningThreshold & { unit: 'items' };
 export type BranchStockQuota = NumericQuotaBase & {
   unit: 'items';
   warningAtPercent?: never;
 };
-export type TariffQuota = StorageQuota | PatientStockQuota | BranchStockQuota;
+export type TariffQuota = StorageQuota | BranchStockQuota;
 
 /**
  * The key controls the unit AND the presence of an early-warning threshold at compile time.
@@ -138,12 +137,11 @@ export type TariffQuota = StorageQuota | PatientStockQuota | BranchStockQuota;
  */
 export type TariffQuotaMap = Partial<{
   files: StorageQuota;
-  patient_count: PatientStockQuota;
   branches: BranchStockQuota;
 }>;
 
 /** Mechanics whose class allows a number AND whose owner-facing card offers a warning threshold. */
-export const WARNABLE_QUOTA_MECHANICS = ['files', 'patient_count'] as const;
+export const WARNABLE_QUOTA_MECHANICS = ['files'] as const;
 export type WarnableQuotaMechanic = (typeof WARNABLE_QUOTA_MECHANICS)[number];
 
 export function quotaMechanicSupportsWarning(
