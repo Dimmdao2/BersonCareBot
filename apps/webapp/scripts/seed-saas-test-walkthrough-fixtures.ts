@@ -842,7 +842,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         .values({ organizationId, slug, kind: 'current', updatedAt: nowIso })
         .onConflictDoUpdate({
           target: schema.organizationSlugClaims.organizationId,
-          setWhere: sql`${schema.organizationSlugClaims.kind} = 'current'`,
+          targetWhere: sql`${schema.organizationSlugClaims.kind} = 'current'`,
           set: { slug, updatedAt: nowIso },
         });
       // Canonical public booking link `/book/{publicSlug}` (OWNER_RULINGS_2026-07-17.md §1):
