@@ -419,7 +419,10 @@ import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
-import { createPgPlatformUserContactsPort } from '@/infra/repos/pgPlatformUserContacts';
+import {
+  createPgPlatformUserContactsPort,
+  readCurrentPatientIdentityContacts,
+} from '@/infra/repos/pgPlatformUserContacts';
 import { createInMemoryPlatformUserContactsPort } from '@/infra/repos/inMemoryPlatformUserContacts';
 import { createPlatformUserContactsService } from '@/modules/platform-user-contacts/service';
 import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/bookingContactUpsert';
@@ -1304,7 +1307,13 @@ patientBookingService = createPatientBookingService({
   memberships: membershipsServiceResolved,
   clientHistory: clientHistoryService,
   platformUserContacts: platformUserContactsService,
+  // A patient booking its own visit reads its own two contact fields through the declared patient
+  // root. The staff client projection behind `getClientIdentity` is denied to `app_patient` on
+  // `platform_users` — and it was never what this caller needed.
   getPlatformUserIdentityContacts: async (userId) => {
+    if (getCurrentDbPrincipal()?.kind === 'patient') {
+      return readCurrentPatientIdentityContacts();
+    }
     const identity = await doctorClientsPort.getClientIdentity(userId);
     if (!identity) return null;
     return { phone: identity.phone, email: identity.email ?? null };

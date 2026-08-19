@@ -260,6 +260,13 @@
       "when": 1800000037000,
       "tag": "0036_the_content_argument_cannot_survive_the_wire_as_jsonb",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1800000038000,
+      "tag": "0037_the_patient_reads_own_contacts_and_writes_own_booking_contact",
+      "breakpoints": true
     }
   ]
 }

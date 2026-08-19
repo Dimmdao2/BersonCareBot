@@ -16,7 +16,13 @@ export type BookingContactSnapshotInput = {
   identity?: IdentityContactFields | null;
 };
 
-/** Best-effort upsert of booking form phone/email into supplementary contacts (does not touch identity). */
+/**
+ * Upsert of booking form phone/email into supplementary contacts (does not touch identity).
+ *
+ * Failures are NOT swallowed here. They travel to the one caller that decides what a lost contact
+ * means (`persistBookingFormContacts`), which reports it and still keeps the confirmed booking. Two
+ * nested `catch {}` used to sit in this function and made the loss unobservable at every layer.
+ */
 export async function upsertBookingFormContactsBestEffort(
   service: PlatformUserContactsService | null | undefined,
   input: BookingContactSnapshotInput,
@@ -27,16 +33,12 @@ export async function upsertBookingFormContactsBestEffort(
   if (phone && !shouldSkipSupplementaryContactUpsert('phone', phone, input.identity)) {
     const valueNormalized = normalizeContactValue('phone', phone);
     if (valueNormalized) {
-      try {
-        await service.upsert({
-          platformUserId: input.platformUserId,
-          contactType: 'phone',
-          value: phone,
-          source: 'booking',
-        });
-      } catch {
-        // Booking success must not depend on supplementary contacts persistence.
-      }
+      await service.upsert({
+        platformUserId: input.platformUserId,
+        contactType: 'phone',
+        value: phone,
+        source: 'booking',
+      });
     }
   }
 
@@ -44,16 +46,12 @@ export async function upsertBookingFormContactsBestEffort(
   if (email && !shouldSkipSupplementaryContactUpsert('email', email, input.identity)) {
     const valueNormalized = normalizeContactValue('email', email);
     if (valueNormalized) {
-      try {
-        await service.upsert({
-          platformUserId: input.platformUserId,
-          contactType: 'email',
-          value: email,
-          source: 'booking',
-        });
-      } catch {
-        // Booking success must not depend on supplementary contacts persistence.
-      }
+      await service.upsert({
+        platformUserId: input.platformUserId,
+        contactType: 'email',
+        value: email,
+        source: 'booking',
+      });
     }
   }
 }
