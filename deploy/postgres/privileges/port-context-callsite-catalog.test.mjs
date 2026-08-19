@@ -95,7 +95,9 @@ const EXPECTED_ROOTS = new Map(Object.entries({
   },
   // Один корень на все исходящие сообщения. Два дескриптора — потому что классов контекста два
   // (пациент и staff), а дверь одна: вид сообщения — это `purpose` в аргументах, а не своя функция.
-  'app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)': {
+  // Шестой аргумент — `text`, не `jsonb` (миграция 0036): jsonb в сигнатуре порт-аргумента
+  // невоспроизводим байт в байт клиентом и ронял КАЖДЫЙ вызов раньше похода в базу.
+  'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)': {
     port: 'webapp', argCount: 7, descriptorCount: 2,
     descriptors: [
       { targetRole: 'app_patient', contextClass: 'patient',

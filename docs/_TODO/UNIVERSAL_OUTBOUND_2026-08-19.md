@@ -205,18 +205,34 @@ mTLS-соединению, что использует вебапп: **0.069–0
       `bfe6b48f0^:deploy/postgres/generated/prod-to-target/schema-pre.sql` — совпало, кроме dollar-кавычек
 - [x] Миграция `0033`: тело резолвера + `outbound_message` в списке глобальных видов
 - [x] Миграция `0033`: `app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)`
+      **Сигнатура заменена миграцией `0036` (см. ниже) — `jsonb` не пережил проверку боем.**
+- [x] Миграция `0036`: `p_content` перетипирован `jsonb → text` в `app.enqueue_outbound_message`,
+      старая сигнатура снята `DROP FUNCTION`, `declaration.ts` и вызывающий код обновлены — см.
+      разбор в примечании к пункту «Порт вебаппа» ниже.
 - [x] Объявление корня и двух port-context возможностей в `deploy/postgres/privileges/declaration.ts`
 - [x] Перегенерация артефактов репозиторным генератором
 - [x] Применение к `bcb_webapp_dev` через `deploy/host/migrate-dev.sh --execute`
 - [x] Порт вебаппа `outboundMessageQueuePort` + реализация `pgOutboundMessageQueue.ts`
-      **⚠ ОПРОВЕРГНУТО 19.08 (соседняя работа по напоминаниям):** вызов НЕ ДОХОДИТ ДО БАЗЫ.
-      `p_content` объявлен `jsonb`, а `portTypedArgsForFunctionIdentity`
-      (`packages/db-principal/src/portContext.ts:177-192`) типа `jsonb` не поддерживает и
-      поддерживать не может: клиент обязан воспроизвести байты `jsonb_send` — каноническое
-      представление PostgreSQL, а не собственную строку. `runWebappNamedRoot` бросает раньше запроса:
-      `app.enqueue_outbound_message(...) uses unsupported port argument type jsonb`.
-      Значит письмо-подтверждение записи (`bookingCreatedEffects.ts:116`) в очередь не ставится вовсе.
-      Готовая починка того же класса — миграция 0034: аргумент `text`, разбор `::jsonb` внутри корня.
+      **⚠ ГАЛОЧКА БЫЛА ЛОЖНОЙ 19.08 (соседняя работа по напоминаниям нашла, отдельный проход починил).**
+      Изначально: вызов НЕ ДОХОДИЛ ДО БАЗЫ. `p_content` был объявлен `jsonb`, а
+      `portTypedArgsForFunctionIdentity` (`packages/db-principal/src/portContext.ts:177-192`) типа
+      `jsonb` не поддерживает и поддерживать не может: клиент обязан воспроизвести байты `jsonb_send`
+      — каноническое представление PostgreSQL, а не собственную строку. `runWebappNamedRoot` бросал
+      раньше запроса: `app.enqueue_outbound_message(...) uses unsupported port argument type jsonb`.
+      Письмо-подтверждение записи (`bookingCreatedEffects.ts:116`) в очередь не ставилось вовсе — ни
+      разу, никогда, с момента слияния 0033.
+      **ПОЧИНЕНО миграцией `0036`** (`apps/webapp/db/drizzle-migrations/0036_the_content_argument_cannot_survive_the_wire_as_jsonb.sql`):
+      старая сигнатура `app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)` снята
+      явным `DROP FUNCTION`, новая берёт `p_content` как `text` и разбирает `::jsonb` внутри тела —
+      та же форма, что уже стоит в `app.replace_appointment_reminder_generation` (миграция 0035).
+      Каноническая сигнатура теперь `app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)`;
+      `declaration.ts`, обе port-context capability записи и вызывающий код (`pgOutboundMessageQueue.ts`)
+      обновлены на неё. Живое доказательство на `bcb_webapp_dev` 19.08: реальный вызов через
+      `withPortContextTransaction`/`portTypedArgsForFunctionIdentity` под `app_patient` вернул `true`
+      и положил строку `outgoing_delivery_queue` (`kind='outbound_message'`, `purpose='booking.confirmation'`,
+      текст сообщения дословно); тестовая строка удалена после проверки. Fault injection: вернул старую
+      jsonb-сигнатуру в `pgOutboundMessageQueue.ts` — реальный (не замоканный) вызов снова бросил ровно
+      тот же `uses unsupported port argument type jsonb`; вернул фикс — снова `enqueued: true`.
 - [x] `sendBookingConfirmationEmail` кладёт письмо в очередь вместо синхронного relay
 - [x] Интегратор: `outbound_message` в `OutgoingDeliveryKind` и `GENERIC_TRANSPORT_QUEUE_KINDS`
 - [x] Видимый отказ: карантин/смерть строки поднимает операторский инцидент, а не только лог

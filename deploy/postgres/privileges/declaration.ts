@@ -2573,11 +2573,11 @@ const REV10_CONTEXT = {
     patient_outbound_message_enqueue: { port: 'webapp',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'outbound.message.enqueue',
-      functionIdentity: 'app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)' },
+      functionIdentity: 'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)' },
     staff_outbound_message_enqueue: { port: 'webapp',
       sessionRole: 'app_staff', targetRole: 'app_staff', contextClass: 'staff',
       purpose: 'outbound.message.enqueue',
-      functionIdentity: 'app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)' },
+      functionIdentity: 'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)' },
     webapp_clinic_billing_relation: { port: 'webapp', runtimeName: 'clinicBilling', sessionRole: 'app_staff',
       targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'relation' },
     webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_platform_settings',
@@ -3140,17 +3140,21 @@ const REV10_CONTEXT = {
     // The single declared enqueue root for outbound messages (owner ruling 19.08: one universal
     // mechanism taking a context, not one function per message kind). Runtime roles get EXECUTE
     // only -- no table grant on public.outgoing_delivery_queue is added for app_patient/app_staff.
-    'app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)': rev10Function({
+    // p_content is text, not jsonb (migration 0036): the typed-argument transcript is reproduced
+    // byte for byte by the caller, and jsonb_send's canonical form makes that impossible -- the
+    // original jsonb declaration in migration 0033 made every call throw before reaching the
+    // database. Same fix shape as the neighbouring app.replace_appointment_reminder_generation.
+    'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient', 'app_staff'], purpose: 'outbound.message.enqueue',
-      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'jsonb', 'integer'],
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
         columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
           'attempt_count', 'max_attempts', 'next_retry_at', 'priority'],
         operations: ['SELECT' as const, 'INSERT' as const],
-        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0033' as const }],
+        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0033, retyped in migration 0036' as const }],
     }),
     // The single declared root that replaces one appointment's reminder generation. Before it the
     // webapp wrote public.outgoing_delivery_queue directly, and no runtime role holds INSERT there,
