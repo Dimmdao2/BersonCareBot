@@ -38,8 +38,113 @@
 шаг больше не отменяет остальные; параметр `p_content` перестал быть `jsonb` (иначе очередь вообще
 не наполнялась). Осталось:
 
-- [ ] Замерить подтверждение записи на живом TEST от нажатия до ответа. Назвать число и команду.
+- [x] Замерить подтверждение записи на живом TEST от нажатия до ответа. Назвать число и команду.
+      **3,4 с** — четыре настоящих подтверждения (не шаги до него), живой TEST под пациентом
+      `kinesiospace@gmail.com`, 19.08 06:20–06:21 MSK: 3,529 · 3,425 · 3,368 · 3,399 с; пятое с
+      `slotCount=2` — 3,507 с. Все вернули `200` и настоящую запись (например
+      `canonicalAppointmentId 0f8983c7-d877-4be9-b3f0-0ab2421c701c`). Команда:
+
+          curl -sk --resolve test.bersoncare.ru:443:127.0.0.1 -b pj.txt \
+            -H 'origin: https://test.bersoncare.ru' -H 'content-type: application/json' \
+            -X POST https://test.bersoncare.ru/api/booking/create \
+            -d '{"type":"in_person","branchId":"54432236-…","serviceId":"bb4cb10e-…",
+                 "cityCode":"moscow","slotStart":"2026-08-25T06:00:00.000Z",
+                 "slotEnd":"2026-08-25T07:00:00.000Z","contactName":"…",
+                 "contactPhone":"+79990000001","contactEmail":"kinesiospace@gmail.com"}' \
+            -w '\nHTTP %{http_code} total=%{time_total}s\n'
+
+      То же число со стороны nginx (`request_time=3.526/3.421/3.364/3.399`,
+      `sudo -n grep "booking/create" /var/log/nginx/access.log`), то есть время съедено приложением,
+      а не сетью. Соседние пациентские маршруты в тот же момент — 46–99 мс
+      (`/api/booking/history`, `/api/booking/memberships`, `/api/booking/slots`), так что 3,4 с —
+      это именно подтверждение записи, а не общий фон стенда.
+
 - [ ] Если осталось больше секунды — найти, на что уходит, и убрать.
+      **Найдено; не убрано** — снятие требует своего решения, см. ниже.
+      Где именно уходит (замер, не чтение кода): запись в БД появляется через ~100 мс
+      (`be_appointments.created_at 06:20:46.031`, `updated_at .125`), а ответ уходит в
+      `06:20:49.466`. В журнале webapp между `06:20:46.131` и `06:20:49.466` — **3,335 с полной
+      тишины**, ни одной строки:
+
+          sudo -n journalctl -u bersoncarebot-webapp-test \
+            --since "2026-08-19 06:20:44" --until "2026-08-19 06:20:52" -o short-precise
+
+      На этот промежуток в `apps/webapp/src/modules/patient-booking/canonicalCreate.ts:607-646`
+      приходится ровно один блок с вводом-выводом — `Promise.all(... deps.syncPort.emitBookingEvent
+      ...)`, и он **ожидается на пути запроса**. Реализация —
+      `apps/webapp/src/modules/integrator/bookingM2mApi.ts:40-79`: `postSignedWithRetry` при отказе
+      интегратора спит `1000` мс, повторяет, спит `2000` мс, повторяет — **ровно 3,0 с сна**, после
+      чего бросает, а внешний `catch {}` (строка 645) ошибку глотает. Отсюда и 3,4 с, и её
+      постоянство: с `slotCount=2` два события идут параллельно, и время не растёт (3,507 с) — то
+      есть это фиксированная лестница пауз, а не работа на запись.
+      Адрес интегратора на TEST — `system_settings.integrator_api_url =
+      https://tgcarebot.bersonservices.ru` (ПРОД-хост); свой `bersoncarebot-integrator-test` на боксе
+      `inactive`. Проверять подписанным запросом по ПРОД-адресу я не стал: это ПРОД.
+      **Что убрать:** решение владельца 19.08 «письмо и уведомление не надо ждать — абсолютно точно»
+      применено к письму (ушло в очередь), но событие жизненного цикла интегратора по-прежнему
+      ожидается, да ещё с трёхсекундной лестницей повторов, а его отказ всё равно проглатывается.
+      Ждать то, чей результат выбрасывается, смысла нет. Куда это переносить — в
+      `outbound`-очередь по образцу письма или отдельным корнем — это развилка
+      `docs/_TODO/UNIVERSAL_OUTBOUND_2026-08-19.md`, а не правка внутри этого пункта.
+
+- [x] Отдельный отказ на этом же разделе: `/api/booking/in-person-services` отдавал **500**.
+      Воспроизведено 19.08 06:06:39 на живом TEST под `kinesiospace@gmail.com`
+      (`GET /api/booking/in-person-services?branchId=54432236-…` → `HTTP 500`), в журнале Postgres
+      той же секундой — `bcb_test_webapp_patient@bersoncarebot_test 42501 ERROR: permission denied
+      for table be_branches`. Причина: маршрут читал филиал под `app_patient` ДО того, как
+      появлялся организационный контекст, только чтобы узнать `organizationId`; прав на
+      `be_branches` у `app_patient` нет и не должно быть. Вдобавок он ставил принципал ЛЮБОЙ
+      организации, чей `branchId` прислали, — членство не проверялось вовсе.
+      Починено коммитом `38f16d639`: организация берётся общим для маршрутов записи резолвером
+      `resolvePatientEnrollmentOrganizationId` (активная запись пациента), каталог приходит уже
+      существующим объявленным корнем `app.read_current_patient_booking_catalog()` — тем же, которым
+      живёт мастер записи. Новых прав, ролей, корней и миграций не появилось;
+      `generate-cli.mjs --check` совпадает побайтно.
+      Доказано живьём на DEV: старый файл → `HTTP 500` + `42501 permission denied for table
+      be_branches` в журнале (06:27:21), новый → `HTTP 200` со списком услуг своего филиала и
+      `404 branch_not_found` на чужой филиал, новых отказов в журнале нет.
+
+### Соседи того же вида (перепись, 19.08) — не чинилось, вынесено владельцу/ведущему
+
+Отказ `be_branches` — не единственный своего класса. Класс такой: **пациентский маршрут читает
+таблицу, которой нет в 51 таблице, выданной роли `app_patient`, и не идёт через объявленный корень.**
+Контекст организации тут ни при чём: `withPatientOrganizationPrincipal` оставляет ту же роль
+`app_patient`, поэтому отказ приходит и внутри контекста. Проверены все 92 маршрута под пациентскими
+гейтами, пациентские server actions и RSC-загрузчики `app/app/patient/**`.
+
+Один корень объясняет шесть из семи: `pgTreatmentProgram.getTemplateById`
+(`apps/webapp/src/infra/repos/pgTreatmentProgram.ts:634`) не имеет ветки `isCurrentPatientPrincipal()`,
+которая есть у десятка соседних репозиториев (`pgBookingScheduling.ts:299`, `pgBookingForm.ts:44`,
+`pgMemberships.ts:226`, `pgSystemSettings.ts:448` …).
+
+| путь | файл | таблицы без гранта | достижимо пациентом сегодня |
+|---|---|---|---|
+| `POST /api/patient/courses/[courseId]/enroll` | `route.ts:43` → `pgTreatmentProgram.ts:634` | `treatment_program_templates(+_stages,_stage_items)` | да — `PatientCoursesCatalogClient.tsx:44` |
+| `POST /api/patient/reminders/create` (ветка промо) | `route.ts:146` → `instance-service.ts:336` | те же три | да — `ReminderCreateDialog.tsx:339` |
+| RSC `/app/patient/treatment` | `page.tsx:51` → `patientTreatmentProgramEntry.ts:42` | те же три | да — нижняя навигация «Упражнения»; отказ проглатывается |
+| RSC `/app/patient/reminders` | `RemindersPageBody.tsx:133` | те же три | да; отказ проглатывается |
+| RSC `/app/patient/go/*` (диплинки напоминаний) | `resolvePatientReminderGoTargets.ts:117` | те же три | да; отказ проглатывается |
+| `GET /api/booking/memberships/payment-status` | `route.ts:39` — чтение вынесено ЗА блок принципала | `be_payment_intents` | да — `PatientPackagePayClient.tsx:33`, но сегодня не выстреливает: на TEST `select count(*) from be_patient_packages where payment_intent_id is not null` → **0**. Отдаст 500 при первой же покупке абонемента с оплатой |
+| `POST /api/patient/treatment-program-promo/action` | `route.ts:67,84` — принципала нет вовсе | те же три | нет, вызывающего в приложении не найдено |
+| RSC `/app/patient/treatment/promo/item/[id]` | `page.tsx:60` | те же три | ссылки в приложении нет, только прямой URL |
+
+Отдельно, **на самом пути подтверждения записи** — `POST /api/booking/create`:
+`buildAppDeps.ts:1307` подключает `getPlatformUserIdentityContacts` к **врачебному** порту
+`doctorClientsPort.getClientIdentity` (`pgDoctorClients.ts:1249`), а тот читает `platform_users`
+с врачебной проекцией (ФИО, телефон, почта, `is_blocked`, `is_archived`). Под пациентом это
+`42501 permission denied for table platform_users` — та самая запись в журнале ПРОДа-TEST
+18.08 22:49:26.355, через 6 мс после `booking.confirmation_email.sent` того же bookingId.
+Это **(а) врачебный запрос под пациентским принципалом**, а не экран, просящий лишнее: вызывающему
+нужны ровно два поля о себе — `{phone, email}` — и он выбрасывает всё остальное. Стена права.
+Отказ глотает пустой `catch {}` (`canonicalCreate.ts:56-68`), поэтому запись создаётся, а
+**телефон и почта из формы записи не попадают в дополнительные контакты ни у одного пациента**.
+Чинить надо проводку в `buildAppDeps.ts:1307`, а не грант. Заметить: `platform_user_contacts`
+тоже без гранта `app_patient` (и без INSERT/UPDATE у `app_staff`), то есть вторая половина
+`persistBookingFormContacts` мертва и для персонала — это отдельная работа, не заплатка.
+
+⚠️ `platform_users` — ПДн и без собственного RLS. Ничего из перечисленного не чинится расширением
+прав `app_patient`; каждый случай — либо ветка на объявленный корень, либо перенос чтения внутрь
+уже существующего блока принципала.
 
 ## 3. Настройка каналов уведомлений отказывает
 
