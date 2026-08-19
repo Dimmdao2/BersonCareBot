@@ -70,7 +70,6 @@ BEGIN
 END
 $function$;
 
-REVOKE ALL ON FUNCTION app.list_operator_alert_staff_push_recipients() FROM PUBLIC;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_org_commerce_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
@@ -176,5 +175,3 @@ BEGIN
   RETURN v_result;
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer) FROM PUBLIC;

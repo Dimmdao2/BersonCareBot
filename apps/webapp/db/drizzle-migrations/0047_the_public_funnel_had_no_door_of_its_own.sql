@@ -112,8 +112,6 @@ $function$;
 COMMENT ON FUNCTION app.resolve_public_booking_organization(uuid, uuid) IS
   'Narrow fail-closed tenant resolver for public in-person booking bootstrap. Returns an org only for one PUBLISHED clinic with an active same-org branch+service availability held by an active specialist.';
 
-REVOKE ALL ON FUNCTION app.resolve_public_booking_organization(uuid,uuid) FROM PUBLIC;
-
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- Второй корень — весь каталог, который анонимному посетителю вообще позволено видеть.
@@ -292,8 +290,6 @@ $function$;
 
 COMMENT ON FUNCTION app.read_public_booking_catalog(uuid, uuid) IS
   'Anonymous public booking catalog for the PUBLISHED organization of the accepted tenant-service context: active branches, and only publicly bookable services assigned to an active specialist.';
-
-REVOKE ALL ON FUNCTION app.read_public_booking_catalog(uuid,uuid) FROM PUBLIC;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
@@ -535,8 +531,6 @@ $function$;
 COMMENT ON FUNCTION app.read_public_booking_slot_snapshot(uuid, uuid, text, text) IS
   'Anonymous public booking slot snapshot for the PUBLISHED organization of the accepted tenant-service context: one canonical branch+service context, schedule, busy intervals and the two booking runtime settings.';
 
-REVOKE ALL ON FUNCTION app.read_public_booking_slot_snapshot(uuid,uuid,text,text) FROM PUBLIC;
-
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- Четвёртый корень — поля формы записи. Публичный близнец
@@ -597,5 +591,3 @@ $function$;
 
 COMMENT ON FUNCTION app.list_public_booking_form_fields() IS
   'Anonymous public booking form fields for the PUBLISHED organization of the accepted tenant-service context: active, patient-visible fields only.';
-
-REVOKE ALL ON FUNCTION app.list_public_booking_form_fields() FROM PUBLIC;

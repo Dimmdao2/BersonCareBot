@@ -108,7 +108,6 @@ BEGIN
 END
 $function$;
 
-REVOKE ALL ON FUNCTION app.read_operator_delivery_queue_health() FROM PUBLIC;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_telemetry_operator_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
@@ -170,5 +169,3 @@ BEGIN
   RETURN v_resolved;
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.resolve_operator_probe_incidents(text) FROM PUBLIC;
