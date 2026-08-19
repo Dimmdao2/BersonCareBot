@@ -88,5 +88,3 @@ BEGIN
   ) AS incident;
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.open_or_touch_operator_probe_incident(text, text, text) FROM PUBLIC;

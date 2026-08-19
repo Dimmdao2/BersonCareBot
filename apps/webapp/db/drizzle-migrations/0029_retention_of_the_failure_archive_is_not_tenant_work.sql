@@ -59,5 +59,3 @@ BEGIN
   RETURN deleted_count;
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.prune_operator_health_failure_archive(integer) FROM PUBLIC;
