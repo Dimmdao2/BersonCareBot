@@ -43,6 +43,50 @@ export type LoadPublicInPersonSlotContextResult =
   | { ok: false };
 
 /**
+ * ONE place where a public booking catalog read that could not run becomes visible.
+ *
+ * Every loader below renders the same «Каталог недоступен» screen for two entirely different
+ * things: a clinic that genuinely published nothing, and a catalog read that never ran. Until
+ * 19.08 the second one was written down NOWHERE — not in the webapp journal, not in the Postgres
+ * log (the read is refused before any statement is sent, so Postgres never sees it), so the only
+ * report of a dead public entry point was a visitor's screenshot. This reporter is the fix for
+ * that class here: an unrunnable catalog leaves a line naming the organization, the source and
+ * the actual failure. It is deliberately not a wrapper layer — the loaders keep their own
+ * fail-closed return values, they just stop being mute.
+ *
+ * Legitimate emptiness never reaches this function: a successful read that yields zero cities or
+ * zero services returns `ok: true` with an empty list and is reported to nobody, exactly as before.
+ */
+function reportPublicCatalogFailure(source: string, organizationId: string, error: unknown): void {
+  // Drizzle wraps a failed read in `Failed query: <sql>` and hangs the real reason off `cause`;
+  // the driver hangs the SQLSTATE off `code`. Both live on either link of the chain, so both are
+  // read through it — a line that says only "Failed query" names the statement and not the reason,
+  // which is the same silence one level down.
+  const chain: unknown[] = [];
+  for (
+    let link: unknown = error;
+    link && chain.length < 4;
+    link = (link as { cause?: unknown }).cause
+  ) {
+    chain.push(link);
+  }
+  const code =
+    chain
+      .map((link) => (link as { code?: unknown } | null)?.code)
+      .find((value): value is string => typeof value === 'string') ?? 'unknown';
+  const cause = chain.length > 1 ? chain[chain.length - 1] : null;
+  console.error('[book/public-catalog] catalog read failed', {
+    category: code === '42501' ? 'capability_denied' : 'repository_unavailable',
+    errorClass: error instanceof Error ? error.name : 'unknown',
+    code,
+    message: error instanceof Error ? error.message : String(error),
+    ...(cause ? { cause: cause instanceof Error ? cause.message : String(cause) } : {}),
+    source,
+    organizationId,
+  });
+}
+
+/**
  * Single chokepoint: resolves the canonical public booking link `/book/{publicSlug}` to an
  * organization id (owner canon: `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-17.md` §1).
  *
@@ -85,10 +129,16 @@ export async function loadPublicOrganizationCitiesRsc(
       },
     );
     if (!catalog.cities) {
+      reportPublicCatalogFailure(
+        'app/book/[slug]:load-cities',
+        organizationId,
+        new Error('booking_engine_port_unavailable'),
+      );
       return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
     }
     return { ok: true, cities: catalog.cities, onlineLocation: catalog.onlineLocation };
-  } catch {
+  } catch (error) {
+    reportPublicCatalogFailure('app/book/[slug]:load-cities', organizationId, error);
     return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
   }
 }
@@ -99,7 +149,14 @@ export async function loadPublicOrganizationServicesForCityRsc(
   cityCode: string,
 ): Promise<LoadInPersonServicesResult> {
   const deps = buildAppDeps();
-  if (!deps.bookingEngine) return { ok: false, error: 'catalog_unavailable', services: [] };
+  if (!deps.bookingEngine) {
+    reportPublicCatalogFailure(
+      'app/book/[slug]:load-services',
+      organizationId,
+      new Error('booking_engine_port_unavailable'),
+    );
+    return { ok: false, error: 'catalog_unavailable', services: [] };
+  }
   try {
     const listed = await withExplicitOrganizationPrincipal(
       { organizationId, source: 'app/book/[slug]:load-services' },
@@ -116,7 +173,8 @@ export async function loadPublicOrganizationServicesForCityRsc(
       cityCode: listed.branch.cityCode,
       services: listed.services,
     };
-  } catch {
+  } catch (error) {
+    reportPublicCatalogFailure('app/book/[slug]:load-services', organizationId, error);
     return { ok: false, error: 'catalog_unavailable', services: [] };
   }
 }
@@ -176,7 +234,8 @@ export async function loadPublicInPersonSlotContextForSlugRsc(input: {
         } as const;
       },
     );
-  } catch {
+  } catch (error) {
+    reportPublicCatalogFailure('app/book:load-direct-slot-context', resolved.organizationId, error);
     return { ok: false };
   }
 }
