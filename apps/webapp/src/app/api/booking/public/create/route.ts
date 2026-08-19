@@ -141,10 +141,9 @@ export async function POST(request: Request) {
     );
     if (payer.ok) {
       try {
-        const booking = await withExplicitOrganizationPrincipal(
-          { organizationId: ctx.organizationId, source: 'api/booking/public/create:POST' },
-          () => createVerifiedPublicBooking(deps, intent, payer.platformUserId),
-        );
+        // `createVerifiedPublicBooking` owns the principal and it is a PATIENT one — the caller
+        // proved who they are before reaching this branch.
+        const booking = await createVerifiedPublicBooking(deps, intent, payer.platformUserId);
         let checkoutUrl: string | null = null;
         if (booking.status === 'awaiting_payment') {
           const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(

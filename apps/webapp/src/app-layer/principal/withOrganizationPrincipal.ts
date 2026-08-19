@@ -63,6 +63,25 @@ export async function withPatientOrganizationPrincipal<T>(
   );
 }
 
+/**
+ * Patient principal carrying IDENTITY only, with no tenant claim.
+ *
+ * Needed by the one step that necessarily precedes a tenant claim: a first-time public-booking
+ * visitor is not yet a client of the clinic, and a principal claiming that organisation is refused
+ * by the tenant-claim gate (`app.install_port_context` requires an `org_enrollments` row). The
+ * patient wall is "own data only" and checks identity, never organisation (owner correction
+ * 2026-07-12), so this is a complete principal rather than a degraded one —
+ * `stampDbPrincipalFromSession` already stamps the same shape for a patient whose organisation has
+ * not been resolved.
+ */
+export async function withPatientIdentityPrincipal<T>(
+  ctx: { platformUserId: string; source: string },
+  fn: () => Promise<T>,
+): Promise<T> {
+  normalizePrincipalSource(ctx.source);
+  return runWithDbPatientPrincipal({ platformUserId: ctx.platformUserId, source: ctx.source }, fn);
+}
+
 export function withDoctorWorkspacePrincipal<T>(
   workspace: Pick<DoctorWorkspaceAccessContext, 'organizationId'>,
   source: string,

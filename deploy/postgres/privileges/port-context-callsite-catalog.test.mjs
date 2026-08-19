@@ -325,6 +325,16 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'booking.public-phone-otp.consume', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgPublicBookingOtp.ts',
   },
+  'app.resolve_public_booking_client_by_phone(text,text,boolean)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-client.resolve', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
+  },
+  'app.enroll_current_patient_in_public_booking_clinic(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.public-client.enroll', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
+  },
   'app.read_public_runtime_setting(text,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'config.runtime.public.read', argCount: 2,

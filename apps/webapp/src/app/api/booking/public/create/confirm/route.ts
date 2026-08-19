@@ -21,9 +21,10 @@ import {
   resolvePublicBookingRateLimitClientKey,
 } from '@/modules/public-booking/publicBookingRateLimit';
 import { consumePublicBookingVerification } from '@/modules/public-booking/publicBookingVerification';
+import { withPatientIdentityPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { logger } from '@/app-layer/logging/logger';
 import { redactPublicBookingRecord } from '@/modules/public-booking/publicBookingResponse';
 import { InPersonBookingResolveError } from '@/modules/patient-booking/inPersonBookingResolve';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   jsonError,
   jsonOk,
@@ -109,20 +110,23 @@ export async function POST(request: Request) {
     if (!payer.ok) {
       return jsonError(payer.error, {}, { status: payer.error === 'invalid_phone' ? 400 : 503 });
     }
-    const sessionUser = await deps.userByPhone.findByUserId(payer.platformUserId);
+    // Reading the person's own row to build their session is the first statement that has an
+    // identified subject, so it is also the first that can carry a principal. Under the bootstrap
+    // (`pre_session`) principal it had no door at all and died with «Missing declared webapp port
+    // capability: pre_session».
+    const sessionUser = await withPatientIdentityPrincipal(
+      { platformUserId: payer.platformUserId, source: 'api/booking/public/create/confirm:POST' },
+      () => deps.userByPhone.findByUserId(payer.platformUserId),
+    );
     if (!sessionUser) return jsonError('user_resolve_failed', {}, { status: 503 });
     await deps.auth.setSessionFromUser(sessionUser);
-    const booking = await withExplicitOrganizationPrincipal(
-      {
-        organizationId: consumed.verified.intent.organizationId,
-        source: 'api/booking/public/create/confirm:POST',
-      },
-      () =>
-        createVerifiedPublicBooking(
-          deps,
-          consumed.verified.intent,
-          payer.platformUserId,
-        ),
+    // No principal wrapper here: `createVerifiedPublicBooking` owns the principal now, and it is a
+    // PATIENT one. The visitor identified themselves two lines above, so the anonymous
+    // organisation principal has nothing left to describe.
+    const booking = await createVerifiedPublicBooking(
+      deps,
+      consumed.verified.intent,
+      payer.platformUserId,
     );
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
@@ -134,6 +138,19 @@ export async function POST(request: Request) {
     }
     return jsonOk({ booking: redactPublicBookingRecord(booking), checkoutUrl }, { status: 200 });
   } catch (error) {
+    // The public funnel used to answer 503 `create_failed` and write NOTHING: every denial on the
+    // write half — five distinct ones — was invisible, which is why it stood dead from 12.08 and
+    // nobody saw it. The wire answer stays neutral (an anonymous caller must not learn why), the
+    // reason goes to the log, and `cause` is carried explicitly because without it the line reads
+    // «Failed query: …» and hides the capability denial one level down.
+    logger.error(
+      {
+        err: error,
+        cause: error instanceof Error ? error.cause : undefined,
+        challengeId: parsed.data.challengeId,
+      },
+      '[booking/public/confirm] verified public booking was not created',
+    );
     const mapped = mapApiError(
       error,
       CONFIRM_CREATE_ERROR_RULES,

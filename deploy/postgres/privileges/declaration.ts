@@ -2944,6 +2944,15 @@ const REV10_CONTEXT = {
     resolve_public_booking_organization: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-tenant.resolve',
       functionIdentity: 'app.resolve_public_booking_organization(uuid,uuid)' },
+    // Две двери ЗАПИСИ (миграция 0048). Личность резолвится до выбора арендатора, поэтому её
+    // класс — `pre_session`; отношение с клиникой заводится уже под ПАЦИЕНТСКИМ принципалом, чтобы
+    // человек мог записать в клиенты только себя.
+    resolve_public_booking_client_by_phone: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-client.resolve',
+      functionIdentity: 'app.resolve_public_booking_client_by_phone(text,text,boolean)' },
+    enroll_current_patient_in_public_booking_clinic: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.enroll',
+      functionIdentity: 'app.enroll_current_patient_in_public_booking_clinic(uuid)' },
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
@@ -3977,6 +3986,46 @@ const REV10_CONTEXT = {
           'sort_order', 'is_active'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Личность посетителя. Организации в аргументах нет: телефон принадлежит человеку, а не клинике,
+    // и класс `pre_session` стоит до выбора арендатора.
+    'app.resolve_public_booking_client_by_phone(text,text,boolean)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'resolve or create the canonical person for a proven public-booking phone',
+      typedArgs: ['text', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'phone_normalized', 'display_name', 'role',
+          'patient_phone_trust_at', 'merged_into_id', 'first_name', 'last_name', 'patronymic', 'birth_date'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized',
+          'is_primary', 'confirmed_at', 'source_origin', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity', columns: ['platform_user_id', 'first_name', 'last_name',
+          'patronymic', 'display_name', 'birth_date', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Отношение с клиникой. Человек берётся из принятого пациентского контекста, а не из аргумента,
+    // поэтому записать в клиенты можно только себя.
+    'app.enroll_current_patient_in_public_booking_clinic(uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'make the identified public-booking visitor a client of a published clinic',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.get_web_push_vapid_public_key()': rev10Function({

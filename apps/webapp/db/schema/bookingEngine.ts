@@ -311,7 +311,7 @@ export const orgEnrollments = pgTable(
     ),
     check(
       'org_enrollments_portal_activation_check',
-      sql`(${table.portalActivatedAt} IS NULL AND ${table.portalActivatedVia} IS NULL) OR (${table.portalActivatedAt} IS NOT NULL AND ${table.portalActivatedVia} = 'patient_invite_email_otp')`,
+      sql`(${table.portalActivatedAt} IS NULL AND ${table.portalActivatedVia} IS NULL) OR (${table.portalActivatedAt} IS NOT NULL AND ${table.portalActivatedVia} IN ('patient_invite_email_otp', 'public_booking_phone_otp'))`,
     ),
   ],
 );

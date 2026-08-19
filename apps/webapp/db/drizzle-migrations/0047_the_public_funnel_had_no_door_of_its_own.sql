@@ -36,6 +36,7 @@
 -- поверх сырых чтений таблиц; теперь она внутри двери, и обойти её нечем.
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- Первый корень — резолвер арендатора. Функция СУЩЕСТВОВАЛА (миграция 0042), но:
 --   1) её не было ни в одном каталоге способностей, поэтому вызов падал ещё до отправки statement'а
 --      («Missing declared webapp port capability: pre_session» под drizzle'вским «Failed query»);
@@ -114,6 +115,7 @@ COMMENT ON FUNCTION app.resolve_public_booking_organization(uuid, uuid) IS
 REVOKE ALL ON FUNCTION app.resolve_public_booking_organization(uuid,uuid) FROM PUBLIC;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- Второй корень — весь каталог, который анонимному посетителю вообще позволено видеть.
 --
 -- Одна дверь на четыре формы одного вопроса, потому что вопрос один: «что из каталога ЭТОЙ
@@ -294,6 +296,7 @@ COMMENT ON FUNCTION app.read_public_booking_catalog(uuid, uuid) IS
 REVOKE ALL ON FUNCTION app.read_public_booking_catalog(uuid,uuid) FROM PUBLIC;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- Третий корень — шаг выбора времени. Публичный близнец
 -- `app.read_current_patient_booking_slot_snapshot(...)`: та же выборка контекста, рабочих часов,
 -- рабочих дней, занятых интервалов и двух настроек, — но вместо «активная запись пациента в
@@ -535,6 +538,7 @@ COMMENT ON FUNCTION app.read_public_booking_slot_snapshot(uuid, uuid, text, text
 REVOKE ALL ON FUNCTION app.read_public_booking_slot_snapshot(uuid,uuid,text,text) FROM PUBLIC;
 
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- Четвёртый корень — поля формы записи. Публичный близнец
 -- `app.read_current_patient_booking_form_fields()`; отдаются только поля, помеченные видимыми
 -- пациенту, потому что заполняет их посетитель, а не персонал.
