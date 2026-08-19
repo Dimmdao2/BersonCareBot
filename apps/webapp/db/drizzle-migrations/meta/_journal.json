@@ -309,6 +309,13 @@
       "when": 1800000044000,
       "tag": "0043_a_clinic_name_must_not_shadow_a_product_route",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1800000045000,
+      "tag": "0044_a_link_to_a_video_host_is_a_kind_of_media",
+      "breakpoints": true
     }
   ]
 }

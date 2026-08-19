@@ -37,7 +37,8 @@ function clinicalTestMediaToCatalogRows(raw: unknown): CatalogMediaRowInput[] {
         : '';
     if (!mediaUrl) continue;
     const mt = (m as { mediaType?: unknown }).mediaType;
-    const mediaType = mt === 'image' || mt === 'video' || mt === 'gif' ? mt : 'image';
+    const mediaType =
+      mt === 'image' || mt === 'video' || mt === 'gif' || mt === 'hosted_video' ? mt : 'image';
     const sortOrder =
       typeof (m as { sortOrder?: unknown }).sortOrder === 'number' &&
       Number.isFinite((m as { sortOrder: number }).sortOrder)
