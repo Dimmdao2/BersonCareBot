@@ -258,7 +258,7 @@ export function createWebappPortContextRuntimeConfig(
  */
 const PATIENT_ROOTS_BEFORE_A_TENANT_CLAIM = new Set<string>([
   'app.read_current_patient_active_organizations()',
-  'app.enroll_current_patient_in_public_booking_clinic(uuid)',
+  'app.enroll_current_patient_in_public_booking_clinic(uuid,text)',
 ]);
 
 function capabilityFor(

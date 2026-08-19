@@ -59,7 +59,11 @@ beforeEach(() => {
   fakes.resolvePublicBookingRateLimitClientKey.mockReturnValue({ ok: true, key: 'client-1' });
   fakes.isPublicBookingConfirmRateLimited.mockResolvedValue(false);
   fakes.consumePublicBookingVerification.mockResolvedValue({ ok: true, verified: { intent } });
-  fakes.identifyPublicBookingPayer.mockResolvedValue({ ok: true, platformUserId: payer.userId });
+  fakes.identifyPublicBookingPayer.mockResolvedValue({
+    ok: true,
+    platformUserId: payer.userId,
+    channel: 'public_booking_phone_otp',
+  });
   fakes.findByUserId.mockResolvedValue(payer);
   fakes.createVerifiedPublicBooking.mockResolvedValue({ id: 'booking-1', status: 'awaiting_payment' });
   fakes.getBookingPaymentStatus.mockResolvedValue({
@@ -92,10 +96,13 @@ describe('B1.2 SMS booking confirmation', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, checkoutUrl: 'https://pay.example.test/checkout' });
     expect(fakes.setSessionFromUser).toHaveBeenCalledWith(payer);
+    // Канал подтверждения доезжает до двери зачисления тем, чем человек РЕАЛЬНО подтвердился на
+    // этом шаге, а не константой воронки (`OWNER_PRODUCT_RULES.md` §33).
     expect(fakes.createVerifiedPublicBooking).toHaveBeenCalledWith(
       expect.anything(),
       intent,
       payer.userId,
+      'public_booking_phone_otp',
     );
     expect(fakes.getBookingPaymentStatus).toHaveBeenCalledWith('booking-1', payer.userId);
   });

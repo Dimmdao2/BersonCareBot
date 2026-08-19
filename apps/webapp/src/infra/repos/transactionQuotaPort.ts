@@ -1,5 +1,5 @@
 import { and, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
-import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
+import { runWebappSql, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
@@ -66,6 +66,49 @@ export function decideStockQuota(input: {
   const limit = quota?.kind === 'numeric' ? quota.limit : null;
   if (limit === null) return 'allowed';
   return input.used + input.increment > limit ? 'reached' : 'allowed';
+}
+
+/**
+ * `patient_count` — the ONE ceiling, and it is not this file's to decide any more.
+ *
+ * Two writers create a client relationship: this application's staff card writer
+ * (`ensureInvitedOrganizationClientRelationship`) and the public-booking door
+ * (`app.enroll_current_patient_in_public_booking_clinic`). The second one has no relational access
+ * to tariffs at all — a patient login may not read `be_organizations` or `saas_*` — so a check
+ * written in TypeScript could never be the check BOTH of them pass. Measured on DEV 19.08: a widget
+ * booking took the 246th client place on a tariff limited to one, and the clinic's own reception
+ * desk then got `patient_count_limit_reached` on the very next card.
+ *
+ * So the rule lives in `app.assert_org_patient_count_quota_available`, where both writers meet, and
+ * this function is only the transport. It runs inside the caller's transaction on purpose: the
+ * advisory lock the door takes is transaction-scoped, which is what keeps the count and the insert
+ * that follows it atomic.
+ */
+export async function assertOrgPatientCountQuotaAvailable(
+  tx: WebappSqlExecutor,
+  organizationId: string,
+): Promise<void> {
+  try {
+    await runWebappSql(
+      tx,
+      sql`SELECT app.assert_org_patient_count_quota_available(${organizationId}::uuid)`,
+    );
+  } catch (error) {
+    if (isQuotaReachedRefusal(error)) throw new StockQuotaReachedError('patient_count');
+    throw error;
+  }
+}
+
+/**
+ * SQLSTATE `53400` (configuration_limit_exceeded) raised by that one door and nothing else on this
+ * path. Read through the `cause` chain because drizzle wraps a failed statement in its own error
+ * and hangs the driver's error — the one carrying `code` — underneath.
+ */
+function isQuotaReachedRefusal(error: unknown): boolean {
+  for (let link: unknown = error; link; link = (link as { cause?: unknown }).cause) {
+    if ((link as { code?: unknown }).code === '53400') return true;
+  }
+  return false;
 }
 
 /**

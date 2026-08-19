@@ -38,6 +38,27 @@ export async function resolveOrCreateTrustedPatientUserByPhone(
 }
 
 /**
+ * Confirmation channels a public booking may record on the clinic relationship.
+ *
+ * Owner 19.08 (`OWNER_PRODUCT_RULES.md` §33): «Я много раз говорил, какие каналы у нас являются
+ * каналами для регистрации пользователя и подтверждения его аккаунта. Публичная запись ничем не
+ * отличается.» So the channel is not a constant of this funnel — it names what the person actually
+ * proved on THIS booking, out of the channels `AUTH_AND_IDENTITY_CANON.md` §15 already counts as a
+ * confirmed contact. The same closed list is the CHECK on `org_enrollments`, and the door refuses
+ * anything outside it.
+ */
+export type PublicBookingConfirmationChannel =
+  | 'public_booking_phone_otp'
+  | 'public_booking_verified_email'
+  | 'public_booking_session';
+
+export type PublicBookingEnrollment = {
+  status: 'invited' | 'active';
+  /** What the door did, so a failed booking can undo exactly that and nothing else. */
+  effect: 'created' | 'activated' | 'unchanged';
+};
+
+/**
  * Make the identified visitor a client of the clinic they are booking into.
  *
  * Owner ruling 2026-08-19 (`docs/_TODO/TENANT_CLAIM_IS_NOT_VERIFIED_2026-08-19.md`), verbatim:
@@ -49,19 +70,61 @@ export async function resolveOrCreateTrustedPatientUserByPhone(
  *
  * MUST run under a patient principal: the door reads the person from `app.current_patient_user_id()`
  * and accepts none from the caller, so nobody can enrol somebody else into a clinic.
+ *
+ * The paid client ceiling lives INSIDE the door since 2026-08-19: a new relationship spends one of
+ * the clinic's paid places, and the widget must not spend places the reception desk then cannot.
+ * There is exactly one such check for both creators of a relationship —
+ * `app.assert_org_patient_count_quota_available`.
  */
 export async function enrollCurrentPatientInPublicBookingClinic(
   organizationId: string,
-): Promise<'invited' | 'active'> {
-  const result = await runWebappNamedRoot<{ status: string | null }>(
+  confirmationChannel: PublicBookingConfirmationChannel,
+): Promise<PublicBookingEnrollment> {
+  const result = await runWebappNamedRoot<{ enrollment: unknown }>(
     getWebappSqlDb(),
-    'app.enroll_current_patient_in_public_booking_clinic(uuid)',
-    [organizationId],
-    sql`SELECT app.enroll_current_patient_in_public_booking_clinic(${organizationId}::uuid) AS status`,
+    'app.enroll_current_patient_in_public_booking_clinic(uuid,text)',
+    [organizationId, confirmationChannel],
+    sql`SELECT app.enroll_current_patient_in_public_booking_clinic(
+      ${organizationId}::uuid, ${confirmationChannel}::text
+    ) AS enrollment`,
   );
-  const status = result.rows[0]?.status ?? null;
-  if (status !== 'active' && status !== 'invited') {
+  const payload = result.rows[0]?.enrollment as
+    | { status?: unknown; effect?: unknown }
+    | null
+    | undefined;
+  const status = payload?.status;
+  const effect = payload?.effect;
+  if (
+    (status !== 'active' && status !== 'invited') ||
+    (effect !== 'created' && effect !== 'activated' && effect !== 'unchanged')
+  ) {
     throw new Error('booking_blocked');
   }
-  return status;
+  return { status, effect };
+}
+
+/**
+ * Undo the relationship a public booking created, when the booking itself did not happen.
+ *
+ * Enrolment commits in its own port transaction BEFORE the appointment, and it cannot be otherwise:
+ * a named root refuses to run inside a relational transaction (`runWebappSql.ts`), and the
+ * appointment root refuses a person the clinic holds no row for. So the compensating step is the
+ * only way a visitor whose slot was taken (409 `slot_overlap`) does not stay in the clinic's client
+ * list — occupying a paid place and holding a portal the clinic never opened.
+ *
+ * The door is not told what to undo: it decides from the row itself (public provenance, the age
+ * window of one booking attempt, no live appointment), so a visitor cannot use it to erase a card
+ * the clinic created.
+ */
+export async function revokePublicBookingEnrollment(
+  organizationId: string,
+): Promise<'deleted' | 'reverted' | 'kept' | 'absent'> {
+  const result = await runWebappNamedRoot<{ outcome: unknown }>(
+    getWebappSqlDb(),
+    'app.revoke_public_booking_enrollment(uuid)',
+    [organizationId],
+    sql`SELECT app.revoke_public_booking_enrollment(${organizationId}::uuid) AS outcome`,
+  );
+  const effect = (result.rows[0]?.outcome as { effect?: unknown } | null | undefined)?.effect;
+  return effect === 'deleted' || effect === 'reverted' || effect === 'absent' ? effect : 'kept';
 }

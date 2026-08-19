@@ -34,6 +34,8 @@ import {
 } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   enrollCurrentPatientInPublicBookingClinic,
+  revokePublicBookingEnrollment,
+  type PublicBookingConfirmationChannel,
 } from '@/infra/repos/pgPublicBookingUserResolve';
 import { recordPublicBookingMergeCandidates } from '@/app-layer/platform-user/recordPublicBookingMergeCandidates';
 import {
@@ -58,16 +60,18 @@ export async function createVerifiedPublicBooking(
   deps: CreateVerifiedPublicBookingDeps,
   intent: PublicBookingIntent,
   platformUserId: string,
+  confirmationChannel: PublicBookingConfirmationChannel,
 ): Promise<PatientBookingRecord> {
   // Identity-only principal: the visitor may not be a client of this clinic yet, and a principal
   // claiming an organisation the person has no enrolment row for is refused by the tenant-claim
-  // gate. This step is what creates that row.
-  await withPatientIdentityPrincipal(
+  // gate. This step is what creates that row — and the one place the clinic's paid client ceiling
+  // is charged for the public funnel.
+  const enrolment = await withPatientIdentityPrincipal(
     {
       platformUserId,
       source: 'api/booking/public/create/confirm:POST',
     },
-    () => enrollCurrentPatientInPublicBookingClinic(intent.organizationId),
+    () => enrollCurrentPatientInPublicBookingClinic(intent.organizationId, confirmationChannel),
   );
 
   const result = await withPatientOrganizationPrincipal(
@@ -110,7 +114,45 @@ export async function createVerifiedPublicBooking(
       });
       return { booking, userId: platformUserId };
     },
-  );
+  ).catch(async (error: unknown) => {
+    // A booking that did not happen must not leave a client behind. Enrolment commits in its own
+    // port transaction ahead of the appointment and cannot be enlisted into it — a named root
+    // refuses to start inside a relational transaction, and the appointment root refuses a person
+    // the clinic holds no row for — so the only remaining honest order is «undo what this attempt
+    // did». Measured on DEV 19.08: the loser of an ordinary race for one slot got 409
+    // `slot_overlap`, zero appointments, and stayed an `active` client of the clinic, occupying a
+    // paid place and holding a portal the clinic never opened.
+    if (enrolment.effect !== 'unchanged') {
+      try {
+        const undone = await withPatientOrganizationPrincipal(
+          {
+            organizationId: intent.organizationId,
+            platformUserId,
+            source: 'api/booking/public/create/confirm:POST',
+          },
+          () => revokePublicBookingEnrollment(intent.organizationId),
+        );
+        if (undone === 'kept') {
+          logger.warn(
+            { organizationId: intent.organizationId, effect: enrolment.effect },
+            '[booking/public] failed booking left its clinic relationship in place',
+          );
+        }
+      } catch (revokeError) {
+        // The visit is already lost; losing the compensation on top of it must be loud, not mute.
+        logger.error(
+          {
+            err: revokeError,
+            cause: revokeError instanceof Error ? revokeError.cause : undefined,
+            organizationId: intent.organizationId,
+            effect: enrolment.effect,
+          },
+          '[booking/public] clinic relationship of a failed booking was not undone',
+        );
+      }
+    }
+    throw error;
+  });
 
   if (result.booking.canonicalAppointmentId && deps.bookingEngine) {
     // Duplicate-person detection is a back-office queue for staff, and it still has no door of its

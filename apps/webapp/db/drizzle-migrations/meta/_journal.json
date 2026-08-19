@@ -351,6 +351,13 @@
       "when": 1800000053000,
       "tag": "0051_a_public_visitor_becomes_a_client_when_identified",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1800000055000,
+      "tag": "0052_a_failed_public_booking_must_not_leave_a_client",
+      "breakpoints": true
     }
   ]
 }

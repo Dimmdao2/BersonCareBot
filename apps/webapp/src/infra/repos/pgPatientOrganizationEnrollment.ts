@@ -1,8 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
-import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
+import { assertOrgPatientCountQuotaAvailable } from '@/infra/repos/transactionQuotaPort';
 
 export type SchedulableClientEnrollmentStatus = 'invited' | 'active';
 
@@ -45,22 +44,15 @@ export async function ensureInvitedOrganizationClientRelationship(
   // an existing (invited/active) card above never re-enters here, so editing a patient's card is
   // never blocked by this quota. Archiving/discharging a patient removes its row from this count
   // (see `SchedulableClientEnrollmentStatus`), freeing the slot for a new one.
-  await transactionQuotaPort.withinLock(
-    tx,
-    { organizationId, mechanic: 'patient_count' },
-    (quota) =>
-      quota.assertStockAvailable(async () => {
-        const usage = await runWebappPgText<{ used_value: number }>(
-          `SELECT count(*)::int AS used_value
-           FROM org_enrollments
-           WHERE organization_id = $1
-             AND status IN ('invited', 'active')`,
-          [organizationId],
-          tx,
-        );
-        return usage.rows[0]?.used_value ?? 0;
-      }),
-  );
+  //
+  // The rule itself no longer lives here. Since 2026-08-19 there are TWO creators of a client
+  // relationship — this staff writer and the public-booking door — and a ceiling only one of them
+  // passes is not a ceiling (measured: a widget booking took the 246th place on a tariff limited to
+  // 1, after which this very route answered `patient_count_limit_reached`). Both now call the same
+  // `app.assert_org_patient_count_quota_available`, which takes the same transaction-scoped
+  // advisory lock the port used to take, so the check and the insert below stay atomic and the two
+  // creators serialize against each other.
+  await assertOrgPatientCountQuotaAvailable(tx, organizationId);
 
   await tx
     .insert(orgEnrollments)

@@ -62,19 +62,33 @@ function fixture(sql, what) {
  * рабочим ролям не выдан, и это правильно — его зовут изнутри дверей.
  */
 function acceptPatientContext({ purpose, functionIdentity, typedArgsSql, subjectRef, organizationId }) {
+  // Строка способности ПЕРЕСНИМАЕТСЯ с объявленной, отличаясь только логином: заявку здесь ставит
+  // администратор, а `app.require_attested_context_for_roles` — гейт, который дверь зачисления зовёт
+  // вложенно вместе с единственной проверкой оплаченного числа клиентов — соединяет принятый
+  // контекст со способностью ПО ЛОГИНУ, в отличие от `app.require_accepted_context`. Форма берётся
+  // из объявленной строки (порт, роль, класс, назначение, функция), поэтому связь с декларацией не
+  // теряется; сама пересъёмка живёт внутри транзакции, которая заканчивается ROLLBACK. Строка
+  // принятого контекста может быть в транзакции только одна — ключ (база, бэкенд, транзакция).
   return `
+INSERT INTO app_ext.port_context_capabilities
+  (capability_id, port, session_login, target_role, context_class, purpose, function_identity)
+SELECT '00000000-0000-4000-8000-0000000000fd'::uuid, c.port, session_user,
+       c.target_role, c.context_class, c.purpose, c.function_identity
+  FROM app_ext.port_context_capabilities c
+ WHERE c.purpose = '${purpose}'
+   AND c.function_identity = '${functionIdentity}'::regprocedure
+ LIMIT 1;
 INSERT INTO app_ext.accepted_port_contexts (
   database_oid, backend_pid, transaction_id, capability_id, session_login, port, target_role,
   context_class, purpose, function_identity, typed_args_hash, actor_ref, subject_ref, organization_id)
-SELECT d.oid, pg_backend_pid(), pg_current_xact_id(), c.capability_id, session_user,
+SELECT d.oid, pg_backend_pid(), pg_current_xact_id(), c.capability_id, c.session_login,
        c.port, c.target_role, c.context_class, c.purpose, c.function_identity,
        app.hash_port_typed_args(${typedArgsSql}),
        '${subjectRef}'::uuid, '${subjectRef}'::uuid,
        ${organizationId ? `'${organizationId}'::uuid` : 'NULL::uuid'}
   FROM pg_database d, app_ext.port_context_capabilities c
  WHERE d.datname = current_database()
-   AND c.purpose = '${purpose}'
-   AND c.function_identity = '${functionIdentity}'::regprocedure
+   AND c.capability_id = '00000000-0000-4000-8000-0000000000fd'::uuid
  LIMIT 1;`;
 }
 
@@ -97,9 +111,15 @@ ROLLBACK;`).trim();
 }
 
 const ENROL_PURPOSE = 'booking.public-client.enroll';
-const ENROL_FN = 'app.enroll_current_patient_in_public_booking_clinic(uuid)';
+const ENROL_FN = 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)';
+/**
+ * Канал подтверждения — АРГУМЕНТ двери с 19.08 (`OWNER_PRODUCT_RULES.md` §33: почта наравне с
+ * телефоном, а состав обязательных полей задаёт клиника), поэтому и в транскрипте аргументов их два.
+ */
+const ENROL_CHANNEL = 'public_booking_phone_otp';
 const enrolTypedArgs = (organizationId) =>
-  `ARRAY[ROW('uuid@1', pg_catalog.uuid_send('${organizationId}'::uuid))::app.port_typed_arg]`;
+  `ARRAY[ROW('uuid@1', pg_catalog.uuid_send('${organizationId}'::uuid))::app.port_typed_arg,`
+  + ` ROW('text@1', pg_catalog.textsend('${ENROL_CHANNEL}'))::app.port_typed_arg]`;
 
 function enrol({ subjectRef, organizationId }) {
   return callDoor({
@@ -109,7 +129,7 @@ function enrol({ subjectRef, organizationId }) {
       typedArgsSql: enrolTypedArgs(organizationId),
       subjectRef,
     }),
-    call: `app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid)`,
+    call: `app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid, '${ENROL_CHANNEL}'::text)`,
   });
 }
 
@@ -139,7 +159,7 @@ test('дверь зачисления не верит аргументу: нео
 
     const published = publishedOrg();
     const accepted = enrol({ subjectRef, organizationId: published });
-    assert.match(accepted, /^ALLOW\|(active|invited)$/u,
+    assert.match(accepted, /^ALLOW\|\{.*"status": ?"(active|invited)".*\}$/u,
       `опубликованная клиника не приняла посетителя: ${accepted}`);
 
     const [unpublished] = fixture(
@@ -176,7 +196,7 @@ ${acceptPatientContext({
 DELETE FROM public.org_enrollments
  WHERE organization_id = '${organizationId}'::uuid
    AND platform_user_id = app_ext.resolve_variant_a_physical('${subjectRef}'::uuid);
-SELECT app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid);
+SELECT app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid, '${ENROL_CHANNEL}'::text);
 SELECT (e.platform_user_id = app_ext.resolve_variant_a_physical('${subjectRef}'::uuid))::text
        || '|' || e.status || '|' || COALESCE(e.portal_activated_via, '<null>')
   FROM public.org_enrollments e
@@ -211,7 +231,7 @@ ON CONFLICT (organization_id, platform_user_id) DO UPDATE SET status = '${status
   portal_activated_at = NULL, portal_activated_via = NULL;
 DO $proof$
 BEGIN
-  PERFORM app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid);
+  PERFORM app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid, '${ENROL_CHANNEL}'::text);
   PERFORM set_config('bcb.door_result', 'ALLOW', false);
 EXCEPTION WHEN OTHERS THEN
   PERFORM set_config('bcb.door_result', SQLSTATE || '|' || SQLERRM, false);

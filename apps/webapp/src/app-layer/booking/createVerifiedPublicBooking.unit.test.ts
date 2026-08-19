@@ -16,6 +16,7 @@ const fakes = vi.hoisted(() => ({
   withPatientIdentityPrincipal: vi.fn(),
   withPatientOrganizationPrincipal: vi.fn(),
   enrollCurrentPatientInPublicBookingClinic: vi.fn(),
+  revokePublicBookingEnrollment: vi.fn(),
   resolveCurrentPatientInPersonBookingContext: vi.fn(),
   createBooking: vi.fn(),
   getPool: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
 }));
 vi.mock('@/infra/repos/pgPublicBookingUserResolve', () => ({
   enrollCurrentPatientInPublicBookingClinic: fakes.enrollCurrentPatientInPublicBookingClinic,
+  revokePublicBookingEnrollment: fakes.revokePublicBookingEnrollment,
 }));
 vi.mock('@/app-layer/platform-user/recordPublicBookingMergeCandidates', () => ({
   recordPublicBookingMergeCandidates: fakes.recordPublicBookingMergeCandidates,
@@ -42,6 +44,7 @@ vi.mock('@/modules/patient-booking/inPersonBookingResolve', () => ({
 import { createVerifiedPublicBooking } from './createVerifiedPublicBooking';
 
 const PLATFORM_USER_ID = 'person-1';
+const CHANNEL = 'public_booking_phone_otp' as const;
 const ORGANIZATION_ID = 'org-1';
 
 const intent = {
@@ -78,7 +81,11 @@ beforeEach(() => {
   );
   fakes.enrollCurrentPatientInPublicBookingClinic.mockImplementation(async () => {
     fakes.order.push('enroll');
-    return 'active';
+    return { status: 'active', effect: 'created' };
+  });
+  fakes.revokePublicBookingEnrollment.mockImplementation(async () => {
+    fakes.order.push('revoke');
+    return 'deleted';
   });
   fakes.resolveCurrentPatientInPersonBookingContext.mockResolvedValue({
     branchId: 'branch-1',
@@ -95,14 +102,17 @@ beforeEach(() => {
 
 describe('createVerifiedPublicBooking', () => {
   it('makes the visitor a client of the clinic before the booking is written', async () => {
-    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID);
+    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL);
 
     expect(fakes.order).toEqual(['enroll', 'createBooking']);
-    expect(fakes.enrollCurrentPatientInPublicBookingClinic).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(fakes.enrollCurrentPatientInPublicBookingClinic).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      CHANNEL,
+    );
   });
 
   it('enrols under an identity-only patient principal and writes under the tenant-scoped one', async () => {
-    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID);
+    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL);
 
     // Зачисление — до заявки на арендатора: заявку на клинику, где строки ещё нет, гейт отвергает.
     expect(fakes.withPatientIdentityPrincipal).toHaveBeenCalledWith(
@@ -131,8 +141,15 @@ describe('createVerifiedPublicBooking', () => {
       cityCode: 'Moscow',
     });
 
-    await expect(createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID)).rejects.toThrow();
+    await expect(
+      createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL),
+    ).rejects.toThrow();
     expect(fakes.createBooking).not.toHaveBeenCalled();
+    // Провалившаяся запись не оставляет человека клиентом клиники: зачисление коммитится своей
+    // порт-транзакцией раньше приёма и вместе с ним откатиться не может, поэтому его снимает
+    // компенсация. Без неё проигравший гонку за слот остаётся в списке клиентов с нулём приёмов.
+    expect(fakes.order).toEqual(['enroll', 'revoke']);
+    expect(fakes.revokePublicBookingEnrollment).toHaveBeenCalledWith(ORGANIZATION_ID);
   });
 
   it('keeps a committed booking when the back-office duplicate hint cannot be recorded', async () => {
@@ -143,7 +160,7 @@ describe('createVerifiedPublicBooking', () => {
     });
     fakes.recordPublicBookingMergeCandidates.mockRejectedValue(new Error('capability denied'));
 
-    const booking = await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID);
+    const booking = await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL);
 
     expect(booking).toMatchObject({ id: 'booking-1' });
   });

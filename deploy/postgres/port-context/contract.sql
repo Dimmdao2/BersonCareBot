@@ -316,7 +316,7 @@ BEGIN
           -- `subject_ref` выше), и сам корень берёт человека из контекста, а не из аргумента.
           OR (
             cap.purpose = 'booking.public-client.enroll'
-            AND cap.function_identity = pg_catalog.to_regprocedure('app.enroll_current_patient_in_public_booking_clinic(uuid)')
+            AND cap.function_identity = pg_catalog.to_regprocedure('app.enroll_current_patient_in_public_booking_clinic(uuid,text)')
           )
         )
       ))

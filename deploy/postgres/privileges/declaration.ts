@@ -2952,7 +2952,12 @@ const REV10_CONTEXT = {
       functionIdentity: 'app.resolve_public_booking_client_by_phone(text,text,boolean)' },
     enroll_current_patient_in_public_booking_clinic: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.enroll',
-      functionIdentity: 'app.enroll_current_patient_in_public_booking_clinic(uuid)' },
+      functionIdentity: 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)' },
+    // Компенсация неудавшейся записи (миграция 0052). Зачисление коммитится раньше приёма и вместе
+    // с ним откатиться не может, поэтому провалившаяся запись убирает за собой отдельной дверью.
+    revoke_public_booking_enrollment: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.revoke',
+      functionIdentity: 'app.revoke_public_booking_enrollment(uuid)' },
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
@@ -4012,13 +4017,18 @@ const REV10_CONTEXT = {
       ],
     }),
     // Отношение с клиникой. Человек берётся из принятого пациентского контекста, а не из аргумента,
-    // поэтому записать в клиенты можно только себя.
-    'app.enroll_current_patient_in_public_booking_clinic(uuid)': rev10Function({
-      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+    // поэтому записать в клиенты можно только себя. Канал подтверждения — АРГУМЕНТ (миграция 0052):
+    // почта такой же полноправный канал, что и телефон (`AUTH_AND_IDENTITY_CANON.md` §15), а состав
+    // обязательных полей публичной формы задаёт клиника (`OWNER_PRODUCT_RULES.md` §33).
+    'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_patient'],
       purpose: 'make the identified public-booking visitor a client of a published clinic',
-      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
+      // Оплаченное число клиентов проверяет ОДНА функция на оба пути создания отношения — сюда она
+      // попадает делегированием, а не собственным грантом пациентской роли.
+      delegatesTo: ['app.assert_org_patient_count_quota_available(uuid)'],
       relationSurfaces: [
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4026,6 +4036,46 @@ const REV10_CONTEXT = {
           'portal_activated_at', 'portal_activated_via'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Дверь не
+    // принимает от вызывающего ничего, кроме организации, и решает по самой строке — провенанс,
+    // возраст в окне одной попытки и отсутствие живого приёма.
+    'app.revoke_public_booking_enrollment(uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'undo a public-booking client relationship whose booking failed',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'created_at', 'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          // Возраст строки дверь только ЧИТАЕТ — он и есть признак «эту строку завела воронка».
+          operationColumns: { UPDATE: ['status', 'portal_activated_at', 'portal_activated_via'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // ЕДИНСТВЕННЫЙ потолок оплаченного числа клиентов. Владелец — коммерческий шов: ровно у него уже
+    // есть все чтения правила. Прямой EXECUTE — только у персонала клиники (его писатель карточек
+    // зовёт функцию из своей реляционной транзакции); публичная дверь достаёт её делегированием.
+    'app.assert_org_patient_count_quota_available(uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_staff', 'app_seam_public_booking_owner'],
+      purpose: 'the only patient_count ceiling shared by both creators of an org_enrollments row',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['id', 'tariff_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_org_entitlement_overrides',
+          columns: ['organization_id', 'mechanic', 'expires_at', 'quota'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.get_web_push_vapid_public_key()': rev10Function({

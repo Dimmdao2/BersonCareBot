@@ -232,7 +232,7 @@ function isPatientRootBeforeATenantClaim(
     (purpose === 'patient.organization.resolve' &&
       functionIdentity === 'app.read_current_patient_active_organizations()') ||
     (purpose === 'booking.public-client.enroll' &&
-      functionIdentity === 'app.enroll_current_patient_in_public_booking_clinic(uuid)')
+      functionIdentity === 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)')
   );
 }
 

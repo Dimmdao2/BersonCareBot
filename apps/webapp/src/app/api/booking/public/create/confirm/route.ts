@@ -127,6 +127,7 @@ export async function POST(request: Request) {
       deps,
       consumed.verified.intent,
       payer.platformUserId,
+      payer.channel,
     );
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {

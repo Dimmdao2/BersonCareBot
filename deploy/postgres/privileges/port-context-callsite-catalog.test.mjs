@@ -330,9 +330,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'booking.public-client.resolve', argCount: 3,
     source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
   },
-  'app.enroll_current_patient_in_public_booking_clinic(uuid)': {
+  'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': {
     port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
-    purpose: 'booking.public-client.enroll', argCount: 1,
+    purpose: 'booking.public-client.enroll', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
+  },
+  'app.revoke_public_booking_enrollment(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.public-client.revoke', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
   },
   'app.read_public_runtime_setting(text,text)': {
