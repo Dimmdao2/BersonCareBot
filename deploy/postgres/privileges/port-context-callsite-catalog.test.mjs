@@ -132,6 +132,24 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'media.transcode.enqueue', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
   },
+  // Разбор той же очереди: три двери одного оборота воркера. До 0050 он ходил отношением и
+  // отбивался `42501 accepted organization context required` на каждом обороте — диспетчер
+  // межарендный, `organization_id` у него нет, а политика роли на таблице требует именно его.
+  'app.claim_media_transcode_job(text,integer)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.claim', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
+  'app.read_media_transcode_job_media(uuid,uuid,text)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.job-media.read', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
+  'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.outcome.record', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
   'app.resolve_staff_workspace_memberships(uuid)': {
     port: 'webapp', argCount: 1, descriptorCount: 2,
     descriptors: [

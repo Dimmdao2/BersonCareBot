@@ -23,13 +23,14 @@ import { BookingAvailabilityMatrixTable } from './BookingAvailabilityMatrixTable
 import { parseRublesInput, rublesToMinor } from '@/app/app/settings/bookingSoloAdminApi';
 import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { apiJson } from '@/shared/lib/apiJson';
+import { DoctorTimezoneSelect } from '@/shared/ui/doctor/DoctorTimezoneSelect';
 
 const BASE = '/api/admin/booking-engine';
 
 type Overview = {
   organizationId: string;
   organization: { id: string; title: string } | null;
-  branches: { id: string; title: string; cityCode: string; isActive: boolean }[];
+  branches: { id: string; title: string; cityCode: string; timezone: string; isActive: boolean }[];
   rooms: { id: string; branchId: string; title: string; isActive: boolean }[];
   specialists: { id: string; fullName: string; isActive: boolean }[];
   services: {
@@ -68,6 +69,8 @@ export function BookingEngineSection({ mode = 'catalog' }: { mode?: BookingEngin
   const [orgTitle, setOrgTitle] = useState('');
   const [branchTitle, setBranchTitle] = useState('');
   const [branchCity, setBranchCity] = useState('msk');
+  /** Пояс ФИЛИАЛА — физического места (§34 канона владельца); у человека пояс не настраивается. */
+  const [branchTimezone, setBranchTimezone] = useState('Europe/Moscow');
   const [roomBranchId, setRoomBranchId] = useState('');
   const [roomTitle, setRoomTitle] = useState('');
   const [specialistName, setSpecialistName] = useState('');
@@ -204,6 +207,15 @@ export function BookingEngineSection({ mode = 'catalog' }: { mode?: BookingEngin
                       value={branchCity}
                       onChange={(e) => setBranchCity(e.target.value)}
                     />
+                    <div className="min-w-[14rem] flex-1">
+                      <DoctorTimezoneSelect
+                        instanceId="branch-create-tz"
+                        aria-label="Часовой пояс филиала"
+                        value={branchTimezone}
+                        onChange={setBranchTimezone}
+                        disabled={isPending}
+                      />
+                    </div>
                     <Button
                       type="button"
                       size="sm"
@@ -213,7 +225,11 @@ export function BookingEngineSection({ mode = 'catalog' }: { mode?: BookingEngin
                           const res = await apiJson<{ ok: boolean }>(`${BASE}/branches`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ title: branchTitle, cityCode: branchCity }),
+                            body: JSON.stringify({
+                              title: branchTitle,
+                              cityCode: branchCity,
+                              timezone: branchTimezone,
+                            }),
                           });
                           if (!res.ok) throw new Error('branch_save_failed');
                           setBranchTitle('');

@@ -10,6 +10,7 @@ import {
   rublesToMinor,
 } from '@/app/app/settings/bookingSoloAdminApi';
 import { apiJson } from '@/shared/lib/apiJson';
+import { DoctorTimezoneSelect } from '@/shared/ui/doctor/DoctorTimezoneSelect';
 
 const BASE = '/api/admin/booking-engine';
 
@@ -103,7 +104,14 @@ function useCatalogAction(onChanged: () => Promise<void>, onError: (message: str
   };
 }
 
-type BranchRow = { id: string; title: string; cityCode: string; isActive: boolean };
+type BranchRow = {
+  id: string;
+  title: string;
+  cityCode: string;
+  /** Пояс ФИЗИЧЕСКОГО МЕСТА — единственное место, где пояс настраивается (§34 канона владельца). */
+  timezone: string;
+  isActive: boolean;
+};
 
 export function BookingEngineBranchList({
   branches,
@@ -116,6 +124,25 @@ export function BookingEngineBranchList({
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editCity, setEditCity] = useState('');
+  const [editTimezone, setEditTimezone] = useState('Europe/Moscow');
+
+  const beginEdit = (b: BranchRow) => {
+    setEditId(b.id);
+    setEditTitle(b.title);
+    setEditCity(b.cityCode);
+    setEditTimezone(b.timezone);
+  };
+
+  const savePatch = (b: BranchRow) =>
+    void wrap(async () => {
+      const res = await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editTitle, cityCode: editCity, timezone: editTimezone }),
+      });
+      if (!res.ok) throw new Error('branch_patch_failed');
+      setEditId(null);
+    });
 
   if (layout === 'table') {
     return (
@@ -124,6 +151,7 @@ export function BookingEngineBranchList({
           <tr className="border-b bg-muted/40 text-left">
             <th className="px-3 py-2 font-medium">Название</th>
             <th className="px-3 py-2 font-medium">Город</th>
+            <th className="px-3 py-2 font-medium">Часовой пояс</th>
             <th className="px-3 py-2 font-medium text-right">Действия</th>
           </tr>
         </thead>
@@ -154,28 +182,29 @@ export function BookingEngineBranchList({
                   b.cityCode
                 )}
               </td>
+              <td className="px-3 py-2">
+                {editId === b.id ? (
+                  <div className="min-w-[14rem]">
+                    <DoctorTimezoneSelect
+                      instanceId={`branch-tz-${b.id}`}
+                      aria-label={`Часовой пояс — ${b.title}`}
+                      value={editTimezone}
+                      onChange={setEditTimezone}
+                      disabled={isPending}
+                    />
+                  </div>
+                ) : (
+                  b.timezone
+                )}
+              </td>
               <td className="px-3 py-2 text-right">
                 <RowActions
                   isPending={isPending}
                   editing={editId === b.id}
                   isActive={b.isActive}
-                  onEdit={() => {
-                    setEditId(b.id);
-                    setEditTitle(b.title);
-                    setEditCity(b.cityCode);
-                  }}
+                  onEdit={() => beginEdit(b)}
                   onCancel={() => setEditId(null)}
-                  onSave={() =>
-                    void wrap(async () => {
-                      const res = await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title: editTitle, cityCode: editCity }),
-                      });
-                      if (!res.ok) throw new Error('branch_patch_failed');
-                      setEditId(null);
-                    })
-                  }
+                  onSave={() => savePatch(b)}
                   onToggleActive={() =>
                     void wrap(async () => {
                       const res = b.isActive
@@ -215,33 +244,28 @@ export function BookingEngineBranchList({
                 value={editCity}
                 onChange={(e) => setEditCity(e.target.value)}
               />
+              <div className="min-w-[14rem] flex-1">
+                <DoctorTimezoneSelect
+                  instanceId={`branch-tz-row-${b.id}`}
+                  aria-label={`Часовой пояс — ${b.title}`}
+                  value={editTimezone}
+                  onChange={setEditTimezone}
+                  disabled={isPending}
+                />
+              </div>
             </>
           ) : (
             <span className={!b.isActive ? 'text-muted-foreground line-through' : undefined}>
-              {b.title} ({b.cityCode}){!b.isActive ? ' — выкл.' : ''}
+              {b.title} ({b.cityCode}, {b.timezone}){!b.isActive ? ' — выкл.' : ''}
             </span>
           )}
           <RowActions
             isPending={isPending}
             editing={editId === b.id}
             isActive={b.isActive}
-            onEdit={() => {
-              setEditId(b.id);
-              setEditTitle(b.title);
-              setEditCity(b.cityCode);
-            }}
+            onEdit={() => beginEdit(b)}
             onCancel={() => setEditId(null)}
-            onSave={() =>
-              void wrap(async () => {
-                const res = await apiJson<{ ok: boolean }>(`${BASE}/branches/${b.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title: editTitle, cityCode: editCity }),
-                });
-                if (!res.ok) throw new Error('branch_patch_failed');
-                setEditId(null);
-              })
-            }
+            onSave={() => savePatch(b)}
             onToggleActive={() =>
               void wrap(async () => {
                 const res = b.isActive
