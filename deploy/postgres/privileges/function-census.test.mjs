@@ -143,7 +143,12 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // пронумерованная миграция его не создавала. `app.read_operator_delivery_queue_health()` в счёт не
   // входит: та же функция под тем же именем, `CREATE OR REPLACE` только сузил класс отказов, которые
   // проба умеет закрывать (было — 0039).
-  assert.equal(functions.length, 112);
+  // 112 → 113 (19.08): миграция 0047 забрала в перепись `app.open_or_touch_operator_probe_incident
+  // (text,text,text)` тем же классом, что 0046 забрала её соседку по шву — тело жило только в
+  // `deploy/postgres/c4-operational-runtime.sql` и живой базе. Прибавка = функция наконец под
+  // учётом; `CREATE OR REPLACE` лишь научил дверь второму, «пейджить с первого раза» пространству
+  // классов отказа провайдера, сигнатура и гранты те же.
+  assert.equal(functions.length, 113);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)

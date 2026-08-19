@@ -139,6 +139,15 @@ export function compareFunctionSurfaces(functions, declaredFunctions) {
     }
     const [signature, declaration] = candidates[0];
     const actual = extractRelationOperations(fn.body);
+    // A delegated SECURITY DEFINER call reads as `FROM schema.fn(...)` lexically identically to a
+    // table read, but its access is tracked and generated through `delegatesTo`/EXECUTE, never
+    // through `relationSurfaces` (`generate.mjs` rejects a relationSurface whose `relation` isn't a
+    // real table). Without this, any B0-forward function that calls another door via `FROM fn() AS
+    // x` — the only plpgsql syntax for invoking a set-returning function — reports a phantom gap
+    // for a relation that was never meant to appear in relationSurfaces at all.
+    for (const delegated of declaration.delegatesTo ?? []) {
+      actual.delete(delegated.slice(0, delegated.indexOf('(')));
+    }
     const declared = new Map((declaration.relationSurfaces ?? [])
       .map((surface) => [surface.relation, [...surface.operations].sort()]));
     for (const relation of [...new Set([...actual.keys(), ...declared.keys()])].sort()) {
