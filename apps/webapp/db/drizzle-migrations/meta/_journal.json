@@ -288,6 +288,13 @@
       "when": 1800000041000,
       "tag": "0040_two_machine_ticks_had_no_door_of_their_own",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1800000042000,
+      "tag": "0041_the_watchman_could_read_incidents_but_not_open_one",
+      "breakpoints": true
     }
   ]
 }
