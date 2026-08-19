@@ -1157,11 +1157,14 @@ function collectNamedRootCallsites() {
 
 function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites()) {
   const callsites = discovered.filter((row) => row.kind === 'literal');
-  const dynamicWrappers = discovered.filter((row) => row.kind === 'dynamic');
-  assert.equal(dynamicWrappers.length, 1, 'one generic named-root readiness wrapper must exist');
-  assert.equal(dynamicWrappers[0].port, 'integrator', 'generic named-root wrapper belongs to integrator');
-  assert.equal(dynamicWrappers[0].path, 'apps/integrator/src/infra/db/operationalPoolReadiness.ts',
-    'generic named-root wrapper moved from the reviewed production source');
+  // Обёртка с ДИНАМИЧЕСКИМ именем корня — единственное место, где вызов не сверяется с каталогом
+  // по литералу. Вторая такая обёртка означает второй непроверяемый путь к именованному корню.
+  // Счёт «1» краснел числом 2 и не говорил, ГДЕ появился этот путь; список печатает файл.
+  assert.deepEqual(
+    discovered.filter((row) => row.kind === 'dynamic').map((row) => `${row.port} ${row.path}`),
+    ['integrator apps/integrator/src/infra/db/operationalPoolReadiness.ts'],
+    'exactly one reviewed generic named-root readiness wrapper may exist',
+  );
   assert.equal(new Set(callsites.map((row) => row.identity)).size, callsites.length,
     'each production named root must have one exact callsite');
 
@@ -1294,6 +1297,13 @@ test('production discovery is path-independent and excludes tests/generated outp
   assert.ok(files.length > 10);
   assert.equal(files.some((path) => TEST_FILE_RE.test(path) || path.includes('/generated/')), false);
   const discovered = collectNamedRootCallsites();
-  assert.equal(discovered.filter((row) => row.kind === 'literal').length, EXPECTED_ROOTS.size);
-  assert.equal(discovered.filter((row) => row.kind === 'dynamic').length, 1);
+  assert.deepEqual(
+    [...new Set(discovered.filter((row) => row.kind === 'literal').map((row) => row.identity))].sort(),
+    [...EXPECTED_ROOTS.keys()].sort(),
+    'discovered production callsites must be exactly the catalogued named roots',
+  );
+  assert.deepEqual(
+    discovered.filter((row) => row.kind === 'dynamic').map((row) => `${row.port} ${row.path}`),
+    ['integrator apps/integrator/src/infra/db/operationalPoolReadiness.ts'],
+  );
 });
