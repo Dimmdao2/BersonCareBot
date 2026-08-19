@@ -76,52 +76,51 @@ export function clinicalTestMediaItemToPreviewUi(m: ClinicalTestMediaItem): Medi
   };
 }
 
-/** Превью медиа рекомендации (GIF — как изображение). Для image/gif — исходный URL; для video — превью воркера из снимка, если есть. */
+/**
+ * Превью медиа рекомендации (GIF — как изображение).
+ *
+ * Passes the row's true rendition state through unchanged (owner ruling 19.08,
+ * `docs/_TODO/GET_IMAGE_ACCESSOR_2026-08-19.md`): the caller does not decide readiness here —
+ * {@link MediaThumb} + `getMediaThumbPhase` do, from `previewStatus`/`previewSmUrl`/
+ * `standardRendition`. Forcing `previewStatus: 'ready'` and substituting the primary URL for
+ * image/gif (the previous behaviour) bypassed conversion and showed a raw upload, which
+ * `media_files.standard_rendition_at` exists precisely to prevent.
+ */
 export function recommendationMediaItemToPreviewUi(
   m: RecommendationMediaItem,
 ): MediaPreviewUiModel {
   const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
-  const useSourceUrlForThumb = m.mediaType === 'image' || m.mediaType === 'gif';
-  const rowSm = m.previewSmUrl?.trim() || null;
-  const rowMd = m.previewMdUrl?.trim() || null;
-  const rowStatus = m.previewStatus ?? null;
-  const useWorkerThumb = !useSourceUrlForThumb && Boolean(rowSm);
   return {
     id: m.mediaUrl,
     kind,
     url: m.mediaUrl,
-    previewStatus: useSourceUrlForThumb
-      ? 'ready'
-      : useWorkerThumb
-        ? (rowStatus ?? 'ready')
-        : rowStatus,
-    previewSmUrl: useSourceUrlForThumb ? m.mediaUrl : rowSm,
-    previewMdUrl: useSourceUrlForThumb ? null : rowMd,
+    previewStatus: m.previewStatus ?? null,
+    previewSmUrl: m.previewSmUrl?.trim() || null,
+    previewMdUrl: m.previewMdUrl?.trim() || null,
+    standardRendition: m.standardRendition ?? null,
     sourceWidth: null,
     sourceHeight: null,
   };
 }
 
-/** Превью первого элемента шаблона программы в master-list врача. */
+/**
+ * Превью первого элемента шаблона программы в master-list врача.
+ *
+ * Same rule as {@link recommendationMediaItemToPreviewUi}: pass the row's rendition state
+ * through, do not force readiness for image/gif.
+ */
 export function templateListPreviewToPreviewUi(
   preview: TreatmentProgramTemplateListPreviewMedia,
 ): MediaPreviewUiModel {
   const kind: MediaPreviewUiModel['kind'] = preview.mediaType === 'video' ? 'video' : 'image';
-  const useSourceUrlForThumb = preview.mediaType === 'image' || preview.mediaType === 'gif';
-  const rowSm = preview.previewSmUrl?.trim() || null;
-  const rowStatus = preview.previewStatus ?? null;
-  const useWorkerThumb = !useSourceUrlForThumb && Boolean(rowSm);
   return {
     id: preview.mediaUrl,
     kind,
     url: preview.mediaUrl,
-    previewStatus: useSourceUrlForThumb
-      ? 'ready'
-      : useWorkerThumb
-        ? (rowStatus ?? 'ready')
-        : rowStatus,
-    previewSmUrl: useSourceUrlForThumb ? preview.mediaUrl : rowSm,
+    previewStatus: preview.previewStatus ?? null,
+    previewSmUrl: preview.previewSmUrl?.trim() || null,
     previewMdUrl: null,
+    standardRendition: preview.standardRendition ?? null,
     sourceWidth: null,
     sourceHeight: null,
   };

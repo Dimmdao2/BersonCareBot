@@ -12,8 +12,8 @@ import {
   treatmentProgramTemplateStageItems as itemTable,
   treatmentProgramTemplateStageGroups as tplGroupTable,
 } from '../../../db/schema/treatmentProgramTemplates';
-import type { MediaPreviewStatus } from '@/modules/media/types';
-import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
+import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
@@ -292,9 +292,12 @@ async function templateListFirstItemPreviewByTemplateId(
   return out;
 }
 
+/**
+ * Enriches list-preview media with rendition state — one batched call to the catalog media door
+ * (`catalogMediaLadderLookup`) for the whole page of templates, never one per row.
+ */
 async function enrichTemplateListPreviewMedia(
   previews: Map<string, TreatmentProgramTemplateListPreviewMedia | null>,
-  organizationId: string,
 ): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
   const mediaIds: string[] = [];
   for (const preview of previews.values()) {
@@ -304,30 +307,20 @@ async function enrichTemplateListPreviewMedia(
   }
   if (mediaIds.length === 0) return previews;
 
-  const res = await runWebappPgText<{
-    id: string;
-    preview_sm_key: string | null;
-    preview_status: string | null;
-  }>(
-    `SELECT id::text, preview_sm_key, preview_status
-     FROM media_files
-     WHERE id = ANY($1::uuid[]) AND organization_id = $2::uuid`,
-    [mediaIds, organizationId],
-  );
-  const byId = new Map(res.rows.map((r) => [r.id.toLowerCase(), r]));
+  const byId = await catalogMediaLadderLookup(mediaIds);
 
   const out = new Map(previews);
   for (const [templateId, preview] of previews) {
     if (!preview?.mediaUrl) continue;
     const mid = parseMediaFileIdFromAppUrl(preview.mediaUrl);
     if (!mid) continue;
-    const mf = byId.get(mid.toLowerCase());
-    if (!mf) continue;
-    const previewSmUrl = mf.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
+    const ladder = byId.get(mid);
+    if (!ladder) continue;
     out.set(templateId, {
       ...preview,
-      previewSmUrl,
-      previewStatus: (mf.preview_status as MediaPreviewStatus | null) ?? null,
+      previewSmUrl: ladder.previewSmUrl,
+      previewStatus: ladder.previewStatus,
+      standardRendition: ladder.standardRendition,
     });
   }
   return out;
@@ -756,7 +749,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       const ids = rows.map((r) => r.id);
       const countMap = await templateListCounts(db, ids, organizationId);
       const previewMapRaw = await templateListFirstItemPreviewByTemplateId(ids, organizationId);
-      const previewMap = await enrichTemplateListPreviewMedia(previewMapRaw, organizationId);
+      const previewMap = await enrichTemplateListPreviewMedia(previewMapRaw);
       return rows.map((r) => mapTemplate(r, countMap.get(r.id), previewMap.get(r.id) ?? null));
     },
 

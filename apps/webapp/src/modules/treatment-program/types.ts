@@ -26,6 +26,8 @@ export type TreatmentProgramTemplateListPreviewMedia = {
   mediaType: 'image' | 'video' | 'gif';
   previewSmUrl?: string | null;
   previewStatus?: MediaPreviewStatus | null;
+  /** `media_files.standard_rendition_at IS NOT NULL` — see `RecommendationMediaItem.standardRendition`. */
+  standardRendition?: boolean | null;
 };
 
 export type TreatmentProgramTemplate = {
