@@ -330,6 +330,13 @@
       "when": 1800000047000,
       "tag": "0046_a_dead_row_from_june_is_not_todays_outage",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1800000050000,
+      "tag": "0049_a_clinic_had_a_booking_form_but_no_face",
+      "breakpoints": true
     }
   ]
 }

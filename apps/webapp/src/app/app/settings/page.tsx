@@ -34,6 +34,7 @@ import { BillingSection, type BillingMechanicRow } from './BillingSection';
 import { describeCommercialAccessState } from './billingCommercialState';
 import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
+import { ClinicPublicCardSection } from './ClinicPublicCardSection';
 import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
 import { OrgCustomDomainSection } from './OrgCustomDomainSection';
@@ -145,6 +146,7 @@ export default async function SettingsPage({
       platformSettings,
       brandingState,
       slugState,
+      cardSettings,
       customDomainSurface,
       customDomainMutation,
     ] = await Promise.all([
@@ -160,6 +162,11 @@ export default async function SettingsPage({
       ),
       workspace.canManageOrganization && deps.clinicDirectory
         ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
+        : Promise.resolve(null),
+      workspace.canManageOrganization && deps.clinicPublicCard
+        ? withDoctorWorkspacePrincipal(workspace, 'app.settings.clinic-public-card.read', () =>
+            deps.clinicPublicCard!.readCardSettings(workspace.organizationId),
+          )
         : Promise.resolve(null),
       canManageCustomDomain
         ? getMechanicSurfaceVisibility(workspace, 'custom_domain')
@@ -285,6 +292,16 @@ export default async function SettingsPage({
         ) : null}
         {slugState ? (
           <ClinicSlugSection initialState={slugState} appBaseUrl={env.APP_BASE_URL} />
+        ) : null}
+        {cardSettings ? (
+          <ClinicPublicCardSection
+            initialSettings={cardSettings}
+            publicUrl={
+              slugState?.currentSlug
+                ? `${env.APP_BASE_URL.replace(/\/$/, '')}/${encodeURIComponent(slugState.currentSlug)}`
+                : null
+            }
+          />
         ) : null}
         <SettingsForm
           patientLabel={String(patientLabel)}
