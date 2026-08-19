@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { publicBookPaths } from '@/shared/publicBook/paths';
 import { titleForBookingCityCode } from '@/modules/patient-booking/inPersonServicesCatalog';
+import { ClinicCardUnavailableError } from './clinicCardUnavailable';
 import {
   clinicCardMediaPath,
   clinicCardPath,
@@ -18,7 +19,8 @@ type Props = { params: Promise<{ clinicSlug: string }> };
  * Three refusals, deliberately different (plan §3.3):
  *   • unknown / unpublished / inactive / page switched off → the SAME 404, so an anonymous
  *     visitor cannot enumerate clinics by the shape of the answer;
- *   • the projection could not be read → 503 with a human sentence, never a blank card;
+ *   • the projection could not be read → an error status with a human sentence, never a blank
+ *     card and never a 200 (see `clinicCardUnavailable.ts` on why 500 and not 503);
  *   • published with nothing written → the name and the booking button, no invented text.
  *
  * Everything on this page comes from one row of the public projection. No tenant table is read,
@@ -31,16 +33,9 @@ export default async function ClinicPublicCardPage({ params }: Props) {
   const result = await loadClinicPublicCardRsc(clinicSlug);
 
   if (result.status === 'absent') notFound();
-  if (result.status === 'unavailable') {
-    return (
-      <main className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-        <h1 className="text-lg font-semibold">Страница клиники временно недоступна</h1>
-        <p className="text-sm text-muted-foreground">
-          Мы не смогли загрузить эту страницу. Попробуйте обновить её через несколько минут.
-        </p>
-      </main>
-    );
-  }
+  // Не 200 с вежливым текстом: отказ чтения обязан нести код ошибки, иначе мониторинг и поисковик
+  // считают мёртвую страницу здоровой. Текст человеку рисует `error.tsx` этого сегмента.
+  if (result.status === 'unavailable') throw new ClinicCardUnavailableError(clinicSlug);
 
   const { card } = result;
   if (card.disposition === 'redirect') {
