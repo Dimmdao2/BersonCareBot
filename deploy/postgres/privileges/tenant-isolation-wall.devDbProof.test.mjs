@@ -287,6 +287,15 @@ test('клиника видит только свои строки', { skip: !EN
     `доказывать нечего: ни одна из ${exercised.length} наполненных таблиц не читается по staff-пути `
     + `на базе ${DATABASE}`);
 
+  // Честный перечень непроверенного дороже раздутого зелёного.
+  for (const gap of skipped) console.log(`не проверено · ${gap.name} · ${gap.reason}`);
+  for (const { subject, failure } of refused) {
+    console.log(`не проверено · ${subject.name} · staff-путь чтения отказал: `
+      + `${failure ? `${failure.sqlstate} ${failure.message}` : 'без сообщения'}`);
+  }
+  console.log(`доказано на ${proven.length} таблицах из ${subjects.length} объявленных под стеной клиники; `
+    + `клиника ${actor.organization}, актор ${actor.actorRef}, база ${DATABASE}`);
+
   const leaks = proven
     .map((subject) => [subject.name, answered.get(subject.name)])
     .filter(([, breakdown]) => breakdown);
@@ -297,14 +306,6 @@ test('клиника видит только свои строки', { skip: !EN
     `проверено таблиц: ${proven.length} из ${subjects.length} объявленных под стеной клиники.`,
   ].join('\n'));
 
-  // Честный перечень непроверенного дороже раздутого зелёного.
-  for (const gap of skipped) console.log(`не проверено · ${gap.name} · ${gap.reason}`);
-  for (const { subject, failure } of refused) {
-    console.log(`не проверено · ${subject.name} · staff-путь чтения отказал: `
-      + `${failure ? `${failure.sqlstate} ${failure.message}` : 'без сообщения'}`);
-  }
-  console.log(`доказано на ${proven.length} таблицах из ${subjects.length} объявленных под стеной клиники; `
-    + `клиника ${actor.organization}, актор ${actor.actorRef}, база ${DATABASE}`);
 });
 
 test('контекст на чужую клинику получить нельзя', { skip: !ENABLED }, () => {
