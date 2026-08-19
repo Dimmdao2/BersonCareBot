@@ -18,7 +18,7 @@
  * existed (`backfillLedgerTagsSql`).
  */
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { parseOwnerStatements } from './migrate-local-parse.mjs';
@@ -55,6 +55,65 @@ export function selectPendingMigrations(migrations, ledgerRows) {
 export function findForeignLedgerRows(migrations, ledgerRows) {
   const known = new Set(migrations.map((migration) => migration.tag));
   return ledgerRows.filter((row) => !row.tag || !known.has(row.tag));
+}
+
+/** Statements as the folder writes them: one chunk per Drizzle breakpoint, comments kept. */
+export function splitStatements(source) {
+  return source.split('--> statement-breakpoint').map((chunk) => chunk.trim()).filter(Boolean);
+}
+
+/**
+ * Everything the ledger needs before it can answer by name, idempotent on every database.
+ *
+ * `tag` carries the identity; `created_at` stays only as the order of application.  Legacy rows are
+ * labelled once from the frozen historical `when -> tag` map, which is the last job
+ * `meta/_journal.json` has.  The partial unique index makes a second row for one migration
+ * impossible to store, so "applied twice" cannot be represented, only refused.
+ */
+export function renderLedgerBootstrapSql(legacyEntries) {
+  const legacy = (legacyEntries ?? []).filter(
+    (entry) => Number.isSafeInteger(entry?.when) && typeof entry?.tag === 'string',
+  );
+  const quote = (value) => `'${String(value).replaceAll("'", "''")}'`;
+  const legacyValues = legacy.map((entry) => `(${entry.when}::bigint, ${quote(entry.tag)})`).join(', ');
+  // Every step asks the catalog first, so a caller that is not the table's owner runs no DDL at all
+  // on an already-prepared database instead of failing on a no-op `ADD COLUMN IF NOT EXISTS`.
+  return `DO $bcb_ledger$
+BEGIN
+  IF to_regnamespace('drizzle') IS NULL THEN
+    CREATE SCHEMA drizzle;
+  END IF;
+  IF to_regclass('drizzle.__drizzle_migrations') IS NULL THEN
+    CREATE TABLE drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_attribute
+     WHERE attrelid = 'drizzle.__drizzle_migrations'::regclass AND attname = 'tag' AND NOT attisdropped
+  ) THEN
+    ALTER TABLE drizzle.__drizzle_migrations ADD COLUMN tag text;
+  END IF;
+${legacy.length === 0 ? '' : `  IF EXISTS (
+    SELECT 1 FROM drizzle.__drizzle_migrations AS ledger
+     WHERE ledger.tag IS NULL
+       AND ledger.created_at IN (${legacy.map((entry) => `${entry.when}::bigint`).join(', ')})
+  ) THEN
+    UPDATE drizzle.__drizzle_migrations AS ledger SET tag = legacy.tag
+      FROM (VALUES ${legacyValues}) AS legacy (created_at, tag)
+     WHERE ledger.tag IS NULL AND ledger.created_at = legacy.created_at;
+  END IF;
+`}  IF to_regclass('drizzle.drizzle_migrations_tag_key') IS NULL THEN
+    CREATE UNIQUE INDEX drizzle_migrations_tag_key
+      ON drizzle.__drizzle_migrations (tag) WHERE tag IS NOT NULL;
+  END IF;
+END
+$bcb_ledger$;`;
+}
+
+/** The frozen historical `when -> tag` map, or an empty one when the folder no longer carries it. */
+export function readLegacyJournalEntries(folder) {
+  const path = resolve(folder, 'meta', '_journal.json');
+  if (!existsSync(path)) return [];
+  return JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
 }
 
 const QUALIFIED = String.raw`(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*)(?:\.(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*))?`;

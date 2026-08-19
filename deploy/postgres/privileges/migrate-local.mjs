@@ -6,7 +6,7 @@
  * with PGHOST/PGDATABASE (or the usual local peer defaults).  Every temporary owner membership,
  * migration statement, backfill and post-state assertion lives in the same transaction.
  */
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
@@ -17,7 +17,9 @@ import {
   collectExpectedObjects,
   describeObject,
   findForeignLedgerRows,
+  readLegacyJournalEntries,
   readMigrationFolder,
+  renderLedgerBootstrapSql,
   renderObjectPresenceSql,
   selectPendingMigrations,
 } from './migration-order.mjs';
@@ -53,7 +55,7 @@ function sqlLiteral(value) {
 
 const useSudoPostgres = process.argv.includes('--sudo-postgres');
 const rollbackOnly = process.argv.includes('--rollback-only');
-// Rollback validation accepts only the canonical Drizzle journal. Legacy includes can perform
+// Rollback validation accepts only the canonical migrations folder. Legacy includes can perform
 // external side effects that a PostgreSQL ROLLBACK cannot undo.
 const rollbackOnlyLegacyOptions = ['--step', '--owner', '--migration', '--backfill', '--post']
   .filter((option) => process.argv.includes(option));
@@ -86,29 +88,9 @@ function spawnPsql(args, options = {}) {
  * map.  It is the journal's only remaining job.
  */
 function bootstrapLedger(db, folder) {
-  const journalPath = resolve(folder, 'meta', '_journal.json');
-  const journal = existsSync(journalPath) ? JSON.parse(readFileSync(journalPath, 'utf8')) : { entries: [] };
-  const legacy = (journal.entries ?? []).filter(
-    (entry) => Number.isSafeInteger(entry?.when) && typeof entry?.tag === 'string',
-  );
-  const backfill = legacy.length === 0
-    ? ''
-    : `UPDATE drizzle.__drizzle_migrations AS ledger SET tag = legacy.tag
-         FROM (VALUES ${legacy.map((entry) => `(${entry.when}::bigint, ${sqlLiteral(entry.tag)})`).join(', ')})
-           AS legacy (created_at, tag)
-        WHERE ledger.tag IS NULL AND ledger.created_at = legacy.created_at;`;
   const result = spawnPsql(
     ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-c',
-      [
-        'CREATE SCHEMA IF NOT EXISTS drizzle;',
-        `CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
-           id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);`,
-        'ALTER TABLE drizzle.__drizzle_migrations ADD COLUMN IF NOT EXISTS tag text;',
-        backfill,
-        // One row per migration is what "applied" means; make a double insert impossible to store.
-        `CREATE UNIQUE INDEX IF NOT EXISTS drizzle_migrations_tag_key
-           ON drizzle.__drizzle_migrations (tag) WHERE tag IS NOT NULL;`,
-      ].filter(Boolean).join('\n')],
+      renderLedgerBootstrapSql(readLegacyJournalEntries(folder))],
     { encoding: 'utf8' },
   );
   if (result.status !== 0) {
