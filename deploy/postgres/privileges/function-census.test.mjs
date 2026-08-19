@@ -489,7 +489,8 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // 46 → 47 (19.08): у визитки был собственный владелец шва `app_seam_public_clinic_card_owner`.
   // 47 → 46 (19.08, OWNER_PRODUCT_RULES §33.3/§33.5): он снят — обе двери визитки принадлежат
   // `app_seam_public_slug_owner`. Роль вокруг публичной витрины не даёт безопасности, только цену.
-  assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 46);
+  // 46 → 47 (19.08, откат): снятие держало роль живой в кластере TEST и роняло выкатку.
+  assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 47);
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
   const proconfigExceptions = Object.entries(BUSINESS_SEAM_FUNCTIONS)
@@ -519,7 +520,8 @@ test('every application seam owner and function caller has the closed role shape
   // `app_seam_public_slug_owner` — весь его шов публичный целиком, закрытых таблиц в нём нет,
   // поэтому «растянуть шов» здесь нечего: `media_files` он читает единственным предикатом
   // «этот файл вписан в опубликованную карточку», а не как медиа-библиотеку.
-  assert.equal(owners.size, 45);
+  // 45 → 46 (19.08, откат снятия): роль вернулась живой до полного снятия вместе с кластером.
+  assert.equal(owners.size, 46);
   const loginNames = new Set(Object.values(declaration.envMapping).flatMap((records) => Object.keys(records)));
   for (const owner of owners) {
     const role = declaration.cluster.roles[owner];
