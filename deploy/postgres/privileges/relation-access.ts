@@ -4996,6 +4996,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "actor_platform_user_id",
           "created_at",
           "id",
+          "initiated_by",
           "next_slug",
           "organization_id",
           "previous_slug"

@@ -43,6 +43,29 @@ async function lockOrganizationSlugClaims(
   );
 }
 
+/**
+ * ЕДИНСТВЕННОЕ место, где считается израсходованное пожизненное право на самостоятельную смену
+ * адреса (владелец 19.08). Признак берётся ШТАМПОМ на событии, а не соединением с текущим членством:
+ * членство удаляется каскадом вместе с аккаунтом сотрудника, и такое соединение молча возвращало бы
+ * клинике уже потраченную смену. И показание для экрана, и решение самой операции считают отсюда —
+ * две копии этого счёта разошлись бы, и первой сломалась бы та, о которой забыли.
+ */
+async function countSelfRenames(
+  db: Pick<DrizzleDb, 'select'>,
+  organizationId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ used: count() })
+    .from(organizationSlugRenameEvents)
+    .where(
+      and(
+        eq(organizationSlugRenameEvents.organizationId, organizationId),
+        eq(organizationSlugRenameEvents.initiatedBy, 'clinic'),
+      ),
+    );
+  return Number(row?.used ?? 0);
+}
+
 function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const value = error as { code?: unknown; cause?: { code?: unknown } };
@@ -94,22 +117,9 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
           ),
         )
         .limit(1);
-      // Самостоятельные смены — те, чей актор является членом ЭТОЙ организации. Смена, сделанная
-      // админом платформы по обращению в поддержку, лимит не тратит: он клинике не член, и inner
-      // join её просто не находит. Счётчика-колонки намеренно нет — событийная таблица и есть
-      // источник истины, производное поле с ней разошлось бы (владелец 19.08, план §14).
-      const [selfRenames] = await db
-        .select({ used: count() })
-        .from(organizationSlugRenameEvents)
-        .innerJoin(
-          beOrganizationMembers,
-          and(
-            eq(beOrganizationMembers.platformUserId, organizationSlugRenameEvents.actorPlatformUserId),
-            eq(beOrganizationMembers.organizationId, organizationSlugRenameEvents.organizationId),
-          ),
-        )
-        .where(eq(organizationSlugRenameEvents.organizationId, organizationId));
-      const used = Number(selfRenames?.used ?? 0);
+      // ПОКАЗАНИЕ для экрана настроек, не разрешение: между этим чтением и записью состояние может
+      // измениться, поэтому отказ выдаёт сама операция смены в своей транзакции (см. renameSlug).
+      const used = await countSelfRenames(db, organizationId);
       return {
         currentSlug: current?.slug ?? null,
         selfRenamesUsed: used,
@@ -294,6 +304,30 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
             .for('update');
           if (!current) return { ok: false as const, code: 'current_slug_not_found' as const };
 
+          // ЕДИНСТВЕННАЯ дверь пожизненного права: решение принимается здесь, в той же транзакции,
+          // что и запись события, под тем же организационным advisory-замком. Проверка снаружи
+          // читала бы состояние до чужого коммита, и две одновременные смены прошли бы обе —
+          // право тратилось бы дважды молча. Замок держится до COMMIT, поэтому второй участник
+          // видит уже записанное событие первого и получает СВОЙ отказ, а не «имя занято».
+          if (
+            input.initiatedBy === 'clinic' &&
+            (await countSelfRenames(tx, input.organizationId)) >= 1
+          ) {
+            // Бронь, сделанная этой же попыткой, снимается здесь: отказ не должен оставлять за
+            // клиникой висящее имя, недоступное другим. Транзакция завершается COMMIT — отказ
+            // возвращается значением, не исключением, поэтому снятие брони доезжает.
+            await tx
+              .delete(organizationSlugClaims)
+              .where(
+                and(
+                  eq(organizationSlugClaims.organizationId, input.organizationId),
+                  eq(organizationSlugClaims.kind, 'reservation'),
+                  eq(organizationSlugClaims.slug, input.reservedSlug),
+                ),
+              );
+            return { ok: false as const, code: 'self_rename_allowance_spent' as const };
+          }
+
           const [targetClaim] = await tx
             .select()
             .from(organizationSlugClaims)
@@ -345,6 +379,9 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
           await tx.insert(organizationSlugRenameEvents).values({
             organizationId: input.organizationId,
             actorPlatformUserId,
+            // Штамп ставится ЗДЕСЬ, в момент записи, и после этого не зависит ни от членства, ни от
+            // существования аккаунта актора: удаление сотрудника не возвращает потраченное право.
+            initiatedBy: input.initiatedBy,
             previousSlug: current.slug,
             nextSlug: input.reservedSlug,
           });
