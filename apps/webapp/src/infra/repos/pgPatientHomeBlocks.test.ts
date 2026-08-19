@@ -3,6 +3,12 @@ import type { PatientHomeBlockCode } from '@/modules/patient-home/ports';
 import { createInMemoryPatientHomeBlocksPort } from './inMemoryPatientHomeBlocks';
 import { createPgPatientHomeBlocksPort } from './pgPatientHomeBlocks';
 
+/* Гейт ниже мёртв ("test-cleanup" аудит 19.08): в port-context режиме плоского `DATABASE_URL` нет, и
+   `createPgPatientHomeBlocksPort()` через `getDrizzle()` требует принципала в AsyncLocalStorage, которого
+   у голого it нет. Намеренно НЕ чиним: `it` ниже пишет в реальную таблицу (setBlockIcon) — это mutating
+   smoke, а AGENTS.md §10 «Dev-DB opt-in smoke-тесты» держит расширение/починку mutating smoke
+   замороженными до отдельного аудита ролей/стен и owner-go. Чинить эту конкретную заглушку — расширять
+   как раз то, что заморожено. */
 const hasRealDb =
   process.env.USE_REAL_DATABASE === '1' && Boolean(process.env.DATABASE_URL?.trim());
 
