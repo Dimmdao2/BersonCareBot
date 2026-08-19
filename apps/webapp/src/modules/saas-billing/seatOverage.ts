@@ -1,7 +1,8 @@
 import { proratedRemainingPeriodAmountMinor } from './proration';
 
 /**
- * ЕДИНСТВЕННОЕ место, где решается «можно ли сейчас продать дополнительное место и почём».
+ * ЕДИНСТВЕННОЕ место, где решается «можно ли сейчас продать дополнительное место, почём, на какой
+ * отрезок услуги и до какого момента живёт счёт».
  *
  * Владелец 19.08 про прежнее состояние: «Как можно решать что-то в двух местах?». Решали двое:
  * `saas-billing/service.ts` отказывал, когда оплаченного периода нет вовсе, а расчёт цены в
@@ -9,91 +10,59 @@ import { proratedRemainingPeriodAmountMinor } from './proration';
  * месячный тариф за ноль оставшихся дней и срок услуги, который кончался раньше, чем начинался.
  * Две реализации одного правила разъехались ровно там, где ни одна не была домом.
  *
- * Поэтому здесь — весь ответ целиком и сразу: продавать или нет, по какой цене, на какой отрезок
- * услуги и до какого момента живёт счёт. Обход невозможен не по договорённости, а по построению
- * (AGENTS.md §5 «Один общий проход, и мимо него нельзя»): `proratedSeatPriceMinor` и границы суток
- * из этого файла НЕ экспортируются, а порт репозитория принимает готовое предложение и не имеет
+ * Поэтому здесь — весь ответ целиком и сразу. Обход невозможен не по договорённости, а по
+ * построению (AGENTS.md §5 «Один общий проход, и мимо него нельзя»): `proratedSeatPriceMinor` из
+ * этого файла НЕ экспортируется, а порт репозитория принимает готовое предложение и не имеет
  * параметров, которыми можно было бы подсунуть свою цену, своё окно или свой срок. Второй ответ
  * физически нечем собрать — он не компилируется.
  *
- * Решение владельца Р-15 (19.08), реестр `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md`
- * §5а-0: «Счёт на добавление нового сотрудника действует до конца суток. Новый сотрудник разрешается
- * только после оплаты счёта. Не оплатили до конца суток? Значит счёт не актуален, надо перевыставить
- * заново. Таким образом каждый день будет меняться сумма оставшегося времени до конца периода.
- * Отдельным счётом это оплачивается только один раз, на момент открытия нового места — до конца
- * периода клиника оплатила, получила. Со следующего периода стоимость включена в один счёт».
+ * Решение владельца Р-15 в ДЕЙСТВУЮЩЕЙ редакции (19.08, после принятия мировой практики), реестр
+ * `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5а-0:
+ *
+ *   «Место открывается СРАЗУ, пропорциональная доплата уходит в следующий счёт… Пропорция
+ *   считается ОТ МОМЕНТА добавления места до конца оплаченного периода, не от начала суток…
+ *   Счёт живёт заданную ДЛИТЕЛЬНОСТЬ ОТ ВЫСТАВЛЕНИЯ; просроченный ОТМЕНЯЕТСЯ и выставляется новый
+ *   с пересчитанной суммой, а не продлевается.»
+ *
+ * Прежняя редакция («до конца суток», «только после оплаты», отсчёт от местной полуночи) ОТМЕНЕНА
+ * им же; обоснование — `SEAT_INVOICE_WORLD_PRACTICE_2026-08-19.md`, владелец: «окей, я принимаю,
+ * всё». Вместе с ней ушёл и часовой пояс: суток в этом расчёте больше нет, все моменты абсолютные.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Смещение зоны в конкретный момент. Считается разбором того же момента в целевой зоне: другого
- * способа получить IANA-смещение без библиотеки нет, а библиотеки в вебаппе для этого нет.
- */
-function zoneOffsetMs(atMs: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(new Date(atMs));
-  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? '0');
-  // `hour` в hour12:false отдаёт «24» за местную полночь в части сборок ICU — день при этом уже
-  // правильный, поэтому час берётся по модулю, а не переносится на следующие сутки.
-  const local = Date.UTC(
-    read('year'),
-    read('month') - 1,
-    read('day'),
-    read('hour') % 24,
-    read('minute'),
-    read('second'),
-  );
-  return local - Math.floor(atMs / 1000) * 1000;
-}
-
-/** Начало местных суток клиники, в которых лежит `atMs`. */
-function startOfClinicDayMs(atMs: number, timeZone: string): number {
-  const offset = zoneOffsetMs(atMs, timeZone);
-  const localMidnight = Math.floor((atMs + offset) / DAY_MS) * DAY_MS;
-  const candidate = localMidnight - offset;
-  // На переводе часов смещение в полночь и смещение в `atMs` разные — пересчитываем по кандидату.
-  const midnightOffset = zoneOffsetMs(candidate, timeZone);
-  return midnightOffset === offset ? candidate : localMidnight - midnightOffset;
-}
-
-/**
- * Конец местных суток клиники — момент, в который счёт на место перестаёт быть актуальным (Р-15).
- * Не «плюс 24 часа»: в сутки перевода часов их 23 или 25, и обе границы обязаны быть полуночью.
- * Зонд в +26 часов гарантированно попадает в следующие сутки при любой длине текущих.
- */
-function clinicDayEndsAtMs(atMs: number, timeZone: string): number {
-  return startOfClinicDayMs(startOfClinicDayMs(atMs, timeZone) + 26 * 60 * 60 * 1000, timeZone);
-}
-
-/**
  * Цена места до конца уже оплаченного периода. Приватна намеренно: цена места существует только
  * внутри предложения ниже, вместе с окном услуги и сроком счёта, — по отдельности они и разъехались.
  *
- * Считается в СУТКАХ, а не в миллисекундах: то же число показывается клинике на экране и сверяется
- * при подтверждении, а миллисекундная цена протухает в момент отрисовки и подтвердить её нельзя
- * никогда. Р-15 говорит ровно это: «каждый день будет меняться сумма оставшегося времени».
+ * Гранулярность — СУТКИ, но сетка суток привязана к КОНЦУ оплаченного периода, а не к полуночи.
+ * Так делает Stripe («Les limites du jour correspondent à l'heure de début de la période de
+ * facturation de l'abonnement, et non à minuit… Les limites sont indépendantes du fuseau horaire»),
+ * и именно это одновременно закрывает два требования, которые на полуночной сетке несовместимы:
+ *
+ * — цена ДОЛЖНА быть неподвижной какое-то время: то же число показывается клинике на экране и
+ *   сверяется подписанной котировкой при подтверждении, а миллисекундная цена протухает в момент
+ *   отрисовки и подтвердить её нельзя никогда;
+ * — платить клиника ДОЛЖНА только за оставшееся: остаток считается от МОМЕНТА добавления места
+ *   (Р-15), поэтому прошедшие сегодня часы в счёт не попадают вовсе.
+ *
+ * Округление — остатка ВВЕРХ до целых суток, отсчитываемых назад от конца периода. Из-за него в
+ * формулу подставляется момент РАНЬШЕ начала периода, когда покупка идёт в первый день, — и тогда
+ * единственное, что не даёт счёту за место превысить полную цену места, это потолок
+ * `Math.min(endsAt - startsAt, endsAt - asOf)` в `proration.ts`. Он там несущий, не декоративный.
  */
 function proratedSeatPriceMinor(input: {
   seatPriceMinor: number;
   periodStartsAt: string;
   periodEndsAt: string;
-  dayStartsAtMs: number;
+  chargedFromMs: number;
 }): number {
   return proratedRemainingPeriodAmountMinor({
     currentPriceMinor: 0,
     targetPriceMinor: input.seatPriceMinor,
     periodStartsAt: input.periodStartsAt,
     periodEndsAt: input.periodEndsAt,
-    asOf: new Date(input.dayStartsAtMs).toISOString(),
+    asOf: new Date(input.chargedFromMs).toISOString(),
   });
 }
 
@@ -117,8 +86,20 @@ export type SeatOveragePurchasableOffer = {
   /** Место продаётся ВНУТРЬ уже оплаченного периода и кончается вместе с ним. */
   servicePeriodStartsAt: string;
   servicePeriodEndsAt: string;
-  /** Р-15: счёт живёт до конца суток клиники, а не `invoiceValidityDays`, как остальные счета. */
-  invoiceExpiresAt: string;
+  /**
+   * Момент, до которого `priceMinor` неподвижна, — верхняя граница срока котировки. Это НЕ срок
+   * счёта: у выставленного счёта цена уже зафиксирована отрезком услуги и больше не меняется.
+   */
+  priceStableUntil: string;
+  /**
+   * Р-15: «Счёт живёт заданную ДЛИТЕЛЬНОСТЬ ОТ ВЫСТАВЛЕНИЯ» — настройка
+   * `lifecyclePolicy.invoiceValidityDays`, одна на все счета (владелец, 18.08), плюс потолок
+   * «не позже конца оплачиваемого отрезка»: счёт не должен переживать услугу, которую покупает.
+   *
+   * `null` — у двери приглашения: она цену показывает, но счёта не выписывает, и срока у
+   * несуществующего счёта нет. Писателю счёта `null` запрещён (см. `createSeatOverageInvoiceIfNeeded`).
+   */
+  invoiceExpiresAt: string | null;
 };
 
 export function decideSeatOverage(input: {
@@ -130,8 +111,11 @@ export function decideSeatOverage(input: {
   currentPeriodStartsAt: string | null;
   currentPeriodEndsAt: string | null;
   asOf: string;
-  /** IANA клиники: сутки Р-15 — местные, а не UTC. Источник — `app_display_timezone`. */
-  timeZone: string;
+  /**
+   * Настроенная длительность жизни счёта в сутках. `null` — у вызывающего, который счёт не
+   * выписывает: у него нет ни повода читать настройку биллинга, ни, как правило, прав на неё.
+   */
+  invoiceValidityDays: number | null;
 }): SeatOverageOffer {
   if (input.includedSeats === null) return { outcome: 'seat_not_sold' };
   if (input.used < input.includedSeats + input.paidAdditionalSeats) {
@@ -151,9 +135,17 @@ export function decideSeatOverage(input: {
   if (!Number.isFinite(startsAtMs) || !Number.isFinite(endsAtMs) || endsAtMs <= startsAtMs) {
     return { outcome: 'paid_period_over' };
   }
-  // Строго `asOf`, а не начало суток: период, кончившийся сегодня утром, кончился. Ослабление до
-  // суток вернуло бы счёт, чей отрезок услуги завершается раньше, чем начинается.
   if (endsAtMs <= asOfMs) return { outcome: 'paid_period_over' };
+  if (
+    input.invoiceValidityDays !== null &&
+    (!Number.isInteger(input.invoiceValidityDays) || input.invoiceValidityDays <= 0)
+  ) {
+    throw new Error('saas_billing_invoice_validity_days_invalid');
+  }
+
+  // Целые сутки остатка, отсчитанные назад от конца периода. Между двумя соседними границами цена
+  // не меняется — это и есть окно, внутри которого котировку можно подтвердить.
+  const chargedDays = Math.ceil((endsAtMs - asOfMs) / DAY_MS);
 
   return {
     outcome: 'purchasable',
@@ -161,11 +153,19 @@ export function decideSeatOverage(input: {
       seatPriceMinor: input.additionalSeatPriceMinor,
       periodStartsAt: input.currentPeriodStartsAt,
       periodEndsAt: input.currentPeriodEndsAt,
-      dayStartsAtMs: startOfClinicDayMs(asOfMs, input.timeZone),
+      chargedFromMs: endsAtMs - chargedDays * DAY_MS,
     }),
     currency: input.currency,
+    // Место открывается СРАЗУ (Р-15), поэтому услуга начинается в момент решения, а не в момент
+    // прихода денег: платёж больше не является условием доступа.
     servicePeriodStartsAt: new Date(asOfMs).toISOString(),
     servicePeriodEndsAt: input.currentPeriodEndsAt,
-    invoiceExpiresAt: new Date(clinicDayEndsAtMs(asOfMs, input.timeZone)).toISOString(),
+    priceStableUntil: new Date(endsAtMs - (chargedDays - 1) * DAY_MS).toISOString(),
+    invoiceExpiresAt:
+      input.invoiceValidityDays === null
+        ? null
+        : new Date(
+            Math.min(asOfMs + input.invoiceValidityDays * DAY_MS, endsAtMs),
+          ).toISOString(),
   };
 }

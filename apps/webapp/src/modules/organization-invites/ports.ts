@@ -43,8 +43,8 @@ export type CreateOrganizationInviteResult =
       code: 'seat_overage_confirmation_required';
       priceMinor: number;
       currency: string;
-      /** Конец суток клиники из того же предложения двери — срок жизни котировки и счёта (Р-15). */
-      dayEndsAt: string;
+      /** Момент из того же предложения двери, до которого цена неподвижна, — срок котировки (Р-15). */
+      priceStableUntil: string;
     };
 
 export type AcceptOrganizationInviteResult =

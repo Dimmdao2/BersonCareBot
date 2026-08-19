@@ -70,8 +70,9 @@ export async function POST(request: Request) {
         organizationId: gate.ctx.organizationId,
         priceMinor: result.priceMinor,
         currency: result.currency,
-        // Конец суток пришёл вместе с ценой из единственной двери — маршрут не считает его сам.
-        dayEndsAt: result.dayEndsAt,
+        // Окно неподвижности цены пришло вместе с ценой из единственной двери — маршрут не
+        // считает его сам.
+        priceStableUntil: result.priceStableUntil,
       });
       return jsonError(error, quoted, { status: 402 });
     }

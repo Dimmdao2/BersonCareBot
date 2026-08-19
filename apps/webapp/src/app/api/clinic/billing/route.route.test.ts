@@ -219,14 +219,15 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
   function quoteFor(
     priceMinor: number,
     organization: string = organizationId,
-    // Конец суток КЛИНИКИ (Р-15) приходит от двери и задаётся здесь явно, а не берётся у машины.
-    dayEndsAt: string = '2999-01-01T00:00:00.000Z',
+    // Момент неподвижности цены (Р-15) приходит от двери и задаётся здесь явно, а не берётся у
+    // машины.
+    priceStableUntil: string = '2999-01-01T00:00:00.000Z',
   ): string {
     return issueSeatOverageQuote({
       organizationId: organization,
       priceMinor,
       currency: 'RUB',
-      dayEndsAt,
+      priceStableUntil,
     }).token;
   }
 
@@ -361,7 +362,7 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       outcome: 'price_changed',
       priceMinor: 18_000,
       currency: 'RUB',
-      dayEndsAt: '2999-01-01T00:00:00.000Z',
+      priceStableUntil: '2999-01-01T00:00:00.000Z',
     });
 
     const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
@@ -389,10 +390,21 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     });
   });
 
-  it('returns the idempotent checkout invoice', async () => {
+  /**
+   * Р-15 в действующей редакции: место уже открыто, счёт выставлен. Ответ называет сумму и срок —
+   * их показывает экран команды, — а ссылка на оплату идёт довеском, потому что доступ она больше
+   * не решает.
+   */
+  it('reports the opened seat and the issued invoice, idempotently', async () => {
     purchaseSeatOverage.mockResolvedValue({
-      outcome: 'checkout',
-      invoice: { id: 'seat-invoice', providerCheckoutUrl: 'https://pay.example/seat' },
+      outcome: 'seat_opened',
+      invoice: {
+        id: 'seat-invoice',
+        amountMinor: 15_000,
+        currency: 'RUB',
+        expiresAt: '2026-08-19T12:00:00.000Z',
+        providerCheckoutUrl: 'https://pay.example/seat',
+      },
     });
 
     const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
@@ -400,9 +412,35 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      checkoutUrl: 'https://pay.example/seat',
+      outcome: 'seat_opened',
       invoiceId: 'seat-invoice',
+      amountMinor: 15_000,
+      currency: 'RUB',
+      invoiceExpiresAt: '2026-08-19T12:00:00.000Z',
+      checkoutUrl: 'https://pay.example/seat',
     });
+  });
+
+  /**
+   * Пробивается: отсутствие ссылки на оплату снова отвечает 502, то есть уже открытое место
+   * выглядит для экрана как несостоявшееся действие.
+   */
+  it('still reports the opened seat when the provider returned no payment link', async () => {
+    purchaseSeatOverage.mockResolvedValue({
+      outcome: 'seat_opened',
+      invoice: {
+        id: 'seat-invoice',
+        amountMinor: 15_000,
+        currency: 'RUB',
+        expiresAt: '2026-08-19T12:00:00.000Z',
+        providerCheckoutUrl: null,
+      },
+    });
+
+    const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, outcome: 'seat_opened' });
   });
 
   /**
@@ -411,8 +449,14 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
    */
   it('sends one and the same purchase identity when the same quote is submitted twice', async () => {
     purchaseSeatOverage.mockResolvedValue({
-      outcome: 'checkout',
-      invoice: { id: 'seat-invoice', providerCheckoutUrl: 'https://pay.example/seat' },
+      outcome: 'seat_opened',
+      invoice: {
+        id: 'seat-invoice',
+        amountMinor: 15_000,
+        currency: 'RUB',
+        expiresAt: '2026-08-19T12:00:00.000Z',
+        providerCheckoutUrl: 'https://pay.example/seat',
+      },
     });
     const quote = quoteFor(15_000);
 

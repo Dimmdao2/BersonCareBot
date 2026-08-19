@@ -11,7 +11,7 @@ import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
 import { proratedRemainingPeriodAmountMinor } from '@/modules/saas-billing/proration';
 import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
+import { isSaasBillingInvoicePayable } from '@/modules/saas-billing/invoiceValidity';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
 
@@ -736,12 +736,6 @@ export function createInMemorySaasBillingRepository(
           savedPaymentMethodId: input.savedPaymentMethodId,
         });
       }
-      if (current.invoiceKind === 'seat_overage' && current.status !== 'paid') {
-        rows.set(subscriptionKeyValue, {
-          ...subscription,
-          paidAdditionalSeats: subscription.paidAdditionalSeats + current.additionalSeatQuantity,
-        });
-      }
       if (
         current.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
         current.status !== 'paid' &&
@@ -852,11 +846,12 @@ export function createInMemorySaasBillingRepository(
           row.providerIdempotencyKey === input.providerIdempotencyKey,
       );
       if (existing) return { outcome: 'invoice' as const, invoice: existing, created: false };
-      const authority = [...rows.values()].find(
-        (row) =>
+      const authorityEntry = [...rows.entries()].find(
+        ([, row]) =>
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
-      if (!authority) throw new Error('saas_billing_subscription_not_found');
+      if (!authorityEntry) throw new Error('saas_billing_subscription_not_found');
+      const [authorityKey, authority] = authorityEntry;
       // Как в pg-репозитории: решение принимает ЕДИНСТВЕННАЯ дверь `decideSeatOverage`, а цена из
       // котировки только СВЕРЯЕТСЯ. Двойник со своим расчётом описывал бы контракт, которого нет.
       // Мест у двойника нет вовсе, поэтому он всегда стоит ровно на пределе: `used` = предел.
@@ -870,7 +865,7 @@ export function createInMemorySaasBillingRepository(
         currentPeriodStartsAt: authority.currentPeriodStartsAt,
         currentPeriodEndsAt: authority.currentPeriodEndsAt,
         asOf: now().toISOString(),
-        timeZone: DEFAULT_APP_DISPLAY_TIMEZONE,
+        invoiceValidityDays: input.invoiceValidityDays,
       });
       if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
       if (offer.outcome === 'seat_not_sold') {
@@ -879,12 +874,15 @@ export function createInMemorySaasBillingRepository(
       if (offer.outcome === 'paid_period_over') {
         return { outcome: 'paid_period_over' as const };
       }
+      if (offer.invoiceExpiresAt === null) {
+        throw new Error('saas_billing_seat_overage_invoice_expiry_missing');
+      }
       if (input.quotePriceMinor !== offer.priceMinor || input.quoteCurrency !== offer.currency) {
         return {
           outcome: 'price_changed' as const,
           priceMinor: offer.priceMinor,
           currency: offer.currency,
-          dayEndsAt: offer.invoiceExpiresAt,
+          priceStableUntil: offer.priceStableUntil,
         };
       }
       const row: SaasBillingInvoice = {
@@ -911,7 +909,105 @@ export function createInMemorySaasBillingRepository(
         providerIdempotencyKey: input.providerIdempotencyKey,
       };
       invoices.set(row.id, row);
+      // Место открывается СРАЗУ вместе с выставлением счёта (Р-15) — как в pg-репозитории, где это
+      // одна транзакция под замком организации. Приём платежа счётчика больше не трогает.
+      rows.set(authorityKey, {
+        ...authority,
+        paidAdditionalSeats: authority.paidAdditionalSeats + 1,
+      });
       return { outcome: 'invoice' as const, invoice: row, created: true };
+    },
+
+    async listExpiredSeatOverageInvoices(input) {
+      return [...invoices.values()]
+        .filter((invoice) => {
+          if (invoice.invoiceKind !== 'seat_overage') return false;
+          if (invoice.status !== 'draft' && invoice.status !== 'pending') return false;
+          if (invoice.expiresAt === null || invoice.expiresAt > input.asOf) return false;
+          const subscription = [...rows.values()].find(
+            (row) => row.id === invoice.saasBillingSubscriptionId,
+          );
+          return Boolean(
+            subscription?.currentPeriodEndsAt && subscription.currentPeriodEndsAt > input.asOf,
+          );
+        })
+        .sort((a, b) => (a.expiresAt ?? '').localeCompare(b.expiresAt ?? ''))
+        .slice(0, input.limit)
+        .map((invoice) => ({
+          saasBillingInvoiceId: invoice.id,
+          organizationId: invoice.organizationId,
+          saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
+        }));
+    },
+
+    async reissueExpiredSeatOverageInvoice(input) {
+      const expired = invoices.get(input.saasBillingInvoiceId);
+      if (!expired || expired.invoiceKind !== 'seat_overage') {
+        return { outcome: 'skipped' as const, reason: 'invoice_not_found' };
+      }
+      if (expired.status !== 'draft' && expired.status !== 'pending') {
+        return { outcome: 'skipped' as const, reason: 'invoice_not_open' };
+      }
+      if (isSaasBillingInvoicePayable(expired, new Date(input.asOf))) {
+        return { outcome: 'skipped' as const, reason: 'invoice_still_payable' };
+      }
+      const authority = [...rows.values()].find((row) => row.id === expired.saasBillingSubscriptionId);
+      if (!authority) throw new Error('saas_billing_subscription_not_found');
+      const seatTariff = tariffs.get(purchasedTariffId(authority));
+      // ТА ЖЕ единственная дверь и на НОВЫЙ момент — «с пересчитанной суммой, а не продлевается».
+      const offer = decideSeatOverage({
+        includedSeats: 0,
+        paidAdditionalSeats: authority.paidAdditionalSeats,
+        used: authority.paidAdditionalSeats,
+        additionalSeatPriceMinor: seatTariff?.additionalSeatPriceMinor ?? null,
+        currency: seatTariff?.currency ?? null,
+        currentPeriodStartsAt: authority.currentPeriodStartsAt,
+        currentPeriodEndsAt: authority.currentPeriodEndsAt,
+        asOf: input.asOf,
+        invoiceValidityDays: input.invoiceValidityDays,
+      });
+      if (offer.outcome !== 'purchasable') {
+        return { outcome: 'skipped' as const, reason: offer.outcome };
+      }
+      if (offer.invoiceExpiresAt === null) {
+        throw new Error('saas_billing_seat_overage_invoice_expiry_missing');
+      }
+      const providerIdempotencyKey = `saas_seat_overage_reissue:${expired.id}`;
+      const already = [...invoices.values()].find(
+        (row) =>
+          row.providerId === input.providerId &&
+          row.providerIdempotencyKey === providerIdempotencyKey,
+      );
+      if (already) {
+        return {
+          outcome: 'reissued' as const,
+          invoice: already,
+          created: false,
+          cancelledInvoiceId: expired.id,
+        };
+      }
+      const row: SaasBillingInvoice = {
+        ...expired,
+        id: crypto.randomUUID(),
+        amountMinor: offer.priceMinor,
+        currency: offer.currency,
+        servicePeriodStartsAt: offer.servicePeriodStartsAt,
+        servicePeriodEndsAt: offer.servicePeriodEndsAt,
+        expiresAt: offer.invoiceExpiresAt,
+        status: 'draft',
+        providerId: input.providerId,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+        providerIdempotencyKey,
+      };
+      invoices.set(row.id, row);
+      invoices.set(expired.id, { ...expired, status: 'void' });
+      return {
+        outcome: 'reissued' as const,
+        invoice: row,
+        created: true,
+        cancelledInvoiceId: expired.id,
+      };
     },
 
     async cancelSaasBillingInvoice({ saasBillingInvoiceId }) {

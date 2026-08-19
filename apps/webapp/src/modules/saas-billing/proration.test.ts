@@ -33,6 +33,24 @@ describe('proratedRemainingPeriodAmountMinor', () => {
     ).toBe(1);
   });
 
+  /**
+   * Потолок `Math.min(endsAt - startsAt, endsAt - asOf)`. Несущий, а не декоративный: дверь места
+   * округляет остаток вверх до целых суток от КОНЦА периода (Р-15) и на периоде, длина которого не
+   * кратна суткам, подставляет сюда момент РАНЬШЕ начала периода. Без потолка доплата за место
+   * выходит дороже полной цены места — находка F4 слепого аудита 19.08.
+   */
+  it('never charges more than the whole period, even asked about a moment before it started', () => {
+    expect(
+      proratedRemainingPeriodAmountMinor({
+        currentPriceMinor: 0,
+        targetPriceMinor: 150_000,
+        periodStartsAt: '2026-08-01T12:00:00.000Z',
+        periodEndsAt: '2026-08-31T11:00:00.000Z',
+        asOf: '2026-08-01T11:00:00.000Z',
+      }),
+    ).toBe(150_000);
+  });
+
   it('returns zero, never a negative charge, at and after the paid boundary', () => {
     for (const asOf of [periodEndsAt, '2026-08-12T00:00:00.000Z']) {
       expect(

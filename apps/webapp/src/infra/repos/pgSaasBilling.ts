@@ -21,6 +21,7 @@ import {
   saasBillingPeriodAmountMinor,
 } from '@/modules/saas-billing/proration';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
+import { isSaasBillingInvoicePayable } from '@/modules/saas-billing/invoiceValidity';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { beOrganizations } from '../../../db/schema/bookingEngine';
@@ -1282,12 +1283,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
         }
         if (invoice.invoiceKind === 'seat_overage') {
-          if (!wasPaid) {
-            await tx.update(saasBillingSubscriptions).set({
-              paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} + ${invoice.additionalSeatQuantity}`,
-              updatedAt: new Date().toISOString(),
-            }).where(eq(saasBillingSubscriptions.id, subscription.id));
-          }
+          // Место уже открыто в момент выставления этого счёта (Р-15, действующая редакция), и
+          // здесь оно НЕ открывается второй раз: приём денег только закрывает счёт. Ветка
+          // оставлена явной, потому что молчаливое падение в `else if` ниже отправило бы счёт за
+          // место в `promotePaidInvoice`, то есть в продление тарифного периода.
         } else if (
           invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
           !wasPaid &&
@@ -1446,7 +1445,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           )
           .limit(1)
           .for('update');
-        const offer = await quota.resolveClinicTeamAvailability();
+        const offer = await quota.resolveClinicTeamAvailability({
+          invoiceValidityDays: input.invoiceValidityDays,
+        });
         if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
         if (offer.outcome === 'seat_not_sold') {
           return { outcome: 'seat_overage_unavailable' as const };
@@ -1495,7 +1496,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             outcome: 'price_changed' as const,
             priceMinor: offer.priceMinor,
             currency: offer.currency,
-            dayEndsAt: offer.invoiceExpiresAt,
+            priceStableUntil: offer.priceStableUntil,
           };
         }
         if (existing) {
@@ -1504,6 +1505,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             invoice: toSaasBillingInvoice(existing),
             created: false,
           };
+        }
+        // Срока счёта нет только у двери приглашения, которая счетов не пишет. Здесь его отсутствие
+        // означает, что писатель не принёс настройку, — это ошибка сборки, а не бессрочный счёт.
+        if (offer.invoiceExpiresAt === null) {
+          throw new Error('saas_billing_seat_overage_invoice_expiry_missing');
         }
 
         const inserted = await insertSaasBillingInvoiceIdempotent(tx, {
@@ -1523,14 +1529,152 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           // они и разъезжались: полный тариф за ноль дней и услуга, кончавшаяся раньше начала.
           servicePeriodStartsAt: offer.servicePeriodStartsAt,
           servicePeriodEndsAt: offer.servicePeriodEndsAt,
-          // Р-15: «Счёт на добавление нового сотрудника действует до конца суток» — здесь это
-          // конец местных суток клиники, а не общий `invoiceValidityDays` остальных счетов.
+          // Р-15: «Счёт живёт заданную ДЛИТЕЛЬНОСТЬ ОТ ВЫСТАВЛЕНИЯ». Срок — из того же
+          // предложения, что и сумма с отрезком услуги.
           expiresAt: offer.invoiceExpiresAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
         });
+        // Р-15 в действующей редакции: «Место открывается СРАЗУ, пропорциональная доплата уходит в
+        // следующий счёт». Счётчик растёт здесь, в одной транзакции с выставлением счёта и под тем
+        // же замком организации, — а НЕ в приёме платежа: платёж перестал быть условием доступа.
+        // Прежний порядок (открыть по оплате) и был механизмом находки F1 слепого аудита 19.08:
+        // приём денег место открывал, а срока счёта не проверял никто.
+        if (inserted.created) {
+          await tx
+            .update(saasBillingSubscriptions)
+            .set({
+              paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} + 1`,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(saasBillingSubscriptions.id, subscription.id));
+        }
         return { outcome: 'invoice' as const, ...inserted };
+          },
+        ),
+      );
+    },
+
+    /**
+     * Р-15: «просроченный ОТМЕНЯЕТСЯ и выставляется новый с пересчитанной суммой, а не
+     * продлевается». Здесь — только перечисление кандидатов; решение по каждому принимает
+     * `reissueExpiredSeatOverageInvoice` под замком организации.
+     *
+     * Кандидат — незакрытый счёт за место, чей срок истёк, но оплаченный период ещё жив: когда
+     * период кончился, продавать не во что и перевыставлять нечего (тот же ответ, что у двери).
+     */
+    async listExpiredSeatOverageInvoices(input) {
+      const result = await getDrizzle().execute(sql`
+        SELECT
+          invoice.id::text AS invoice_id,
+          invoice.organization_id::text AS organization_id,
+          invoice.saas_billing_subscription_id::text AS subscription_id
+        FROM public.saas_billing_invoices AS invoice
+        JOIN public.saas_billing_subscriptions AS subscription
+          ON subscription.id = invoice.saas_billing_subscription_id
+        WHERE invoice.invoice_kind = 'seat_overage'
+          AND invoice.status IN ('draft', 'pending')
+          AND invoice.expires_at IS NOT NULL
+          AND invoice.expires_at <= ${input.asOf}
+          AND subscription.current_period_ends_at > ${input.asOf}
+        ORDER BY invoice.expires_at ASC
+        LIMIT ${input.limit}
+      `);
+      return (
+        result.rows as Array<{
+          invoice_id: string;
+          organization_id: string;
+          subscription_id: string;
+        }>
+      ).map((row) => ({
+        saasBillingInvoiceId: row.invoice_id,
+        organizationId: row.organization_id,
+        saasBillingSubscriptionId: row.subscription_id,
+      }));
+    },
+
+    /**
+     * Отмена просроченного счёта за место и выставление нового — ОДНИМ действием и одной
+     * транзакцией: «отменяется И выставляется новый» (Р-15). Порознь это либо прощённые деньги
+     * (отменили, не перевыставили), либо два живых счёта за одно место.
+     *
+     * Сумму, отрезок услуги и срок нового счёта считает ТА ЖЕ единственная дверь и на НОВЫЙ момент
+     * — отсюда «с пересчитанной суммой, а не продлевается». Место при этом НЕ открывается заново:
+     * оно уже открыто с первого выставления, счётчик здесь не трогается.
+     *
+     * Дверь отвечает `seat_available`, когда клиника успела освободить место, и `paid_period_over`,
+     * когда период кончился. В обоих случаях перевыставлять нечего — и старый счёт НЕ отменяется:
+     * молча списать долг за уже отработанное место мы не вправе, пусть остаётся видимым просроченным.
+     */
+    async reissueExpiredSeatOverageInvoice(input) {
+      return getDrizzle().transaction((tx) =>
+        transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'clinic_team' },
+          async (quota) => {
+            const [expired] = await tx
+              .select()
+              .from(saasBillingInvoices)
+              .where(
+                and(
+                  eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
+                  eq(saasBillingInvoices.organizationId, input.organizationId),
+                  eq(saasBillingInvoices.invoiceKind, 'seat_overage'),
+                ),
+              )
+              .limit(1)
+              .for('update');
+            if (!expired) return { outcome: 'skipped' as const, reason: 'invoice_not_found' };
+            if (expired.status !== 'draft' && expired.status !== 'pending') {
+              return { outcome: 'skipped' as const, reason: 'invoice_not_open' };
+            }
+            if (isSaasBillingInvoicePayable(toSaasBillingInvoice(expired), new Date(input.asOf))) {
+              return { outcome: 'skipped' as const, reason: 'invoice_still_payable' };
+            }
+
+            const offer = await quota.resolveClinicTeamAvailability({
+              invoiceValidityDays: input.invoiceValidityDays,
+            });
+            if (offer.outcome !== 'purchasable') {
+              return { outcome: 'skipped' as const, reason: offer.outcome };
+            }
+            if (offer.invoiceExpiresAt === null) {
+              throw new Error('saas_billing_seat_overage_invoice_expiry_missing');
+            }
+
+            const reissued = await insertSaasBillingInvoiceIdempotent(tx, {
+              organizationId: expired.organizationId,
+              saasBillingAccountId: expired.saasBillingAccountId,
+              saasBillingSubscriptionId: expired.saasBillingSubscriptionId,
+              tariffId: expired.tariffId,
+              tariffName: expired.tariffName,
+              invoiceKind: 'seat_overage',
+              additionalSeatQuantity: expired.additionalSeatQuantity,
+              description: expired.description,
+              amountMinor: offer.priceMinor,
+              currency: offer.currency,
+              tariffBillingPeriod: expired.tariffBillingPeriod,
+              tariffSnapshot: expired.tariffSnapshot,
+              servicePeriodStartsAt: offer.servicePeriodStartsAt,
+              servicePeriodEndsAt: offer.servicePeriodEndsAt,
+              expiresAt: offer.invoiceExpiresAt,
+              status: 'draft',
+              providerId: input.providerId,
+              // Выводится из отменяемого счёта, а не из времени: повторный тик после сбоя даёт тот
+              // же ключ, то есть тот же счёт, а не второй за то же место.
+              providerIdempotencyKey: `saas_seat_overage_reissue:${expired.id}`,
+            });
+            await tx
+              .update(saasBillingInvoices)
+              .set({ status: 'void', updatedAt: new Date().toISOString() })
+              .where(eq(saasBillingInvoices.id, expired.id));
+            return {
+              outcome: 'reissued' as const,
+              invoice: reissued.invoice,
+              created: reissued.created,
+              cancelledInvoiceId: expired.id,
+            };
           },
         ),
       );

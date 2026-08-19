@@ -2,15 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { decideSeatOverage } from './seatOverage';
 
 /**
- * Проверки цены и доступности места, переехавшие сюда вместе с самим решением: раньше они стояли
- * над `proratedSeatPriceMinor` (`proration.test.ts`) и над `decideClinicTeamQuota`
- * (`transactionQuotaPort.unit.test.ts`) — двумя половинами одного ответа. Утверждение про нулевой
- * остаток («место всё равно стоит полный тариф») приведено в соответствие с решением владельца
- * Р-15: продавать в кончившийся период нечего, счёта нет.
+ * Проверки цены и доступности места у единственной двери.
+ *
+ * ⚠️ Смена authority, а не подгонка под код: прежняя редакция этого файла закрепляла ОТМЕНЁННУЮ
+ * редакцию Р-15 — отсчёт от местной полуночи, срок счёта «до конца суток клиники», часовой пояс на
+ * денежном пути. Владелец 19.08 заменил её на действующую («окей, я принимаю, всё», обоснование —
+ * `SEAT_INVOICE_WORLD_PRACTICE_2026-08-19.md`), поэтому ожидания переписаны под неё: остаток
+ * считается от МОМЕНТА добавления, срок счёта — заданная длительность от выставления, суток и
+ * поясов в расчёте нет вовсе.
  */
 describe('decideSeatOverage', () => {
-  // 30 суток по календарю клиники: 01.08 00:00 → 31.08 00:00 МСК, то есть UTC−3. Пояс задан
-  // явно — от пояса машины и от суток UTC здесь не зависит ничего.
+  // Ровно 30 суток, чтобы доли остатка читались глазами.
   const PAID_PERIOD = {
     currentPeriodStartsAt: '2026-07-31T21:00:00.000Z',
     currentPeriodEndsAt: '2026-08-30T21:00:00.000Z',
@@ -21,7 +23,7 @@ describe('decideSeatOverage', () => {
     used: 1,
     additionalSeatPriceMinor: 150_000,
     currency: 'RUB',
-    timeZone: 'Europe/Moscow',
+    invoiceValidityDays: 30,
     ...PAID_PERIOD,
   };
 
@@ -33,44 +35,83 @@ describe('decideSeatOverage', () => {
   });
 
   /**
-   * Пробивается: середина 30-дневного периода снова стоит полные 150 000. Половина остатка —
-   * половина цены, и это ЕДИНСТВЕННОЕ число: его же видит человек и его же несёт счёт.
+   * Р-15: «Пропорция считается ОТ МОМЕНТА добавления места до конца оплаченного периода, не от
+   * начала суток». Остаток здесь — 14 суток 11 часов 19 минут, округляется вверх до 15 целых суток
+   * из 30, то есть ровно половина цены места. Прошедшие сегодня часы в счёт не попадают: прежняя
+   * редакция считала от местной полуночи и брала за них деньги.
    */
-  it('quotes a mid-period seat at the days left in the already-paid period', () => {
+  it('quotes a mid-period seat at the whole days left from the moment of the purchase', () => {
     expect(decideSeatOverage({ ...AT_LIMIT, asOf: '2026-08-16T09:41:00.000Z' })).toEqual({
       outcome: 'purchasable',
       priceMinor: 75_000,
       currency: 'RUB',
+      // Место открывается СРАЗУ — услуга начинается в момент решения, а не в момент оплаты.
       servicePeriodStartsAt: '2026-08-16T09:41:00.000Z',
       servicePeriodEndsAt: '2026-08-30T21:00:00.000Z',
-      // Р-15: счёт живёт до конца суток КЛИНИКИ. Москва = UTC+3, значит 21:00 UTC.
-      invoiceExpiresAt: '2026-08-16T21:00:00.000Z',
+      // Следующая граница целых суток остатка, отсчитанных от конца периода.
+      priceStableUntil: '2026-08-16T21:00:00.000Z',
+      // 30 суток от выставления пришлись бы на 15.09 — позже конца оплаченного отрезка, поэтому
+      // срок обрезан концом периода: счёт не переживает услугу, которую покупает.
+      invoiceExpiresAt: '2026-08-30T21:00:00.000Z',
     });
+  });
+
+  /**
+   * Р-15: «Счёт живёт заданную ДЛИТЕЛЬНОСТЬ ОТ ВЫСТАВЛЕНИЯ». Длительность — настройка
+   * `lifecyclePolicy.invoiceValidityDays`, одна на все счета; литерала в коде нет.
+   */
+  it('dates the invoice by the configured validity, counted from the issue moment', () => {
+    const offer = decideSeatOverage({
+      ...AT_LIMIT,
+      invoiceValidityDays: 3,
+      asOf: '2026-08-16T09:41:00.000Z',
+    });
+    expect(offer.outcome === 'purchasable' && offer.invoiceExpiresAt).toBe(
+      '2026-08-19T09:41:00.000Z',
+    );
+  });
+
+  /**
+   * У двери приглашения счёта нет — и срока у него нет тоже. Пробивается: дверь, которая счетов не
+   * пишет, всё равно обязана была бы читать настройку биллинга (прав на неё у её принципала нет).
+   */
+  it('offers no invoice deadline to a caller that issues no invoice', () => {
+    const offer = decideSeatOverage({
+      ...AT_LIMIT,
+      invoiceValidityDays: null,
+      asOf: '2026-08-16T09:41:00.000Z',
+    });
+    expect(offer.outcome === 'purchasable' && offer.invoiceExpiresAt).toBeNull();
+    expect(offer.outcome === 'purchasable' && offer.priceStableUntil).toBe(
+      '2026-08-16T21:00:00.000Z',
+    );
   });
 
   /**
    * Клиника подтверждает ту цену, которую ей показали. Цена, меняющаяся между отрисовкой и кликом,
    * возвращается `price_changed` каждый раз и покупка не завершается никогда — поэтому цена
-   * считается в сутках и стоит неподвижно все местные сутки.
+   * неподвижна между двумя границами целых суток остатка, и котировка живёт не дольше границы.
    */
-  it('holds one price for the whole clinic day, so a confirmation cannot race the clock', () => {
-    // Московские сутки 16.08 — это 15.08 21:00 UTC → 16.08 21:00 UTC.
+  it('holds one price up to the next whole-day boundary, so a confirmation cannot race the clock', () => {
     const first = decideSeatOverage({ ...AT_LIMIT, asOf: '2026-08-15T21:00:00.000Z' });
     const last = decideSeatOverage({ ...AT_LIMIT, asOf: '2026-08-16T20:59:59.999Z' });
-    const nextDay = decideSeatOverage({ ...AT_LIMIT, asOf: '2026-08-16T21:00:00.000Z' });
+    const afterBoundary = decideSeatOverage({ ...AT_LIMIT, asOf: '2026-08-16T21:00:00.000Z' });
     expect(first.outcome === 'purchasable' && first.priceMinor).toBe(
       last.outcome === 'purchasable' && last.priceMinor,
     );
-    expect(nextDay.outcome === 'purchasable' && nextDay.priceMinor).not.toBe(
+    expect(first.outcome === 'purchasable' && first.priceStableUntil).toBe(
+      last.outcome === 'purchasable' && last.priceStableUntil,
+    );
+    expect(afterBoundary.outcome === 'purchasable' && afterBoundary.priceMinor).not.toBe(
       last.outcome === 'purchasable' && last.priceMinor,
     );
   });
 
   /**
-   * Р-15 дословно: «Отдельным счётом это оплачивается только один раз, на момент открытия нового
-   * места — до конца периода клиника оплатила, получила». Кончившийся период — не остаток нулевой
-   * длины, а отсутствие предмета продажи. Пробивается: возвращается полный месячный тариф места за
-   * ноль оставшихся дней, со сроком услуги, который кончается раньше, чем начинается.
+   * Р-15: «Отдельным счётом место оплачивается один раз, на момент открытия; со следующего периода
+   * стоимость входит в общий счёт». Кончившийся период — не остаток нулевой длины, а отсутствие
+   * предмета продажи. Пробивается: возвращается полный месячный тариф места за ноль оставшихся
+   * дней, со сроком услуги, который кончается раньше, чем начинается.
    */
   it('sells nothing once the paid period is over or absent', () => {
     for (const asOf of ['2026-08-30T21:00:00.000Z', '2026-09-02T00:00:00.000Z']) {
@@ -101,5 +142,13 @@ describe('decideSeatOverage', () => {
         asOf: '2026-08-16T09:41:00.000Z',
       }),
     ).toEqual({ outcome: 'seat_not_sold' });
+  });
+
+  it('refuses a validity that is not a whole number of days', () => {
+    for (const invoiceValidityDays of [0, -1, 1.5]) {
+      expect(() =>
+        decideSeatOverage({ ...AT_LIMIT, invoiceValidityDays, asOf: '2026-08-16T09:41:00.000Z' }),
+      ).toThrow('saas_billing_invoice_validity_days_invalid');
+    }
   });
 });

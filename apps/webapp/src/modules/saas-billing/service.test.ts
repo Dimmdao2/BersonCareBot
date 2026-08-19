@@ -20,6 +20,7 @@ import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasB
 import { resolveCommercialAccess } from '@/infra/repos/commercialAccessComputation';
 import type { BillingPeriodOption } from './billingPeriodCatalog';
 import type { SeatOverageQuote } from './seatOverageQuote';
+import { SAAS_BILLING_INVOICE_VALIDITY_DAYS } from './invoiceValidity';
 
 /** Котировка, уже прошедшая проверку подписи: сервис получает именно её, а не тело запроса. */
 function seatQuote(input: {
@@ -1409,8 +1410,12 @@ describe('§5.1 paid additional-seat state machine', () => {
    *
    * Пробивается: сценарий снова приносит репозиторию собственные `servicePeriod*`/`expiresAt`, то
    * есть вторая дверь вернулась. Сам расчёт окна и цены проверяется у двери (`seatOverage.unit.test.ts`).
+   *
+   * ⚠️ Смена authority: в действующей редакции Р-15 срок счёта — заданная настройкой ДЛИТЕЛЬНОСТЬ,
+   * и сценарий обязан её принести (прав читать её у принципала приглашения нет). Приносит он ЧИСЛО
+   * суток из настройки, а не момент: сам срок по-прежнему выводит дверь.
    */
-  it('decides nothing about the sale itself: no window and no validity leave the service', async () => {
+  it('carries the configured validity in days, never a window and never a deadline', async () => {
     const createSeatOverageInvoiceIfNeeded = vi.fn(async () => ({
       outcome: 'seat_overage_unavailable' as const,
     }));
@@ -1446,6 +1451,7 @@ describe('§5.1 paid additional-seat state machine', () => {
       quoteCurrency: 'RUB',
       providerId: expect.any(String),
       providerIdempotencyKey: 'saas_seat_overage:org-1:req-mid-period',
+      invoiceValidityDays: SAAS_BILLING_INVOICE_VALIDITY_DAYS,
     });
   });
 
@@ -1494,6 +1500,9 @@ describe('§5.1 paid additional-seat state machine', () => {
       invoiceKind: 'seat_overage',
       additionalSeatQuantity: 1,
       amountMinor: 15_000,
+      // Р-15: у счёта за место срок есть ВСЕГДА — он приходит от двери вместе с суммой и уходит
+      // провайдеру. Строка без него означала бы бессрочный счёт за место, которого не бывает.
+      expiresAt: '2026-09-01T00:00:00.000Z',
       providerIdempotencyKey: 'saas_seat_overage:org-1:stable-key',
       status: 'draft',
     };
@@ -1538,7 +1547,7 @@ describe('§5.1 paid additional-seat state machine', () => {
       quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'stable-key', priceMinor: 15_000 }),
     });
 
-    expect(result).toMatchObject({ outcome: 'checkout', invoice: { id: 'seat-draft' } });
+    expect(result).toMatchObject({ outcome: 'seat_opened', invoice: { id: 'seat-draft' } });
     expect(createIntent).toHaveBeenCalledOnce();
     expect(createIntent).toHaveBeenCalledWith(expect.objectContaining({
       idempotencyKey: 'saas_seat_overage:org-1:stable-key',
@@ -1596,25 +1605,28 @@ describe('§5.1 paid additional-seat state machine', () => {
       },
     });
 
-    // Посреди периода: сутки клиники (МСК) начались 15.07 21:00 UTC, до 01.08 00:00 остаётся
-    // 16 суток 3 часа из 31 → 150 000 × 16,125 / 31 = 78 024,19…, вверх до 78 025. Полная цена
-    // места — 150 000: за уже оплаченные дни не платят.
+    // Посреди периода: от МОМЕНТА покупки (16.07 12:00) до 01.08 00:00 остаётся 15 суток 12 часов
+    // из 31, вверх до 16 целых суток → 150 000 × 16 / 31 = 77 419,35…, вверх до 77 420. Полная цена
+    // места — 150 000: за уже прошедшее не платят. ⚠️ Прежнее число 78 025 считалось от НАЧАЛА
+    // местных суток — редакция Р-15, отменённая владельцем 19.08.
     clock = new Date('2026-07-16T12:00:00.000Z');
     const purchase = await service.purchaseSeatOverage({
       organizationId: 'org-seat',
-      quote: seatQuote({ organizationId: 'org-seat', purchaseKey: 'request-1', priceMinor: 78_025 }),
+      quote: seatQuote({ organizationId: 'org-seat', purchaseKey: 'request-1', priceMinor: 77_420 }),
     });
-    if (purchase.outcome !== 'checkout') throw new Error('expected seat checkout');
+    if (purchase.outcome !== 'seat_opened') throw new Error('expected an opened seat');
     expect(purchase.invoice).toMatchObject({
-      amountMinor: 78_025,
+      amountMinor: 77_420,
       currency: 'RUB',
       additionalSeatQuantity: 1,
       // «Доп счёт … только до конца основного оплаченного периода».
       servicePeriodEndsAt: '2026-08-01T00:00:00.000Z',
     });
+    // Р-15 в действующей редакции: место открыто ВЫСТАВЛЕНИЕМ счёта, деньги ещё не приходили.
     const before = (await service.getOrganizationBillingOverview('org-seat')).subscriptions.find(
       (row) => row.source === 'paid_subscription',
     );
+    expect(before?.paidAdditionalSeats).toBe(1);
 
     for (const eventId of ['seat-event-1', 'seat-event-2']) {
       await service.captureSaasBillingProviderWebhookEvent({
@@ -1624,7 +1636,7 @@ describe('§5.1 paid additional-seat state machine', () => {
         verified: {
           idempotencyKey: eventId,
           eventType: 'payment.succeeded',
-          amountMinor: 78_025,
+          amountMinor: 77_420,
           payload: { currency: 'RUB' },
         },
       });
@@ -1712,10 +1724,11 @@ describe('§5.1 paid additional-seat state machine', () => {
 
     expect(stale).toEqual({
       outcome: 'price_changed',
-      priceMinor: 78_025,
+      priceMinor: 77_420,
       currency: 'RUB',
-      // Р-15: до конца суток клиники (МСК) — 16.07 21:00 UTC. Столько живут и котировка, и счёт.
-      dayEndsAt: '2026-07-16T21:00:00.000Z',
+      // Р-15: цена неподвижна до следующей границы целых суток остатка — 01.08 00:00 минус
+      // 15 суток. Столько живёт котировка; у счёта срок свой.
+      priceStableUntil: '2026-07-17T00:00:00.000Z',
     });
     expect((await service.getOrganizationBillingOverview('org-stale')).invoices).toHaveLength(
       invoicesBefore,
@@ -1727,11 +1740,11 @@ describe('§5.1 paid additional-seat state machine', () => {
       quote: seatQuote({
         organizationId: 'org-stale',
         purchaseKey: 'fresh-quote',
-        priceMinor: 78_025,
+        priceMinor: 77_420,
       }),
     });
-    if (fresh.outcome !== 'checkout') throw new Error('expected seat checkout');
-    expect(fresh.invoice.amountMinor).toBe(78_025);
+    if (fresh.outcome !== 'seat_opened') throw new Error('expected an opened seat');
+    expect(fresh.invoice.amountMinor).toBe(77_420);
 
     // Повтор той же котировки — тот же счёт, а не второй: ключ идемпотентности выводится из неё.
     const replay = await service.purchaseSeatOverage({
@@ -1739,10 +1752,10 @@ describe('§5.1 paid additional-seat state machine', () => {
       quote: seatQuote({
         organizationId: 'org-stale',
         purchaseKey: 'fresh-quote',
-        priceMinor: 78_025,
+        priceMinor: 77_420,
       }),
     });
-    if (replay.outcome !== 'checkout') throw new Error('expected seat checkout');
+    if (replay.outcome !== 'seat_opened') throw new Error('expected an opened seat');
     expect(replay.invoice.id).toBe(fresh.invoice.id);
     expect(
       (await service.getOrganizationBillingOverview('org-stale')).invoices.filter(
@@ -3818,18 +3831,25 @@ describe('срок жизни счёта берётся из настройки 
   });
 
   /**
-   * ЕДИНСТВЕННОЕ исключение из настройки — и оно решение владельца, а не недосмотр. Р-15 (19.08):
-   * «Счёт на добавление нового сотрудника действует до конца суток», потому что его сумма считается
-   * по оставшимся суткам периода и назавтра уже другая. Настроенные 7/30 суток дали бы счёт,
-   * который переживает собственную цену.
+   * ⚠️ Смена authority. Прежняя редакция этого теста закрепляла отменённое: «счёт за место —
+   * единственный, чей срок настройка НЕ решает», потому что он жил до конца суток. Действующая
+   * редакция Р-15 (19.08): «Счёт живёт заданную ДЛИТЕЛЬНОСТЬ ОТ ВЫСТАВЛЕНИЯ» — та же настройка,
+   * что у всех остальных счетов, исключений больше нет.
    *
-   * Пробивается: настройка снова дотягивается до счёта за место — сценарий приносит `expiresAt`, и
-   * счёт, выписанный на вчерашнюю сумму, остаётся оплачиваемым неделю.
+   * Что НЕ изменилось и проверяется здесь по-прежнему: сценарий приносит репозиторию только ЧИСЛО
+   * суток из настройки, а не готовый `expiresAt`. Сам срок выводит единственная дверь — иначе она
+   * снова становится одной из двух.
    */
-  it('счёт за место сверх тарифа — единственный, чей срок настройка НЕ решает (Р-15)', async () => {
+  it('счёт за место сверх тарифа живёт тот же настроенный срок, но момент считает дверь', async () => {
     const createSeatOverageInvoiceIfNeeded = vi.fn(async () => ({
       outcome: 'invoice' as const,
-      invoice: { ...invoice, invoiceKind: 'seat_overage' as const },
+      // Строку возвращает репозиторий — со сроком, который ему выдала дверь. Здесь он подставлен
+      // вручную, потому что репозиторий подменён: сценарий его только пересылает провайдеру.
+      invoice: {
+        ...invoice,
+        invoiceKind: 'seat_overage' as const,
+        expiresAt: EXPECTED_EXPIRES_AT,
+      },
       created: true,
     }));
     const service = createSaasBillingService({
@@ -3869,6 +3889,9 @@ describe('срок жизни счёта берётся из настройки 
 
     expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
       expect.not.objectContaining({ expiresAt: expect.anything() }),
+    );
+    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
+      expect.objectContaining({ invoiceValidityDays: 7 }),
     );
   });
 

@@ -162,7 +162,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
               code: 'seat_overage_confirmation_required',
               priceMinor: offer.priceMinor,
               currency: offer.currency,
-              dayEndsAt: offer.invoiceExpiresAt,
+              priceStableUntil: offer.priceStableUntil,
             };
           }
         }

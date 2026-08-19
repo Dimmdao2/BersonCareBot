@@ -18,7 +18,8 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 }
 
 /**
- * POST — К5: raises the renewal invoice for every `paid_subscription` whose paid period has ended.
+ * POST — К5: raises the renewal invoice for every `paid_subscription` whose paid period has ended,
+ * then (Р-15) re-issues every seat-overage invoice whose validity ran out unpaid.
  * Secured with `Authorization: Bearer <INTERNAL_JOB_SECRET>`, called only by cron — never by a user
  * request or a screen open. Filtering ("which organizations are due") happens inside
  * `runDueSaasBillingRenewals`'s one declared enumeration root; nothing here
@@ -55,7 +56,13 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
 
   try {
-    const result = await buildAppDeps().saasBilling.runDueSaasBillingRenewals({ limit });
+    const saasBilling = buildAppDeps().saasBilling;
+    const renewals = await saasBilling.runDueSaasBillingRenewals({ limit });
+    // Р-15: просроченный счёт за место отменяется и выставляется заново с пересчитанной суммой.
+    // Второй шаг ТОГО ЖЕ тика, а не второй крон: расписание одно, и лишний вход был бы лишней
+    // дверью. Перечисление кандидатов живёт в репозитории, как и у продления выше.
+    const seatReissues = await saasBilling.runDueSeatOverageInvoiceReissues({ limit });
+    const result = { ...renewals, seatReissues };
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_SAAS_BILLING_JOB_FAMILY,
       jobKey: OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,

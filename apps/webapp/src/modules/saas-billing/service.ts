@@ -5,6 +5,7 @@ import {
   type PaymentProviderVerifyResult,
 } from '@/modules/payments/providerPort';
 import type { TariffDowngradeBlock } from '@/modules/org-entitlements/service';
+import { SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION } from './ports';
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingInvoiceStatus,
@@ -20,6 +21,18 @@ import type {
 import { paidPeriodEndsAtForCode } from './paidPeriod';
 import { saasBillingInvoiceExpiresAt } from './invoiceValidity';
 import type { SeatOverageQuote } from './seatOverageQuote';
+
+/**
+ * Счёт за место всегда получает срок от единственной двери, поэтому его отсутствие означает не
+ * «бессрочный счёт», а сборку мимо двери. Провайдеру уходит именно этот момент: у ЮKassa счёт по
+ * нему сам переходит в `canceled` — второй рубеж к нашей проверке при приёме денег.
+ */
+function requireSeatOverageInvoiceExpiresAt(invoice: { expiresAt: string | null }): string {
+  if (invoice.expiresAt === null) {
+    throw new Error('saas_billing_seat_overage_invoice_expiry_missing');
+  }
+  return invoice.expiresAt;
+}
 import {
   SAAS_BILLING_TARIFF_NOT_PAYABLE,
   isFreeTariffPrice,
@@ -559,6 +572,9 @@ export function createSaasBillingService(dependencies: {
       quotePriceMinor: input.quote.priceMinor,
       quoteCurrency: input.quote.currency,
       providerId: provider.providerId,
+      // Р-15: «Счёт живёт заданную ДЛИТЕЛЬНОСТЬ ОТ ВЫСТАВЛЕНИЯ». Настройка одна на все счета
+      // (владелец, 18.08) — она уже разрешена вместе с провайдером, второго чтения нет.
+      invoiceValidityDays: provider.invoiceValidityDays,
       // Идемпотентность НЕ удваивается: ключ провайдера, который уже был единственным механизмом,
       // теперь выводится из личности покупки внутри котировки. Повтор той же котировки — тот же
       // ключ, то есть тот же счёт. Второй счёт требует второй котировки.
@@ -566,7 +582,7 @@ export function createSaasBillingService(dependencies: {
     });
     if (result.outcome !== 'invoice') return result;
     if (result.invoice.providerCheckoutUrl) {
-      return { outcome: 'checkout' as const, invoice: result.invoice };
+      return { outcome: 'seat_opened' as const, invoice: result.invoice };
     }
 
     const returnUrl = new URL(SAAS_SEAT_BILLING_RETURN_URL);
@@ -583,6 +599,13 @@ export function createSaasBillingService(dependencies: {
       purpose: 'saas_billing_seat_overage',
       subjectRef: result.invoice.id,
       returnUrl: returnUrl.toString(),
+      // Срок уходит ПРОВАЙДЕРУ, а не только в нашу строку: у ЮKassa счёт по истечении сам
+      // переходит в `canceled`, и это единственный способ не принять деньги по мёртвому счёту
+      // вообще. Без этого срок оставался комментарием — находка F1 слепого аудита 19.08.
+      invoice: {
+        description: result.invoice.description ?? SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION,
+        expiresAt: requireSeatOverageInvoiceExpiresAt(result.invoice),
+      },
       metadata: {
         organizationId: input.organizationId,
         saasBillingInvoiceId: result.invoice.id,
@@ -596,7 +619,7 @@ export function createSaasBillingService(dependencies: {
       providerInvoiceRef: intent.providerIntentRef,
       providerCheckoutUrl: intent.checkoutUrl ?? null,
     });
-    return { outcome: 'checkout' as const, invoice };
+    return { outcome: 'seat_opened' as const, invoice };
   }
 
   return {
@@ -1043,6 +1066,96 @@ export function createSaasBillingService(dependencies: {
       }
 
       return { dueCount: due.length, created, alreadyInvoiced, failed, errors };
+    },
+
+    /**
+     * Р-15: «Счёт живёт заданную ДЛИТЕЛЬНОСТЬ ОТ ВЫСТАВЛЕНИЯ; просроченный ОТМЕНЯЕТСЯ и
+     * выставляется новый с пересчитанной суммой, а не продлевается».
+     *
+     * Второй шаг того же фонового тика биллинга, а не второй крон: расписание у них одно и то же, а
+     * лишний вход — лишняя дверь. Устройство повторяет продление: РЕПОЗИТОРИЙ перечисляет
+     * кандидатов (единственный корень перечисления), а дальше каждая строка обрабатывается
+     * отдельным вызовом, который действует строго на выданную ему запись.
+     *
+     * Место при перевыставлении НЕ закрывается: по действующей редакции Р-15 оно открыто с момента
+     * добавления, и просроченный счёт этого не отменяет. Процедуры взыскания в системе нет —
+     * перевыставление и есть весь механизм.
+     */
+    async runDueSeatOverageInvoiceReissues(
+      input: { limit?: number } = {},
+    ): Promise<{
+      dueCount: number;
+      reissued: number;
+      skipped: number;
+      failed: number;
+      errors: Array<{ saasBillingInvoiceId: string; error: string }>;
+    }> {
+      const asOf = now().toISOString();
+      const due = await dependencies.repository.listExpiredSeatOverageInvoices({
+        asOf,
+        limit: input.limit ?? 50,
+      });
+      let reissued = 0;
+      let skipped = 0;
+      let failed = 0;
+      const errors: Array<{ saasBillingInvoiceId: string; error: string }> = [];
+
+      for (const candidate of due) {
+        try {
+          const provider = await resolvePaymentProvider();
+          const result = await dependencies.repository.reissueExpiredSeatOverageInvoice({
+            ...candidate,
+            providerId: provider.providerId,
+            invoiceValidityDays: provider.invoiceValidityDays,
+            asOf,
+          });
+          if (result.outcome !== 'reissued') {
+            skipped += 1;
+            continue;
+          }
+          reissued += 1;
+          if (!result.created || result.invoice.providerCheckoutUrl) continue;
+          const fiscalized = await attachFiscalReceiptIfConfigured(
+            result.invoice,
+            provider.payeeRequisites,
+          );
+          const returnUrl = new URL(SAAS_SEAT_BILLING_RETURN_URL);
+          returnUrl.searchParams.set('seatPayment', result.invoice.id);
+          const intent = await provider.adapter.createIntent({
+            amountMinor: fiscalized.invoice.amountMinor,
+            currency: fiscalized.invoice.currency,
+            idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
+            payerRef: `organization:${result.invoice.organizationId}`,
+            purpose: 'saas_billing_seat_overage',
+            subjectRef: result.invoice.id,
+            returnUrl: returnUrl.toString(),
+            invoice: {
+              description: result.invoice.description ?? SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION,
+              expiresAt: requireSeatOverageInvoiceExpiresAt(result.invoice),
+            },
+            metadata: {
+              organizationId: result.invoice.organizationId,
+              saasBillingInvoiceId: result.invoice.id,
+              saasBillingSubscriptionId: result.invoice.saasBillingSubscriptionId,
+            },
+            providerConfig: provider.providerConfig,
+            receipt: fiscalized.receipt,
+          });
+          await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+            saasBillingInvoiceId: result.invoice.id,
+            providerInvoiceRef: intent.providerIntentRef,
+            providerCheckoutUrl: intent.checkoutUrl ?? null,
+          });
+        } catch (error) {
+          failed += 1;
+          errors.push({
+            saasBillingInvoiceId: candidate.saasBillingInvoiceId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      return { dueCount: due.length, reissued, skipped, failed, errors };
     },
 
     /**

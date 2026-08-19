@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiJson } from '@/shared/lib/apiJson';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -45,36 +45,6 @@ const INVITE_ERROR_MESSAGES: Record<string, string> = {
   already_member: 'Этот email уже участвует в организации.',
   invalid_email: 'Некорректный email',
 };
-
-const SEAT_OVERAGE_INVITE_STORAGE_KEY = 'clinic-seat-overage-invite';
-
-type StoredSeatOverageInvite = {
-  email: string;
-  role: OrganizationInviteRole;
-  /** Котировка сервера — единственное, что уходит на покупку. Суммы клиент никуда не отправляет. */
-  quote: string;
-  invoiceId?: string;
-};
-
-function readStoredSeatOverageInvite(): StoredSeatOverageInvite | null {
-  try {
-    const value = JSON.parse(
-      sessionStorage.getItem(SEAT_OVERAGE_INVITE_STORAGE_KEY) ?? 'null',
-    ) as unknown;
-    if (!value || typeof value !== 'object') return null;
-    const candidate = value as Partial<StoredSeatOverageInvite>;
-    if (
-      typeof candidate.email !== 'string' ||
-      (candidate.role !== 'doctor' && candidate.role !== 'admin') ||
-      typeof candidate.quote !== 'string'
-    ) {
-      return null;
-    }
-    return candidate as StoredSeatOverageInvite;
-  } catch {
-    return null;
-  }
-}
 
 function formatSeatOveragePrice(priceMinor: number, currency: string): string {
   try {
@@ -131,7 +101,12 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
     currency: string;
     quote: string;
   } | null>(null);
-  const resumedSeatPayment = useRef(false);
+  /** Место уже открыто, счёт выставлен — человеку остаётся его оплатить (Р-15). */
+  const [seatInvoiceNotice, setSeatInvoiceNotice] = useState<{
+    priceMinor: number;
+    currency: string;
+    checkoutUrl: string | null;
+  } | null>(null);
 
   const seatsExhaustedForDoctor = !seats.configured || seats.available === 0;
 
@@ -197,37 +172,43 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
     }
   }
 
-  async function purchaseSeatOverage() {
+  /**
+   * Р-15 в действующей редакции: место открывается СРАЗУ, счёт уходит в оплату отдельно. Поэтому
+   * подтверждение цены больше не ведёт на checkout и не ждёт денег — оно открывает место, после
+   * чего приглашение отправляется тем же кликом. Оплата счёта живёт в разделе оплаты; экран
+   * команды только называет сумму и даёт ссылку, если провайдер её вернул.
+   */
+  async function confirmSeatOverage() {
     if (!seatOverageConfirm) return;
-    const stored: StoredSeatOverageInvite = {
-      email: email.trim(),
-      role,
-      quote: seatOverageConfirm.quote,
-    };
-    sessionStorage.setItem(SEAT_OVERAGE_INVITE_STORAGE_KEY, JSON.stringify(stored));
+    const quote = seatOverageConfirm.quote;
     setSubmitting(true);
     try {
       const response = await fetch('/api/clinic/billing', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ purchase: 'seat_overage', quote: stored.quote }),
+        body: JSON.stringify({ purchase: 'seat_overage', quote }),
       });
       const body = (await response.json().catch(() => null)) as
-        | { ok: true; outcome?: 'seat_available'; checkoutUrl?: string; invoiceId?: string }
+        | {
+            ok: true;
+            outcome?: 'seat_available' | 'seat_opened';
+            checkoutUrl?: string;
+            invoiceId?: string;
+            amountMinor?: number;
+            currency?: string;
+          }
         | { ok: false; error: string; quote?: string; priceMinor?: number; currency?: string }
         | null;
-      if (body?.ok && body.outcome === 'seat_available') {
-        sessionStorage.removeItem(SEAT_OVERAGE_INVITE_STORAGE_KEY);
+      if (body?.ok && (body.outcome === 'seat_available' || body.outcome === 'seat_opened')) {
+        if (body.outcome === 'seat_opened' && typeof body.amountMinor === 'number' && body.currency) {
+          setSeatInvoiceNotice({
+            priceMinor: body.amountMinor,
+            currency: body.currency,
+            checkoutUrl: body.checkoutUrl ?? null,
+          });
+        }
         setSeatOverageConfirm(null);
         await submitInvite();
-        return;
-      }
-      if (body?.ok && body.checkoutUrl && body.invoiceId) {
-        sessionStorage.setItem(
-          SEAT_OVERAGE_INVITE_STORAGE_KEY,
-          JSON.stringify({ ...stored, invoiceId: body.invoiceId }),
-        );
-        window.location.assign(body.checkoutUrl);
         return;
       }
       // Цена сдвинулась, пока человек думал: сервер прислал новую вместе с новой котировкой.
@@ -246,66 +227,23 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
         });
         return;
       }
-      // Котировка истекла (в том числе через полночь UTC, где цена пересчитывается) — цены у этой
-      // двери нет. Идём за свежей туда, где она выпускается: экран снова покажет цену и вопрос.
+      // Котировка истекла (цена пересчитывается на границе суток остатка) — цены у этой двери нет.
+      // Идём за свежей туда, где она выпускается: экран снова покажет цену и вопрос.
       if (body?.ok === false && body.error === 'seat_overage_quote_expired') {
-        sessionStorage.removeItem(SEAT_OVERAGE_INVITE_STORAGE_KEY);
         setSeatOverageConfirm(null);
         await submitInvite();
         return;
       }
       setInviteError(
         (body?.ok === false && INVITE_ERROR_MESSAGES[body.error]) ||
-          'Не удалось создать оплату дополнительного места',
+          'Не удалось открыть дополнительное место',
       );
     } catch {
-      setInviteError('Не удалось создать оплату дополнительного места');
+      setInviteError('Не удалось открыть дополнительное место');
     } finally {
       setSubmitting(false);
     }
   }
-
-  useEffect(() => {
-    if (!canMutateTeam) return;
-    if (resumedSeatPayment.current) return;
-    const invoiceId = new URLSearchParams(window.location.search).get('seatPayment');
-    const stored = readStoredSeatOverageInvite();
-    if (!invoiceId || !stored || stored.invoiceId !== invoiceId) return;
-    resumedSeatPayment.current = true;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const poll = async () => {
-      try {
-        const response = await fetch('/api/clinic/billing');
-        const body = (await response.json().catch(() => null)) as {
-          ok: true;
-          billing: { invoices: Array<{ id: string; status: string }> };
-        } | null;
-        const invoice = body?.ok
-          ? body.billing.invoices.find((candidate) => candidate.id === invoiceId)
-          : null;
-        if (invoice?.status === 'paid') {
-          sessionStorage.removeItem(SEAT_OVERAGE_INVITE_STORAGE_KEY);
-          await fetch('/api/clinic/invites', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email: stored.email, role: stored.role }),
-          });
-          if (!cancelled) router.refresh();
-          return;
-        }
-      } catch {
-        // A transient read failure is retried while the return page remains open.
-      }
-      if (!cancelled) timer = setTimeout(() => void poll(), 1500);
-    };
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [canMutateTeam, router]);
 
   return (
     <>
@@ -396,16 +334,17 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                       seatOverageConfirm.currency,
                     )}
                   </strong>
-                  . После оплаты приглашение будет отправлено автоматически.
+                  . Место откроется сразу, приглашение уйдёт тем же действием, а счёт на эту
+                  сумму придёт в раздел оплаты.
                 </p>
                 <div className="flex gap-2">
                   <Button
                     type="button"
                     size="sm"
                     disabled={submitting}
-                    onClick={() => void purchaseSeatOverage()}
+                    onClick={() => void confirmSeatOverage()}
                   >
-                    Оплатить место
+                    Добавить место
                   </Button>
                   <Button
                     type="button"
@@ -417,6 +356,30 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                     Отмена
                   </Button>
                 </div>
+              </div>
+            ) : null}
+            {seatInvoiceNotice ? (
+              <div className="space-y-2 rounded-md border p-3 text-sm" role="status">
+                <p>
+                  Место открыто. Счёт на{' '}
+                  <strong>
+                    {formatSeatOveragePrice(
+                      seatInvoiceNotice.priceMinor,
+                      seatInvoiceNotice.currency,
+                    )}
+                  </strong>{' '}
+                  выставлен и ждёт оплаты.
+                </p>
+                {seatInvoiceNotice.checkoutUrl ? (
+                  <a
+                    className="underline"
+                    href={seatInvoiceNotice.checkoutUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Оплатить счёт
+                  </a>
+                ) : null}
               </div>
             ) : null}
             {inviteError ? <p className="text-destructive text-sm">{inviteError}</p> : null}

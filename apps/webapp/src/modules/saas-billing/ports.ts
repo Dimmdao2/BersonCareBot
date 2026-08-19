@@ -10,6 +10,10 @@ export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expi
 export type SaasBillingInvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'void';
 export type SaasBillingInvoiceKind = 'tariff_period' | 'seat_overage';
 /** Existing `tariff_period` rows that are a paid-period upgrade use this visible, durable description. */
+/** Единственный текст строки счёта за место — и у выставления, и у перевыставления, и у провайдера. */
+export const SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION =
+  'Дополнительное место специалиста сверх тарифа';
+
 export const SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION = 'Доплата за повышение тарифа';
 /** К2 — `pending` until the provider webhook confirms it; `failed` frees the amount for a retry. */
 export type SaasBillingRefundStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
@@ -204,7 +208,7 @@ export type SaasBillingSeatOverageInvoiceResult =
   | { outcome: 'seat_overage_unavailable' }
   /** Р-15: оплаченного периода нет или он кончился — остатка, в который продают место, нет. */
   | { outcome: 'paid_period_over' }
-  | { outcome: 'price_changed'; priceMinor: number; currency: string; dayEndsAt: string }
+  | { outcome: 'price_changed'; priceMinor: number; currency: string; priceStableUntil: string }
   | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
 
 export type SaasBillingReconciliationDiscrepancy =
@@ -533,7 +537,48 @@ export type SaasBillingRepositoryPort = {
     quoteCurrency: string;
     providerId: string;
     providerIdempotencyKey: string;
+    /**
+     * Настроенная длительность жизни счёта (`lifecyclePolicy.invoiceValidityDays`). Приносит её
+     * сценарий, который уже разрешил провайдера, — второго чтения настройки под замком нет.
+     * Сам СРОК из неё выводит дверь, а не этот вход: здесь только число суток из настройки.
+     */
+    invoiceValidityDays: number;
   }): Promise<SaasBillingSeatOverageInvoiceResult>;
+  /**
+   * Р-15: перечисление просроченных счетов за место, которые ещё можно перевыставить. Единственный
+   * корень перечисления для фонового тика — как `listSaasBillingSubscriptionsDueForRenewal` у
+   * продления; действие по каждой строке принимает метод ниже, и он никогда не перечисляет сам.
+   */
+  listExpiredSeatOverageInvoices(input: { asOf: string; limit: number }): Promise<
+    Array<{
+      saasBillingInvoiceId: string;
+      organizationId: string;
+      saasBillingSubscriptionId: string;
+    }>
+  >;
+
+  /**
+   * Р-15: «просроченный ОТМЕНЯЕТСЯ и выставляется новый с пересчитанной суммой, а не
+   * продлевается» — обе половины одной транзакцией. Сумма нового счёта считается ТОЙ ЖЕ дверью на
+   * НОВЫЙ момент; место повторно не открывается — оно открыто с первого выставления.
+   */
+  reissueExpiredSeatOverageInvoice(input: {
+    saasBillingInvoiceId: string;
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    providerId: string;
+    invoiceValidityDays: number;
+    asOf: string;
+  }): Promise<
+    | { outcome: 'skipped'; reason: string }
+    | {
+        outcome: 'reissued';
+        invoice: SaasBillingInvoice;
+        created: boolean;
+        cancelledInvoiceId: string;
+      }
+  >;
+
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
    * invoice id alone, not organization-scoped (see `reserveSaasBillingRefund`). Only `draft`/

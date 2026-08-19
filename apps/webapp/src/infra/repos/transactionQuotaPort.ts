@@ -9,7 +9,6 @@ import {
   decideSeatOverage,
   type SeatOverageOffer,
 } from '@/modules/saas-billing/seatOverage';
-import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 export type StockQuotaMechanic = 'patient_count' | 'branches' | 'files';
 export type TransactionQuotaMechanic = StockQuotaMechanic | 'clinic_team';
@@ -209,6 +208,7 @@ export function createTransactionQuotaPort() {
         ): Promise<void>;
         resolveClinicTeamAvailability(input?: {
           excludedPendingEmail?: string;
+          invoiceValidityDays?: number;
         }): Promise<SeatOverageOffer>;
         resolveBillableAdditionalSeats(paidAdditionalSeats: number): Promise<number>;
       }) => Promise<T>,
@@ -239,10 +239,11 @@ export function createTransactionQuotaPort() {
          * дверь покупки идут сюда, под тем же замком организации. Само решение живёт в
          * `modules/saas-billing/seatOverage.ts`; здесь только сбор входных данных.
          *
-         * Часовой пояс — существующий источник «бизнес-времени» приложения
-         * (`system_settings.app_display_timezone`), тот же, по которому клиника видит записи и
-         * слоты. Второго источника суток не заводим: у организации своего пояса в схеме нет, а у
-         * филиалов он свой на каждый филиал и на вопрос «какие сутки у клиники» не отвечает.
+         * `invoiceValidityDays` приносит ТОЛЬКО тот, кто выписывает счёт: настройка
+         * `lifecyclePolicy.invoiceValidityDays` лежит в credential-строке платёжного провайдера, и
+         * читать её вправе принципал биллинга, а не принципал приглашения. Дверь приглашения счёта
+         * не пишет — ей срок не нужен и не выдаётся. Часового пояса здесь больше нет вовсе: в
+         * действующей редакции Р-15 суток в расчёте нет, все моменты абсолютные.
          */
         async resolveClinicTeamAvailability(options = {}) {
           const context = await readClinicTeamContext(tx, input.organizationId);
@@ -250,7 +251,7 @@ export function createTransactionQuotaPort() {
             ...context,
             used: await countClinicTeamUsage(tx, input.organizationId, options.excludedPendingEmail),
             asOf: new Date().toISOString(),
-            timeZone: await getAppDisplayTimeZone(),
+            invoiceValidityDays: options.invoiceValidityDays ?? null,
           });
         },
         /**
