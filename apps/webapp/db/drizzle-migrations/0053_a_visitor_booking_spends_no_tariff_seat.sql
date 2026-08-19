@@ -128,3 +128,12 @@ $function$;
 
 COMMENT ON FUNCTION app.enroll_current_patient_in_public_booking_clinic(uuid, text) IS
   'Make the identified public-booking visitor a client of a PUBLISHED clinic. Spends no paid patient_count seat (owner 19.08, OWNER_PRODUCT_RULES.md #33.2) -- only the staff card writer does. The person comes from the accepted patient context, the confirmation channel is an argument checked against the closed list, and the door reports what it did so a failed booking can be compensated.';
+
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_org_commerce_owner
+-- Комментарий двери квоты описывал состояние 0052, где потолок спрашивали ОБА создателя строки
+-- `org_enrollments`. Эта миграция убрала второго спрашивающего, значит и подпись объекта в
+-- `pg_description` больше не соответствует факту. Читает её тот, кто в следующий раз будет
+-- разбираться с потолком прямо в базе, поэтому правится тем же ходом, что и сам факт.
+COMMENT ON FUNCTION app.assert_org_patient_count_quota_available(uuid) IS
+  'The only patient_count ceiling, and it has exactly one caller: the staff card writer (ensureInvitedOrganizationClientRelationship). The public-booking door creates an org_enrollments row without asking it -- a visitor booking spends no paid seat (owner 19.08, OWNER_PRODUCT_RULES.md #33.2). The transaction-scoped advisory lock is taken here, before the count, so the caller''s insert stays atomic with it.';

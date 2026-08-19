@@ -31,11 +31,17 @@ ACTIVE_CHILD_PID=""
 usage() {
   cat <<'EOF'
 Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
+         [--apply-out-of-order <tag>]... [--reapply <tag>]...
 
 Validates the exact existing local bcb_webapp_dev target. --preflight executes pending
 webapp Drizzle DDL through the NOLOGIN bcb_dev_migrator and its declared owners in a
 single transaction ending in ROLLBACK. --execute applies pending integrator and webapp
 migrations, then atomically reconciles and audits the declaration-owned access state.
+
+The two recovery options are forwarded verbatim to the owner-ordered migrator, which is the
+only thing that accepts them; they exist so a ledger that has drifted from the journal
+(--apply-out-of-order) or from the catalog (--reapply) can be repaired through this whole
+route -- preflight, reconcile and port-context env included -- instead of beside it.
 EOF
 }
 
@@ -91,10 +97,28 @@ postgres_scalar() {
 }
 
 MODE="${1:-}"
-if [[ $# -ne 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; then
+if [[ $# -lt 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; then
   usage
   exit 2
 fi
+shift
+# Nothing but the two named recovery options may ride along, and each one must name its tag: the
+# migrator refuses a tag it has not itself reported as stranded or drifted, so a stale flag left in
+# a command line cannot quietly re-run anything.
+RECOVERY_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --apply-out-of-order|--reapply)
+      [[ $# -ge 2 && -n "${2:-}" && "${2:0:2}" != "--" ]] || { usage; exit 2; }
+      RECOVERY_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
 
 [[ "$EUID" -ne 0 ]] || fatal "run this wrapper as the non-root repository owner"
 [[ -d "$ADMIN_SOCKET" && ! -L "$ADMIN_SOCKET" ]] || fatal "local PostgreSQL socket guard failed"
@@ -160,7 +184,8 @@ if [[ "$MODE" == "--preflight" ]]; then
     --migrator "$MIGRATOR_ROLE" \
     --drizzle-folder "$DRIZZLE_FOLDER" \
     --sudo-postgres \
-    --rollback-only
+    --rollback-only \
+    ${RECOVERY_ARGS[@]+"${RECOVERY_ARGS[@]}"}
   echo "migrate-dev preflight: PASS (post-cutover DEV; rollback-only webapp DDL validation complete)"
   exit 0
 fi
@@ -186,7 +211,8 @@ run_tracked node "$OWNER_MIGRATOR" \
   --db "$TARGET_DB" \
   --migrator "$MIGRATOR_ROLE" \
   --drizzle-folder "$DRIZZLE_FOLDER" \
-  --sudo-postgres
+  --sudo-postgres \
+  ${RECOVERY_ARGS[@]+"${RECOVERY_ARGS[@]}"}
 run_tracked node "$INTEGRATOR_MIGRATOR" \
   --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
   --root "$REPO_ROOT/apps/integrator" --sudo-postgres

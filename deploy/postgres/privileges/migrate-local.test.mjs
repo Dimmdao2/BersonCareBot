@@ -287,3 +287,122 @@ test('an aligned journal and ledger still report themselves current', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /already current for "bersoncarebot_test": pending=0 total=3/u);
 });
+
+/**
+ * A ledger that is aligned with the journal by `created_at` and still lies: the row is there and the
+ * object it stands for is gone.  The fake psql answers the ledger query and the catalog query
+ * separately, so the run reaches exactly the state a reconcile from a neighbouring branch leaves
+ * behind on a shared database.
+ */
+function createObjectDriftRuntime({ missing }) {
+  const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-local-drift-'));
+  const bin = join(root, 'bin');
+  const migrations = join(root, 'migrations');
+  const capture = join(root, 'transaction.sql');
+  mkdirSync(bin);
+  mkdirSync(join(migrations, 'meta'), { recursive: true });
+  const entries = [
+    { idx: 0, version: '7', when: 1800000000100, tag: '0000_first' },
+    { idx: 1, version: '7', when: 1800000000200, tag: '0001_door' },
+  ];
+  writeFileSync(join(migrations, 'meta/_journal.json'), JSON.stringify({ entries }));
+  writeFileSync(
+    join(migrations, '0000_first.sql'),
+    ['-- BCB-MIGRATION-OWNER: app_probe_owner', "SELECT '0000_first';", ''].join('\n'),
+  );
+  writeFileSync(
+    join(migrations, '0001_door.sql'),
+    [
+      '-- BCB-MIGRATION-OWNER: app_probe_owner',
+      'CREATE OR REPLACE FUNCTION app.probe_door(p_organization_id uuid, p_channel text)',
+      'RETURNS void LANGUAGE plpgsql AS $$ BEGIN RETURN; END; $$;',
+      '',
+    ].join('\n'),
+  );
+  const ledger = entries
+    .map((entry, index) => `${'a'.repeat(63)}${index}\t${entry.when}`)
+    .join('\n');
+  writeFileSync(
+    join(bin, 'psql'),
+    `#!/usr/bin/env bash
+set -eu
+previous=''
+for arg in "$@"; do
+  if [[ "$previous" == '-c' ]]; then
+    if [[ "$arg" == *to_regprocedure* ]]; then printf '%b\\n' ${JSON.stringify(missing.join('\n'))}; else printf '%b\\n' ${JSON.stringify(ledger)}; fi
+    exit 0
+  fi
+  previous="$arg"
+done
+cat > '${capture}'
+`,
+  );
+  chmodSync(join(bin, 'psql'), 0o755);
+  return { bin, capture, migrations, root };
+}
+
+test('an applied ledger row whose objects are gone from the catalog stops the run and names them', () => {
+  const runtime = createObjectDriftRuntime({ missing: ['app.probe_door(uuid,text)'] });
+
+  const result = runWatermarkMigrator(runtime);
+
+  assert.notEqual(result.status, 0, 'a ledger row over a hole must not report success');
+  assert.match(result.stderr, /ledger and .* catalog describe different states/u);
+  assert.match(result.stderr, /tag=0001_door/u);
+  assert.match(result.stderr, /missing: app\.probe_door\(uuid,text\)/u);
+  assert.match(result.stderr, /--reapply 0001_door/u);
+  assert.doesNotMatch(result.stdout, /already current/u);
+  assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the gate');
+});
+
+test('the named reapply retracts the lying ledger row and rewrites it in the same transaction', () => {
+  const runtime = createObjectDriftRuntime({ missing: ['app.probe_door(uuid,text)'] });
+
+  const result = runWatermarkMigrator(runtime, ['--reapply', '0001_door']);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.probe_door/u);
+  assert.doesNotMatch(transaction, /SELECT '0000_first';/u, 'only the named tag is re-run');
+  const retraction = transaction.indexOf(
+    'DELETE FROM drizzle.__drizzle_migrations WHERE created_at = 1800000000200;',
+  );
+  const rewrite = transaction.search(
+    /INSERT INTO drizzle\.__drizzle_migrations \(hash, created_at\) VALUES \('[0-9a-f]{64}', 1800000000200\);/u,
+  );
+  assert.ok(retraction >= 0, 'the stale row must be retracted');
+  assert.ok(rewrite > retraction, 'the row is rewritten after it is retracted, in one transaction');
+  assert.match(transaction, /\nCOMMIT;\s*$/u);
+  assert.match(result.stdout, /reapplied=1/u);
+});
+
+test('reapply is refused when nothing is missing at or before the named migration', () => {
+  const runtime = createObjectDriftRuntime({ missing: [] });
+
+  const result = runWatermarkMigrator(runtime, ['--reapply', '0001_door']);
+
+  assert.notEqual(result.status, 0, 'a healthy migration must not be re-run on a stale flag');
+  assert.match(result.stderr, /--reapply names 0001_door, which .* has no hole at or before/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('a healthy migration ordered after the hole may be re-applied with it, and only after it', () => {
+  const runtime = createObjectDriftRuntime({ missing: ['app.probe_door(uuid,text)'] });
+
+  // 0000_first sits BEFORE the hole: re-running it restores nothing and could undo the hole's own
+  // objects, so it is refused even while a real drift is being recovered.
+  const before = runWatermarkMigrator(runtime, ['--reapply', '0001_door', '--reapply', '0000_first']);
+
+  assert.notEqual(before.status, 0, 'a migration ordered before every hole must stay refused');
+  assert.match(before.stderr, /--reapply names 0000_first/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('a ledger whose objects are all present still reports itself current', () => {
+  const runtime = createObjectDriftRuntime({ missing: [] });
+
+  const result = runWatermarkMigrator(runtime);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /already current for "bersoncarebot_test": pending=0 total=2/u);
+});

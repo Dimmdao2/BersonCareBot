@@ -3,6 +3,19 @@
  * Structural gate for SINGLE_ENTRY_CLEANUP §4б: atomic quota writers enter through
  * transactionQuotaPort. The gate uses the TypeScript AST, so formatting and aliases do not
  * affect its verdict.
+ *
+ * What the gate holds is the MODULE, not one symbol inside it: a writer that touches a protected
+ * table must both import a declared quota entry from `infra/repos/transactionQuotaPort` and call
+ * it. The module exports two such entries, because a ceiling can be decided in either place and
+ * both keep the lock and the write in one transaction:
+ *
+ *   - `transactionQuotaPort.withinLock(...)` — the lock and the rule live in this application;
+ *   - `assertOrgPatientCountQuotaAvailable(...)` — transport for a ceiling whose rule lives in one
+ *     SQL door (`app.assert_org_patient_count_quota_available`), which takes the same
+ *     transaction-scoped advisory lock before the caller's insert.
+ *
+ * Importing an entry without calling it is still a bypass, and a protected mutation with no entry
+ * at all is still a bypass, so widening the accepted address does not widen the hole.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, normalize, relative, resolve } from 'node:path';
@@ -19,6 +32,9 @@ const protectedTables = new Set([
   'organizationMemberInvites',
 ]);
 const quotaLockPrefixes = ['saas_quota:', 'clinic_invite_seats:'];
+// Every symbol the quota-port module exports as a way IN. A protected writer must name one of
+// these in its import list and invoke it; nothing else counts as entering the port.
+const quotaPortEntries = new Set(['transactionQuotaPort', 'assertOrgPatientCountQuotaAvailable']);
 
 function listProductionTypeScript(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -82,6 +98,7 @@ function sourceSignals(filename, source) {
   const findings = [];
   let importsCanonicalPort = false;
   let callsCanonicalPort = false;
+  const importedEntryAliases = new Set();
   let protectedMutation = false;
   let patientFilesUpdated = false;
   let mediaReadyTransition = false;
@@ -90,15 +107,13 @@ function sourceSignals(filename, source) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       if (importsQuotaPort(filename, node.moduleSpecifier.text)) {
         const bindings = node.importClause?.namedBindings;
-        if (
-          bindings &&
-          ts.isNamedImports(bindings) &&
-          bindings.elements.some(
-            (binding) =>
-              (binding.propertyName?.text ?? binding.name.text) === 'transactionQuotaPort',
-          )
-        ) {
-          importsCanonicalPort = true;
+        if (bindings && ts.isNamedImports(bindings)) {
+          for (const binding of bindings.elements) {
+            if (quotaPortEntries.has(binding.propertyName?.text ?? binding.name.text)) {
+              importsCanonicalPort = true;
+              importedEntryAliases.add(binding.name.text);
+            }
+          }
         }
       }
     }
@@ -119,8 +134,15 @@ function sourceSignals(filename, source) {
         (ts.isPropertyAccessExpression(node.expression) ||
           ts.isElementAccessExpression(node.expression)) &&
         ts.isIdentifier(node.expression.expression) &&
-        node.expression.expression.text === 'transactionQuotaPort'
+        node.expression.expression.text === 'transactionQuotaPort' &&
+        importedEntryAliases.has('transactionQuotaPort')
       ) {
+        callsCanonicalPort = true;
+      }
+
+      // A directly-called entry (the SQL-door transport) counts only under the local name it was
+      // imported under, so an unrelated same-named local helper cannot stand in for the port.
+      if (ts.isIdentifier(node.expression) && importedEntryAliases.has(node.expression.text)) {
         callsCanonicalPort = true;
       }
 
@@ -145,7 +167,10 @@ function sourceSignals(filename, source) {
 
   const isPatientFileCapacityWriter = patientFilesUpdated && mediaReadyTransition;
   if ((protectedMutation || isPatientFileCapacityWriter) && !(importsCanonicalPort && callsCanonicalPort)) {
-    findings.push('contains a quota-consuming mutation without transactionQuotaPort.withinLock');
+    findings.push(
+      'contains a quota-consuming mutation that never enters transactionQuotaPort '
+        + `(call one of: ${[...quotaPortEntries].join(', ')})`,
+    );
   }
   return [...new Set(findings)];
 }
@@ -175,6 +200,21 @@ function selfTest() {
        export async function invite(tx) { await tx.execute(key); }`,
     ],
     [
+      'patient writer that imports the SQL-door transport but never calls it',
+      `import { assertOrgPatientCountQuotaAvailable } from '@/infra/repos/transactionQuotaPort';
+       import { orgEnrollments } from '../../../db/schema/bookingEngine';
+       export async function enroll(tx) { await tx.insert(orgEnrollments).values({}); }`,
+    ],
+    [
+      'patient writer calling a local look-alike instead of the port',
+      `import { orgEnrollments } from '../../../db/schema/bookingEngine';
+       async function assertOrgPatientCountQuotaAvailable() {}
+       export async function enroll(tx, organizationId) {
+         await assertOrgPatientCountQuotaAvailable(tx, organizationId);
+         await tx.insert(orgEnrollments).values({});
+       }`,
+    ],
+    [
       'patient file ready transition without the port',
       `import { patientFiles, mediaFiles } from '../../../db/schema/schema';
        export async function confirm(tx) {
@@ -184,25 +224,37 @@ function selfTest() {
     ],
   ];
   const missed = fixtures.filter(([, source]) => sourceSignals(featurePath, source).length === 0);
-  const accepted = sourceSignals(
-    featurePath,
-    `import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
-     import { orgEnrollments } from '../../../db/schema/bookingEngine';
-     export async function enroll(tx, organizationId) {
-       await transactionQuotaPort.withinLock(
-         tx,
-         { organizationId, mechanic: 'patient_count' },
-         async (quota) => { await quota.assertStockAvailable(async () => 0); await tx.insert(orgEnrollments).values({}); },
-       );
-     }`,
-  );
-  if (missed.length > 0 || accepted.length > 0) {
+  const canonical = [
+    [
+      'writer entering through transactionQuotaPort.withinLock',
+      `import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
+       import { orgEnrollments } from '../../../db/schema/bookingEngine';
+       export async function enroll(tx, organizationId) {
+         await transactionQuotaPort.withinLock(
+           tx,
+           { organizationId, mechanic: 'patient_count' },
+           async (quota) => { await quota.assertStockAvailable(async () => 0); await tx.insert(orgEnrollments).values({}); },
+         );
+       }`,
+    ],
+    [
+      'writer entering through the SQL-door transport of the same module',
+      `import { assertOrgPatientCountQuotaAvailable } from '@/infra/repos/transactionQuotaPort';
+       import { orgEnrollments } from '../../../db/schema/bookingEngine';
+       export async function enroll(tx, organizationId) {
+         await assertOrgPatientCountQuotaAvailable(tx, organizationId);
+         await tx.insert(orgEnrollments).values({});
+       }`,
+    ],
+  ];
+  const rejectedCanonical = canonical.filter(([, source]) => sourceSignals(featurePath, source).length > 0);
+  if (missed.length > 0 || rejectedCanonical.length > 0) {
     throw new Error(
-      `check-transaction-quota-port-boundary self-test failed: missed=${missed.map(([name]) => name).join(', ') || 'none'}; rejected-canonical=${accepted.join(', ') || 'none'}`,
+      `check-transaction-quota-port-boundary self-test failed: missed=${missed.map(([name]) => name).join(', ') || 'none'}; rejected-canonical=${rejectedCanonical.map(([name]) => name).join(', ') || 'none'}`,
     );
   }
   console.log(`check-transaction-quota-port-boundary self-test: ${fixtures.length} bypass forms rejected`);
-  console.log('check-transaction-quota-port-boundary self-test: canonical port writer accepted');
+  console.log(`check-transaction-quota-port-boundary self-test: ${canonical.length} canonical port writers accepted`);
 }
 
 if (process.argv.includes('--self-test')) {
