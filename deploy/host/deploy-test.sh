@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Deliver the current committed DEV branch to the existing named TEST environment.
 # B0/post-B0 only: no restore, database recreation, zero-state, greenfield or historical replay.
+#
+# Usage: bash deploy/host/deploy-test.sh [<branch>] [--reapply <tag> ...]
 
 set -Eeuo pipefail
 { set +x; } 2>/dev/null
@@ -48,6 +50,27 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
+
+# --reapply names a migration the TEST ledger claims but the database does not answer for. It lives
+# on this entrypoint and not on the wrapper because rebuilding an object from its migration file
+# rebuilds only what the file says: a declaration-owned definer function also needs the attestation
+# wrapper in its body and the EXECUTE grant for its caller, and both arrive with the privilege
+# declaration this script reconciles a few steps below. A bare `node migrate-local.mjs --reapply`
+# would leave the repaired object weaker than it was, so the wrapper refuses it without this marker.
+REAPPLY_ARGS=()
+shift || true
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --reapply)
+      [[ -n "${2:-}" ]] || fail '--reapply needs the tag of a migration file'
+      [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ ]] || fail "--reapply tag is not a migration name: $2"
+      REAPPLY_ARGS+=(--reapply "$2")
+      shift 2
+      ;;
+    *) fail "unknown argument: $1" ;;
+  esac
+done
+export BCB_MIGRATION_ENTRYPOINT=deploy-test.sh
 
 [[ "$(id -u)" -ne 0 ]] || fail 'run as the non-root repository owner'
 [[ "$(realpath "$SRC_REPO")" == /home/dev/dev-projects/BersonCareBot ]] || fail 'source repository path guard failed'
@@ -135,7 +158,8 @@ node --experimental-strip-types "$GENERATOR" --shared-role-verify |
   sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
 
 node "$OWNER_MIGRATOR" --db "$DB" --migrator "$MIGRATOR_ROLE" \
-  --drizzle-folder "$DRIZZLE_FOLDER" --sudo-postgres
+  --drizzle-folder "$DRIZZLE_FOLDER" --sudo-postgres \
+  ${REAPPLY_ARGS[@]+"${REAPPLY_ARGS[@]}"}
 node "$INTEGRATOR_MIGRATOR" --db "$DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
   --root "$DEPLOY_REPO/apps/integrator" --sudo-postgres
 

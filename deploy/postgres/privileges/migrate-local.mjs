@@ -14,13 +14,15 @@ import {
   renderTemporaryMembershipAssertion,
 } from './migrate-local-parse.mjs';
 import {
-  collectExpectedObjects,
-  describeObject,
+  collectMigrationProofs,
+  describeProof,
   findForeignLedgerRows,
+  findUnprovedMigrations,
+  interpretProofAnswers,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
-  renderObjectPresenceSql,
+  renderProofSql,
   selectPendingMigrations,
 } from './migration-order.mjs';
 
@@ -43,6 +45,12 @@ function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);
 }
+
+// The only two entrypoints that reconcile the privilege declaration after --reapply. The marker is
+// trusted by VALUE, not by presence: an operator (or a bypass) can export the variable with any
+// string, and a check that only asks "is it set" accepts that forgery. `deploy-test.sh` and
+// `migrate-dev.sh` are the ones that actually set it (grep the repo before adding a third).
+const KNOWN_MIGRATION_ENTRYPOINTS = new Set(['migrate-dev.sh', 'deploy-test.sh']);
 
 function sqlIdentifier(value) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value)) throw new Error(`unsafe role name '${value}'`);
@@ -88,9 +96,16 @@ function spawnPsql(args, options = {}) {
  * map.  It is the journal's only remaining job.
  */
 function bootstrapLedger(db, folder) {
+  let legacyEntries;
+  try {
+    legacyEntries = readLegacyJournalEntries(folder);
+  } catch (error) {
+    // The frozen-map refusal is an operator's next move, not a defect in this process.
+    fail(error instanceof Error ? error.message : String(error));
+  }
   const result = spawnPsql(
     ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-c',
-      renderLedgerBootstrapSql(readLegacyJournalEntries(folder))],
+      renderLedgerBootstrapSql(legacyEntries)],
     { encoding: 'utf8' },
   );
   if (result.status !== 0) {
@@ -119,17 +134,18 @@ function readAppliedDrizzleRows(db) {
 }
 
 /**
- * The ledger says a migration ran; this asks the catalog whether its objects are actually there.
+ * The ledger says a migration ran; this asks the database whether that is true.
  *
  * A ledger row is a claim, not evidence.  On 19.08 three migrations were recorded as applied on a
  * database that was missing four of their functions, and every later run answered "pending=0,
  * already current" — the ledger agreed with itself while the schema had a hole.  So before anything
- * is applied, every object the applied migrations created and did not later drop is probed by name,
- * and a single absent one stops the run and is named.
+ * is applied, every proof the applied migrations owe is asked: the objects they still hold, and the
+ * explicit VERIFY probe of the ones that hold no object a classifier can name.  A single unmet proof
+ * stops the run and is named.
  */
-function findMissingObjects(db, appliedMigrations) {
-  const objects = collectExpectedObjects(appliedMigrations);
-  const sql = renderObjectPresenceSql(objects);
+function findUnmetProofs(db, appliedMigrations) {
+  const proofs = collectMigrationProofs(appliedMigrations);
+  const sql = renderProofSql(proofs);
   if (!sql) return [];
   const result = spawnPsql(
     ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-At', '-F', '\t', '-c', sql],
@@ -137,18 +153,13 @@ function findMissingObjects(db, appliedMigrations) {
   );
   if (result.status !== 0) {
     process.stderr.write(result.stderr ?? '');
-    throw new Error(`cannot verify that applied migrations of ${db} still hold their objects`);
+    throw new Error(`cannot verify that applied migrations of ${db} still answer for what they did`);
   }
-  const present = new Map(
-    String(result.stdout ?? '').trim().split('\n').filter(Boolean).map((line) => {
-      const [at, flag] = line.split('\t');
-      return [Number(at), flag === 't'];
-    }),
-  );
-  if (present.size !== objects.length) {
-    throw new Error(`object presence probe answered for ${present.size} of ${objects.length} objects`);
-  }
-  return objects.filter((_, index) => present.get(index) === false);
+  const answers = String(result.stdout ?? '').trim().split('\n').filter(Boolean).map((line) => {
+    const [at, flag] = line.split('\t');
+    return { at, present: flag === 't' };
+  });
+  return interpretProofAnswers(proofs, answers);
 }
 
 const db = value('db');
@@ -171,6 +182,22 @@ let drizzleSummary = null;
 if (reapplyTags.length > 0 && !drizzleFolder) {
   throw new Error('--reapply is supported only with --drizzle-folder');
 }
+// --reapply restores the object from the migration FILE, and a declaration-owned definer function is
+// more than its file: the attestation wrapper in its body and the EXECUTE grant for the role that
+// calls it arrive with the privilege declaration, not with the migration.  Reapplied alone, the
+// function comes back disarmed.  So the recovery is only allowed from the entrypoints that
+// reconcile the declaration as their last step; they set this marker for exactly this reason.
+if (reapplyTags.length > 0 && !KNOWN_MIGRATION_ENTRYPOINTS.has(process.env.BCB_MIGRATION_ENTRYPOINT ?? '')) {
+  fail(
+    [
+      '--reapply rebuilds the object from the migration file alone, which leaves a definer function '
+        + 'without its attestation seam and without EXECUTE for the role that calls it.',
+      'Run the recovery through an entrypoint that reconciles the privilege declaration afterwards:',
+      `  DEV:  bash deploy/host/migrate-dev.sh --execute ${reapplyTags.map((tag) => `--reapply ${tag}`).join(' ')}`,
+      `  TEST: bash deploy/host/deploy-test.sh <branch> ${reapplyTags.map((tag) => `--reapply ${tag}`).join(' ')}`,
+    ].join('\n'),
+  );
+}
 if (drizzleFolder) {
   if (steps.length > 0 || legacyOwners.length > 0 || legacyMigration) {
     throw new Error('--drizzle-folder cannot be combined with --step/--owner/--migration');
@@ -178,6 +205,17 @@ if (drizzleFolder) {
   bootstrapLedger(db, drizzleFolder);
   // File name is the order and the identity; the folder listing is the whole plan.
   const migrations = readMigrationFolder(drizzleFolder);
+  // A migration that leaves neither an object nor a VERIFY probe cannot be told apart from a ledger
+  // row somebody typed, so it is refused here too and not only by the lint gate: the gate protects
+  // the repository, this protects the database in front of it.
+  const unproved = findUnprovedMigrations(migrations);
+  if (unproved.length > 0) {
+    fail(
+      `${unproved.join(', ')} leave no object this checkout can probe and carry no `
+        + '`-- BCB-MIGRATION-VERIFY: SELECT …` header, so "applied" for them would be a claim nobody '
+        + 'can check. Give each one a probe of what it did, in its header.',
+    );
+  }
   const appliedRows = readAppliedDrizzleRows(db);
   const pendingByLedger = selectPendingMigrations(migrations, appliedRows);
   const pendingTags = new Set(pendingByLedger.map((migration) => migration.tag));
@@ -192,17 +230,18 @@ if (drizzleFolder) {
   }
 
   const applied = migrations.filter((migration) => !pendingTags.has(migration.tag));
-  const missing = findMissingObjects(db, applied.filter((migration) => !reapplyTags.includes(migration.tag)));
-  if (missing.length > 0) {
-    const holders = [...new Set(missing.map((object) => object.tag))];
+  const unmet = findUnmetProofs(db, applied.filter((migration) => !reapplyTags.includes(migration.tag)));
+  if (unmet.length > 0) {
+    const holders = [...new Set(unmet.map((proof) => proof.tag))];
     fail(
       [
-        `${db} records ${holders.length} migration(s) as applied whose objects are not in the catalog, `
+        `${db} records ${holders.length} migration(s) as applied that the database does not answer for, `
           + 'so the ledger is answering for a schema it does not have:',
-        ...missing.map((object) => `  absent: ${describeObject(object)}`),
-        'Re-run with '
+        ...unmet.map((proof) => `  absent: ${describeProof(proof)}`),
+        'Re-run through the entrypoint with '
           + `${holders.map((tag) => `--reapply ${tag}`).join(' ')} `
-          + 'to send them through this same wrapper again, after confirming each is safe to execute twice.',
+          + '(deploy/host/migrate-dev.sh --execute on DEV, deploy/host/deploy-test.sh on TEST), '
+          + 'after confirming each is safe to execute twice.',
       ].join('\n'),
     );
   }
@@ -226,7 +265,7 @@ if (drizzleFolder) {
   if (pending.length === 0) {
     console.log(
       `Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length} `
-        + `verified-objects=${collectExpectedObjects(applied).length} foreign-ledger-rows=${foreign.length}`,
+        + `verified-proofs=${collectMigrationProofs(applied).length} foreign-ledger-rows=${foreign.length}`,
     );
     process.exit(0);
   }
