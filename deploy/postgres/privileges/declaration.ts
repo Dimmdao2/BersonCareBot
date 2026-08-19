@@ -3369,12 +3369,17 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.saas_billing_invoices',
           columns: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
-            'expires_at', 'status', 'provider_invoice_ref', 'tariff_id', 'tariff_name', 'amount_minor',
-            'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+            'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor', 'tariff_id', 'tariff_name',
+            'amount_minor', 'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot',
+            'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: {
+            // `carried_debt_minor` ЧИТАЕТСЯ (миграция 0050): пересчитанная сумма периода складывается
+            // из цены тарифа, мест и уже переехавшего долга. Без этого чтения смена тарифа под
+            // черновиком тихо прощала бы долг прошлого периода. Писать эту колонку шов не вправе:
+            // долг назначает только та дверь, которая гасит счёт-предшественник.
             SELECT: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
-              'expires_at', 'status', 'provider_invoice_ref'],
+              'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor'],
             UPDATE: ['tariff_id', 'tariff_name', 'amount_minor', 'currency', 'tariff_billing_period',
               'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
           },
