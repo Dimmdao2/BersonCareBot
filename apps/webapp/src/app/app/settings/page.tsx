@@ -35,6 +35,8 @@ import { describeCommercialAccessState } from './billingCommercialState';
 import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
 import { ClinicPublicCardSection } from './ClinicPublicCardSection';
+import { ClinicBookingLinkSection } from './ClinicBookingLinkSection';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
 import { OrgCustomDomainSection } from './OrgCustomDomainSection';
@@ -147,6 +149,7 @@ export default async function SettingsPage({
       brandingState,
       slugState,
       cardSettings,
+      bookingLinkOptions,
       customDomainSurface,
       customDomainMutation,
     ] = await Promise.all([
@@ -167,6 +170,22 @@ export default async function SettingsPage({
         ? withDoctorWorkspacePrincipal(workspace, 'app.settings.clinic-public-card.read', () =>
             deps.clinicPublicCard!.readCardSettings(workspace.organizationId),
           )
+        : Promise.resolve(null),
+      workspace.canManageOrganization && deps.bookingEngine
+        ? withDoctorWorkspacePrincipal(workspace, 'app.settings.booking-link.read', async () => {
+            const [branches, specialists] = await Promise.all([
+              deps.bookingEngine!.catalog.listBranches(workspace.organizationId),
+              deps.bookingEngine!.catalog.listSpecialists(workspace.organizationId),
+            ]);
+            return {
+              branches: branches
+                .filter((branch) => branch.isActive)
+                .map((branch) => ({ id: branch.id, title: branch.title })),
+              specialists: specialists
+                .filter((specialist) => specialist.isActive)
+                .map((specialist) => ({ id: specialist.id, title: specialist.fullName })),
+            };
+          })
         : Promise.resolve(null),
       canManageCustomDomain
         ? getMechanicSurfaceVisibility(workspace, 'custom_domain')
@@ -292,6 +311,13 @@ export default async function SettingsPage({
         ) : null}
         {slugState ? (
           <ClinicSlugSection initialState={slugState} appBaseUrl={env.APP_BASE_URL} />
+        ) : null}
+        {slugState?.currentSlug && bookingLinkOptions ? (
+          <ClinicBookingLinkSection
+            bookingUrl={`${env.APP_BASE_URL.replace(/\/$/, '')}${publicBookPaths.forSlug(slugState.currentSlug)}`}
+            branches={bookingLinkOptions.branches}
+            specialists={bookingLinkOptions.specialists}
+          />
         ) : null}
         {cardSettings ? (
           <ClinicPublicCardSection
