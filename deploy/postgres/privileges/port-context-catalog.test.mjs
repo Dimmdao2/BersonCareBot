@@ -21,7 +21,8 @@ const EXPECTED = {
   // 183 → 184 (19.08): `retention_sweep` — одна дверь уборки по сроку хранения (миграция 0031).
   // 184 → 186 (19.08): `patient_outbound_message_enqueue` + `staff_outbound_message_enqueue` —
   // одна дверь постановки исходящего сообщения, два класса контекста (миграция 0033).
-  webapp: 186,
+  // 186 → 187 (19.08): `appointment_reminder_generation_replace` — миграция 0034.
+  webapp: 187,
   integrator: 34,
 };
 
@@ -44,8 +45,10 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 218 → 220 (19.08): пациент и staff идут в ОДИН корень постановки исходящего сообщения
   // (`outbound.message.enqueue`). Возможности две, потому что классов контекста два; дверь одна —
   // это и есть «роль и права и контекст подставлять надо в одном месте».
-  assert.equal(rows.length, 220);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 220);
+  // 220 → 221 (19.08): `appointment_reminder_generation_replace` — одна дверь замены поколения
+  // напоминаний о записи (миграция 0034).
+  assert.equal(rows.length, 221);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 221);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -99,7 +102,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 202 → 203 (19.08): корень уборки по сроку хранения `app.prune_retention_target(...)`.
   // 203 → 205 (19.08): ОДИН корень постановки исходящего сообщения, две возможности — пациент и
   // staff; счётчик считает возможности с функцией, а не функции.
-  assert.equal(roots.length, 205);
+  // 205 → 206 (19.08): корень замены поколения напоминаний о записи (миграция 0034).
+  assert.equal(roots.length, 206);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

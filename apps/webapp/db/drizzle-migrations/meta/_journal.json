@@ -246,6 +246,13 @@
       "when": 1800000035000,
       "tag": "0034_a_new_clinic_needs_a_reference_catalog_to_copy",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1800000036000,
+      "tag": "0035_one_declared_root_replaces_a_reminder_generation",
+      "breakpoints": true
     }
   ]
 }

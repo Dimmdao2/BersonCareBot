@@ -2740,6 +2740,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'reminder.materialization.commit',
       functionIdentity: 'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)' },
+    appointment_reminder_generation_replace: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.appointment-generation.replace',
+      functionIdentity: 'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)' },
     integrator_delivery_targets_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.delivery-targets.read',
@@ -3147,6 +3151,31 @@ const REV10_CONTEXT = {
           'attempt_count', 'max_attempts', 'next_retry_at', 'priority'],
         operations: ['SELECT' as const, 'INSERT' as const],
         evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0033' as const }],
+    }),
+    // The single declared root that replaces one appointment's reminder generation. Before it the
+    // webapp wrote public.outgoing_delivery_queue directly, and no runtime role holds INSERT there,
+    // so appointment_reminder rows never appeared at all. app_tenant_service gains EXECUTE only.
+    // p_deliveries is text, not jsonb: the typed-argument transcript is reproduced byte for byte by
+    // the caller, which jsonb_send's canonical form makes impossible.
+    'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)': rev10Function({
+      owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_tenant_service'],
+      purpose: 'reminder.appointment-generation.replace',
+      typedArgs: ['uuid', 'uuid', 'timestamp with time zone', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'start_at', 'status', 'deleted_at'],
+          operations: ['SELECT' as const],
+          evidence: 'exact currency EXISTS in migration 0034' as const },
+        { relation: 'public.outgoing_delivery_queue',
+          columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
+            'attempt_count', 'max_attempts', 'next_retry_at', 'last_error', 'dead_at', 'priority',
+            'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034' as const },
+      ],
     }),
     'app.saas_billing_effective_tariff(uuid,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.saas_billing_effective_tariff(uuid,uuid)'],
