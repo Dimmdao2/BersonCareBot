@@ -30,7 +30,12 @@ export function computeOperatorAlertEnvLabel(appBaseUrl: string): string {
   return KNOWN_HOSTS[host] ?? host;
 }
 
-/** Единственный чокпоинт разметки: метка — префикс, остальной текст темы не трогаем. */
+/**
+ * Единственный чокпоинт разметки: метка — префикс, остальной текст темы не трогаем.
+ * Идемпотентна: уже помеченная тема (например, повторно материализованный дайджест)
+ * не получает второй `[LABEL]` — иначе на retry получили бы `[TEST] [TEST] ...`.
+ */
 export function stampOperatorAlertSubject(subject: string): string {
-  return `[${computeOperatorAlertEnvLabel(env.APP_BASE_URL)}] ${subject}`;
+  const prefix = `[${computeOperatorAlertEnvLabel(env.APP_BASE_URL)}] `;
+  return subject.startsWith(prefix) ? subject : `${prefix}${subject}`;
 }
