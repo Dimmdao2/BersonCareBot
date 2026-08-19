@@ -142,10 +142,17 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // её тело владело только `deploy/postgres/c4-operational-runtime.sql` и живой базой, ни одна
   // пронумерованная миграция его не создавала.
   // 112 → 115 (19.08): миграция публичной воронки записи — три новые двери (каталог, снимок слотов,
+<<<<<<< HEAD
   // поля формы); `app.resolve_public_booking_organization(uuid,uuid)` был под учётом с 0042.
   // 115 → 117 (19.08): две двери ЗАПИСИ публичной воронки. Перевод корня создания приёма счётчик не
   // двигает — сигнатура та же, менялось только тело.
   assert.equal(functions.length, 117);
+=======
+  // поля формы). Четвёртое тело, `app.resolve_public_booking_organization(uuid,uuid)`, было под учётом
+  // с 0042 и счётчик не двигает: миграция только перевела его гейт на `app.require_accepted_context`.
+  // 115 → 116 (19.08): миграция 0047 забрала в перепись `app.open_or_touch_operator_probe_incident
+  assert.equal(functions.length, 116);
+>>>>>>> 4ee4e00863eb8fadb519b1f7bb80181aa57c582a
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)

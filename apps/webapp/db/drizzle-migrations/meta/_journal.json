@@ -341,7 +341,14 @@
     {
       "idx": 48,
       "version": "7",
-      "when": 1800000052000,
+      "when": 1800000051000,
+      "tag": "0047_the_opening_door_did_not_learn_the_new_alarm_words",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1800000053000,
       "tag": "0051_a_public_visitor_becomes_a_client_when_identified",
       "breakpoints": true
     }
