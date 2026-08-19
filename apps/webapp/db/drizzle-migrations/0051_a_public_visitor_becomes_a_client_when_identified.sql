@@ -280,7 +280,6 @@ $function$;
 COMMENT ON FUNCTION app.enroll_current_patient_in_public_booking_clinic(uuid) IS
   'Make the identified public-booking visitor a client of a PUBLISHED clinic. The person comes from the accepted patient context, never from the caller; discharged/archived relationships stay denied.';
 
-REVOKE ALL ON FUNCTION app.enroll_current_patient_in_public_booking_clinic(uuid) FROM PUBLIC;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
