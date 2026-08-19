@@ -628,10 +628,7 @@ const orgBrandingService = createOrgBrandingService({
     resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
-  ? createPatientOrganizationService({
-      port: createPgPatientOrganizationPort(),
-      assertWriteClearance: assertMechanicWriteClearance,
-    })
+  ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
   : null;
 const organizationProvisioningPort = !inMemoryRepos
   ? createPgOrganizationProvisioningPort()

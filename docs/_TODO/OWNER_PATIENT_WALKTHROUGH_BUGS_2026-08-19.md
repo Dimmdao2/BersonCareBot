@@ -625,6 +625,69 @@ STATEMENT: insert into "treatment_program_instance_stage_items" (…)
 пройди заново». Снимает развилку: `migration-timestamp` приземляется, три миграции переименовываются в
 имена по времени, DEV откатывается и проходит заново.
 
+### Уточнение диагноза и починка (20.08, воркер program-item-write) — `role_table_grants` не видит колонные гранты
+
+Первый замер выше смотрел только `information_schema.role_table_grants` — эта вьюха показывает ТОЛЬКО
+табличные гранты (`columns:'table'`), а `INSERT`/`UPDATE` у `app_staff` на этих двух таблицах объявлены
+КОЛОНОЧНО (`role_column_grants`). Перепроверка `role_column_grants` **20.08 в этом проходе** показала, что
+`INSERT`/`UPDATE` у `app_staff` на `treatment_program_instance_stage_items`/`_stages` уже присутствовали —
+декларация (`relation-access.ts`) была верна с 12.08, но список колонок не включал `id`.
+
+**Настоящая причина (доказано прогоном на DEV, не догадкой):** Drizzle-ORM всегда перечисляет ВСЕ колонки
+схемы таблицы в сгенерированном `INSERT INTO t (...) VALUES (...)`, даже те, что не заданы в
+`.values({...})`, — для них подставляется SQL-ключевое слово `DEFAULT`. Postgres требует привилегию `INSERT`
+на КАЖДУЮ колонку, названную в операторе, даже со значением `DEFAULT` — включая PK `id` с `defaultRandom()`,
+который НИ ОДИН вызывающий код никогда не передаёт явно. Живая реплика упавшего оператора из лога:
+
+```sql
+insert into "treatment_program_instance_stage_items" ("id", "organization_id", ..., "settings", ...,
+  "created_at", ...) values (default, $1, ..., default, ..., default, ...)
+```
+
+Воспроизведено на DEV `SET ROLE app_staff` (транзакция, `ROLLBACK`): именование `id` со значением `DEFAULT`
+даёт `ERROR: permission denied for table ...`; тот же оператор без `id` в списке колонок проходит грант и
+падает уже на следующем слое (`accepted organization context required` — ожидаемо, контекст не установлен).
+
+**Масштаб — не одна таблица.** Тем же приёмом (`SET ROLE app_staff`, полный список колонок схемы, id/created_at/
+updated_at как `DEFAULT`) на DEV проверены ВСЕ таблицы прямого письма на пути редактирования программы;
+до починки 42501 ловили **8 из 9**:
+
+| таблица | было (грант) | стало | реальный insert-callsite, который ловит дыру |
+|---|---|---|---|
+| `treatment_program_instances` | нет `id`, `created_at`, `updated_at`, `patient_plan_last_opened_at` | добавлены все 4 | `createInstanceTree` — назначение новой программы пациенту |
+| `treatment_program_instance_stages` | нет `id` | добавлен | `createInstanceTree`, `addInstanceStage` |
+| `treatment_program_instance_stage_items` | нет `id` | добавлен | `addInstanceStageItem` — **ровно то, что владелец увидел на TEST** |
+| `treatment_program_instance_stage_groups` | нет `id` | добавлен | `createInstanceStageGroup` |
+| `treatment_program_events` | нет `id`, `created_at` | добавлены | `appendEvent` |
+| `recommendations` | нет `id`, `is_archived`, `created_at`, `updated_at` | добавлены | `createFreeformRecommendationAndStageItem`, `pgRecommendations.create` |
+| `lfk_exercises` | нет `id`, `is_archived`, `created_at` | добавлены | `createIndividualExerciseAndStageItem` |
+| `lfk_exercise_media` | нет `id`, `created_at` | добавлены | `createIndividualExerciseAndStageItem` |
+| `lfk_exercise_regions` | (без `id`-колонки вовсе) | не тронуто | уже работало |
+
+**Чем это НЕ является:** это не «дверь без своей роли» (как диспетчер очереди медиа или патентские seam-функции) —
+у `treatment_program_instance_*` уже есть `RLS FORCE` + `rev10_context_gate` + `rev10_saas_org_dormant`
+политики, ровно как у соседей с прямым (`kind:'direct'`) доступом. Проблема была ЧИСТО в списке колонок
+гранта `INSERT`, не в отсутствии стены. Добавление `app_staff` привилегий НЕ через миграцию (правило AGENTS
+§1/§10a) — только правка `deploy/postgres/privileges/relation-access.ts`, `generate-cli.mjs --check`
+побайтно совпал, живой `GRANT` применён через `reconcile`-эквивалентный SQL (те же операторы, что выдаёт
+генератор) на DEV и TEST.
+
+**Чек-лист (доказательства ниже, полный разбор — `docs/REPORTS/PROGRAM_ITEM_WRITE_GRANT_FIX_2026-08-20.md`):**
+
+- [x] Полная перепись всех insert-путей на программном письме (9 таблиц), какие уже работали (DELETE/UPDATE —
+      да, `lfk_exercise_regions` — да) и какие нет (8 из 9 insert) — отчёт §1.
+- [x] Причина найдена и доказана прогоном на живом DEV (`SET ROLE app_staff`, реальная форма Drizzle-SQL),
+      не чтением кода — отчёт §2.
+- [x] Починка — только `relation-access.ts` (декларация), НЕ миграция, НЕ грант в обход генератора;
+      `generate-cli.mjs --check` побайтно ОК до и после — отчёт §3.
+- [x] Поведенческий тест `deploy/postgres/privileges/treatment-program-staff-insert.devDbProof.test.mjs`:
+      краснеет при отозванном гранте на `id` (самопроверка внутри теста), зеленеет с текущим — отчёт §4.
+- [x] Живое доказательство на DEV через реальный API-маршрут (`POST
+      /api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items`) — строка появилась в
+      `treatment_program_instance_stage_items`, затем удалена (не мусорить в DEV) — отчёт §5.
+- [x] Межарендная стена доказана дважды: доктор чужой организации получает 404 на уровне приложения И
+      RLS-отказ `new row violates row-level security policy` при попытке в обход приложения — отчёт §6.
+- [x] Тот же грант применён на `bersoncarebot_test` (там владелец реально видел ошибку) — отчёт §7.
 
 ## Превью для видео по ссылке (YouTube/VK) — заказ владельца 20.08
 
@@ -665,3 +728,79 @@ STATEMENT: insert into "treatment_program_instance_stage_items" (…)
       обложки действительно нет (приватный ролик, неизвестный провайдер).
 - [ ] Тест на поведение: снятая дверь краснит тест; проверено инъекцией.
 - [ ] Живая проверка на TEST владельцем: у `TEST VERT YOUTUBE` и `TEST VK HORIZ` появилось превью.
+
+## Очередь доставки на TEST: замер 20.08 01:45 MSK — очередь живая, дефект в другом
+
+Владелец получал письма «Самая старая неотправленная позиция: 18 ч (порог 15 мин)». Замерено на
+`bersoncarebot_test` (`public.outgoing_delivery_queue`, не `integrator.*` — такой схемы нет):
+
+| показатель | значение |
+|---|---|
+| готовых к отправке ПРЯМО СЕЙЧАС (`status in (pending,failed_retryable) and next_retry_at<=now()`) | **0** |
+| в обработке | 0 |
+| подтверждённо отправлено за 24 ч | **55** |
+| последняя отправка | 19.08 23:12:51 |
+| последняя активность очереди | 20.08 00:00:07 |
+
+**Очередь работает.** 99 строк в `pending` имеют `next_retry_at = 2026-08-20 09:00:00+03` — это
+отложенные до конца окна тишины, и корень здоровья (`is_due` в миграции 0046) их правильно НЕ считает.
+
+**А вот настоящий дефект:** среди отложенных — **50 telegram-строк с `created_at` от 25.06** и
+`attempt_count = 0`. Им почти два месяца, они каждый день становятся готовыми в 09:00 и ни разу не были
+даже попытаны. Рядом в `dead` лежит подпись причины: `TELEGRAM_RUNTIME_CONFIG_UNAVAILABLE` — 52 строки,
+`MAX_RUNTIME_CONFIG_UNAVAILABLE` — 13. То есть на TEST нет рабочей конфигурации бота, отправитель не
+может взять работу, но строки не умирают, а бесконечно переносятся на следующее окно с нулём попыток.
+Счётчик `max_attempts=6` их не ловит, потому что попытка не засчитывается.
+
+**Отказов по правам больше нет.** 86 мёртвых строк с `permission denied for function
+revalidate_patient_reminder_delivery_materialization` — исторические: первая 18.08 12:20, последняя
+18.08 19:24. Сейчас `EXECUTE` на этой функции есть у `app_operational_delivery_worker` и
+`app_seam_reminder_materialization_owner`; после 18.08 21:21 ни одного нового отказа.
+
+**Мёртвый крон снят.** `bersoncarebot-test-web-push-only-reminders` бил каждую минуту (1468 раз в
+сутки) в `/opt/projects/bersoncarebot-test/deploy/host/web-push-only-reminder-cron.sh`, которого нет:
+скрипт и маршрут `/api/internal/reminders/web-push-only/tick` удалены 03.08 коммитом `f5e19344e`,
+работа переехала в `outgoingDeliveryWorker` интегратора. Снято через `cronport remove` 20.08.
+Это же и есть требование владельца «НЕ КРОН А СЕРВИС».
+
+### Что из этого работа (в план, не чинить на ходу)
+
+- [ ] Строка, которую отправитель не может взять из-за отсутствия конфигурации канала, обязана
+      засчитывать попытку и умирать по `max_attempts`, а не переноситься вечно с нулём попыток.
+- [ ] Отсутствие конфигурации канала на стенде — это отдельный сигнал оператору («канал не настроен»),
+      а не молчаливый вечный перенос.
+- [ ] Разобрать 99 отложенных строк на TEST: часть от 25.06 — мусор прошлых прогонов, ему место в `dead`.
+
+## Личность среды выведена из флага сборки — защита живых людей висит на одной строке (20.08)
+
+Владелец, увидев замер: «NODE_ENV на TEST равен production — пожалуй это косяк».
+
+**Уточнение диагноза.** `NODE_ENV=production` на TEST — правильно: это флаг режима сборки и рантайма
+Node/Next, а TEST обязан идти по тому же коду, что прод, иначе он не репетиция. Косяк в другом: **из
+флага режима сборки выводят, боевая это среда или нет.** Понятия «в какой среде мы развёрнуты» в коде
+нет вовсе — проверено `grep`: ни `APP_ENV`, ни `DEPLOY_ENV`, ни аналога.
+
+Что на этом висит сегодня:
+
+| место | что решает по `NODE_ENV` |
+|---|---|
+| `apps/integrator/src/shared/devDeliveryRedirect.ts:72` | перенаправлять ли доставку от живых людей |
+| `apps/integrator/src/config/loadEnv.ts:46` | послабление auth (`ALLOW_DEV_AUTH_BYPASS`) |
+| `apps/webapp/src/app/api/clinic/invites/route.ts:86` | отдавать ли ссылку-приглашение в ответе API |
+| куки-`secure`, `telegram-init`, `auth/exchange` и др. | ~10 мест |
+
+Поскольку на TEST `NODE_ENV=production`, перенаправление приходится включать опт-ин строкой
+`DEV_DELIVERY_REDIRECT=1`. То есть **защита живых людей по умолчанию ВЫКЛЮЧЕНА и держится на одной
+строке env-файла**; выкатка, не донёсшая эту строку, выключит её молча.
+
+**Решение (одна дверь, минимум кода):**
+
+- [ ] Личность развёртывания берётся из `APP_BASE_URL` — она уже есть, уже верна на всех трёх стендах и
+      совпадает с адресом, по которому ходят люди. Первый экземпляр этого понятия уже написан:
+      `computeOperatorAlertEnvLabel` в метке операторских писем — его и обобщить, а не заводить второй.
+- [ ] Инверсия умолчания: перенаправление доставки активно ВСЕГДА, кроме доказанного прода
+      (`bersoncare.ru`). `DEV_DELIVERY_REDIRECT` перестаёт быть выключателем защиты.
+- [ ] Гейт на старте, fail-closed: служба не поднимается, если среда не прод, а перенаправление
+      разрешилось неактивным. Отказ громкий и в момент старта.
+- [ ] Пройти остальные ~10 мест: каждое решает про боевую среду или про режим сборки — и должно
+      спрашивать соответствующий источник, а не `NODE_ENV` за двоих.
