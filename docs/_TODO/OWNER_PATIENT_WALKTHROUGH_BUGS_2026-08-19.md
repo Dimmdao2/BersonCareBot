@@ -27,10 +27,38 @@
 
 Симптом: отказ прав на `user_notification_topic_channels`.
 
-- [ ] Найти путь, который читает и пишет эту таблицу, и роль, под которой он идёт.
-- [ ] Закрыть отказ ПРАВИЛЬНО: объявленный корень с владельцем, у которого право уже есть.
-      Расширять права рабочим ролям ЗАПРЕЩЕНО. Не хватает права — это находка, а не повод выдать.
-- [ ] Доказать живьём: пациент открывает настройки каналов, меняет канал, изменение сохраняется.
+- [x] Найти путь, который читает и пишет эту таблицу, и роль, под которой он идёт.
+      Чтение — `apps/webapp/src/app/app/patient/notifications/settings/page.tsx` →
+      `pgTopicChannelPrefs.listByUserId` прямым `select` под `app_patient` (у роли есть
+      табличный SELECT). Запись — server action `setTopicChannelNotificationEnabled`
+      (`notificationPrefsActions.ts`) → `pgTopicChannelPrefs.upsert` → объявленный корень
+      `app.set_current_patient_notification_topic_channel(text,text,boolean)`,
+      SECURITY DEFINER, владелец `app_seam_patient_self_actions_owner`. Отказ приходил
+      ВНУТРИ корня, под логином `bcb_test_webapp_patient`.
+- [x] Закрыть отказ ПРАВИЛЬНО: объявленный корень с владельцем, у которого право уже есть.
+      Корень и его владелец уже существовали; новых корней, ролей и прав рабочим ролям не
+      появилось. Причина — `INSERT … ON CONFLICT DO UPDATE` под FORCE RLS перечитывает
+      конфликтующую строку и требует SELECT по ВСЕМ колонкам поверхности, а у владельца шва
+      SELECT был выдан на 3 из 5 (`channel_code, topic_code, user_id`) при INSERT/UPDATE на
+      всех 5. Закрыто коммитом `060250465` в `feat/doctor-ui-rebuild`: декларация выдаёт
+      владельцу шва SELECT на все 5 колонок, а генератор (`generate.mjs`) теперь ОТКАЗЫВАЕТ,
+      если поверхность с INSERT+UPDATE объявляет SELECT уже своей записи. Миграция не нужна:
+      права приходят из `deploy/postgres/generated/privileges.*.sql`, не из drizzle.
+      Тем же сужением были сломаны ещё четыре поверхности — все выправлены тем же коммитом.
+- [x] Доказать живьём: пациент открывает настройки каналов, меняет канал, изменение сохраняется.
+      Живой TEST под `kinesiospace@gmail.com` 19.08: 21 переключатель (7 тем × telegram/max/email)
+      отвечает `{"ok":true}`; страница после перезагрузки отдаёт записанное значение
+      (`patient_news/telegram` → `isEnabled:true` в модели страницы), в
+      `bersoncarebot_test.user_notification_topic_channels` — 19 строк с сегодняшним
+      `updated_at`. Внесение поломки на DEV (снять SELECT на `is_enabled, updated_at` у
+      владельца шва) воспроизводит ровно отказ владельца — `42501 permission denied for table
+      user_notification_topic_channels` внутри корня, UI отдаёт «Не удалось сохранить
+      настройки»; возврат гранта возвращает `{"ok":true}`.
+
+Отдельная проверка: путь врача (`/app/account` → `setDoctorTopicChannelNotificationEnabled`)
+пишет ту же таблицу напрямую под `app_staff`, у которой SELECT выдан на таблицу целиком, —
+тем же дефектом не задет. Проверено живьём на TEST: `doctor_patient_messages/telegram`
+false → true, обе записи `{"ok":true}` (первая INSERT, вторая ON CONFLICT DO UPDATE).
 
 ## 4. Часовой пояс сохраняется без подтверждения
 
