@@ -85,7 +85,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
       json: async () => ({
         ok: false,
         error: 'saas_billing_tariff_downgrade_blocked',
-        blocks: [{ mechanic: 'clinic_team' }, { mechanic: 'patient_count' }],
+        blocks: [{ mechanic: 'clinic_team' }, { mechanic: 'branches' }],
       }),
     });
     vi.stubGlobal('fetch', fetch);
@@ -107,7 +107,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
 
     fireEvent.click(screen.getByRole('button', { name: 'Перейти на тариф' }));
 
-    expect(await screen.findByText('Понижение недоступно: освободите места специалистов, пациенты.')).toBeInTheDocument();
+    expect(await screen.findByText('Понижение недоступно: освободите места специалистов, филиалы.')).toBeInTheDocument();
   });
 
   /**
@@ -153,14 +153,6 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         mechanics={[]}
         quotaUsage={[
           {
-            mechanic: 'patient_count',
-            label: 'Пациенты',
-            quota: { limit: 25, unit: 'items' },
-            usage: 25,
-            threshold: 'reached',
-            enforcement: 'application_transaction_snapshot',
-          },
-          {
             mechanic: 'branches',
             label: 'Филиалы',
             quota: { limit: 4, unit: 'items' },
@@ -191,8 +183,6 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     );
 
     expect(screen.getByText('Использовано из включённого')).toBeInTheDocument();
-    expect(screen.getByText('25 из 25')).toBeInTheDocument();
-    expect(screen.getByText('Предел достигнут')).toBeInTheDocument();
     expect(screen.getByText('1 из 4')).toBeInTheDocument();
     expect(screen.getByText('8.0 МБ из 10.0 МБ')).toBeInTheDocument();
     expect(screen.getByText('2 из 5')).toBeInTheDocument();

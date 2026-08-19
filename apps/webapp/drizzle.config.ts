@@ -10,6 +10,26 @@ import { defineConfig } from 'drizzle-kit';
 config({ path: path.resolve(process.cwd(), '.env.dev') });
 config();
 
+/**
+ * drizzle-kit may generate, introspect and check here; it may not APPLY.
+ *
+ * `drizzle-kit migrate` walks meta/_journal.json and applies everything with `when > max(created_at)`,
+ * so a migration whose name sorts below the watermark is skipped permanently and silently, and the
+ * rows it writes carry no `tag`. `drizzle-kit push` skips the migration files altogether. Both are
+ * refused at the config, which every drizzle-kit subcommand loads, so removing the package.json
+ * script is not the only thing standing between the database and the retired migrator.
+ */
+const RETIRED_APPLY_SUBCOMMANDS = ['migrate', 'push'];
+const retired = process.argv.slice(2).find((argument) => RETIRED_APPLY_SUBCOMMANDS.includes(argument));
+if (retired) {
+  throw new Error(
+    `drizzle-kit ${retired} is not how migrations reach a database here: it applies by the ` +
+      'meta/_journal.json watermark and writes untagged ledger rows. Use ' +
+      '`bash deploy/host/migrate-dev.sh --execute` (DEV), `bash deploy/host/deploy-test.sh <branch>` (TEST) ' +
+      'or `pnpm --dir apps/webapp run migrate` (local). Canon: AGENTS.md, "Миграции после baseline B0".',
+  );
+}
+
 const databaseUrl = process.env.DATABASE_URL?.trim();
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for drizzle-kit (set in apps/webapp/.env.dev or .env)');

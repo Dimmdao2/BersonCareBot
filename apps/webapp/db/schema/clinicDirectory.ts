@@ -162,6 +162,10 @@ export const organizationSlugClaims = pgTable(
   ],
 );
 
+export const ORGANIZATION_SLUG_RENAME_INITIATORS = ['clinic', 'platform_admin'] as const;
+export type OrganizationSlugRenameInitiator =
+  (typeof ORGANIZATION_SLUG_RENAME_INITIATORS)[number];
+
 /** Append-only proof of every owner-directed slug rename. */
 export const organizationSlugRenameEvents = pgTable(
   'organization_slug_rename_events',
@@ -169,6 +173,13 @@ export const organizationSlugRenameEvents = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid('organization_id').notNull(),
     actorPlatformUserId: uuid('actor_platform_user_id'),
+    /**
+     * Кто инициировал смену — ШТАМП на самом событии, поставленный в момент записи. Раньше этот факт
+     * выводился соединением с текущим членством, а членство каскадно удаляется вместе с аккаунтом:
+     * удаление сотрудника возвращало клинике израсходованную пожизненную смену. Штамп ни от чего
+     * внешнего не зависит. DEFAULT ограничительный: забытое значение тратит право, а не выдаёт его.
+     */
+    initiatedBy: text('initiated_by').default('clinic').notNull(),
     previousSlug: text('previous_slug').notNull(),
     nextSlug: text('next_slug').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -198,6 +209,10 @@ export const organizationSlugRenameEvents = pgTable(
     check(
       'organization_slug_rename_events_slugs_lower_check',
       sql`${table.previousSlug} = lower(${table.previousSlug}) AND ${table.nextSlug} = lower(${table.nextSlug})`,
+    ),
+    check(
+      'organization_slug_rename_events_initiated_by_check',
+      sql`${table.initiatedBy} = ANY (ARRAY['clinic'::text, 'platform_admin'::text])`,
     ),
   ],
 );

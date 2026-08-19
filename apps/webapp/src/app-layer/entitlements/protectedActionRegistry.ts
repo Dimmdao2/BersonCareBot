@@ -611,17 +611,6 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'gate.ctx.service.catalog.deactivateBranch',
   },
   {
-    id: 'patient-count.client.create',
-    mechanic: 'patient_count',
-    file: 'src/app/api/doctor/clients/route.ts',
-    exportName: 'POST',
-    method: 'POST',
-    authContext: 'requireDoctorWorkspaceApiContext',
-    guard: 'requireEntitlementForMutation',
-    serviceBoundary:
-      'createDoctorClient → pgPatientOrganization.createManualOrganizationClient → ensureInvitedOrganizationClientRelationship (atomic patient_count quota)',
-  },
-  {
     id: 'booking.service.create',
     mechanic: 'booking',
     file: 'src/app/api/admin/booking-engine/services/route.ts',

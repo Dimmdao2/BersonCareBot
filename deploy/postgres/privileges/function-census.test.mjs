@@ -20,6 +20,7 @@ import {
   latestArtifactFunctions,
   parseExecutableFunctions,
 } from './function-body-surface.mjs';
+import { assertNameCensus } from './name-census.mjs';
 import {
   compareDeclaredFunctionReturnShapes,
   extractFunctionReturnShapes,
@@ -33,7 +34,9 @@ const CURRENT_PATIENT_MIGRATIONS = [
   path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0017_patient_shared_core_capabilities.sql'),
 ];
 const B0_FORWARD_MIGRATIONS = fs.readdirSync(path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations'))
-  .filter((file) => /^\d{4}_.+\.sql$/.test(file))
+  // Обе схемы имён. Фильтр только по `^\d{4}_` молча уносил переименованные миграции из-под
+  // переписи: четыре двери исчезали из гейта, а он оставался зелёным — гейт без предмета не гейт.
+  .filter((file) => /^\d{4}_.+\.sql$/.test(file) || /^\d{8}T\d{6}_.+\.sql$/.test(file))
   .sort()
   .map((file) => path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations', file));
 const B0_EVIDENCE_COMMIT = '2e8ffe851a404da1894cb20b5b9d27e2dd409394';
@@ -79,79 +82,45 @@ phone_otp_public_booking_issue_challenge
 const functionsFor = (database) => Object.entries(declaration.portContext.functions)
   .filter(([, fn]) => !fn.databases || fn.databases.includes(database));
 
-test('all 47 current-patient B0-forward roots have exact executable relation-operation surfaces', () => {
+// Владелец шва — это стена: тело SECURITY DEFINER исполняется ЕГО правами, а не правами вызвавшего.
+// Счётчик владельцев не двигался, когда функция переезжала с собственного узкого владельца на
+// соседнего широкого, — а это ровно расширение шва на чужие таблицы. Сверка имён называет и
+// осиротевшую объявленную роль шва, и владельца, которого в кластере никто не объявлял.
+const assertDefinerOwnersAreDeclaredSeamRoles = () => {
+  const owners = new Set(Object.values(declaration.portContext.functions)
+    .filter((fn) => fn.security === 'DEFINER').map((fn) => fn.owner));
+  assert.deepEqual(
+    [...owners].filter((owner) => !declaration.cluster.roles[owner]).sort(), [],
+    'DEFINER owners that the cluster never declares as a role',
+  );
+  assert.deepEqual(
+    Object.keys(declaration.cluster.roles)
+      .filter((role) => role.startsWith('app_seam_') && !owners.has(role)).sort(), [],
+    'declared app_seam_* seam roles that own no DEFINER function',
+  );
+  assertNameCensus(
+    'definerOwnersOutsideSeamPrefix',
+    [...owners].filter((owner) => !owner.startsWith('app_seam_')),
+    'DEFINER owners that are not app_seam_* seam roles',
+  );
+  return owners;
+};
+
+test('the current-patient B0-forward roots are exactly the recorded set with exact executable relation-operation surfaces', () => {
   const functions = currentPatientArtifactFunctions(CURRENT_PATIENT_MIGRATIONS);
-  assert.equal(functions.length, 47);
+  assertNameCensus('currentPatientArtifactRoots', functions.map((fn) => fn.name),
+    'current-patient roots reconstructed from migrations 0016+0017');
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
 test('all latest active B0-forward definers have exact executable relation-operation surfaces', () => {
   const functions = latestArtifactFunctions(B0_FORWARD_MIGRATIONS);
-  // 83 → 84 (18.08, L-11): миграция 0024 стала последним определением
-  // `app.choose_organization_first_tariff`. Раньше её тело жило вне пронумерованных миграций, поэтому
-  // в перепись оно не попадало вовсе — прибавка означает, что функция наконец под учётом, а не что
-  // появилась новая.
-  // 84 → 89 (18.08): миграция 0025 забрала в репозиторий пять тел, которые существовали ТОЛЬКО в
-  // живой DEV-базе (`app.require_attested_target_role`, `app.enqueue_current_reminder_rule_push`,
-  // `app.read_current_patient_treatment_program_description`,
-  // `app.resolve_patient_acquiring_webhook_organization`, `app.append_platform_audit_event`).
-  // Из-за этого TEST их не получал ничем: четыре отсутствовали целиком, а рукописный
-  // `exact_existing`-гейт пятой ронял reconcile-access. Прибавка = функции наконец под учётом,
-  // новых функций не появилось.
-  // 89 → 92 (18.08): миграция 0026 забрала три тела с РУКОПИСНЫМ `exact_existing`-гейтом, которые
-  // не создавал ни один файл репозитория (`app.passkey_issue_challenge`,
-  // `app.passkey_read_challenge`, `app.resolve_staff_workspace_memberships`). Все три стоят на пути
-  // входа, а генератор такой гейт только сверяет с декларацией и никогда не создаёт, поэтому в
-  // существующую TEST-базу тело не попадало ничем. Прибавка = функции наконец под учётом,
-  // новых функций не появилось. `app.pre_session_resolve_identity` в счёт не входит: её создаёт
-  // `deploy/postgres/port-context/contract.sql`, а не пронумерованная миграция.
-  // 92 → 93 (18.08): миграция 0029 добавила `app.prune_operator_health_failure_archive(integer)` —
-  // именованный корень TTL-подметания архива отказов, снявший relation-DELETE от арендной роли.
-  // 93 → 95 (19.08): миграция 0030 добавила два именованных корня аудитории доставки —
-  // `app.read_integrator_delivery_target_snapshot(...)` (класс `tenant_service`) и
-  // `app.read_admin_notification_targets(text)` (`pre_session` + `service`). Оба заменили сырые
-  // чтения отношений, новых отношений в обороте не появилось.
-  // 95 → 96 (19.08): миграция 0031 — ОДИН именованный корень уборки `app.prune_retention_target(text,integer,boolean)` с закрытым списком целей.
-  // Прибавка ровно одна на четыре таблицы: пяти функций владелец не захотел.
-  // 96 → 98 (19.08): миграция 0033. Прибавка ДВЕ, но новая функция ОДНА:
-  // `app.enqueue_outbound_message(...)` — единственный корень постановки исходящего сообщения.
-  // Вторая — `app.resolve_outgoing_delivery_scope(uuid)`: её тело существовало ТОЛЬКО в живой базе
-  // и в удалённом снимке, ни один файл репозитория его не создавал (см. заголовок 0033). Она
-  // наконец под учётом, а не появилась.
-  // 98 → 99 (19.08): миграция 0034 — ОДИН именованный корень замены поколения напоминаний о записи
-  // `app.replace_appointment_reminder_generation(...)`. До него вебапп писал очередь напрямую, а
-  // INSERT на неё не выдан ни одной рабочей роли, поэтому строк `appointment_reminder` не появлялось
-  // вовсе. Прибавка ровно одна: новых отношений в обороте не появилось.
-  // 99 → 101 (19.08): миграция 0037 — два корня «пациент читает и пишет свои контакты формы записи»
-  // 101 → 103 (19.08): миграция 0038. Прибавка ДВЕ, новая функция ОДНА —
-  // `app.read_operator_health_digest_last_sent_at()`. Вторая,
-  // `app.revalidate_patient_reminder_delivery_materialization(uuid)`, тело которой жило ТОЛЬКО в
-  // живой базе, наконец под учётом: `SELECT *` в нём требовал колонок, которых шов не держит.
-  // 103 → 105 (19.08): миграция 0039 — снимок здоровья очереди и постановка суточной сводки.
-  // 105 → 107 (19.08): миграция 0040 — аудитория staff-веб-пуша операторского алерта и
-  // межарендное перечисление подписок, у которых кончился оплаченный период.
-  // 107 → 108 (19.08): миграция 0041 — открытие критического инцидента: сторож видел инциденты
-  // и не мог открыть ни одного.
-  // 108 → 110 (19.08): миграция 0042 забрала в репозиторий ДВА тела, которые существовали ТОЛЬКО в
-  // живой базе — `app.read_canonical_appointment_by_external_id(text)` и
-  // `app.resolve_public_booking_organization(uuid,uuid)`. Оба перестали читать
-  // `public.be_external_entity_mappings`: таблица удалена вместе с Rubitime. Прибавка = функции
-  // наконец под учётом, новых функций не появилось.
-  // 110 → 111 (19.08): корень платформенного дашборда (миграция 0045).
-  // 111 → 112 (19.08): миграция 0046 забрала в перепись `app.resolve_operator_probe_incidents(text)` —
-  // её тело владело только `deploy/postgres/c4-operational-runtime.sql` и живой базой, ни одна
-  // пронумерованная миграция его не создавала. `app.read_operator_delivery_queue_health()` в счёт не
-  // входит: та же функция под тем же именем, `CREATE OR REPLACE` только сузил класс отказов, которые
-  // проба умеет закрывать (было — 0039).
-  // 112 → 115 (19.08): миграция публичной воронки записи — три новые двери (каталог, снимок слотов,
-  // поля формы). Четвёртое тело, `app.resolve_public_booking_organization(uuid,uuid)`, было под учётом
-  // с 0042 и счётчик не двигает: миграция только перевела его гейт на `app.require_accepted_context`.
-  // 115 → 116 (19.08): миграция 0047 забрала в перепись `app.open_or_touch_operator_probe_incident
-  // 116 → 118 (19.08): чтение и запись публичной визитки клиники.
-  // 118 → 121 (19.08): миграция 0050 — три двери разбора очереди пересборки видео. Прямых ролей у
-  // `public.media_transcode_jobs` не осталось вовсе: диспетчер межарендный, а прежние гранты были
-  // мертвы (политика роли требовала `app.current_org_id()`, которой у неё нет и быть не может).
-  assert.equal(functions.length, 121);
+  // Каждое имя здесь — тело SECURITY DEFINER функции, которое живая база получает ТОЛЬКО из
+  // пронумерованной миграции. Исчезнувшее имя означает, что тело перестало доезжать до базы;
+  // появившееся — новую дверь, которую никто не сверял. Счёт этого не различал: он менялся на
+  // единицу и в том, и в другом случае, и правился подгонкой числа.
+  assertNameCensus('b0ForwardArtifactRoots', functions.map((fn) => fn.name),
+    'latest active B0-forward definer bodies in numbered migrations');
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -162,7 +131,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 409 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('every declared function has the exact source-reconstructed base type and set-returning flag, and no body is undeclared', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -180,66 +149,18 @@ test('all 409 declared functions have the exact source-reconstructed base type a
     'app_ext.digest(text,text)': { returns: 'bytea', returnsSet: false },
     'app_ext.hmac(text,text,text)': { returns: 'bytea', returnsSet: false },
   };
-  // 386 → 387 (18.08): `app_ext.expire_accepted_port_context()` — отложенный constraint-триггер,
-  // удаляющий принятый port-контекст на COMMIT его собственной транзакции
-  // (`deploy/postgres/port-context/contract.sql`). Прибавка — одна новая функция шва контекста,
-  // а не перепись существующих.
-  // 387 → 388 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029,
-  // именованный корень TTL-подметания архива отказов.
-  // 388 → 389 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — SECURITY INVOKER
-  // обёртка, ставящая контекст и принимающая целевую роль за одну поездку в базу
-  // (`deploy/postgres/port-context/contract.sql`). Операторы шва те же и в том же порядке;
-  // прибавка — одна новая функция, а не перепись существующих.
-  // 389 → 391 (19.08): два корня аудитории доставки из миграции 0030.
-  // 391 → 392 (19.08): миграция 0031 — ОДИН именованный корень уборки `app.prune_retention_target(text,integer,boolean)` с закрытым списком целей.
-  // 391 → 392 (19.08): `app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint)` —
-  // проверка заявки на арендатора при установке контекста (`deploy/postgres/port-context/contract.sql`).
-  // Прибавка — одна новая функция шва личностей, а не перепись существующих.
-  // 393 → 394 (19.08): `app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)` —
-  // миграция 0033. Резолвер области уже был объявлен, поэтому счётчик двигает только новый корень.
-  // 394 → 395 (19.08): `app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)` —
-  // миграция 0034.
-  // 395 → 397 (19.08): те же два корня миграции 0037
-  // 397 → 398 (19.08): `app.read_operator_health_digest_last_sent_at()` — миграция 0038.
-  // 398 → 400 (19.08): два корня миграции 0039.
-  // 400 → 402 (19.08): два корня миграции 0040.
-  // 402 → 403 (19.08): корень открытия критического инцидента (миграция 0041).
-  // 403 → 404 (19.08): корень платформенного дашборда (миграция 0043).
-  // 404 → 407 (19.08): три новые двери публичной записи (миграция 0047, ex-0043); резолвер
-  // арендатора уже был объявлен с 0042.
-  // 407 → 409 (19.08): две двери визитки клиники.
-  // 409 → 412 (19.08): три двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(canonical.size, 412);
+  // Обратное направление к `compareDeclaredFunctionReturnShapes`: тот идёт по ОБЪЯВЛЕННЫМ функциям
+  // и называет каждую, которой не нашлось тела в исходниках. Здесь — недостающая половина: тело,
+  // восстановленное из исходников, которое не объявлено ничем. Такая функция не получает ни
+  // владельца шва, ни закрытого EXECUTE, ни сверки поверхности тела, и увидеть это нечем.
+  const declaredNames = new Set(Object.keys(declaration.portContext.functions)
+    .map((signature) => signature.slice(0, signature.indexOf('('))));
+  assert.deepEqual(
+    [...canonical.keys()].filter((name) => !declaredNames.has(name)).sort(),
+    [],
+    'function bodies reconstructed from the sources that no declaration claims',
+  );
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
-  const forms = [...canonical.values()].reduce((counts, row) => {
-    counts[row.form] = (counts[row.form] ?? 0) + 1;
-    return counts;
-  }, {});
-  // SCALAR 267 → 268 (19.08): `app.prune_retention_target(text,integer,boolean)` возвращает bigint.
-  // SCALAR 269 → 270 (19.08): `app.enqueue_outbound_message(...)` возвращает boolean.
-  // SCALAR 273 → 274 (19.08): `app.read_operator_health_digest_last_sent_at()` возвращает timestamptz.
-  // SCALAR 274 → 276 (19.08): снимок очереди возвращает jsonb, постановка сводки — boolean.
-  // SCALAR 276 → 278 (19.08): оба корня миграции 0040 возвращают jsonb.
-  // SCALAR 278 → 279 (19.08): корень открытия критического инцидента возвращает jsonb.
-  // SCALAR 279 → 280 (19.08): корень платформенного дашборда возвращает jsonb.
-  // SCALAR 280 → 283 (19.08): три двери публичной записи возвращают jsonb (миграция 0047, ex-0043).
-  // SCALAR 283 → 285 (19.08): обе двери визитки клиники возвращают jsonb.
-  // SCALAR 285 → 288 (19.08): взятие работы и чтение её файла возвращают jsonb, запись исхода —
-  // boolean (миграция 0050).
-  assert.deepEqual(forms, { SCALAR: 288, TABLE: 120, SETOF: 4 });
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
-  // 269 → 270 (19.08): корень уборки скалярный — возвращает число убранных строк.
-  // 271 → 272 (19.08): корень постановки исходящего сообщения возвращает boolean — «строка новая».
-  // 272 → 273 (19.08): корень замены поколения напоминаний возвращает jsonb `{current, inserted}`.
-  // 273 → 275 (19.08): два скалярных корня контактов формы записи из миграции 0037.
-  // 275 → 276 (19.08): корень времени последней подтверждённой сводки отдаёт timestamptz.
-  // 276 → 278 (19.08): оба корня миграции 0039 скалярные.
-  // 278 → 280 (19.08): оба корня миграции 0040 скалярные.
-  // 280 → 281 (19.08): корень открытия критического инцидента скалярный.
-  // 281 → 282 (19.08): корень платформенного дашборда скалярный.
-  // 282 → 285 (19.08): три скалярные двери публичной записи (миграция 0047, ex-0043).
-  // 287 → 290 (19.08): три скалярные двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 290);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -441,8 +362,9 @@ test('legacy census is restored without obsolete context and overlaid by the act
     triggers: 3,
     relationEdges: 486,
   });
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 232);
-  assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 232);
+  // Замороженная легаси-перепись и её данные обязаны сходиться друг с другом; число берётся из
+  // самой переписи, а не из второй копии в тесте. Ключи объекта не повторяются по построению.
+  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, BUSINESS_SEAM_STATS.functions);
   for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
     assert.equal(declaration.portContext.functions[signature], undefined, signature);
   }
@@ -459,55 +381,35 @@ test('legacy census is restored without obsolete context and overlaid by the act
 
   const testFunctions = functionsFor('bersoncarebot_test');
   const devFunctions = functionsFor('bcb_webapp_dev');
-  // +2 on 2026-08-18: both organization-slug deferred constraint-trigger guards became DEFINER seams.
-  // +1 (18.08): `app_ext.expire_accepted_port_context()` — см. комментарий у canonical.size.
-  // +1 (18.08): `app.prune_operator_health_failure_archive(integer)` — миграция 0029.
-  // +2 (19.08): оба корня аудитории доставки из миграции 0030.
-  // +1 (19.08): `app.prune_retention_target(text,integer,boolean)` — миграция 0031.
-  // +1 (19.08): `app_ext.assert_port_context_claim(...)` — проверка заявки на арендатора при
-  // установке контекста; SECURITY DEFINER, поэтому двигает и общий счётчик, и счётчик DEFINER.
-  // +1 (19.08): `app.enqueue_outbound_message(...)` — миграция 0033, SECURITY DEFINER.
-  // +1 (19.08): `app.replace_appointment_reminder_generation(...)` — миграция 0034, SECURITY DEFINER.
-  // +1 (19.08): `app.read_operator_health_digest_last_sent_at()` — миграция 0038, SECURITY DEFINER.
-  // +2 (19.08): оба корня миграции 0039, SECURITY DEFINER.
-  // +2 (19.08): оба корня миграции 0040, SECURITY DEFINER.
-  // +1 (19.08): корень открытия критического инцидента (миграция 0041), SECURITY DEFINER.
-  // 390 → 391 (19.08): корень платформенного дашборда — DEFINER (миграция 0043).
-  // +3 (19.08): три двери публичной записи (миграция 0047, ex-0043), все SECURITY DEFINER от
-  // `app_seam_public_booking_owner`. Резолвер арендатора уже был объявлен и счётчик не двигает.
-  // +3 (19.08): три двери разбора очереди пересборки видео (миграция 0050), все SECURITY DEFINER
-  // от `app_seam_patient_lfk_media_owner` — того же шва, что уже владеет постановкой в эту очередь.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 399);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 397);
-  // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
-  // DEFINER выше не двигаются.
-  // 397 → 399 (19.08): два корня контактов формы записи из миграции 0037.
-  // 399 → 400 (19.08): корень времени последней подтверждённой сводки (миграция 0038).
-  // 400 → 402 (19.08): два корня миграции 0039.
-  // 402 → 404 (19.08): два корня миграции 0040.
-  // 404 → 405 (19.08): корень открытия критического инцидента (миграция 0041).
-  // 405 → 406 (19.08): корень платформенного дашборда (миграция 0043).
-  // 406 → 409 (19.08): три двери публичной записи (миграция 0047, ex-0043).
-  // 409 → 411 (19.08): обе двери визитки клиники.
-  // 411 → 414 (19.08): три двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(testFunctions.length, 414);
-  assert.equal(devFunctions.length, 412);
-  // 44 → 45 (19.08): у корня уборки собственный владелец шва `app_seam_retention_sweep_owner`.
-  // Занять соседнего значило бы расширить его шов на чужие таблицы.
-  // 45 → 46 (19.08): та же причина у корня платформенного дашборда — собственный владелец шва
-  // `app_seam_platform_analytics_owner` (миграция 0043).
-  // 46 → 47 (19.08): у визитки был собственный владелец шва `app_seam_public_clinic_card_owner`.
-  // 47 → 46 (19.08, OWNER_PRODUCT_RULES §33.3/§33.5): он снят — обе двери визитки принадлежат
-  // `app_seam_public_slug_owner`. Роль вокруг публичной витрины не даёт безопасности, только цену.
-  // 46 → 47 (19.08, откат): снятие держало роль живой в кластере TEST и роняло выкатку.
-  assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 47);
+  // Счётчики DEFINER и общего числа заменены двумя сверками имён.
+  //
+  // Что ловит первая: функция шва тихо стала SECURITY INVOKER. Тогда её тело исполняется правами
+  // вызывающего логина, а не владельца шва, и каждое обращение к закрытой таблице умирает 42501 —
+  // ровно живой дефект 18.08 (L-7), описанный ниже в этом файле. Счётчик «396» показывал такую
+  // подмену числом 395 и не называл ни функцию, ни базу; список называет её первой строкой diff-а.
+  //
+  // Что ловит вторая: функция объявлена только для одной базы. Разница между TEST и DEV — это
+  // ровно `TEST_ONLY` и ничто больше; всё прочее означает, что DEV не получит двери, которую
+  // получит TEST, или наоборот.
+  assertNameCensus(
+    'declaredNonDefinerFunctions',
+    Object.entries(declaration.portContext.functions).filter(([, fn]) => fn.security !== 'DEFINER')
+      .map(([signature]) => signature),
+    'declared functions that are NOT SECURITY DEFINER',
+  );
+  assert.deepEqual(
+    testFunctions.map(([signature]) => signature).filter((signature) => !TEST_ONLY.includes(signature)).sort(),
+    devFunctions.map(([signature]) => signature).sort(),
+    'TEST and DEV must declare the same functions apart from the exact TEST_ONLY fixtures',
+  );
+  assertDefinerOwnersAreDeclaredSeamRoles();
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
   const proconfigExceptions = Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
-  assert.equal(Object.values(BUSINESS_SEAM_FUNCTIONS)
-    .filter((fn) => fn.proconfig[0] === 'search_path=pg_catalog').length, 226);
+  // Счёт функций с каноническим search_path удалён: он ровно дополнение к списку исключений ниже,
+  // а тот перечислен ПОИМЁННО вместе со своим search_path — расхождение называет он.
   assert.deepEqual(proconfigExceptions, [
     ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
     ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],
@@ -521,17 +423,7 @@ test('legacy census is restored without obsolete context and overlaid by the act
 test('every application seam owner and function caller has the closed role shape', () => {
   const owners = new Set(Object.values(declaration.portContext.functions)
     .filter((fn) => fn.security === 'DEFINER' && fn.owner !== 'postgres').map((fn) => fn.owner));
-  // 43 → 44 (19.08): `app_seam_retention_sweep_owner` — владелец единственного корня уборки.
-  // 44 → 45 (19.08): у корня платформенного дашборда собственный владелец шва
-  // `app_seam_platform_analytics_owner`. Занять соседнего значило бы растянуть его шов на
-  // аналитику, клинику, упражнения, медиа и телеметрию сразу — четыре чужих заботы.
-  // 45 → 46 (19.08): `app_seam_public_clinic_card_owner` — владелец двух дверей визитки.
-  // 46 → 45 (19.08, OWNER_PRODUCT_RULES §33.3/§33.5): владелец снят. Обе двери визитки перешли к
-  // `app_seam_public_slug_owner` — весь его шов публичный целиком, закрытых таблиц в нём нет,
-  // поэтому «растянуть шов» здесь нечего: `media_files` он читает единственным предикатом
-  // «этот файл вписан в опубликованную карточку», а не как медиа-библиотеку.
-  // 45 → 46 (19.08, откат снятия): роль вернулась живой до полного снятия вместе с кластером.
-  assert.equal(owners.size, 46);
+  assertDefinerOwnersAreDeclaredSeamRoles();
   const loginNames = new Set(Object.values(declaration.envMapping).flatMap((records) => Object.keys(records)));
   for (const owner of owners) {
     const role = declaration.cluster.roles[owner];
@@ -556,8 +448,14 @@ test('every application seam owner and function caller has the closed role shape
   }
 });
 
-test('all 28 genuine pre-session roots have app_pre_session as their only caller', () => {
-  assert.equal(GENUINE_PRE_SESSION_FUNCTIONS.length, 28);
+test('every genuine pre-session root has app_pre_session as its only caller', () => {
+  // Список выше — курируемое ПОДМНОЖЕСТВО: корней, у которых единственный вызывающий
+  // `app_pre_session`, в переписи больше, а здесь перечислены признанные подлинными. Вывести его
+  // из данных нельзя, поэтому он записан переписью имён: вычеркнутая строка тихо снимала бы
+  // проверку «единственный вызывающий» с этого корня — прежний `length === 28` ловил это числом 27,
+  // не называя вычеркнутого, а без него не ловит никто.
+  assertNameCensus('genuinePreSessionRoots', GENUINE_PRE_SESSION_FUNCTIONS,
+    'roots recognised as genuinely pre-session');
   for (const functionName of GENUINE_PRE_SESSION_FUNCTIONS) {
     const matches = Object.entries(BUSINESS_SEAM_FUNCTIONS)
       .filter(([signature]) => signature.startsWith(`app.${functionName}(`));
@@ -570,7 +468,12 @@ test('dedicated bot relation carries its runtime resolver and non-runtime trigge
   for (const database of DATABASES) {
     const access = declaration.databases[database].tables['public.clinic_dedicated_bot_bindings'].access;
     assert.equal(access.kind, 'named-seams');
-    assert.equal(access.seams.length, 2);
+    // Третий шов на этой таблице — третья дверь к привязке выделенного бота. Счёт «2» назвал бы
+    // только число; список называет саму дверь.
+    assert.deepEqual(access.seams.map((seam) => seam.regprocedure), [
+      'app.resolve_clinic_dedicated_bot_organization(text,text)',
+      'app.sync_clinic_dedicated_bot_binding()',
+    ], database);
     assert.deepEqual(access.seams[0], {
       regprocedure: 'app.resolve_clinic_dedicated_bot_organization(text,text)',
       owner: 'app_seam_dedicated_bot_owner',
@@ -593,8 +496,7 @@ test('dedicated bot relation carries its runtime resolver and non-runtime trigge
 
 test('complete relation APIs leave no generation gap', () => {
   for (const database of DATABASES) {
-    const gaps = collectGaps(declaration, database);
-    assert.equal(gaps.length, 0);
+    assert.deepEqual(collectGaps(declaration, database), [], database);
   }
   const missingShape = structuredClone(declaration);
   delete missingShape.portContext.functions['app.accept_org_invite(text,uuid,text)'].returnsSet;
@@ -725,9 +627,13 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    // 390/388 → 391/389 (19.08): корень платформенного дашборда (миграция 0043).
-    // 391/389 → 394/392 (19.08): три двери публичной записи (миграция 0047, ex-0043).
-    const expectedDefiners = database === 'bersoncarebot_test' ? 399 : 397;
+    // Эта сверка ОСТАЁТСЯ числом сознательно, но число больше не вписано руками: она ловит
+    // рассинхрон СГЕНЕРИРОВАННОГО артефакта с декларацией — SQL объявляет «я проверил N тел», и
+    // если генератор выпустил другое количество строк-контрактов, деплой сверяет не то, что думает.
+    // Оракул — сама декларация, поэтому легальная новая функция двигает обе стороны разом и правки
+    // теста не требует; расхождение остаётся ровно там, где оно и есть.
+    const definerSignatures = functionsFor(database)
+      .filter(([, fn]) => fn.security === 'DEFINER').map(([signature]) => signature);
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),
@@ -741,7 +647,20 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /am\.member = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /am\.roleid = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /REVOKE ALL ON FUNCTION app\.resolve_clinic_dedicated_bot_organization\(text,text\) FROM PUBLIC/);
-    assert.ok(surfaceVerifier.includes(`BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=${expectedDefiners}`));
+    // Сам ПРЕДМЕТ сверки — поимённо: артефакт перечисляет тела, которые деплой пойдёт проверять на
+    // живой базе, и этот список обязан быть ровно объявленным набором DEFINER-функций. Число
+    // `functions=N` совпадает и тогда, когда одно тело подменено другим, — тогда деплой сверяет не
+    // то, что декларация думает, и молчит об этом.
+    const verifiedSignatures = [...surfaceVerifier
+      .slice(surfaceVerifier.indexOf('INSERT INTO bcb_function_surface_functions(signature) VALUES'))
+      .matchAll(/^ {2}\('([^']+)'\),?$/gmu)].map(([, signature]) => signature);
+    assert.deepEqual([...verifiedSignatures].sort(), [...definerSignatures].sort(),
+      `${database}: the generated body-surface verifier checks a different set of function bodies `
+      + 'than the declaration declares SECURITY DEFINER');
+    const verifiedFunctions = /BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=(\d+)/u.exec(surfaceVerifier)?.[1];
+    assert.equal(Number(verifiedFunctions), verifiedSignatures.length,
+      `${database}: generated verifier declares functions=${verifiedFunctions} but seeds `
+      + `${verifiedSignatures.length} function bodies into its own check`);
     assert.ok(surfaceVerifier.includes('special_contracts=8'));
     assert.match(surfaceVerifier, /CREATE TEMP TABLE bcb_function_surface_special_contracts/);
     assert.ok(surfaceVerifier.includes("('app_control.enforce_relation_birth_wall()', 'relation-birth-wall')"));

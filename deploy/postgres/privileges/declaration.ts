@@ -3391,12 +3391,17 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.saas_billing_invoices',
           columns: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
-            'expires_at', 'status', 'provider_invoice_ref', 'tariff_id', 'tariff_name', 'amount_minor',
-            'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+            'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor', 'tariff_id', 'tariff_name',
+            'amount_minor', 'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot',
+            'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: {
+            // `carried_debt_minor` ЧИТАЕТСЯ (миграция 0050): пересчитанная сумма периода складывается
+            // из цены тарифа, мест и уже переехавшего долга. Без этого чтения смена тарифа под
+            // черновиком тихо прощала бы долг прошлого периода. Писать эту колонку шов не вправе:
+            // долг назначает только та дверь, которая гасит счёт-предшественник.
             SELECT: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
-              'expires_at', 'status', 'provider_invoice_ref'],
+              'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor'],
             UPDATE: ['tariff_id', 'tariff_name', 'amount_minor', 'currency', 'tariff_billing_period',
               'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
           },
@@ -3412,6 +3417,32 @@ const REV10_CONTEXT = {
             'mailing_templates', 'mechanic_access_policies', 'mechanics', 'name', 'price_minor', 'quotas',
             'system_access_policy', 'updated_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Миграция 0050. Снять переехавший долг со счёта-преемника, когда оплата за место всё-таки
+    // пришла по старой живой ссылке провайдера. Сумму шов НЕ принимает — выводит её из строки
+    // погашенного счёта, а организацию сверяет на каждой строке цепочки. Писать `amount_minor` и
+    // `carried_debt_minor` арендной роли по-прежнему нельзя: денежная стена ровно за тем и стоит,
+    // чтобы сумму счёта менял один узкий шов, а не любой путь под ролью клиники.
+    'app.release_carried_seat_debt(uuid,uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_clinic_billing'],
+      purpose: 'release a carried seat debt from its successor invoice when the superseded invoice is paid after all',
+      typedArgs: ['uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_invoices',
+          columns: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+            'carried_debt_minor', 'superseded_by_invoice_id', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: {
+            SELECT: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+              'carried_debt_minor', 'superseded_by_invoice_id'],
+            // Обе денежные колонки меняются ОДНИМ вычитанием и только вниз: снимается ровно та
+            // сумма, что переехала. `carried_debt_minor <= amount_minor` держит ограничение таблицы.
+            UPDATE: ['amount_minor', 'carried_debt_minor', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.touch_current_patient_support_conversation_activity(uuid)': {

@@ -65,7 +65,6 @@ type CabinetAccessRow = {
 
 type EnforcedQuotaUsageRow = {
   clinic_team_used: number | string;
-  patient_count_used: number | string;
   files_used: number | string;
 };
 
@@ -352,7 +351,7 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       // c5a-platform-operations-runtime.sql), so branches usage needs no SECURITY DEFINER hop.
       const [enforcedUsage, [branchesRow]] = await Promise.all([
         runWebappPgText<EnforcedQuotaUsageRow>(
-          `SELECT clinic_team_used, patient_count_used, files_used
+          `SELECT clinic_team_used, files_used
            FROM app.read_org_enforced_quota_usage($1::uuid)`,
           [organizationId],
         ),
@@ -366,7 +365,6 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       const usage = enforcedUsage.rows[0];
       return {
         clinic_team: numericQuotaUsage(usage?.clinic_team_used, 'clinic_team'),
-        patient_count: numericQuotaUsage(usage?.patient_count_used, 'patient_count'),
         files: numericQuotaUsage(usage?.files_used, 'files'),
         branches: Number(branchesRow?.value ?? 0),
       };
@@ -375,7 +373,7 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       // Billing runs under app_clinic_billing, not app_staff. Keep the sensitive source rows behind
       // the existing aggregate seam and let the database derive the signed organization itself.
       const result = await runWebappPgText<OwnTariffTransitionUsageRow>(
-        `SELECT organization_id, clinic_team_used, patient_count_used, files_used, branches_used
+        `SELECT organization_id, clinic_team_used, files_used, branches_used
          FROM app.read_current_org_tariff_transition_usage()`,
       );
       const usage = result.rows[0];
@@ -384,7 +382,6 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       }
       return {
         branches: numericQuotaUsage(usage.branches_used, 'branches'),
-        patient_count: numericQuotaUsage(usage.patient_count_used, 'patient_count'),
         files: numericQuotaUsage(usage.files_used, 'files'),
         clinic_team: numericQuotaUsage(usage.clinic_team_used, 'clinic_team'),
       };

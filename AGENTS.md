@@ -396,17 +396,39 @@ CI на коммите + human-approval. Далее SSH под `deploy` запу
 чинили трижды и один раз уронили миграцию на TEST. Хешем личность быть не может: файл миграции здесь
 штатно правят на месте после применения, и для уже накатанных баз правка инертна.
 
-**Строка леджера — заявление, а не доказательство.** Перед каждым прогоном мигратор проверяет в
-каталоге каждый объект, созданный применёнными миграциями и не снесённый следующими; один
-отсутствующий останавливает прогон и называет объект и его миграцию. Восстановление — тем же
-wrapper'ом, `--reapply <tag>` с явным перечислением каждого tag, после проверки, что миграция
-безопасна для повторного выполнения. Ручной `psql`-накат мимо wrapper'а не пишет леджер и запрещён.
+**Строка леджера — заявление, а не доказательство. Каждая миграция обязана оставить проверяемый
+след.** Перед каждым прогоном мигратор спрашивает у базы всё, что должны ей применённые миграции:
+каждый объект, созданный ими и не снесённый следующими, плюс явную пробу `-- BCB-MIGRATION-VERIFY:
+SELECT …` у тех, кто своего объекта в каталоге не держит. Один неотвеченный пункт останавливает
+прогон и называет миграцию. Миграция без объекта и без `VERIFY` не принимается гейтом
+(`check-drizzle-migration-order.sh`): для неё дописанная руками строка леджера неотличима от
+настоящей. Проба — один `SELECT`, возвращающий boolean, читается ТОЛЬКО из шапки файла (ведущий блок
+комментариев) и не должна нести `;` или комментарий.
+
+**Восстановление — через entrypoint, а не через голый wrapper:**
+`bash deploy/host/migrate-dev.sh --execute --reapply <tag>` (DEV),
+`bash deploy/host/deploy-test.sh <branch> --reapply <tag>` (TEST), каждый tag перечисляется явно,
+после проверки, что миграция безопасна для повторного выполнения. `--reapply` восстанавливает объект
+по ФАЙЛУ миграции, а definer-функция — это ещё и шов аттестации в теле и `EXECUTE` для вызывающей
+роли, и то и другое приезжает декларацией привилегий. Голый `node migrate-local.mjs --reapply`
+оставил бы функцию без шва и без гранта, поэтому wrapper его отказывает; entrypoint'ы гонят reconcile
+последним шагом, и это единственное, что делает восстановление полным. Ручной `psql`-накат мимо
+wrapper'а не пишет леджер и запрещён.
+
+**Журнал заморожен пином.** `meta/_journal.json` больше не задаёт порядок, но всё ещё выдаёт имя
+строке леджера, у которой имени нет. Одна дописанная строка отдаёт чужой строке имя невыполненной
+миграции, поэтому рядом лежит `meta/_journal.frozen` с его дайджестом, и оба прогонщика отказывают при
+расхождении. Если сведение веток правда обязано расширить карту — пин двигается ТЕМ ЖЕ коммитом, где
+его видно ревьюеру.
 
 Правила стоят в одном модуле `deploy/postgres/privileges/migration-order.mjs`, который читают оба
 прогонщика — wrapper DEV/TEST (`deploy/postgres/privileges/migrate-local.mjs`) и локальный
 `pnpm run migrate` (`apps/webapp/scripts/run-webapp-drizzle-migrate.mjs`). Мигратор Drizzle ORM здесь
 не используется: он применяет `when > max(created_at)` по журналу, то есть несёт ровно ту болезнь,
-которую этот модуль лечит.
+которую этот модуль лечит. `drizzle-kit migrate`/`push` отказывают в `drizzle.config.ts`, а бывшие
+`db:migrate:drizzle` и `db:seed-drizzle-meta` — это отказ, называющий санкционированный маршрут
+(`scripts/refuse-retired-migration-shortcut.mjs`); `drizzle-kit generate`/`introspect`/`check` работают
+как работали.
 
 **Смысл:** поддерживаемый начальный контракт — `B0`, а не восстановление истории разработки. Два
 места для одного факта расходятся при сведении веток молча, поэтому место оставлено одно — имя файла.
@@ -821,7 +843,7 @@ Route handlers MUST NOT contain business logic, database queries, or direct infr
 All new database tables and queries must use Drizzle ORM:
 
 - Schema in `apps/webapp/db/schema/*.ts`
-- Migrations via `drizzle-kit generate` + `drizzle-kit migrate`
+- Migrations via `drizzle-kit generate`; applied only through the sanctioned runners (см. «Миграции после baseline B0»), `drizzle-kit migrate` отказывает
 - Types inferred from schema (`typeof table.$inferSelect`)
 - No raw SQL (`pool.query(...)`) for new features
 - Follow раздел [SaaS Foundation-aware development](#4a-saas-foundation-aware-development): before adding a table/column/write path, choose the ownership path (`organization_id`, scoped parent, `specialist_id`, patient/enrollment, appointment, program instance, or true global catalog).

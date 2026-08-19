@@ -15,6 +15,7 @@ import {
 } from './operatorHealthAlertConfig';
 import { getOperatorAlertDedupPort } from './operatorAlertRuntime';
 import { reportEmptyAudience } from './emptyAudienceRuntime';
+import { stampOperatorAlertSubject } from './operatorAlertEnvLabel';
 
 const MAX_LINE = 500;
 const DEDUP_HOURS = 24;
@@ -163,7 +164,9 @@ export async function dispatchOperatorAlert(
   const maxTargets = targets.max ?? [];
   const smsTargets = targets.sms ?? [];
   const emailTargets = targets.email ?? [];
-  const pushTitle = input.pushTitle ?? input.topic;
+  // Один чокпоинт метки окружения: и email-subject, и заголовок web-push берут pushTitle
+  // отсюда, значит оба канала получают метку без дублирования кода на каждом из них.
+  const pushTitle = stampOperatorAlertSubject(input.pushTitle ?? input.topic);
   const pushBody = clip(input.lines.find((line) => line.trim().length > 0) ?? text, 160);
   const pushUrl = input.pushUrl ?? '/app/admin/technical';
 

@@ -580,7 +580,8 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
     'created_by_platform_user_id', 'kind', 'organization_id', 'slug', 'updated_at',
   ]);
   exactColumns('public.organization_slug_rename_events', 'app_staff', 'INSERT', [
-    'actor_platform_user_id', 'created_at', 'id', 'next_slug', 'organization_id', 'previous_slug',
+    'actor_platform_user_id', 'created_at', 'id', 'initiated_by', 'next_slug', 'organization_id',
+    'previous_slug',
   ]);
 });
 
