@@ -142,7 +142,6 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // её тело владело только `deploy/postgres/c4-operational-runtime.sql` и живой базой, ни одна
   // пронумерованная миграция его не создавала.
   // 112 → 115 (19.08): миграция публичной воронки записи — три новые двери (каталог, снимок слотов,
-<<<<<<< HEAD
   // поля формы); `app.resolve_public_booking_organization(uuid,uuid)` был под учётом с 0042 —
   // миграция только перевела его гейт на `app.require_accepted_context`.
   // 115 → 116 (19.08): миграция 0047 забрала в перепись `app.open_or_touch_operator_probe_incident`.
@@ -150,14 +149,8 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // счётчик не двигает — сигнатура та же, менялось только тело.
   // 118 → 120 (19.08): единственная проверка оплаченного числа клиентов и компенсация неудавшейся
   // записи (0052). Смена подписи двери зачисления счётчик не двигает: тело то же одно.
-  assert.equal(functions.length, 120);
-=======
-  // поля формы). Четвёртое тело, `app.resolve_public_booking_organization(uuid,uuid)`, было под учётом
-  // с 0042 и счётчик не двигает: миграция только перевела его гейт на `app.require_accepted_context`.
-  // 115 → 116 (19.08): миграция 0047 забрала в перепись `app.open_or_touch_operator_probe_incident
-  // 116 → 118 (19.08): чтение и запись публичной визитки клиники.
-  assert.equal(functions.length, 118);
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
+  // 120 → 122 (19.08): чтение и запись публичной визитки клиники (0049, встречная ветка).
+  assert.equal(functions.length, 122);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -213,15 +206,11 @@ test('all 409 declared functions have the exact source-reconstructed base type a
   // 403 → 404 (19.08): корень платформенного дашборда (миграция 0043).
   // 404 → 407 (19.08): три новые двери публичной записи (миграция 0047, ex-0043); резолвер
   // арендатора уже был объявлен с 0042.
-<<<<<<< HEAD
   // 407 → 409 (19.08): две двери ЗАПИСИ публичной воронки (миграция 0051).
   // 409 → 411 (19.08): единственная проверка оплаченного числа клиентов и компенсация неудавшейся
   // записи (миграция 0052); смена подписи двери зачисления счётчик не двигает.
-  assert.equal(canonical.size, 411);
-=======
-  // 407 → 409 (19.08): две двери визитки клиники.
-  assert.equal(canonical.size, 409);
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
+  // 411 → 413 (19.08): две двери визитки клиники (миграция 0049, встречная ветка).
+  assert.equal(canonical.size, 413);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
@@ -235,14 +224,10 @@ test('all 409 declared functions have the exact source-reconstructed base type a
   // SCALAR 278 → 279 (19.08): корень открытия критического инцидента возвращает jsonb.
   // SCALAR 279 → 280 (19.08): корень платформенного дашборда возвращает jsonb.
   // SCALAR 280 → 283 (19.08): три двери публичной записи возвращают jsonb (миграция 0047, ex-0043).
-<<<<<<< HEAD
   // SCALAR 283 → 285 (19.08): обе двери ЗАПИСИ публичной воронки скалярные (миграция 0051).
   // SCALAR 285 → 287 (19.08): проверка квоты (void) и компенсация (jsonb) — обе скалярные (0052).
-  assert.deepEqual(forms, { SCALAR: 287, TABLE: 120, SETOF: 4 });
-=======
-  // SCALAR 283 → 285 (19.08): обе двери визитки клиники возвращают jsonb.
-  assert.deepEqual(forms, { SCALAR: 285, TABLE: 120, SETOF: 4 });
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
+  // SCALAR 287 → 289 (19.08): обе двери визитки клиники возвращают jsonb (миграция 0049, встречная ветка).
+  assert.deepEqual(forms, { SCALAR: 289, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
   // 269 → 270 (19.08): корень уборки скалярный — возвращает число убранных строк.
   // 271 → 272 (19.08): корень постановки исходящего сообщения возвращает boolean — «строка новая».
@@ -254,13 +239,10 @@ test('all 409 declared functions have the exact source-reconstructed base type a
   // 280 → 281 (19.08): корень открытия критического инцидента скалярный.
   // 281 → 282 (19.08): корень платформенного дашборда скалярный.
   // 282 → 285 (19.08): три скалярные двери публичной записи (миграция 0047, ex-0043).
-<<<<<<< HEAD
   // 285 → 287 (19.08): обе двери ЗАПИСИ публичной воронки скалярные (миграция 0051).
   // 287 → 289 (19.08): проверка квоты и компенсация неудавшейся записи (миграция 0052).
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 289);
-=======
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 287);
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
+  // 289 → 291 (19.08): обе двери визитки клиники скалярные (миграция 0049, встречная ветка).
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 291);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -496,15 +478,12 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // 390 → 391 (19.08): корень платформенного дашборда — DEFINER (миграция 0043).
   // +3 (19.08): три двери публичной записи (миграция 0047, ex-0043), все SECURITY DEFINER от
   // `app_seam_public_booking_owner`. Резолвер арендатора уже был объявлен и счётчик не двигает.
-<<<<<<< HEAD
   // 396/394 → 398/396 (19.08): проверка оплаченного числа клиентов и компенсация неудавшейся
   // записи (миграция 0052), обе SECURITY DEFINER.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 398);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 396);
-=======
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 396);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 394);
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
+  // 398/396 → 400/398 (19.08): обе двери визитки клиники, обе SECURITY DEFINER (миграция 0049,
+  // встречная ветка; `databases` включает и test, и dev).
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 400);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 398);
   // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
   // DEFINER выше не двигаются.
   // 397 → 399 (19.08): два корня контактов формы записи из миграции 0037.
@@ -514,16 +493,11 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // 404 → 405 (19.08): корень открытия критического инцидента (миграция 0041).
   // 405 → 406 (19.08): корень платформенного дашборда (миграция 0043).
   // 406 → 409 (19.08): три двери публичной записи (миграция 0047, ex-0043).
-<<<<<<< HEAD
   // 411/409 → 413/411 (19.08): проверка оплаченного числа клиентов и компенсация неудавшейся
   // записи (миграция 0052).
-  assert.equal(testFunctions.length, 413);
-  assert.equal(devFunctions.length, 411);
-=======
-  // 409 → 411 (19.08): обе двери визитки клиники.
-  assert.equal(testFunctions.length, 411);
-  assert.equal(devFunctions.length, 409);
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
+  // 413/411 → 415/413 (19.08): обе двери визитки клиники (миграция 0049, встречная ветка).
+  assert.equal(testFunctions.length, 415);
+  assert.equal(devFunctions.length, 413);
   // 44 → 45 (19.08): у корня уборки собственный владелец шва `app_seam_retention_sweep_owner`.
   // Занять соседнего значило бы расширить его шов на чужие таблицы.
   // 45 → 46 (19.08): та же причина у корня платформенного дашборда — собственный владелец шва
@@ -753,13 +727,10 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     const first = generateFunctionCensusSql(declaration, database);
     // 390/388 → 391/389 (19.08): корень платформенного дашборда (миграция 0043).
     // 391/389 → 394/392 (19.08): три двери публичной записи (миграция 0047, ex-0043).
-<<<<<<< HEAD
     // 394/392 → 396/394 (19.08): две двери ЗАПИСИ публичной воронки (миграция 0051).
     // 396/394 → 398/396 (19.08): проверка квоты и компенсация (миграция 0052).
-    const expectedDefiners = database === 'bersoncarebot_test' ? 398 : 396;
-=======
-    const expectedDefiners = database === 'bersoncarebot_test' ? 396 : 394;
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
+    // 398/396 → 400/398 (19.08): обе двери визитки клиники (миграция 0049, встречная ветка).
+    const expectedDefiners = database === 'bersoncarebot_test' ? 400 : 398;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

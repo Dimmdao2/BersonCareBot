@@ -4005,7 +4005,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-<<<<<<< HEAD
     // Личность посетителя. Организации в аргументах нет: телефон принадлежит человеку, а не клинике,
     // и класс `pre_session` стоит до выбора арендатора.
     'app.resolve_public_booking_client_by_phone(text,text,boolean)': rev10Function({
@@ -4090,7 +4089,7 @@ const REV10_CONTEXT = {
         { relation: 'public.org_enrollments', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-=======
+    }),
     // Две двери визитки клиники (миграция 0049). Собственный владелец шва: ближайший сосед
     // `app_seam_public_slug_owner` читает те же три таблицы, но визитка добавляет к ним
     // `media_files` и `be_branches`, а запись — UPDATE на проекцию. Растянуть шов резолвера slug
@@ -4138,7 +4137,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
->>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
     }),
     'app.get_web_push_vapid_public_key()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.get_web_push_vapid_public_key()'],
