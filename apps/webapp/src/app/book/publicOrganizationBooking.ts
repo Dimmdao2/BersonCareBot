@@ -4,7 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { BookingCity } from '@/modules/booking-catalog/types';
 import {
   listInPersonCitiesForOrganization,
-  listInPersonServicesForBranch,
+  listPublicBookableServicesForBranch,
   resolveBookableOnlineLocationForOrganization,
   resolveActiveBranchForCity,
   titleForBookingCityCode,
@@ -123,7 +123,11 @@ export async function loadPublicOrganizationCitiesRsc(
       async () => {
         const [cities, onlineLocation] = await Promise.all([
           listInPersonCitiesForOrganization(deps, organizationId),
-          resolveBookableOnlineLocationForOrganization(deps, organizationId),
+          resolveBookableOnlineLocationForOrganization(
+            deps,
+            organizationId,
+            listPublicBookableServicesForBranch,
+          ),
         ]);
         return { cities, onlineLocation };
       },
@@ -162,7 +166,7 @@ export async function loadPublicOrganizationServicesForCityRsc(
       { organizationId, source: 'app/book/[slug]:load-services' },
       async () => {
         const branch = await resolveActiveBranchForCity(deps, organizationId, cityCode);
-        return branch ? listInPersonServicesForBranch(deps, organizationId, branch.id) : null;
+        return branch ? listPublicBookableServicesForBranch(deps, organizationId, branch.id) : null;
       },
     );
     if (!listed) return { ok: false, error: 'city_not_found', services: [] };
@@ -196,7 +200,7 @@ export async function loadPublicInPersonSlotContextForSlugRsc(input: {
     return await withExplicitOrganizationPrincipal(
       { organizationId: resolved.organizationId, source: 'app/book:load-direct-slot-context' },
       async () => {
-        const listed = await listInPersonServicesForBranch(
+        const listed = await listPublicBookableServicesForBranch(
           deps,
           resolved.organizationId,
           input.branchId,

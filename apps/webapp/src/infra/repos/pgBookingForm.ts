@@ -1,6 +1,8 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { isCurrentPublicBookingPrincipal } from '@/app-layer/principal/publicBookingPrincipal';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
   beBookingFormFields,
@@ -23,6 +25,42 @@ type BookingFormFieldRow = Pick<
   | 'isActive'
 >;
 
+const publicBookingFormFieldsSchema = z.array(
+  z.object({
+    id: z.string().uuid(),
+    organizationId: z.string().uuid(),
+    fieldKey: z.string(),
+    fieldType: z.string(),
+    label: z.string(),
+    placeholder: z.string().nullable(),
+    isRequired: z.boolean(),
+    visibleToPatient: z.boolean(),
+    visibleToStaff: z.boolean(),
+    sortOrder: z.number().int(),
+    isActive: z.boolean(),
+  }),
+);
+
+/**
+ * Дверь полей формы для анонимного посетителя. `NULL` — неопубликованная клиника: снаружи её нет,
+ * и форма для неё пуста, а не «как обычно». Пустой список от опубликованной клиники — законный.
+ */
+async function readPublicBookingFormFields(organizationId: string) {
+  const result = await runWebappNamedRoot<{ fields: unknown }>(
+    getWebappSqlDb(),
+    'app.list_public_booking_form_fields()',
+    [],
+    sql`SELECT app.list_public_booking_form_fields() AS fields`,
+  );
+  const payload = result.rows[0]?.fields;
+  if (payload == null) return [];
+  const fields = publicBookingFormFieldsSchema.parse(payload);
+  if (fields.some((field) => field.organizationId !== organizationId)) {
+    throw new Error('ambiguous_booking_tenant');
+  }
+  return fields;
+}
+
 function mapField(row: BookingFormFieldRow): BookingFormFieldRecord {
   return {
     id: row.id,
@@ -42,6 +80,9 @@ function mapField(row: BookingFormFieldRow): BookingFormFieldRecord {
 export function createPgBookingFormPort(): BookingFormPort {
   return {
     async listActiveFields(organizationId, audience) {
+      if (isCurrentPublicBookingPrincipal() && audience === 'patient') {
+        return (await readPublicBookingFormFields(organizationId)).map(mapField);
+      }
       if (getCurrentDbPrincipal()?.kind === 'patient' && audience === 'patient') {
         const result = await runWebappNamedRoot<BookingFormFieldRow>(
           getWebappSqlDb(),
