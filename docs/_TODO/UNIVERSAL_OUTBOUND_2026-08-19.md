@@ -209,6 +209,14 @@ mTLS-соединению, что использует вебапп: **0.069–0
 - [x] Перегенерация артефактов репозиторным генератором
 - [x] Применение к `bcb_webapp_dev` через `deploy/host/migrate-dev.sh --execute`
 - [x] Порт вебаппа `outboundMessageQueuePort` + реализация `pgOutboundMessageQueue.ts`
+      **⚠ ОПРОВЕРГНУТО 19.08 (соседняя работа по напоминаниям):** вызов НЕ ДОХОДИТ ДО БАЗЫ.
+      `p_content` объявлен `jsonb`, а `portTypedArgsForFunctionIdentity`
+      (`packages/db-principal/src/portContext.ts:177-192`) типа `jsonb` не поддерживает и
+      поддерживать не может: клиент обязан воспроизвести байты `jsonb_send` — каноническое
+      представление PostgreSQL, а не собственную строку. `runWebappNamedRoot` бросает раньше запроса:
+      `app.enqueue_outbound_message(...) uses unsupported port argument type jsonb`.
+      Значит письмо-подтверждение записи (`bookingCreatedEffects.ts:116`) в очередь не ставится вовсе.
+      Готовая починка того же класса — миграция 0034: аргумент `text`, разбор `::jsonb` внутри корня.
 - [x] `sendBookingConfirmationEmail` кладёт письмо в очередь вместо синхронного relay
 - [x] Интегратор: `outbound_message` в `OutgoingDeliveryKind` и `GENERIC_TRANSPORT_QUEUE_KINDS`
 - [x] Видимый отказ: карантин/смерть строки поднимает операторский инцидент, а не только лог

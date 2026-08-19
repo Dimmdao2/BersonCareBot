@@ -105,6 +105,13 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     ],
     source: 'apps/webapp/src/infra/repos/pgOutboundMessageQueue.ts',
   },
+  // Единственный корень замены поколения напоминаний о записи (миграция 0034). До него вебапп писал
+  // очередь напрямую, а INSERT на неё не выдан ни одной рабочей роли — строк не появлялось вовсе.
+  'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.appointment-generation.replace', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgAppointmentReminderMaterialization.ts',
+  },
   'app.enqueue_media_transcode_job_for_service(uuid)': {
     port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
     purpose: 'media.transcode.enqueue', argCount: 1,

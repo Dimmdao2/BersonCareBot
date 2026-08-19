@@ -146,9 +146,11 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
     );
 
     expect(firstCode).toHaveBeenCalledWith(502);
+    // 19.08: отказ называет УПАВШИЙ ШАГ. Раньше 502 нёс голое сообщение первой попавшейся ошибки, и
+    // по нему нельзя было понять, что именно не доехало до человека.
     expect(firstSend).toHaveBeenCalledWith({
       ok: false,
-      error: 'admin_notification_targets_unavailable',
+      error: 'doctor_message: admin_notification_targets_unavailable',
     });
 
     const retrySend = vi.fn();

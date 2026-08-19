@@ -6,7 +6,11 @@ import { createDbPort } from '../../infra/db/client.js';
 import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import { loadAdminMessengerIdLists } from '../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js';
-import { reportEmptyNotificationAudience } from '../../infra/operatorIncident/reportEmptyNotificationAudience.js';
+import {
+  EMPTY_AUDIENCE_INCIDENT_DIRECTION,
+  reportEmptyNotificationAudience,
+} from '../../infra/operatorIncident/reportEmptyNotificationAudience.js';
+import { reportOperatorFailure } from '../../infra/operatorIncident/reportOperatorFailure.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type {
   DbWritePort,
@@ -31,6 +35,7 @@ import {
 /** Темы уведомлений записи. Низкая кардинальность: они входят в dedup-ключ инцидента. */
 export const BOOKING_LINKED_CHANNEL_TOPIC = 'booking_linked_channel_message';
 export const BOOKING_STAFF_MESSAGE_TOPIC = 'booking_staff_message';
+export const BOOKING_REMINDER_MATERIALIZATION_TOPIC = 'booking_reminder_materialization';
 
 const WINDOW_SECONDS = 300;
 const BOOKING_EVENT_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
@@ -89,40 +94,95 @@ export function createSignedRequestGuard(
   };
 }
 
-function lifecycleDedupStorageKey(input: {
+/** Имена шагов. Низкая кардинальность: они входят в ключ дедупликации и в текст отказа. */
+type BookingLifecycleStepName =
+  | 'patient_message'
+  | 'patient_web_push'
+  | 'doctor_message'
+  | 'appointment_reminders'
+  | 'google_calendar';
+
+type BookingLifecycleStep = {
+  name: BookingLifecycleStepName;
+  run: () => Promise<void>;
+};
+
+type BookingLifecycleEventKey = {
   eventType: BookingLifecycleEventValidated['eventType'];
   eventId: string;
   payload: BookingLifecyclePayloadValidated;
-}): string {
+};
+
+function lifecycleDedupStorageKey(
+  input: BookingLifecycleEventKey,
+  step: BookingLifecycleStepName,
+): string {
   const appointmentOrBookingId =
     asNonEmptyString(input.payload.canonicalAppointmentId) ?? input.payload.bookingId;
-  return `booking-lifecycle:${input.eventType}:${appointmentOrBookingId}:${input.eventId}`.slice(
+  return `booking-lifecycle:${input.eventType}:${appointmentOrBookingId}:${input.eventId}:${step}`.slice(
     0,
     240,
   );
 }
 
-async function acquireBookingLifecycleKey(
-  input: {
-    eventType: BookingLifecycleEventValidated['eventType'];
-    eventId: string;
-    payload: BookingLifecyclePayloadValidated;
-  },
-  idempotencyPort: IdempotencyPort,
-): Promise<{ acquired: boolean; storageKey: string }> {
-  const storageKey = lifecycleDedupStorageKey(input);
-  return {
-    acquired: await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000),
-    storageKey,
-  };
+function errorMessageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
-async function releaseBookingLifecycleKey(
-  acquired: { acquired: boolean; storageKey: string },
+/** Отказ обработчика называет ИМЕННО те шаги, что упали, а не первый попавшийся. */
+export class BookingLifecycleStepFailure extends Error {
+  readonly steps: readonly BookingLifecycleStepName[];
+
+  constructor(failures: readonly { step: BookingLifecycleStepName; error: unknown }[]) {
+    super(failures.map((failure) => `${failure.step}: ${errorMessageOf(failure.error)}`).join('; '));
+    this.name = 'BookingLifecycleStepFailure';
+    this.steps = failures.map((failure) => failure.step);
+  }
+}
+
+/**
+ * Шаги события НЕЗАВИСИМЫ.
+ *
+ * Что чинится (19.08). Шаги стояли одной цепочкой `await`-ов, и на `booking.created` /
+ * `booking.rescheduled` / `booking.payment_captured` календарь стоял ПОСЛЕ напоминаний. Напоминания
+ * падали — до календаря управление не доходило никогда. Порядок строк в функции был скрытой
+ * зависимостью: «шаг выполнен» означало «ни один предыдущий не упал».
+ *
+ * Второе, что чинится, — дубли. Ключ дедупликации был ОДИН на всё событие и освобождался при любом
+ * отказе, поэтому повтор события (`postSignedWithRetry` — до трёх попыток) заново слал пациенту и
+ * врачу уже отправленные сообщения. Теперь ключ у КАЖДОГО шага свой и освобождается только у
+ * упавшего: повтор доигрывает ровно недоигранное и ничего больше.
+ *
+ * Шаги идут последовательно намеренно: независимость здесь про отказ, а не про параллелизм — они
+ * делят одно соединение к базе и один принципал организации.
+ */
+async function runBookingLifecycleSteps(
+  steps: readonly BookingLifecycleStep[],
+  key: BookingLifecycleEventKey,
   idempotencyPort: IdempotencyPort,
 ): Promise<void> {
-  if (!acquired.acquired) return;
-  await idempotencyPort.release?.(acquired.storageKey);
+  const failures: { step: BookingLifecycleStepName; error: unknown }[] = [];
+  for (const step of steps) {
+    const storageKey = lifecycleDedupStorageKey(key, step.name);
+    if (!(await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000))) continue;
+    try {
+      await step.run();
+    } catch (error) {
+      await idempotencyPort.release?.(storageKey);
+      failures.push({ step: step.name, error });
+      logger.warn(
+        {
+          err: error,
+          scope: 'booking_lifecycle',
+          event: 'booking_lifecycle_step_failed',
+          step: step.name,
+          eventType: key.eventType,
+        },
+        'booking lifecycle step failed; the remaining steps still run',
+      );
+    }
+  }
+  if (failures.length > 0) throw new BookingLifecycleStepFailure(failures);
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -402,7 +462,32 @@ export async function scheduleBookingReminders(input: {
     body,
     idempotencyKey: `arm:${generationKey}:${input.cancelPending ? 'cancel' : 'replace'}`.slice(0, 240),
   });
-  if (!result.ok) throw new Error(`APPOINTMENT_REMINDER_MATERIALIZATION_FAILED:${result.status}`);
+  if (!result.ok) {
+    // 19.08: отказ материализации тонул в 502 и трёх повторах — напоминания не появлялись, и об
+    // этом никто не узнавал. Инцидент открывается ЗДЕСЬ, ошибка летит дальше НАМЕРЕННО: повтор
+    // именно этого шага остаётся в силе (см. `runBookingLifecycleSteps`), чинится не повтор, а
+    // тишина. Dedup-ключ инцидента — `direction:integration:errorClass`, без записи и без статуса:
+    // одна сломанная материализация обязана открыть ОДИН инцидент, а не по одному на запись.
+    try {
+      await reportOperatorFailure({
+        direction: EMPTY_AUDIENCE_INCIDENT_DIRECTION,
+        integration: BOOKING_REMINDER_MATERIALIZATION_TOPIC,
+        errorClass: 'reminder_materialization_failed',
+        errorDetail: `status=${result.status}`,
+        alertLines: [
+          'Критичный сбой: напоминания о записи не созданы',
+          'Пациент не получит ни одного напоминания об этой записи.',
+          `Материализатор ответил ${result.status}.`,
+        ],
+      });
+    } catch (err) {
+      logger.warn(
+        { err, scope: 'booking_lifecycle', event: 'reminder_materialization_incident_failed' },
+        'appointment reminder materialization incident could not be recorded',
+      );
+    }
+    throw new Error(`APPOINTMENT_REMINDER_MATERIALIZATION_FAILED:${result.status}`);
+  }
 }
 
 async function sendBookingWebPush(input: {
@@ -508,6 +593,227 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   }
 }
 
+/**
+ * Список шагов события. Каждая ветка ОБЪЯВЛЯЕТ, что должно произойти; порядок в списке ни на что не
+ * влияет — исполнитель гоняет шаги независимо (`runBookingLifecycleSteps`). Раньше эти же шаги были
+ * цепочкой `await`-ов, и календарь на `booking.created` стоял после напоминаний, то есть не
+ * выполнялся никогда, пока напоминания падали.
+ */
+function bookingLifecycleSteps(input: {
+  body: BookingLifecycleEventValidated;
+  dispatchPort: DispatchPort;
+  webappEventsPort?: WebappEventsPort;
+  /** Часовой пояс читается ЛЕНИВО и один раз: событие без текстов за ним не ходит, а отказ этого
+   *  чтения касается только шагов с текстом — календарь он не отменяет. */
+  displayTimeZone: () => Promise<string>;
+}): readonly BookingLifecycleStep[] {
+  const { body, dispatchPort, webappEventsPort, displayTimeZone } = input;
+  const { payload, eventType } = body;
+  const bookingId = payload.bookingId;
+  const contactPhone = asNonEmptyString(payload.contactPhone);
+  const patientName = asNonEmptyString(payload.contactName);
+
+  const calendarStep: BookingLifecycleStep = {
+    name: 'google_calendar',
+    run: () => trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort),
+  };
+
+  const patientMessageStep = (eventId: string, text: () => Promise<string>): BookingLifecycleStep => ({
+    name: 'patient_message',
+    run: async () => {
+      await sendLinkedChannelMessage({
+        dispatchPort,
+        phoneNormalized: contactPhone,
+        organizationId: payload.organizationId,
+        text: await text(),
+        eventId,
+      });
+    },
+  });
+
+  const doctorMessageStep = (eventId: string, text: () => Promise<string>): BookingLifecycleStep => ({
+    name: 'doctor_message',
+    run: async () => {
+      await sendDoctorMessage(dispatchPort, await text(), eventId, payload.organizationId);
+    },
+  });
+
+  const patientPushStep = (
+    stableKey: string,
+    variant: 'created' | 'cancelled' | 'rescheduled',
+  ): BookingLifecycleStep => ({
+    name: 'patient_web_push',
+    run: () =>
+      sendBookingWebPush({
+        organizationId: payload.organizationId,
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+        phoneNormalized: contactPhone,
+        intentType: 'appointment_lifecycle',
+        variant,
+        slotStartIso: payload.slotStart,
+        stableKey,
+      }),
+  });
+
+  const remindersStep = (options: {
+    reminderPlan?: { enabled: boolean; offsetsMinutes: number[] };
+    cancelPending: boolean;
+  }): BookingLifecycleStep => ({
+    name: 'appointment_reminders',
+    run: async () =>
+      scheduleBookingReminders({
+        organizationId: payload.organizationId,
+        ...(payload.canonicalAppointmentId
+          ? { appointmentId: payload.canonicalAppointmentId }
+          : {}),
+        platformUserId: payload.userId,
+        bookingId,
+        slotStartIso: payload.slotStart,
+        phoneNormalized: contactPhone,
+        patientName,
+        timeZone: await displayTimeZone(),
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+        ...(options.reminderPlan ? { reminderPlan: options.reminderPlan } : {}),
+        cancelPending: options.cancelPending,
+      }),
+  });
+
+  if (
+    eventType === 'booking.reschedule_requested' ||
+    eventType === 'booking.deleted' ||
+    eventType === 'booking.package_linked' ||
+    eventType === 'booking.package_unlinked'
+  ) {
+    return [calendarStep];
+  }
+
+  if (eventType === 'booking.created') {
+    const steps: BookingLifecycleStep[] = [];
+    // 19.08: `suppressPatientNotification` читается и здесь. Вебапп, создавший запись, сам ставит
+    // пациентское сообщение в очередь доставки (`app.enqueue_outbound_message`) — тогда он
+    // выставляет флаг, и второй отправки быть не должно. Отправитель без флага (старый вызывающий)
+    // получает прежнее поведение бит в бит.
+    if (payload.suppressPatientNotification !== true) {
+      steps.push(
+        patientMessageStep(`booking-created:${bookingId}`, async () =>
+          resolvePatientMessageText(payload, patientCreatedText(payload, await displayTimeZone())),
+        ),
+      );
+    }
+    if (shouldNotifyDoctor(payload)) {
+      steps.push(
+        doctorMessageStep(`booking-created:${bookingId}`, async () =>
+          resolveDoctorMessageText(payload, doctorCreatedText(payload, await displayTimeZone())),
+        ),
+      );
+    }
+    steps.push(
+      remindersStep({
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
+      }),
+      calendarStep,
+    );
+    return steps;
+  }
+
+  if (eventType === 'booking.cancelled') {
+    const steps: BookingLifecycleStep[] = [
+      remindersStep({
+        reminderPlan: { enabled: false, offsetsMinutes: [] },
+        cancelPending: shouldCancelPendingReminders(payload),
+      }),
+    ];
+    if (payload.suppressPatientNotification !== true) {
+      steps.push(
+        patientMessageStep(`booking-cancelled:${bookingId}`, async () =>
+          resolvePatientMessageText(payload, patientCancelledText(payload, await displayTimeZone())),
+        ),
+      );
+      const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
+      if (cancelledPushVariant) {
+        steps.push(patientPushStep(`booking-cancelled:${bookingId}`, cancelledPushVariant));
+      }
+    }
+    if (shouldNotifyDoctor(payload)) {
+      steps.push(
+        doctorMessageStep(`booking-cancelled:${bookingId}`, async () =>
+          resolveDoctorMessageText(payload, doctorCancelledText(payload, await displayTimeZone())),
+        ),
+      );
+    }
+    steps.push(calendarStep);
+    return steps;
+  }
+
+  if (eventType === 'booking.rescheduled') {
+    const steps: BookingLifecycleStep[] = [
+      patientMessageStep(`booking-rescheduled:${bookingId}`, async () =>
+        resolvePatientMessageText(payload, patientRescheduledText(payload, await displayTimeZone())),
+      ),
+    ];
+    if (shouldNotifyDoctor(payload)) {
+      steps.push(
+        doctorMessageStep(`booking-rescheduled:${bookingId}`, async () =>
+          resolveDoctorMessageText(payload, doctorRescheduledText(payload, await displayTimeZone())),
+        ),
+      );
+    }
+    const rescheduledPushVariant = resolvePatientPushVariant(payload, 'rescheduled');
+    if (rescheduledPushVariant) {
+      steps.push(patientPushStep(`booking-rescheduled:${bookingId}`, rescheduledPushVariant));
+    }
+    steps.push(
+      remindersStep({
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: false,
+      }),
+      calendarStep,
+    );
+    return steps;
+  }
+
+  if (eventType === 'booking.reminder_updated') {
+    return [
+      remindersStep({
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
+      }),
+    ];
+  }
+
+  if (eventType === 'booking.payment_captured') {
+    const steps: BookingLifecycleStep[] = [
+      patientMessageStep(`booking-payment:${bookingId}`, async () =>
+        resolvePatientMessageText(
+          payload,
+          `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, await displayTimeZone())}`,
+        ),
+      ),
+    ];
+    if (shouldNotifyDoctor(payload)) {
+      steps.push(
+        doctorMessageStep(`booking-payment:${bookingId}`, async () =>
+          resolveDoctorMessageText(
+            payload,
+            `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, await displayTimeZone())}`,
+          ),
+        ),
+      );
+    }
+    steps.push(
+      remindersStep({
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: false,
+      }),
+      calendarStep,
+    );
+    return steps;
+  }
+
+  throw new Error('unsupported_booking_event_type');
+}
+
 export async function handleBookingLifecycleEvent(
   body: BookingLifecycleEventValidated,
   dispatchPort: DispatchPort,
@@ -517,245 +823,25 @@ export async function handleBookingLifecycleEvent(
   },
 ): Promise<void> {
   const { payload, eventType } = body;
-  const bookingId = payload.bookingId;
-  const contactPhone = asNonEmptyString(payload.contactPhone);
-  const patientName = asNonEmptyString(payload.contactName);
-  const dedupKey = asNonEmptyString(body.idempotencyKey) ?? `${eventType}:${bookingId}`;
-  const acquiredKey = await acquireBookingLifecycleKey(
+  const dedupKey = asNonEmptyString(body.idempotencyKey) ?? `${eventType}:${payload.bookingId}`;
+
+  let timeZone: Promise<string> | null = null;
+  const displayTimeZone = (): Promise<string> => {
+    timeZone ??= getAppDisplayTimezone({ db: createDbPort(), dispatchPort });
+    return timeZone;
+  };
+
+  const steps = bookingLifecycleSteps({
+    body,
+    dispatchPort,
+    ...(options.webappEventsPort ? { webappEventsPort: options.webappEventsPort } : {}),
+    displayTimeZone,
+  });
+  await runBookingLifecycleSteps(
+    steps,
     { eventType, eventId: dedupKey, payload },
     options.idempotencyPort,
   );
-  if (!acquiredKey.acquired) return;
-  const webappEventsPort = options.webappEventsPort;
-
-  try {
-    if (eventType === 'booking.reschedule_requested') {
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    if (eventType === 'booking.deleted') {
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    if (eventType === 'booking.package_linked' || eventType === 'booking.package_unlinked') {
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    const dbPort = createDbPort();
-    const timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
-
-    if (eventType === 'booking.created') {
-      // 19.08: `suppressPatientNotification` теперь читается и здесь. Вебапп, создавший запись, сам
-      // ставит пациентское сообщение в очередь доставки (`app.enqueue_outbound_message`) — тогда он
-      // выставляет флаг, и второй отправки быть не должно. Отправитель без флага (старый вызывающий)
-      // получает прежнее поведение бит в бит.
-      if (payload.suppressPatientNotification !== true) {
-        const patientText = resolvePatientMessageText(
-          payload,
-          patientCreatedText(payload, timeZone),
-        );
-        await sendLinkedChannelMessage({
-          dispatchPort,
-          phoneNormalized: contactPhone,
-          organizationId: payload.organizationId,
-          text: patientText,
-          eventId: `booking-created:${bookingId}`,
-        });
-      }
-      if (shouldNotifyDoctor(payload)) {
-        await sendDoctorMessage(
-          dispatchPort,
-          resolveDoctorMessageText(payload, doctorCreatedText(payload, timeZone)),
-          `booking-created:${bookingId}`,
-          payload.organizationId,
-        );
-      }
-      await scheduleBookingReminders({
-        organizationId: payload.organizationId,
-        ...(payload.canonicalAppointmentId
-          ? { appointmentId: payload.canonicalAppointmentId }
-          : {}),
-        platformUserId: payload.userId,
-        bookingId,
-        slotStartIso: payload.slotStart,
-        phoneNormalized: contactPhone,
-        patientName,
-        timeZone,
-        ...(webappEventsPort ? { webappEventsPort } : {}),
-        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
-        cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
-      });
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    if (eventType === 'booking.cancelled') {
-      await scheduleBookingReminders({
-        organizationId: payload.organizationId,
-        ...(payload.canonicalAppointmentId
-          ? { appointmentId: payload.canonicalAppointmentId }
-          : {}),
-        platformUserId: payload.userId,
-        bookingId,
-        slotStartIso: payload.slotStart,
-        phoneNormalized: contactPhone,
-        patientName,
-        timeZone,
-        ...(webappEventsPort ? { webappEventsPort } : {}),
-        reminderPlan: { enabled: false, offsetsMinutes: [] },
-        cancelPending: shouldCancelPendingReminders(payload),
-      });
-      if (payload.suppressPatientNotification !== true) {
-        const patientText = resolvePatientMessageText(payload, patientCancelledText(payload, timeZone));
-        await sendLinkedChannelMessage({
-          dispatchPort,
-          phoneNormalized: contactPhone,
-          organizationId: payload.organizationId,
-          text: patientText,
-          eventId: `booking-cancelled:${bookingId}`,
-        });
-        const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
-        if (cancelledPushVariant) {
-          await sendBookingWebPush({
-            organizationId: payload.organizationId,
-            ...(webappEventsPort ? { webappEventsPort } : {}),
-            phoneNormalized: contactPhone,
-            intentType: 'appointment_lifecycle',
-            variant: cancelledPushVariant,
-            slotStartIso: payload.slotStart,
-            stableKey: `booking-cancelled:${bookingId}`,
-          });
-        }
-      }
-      if (shouldNotifyDoctor(payload)) {
-        await sendDoctorMessage(
-          dispatchPort,
-          resolveDoctorMessageText(payload, doctorCancelledText(payload, timeZone)),
-          `booking-cancelled:${bookingId}`,
-          payload.organizationId,
-        );
-      }
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    if (eventType === 'booking.rescheduled') {
-      const patientText = resolvePatientMessageText(payload, patientRescheduledText(payload, timeZone));
-      await sendLinkedChannelMessage({
-        dispatchPort,
-        phoneNormalized: contactPhone,
-        organizationId: payload.organizationId,
-        text: patientText,
-        eventId: `booking-rescheduled:${bookingId}`,
-      });
-      if (shouldNotifyDoctor(payload)) {
-        await sendDoctorMessage(
-          dispatchPort,
-          resolveDoctorMessageText(payload, doctorRescheduledText(payload, timeZone)),
-          `booking-rescheduled:${bookingId}`,
-          payload.organizationId,
-        );
-      }
-      const rescheduledPushVariant = resolvePatientPushVariant(payload, 'rescheduled');
-      if (rescheduledPushVariant) {
-        await sendBookingWebPush({
-          organizationId: payload.organizationId,
-          ...(webappEventsPort ? { webappEventsPort } : {}),
-          phoneNormalized: contactPhone,
-          intentType: 'appointment_lifecycle',
-          variant: rescheduledPushVariant,
-          slotStartIso: payload.slotStart,
-          stableKey: `booking-rescheduled:${bookingId}`,
-        });
-      }
-      await scheduleBookingReminders({
-        organizationId: payload.organizationId,
-        ...(payload.canonicalAppointmentId
-          ? { appointmentId: payload.canonicalAppointmentId }
-          : {}),
-        platformUserId: payload.userId,
-        bookingId,
-        slotStartIso: payload.slotStart,
-        phoneNormalized: contactPhone,
-        patientName,
-        timeZone,
-        ...(webappEventsPort ? { webappEventsPort } : {}),
-        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
-        cancelPending: false,
-      });
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    if (eventType === 'booking.reminder_updated') {
-      await scheduleBookingReminders({
-        organizationId: payload.organizationId,
-        ...(payload.canonicalAppointmentId
-          ? { appointmentId: payload.canonicalAppointmentId }
-          : {}),
-        platformUserId: payload.userId,
-        bookingId,
-        slotStartIso: payload.slotStart,
-        phoneNormalized: contactPhone,
-        patientName,
-        timeZone,
-        ...(webappEventsPort ? { webappEventsPort } : {}),
-        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
-        cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
-      });
-      return;
-    }
-
-    if (eventType === 'booking.payment_captured') {
-      const patientText = resolvePatientMessageText(
-        payload,
-        `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
-      );
-      await sendLinkedChannelMessage({
-        dispatchPort,
-        phoneNormalized: contactPhone,
-        organizationId: payload.organizationId,
-        text: patientText,
-        eventId: `booking-payment:${bookingId}`,
-      });
-      if (shouldNotifyDoctor(payload)) {
-        await sendDoctorMessage(
-          dispatchPort,
-          resolveDoctorMessageText(
-            payload,
-            `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
-          ),
-          `booking-payment:${bookingId}`,
-          payload.organizationId,
-        );
-      }
-      await scheduleBookingReminders({
-        organizationId: payload.organizationId,
-        ...(payload.canonicalAppointmentId
-          ? { appointmentId: payload.canonicalAppointmentId }
-          : {}),
-        platformUserId: payload.userId,
-        bookingId,
-        slotStartIso: payload.slotStart,
-        phoneNormalized: contactPhone,
-        patientName,
-        timeZone,
-        ...(webappEventsPort ? { webappEventsPort } : {}),
-        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
-        cancelPending: false,
-      });
-      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-      return;
-    }
-
-    throw new Error('unsupported_booking_event_type');
-  } catch (err) {
-    await releaseBookingLifecycleKey(acquiredKey, options.idempotencyPort);
-    throw err;
-  }
 }
 
 export async function handleBookingEventRequest(

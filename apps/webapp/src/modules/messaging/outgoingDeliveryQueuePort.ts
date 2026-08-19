@@ -77,11 +77,16 @@ export type PatientReminderReadyOutgoingDelivery = {
 // that composes the row itself from `public.email_challenges` — there is no caller-built
 // `ReadyOutgoingDelivery` envelope for it anymore. See pgAuthEmailOtpDeliveryQueue.ts.
 
+/**
+ * `AppointmentReminderReadyOutgoingDelivery` намеренно НЕ входит: напоминание о записи проходит не
+ * через табличный шов, а через объявленный корень
+ * `app.replace_appointment_reminder_generation` (миграция 0034) — INSERT на очередь не выдан ни
+ * одной рабочей роли, поэтому этот путь и не работал никогда.
+ */
 export type ReadyOutgoingDelivery =
   | SpecialistTaskReadyOutgoingDelivery
   | OperatorHealthDigestReadyOutgoingDelivery
-  | PatientReminderReadyOutgoingDelivery
-  | AppointmentReminderReadyOutgoingDelivery;
+  | PatientReminderReadyOutgoingDelivery;
 
 /** The only webapp write seam for `public.outgoing_delivery_queue`. */
 export type OutgoingDeliveryQueueWritePort<TransactionClient> = {
@@ -90,9 +95,5 @@ export type OutgoingDeliveryQueueWritePort<TransactionClient> = {
   terminalizeUnsentSpecialistTaskReminders(
     tx: TransactionClient,
     input: { taskId: string; exceptEventIds?: readonly string[]; reason: string },
-  ): Promise<void>;
-  terminalizeUnsentAppointmentReminders(
-    tx: TransactionClient,
-    input: { appointmentId: string; exceptEventIds?: readonly string[]; reason: string },
   ): Promise<void>;
 };
