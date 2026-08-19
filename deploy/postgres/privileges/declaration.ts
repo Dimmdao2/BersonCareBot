@@ -3191,6 +3191,17 @@ const REV10_CONTEXT = {
           evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034' as const },
       ],
     }),
+    // Google-календарь клиники читается ТОЛЬКО под арендной ролью. До 19.08 EXECUTE держал
+    // `app_integrator_request` — принципала этого класса на пути календаря не бывает вовсе: и шаг
+    // записи (`bookingLifecycleRoute` → `sync.ts`), и проба оператора приходят сюда с
+    // организацией в руках. Корень был недостижим для КАЖДОГО живого вызывающего, и пустой
+    // `catch` в `readConfigFromDb` превращал 42501 в «календарь у клиники не подключён».
+    // Форма — как у близнеца `app.read_integrator_clinic_delivery_credential(text,uuid)`: тот же
+    // точный org-скоуп в теле, тот же `app_tenant_service`. Прав на таблицу никому не добавлено.
+    'app.read_integrator_google_calendar_setting(text,uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_google_calendar_setting(text,uuid)'],
+      execute: ['app_tenant_service'],
+    },
     'app.saas_billing_effective_tariff(uuid,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.saas_billing_effective_tariff(uuid,uuid)'],
       execute: [
