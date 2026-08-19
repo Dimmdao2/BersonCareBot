@@ -174,3 +174,38 @@ the broken mail. Splitting it needs a second provider or the external heartbeat 
 Standing rule rather than a task: every number in the security and Telegram-removal work was measured on a
 DEV/TEST copy. Before any cutover step that touches people, re-run the same query against PROD and record
 both numbers. No cutover decision should rest on a TEST-derived count.
+
+## 9. Снять учётные данные Rubitime при миграции с прод-дампа — РЕШЕНИЕ ВЛАДЕЛЬЦА 19.08.2026
+
+Владелец, дословно: «ключи надо будет удалять при миграции с прод-дампа (руками то я уже не смогу до них
+добраться). вреда от них нет особо, но и пользы никакой.»
+
+Rubitime выведен из эксплуатации 27.07.2026, но в `public.system_settings` (scope `admin`,
+`organization_id IS NULL`) остались ЗАПОЛНЕННЫЕ значения:
+
+| ключ | почему снимаем |
+| --- | --- |
+| `rubitime_api_key` | действующий ключ доступа к системе, которой мы больше не пользуемся; читателя в коде нет ни одного |
+| `rubitime_webhook_token` | действующий токен приёма вебхуков той же системы; читателя в коде нет |
+
+Почему именно здесь, а не миграцией: это не структура и не рычаг, а секрет в данных прода. Пустые и
+неработающие ключи того же семейства (`rubitime_webhook_uri`, `rubitime_schedule_mapping`,
+`booking_slots_read_source`, `booking_doctor_appointments_read_source`, `booking_rubitime_bridge_enabled`,
+`booking_calendar_read_source`) уже снимает миграция
+`apps/webapp/db/drizzle-migrations/0042_the_bridge_to_a_retired_system_is_not_a_bridge.sql` — они ничего не
+переключают и вреда, кроме обещания несуществующего выбора администратору, не несут. Два ключа выше в ту
+миграцию СОЗНАТЕЛЬНО не попали: удалять живой секрет с прода — шаг cutover, а не разработки.
+
+Строка для шага очистки дампа (после `DELETE`-шагов дедупа, до выдачи прав):
+
+```sql
+DELETE FROM public.system_settings
+ WHERE scope = 'admin'
+   AND organization_id IS NULL
+   AND key IN ('rubitime_api_key', 'rubitime_webhook_token');
+```
+
+Ещё одна строка того же семейства — `booking_url` / `patient_booking_url` со значением
+`https://dmitryberson.rubitime.ru`. Это ЖИВАЯ настройка (`AdminSettingsSection.tsx`, «Ссылка «Записаться на
+приём» (внешняя)»), а не остаток: её надо не удалить, а переставить на действующий адрес записи — решение
+владельца о значении, не о ключе.

@@ -295,6 +295,13 @@
       "when": 1800000042000,
       "tag": "0041_the_watchman_could_read_incidents_but_not_open_one",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1800000043000,
+      "tag": "0042_the_bridge_to_a_retired_system_is_not_a_bridge",
+      "breakpoints": true
     }
   ]
 }

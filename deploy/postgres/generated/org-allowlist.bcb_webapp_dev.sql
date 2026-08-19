@@ -33,7 +33,6 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'be_branches'),
   ('public', 'be_cancellation_policies'),
   ('public', 'be_clinic_services'),
-  ('public', 'be_external_entity_mappings'),
   ('public', 'be_organization_members'),
   ('public', 'be_payment_provider_events'),
   ('public', 'be_prepayment_policies'),

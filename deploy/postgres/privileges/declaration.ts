@@ -950,8 +950,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'по правилам клиники' },
   { t: 'public.be_clinic_services', cls: 'C', org: true, why: 'услуги клиники — не на что записываться и нечего '
     + 'считать в прайсе' },
-  { t: 'public.be_external_entity_mappings', cls: 'C', org: true, why: 'сопоставление «наш id ↔ id внешней системы» '
-    + '— рвётся связь с Rubitime/внешними системами, начинаются дубли' },
   { t: 'public.be_organization_members', cls: 'C', org: true, why: 'членство человека в клинике — никто не '
     + 'определяется как врач/админ клиники — падает вся авторизация кабинета',
     revoke: { app_platform_settings: 'SCHEME §I Р4 + D1: платформенное чтение членств — через definer-исключение, а '
@@ -4105,9 +4103,6 @@ const REV10_CONTEXT = {
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
-        { relation: 'public.be_external_entity_mappings',
-          columns: ['entity_type', 'external_system', 'external_id', 'canonical_id'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointments',
           columns: ['id', 'organization_id', 'phone_normalized', 'start_at', 'status', 'attribution_json',
             'branch_id', 'created_at', 'updated_at', 'deleted_at'], operations: ['SELECT' as const],

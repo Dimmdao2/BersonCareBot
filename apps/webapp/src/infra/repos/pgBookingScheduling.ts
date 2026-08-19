@@ -288,10 +288,9 @@ export function createPgBookingSchedulingPort(
       const result = await runWebappPgText<{ organization_id: string | null }>(
         `SELECT app.resolve_public_booking_organization(
            $1::uuid,
-           $2::uuid,
-           $3::uuid
+           $2::uuid
          )::text AS organization_id`,
-        [branchId?.trim() || null, serviceId?.trim() || null, null],
+        [branchId?.trim() || null, serviceId?.trim() || null],
       );
       return result.rows[0]?.organization_id ?? null;
     },
@@ -344,40 +343,6 @@ export function createPgBookingSchedulingPort(
       );
       if (!availabilityId) return null;
       return resolveCanonicalAvailabilityContext(availabilityId);
-    },
-
-    async resolveLegacyBranchServiceId({ organizationId, branchId, serviceId, specialistId }) {
-      const db = getDrizzle();
-      const ssaConds = [
-        eq(beSpecialistServiceAvailability.organizationId, organizationId),
-        eq(beSpecialistServiceAvailability.branchId, branchId),
-        eq(beSpecialistServiceAvailability.serviceId, serviceId),
-        eq(beSpecialistServiceAvailability.isActive, true),
-      ];
-      if (specialistId) {
-        ssaConds.push(eq(beSpecialistServiceAvailability.specialistId, specialistId));
-      }
-      const ssaRows = await db
-        .select({
-          id: beSpecialistServiceAvailability.id,
-          createdAt: beSpecialistServiceAvailability.createdAt,
-        })
-        .from(beSpecialistServiceAvailability)
-        .innerJoin(
-          beSpecialists,
-          and(
-            eq(beSpecialists.id, beSpecialistServiceAvailability.specialistId),
-            eq(beSpecialists.organizationId, organizationId),
-            eq(beSpecialists.isActive, true),
-          ),
-        )
-        .where(and(...ssaConds));
-      if (ssaRows.length === 0) return null;
-
-      const pickedId = pickPreferredSsaId(
-        ssaRows.map((r) => ({ id: r.id, createdAt: r.createdAt, isActive: true })),
-      );
-      return pickedId;
     },
 
     async listServicesByCityCode(organizationId, cityCode) {

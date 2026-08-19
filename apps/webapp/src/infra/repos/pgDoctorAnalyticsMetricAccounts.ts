@@ -66,9 +66,7 @@ function mapRow(row: ListRow): DoctorAnalyticsMetricAccountItem {
 
 export function createPgDoctorAnalyticsMetricAccountsPort(
   getDefaultOrganizationId: () => Promise<string>,
-  resolveReadSource: () => Promise<unknown> = async () => 'canonical',
 ): DoctorAnalyticsMetricAccountsPort {
-  void resolveReadSource;
   return {
     async listMetricAccounts({
       metric,

@@ -158,10 +158,6 @@ export function createBookingSchedulingService(
       return port.nearestFreeWindow(input);
     },
 
-    resolveLegacyBranchServiceId(input) {
-      return port.resolveLegacyBranchServiceId(input);
-    },
-
     async getInPersonSlots({ organizationId, branchId, serviceId, date, slotCount = 1 }) {
       const ctx = await port.resolveCanonicalInPersonContext({
         organizationId,
