@@ -1,72 +1,30 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+/**
+ * Метка окружения в теме письма оператору (владелец, 20.08). Требование владельца в той же реплике:
+ * «мне достаточно хоста (test или prod) или DEV… не усложнять главное» — поэтому никакой метки
+ * «неизвестно» и никакой отдельной env-переменной здесь нет и быть не должно.
+ *
+ * Отказ, который ловит тест: чужой хост молча становится PROD — оператор чинит прод из-за письма с
+ * тестового стенда.
+ */
+import { describe, expect, it } from 'vitest';
 import { computeOperatorAlertEnvLabel } from './operatorAlertEnvLabel';
 
-describe('computeOperatorAlertEnvLabel (pure)', () => {
-  it('labels the three known deployment hosts', () => {
-    expect(computeOperatorAlertEnvLabel({ appBaseUrl: 'http://127.0.0.1:5200' })).toBe('DEV');
-    expect(computeOperatorAlertEnvLabel({ appBaseUrl: 'https://test.bersoncare.ru' })).toBe(
-      'TEST',
-    );
-    expect(computeOperatorAlertEnvLabel({ appBaseUrl: 'https://bersoncare.ru' })).toBe('PROD');
+describe('метка окружения выводится из адреса приложения', () => {
+  it('прод и тест зовутся своими именами', () => {
+    expect(computeOperatorAlertEnvLabel('https://bersoncare.ru')).toBe('PROD');
+    expect(computeOperatorAlertEnvLabel('https://test.bersoncare.ru')).toBe('TEST');
   });
 
-  it('never guesses PROD for an unrecognised host — labels it honestly with the host itself', () => {
-    expect(computeOperatorAlertEnvLabel({ appBaseUrl: 'https://staging.example.net' })).toBe(
-      'unknown(staging.example.net)',
-    );
-    expect(computeOperatorAlertEnvLabel({ appBaseUrl: 'not-a-url' })).toBe('unknown(not-a-url)');
+  it('локальные адреса — DEV', () => {
+    expect(computeOperatorAlertEnvLabel('http://127.0.0.1:5200')).toBe('DEV');
+    expect(computeOperatorAlertEnvLabel('http://localhost:5200')).toBe('DEV');
   });
 
-  it('lets an explicit override win over the derived host', () => {
-    expect(
-      computeOperatorAlertEnvLabel({ appBaseUrl: 'https://bersoncare.ru', override: 'CANARY' }),
-    ).toBe('CANARY');
+  it('незнакомый хост подставляется как есть и НЕ становится продом', () => {
+    expect(computeOperatorAlertEnvLabel('https://stage.example.com')).toBe('stage.example.com');
   });
 
-  it('falls back to the derived value when the override is unset or blank', () => {
-    expect(
-      computeOperatorAlertEnvLabel({ appBaseUrl: 'https://bersoncare.ru', override: '' }),
-    ).toBe('PROD');
-    expect(
-      computeOperatorAlertEnvLabel({ appBaseUrl: 'https://bersoncare.ru', override: '   ' }),
-    ).toBe('PROD');
-  });
-});
-
-describe('resolveOperatorAlertEnvLabel / stampOperatorAlertSubject (wired to process env)', () => {
-  const ORIGINAL_OVERRIDE = process.env.OPERATOR_ALERT_ENV_LABEL;
-
-  beforeEach(() => {
-    vi.resetModules();
-    delete process.env.OPERATOR_ALERT_ENV_LABEL;
-  });
-
-  afterEach(() => {
-    vi.resetModules();
-    if (ORIGINAL_OVERRIDE === undefined) delete process.env.OPERATOR_ALERT_ENV_LABEL;
-    else process.env.OPERATOR_ALERT_ENV_LABEL = ORIGINAL_OVERRIDE;
-    vi.doUnmock('@/config/env');
-  });
-
-  it('derives the label from APP_BASE_URL by default (nothing breaks when the override is unset)', async () => {
-    vi.doMock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://test.bersoncare.ru' } }));
-    const { stampOperatorAlertSubject } = await import('./operatorAlertEnvLabel');
-    expect(stampOperatorAlertSubject('Очередь транскода HLS: error')).toBe(
-      '[TEST] Очередь транскода HLS: error',
-    );
-  });
-
-  it('keeps the original subject text intact after the label prefix', async () => {
-    vi.doMock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://bersoncare.ru' } }));
-    const { stampOperatorAlertSubject } = await import('./operatorAlertEnvLabel');
-    const subject = 'Самая старая неотправленная позиция: 18 ч';
-    expect(stampOperatorAlertSubject(subject)).toBe(`[PROD] ${subject}`);
-  });
-
-  it('an explicit OPERATOR_ALERT_ENV_LABEL override beats the derived host', async () => {
-    process.env.OPERATOR_ALERT_ENV_LABEL = 'STAGE-B';
-    vi.doMock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://bersoncare.ru' } }));
-    const { stampOperatorAlertSubject } = await import('./operatorAlertEnvLabel');
-    expect(stampOperatorAlertSubject('x')).toBe('[STAGE-B] x');
+  it('адреса нет вовсе — DEV, потому что так бывает только на локальной машине', () => {
+    expect(computeOperatorAlertEnvLabel('')).toBe('DEV');
   });
 });

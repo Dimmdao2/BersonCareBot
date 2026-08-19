@@ -1,45 +1,36 @@
 import { env } from '@/config/env';
 
 /**
- * Оператор получает почту/пуши из трёх окружений (DEV/TEST/PROD) в один ящик и не может
- * различить их по письму (владелец, 20.08). Единая точка вывода метки: честный источник —
- * `APP_BASE_URL` (deployment identity, см. `CONFIGURATION_ENV_VS_DATABASE.md`), явный
- * override — на случай, когда хост неинформативен (например, локальный туннель).
+ * Оператор получает почту и пуши из трёх окружений в один ящик и не может различить их по письму
+ * (владелец, 20.08). Единая точка вывода метки; источник — `APP_BASE_URL` (deployment identity, см.
+ * `CONFIGURATION_ENV_VS_DATABASE.md`).
  *
- * Нераспознанный хост обязан вернуть честную метку С ХОСТОМ ВНУТРИ, а не тихо стать "PROD".
+ * Владелец, 20.08: «мне достаточно хоста (test или prod) или DEV — уж эту метку в дев можно поставить? не
+ * усложнять главное». Поэтому здесь нет ни отдельной env-переменной, ни метки «неизвестно»: знакомый хост
+ * даёт TEST/PROD, локальный — DEV, любой другой подставляется как есть — сам хост и есть ответ на вопрос
+ * «откуда письмо».
  */
 
 const KNOWN_HOSTS: Record<string, string> = {
   '127.0.0.1': 'DEV',
   localhost: 'DEV',
+  '0.0.0.0': 'DEV',
   'test.bersoncare.ru': 'TEST',
   'bersoncare.ru': 'PROD',
 };
 
-export function computeOperatorAlertEnvLabel(input: {
-  appBaseUrl: string;
-  override?: string;
-}): string {
-  const override = (input.override ?? '').trim();
-  if (override) return override;
+export function computeOperatorAlertEnvLabel(appBaseUrl: string): string {
   let host: string;
   try {
-    host = new URL(input.appBaseUrl).hostname.toLowerCase();
+    host = new URL(appBaseUrl).hostname.toLowerCase();
   } catch {
-    return `unknown(${input.appBaseUrl.trim() || 'empty'})`;
+    // Разобрать нечего — так бывает только на локальной машине, где адрес не задан.
+    return 'DEV';
   }
-  return KNOWN_HOSTS[host] ?? `unknown(${host})`;
-}
-
-/** Явный override, когда хост из `APP_BASE_URL` неинформативен. По умолчанию не задан. */
-export function resolveOperatorAlertEnvLabel(): string {
-  return computeOperatorAlertEnvLabel({
-    appBaseUrl: env.APP_BASE_URL,
-    override: process.env.OPERATOR_ALERT_ENV_LABEL,
-  });
+  return KNOWN_HOSTS[host] ?? host;
 }
 
 /** Единственный чокпоинт разметки: метка — префикс, остальной текст темы не трогаем. */
 export function stampOperatorAlertSubject(subject: string): string {
-  return `[${resolveOperatorAlertEnvLabel()}] ${subject}`;
+  return `[${computeOperatorAlertEnvLabel(env.APP_BASE_URL)}] ${subject}`;
 }
