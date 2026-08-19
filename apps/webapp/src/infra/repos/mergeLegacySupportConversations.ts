@@ -16,6 +16,61 @@ function mergeSqlOnClient<T>(
 }
 
 /**
+ * Finds the canonical conversation row, creating it only the first time.
+ *
+ * This used to be an `INSERT … ON CONFLICT DO UPDATE SET platform_user_id = COALESCE(EXCLUDED…, …),
+ * updated_at = now() RETURNING id`, written that way purely so `RETURNING` produced a row on the
+ * conflict branch. But `platform_user_id` is where the conversation key itself comes from, so on an
+ * existing row the SET assigned the value already stored and only `updated_at` moved — and there are
+ * no idle UPDATEs in PostgreSQL: each one writes a new tuple plus its WAL and leaves the old one for
+ * autovacuum. The caller is the patient unread-message badge, which polls every 20 seconds per open
+ * tab, so a table of one row per patient was being rewritten continuously for no change at all.
+ *
+ * The ordinary path is now a single primary-key read and no write whatsoever. The insert keeps
+ * `ON CONFLICT DO NOTHING` for the race between two first-time callers; DO NOTHING returns no row, so
+ * the loser simply reads again and sees the winner's row. The one case the old COALESCE genuinely
+ * repaired — an existing row whose `platform_user_id` is NULL — is still repaired, but by a statement
+ * that only runs when the column is actually NULL instead of on every poll.
+ */
+async function resolveCanonicalConversationId(
+  client: Pool | PoolClient,
+  canonicalKey: string,
+  platformUserId: string,
+): Promise<string | undefined> {
+  const read = async () =>
+    (
+      await mergeSqlOnClient<{ id: string }>(
+        client,
+        `SELECT id FROM support_conversations WHERE integrator_conversation_id = $1`,
+        [canonicalKey],
+      )
+    ).rows[0]?.id;
+
+  const existing = await read();
+  if (existing) {
+    await mergeSqlOnClient(
+      client,
+      `UPDATE support_conversations SET platform_user_id = $2::uuid, updated_at = now()
+       WHERE integrator_conversation_id = $1 AND platform_user_id IS NULL`,
+      [canonicalKey, platformUserId],
+    );
+    return existing;
+  }
+
+  const inserted = await mergeSqlOnClient<{ id: string }>(
+    client,
+    `INSERT INTO support_conversations (
+      integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
+      opened_at, last_message_at
+    ) VALUES ($1, $2::uuid, NULL, 'webapp', 'support', 'open', now(), now())
+    ON CONFLICT (integrator_conversation_id) DO NOTHING
+    RETURNING id`,
+    [canonicalKey, platformUserId],
+  );
+  return inserted.rows[0]?.id ?? (await read());
+}
+
+/**
  * Переносит историю из legacy projection-диалогов (UUID integrator) в канон `webapp:platform:{platformUserId}`.
  * Legacy-строки закрываются с `close_reason = merged_into_platform_thread`.
  */
@@ -25,19 +80,7 @@ export async function mergeLegacySupportConversationsForPlatformUser(
 ): Promise<MergeLegacySupportResult> {
   const canonicalKey = webappPlatformConversationId(platformUserId);
 
-  const canonRow = await mergeSqlOnClient<{ id: string }>(
-    client,
-    `INSERT INTO support_conversations (
-      integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
-      opened_at, last_message_at
-    ) VALUES ($1, $2::uuid, NULL, 'webapp', 'support', 'open', now(), now())
-    ON CONFLICT (integrator_conversation_id) DO UPDATE SET
-      platform_user_id = COALESCE(EXCLUDED.platform_user_id, support_conversations.platform_user_id),
-      updated_at = now()
-    RETURNING id`,
-    [canonicalKey, platformUserId],
-  );
-  const canonicalId = canonRow.rows[0]?.id;
+  const canonicalId = await resolveCanonicalConversationId(client, canonicalKey, platformUserId);
   if (!canonicalId) {
     return { mergedConversationCount: 0, movedMessageCount: 0 };
   }

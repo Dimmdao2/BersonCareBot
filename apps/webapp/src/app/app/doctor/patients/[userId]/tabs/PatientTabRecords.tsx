@@ -3,7 +3,8 @@
 /**
  * PatientTabRecords — Wave 3: appointment history, KPIs, upcoming, membership.
  * Data: real from GET /api/doctor/patients/[userId]/appointments (client-side fetch).
- * Falls back to mock display if fetch fails / empty so UI never breaks.
+ * A failed fetch renders no visits and says the load failed — never a stand-in. This tab used to
+ * substitute three hardcoded demo visits on error, drawn in the patient's own chart.
  * «Оформить визит»: dispatches custom event "patient:open-tab" with {tab:"karta"} — consumed by
  *   PatientCardClient (lines 140-141) to switch to the Карта tab.
  * Note: booking-reputation & merge removed from this tab per owner decision 2026-06-14.
@@ -88,40 +89,6 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     packageDisplayNumber: item.packageDisplayNumber ?? null,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Fallback mock data — показывается только если fetch провалился или userId не найден
-// ---------------------------------------------------------------------------
-
-const MOCK_HISTORY_FALLBACK: DisplayAppointment[] = [
-  {
-    id: 'm-1',
-    date: '2026-06-04',
-    time: '10:00',
-    location: 'Студия на Лесной',
-    service: 'Тренировка ЛФК',
-    status: 'completed',
-    hasVisitRecord: false,
-  },
-  {
-    id: 'm-2',
-    date: '2026-05-28',
-    time: '10:00',
-    location: 'Студия на Лесной',
-    service: 'Тренировка ЛФК',
-    status: 'rescheduled',
-    rescheduledToDate: '04.06',
-  },
-  {
-    id: 'm-3',
-    date: '2026-04-14',
-    time: '18:30',
-    location: 'Онлайн',
-    service: 'Консультация',
-    status: 'canceled',
-    cancelReason: 'болезнь',
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -271,13 +238,17 @@ export function PatientTabRecords({
 
   // Stale = loaded state belongs to a previous userId → treat as loading.
   const isStale = loadedUserId !== userId;
-  // Loading → empty (spinner shown); error → mock fallback; loaded → real data
+  // Loading → empty (spinner shown); error → empty + the error banner below; loaded → real data.
+  //
+  // A failed load renders NOTHING, never a stand-in. This tab used to fall back to three hardcoded
+  // demo visits ("Студия на Лесной", "Тренировка ЛФК", dates in 2026) drawn in the patient's own
+  // chart, and the visit/cancellation/reschedule counters underneath were computed from them
+  // whenever `header` was absent — so a refused read produced invented clinical history carrying
+  // real-looking totals. "Загрузить не удалось" and "записей нет" stay distinguishable through the
+  // separate `fetchError` flag, which the banner keys off; an empty `allAppointments` from a
+  // successful read still shows "Записей пока нет."
   const isLoading = isStale || (allAppointments === null && !fetchError);
-  const displayList: DisplayAppointment[] = isStale
-    ? []
-    : fetchError
-      ? MOCK_HISTORY_FALLBACK
-      : (allAppointments ?? []);
+  const displayList: DisplayAppointment[] = isStale || fetchError ? [] : (allAppointments ?? []);
 
   const upcomingList = displayList.filter((a) => a.status === 'upcoming');
   const historyList = displayList.filter((a) => a.status !== 'upcoming');
@@ -418,7 +389,7 @@ export function PatientTabRecords({
             )}
             {fetchError && (
               <p className="text-xs text-destructive py-1">
-                Не удалось загрузить записи. Показаны примеры.
+                Не удалось загрузить записи. Это сбой загрузки, а не отсутствие визитов.
               </p>
             )}
             {!isLoading && !fetchError && historyList.length === 0 && (
@@ -521,7 +492,11 @@ export function PatientTabRecords({
               )}
             </div>
 
-            {upcomingList.length === 0 ? (
+            {fetchError ? (
+              <p className="text-xs text-destructive py-1">
+                Не удалось загрузить записи. Это сбой загрузки, а не отсутствие визитов.
+              </p>
+            ) : upcomingList.length === 0 ? (
               <p className="text-xs text-muted-foreground py-1">Нет предстоящих записей</p>
             ) : (
               <div className="flex flex-col gap-2">
