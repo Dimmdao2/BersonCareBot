@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
@@ -12,6 +13,7 @@ import {
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
+import { isCurrentPublicBookingPrincipal } from '@/app-layer/principal/publicBookingPrincipal';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
 import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
@@ -231,6 +233,102 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
       row.appointment_reminder_selection_source === 'patient'
         ? 'patient'
         : 'specialist_default',
+  };
+}
+
+const publicBookingBranchSchema = z.object({
+  id: z.string().uuid(),
+  organizationId: z.string().uuid(),
+  title: z.string(),
+  shortTitle: z.string().nullable(),
+  color: z.string().nullable(),
+  cityCode: z.string(),
+  address: z.string().nullable(),
+  timezone: z.string(),
+  isActive: z.boolean(),
+  sortOrder: z.number().int(),
+});
+
+const publicBookingServiceSchema = z.object({
+  id: z.string().uuid(),
+  organizationId: z.string().uuid(),
+  title: z.string(),
+  description: z.string().nullable(),
+  durationMinutes: z.number().int(),
+  bufferAfterMinutes: z.number().int(),
+  priceMinor: z.number().int(),
+  prepaymentApplicable: z.boolean(),
+  usableInPackages: z.boolean(),
+  onlinePaymentApplicable: z.boolean(),
+  sortOrder: z.number().int(),
+  isActive: z.boolean(),
+});
+
+const publicBookingCatalogSchema = z.object({
+  branches: z.array(publicBookingBranchSchema),
+  branch: publicBookingBranchSchema.nullable(),
+  services: z.array(publicBookingServiceSchema),
+  service: publicBookingServiceSchema.nullable(),
+});
+
+type PublicBookingCatalog = z.infer<typeof publicBookingCatalogSchema>;
+
+const EMPTY_PUBLIC_BOOKING_CATALOG: PublicBookingCatalog = {
+  branches: [],
+  branch: null,
+  services: [],
+  service: null,
+};
+
+/**
+ * Дверь публичного каталога (`app.read_public_booking_catalog`). Организация НЕ является
+ * аргументом — она берётся дверью из принятого контекста, поэтому подставить чужую нечем: чужой
+ * филиал просто не находится. Неопубликованная клиника отдаёт `NULL`, и здесь это превращается в
+ * ПУСТОЙ каталог, а не в исключение: снаружи такой клиники не существует, и различать «нет» и
+ * «нельзя» вызывающему нечем по построению.
+ */
+async function readPublicBookingCatalog(
+  branchId: string | null,
+  serviceId: string | null,
+): Promise<PublicBookingCatalog> {
+  const result = await runWebappNamedRoot<{ catalog: unknown }>(
+    getWebappSqlDb(),
+    'app.read_public_booking_catalog(uuid,uuid)',
+    [branchId, serviceId],
+    sql`SELECT app.read_public_booking_catalog(
+      ${branchId}::uuid,
+      ${serviceId}::uuid
+    ) AS catalog`,
+  );
+  const catalog = result.rows[0]?.catalog;
+  if (catalog == null) return EMPTY_PUBLIC_BOOKING_CATALOG;
+  return publicBookingCatalogSchema.parse(catalog);
+}
+
+/**
+ * Дверь отдаёт ТОЛЬКО публично записываемые услуги — `is_active`, `public_widget_visible`,
+ * `NOT admin_manual_only` и назначенные активному специалисту, — поэтому два последних признака
+ * восстанавливаются здесь как факт двери, а не как догадка: услуга, у которой они иные, из двери
+ * не выходит вовсе.
+ */
+function mapPublicBookingService(
+  row: z.infer<typeof publicBookingServiceSchema>,
+): BeClinicService {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    title: row.title,
+    description: row.description,
+    durationMinutes: row.durationMinutes,
+    bufferAfterMinutes: row.bufferAfterMinutes,
+    priceMinor: row.priceMinor,
+    isActive: row.isActive,
+    prepaymentApplicable: row.prepaymentApplicable,
+    usableInPackages: row.usableInPackages,
+    onlinePaymentApplicable: row.onlinePaymentApplicable,
+    publicWidgetVisible: true,
+    adminManualOnly: false,
+    sortOrder: row.sortOrder,
   };
 }
 
@@ -654,6 +752,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async listBranches(organizationId) {
+      if (isCurrentPublicBookingPrincipal()) {
+        const catalog = await readPublicBookingCatalog(null, null);
+        return catalog.branches.filter((branch) => branch.organizationId === organizationId);
+      }
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -664,6 +766,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getBranch(id) {
+      if (isCurrentPublicBookingPrincipal()) {
+        return (await readPublicBookingCatalog(id, null)).branch;
+      }
       const db = getDrizzle();
       const rows = await db.select().from(beBranches).where(eq(beBranches.id, id)).limit(1);
       return rows[0] ? mapBranch(rows[0]) : null;
@@ -1012,6 +1117,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getService(id) {
+      if (isCurrentPublicBookingPrincipal()) {
+        const service = (await readPublicBookingCatalog(null, id)).service;
+        return service ? mapPublicBookingService(service) : null;
+      }
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -1161,6 +1270,17 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         isActive: row.isActive,
         sortOrder: row.sortOrder,
       };
+    },
+
+    async listPublicBookableServicesForBranch({ organizationId, branchId }) {
+      if (!isCurrentPublicBookingPrincipal()) {
+        throw new Error('public_booking_principal_required');
+      }
+      const catalog = await readPublicBookingCatalog(branchId, null);
+      if (!catalog.branch || catalog.branch.organizationId !== organizationId) return [];
+      return catalog.services
+        .filter((service) => service.organizationId === organizationId)
+        .map(mapPublicBookingService);
     },
 
     async listSpecialistServiceAvailability(organizationId) {

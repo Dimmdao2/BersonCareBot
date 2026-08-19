@@ -330,6 +330,20 @@
       "when": 1800000047000,
       "tag": "0046_a_dead_row_from_june_is_not_todays_outage",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1800000048000,
+      "tag": "0047_the_public_funnel_had_no_door_of_its_own",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1800000051000,
+      "tag": "0047_the_opening_door_did_not_learn_the_new_alarm_words",
+      "breakpoints": true
     }
   ]
 }

@@ -365,6 +365,7 @@ function createServiceAvailabilityFacade(
       assertBookingWriteClearance();
       return port.upsertSpecialistServiceAvailability(input);
     },
+    listPublicBookableServicesForBranch: port.listPublicBookableServicesForBranch.bind(port),
     listSpecialistServiceAvailability: port.listSpecialistServiceAvailability.bind(port),
     async deactivateSpecialistServiceAvailability(id: string) {
       assertBookingWriteClearance();
