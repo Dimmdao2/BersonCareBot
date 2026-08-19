@@ -2926,6 +2926,25 @@ const REV10_CONTEXT = {
     resolve_public_organization_slug: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-slug.resolve',
       functionIdentity: 'app.resolve_public_organization_slug(text)' },
+    // Четыре двери публичной записи (миграция 0043). Арендаторский класс `tenant_service` у порта
+    // `webapp` ходит ИМЕНОВАННЫМИ КОРНЯМИ от `app_seam_public_booking_owner`, а не сквозным
+    // `purpose: 'relation'`: сквозной двери этому классу не выдают (SCHEME §3). Резолвер арендатора
+    // стоит ДО выбора арендатора, поэтому он один в классе `pre_session`.
+    resolve_public_booking_organization: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-tenant.resolve',
+      functionIdentity: 'app.resolve_public_booking_organization(uuid,uuid)' },
+    read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking.public-catalog.read',
+      functionIdentity: 'app.read_public_booking_catalog(uuid,uuid)' },
+    read_public_booking_slot_snapshot: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking.public-slot-snapshot.read',
+      functionIdentity: 'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)' },
+    list_public_booking_form_fields: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking.public-form-fields.read',
+      functionIdentity: 'app.list_public_booking_form_fields()' },
     get_web_push_vapid_public_key: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'patient.web-push.vapid-public-key.read',
       functionIdentity: 'app.get_web_push_vapid_public_key()' },
@@ -3783,6 +3802,117 @@ const REV10_CONTEXT = {
       owner: 'app_seam_public_slug_owner', execute: ['app_pre_session'],
       purpose: 'booking.public-slug.resolve', typedArgs: ['text'], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    // ── Четыре двери публичной записи (миграция 0043). Владелец шва — уже существующий
+    // `app_seam_public_booking_owner`; ни одной новой роли и ни одного расширения табличных грантов
+    // рантайм-ролям. Арендаторский класс `tenant_service` порта `webapp` ходит только этими
+    // ИМЕНОВАННЫМИ КОРНЯМИ: сквозной `purpose: 'relation'` этому классу не выдают (SCHEME §3).
+    //
+    // Резолвер арендатора существовал с миграции 0042, но не был объявлен НИ ОДНОЙ возможностью,
+    // поэтому вызов падал ещё до statement'а, а его рукописный гейт
+    // `app.require_attested_context_for_roles` не сверял ни класс контекста, ни аргументы, ни
+    // идентичность корня. 0043 переводит его на общий `app.require_accepted_context` в классе
+    // `pre_session` (он стоит ДО выбора арендатора) и добавляет проверку публикации клиники —
+    // отсюда две новые поверхности: каталог публикации и активность специалиста.
+    'app.resolve_public_booking_organization(uuid,uuid)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_public_booking_organization(uuid,uuid)'],
+      owner: 'app_seam_public_booking_owner', execute: ['app_pre_session'],
+      purpose: 'booking.public-tenant.resolve', typedArgs: ['uuid', 'uuid'], volatility: 'STABLE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services', columns: ['id', 'organization_id', 'is_active',
+          'public_widget_visible', 'admin_manual_only'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability', columns: ['organization_id', 'branch_id',
+          'service_id', 'specialist_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Одна дверь на четыре формы одного вопроса «что из каталога ЭТОЙ опубликованной клиники видно
+    // снаружи»: организация берётся не из аргумента, а из принятого контекста.
+    'app.read_public_booking_catalog(uuid,uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return only the publicly bookable catalog of the published accepted organization',
+      typedArgs: ['uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'title', 'short_title', 'color',
+          'city_code', 'address', 'timezone', 'is_active', 'sort_order'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services', columns: ['id', 'organization_id', 'title', 'description',
+          'duration_minutes', 'buffer_after_minutes', 'price_minor', 'prepayment_applicable',
+          'usable_in_packages', 'online_payment_applicable', 'sort_order', 'is_active',
+          'public_widget_visible', 'admin_manual_only'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability', columns: ['organization_id', 'service_id',
+          'branch_id', 'specialist_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Публичный близнец `app.read_current_patient_booking_slot_snapshot(...)`: тот же ОДИН снимок
+    // шага выбора времени, но «активная запись пациента» заменена на «клиника опубликована».
+    'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return one anonymous slot snapshot of the published accepted organization',
+      typedArgs: ['uuid', 'uuid', 'text', 'text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.app_runtime_settings', columns: ['key', 'scope', 'audience', 'organization_id',
+          'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: ['organization_id', 'specialist_id', 'service_id',
+          'status', 'start_at', 'end_at', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_availability_rules', columns: ['organization_id', 'specialist_id', 'rule_type',
+          'config', 'is_active', 'updated_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'timezone', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services', columns: ['id', 'organization_id', 'duration_minutes',
+          'buffer_after_minutes', 'is_active', 'public_widget_visible', 'admin_manual_only'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_schedule_blocks', columns: ['organization_id', 'specialist_id', 'start_at',
+          'end_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability', columns: ['id', 'organization_id',
+          'branch_id', 'specialist_id', 'service_id', 'room_id', 'is_active', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_working_days', columns: ['id', 'organization_id', 'specialist_id', 'branch_id',
+          'room_id', 'work_date', 'start_minute', 'end_minute', 'breaks', 'is_closed'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_working_hours', columns: ['organization_id', 'specialist_id', 'branch_id',
+          'room_id', 'weekday', 'start_minute', 'end_minute', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Публичный близнец `app.read_current_patient_booking_form_fields()`: только поля, помеченные
+    // видимыми пациенту, потому что заполняет их посетитель, а не персонал.
+    'app.list_public_booking_form_fields()': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return only patient-visible booking form fields of the published accepted organization',
+      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_booking_form_fields', columns: ['id', 'organization_id', 'field_key',
+          'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
+          'sort_order', 'is_active'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.get_web_push_vapid_public_key()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.get_web_push_vapid_public_key()'],

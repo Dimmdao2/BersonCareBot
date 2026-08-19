@@ -397,6 +397,31 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'booking.public-organization.resolve', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgClinicDirectory.ts',
   },
+  // Замер 19.08: `GET /book/<слаг>` неделю отвечал «Каталог недоступен» (и 503 на шагах слотов и
+  // формы) в КАЖДОЙ опубликованной клинике. Организационный принципал вебаппа проецируется на класс
+  // `tenant_service`, а обычное реляционное чтение берёт возможность с `purpose: 'relation'` — у
+  // порта `webapp` такой у арендаторского класса нет и по SCHEME §3 быть не должно. Дверей у
+  // публичной записи не было ни одной: это не деградация части, а ноль. Четыре корня — миграция 0043.
+  'app.resolve_public_booking_organization(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-tenant.resolve', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_public_booking_catalog(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-catalog.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-slot-snapshot.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.list_public_booking_form_fields()': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-form-fields.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgBookingForm.ts',
+  },
   'app.resolve_public_organization_slug(text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'booking.public-slug.resolve', argCount: 1,

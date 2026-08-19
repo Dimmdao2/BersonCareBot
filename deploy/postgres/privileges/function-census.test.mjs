@@ -137,7 +137,10 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // `app.resolve_public_booking_organization(uuid,uuid)`. Оба перестали читать
   // `public.be_external_entity_mappings`: таблица удалена вместе с Rubitime. Прибавка = функции
   // наконец под учётом, новых функций не появилось.
-  assert.equal(functions.length, 110);
+  // 110 → 113 (19.08): миграция 0043 — три новые двери публичной записи (каталог, снимок слотов,
+  // поля формы). Четвёртое тело, `app.resolve_public_booking_organization(uuid,uuid)`, уже было под
+  // учётом с 0042 и счётчик не двигает: 0043 только перевела его гейт на `app.require_accepted_context`.
+  assert.equal(functions.length, 113);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -148,7 +151,7 @@ test('all latest active B0-forward definers have exact executable relation-opera
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all 403 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
+test('all 406 declared functions have the exact source-reconstructed base type and set-returning flag', () => {
   const sources = [{
     source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
     text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
@@ -190,7 +193,9 @@ test('all 403 declared functions have the exact source-reconstructed base type a
   // 398 → 400 (19.08): два корня миграции 0039.
   // 400 → 402 (19.08): два корня миграции 0040.
   // 402 → 403 (19.08): корень открытия критического инцидента (миграция 0041).
-  assert.equal(canonical.size, 403);
+  // 403 → 406 (19.08): три новые двери публичной записи (миграция 0043); резолвер арендатора уже
+  // был объявлен с 0042.
+  assert.equal(canonical.size, 406);
   assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
   const forms = [...canonical.values()].reduce((counts, row) => {
     counts[row.form] = (counts[row.form] ?? 0) + 1;
@@ -202,7 +207,8 @@ test('all 403 declared functions have the exact source-reconstructed base type a
   // SCALAR 274 → 276 (19.08): снимок очереди возвращает jsonb, постановка сводки — boolean.
   // SCALAR 276 → 278 (19.08): оба корня миграции 0040 возвращают jsonb.
   // SCALAR 278 → 279 (19.08): корень открытия критического инцидента возвращает jsonb.
-  assert.deepEqual(forms, { SCALAR: 279, TABLE: 120, SETOF: 4 });
+  // SCALAR 279 → 282 (19.08): три двери публичной записи возвращают jsonb (миграция 0043).
+  assert.deepEqual(forms, { SCALAR: 282, TABLE: 120, SETOF: 4 });
   assert.equal(Object.values(declaration.portContext.functions).filter((fn) => fn.returnsSet).length, 124);
   // 269 → 270 (19.08): корень уборки скалярный — возвращает число убранных строк.
   // 271 → 272 (19.08): корень постановки исходящего сообщения возвращает boolean — «строка новая».
@@ -212,7 +218,8 @@ test('all 403 declared functions have the exact source-reconstructed base type a
   // 276 → 278 (19.08): оба корня миграции 0039 скалярные.
   // 278 → 280 (19.08): оба корня миграции 0040 скалярные.
   // 280 → 281 (19.08): корень открытия критического инцидента скалярный.
-  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 281);
+  // 281 → 284 (19.08): три скалярные двери публичной записи (миграция 0043).
+  assert.equal(Object.values(declaration.portContext.functions).filter((fn) => !fn.returnsSet).length, 284);
 
   const practice = structuredClone(declaration.portContext.functions);
   practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
@@ -445,8 +452,10 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // +2 (19.08): оба корня миграции 0039, SECURITY DEFINER.
   // +2 (19.08): оба корня миграции 0040, SECURITY DEFINER.
   // +1 (19.08): корень открытия критического инцидента (миграция 0041), SECURITY DEFINER.
-  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 390);
-  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 388);
+  // +3 (19.08): три двери публичной записи (миграция 0043), все SECURITY DEFINER от
+  // `app_seam_public_booking_owner`. Резолвер арендатора уже был объявлен и счётчик не двигает.
+  assert.equal(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 393);
+  assert.equal(devFunctions.filter(([, fn]) => fn.security === 'DEFINER').length, 391);
   // +1 (18.08): `app.begin_port_context(uuid,app.port_context_claims)` — INVOKER, поэтому счётчики
   // DEFINER выше не двигаются.
   // 397 → 399 (19.08): два корня контактов формы записи из миграции 0037.
@@ -454,8 +463,9 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // 400 → 402 (19.08): два корня миграции 0039.
   // 402 → 404 (19.08): два корня миграции 0040.
   // 404 → 405 (19.08): корень открытия критического инцидента (миграция 0041).
-  assert.equal(testFunctions.length, 405);
-  assert.equal(devFunctions.length, 403);
+  // 405 → 408 (19.08): три двери публичной записи (миграция 0043).
+  assert.equal(testFunctions.length, 408);
+  assert.equal(devFunctions.length, 406);
   // 44 → 45 (19.08): у корня уборки собственный владелец шва `app_seam_retention_sweep_owner`.
   // Занять соседнего значило бы расширить его шов на чужие таблицы.
   assert.equal(new Set(testFunctions.filter(([, fn]) => fn.security === 'DEFINER').map(([, fn]) => fn.owner)).size, 45);
@@ -674,7 +684,8 @@ test('targeted diary snapshot conflict declares only its two-key SELECT surface'
 test('per-DB function SQL is deterministic and contains the bilateral metadata check', () => {
   for (const database of DATABASES) {
     const first = generateFunctionCensusSql(declaration, database);
-    const expectedDefiners = database === 'bersoncarebot_test' ? 390 : 388;
+    // 390/388 → 393/391 (19.08): три двери публичной записи (миграция 0043).
+    const expectedDefiners = database === 'bersoncarebot_test' ? 393 : 391;
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),

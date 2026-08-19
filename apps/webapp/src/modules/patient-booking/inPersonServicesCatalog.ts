@@ -11,9 +11,24 @@ import {
 export type InPersonServicesCatalogDeps = {
   bookingEngine: {
     catalog: Pick<OrganizationCatalogPort, 'listBranches' | 'getBranch' | 'listSpecialists'>;
-    services: Pick<ServiceAvailabilityPort, 'listServices' | 'listSpecialistServiceAvailability'>;
+    services: Pick<
+      ServiceAvailabilityPort,
+      'listServices' | 'listSpecialistServiceAvailability' | 'listPublicBookableServicesForBranch'
+    >;
   } | null;
 };
+
+export type BranchServicesListing = {
+  branch: { id: string; title: string; cityCode: string };
+  services: InPersonServiceListItem[];
+};
+
+/** Одна подпись у обоих способов получить услуги филиала — пациентского и публичного. */
+export type BranchServicesLister = (
+  deps: InPersonServicesCatalogDeps,
+  organizationId: string,
+  branchId: string,
+) => Promise<BranchServicesListing | null>;
 
 export type InPersonServiceListItem = {
   id: string;
@@ -73,12 +88,13 @@ export async function listInPersonCitiesForOrganization(
 export async function resolveBookableOnlineLocationForOrganization(
   deps: InPersonServicesCatalogDeps,
   organizationId: string,
+  listServicesForBranch: BranchServicesLister = listInPersonServicesForBranch,
 ): Promise<OnlineBookingLocationOption | null> {
   if (!deps.bookingEngine) return null;
   const branches = await deps.bookingEngine.catalog.listBranches(organizationId);
   const branch = findBuiltInOnlineLocation(branches, organizationId);
   if (!branch?.isActive) return null;
-  const catalog = await listInPersonServicesForBranch(deps, organizationId, branch.id);
+  const catalog = await listServicesForBranch(deps, organizationId, branch.id);
   if (!catalog || catalog.services.length === 0) return null;
   return { id: branch.id, cityCode: branch.cityCode, title: branch.title };
 }
@@ -98,15 +114,50 @@ export async function resolveActiveBranchForCity(
   return match ? { id: match.id, title: match.title, cityCode: match.cityCode } : null;
 }
 
+function toServiceListItem(service: {
+  id: string;
+  title: string;
+  description: string | null;
+  durationMinutes: number;
+  priceMinor: number;
+}): InPersonServiceListItem {
+  return {
+    id: service.id,
+    title: service.title,
+    description: service.description,
+    durationMinutes: service.durationMinutes,
+    priceMinor: service.priceMinor,
+  };
+}
+
+/**
+ * Публичный путь: отбор публично записываемых услуг делает дверь каталога в SQL. Здесь остаётся
+ * только согласование филиала с организацией слага — того самого, под которым поставлен принципал.
+ */
+export async function listPublicBookableServicesForBranch(
+  deps: InPersonServicesCatalogDeps,
+  organizationId: string,
+  branchId: string,
+): Promise<BranchServicesListing | null> {
+  if (!deps.bookingEngine) return null;
+  const branch = await deps.bookingEngine.catalog.getBranch(branchId);
+  if (!branch || branch.organizationId !== organizationId || !branch.isActive) return null;
+  const services = await deps.bookingEngine.services.listPublicBookableServicesForBranch({
+    organizationId,
+    branchId,
+  });
+  return {
+    branch: { id: branch.id, title: branch.title, cityCode: branch.cityCode },
+    services: services.map(toServiceListItem),
+  };
+}
+
 export async function listInPersonServicesForBranch(
   deps: InPersonServicesCatalogDeps,
   organizationId: string,
   branchId: string,
   specialistId?: string | null,
-): Promise<{
-  branch: { id: string; title: string; cityCode: string };
-  services: InPersonServiceListItem[];
-} | null> {
+): Promise<BranchServicesListing | null> {
   if (!deps.bookingEngine) return null;
   const branch = await deps.bookingEngine.catalog.getBranch(branchId);
   if (!branch || branch.organizationId !== organizationId || !branch.isActive) return null;
@@ -148,13 +199,7 @@ export async function listInPersonServicesForBranch(
         !s.adminManualOnly &&
         assignedServiceIds.has(s.id),
     )
-    .map((s) => ({
-      id: s.id,
-      title: s.title,
-      description: s.description,
-      durationMinutes: s.durationMinutes,
-      priceMinor: s.priceMinor,
-    }));
+    .map(toServiceListItem);
 
   return {
     branch: { id: branch.id, title: branch.title, cityCode: branch.cityCode },

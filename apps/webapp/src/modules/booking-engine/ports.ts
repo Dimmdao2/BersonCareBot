@@ -107,6 +107,16 @@ export type OrganizationCatalogPort = {
 export type ServiceAvailabilityPort = {
   listServices(organizationId: string): Promise<BeClinicService[]>;
   getService(id: string): Promise<BeClinicService | null>;
+  /**
+   * Услуги филиала, которые анонимному посетителю позволено записать. Отбор («активна», «видна в
+   * публичном виджете», «не только для администратора», «назначена активному специалисту в этом
+   * филиале») делает дверь публичного каталога в SQL — здесь его повторять нельзя, иначе появятся
+   * две реализации одного правила. Вне принципала публичной записи метод отказывает.
+   */
+  listPublicBookableServicesForBranch(input: {
+    organizationId: string;
+    branchId: string;
+  }): Promise<BeClinicService[]>;
   upsertService(input: {
     organizationId: string;
     id?: string;
