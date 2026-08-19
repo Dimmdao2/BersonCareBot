@@ -1819,6 +1819,7 @@ const REV10_SEAM_OWNERS = [
   'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
   'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
   'app_seam_retention_sweep_owner', 'app_seam_platform_analytics_owner',
+  'app_seam_public_clinic_card_owner',
 ] as const;
 
 function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
@@ -2970,6 +2971,17 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-form-fields.read',
       functionIdentity: 'app.list_public_booking_form_fields()' },
+    // Публичная визитка клиники `/{clinic}` (владелец 19.08). Анонимный посетитель читает ОДНУ
+    // строку публичной проекции через дверь: прямой SELECT ему отозван целиком (42501).
+    read_public_clinic_card: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'clinic.public-card.read',
+      functionIdentity: 'app.read_public_clinic_card(text)' },
+    // Настройка визитки в кабинете админа клиники. У `app_staff` на проекции поколоночный
+    // UPDATE ровно на `slug, updated_at` — выдать ему новые колонки значило бы расширить гранты
+    // рабочей роли, поэтому запись идёт объявленным корнем.
+    save_public_clinic_card: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff', purpose: 'clinic.public-card.save',
+      functionIdentity: 'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)' },
     get_web_push_vapid_public_key: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'patient.web-push.vapid-public-key.read',
       functionIdentity: 'app.get_web_push_vapid_public_key()' },
@@ -3993,6 +4005,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+<<<<<<< HEAD
     // Личность посетителя. Организации в аргументах нет: телефон принадлежит человеку, а не клинике,
     // и класс `pre_session` стоит до выбора арендатора.
     'app.resolve_public_booking_client_by_phone(text,text,boolean)': rev10Function({
@@ -4077,6 +4090,55 @@ const REV10_CONTEXT = {
         { relation: 'public.org_enrollments', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
+=======
+    // Две двери визитки клиники (миграция 0049). Собственный владелец шва: ближайший сосед
+    // `app_seam_public_slug_owner` читает те же три таблицы, но визитка добавляет к ним
+    // `media_files` и `be_branches`, а запись — UPDATE на проекцию. Растянуть шов резолвера slug
+    // на медиа-библиотеку и филиалы значило бы расширить его ровно так, как объявленные корни
+    // существуют, чтобы не расширять.
+    'app.read_public_clinic_card(text)': rev10Function({
+      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_pre_session'],
+      purpose: 'return one published clinic card, media ids included, or nothing',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims', columns: ['organization_id', 'kind', 'slug'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries',
+          columns: ['organization_id', 'is_published', 'card_is_published', 'display_name',
+            'description', 'public_contact_phone', 'public_contact_email', 'public_website_url',
+            'locations_json', 'logo_media_id', 'photo_media_ids'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'owner_kind', 'organization_id', 'status', 'mime_type', 's3_key',
+            'stored_path'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
+    'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': rev10Function({
+      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_staff'],
+      purpose: 'write the clinic card of the principal organization and snapshot its branches',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'uuid', 'text', 'boolean'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_files', columns: ['id', 'owner_kind', 'organization_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_branches',
+          columns: ['organization_id', 'is_active', 'title', 'city_code', 'address', 'sort_order'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries',
+          columns: ['organization_id', 'description', 'public_contact_phone',
+            'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids',
+            'locations_json', 'card_is_published', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+>>>>>>> 63afa779b7be68a902e5474ba7f9f775390e6177
     }),
     'app.get_web_push_vapid_public_key()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.get_web_push_vapid_public_key()'],

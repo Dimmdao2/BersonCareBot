@@ -99,6 +99,48 @@ export async function resolveBookableOnlineLocationForOrganization(
   return { id: branch.id, cityCode: branch.cityCode, title: branch.title };
 }
 
+export type BookableBranchOption = {
+  id: string;
+  title: string;
+  cityCode: string;
+  cityTitle: string;
+  sortOrder: number;
+};
+
+/**
+ * Активные очные филиалы организации — ПЕРВЫЙ экран публичной записи.
+ *
+ * До 19.08 первым экраном стоял ГОРОД, а филиал выбирался за посетителя: `resolveActiveBranchForCity`
+ * брала активные филиалы города и возвращала ПЕРВЫЙ по `sort_order`. Следствие для человека: запись
+ * жёстко привязывалась к филиалу, которого он не выбирал, а второй филиал того же города был
+ * недостижим вовсе. Владелец 19.08: «можно убрать все и получить первый экран с выбором филиала».
+ *
+ * Город остаётся ГРУППИРОВКОЙ в этом списке, а не отдельным шагом.
+ */
+export async function listBookableBranchesForOrganization(
+  deps: InPersonServicesCatalogDeps,
+  organizationId: string,
+): Promise<BookableBranchOption[] | null> {
+  if (!deps.bookingEngine) return null;
+  const branches = await deps.bookingEngine.catalog.listBranches(organizationId);
+  return branches
+    .filter(
+      (branch) =>
+        branch.organizationId === organizationId &&
+        branch.isActive &&
+        !isBuiltInOnlineLocation(branch) &&
+        branch.cityCode.trim().length > 0,
+    )
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'))
+    .map((branch) => ({
+      id: branch.id,
+      title: branch.title,
+      cityCode: branch.cityCode.trim().toLowerCase(),
+      cityTitle: titleForBookingCityCode(branch.cityCode),
+      sortOrder: branch.sortOrder,
+    }));
+}
+
 export async function resolveActiveBranchForCity(
   deps: InPersonServicesCatalogDeps,
   organizationId: string,
