@@ -7,6 +7,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -183,7 +184,7 @@ test('normal legacy execution still accepts migration, backfill and post files',
 // Selection is by name now: pending is every file the ledger does not name, in file-name order.
 // The fake psql answers three different questions the wrapper asks — prepare the ledger, read it,
 // probe the catalog — so a run can be driven without a database.
-function createLedgerRuntime({ appliedTags, absentObject = false }) {
+function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = null }) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-local-ledger-'));
   const bin = join(root, 'bin');
   const migrations = join(root, 'migrations');
@@ -205,9 +206,17 @@ function createLedgerRuntime({ appliedTags, absentObject = false }) {
       ].join('\n'),
     );
   }
-  const ledger = appliedTags
-    .map((tag, index) => `${'a'.repeat(64)}\t${1800000000100 + index * 100}\t${tag}`)
-    .join('\n');
+  const ledgerLines = appliedTags.map(
+    (tag, index) => `${'a'.repeat(64)}\t${1800000000100 + index * 100}\t${tag}`,
+  );
+  // A row this checkout cannot name, carrying the exact content hash of a pending file: the
+  // scenario a rename of an already-applied migration produces.
+  if (foreignRow) {
+    const content = readFileSync(join(migrations, `${foreignRow.matchesTag}.sql`), 'utf8');
+    const hash = createHash('sha256').update(content).digest('hex');
+    ledgerLines.push(`${hash}\t${foreignRow.createdAt}\t${foreignRow.tag}`);
+  }
+  const ledger = ledgerLines.join('\n');
   // The catalog probe asks one row per expected object, positional. The fake answers `t` for every
   // probe except the one that names `absentObject`'s function — "the ledger names it, the catalog
   // does not have it".
@@ -326,4 +335,55 @@ test('reapply refuses a tag the database never applied', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /has not applied at all; it is ordinary pending work/u);
   assert.equal(existsSync(runtime.capture), false);
+});
+
+// The rename-of-an-applied-migration case: a pending file byte-identical to a ledger row this
+// checkout cannot name is not new work, it is `0001_late_arrival.sql` come back under a name the
+// journal never froze. Order-is-the-file-name makes that an identity change, and it must be refused
+// before a single statement reaches psql — not silently applied a second time under a new tag.
+test('a pending file byte-identical to a foreign ledger row is refused as a rename, not applied', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: { tag: '0009_old_name_from_another_branch', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.notEqual(result.status, 0, 'a renamed applied migration must not report success');
+  assert.match(result.stderr, /0001_late_arrival\.sql is byte-identical to a migration/u);
+  assert.match(result.stderr, /renaming an applied migration is forbidden/u);
+  assert.doesNotMatch(result.stdout, /already current/u);
+  assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the rename gate');
+});
+
+// The ordinary case this must not catch: content that only happens to be pending, with no foreign
+// ledger row sharing its hash, is applied normally.
+test('a pending file with no matching foreign ledger row is applied normally, not refused', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: { tag: '0009_unrelated', matchesTag: '0002_third', createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_0001_late_arrival/u);
+  assert.match(result.stdout, /pending=1 total=3/u);
+});
+
+// --reapply is a deliberate, named re-run of a migration the caller already knows is applied; it
+// must not be mistaken for the rename case even though the reapplied tag is, by definition, applied
+// under its own name already.
+test('reapply is not mistaken for a rename even when a foreign row shares its own content hash', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    absentObject: true,
+    foreignRow: { tag: '0009_unrelated', matchesTag: '0000_first', createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime, ['--reapply', '0000_first']);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /reapplied=1/u);
 });

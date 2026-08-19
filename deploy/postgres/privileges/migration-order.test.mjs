@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
 
 import {
   collectExpectedObjects,
   findForeignLedgerRows,
+  findMigrationNameViolations,
+  findRenamedAppliedMigrations,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
@@ -14,6 +17,10 @@ import {
   selectPendingMigrations,
   splitStatements,
 } from './migration-order.mjs';
+
+const REAL_MIGRATIONS_FOLDER = fileURLToPath(
+  new URL('../../../apps/webapp/db/drizzle-migrations', import.meta.url),
+);
 
 function folderWith(files, journalEntries = null) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migration-order-'));
@@ -162,4 +169,55 @@ test('every expected object gets one positional catalog probe', () => {
   assert.match(sql, /p\.proname = 'door'/u);
   assert.match(sql, /n\.nspname = 'app'/u);
   assert.equal(renderObjectPresenceSql([]), null);
+});
+
+// A new migration's name is a timestamp; only tags the frozen journal already knows keep the old
+// sequential shape, and that set can never grow, so this tightens on its own as work adds files.
+test('a timestamp name passes, a fresh sequential number does not, a legacy one does', () => {
+  const legacy = [{ tag: '0001_first' }];
+  const migrations = [
+    migration('0001_first'), // legacy, in the journal
+    migration('20260820T014233_new_work'), // new, timestamp-shaped
+    migration('0050_hand_picked'), // new, but still the old shape -> collision-prone
+  ];
+
+  assert.deepEqual(findMigrationNameViolations(migrations, legacy), ['0050_hand_picked']);
+});
+
+test('a bare number, a missing slug or an out-of-range clock field is not a timestamp name', () => {
+  for (const tag of ['20260820_missing_time', '2026082T014233_short_date', '20260820T014233', '20260820T0142_short_time']) {
+    assert.deepEqual(findMigrationNameViolations([migration(tag)], []), [tag], tag);
+  }
+});
+
+// This is the fact the naming change rests on: legacy '0001'.. sorts before every timestamp name,
+// because '0' < '2' — checked here against the sort the runners actually use, on the real folder,
+// not assumed from reading the regex.
+test('every real legacy migration name sorts before a 2026 timestamp name, by the sort runners use', () => {
+  const legacy = readMigrationFolder(REAL_MIGRATIONS_FOLDER).map((entry) => entry.tag);
+  assert.ok(legacy.length > 0, 'the real migrations folder must not be empty for this to prove anything');
+  const sorted = [...legacy, '20260820T014233_after_everything_legacy'].sort();
+  assert.deepEqual(sorted.slice(-1), ['20260820T014233_after_everything_legacy']);
+  assert.deepEqual(sorted.slice(0, legacy.length), [...legacy].sort());
+});
+
+test('a pending file byte-identical to a foreign ledger row is a rename of an applied migration', () => {
+  const pending = [{ tag: '20260820T014233_renamed', hash: 'same-content-hash' }];
+  const foreign = findForeignLedgerRows(
+    [],
+    [{ tag: '0009_old_name', hash: 'same-content-hash', createdAt: 1800000009000 }],
+  );
+
+  const renamed = findRenamedAppliedMigrations(pending, foreign);
+
+  assert.equal(renamed.length, 1);
+  assert.equal(renamed[0].migration.tag, '20260820T014233_renamed');
+  assert.equal(renamed[0].row.tag, '0009_old_name');
+});
+
+test('a pending file with genuinely new content is not flagged as a rename', () => {
+  const pending = [{ tag: '20260820T014233_new_work', hash: 'brand-new-hash' }];
+  const foreign = findForeignLedgerRows([], [{ tag: '0009_old_name', hash: 'unrelated-hash' }]);
+
+  assert.deepEqual(findRenamedAppliedMigrations(pending, foreign), []);
 });

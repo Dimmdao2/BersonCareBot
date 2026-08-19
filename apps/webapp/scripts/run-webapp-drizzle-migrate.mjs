@@ -21,12 +21,15 @@ import pg from 'pg';
 import {
   collectExpectedObjects,
   describeObject,
+  findForeignLedgerRows,
+  findRenamedAppliedMigrations,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
   renderObjectPresenceSql,
   selectPendingMigrations,
   splitStatements,
+  TIMESTAMP_MIGRATION_NAME,
 } from '../../../deploy/postgres/privileges/migration-order.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +46,7 @@ const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
  */
 export function selectMigrationPhase(migrations, beforeTag) {
   if (!beforeTag) return { migrations, bounded: false };
-  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag)) {
+  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag) && !TIMESTAMP_MIGRATION_NAME.test(beforeTag)) {
     throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG invalid tag=${beforeTag}`);
   }
   const at = migrations.findIndex((migration) => migration.tag === beforeTag);
@@ -202,6 +205,15 @@ if (process.argv.includes('--self-test')) {
   if (selectPendingMigrations(ledgerFixture, ledgerFixture).length !== 0) {
     throw new Error('migration selection self-test would re-apply an applied migration');
   }
+  // A pending file byte-identical to a foreign ledger row is an applied migration under a new name.
+  const renamedFixture = [{ tag: '20260820T010000_renamed', hash: 'shared-hash' }];
+  const renamedForeign = findForeignLedgerRows([], [{ tag: '0009_old_name', hash: 'shared-hash' }]);
+  if (findRenamedAppliedMigrations(renamedFixture, renamedForeign).length !== 1) {
+    throw new Error('migration rename self-test did not catch a byte-identical foreign ledger row');
+  }
+  if (findRenamedAppliedMigrations([{ tag: '20260820T010000_new', hash: 'unseen-hash' }], renamedForeign).length !== 0) {
+    throw new Error('migration rename self-test flagged unrelated content as a rename');
+  }
   try {
     assertNoTransactionForbiddenConcurrentIndexes([
       { tag: '9999_bad', source: 'CREATE INDEX CONCURRENTLY bad_index ON public.example (id);' },
@@ -254,10 +266,21 @@ let exitCode = 0;
 let running = null;
 try {
   await pool.query(renderLedgerBootstrapSql(readLegacyJournalEntries(migrationsFolder)));
-  const ledgerRows = (await pool.query('SELECT tag FROM drizzle.__drizzle_migrations')).rows;
+  const ledgerRows = (await pool.query('SELECT tag, hash FROM drizzle.__drizzle_migrations')).rows;
   const pending = selectPendingMigrations(phase.migrations, ledgerRows);
   const pendingTags = new Set(pending.map((migration) => migration.tag));
   const applied = phase.migrations.filter((migration) => !pendingTags.has(migration.tag));
+
+  // A pending file byte-identical to a ledger row this checkout cannot name is an applied migration
+  // wearing a new name, not new work — see migrate-local.mjs for the same guard on the DEV/TEST path.
+  const renamed = findRenamedAppliedMigrations(pending, findForeignLedgerRows(phase.migrations, ledgerRows));
+  if (renamed.length > 0) {
+    throw new Error(
+      `migration_renamed_after_apply ${renamed
+        .map(({ migration, row }) => `${migration.tag} (matches ledger row created_at=${row.createdAt})`)
+        .join('; ')}`,
+    );
+  }
 
   // A ledger row is a claim. Before adding to it, make it answer for the schema it describes.
   const expected = collectExpectedObjects(applied);
@@ -298,7 +321,11 @@ try {
   );
 } catch (error) {
   exitCode = 1;
-  if (error instanceof Error && error.message.startsWith('migration_ledger_answers_for_absent_objects ')) {
+  if (
+    error instanceof Error
+    && (error.message.startsWith('migration_ledger_answers_for_absent_objects ')
+      || error.message.startsWith('migration_renamed_after_apply '))
+  ) {
     console.error(`[migrate] ${error.message}`);
   } else {
     console.error(renderStructuredMigrationFailureDiagnostic(error, running));

@@ -15,7 +15,10 @@
  *
  * `meta/_journal.json` is no longer read for order.  It survives as the frozen historical
  * `when -> tag` map used once per database to label ledger rows written before the tag column
- * existed (`backfillLedgerTagsSql`).
+ * existed (`backfillLedgerTagsSql`), and, second job, as the closed list of names allowed to keep
+ * the old `NNNN_slug` shape (`findMigrationNameViolations`).  Every migration created after this
+ * module started enforcing it is named `YYYYMMDDTHHMMSS_slug` — a timestamp, not a hand-picked
+ * number, so two branches cannot pick the same name and nothing needs reserving before a merge.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -55,6 +58,48 @@ export function selectPendingMigrations(migrations, ledgerRows) {
 export function findForeignLedgerRows(migrations, ledgerRows) {
   const known = new Set(migrations.map((migration) => migration.tag));
   return ledgerRows.filter((row) => !row.tag || !known.has(row.tag));
+}
+
+/**
+ * A new migration's name is a timestamp, not a hand-picked number: `YYYYMMDDTHHMMSS_slug`, UTC,
+ * second precision.  Two agents cannot land the same instant, so the name alone rules out the
+ * collision that hand-picked sequential numbers hit twice on 19.08 (`0050` claimed by two branches
+ * the same evening).  It also makes "insert between two migrations" ordinary: pick a timestamp
+ * between them, no letter suffix, no renumbering neighbours.
+ */
+export const TIMESTAMP_MIGRATION_NAME = /^\d{8}T\d{6}_[a-z0-9]+(?:_[a-z0-9]+)*$/u;
+
+/**
+ * The 50 migrations the frozen historical journal already names keep their old `NNNN[suffix]_slug`
+ * shape forever — renaming them would break the ledger identity (`tag`), and the journal can never
+ * grow a new entry, so this legacy set cannot grow either.  Every tag it does not know must be a
+ * timestamp.  Returns the offending tags, not booleans, so a caller can name them in one failure.
+ */
+export function findMigrationNameViolations(migrations, legacyEntries) {
+  const legacyTags = new Set((legacyEntries ?? []).map((entry) => entry.tag));
+  return migrations
+    .filter((migration) => !legacyTags.has(migration.tag))
+    .filter((migration) => !TIMESTAMP_MIGRATION_NAME.test(migration.tag))
+    .map((migration) => migration.tag);
+}
+
+/**
+ * A pending migration byte-identical to a ledger row this checkout cannot name is not new work — it
+ * is an applied migration wearing a new file name.  `AGENTS.md` forbids renaming an applied
+ * migration (the name is its ledger identity); this is what makes that refusal real instead of
+ * aspirational for every migration created after the historical journal froze, where there is no
+ * journal entry left to catch the old name going missing.
+ *
+ * Content, not name, is what proves the rename: the hash is computed the same way on both sides
+ * (`readMigrationFolder`, `INSERT ... hash`), so a plain `git mv` — the only legitimate way to
+ * reorder an unapplied migration — cannot trigger this, because an unapplied migration owns no
+ * foreign ledger row to collide with.
+ */
+export function findRenamedAppliedMigrations(pendingMigrations, foreignLedgerRows) {
+  const foreignByHash = new Map(foreignLedgerRows.filter((row) => row.hash).map((row) => [row.hash, row]));
+  return pendingMigrations
+    .filter((migration) => foreignByHash.has(migration.hash))
+    .map((migration) => ({ migration, row: foreignByHash.get(migration.hash) }));
 }
 
 /** Statements as the folder writes them: one chunk per Drizzle breakpoint, comments kept. */

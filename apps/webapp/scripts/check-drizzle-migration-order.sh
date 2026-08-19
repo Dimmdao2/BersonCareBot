@@ -5,39 +5,44 @@
 # agreed. Two places for one fact is what made merging branches a hand-edit: on 19.08 the journal was
 # corrected by hand three times, and one of those corrections dropped a migration on TEST. The
 # runners now read the folder listing, so there is nothing left to keep in sync — what is checked
-# here is that a file name can be sorted, and that the journal, which survives only as the frozen
-# historical `when -> tag` map used to label pre-existing ledger rows, still points at real files.
+# here is that every name is either one the frozen historical journal already knows (kept forever,
+# whatever shape it has) or a timestamp (`findMigrationNameViolations` in migration-order.mjs, the
+# same module both runners apply from), and that the journal itself still points at real files.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${ROOT}/../.." && pwd)"
 MIG_DIR="${ROOT}/db/drizzle-migrations"
 JOURNAL="${MIG_DIR}/meta/_journal.json"
+MIGRATION_ORDER_MODULE="${REPO_ROOT}/deploy/postgres/privileges/migration-order.mjs"
 
 failed=0
-shopt -s nullglob
-for sql in "${MIG_DIR}"/*.sql; do
-  base="$(basename "${sql}" .sql)"
-  # Four digits first, so the listing sorts the way a human reads it; a suffix letter is how a
-  # migration slots between two already-applied ones without renaming either.
-  if [[ ! "${base}" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ ]]; then
-    echo "check-drizzle-migration-order: ${base}.sql is not named NNNN[suffix]_lower_snake_case" >&2
-    failed=1
-  fi
-done
 
-if [[ -f "${JOURNAL}" ]]; then
-  node - "${JOURNAL}" "${MIG_DIR}" <<'NODE' || failed=1
-const fs = require("node:fs");
-const path = require("node:path");
+node --input-type=module - "${MIG_DIR}" "${JOURNAL}" "${MIGRATION_ORDER_MODULE}" <<'NODE' || failed=1
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const [journalPath, migrationsDir] = process.argv.slice(2);
-const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
-const seenTags = new Set();
-const seenWhens = new Set();
+const [migrationsDir, journalPath, moduleFile] = process.argv.slice(2);
+const { findMigrationNameViolations, readMigrationFolder } = await import(pathToFileURL(moduleFile));
+
+const journal = fs.existsSync(journalPath) ? JSON.parse(fs.readFileSync(journalPath, 'utf8')) : { entries: [] };
+const entries = journal.entries ?? [];
 let failed = false;
 
-for (const entry of journal.entries ?? []) {
+const violations = findMigrationNameViolations(readMigrationFolder(migrationsDir), entries);
+for (const tag of violations) {
+  console.error(
+    `check-drizzle-migration-order: ${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case, and the ` +
+      'frozen historical journal does not know it as a legacy name',
+  );
+  failed = true;
+}
+
+const seenTags = new Set();
+const seenWhens = new Set();
+for (const entry of entries) {
   if (seenTags.has(entry.tag)) {
     console.error(`check-drizzle-migration-order: duplicate tag ${entry.tag} in the historical map`);
     failed = true;
@@ -53,18 +58,17 @@ for (const entry of journal.entries ?? []) {
   if (!fs.existsSync(path.join(migrationsDir, `${entry.tag}.sql`))) {
     console.error(
       `check-drizzle-migration-order: the historical map names ${entry.tag}, which has no .sql file; ` +
-        "an applied migration was deleted or renamed",
+        'an applied migration was deleted or renamed',
     );
     failed = true;
   }
 }
 process.exit(failed ? 1 : 0);
 NODE
-fi
 
 if (( failed != 0 )); then
-  echo "Order comes from the file name: add db/drizzle-migrations/NNNN_name.sql and nothing else." >&2
-  echo "meta/_journal.json is the frozen historical map; do not hand-edit it to reorder anything." >&2
+  echo "New migrations are named db/drizzle-migrations/YYYYMMDDTHHMMSS_name.sql (UTC); nothing hands out a number." >&2
+  echo "meta/_journal.json is the frozen historical map: it names the legacy NNNN files and nothing new." >&2
   exit 1
 fi
 

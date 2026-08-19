@@ -17,6 +17,7 @@ import {
   collectExpectedObjects,
   describeObject,
   findForeignLedgerRows,
+  findRenamedAppliedMigrations,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
@@ -210,13 +211,33 @@ if (drizzleFolder) {
   const pending = migrations.filter(
     (migration) => pendingTags.has(migration.tag) || reapplyTags.includes(migration.tag),
   );
+  const foreign = findForeignLedgerRows(migrations, appliedRows);
+  // A pending file byte-identical to a ledger row this checkout cannot name did not just arrive —
+  // it is an applied migration under a new name.  The order-is-the-file-name rule makes a rename
+  // the migration's identity change; running it again would apply already-applied DDL a second time
+  // under a tag nothing else on the database will ever recognise.
+  const renamed = findRenamedAppliedMigrations(
+    pending.filter((migration) => !reapplyTags.includes(migration.tag)),
+    foreign,
+  );
+  if (renamed.length > 0) {
+    fail(
+      renamed
+        .map(
+          ({ migration, row }) =>
+            `${migration.tag}.sql is byte-identical to a migration ${db} already applied under a name this `
+              + `checkout does not carry (ledger created_at=${row.createdAt}); renaming an applied migration `
+              + 'is forbidden. Restore the original file name, or if this is genuinely new work, change its SQL.',
+        )
+        .join('\n'),
+    );
+  }
   steps = pending.flatMap((migration) =>
     parseOwnerStatements(migration.source, migration.tag).map((statement) => ({
       ...statement,
       drizzle: { hash: migration.hash, tag: migration.tag, reapply: reapplyTags.includes(migration.tag) },
     })),
   );
-  const foreign = findForeignLedgerRows(migrations, appliedRows);
   drizzleSummary = {
     pending: pending.length,
     total: migrations.length,
