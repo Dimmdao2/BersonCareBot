@@ -41,7 +41,7 @@ export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
     if (!mediaUrl) continue;
     const mt = o.mediaType ?? o.type;
     const mediaType: RecommendationMediaItem['mediaType'] =
-      mt === 'video' || mt === 'gif' || mt === 'image' ? mt : 'image';
+      mt === 'video' || mt === 'gif' || mt === 'image' || mt === 'hosted_video' ? mt : 'image';
     const sortOrder =
       typeof o.sortOrder === 'number' && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
     const previewSmUrl =

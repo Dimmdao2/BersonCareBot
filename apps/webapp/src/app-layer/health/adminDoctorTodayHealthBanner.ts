@@ -1,4 +1,7 @@
-import { classifyOperatorHealthBannerSignals } from '@/modules/operator-health/criticalHealthSignals';
+import {
+  classifyOperatorHealthBannerSignals,
+  countActiveOutgoingDeliveryDead,
+} from '@/modules/operator-health/criticalHealthSignals';
 import { collectOperatorHealthBannerInput } from './collectCriticalHealthSignals';
 import type { SystemHealthResponse } from './collectAdminSystemHealthData';
 import type { OperatorHealthBannerInput } from '@/modules/operator-health/criticalHealthSignals';
@@ -6,8 +9,7 @@ import type { OperatorHealthBannerInput } from '@/modules/operator-health/critic
 const SYSTEM_HEALTH_HREF = '/app/admin/system-health';
 
 export type AdminDoctorTodayHealthBanner =
-  | { show: true; href: string; title: string; tone?: 'warning' | 'stop' }
-  | { show: false };
+  { show: true; href: string; title: string; tone?: 'warning' | 'stop' } | { show: false };
 
 const BANNER_ON: AdminDoctorTodayHealthBanner = {
   show: true,
@@ -25,7 +27,7 @@ const DELIVERY_STOP_BANNER: AdminDoctorTodayHealthBanner = {
 
 function hasOutboundDeliveryStop(input: OperatorHealthBannerInput): boolean {
   return (
-    input.outgoingDelivery.deadTotal > 0 ||
+    countActiveOutgoingDeliveryDead(input.outgoingDelivery) > 0 ||
     (input.outboundDeliveryProvider?.openIncidentCount ?? 0) > 0 ||
     (input.outboundDeliveryProvider?.recentIncidentCount ?? 0) > 0
   );

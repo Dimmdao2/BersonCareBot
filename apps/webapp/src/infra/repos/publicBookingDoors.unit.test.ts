@@ -19,7 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * 4. Две настройки записи читаются реляционно. Они приезжают ВНУТРИ снимка слотов; чтение
  *    `system_settings` под этим классом — тот же отказ, что и §1, только на шаге создания записи.
  *
- * Oracle — контракт миграции `0043_the_public_funnel_had_no_door_of_its_own.sql`: формы jsonb,
+ * Oracle — контракт миграции `0047_the_public_funnel_had_no_door_of_its_own.sql`: формы jsonb,
  * `NULL` на неопубликованной клинике и точные идентичности корней.
  */
 const fakes = vi.hoisted(() => ({

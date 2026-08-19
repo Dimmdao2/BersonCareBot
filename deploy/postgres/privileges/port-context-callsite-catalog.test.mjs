@@ -267,6 +267,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.phone-messenger-bind.completion-state', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts',
   },
+  // Замер 19.08 живым запросом под сессией глобального админа: страница отдавала HTTP 500, а в
+  // журнале Postgres 42501 на СЕМНАДЦАТИ из девятнадцати читаемых таблиц. Тридцать операторов
+  // отношением сведены в один снимок за одной дверью (миграция 0043).
+  'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'analytics.platform-dashboard.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgPlatformAnalytics.ts',
+  },
   'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': {
     port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
     purpose: 'analytics.registration-events.read', argCount: 7,

@@ -1818,7 +1818,7 @@ const REV10_SEAM_OWNERS = [
   'app_seam_telemetry_exclusion_owner', 'saas_telemetry_owner', 'saas_system_health_owner',
   'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
   'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
-  'app_seam_retention_sweep_owner',
+  'app_seam_retention_sweep_owner', 'app_seam_platform_analytics_owner',
 ] as const;
 
 function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
@@ -2378,6 +2378,17 @@ const REV10_CONTEXT = {
       runtimeName: 'read_canonical_appointment_by_external_id', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'booking.integrator-record.read',
       functionIdentity: 'app.read_canonical_appointment_by_external_id(text)' },
+    // Дашборд глобального админа читал девятнадцать таблиц ОТНОШЕНИЕМ под `app_platform_settings`.
+    // Замер 19.08: 42501 на СЕМНАДЦАТИ из них, весь дашборд отдавал 500, админ не видел ни одной
+    // цифры. Грант не годится дважды: `deploy-test-saas.sh` ассертит точный набор прав роли, и
+    // решение владельца D1 (08.08) — «глобал админ не лезет в медицину», а среди семнадцати
+    // `clinical_visit`, `symptom_entries`, `program_action_log`. Дверь отдаёт СЧЁТ, не строки:
+    // цифры появляются, медицинские данные роли по-прежнему не видны (миграция 0043).
+    webapp_platform_analytics_dashboard: { port: 'webapp',
+      runtimeName: 'platform_analytics_dashboard', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'analytics.platform-dashboard.read',
+      functionIdentity: 'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)' },
     list_platform_registration_analytics_events: { port: 'webapp',
       runtimeName: 'list_platform_registration_analytics_events', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform',
@@ -3183,6 +3194,60 @@ const REV10_CONTEXT = {
       purpose: 'private pgcrypto HMAC dependency of the patient-invite seam',
       typedArgs: ['text', 'text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
       invocation: 'internal' as const,
+    }),
+    // Единственная дверь платформенного дашборда: девятнадцать отношений сведены в ОДИН снимок.
+    // Собственный владелец шва — занять соседнего нельзя, ни один существующий не достаёт дальше
+    // своей заботы: аналитика, клиника, упражнения, медиа и телеметрия воспроизведения лежат у
+    // четырёх РАЗНЫХ владельцев, и растянуть любого из них на остальные три значило бы расширить
+    // его шов ровно так, как именованные корни и существуют, чтобы не расширять.
+    // Роль страницы получает EXECUTE и ничего больше: ни одного прямого гранта на эти таблицы
+    // `app_platform_settings` не получает (миграция 0043).
+    'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': rev10Function({
+      owner: 'app_seam_platform_analytics_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_platform_settings'],
+      purpose: 'return only the aggregated platform analytics dashboard snapshot',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['created_at', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['created_at', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'role', 'phone_normalized', 'merged_into_id', 'is_archived', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_user_hourly', columns: ['bucket_hour', 'user_id', 'entry_channel', 'page_key', 'page_views'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: ['created_at', 'updated_at', 'status', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: ['id', 'created_at', 'status', 'patient_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinical_visit', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: ['created_at', 'deleted_at', 'section', 'video_url'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_sections', columns: ['slug', 'system_parent_code'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_exercises', columns: ['id', 'created_at', 'owner_kind', 'catalog_scope', 'created_by'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_exercise_media', columns: ['exercise_id', 'media_url', 'media_type'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files', columns: ['id', 'size_bytes', 'video_duration_seconds'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_action_log', columns: ['created_at', 'action_type', 'payload', 'patient_user_id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.symptom_entries', columns: ['recorded_at', 'tracking_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.symptom_trackings', columns: ['id', 'symptom_key'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_resolution_events', columns: ['resolved_at', 'user_id', 'media_id', 'delivery'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_client_events', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_hls_proxy_error_events', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': rev10Function({
       owner: 'app_seam_telemetry_exclusion_owner', security: 'DEFINER', returns: 'record', returnsSet: true,

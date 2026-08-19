@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { loadPlatformAnalyticsAudienceSpec } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { parseAdminStatsTimePreset } from '@/modules/admin-platform-stats/parseAdminStatsTimePreset';
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
   const customFrom = url.searchParams.get('from') ?? undefined;
   const customTo = url.searchParams.get('to') ?? undefined;
   const iana = await getAppDisplayTimeZone();
+  const audience = await loadPlatformAnalyticsAudienceSpec();
   const deps = buildAppDeps();
   try {
     const dashboard = await deps.platformAnalytics.getDashboard({
@@ -20,6 +22,7 @@ export async function GET(req: Request) {
       preset,
       customFrom,
       customTo,
+      audience,
     });
     return NextResponse.json(dashboard);
   } catch (error) {

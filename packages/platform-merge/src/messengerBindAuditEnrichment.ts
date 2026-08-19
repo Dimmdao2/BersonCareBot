@@ -2,6 +2,7 @@
  * Loads platform user summaries for messenger phone-bind audit / operator alerts (public schema).
  */
 import type { MessengerPhoneBindDb } from './messengerPhonePublicBind.js';
+import { runMergePgText } from './mergeSql.js';
 import {
   messengerChannelLabelRu,
   messengerPhoneBindReasonHumanRu,
@@ -16,7 +17,8 @@ async function resolveTelegramMessengerDisplayHint(
   const trimmed = externalId.trim();
   if (!trimmed) return null;
   try {
-    const r = await db.query<{ username: string | null; fullName: string | null }>(
+    const r = await runMergePgText<{ username: string | null; fullName: string | null }>(
+      db,
       `SELECT NULLIF(TRIM(ucb.display_handle), '') AS username,
               NULLIF(TRIM(pu.display_name), '') AS "fullName"
        FROM public.user_channel_bindings ucb
@@ -56,13 +58,14 @@ async function resolveCanonicalPlatformUserSummary(
   for (let depth = 0; depth < 32; depth++) {
     if (!current || visited.has(current)) return null;
     visited.add(current);
-    const r = await db.query<{
+    const r = await runMergePgText<{
       id: string;
       merged_into_id: string | null;
       display_name: string;
       phone_normalized: string | null;
       email: string | null;
     }>(
+      db,
       `SELECT id::text,
               merged_into_id::text AS merged_into_id,
               display_name,
@@ -122,7 +125,8 @@ export async function enrichMessengerBindAuditDetailsFields(
   const cc = args.channelCode?.trim();
   const ext = args.externalId != null ? String(args.externalId).trim() : '';
   if (cc && ext) {
-    const bind = await db.query<{ platform_user_id: string }>(
+    const bind = await runMergePgText<{ platform_user_id: string }>(
+      db,
       `SELECT pu.id::text AS platform_user_id
        FROM public.user_channel_bindings ucb
        INNER JOIN public.platform_users pu ON pu.id = ucb.user_id

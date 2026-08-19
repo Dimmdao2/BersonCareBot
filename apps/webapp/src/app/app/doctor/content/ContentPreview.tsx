@@ -1,7 +1,7 @@
 'use client';
 
 import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
-import { toYoutubeOrRutubeEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
 import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
 import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
@@ -15,7 +15,7 @@ type Props = {
 };
 
 export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: Props) {
-  const hostedVideoIframeSrc = videoUrl ? toYoutubeOrRutubeEmbedSrc(videoUrl) : null;
+  const hostedVideoIframeSrc = videoUrl ? toHostedVideoEmbedSrc(videoUrl) : null;
   return (
     <section className="rounded-xl border border-border bg-muted/10 p-4">
       <h3 className={`m-0 ${doctorSectionTitleClass}`}>Предпросмотр для пациента</h3>

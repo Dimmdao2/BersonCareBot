@@ -48,6 +48,8 @@ const outgoingDeliveryQueueHealthRootSchema = z
   .object({
     dueBacklog: z.number().finite().nonnegative(),
     deadTotal: z.number().finite().nonnegative(),
+    deadRecent: z.number().finite().nonnegative(),
+    lastOperatorDeadAt: z.string().nullable(),
     blockedRecipientTotal: z.number().finite().nonnegative(),
     processingCount: z.number().finite().nonnegative(),
     confirmedSentLast24h: z.number().finite().nonnegative(),
@@ -76,6 +78,8 @@ export function parseOutgoingDeliveryQueueHealthSnapshot(
   return {
     dueBacklog: parsed.dueBacklog,
     deadTotal: parsed.deadTotal,
+    deadRecent: parsed.deadRecent,
+    lastOperatorDeadAt: parsed.lastOperatorDeadAt,
     blockedRecipientTotal: parsed.blockedRecipientTotal,
     oldestDueAgeSeconds,
     dueByChannel: parsed.dueByChannel,

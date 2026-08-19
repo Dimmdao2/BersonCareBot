@@ -47,15 +47,24 @@ export function libraryMediaRowToPreviewUi(item: {
   };
 }
 
+/**
+ * Внешняя ссылка на хостинг — тоже видео, но конвертировать у неё нечего: файла в `media_files`
+ * нет, миниатюры нашего воркера не будет никогда. По лестнице
+ * (`getMediaThumbPhase`) это ровно `skipped` — «превью не создаётся», а не `pending`
+ * («готовится», то есть ждём конвертацию, которой не будет) и не `failed` (ошибка обработки,
+ * которой не было). Поэтому статус проставляется здесь, а не берётся из строки.
+ */
 export function exerciseMediaToPreviewUi(m: ExerciseMedia): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
+  const hosted = m.mediaType === 'hosted_video';
+  const kind: MediaPreviewUiModel['kind'] =
+    m.mediaType === 'video' || hosted ? 'video' : 'image';
   return {
     id: m.id,
     kind,
     url: m.mediaUrl,
-    previewStatus: m.previewStatus ?? null,
-    previewSmUrl: m.previewSmUrl ?? null,
-    previewMdUrl: m.previewMdUrl ?? null,
+    previewStatus: hosted ? 'skipped' : (m.previewStatus ?? null),
+    previewSmUrl: hosted ? null : (m.previewSmUrl ?? null),
+    previewMdUrl: hosted ? null : (m.previewMdUrl ?? null),
     sourceWidth: null,
     sourceHeight: null,
   };
@@ -89,15 +98,18 @@ export function clinicalTestMediaItemToPreviewUi(m: ClinicalTestMediaItem): Medi
 export function recommendationMediaItemToPreviewUi(
   m: RecommendationMediaItem,
 ): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
+  const hosted = m.mediaType === 'hosted_video';
+  const kind: MediaPreviewUiModel['kind'] =
+    m.mediaType === 'video' || hosted ? 'video' : 'image';
   return {
     id: m.mediaUrl,
     kind,
     url: m.mediaUrl,
-    previewStatus: m.previewStatus ?? null,
-    previewSmUrl: m.previewSmUrl?.trim() || null,
-    previewMdUrl: m.previewMdUrl?.trim() || null,
-    standardRendition: m.standardRendition ?? null,
+    /* Ссылка на хостинг: конвертировать нечего — `skipped`, см. exerciseMediaToPreviewUi. */
+    previewStatus: hosted ? 'skipped' : (m.previewStatus ?? null),
+    previewSmUrl: hosted ? null : m.previewSmUrl?.trim() || null,
+    previewMdUrl: hosted ? null : m.previewMdUrl?.trim() || null,
+    standardRendition: hosted ? null : (m.standardRendition ?? null),
     sourceWidth: null,
     sourceHeight: null,
   };

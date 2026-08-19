@@ -28,10 +28,12 @@ const EXPECTED = {
   // 190 → 192 (19.08): `delivery_queue_health_read` + `health_digest_enqueue` — миграция 0039.
   // 192 → 194 (19.08): `operator_alert_staff_push_audience_read` + `saas_renewal_due_list` (0040).
   // 194 → 195 (19.08): `critical_incident_open` — миграция 0041.
-  // 195 → 199 (19.08): четыре двери публичной записи — миграция 0043. Резолвер арендатора в классе
-  // `pre_session`, три остальные — именованные корни арендаторского класса `tenant_service`,
-  // которому сквозной `purpose: 'relation'` у порта `webapp` не выдаётся.
-  webapp: 199,
+  // 195 → 196 (19.08): `platform_analytics_dashboard` — дашборд глобального админа читал
+  // девятнадцать таблиц отношением и отдавал 500 на первом же 42501 (миграция 0043).
+  // 196 → 200 (19.08): четыре двери публичной записи — миграция 0047 (ex-0043). Резолвер арендатора
+  // в классе `pre_session`, три остальные — именованные корни арендаторского класса
+  // `tenant_service`, которому сквозной `purpose: 'relation'` у порта `webapp` не выдаётся.
+  webapp: 200,
   integrator: 34,
 };
 
@@ -62,9 +64,10 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 226 → 228 (19.08): аудитория staff-веб-пуша операторского алерта и межарендное перечисление
   // подписок к продлению — миграция 0040.
   // 228 → 229 (19.08): открытие критического инцидента — миграция 0041.
-  // 229 → 233 (19.08): четыре двери публичной записи (миграция 0043).
-  assert.equal(rows.length, 233);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 233);
+  // 229 → 230 (19.08): корень платформенного дашборда — миграция 0043.
+  // 230 → 234 (19.08): четыре двери публичной записи (миграция 0047, ex-0043).
+  assert.equal(rows.length, 234);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 234);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -124,8 +127,9 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 209 → 211 (19.08): корень снимка здоровья очереди и корень постановки сводки (миграция 0039).
   // 211 → 213 (19.08): корень аудитории staff-веб-пуша и корень перечисления подписок (0040).
   // 213 → 214 (19.08): корень открытия критического инцидента (0041).
-  // 214 → 218 (19.08): все четыре возможности публичной записи — именованные корни (0043).
-  assert.equal(roots.length, 218);
+  // 214 → 215 (19.08): корень платформенного дашборда (0043).
+  // 215 → 219 (19.08): все четыре возможности публичной записи — именованные корни (0047, ex-0043).
+  assert.equal(roots.length, 219);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

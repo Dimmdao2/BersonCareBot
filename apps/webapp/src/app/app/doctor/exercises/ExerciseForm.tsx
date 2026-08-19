@@ -20,8 +20,15 @@ import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerci
 import type {
   Exercise,
   ExerciseLoadType,
+  ExerciseMediaType,
   ExerciseUsageSnapshot,
 } from '@/modules/lfk-exercises/types';
+import {
+  HOSTED_VIDEO_ALLOWED_HOSTS_RU,
+  hostedVideoLinkRejectionRu,
+  parseHostedVideoLink,
+} from '@/shared/lib/hostingEmbedUrls';
+import { HostedVideoEmbed } from '@/shared/ui/doctor/media/HostedVideoEmbed';
 import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
 import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
 import {
@@ -87,7 +94,7 @@ export type ExerciseFormValues = {
   loadType: ExerciseLoadType | '';
   difficulty: number;
   mediaUrl: string;
-  mediaType: '' | 'image' | 'video' | 'gif';
+  mediaType: '' | ExerciseMediaType;
 };
 
 export function exerciseToFormValues(exercise: Exercise | null | undefined): ExerciseFormValues {
@@ -142,6 +149,11 @@ export function ExerciseForm({
   const recordKey = exercise?.id ?? 'create';
 
   const [values, setValues] = useState<ExerciseFormValues>(() => exerciseToFormValues(exercise));
+  const [hostedDraft, setHostedDraft] = useState<string>(() => {
+    const v = exerciseToFormValues(exercise);
+    return v.mediaType === 'hosted_video' ? v.mediaUrl : '';
+  });
+  const [hostedError, setHostedError] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [usage, setUsage] = useState<ExerciseUsageSnapshot | null>(null);
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
@@ -151,7 +163,10 @@ export function ExerciseForm({
   const archiveFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    setValues(exerciseToFormValues(exercise));
+    const next = exerciseToFormValues(exercise);
+    setValues(next);
+    setHostedDraft(next.mediaType === 'hosted_video' ? next.mediaUrl : '');
+    setHostedError(null);
     setLocalError(null);
     setUsageLoadError(null);
     setWarnOpen(false);
@@ -251,6 +266,30 @@ export function ExerciseForm({
 
   const isArchived = !!exercise?.isArchived;
   const isReadOnly = exercise?.ownerKind === 'platform';
+  const isHostedMedia = values.mediaType === 'hosted_video';
+
+  /**
+   * Канонизация — та же функция, что и на сервере: в поле остаётся то, что реально сохранится,
+   * а не вставленный URL с utm-хвостом и тайм-кодом. Отказ называет разрешённые хосты.
+   */
+  const applyHostedLink = useCallback((raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setHostedError(null);
+      setValues((prev) =>
+        prev.mediaType === 'hosted_video' ? { ...prev, mediaUrl: '', mediaType: '' } : prev,
+      );
+      return;
+    }
+    const link = parseHostedVideoLink(trimmed);
+    if (!link) {
+      setHostedError(hostedVideoLinkRejectionRu(trimmed));
+      return;
+    }
+    setHostedError(null);
+    setHostedDraft(link.canonicalUrl);
+    setValues((prev) => ({ ...prev, mediaUrl: link.canonicalUrl, mediaType: 'hosted_video' }));
+  }, []);
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
@@ -291,23 +330,76 @@ export function ExerciseForm({
 
             <div className="flex flex-col gap-3">
               <span className="text-sm font-medium">Медиа</span>
-              <MediaLibraryPickerDialog
-                kind="image_or_video"
-                value={values.mediaUrl}
-                selectedPreviewKind={values.mediaType || undefined}
-                pickerTitle="Изображение, GIF или видео"
-                onChange={(url, meta) => {
-                  setValues((prev) => {
-                    let nextTitle = prev.title;
-                    let nextType: ExerciseFormValues['mediaType'] = '';
-                    if (url && meta) {
-                      nextType = exerciseMediaTypeFromPick(meta);
-                      if (nextTitle.trim() === '') nextTitle = exerciseTitleFromPickMeta(meta);
-                    }
-                    return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
-                  });
-                }}
-              />
+              {isHostedMedia ? null : (
+                <MediaLibraryPickerDialog
+                  kind="image_or_video"
+                  value={values.mediaUrl}
+                  selectedPreviewKind={
+                    values.mediaType === 'hosted_video' ? undefined : values.mediaType || undefined
+                  }
+                  pickerTitle="Изображение, GIF или видео"
+                  onChange={(url, meta) => {
+                    setValues((prev) => {
+                      let nextTitle = prev.title;
+                      let nextType: ExerciseFormValues['mediaType'] = '';
+                      if (url && meta) {
+                        nextType = exerciseMediaTypeFromPick(meta);
+                        if (nextTitle.trim() === '') nextTitle = exerciseTitleFromPickMeta(meta);
+                      }
+                      return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
+                    });
+                  }}
+                />
+              )}
+
+              {/*
+                Вторая дверь к тому же слоту: файл длиннее лимита не принимается, и тогда
+                видео живёт на хостинге (решение владельца 19.08). Поэтому не «ещё одно медиа»,
+                а альтернатива тому же единственному медиа упражнения — показываем ту из двух,
+                которая выбрана, и даём вернуться к другой.
+              */}
+              {values.mediaUrl && !isHostedMedia ? null : (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="ex-hosted-url">Ссылка на видео ({HOSTED_VIDEO_ALLOWED_HOSTS_RU})</Label>
+                  <Input
+                    id="ex-hosted-url"
+                    inputMode="url"
+                    value={hostedDraft}
+                    onChange={(e) => {
+                      setHostedDraft(e.target.value);
+                      setHostedError(null);
+                    }}
+                    onBlur={() => applyHostedLink(hostedDraft)}
+                    placeholder="https://www.youtube.com/watch?v=…"
+                    aria-describedby={hostedError ? 'ex-hosted-url-error' : undefined}
+                  />
+                  {hostedError ? (
+                    <p id="ex-hosted-url-error" role="alert" className="text-sm text-destructive">
+                      {hostedError}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              {isHostedMedia && values.mediaUrl ? (
+                <div className="flex flex-col gap-2">
+                  <HostedVideoEmbed url={values.mediaUrl} title={values.title || 'Видео упражнения'} />
+                  <div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setHostedDraft('');
+                        setHostedError(null);
+                        setValues((prev) => ({ ...prev, mediaUrl: '', mediaType: '' }));
+                      }}
+                    >
+                      Убрать ссылку
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <DoctorDifficulty1to10Slider

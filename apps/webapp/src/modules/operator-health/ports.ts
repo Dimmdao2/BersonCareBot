@@ -39,9 +39,25 @@ export type OperatorJobStatusTickRow = OperatorBackupJobStatusRow & {
   metaJson: Record<string, unknown>;
 };
 
+/** Окно «дохлые строки появляются прямо сейчас»; то же, что у `confirmedSentLast24h`. */
+export const OUTGOING_DELIVERY_DEAD_WINDOW_HOURS = 24;
+
 export type OutgoingDeliveryQueueHealthSnapshot = {
   dueBacklog: number;
+  /**
+   * Все операторские `dead` за историю. ИСТОРИЯ, а не авария: строка `dead` терминальна и
+   * никогда не уходит сама, поэтому по этому числу нельзя ни алертить, ни красить баннер —
+   * иначе один отказ в июне держит систему красной навсегда. Число остаётся на странице
+   * здоровья: стирать историю нельзя, она и есть доказательство.
+   */
   deadTotal: number;
+  /**
+   * Операторские `dead`, появившиеся за последние {@link OUTGOING_DELIVERY_DEAD_WINDOW_HOURS} часов.
+   * ЭТО и есть «механизм отказывает прямо сейчас» — сигнал, который умеет погаснуть сам.
+   */
+  deadRecent: number;
+  /** Момент последней операторской смерти строки; для текста алерта, не для порога. */
+  lastOperatorDeadAt: string | null;
   /** Dead rows with `failure_class = recipient_blocked_bot` (info-only, not operator degradation). */
   blockedRecipientTotal: number;
   oldestDueAgeSeconds: number | null;
@@ -245,5 +261,4 @@ export const SAAS_BILLING_RECONCILE_CADENCE_INTEGRATION = 'saas_billing_reconcil
  * member here, which is what makes the open/resolve pair name its own namespace or fail the build.
  */
 export type OperatorIncidentCadenceIntegration =
-  | typeof CRITICAL_ALERT_CADENCE_INTEGRATION
-  | typeof SAAS_BILLING_RECONCILE_CADENCE_INTEGRATION;
+  typeof CRITICAL_ALERT_CADENCE_INTEGRATION | typeof SAAS_BILLING_RECONCILE_CADENCE_INTEGRATION;

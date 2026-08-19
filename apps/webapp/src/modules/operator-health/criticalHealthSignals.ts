@@ -6,6 +6,7 @@ import type {
   OutgoingDeliveryQueueHealthSnapshot,
   WebhookBurstRow,
 } from './ports';
+import { OUTGOING_DELIVERY_DEAD_WINDOW_HOURS } from './ports';
 import { isWebhookBurstCritical, WEBHOOK_BURST_MIN_COUNT } from './webhookBurst';
 import type { TenantIsolationCriticalHealthSignal } from './tenantIsolationCriticalHealth';
 import {
@@ -17,11 +18,13 @@ import {
 import { formatHeartbeatAge, isHeartbeatFailing, type OperatorHeartbeatVerdict } from './heartbeat';
 import type { EmptyAudienceSignal } from '@/modules/operator-alerts/emptyAudience';
 import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
   describeOutboundProviderErrorClass,
   isPageOnFirstOccurrenceProviderErrorClass,
 } from '@bersoncare/operator-db-schema';
 
-export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = 'outbound_delivery_provider';
+/** Одна строка на оба приложения; определение — в `@bersoncare/operator-db-schema`. */
+export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = OUTBOUND_PROVIDER_INCIDENT_DIRECTION;
 export const OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES = 15;
 export const OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS = 1;
 export const OUTBOUND_PROVIDER_STOP_PREFIX = '🛑 !';
@@ -47,7 +50,14 @@ export type CriticalHealthSignalsInput = {
   webappDb: DbStatus;
   integratorApi: IntegratorApiStatus;
   projection: CriticalHealthProjectionInput;
-  outgoingDelivery: Pick<OutgoingDeliveryQueueHealthSnapshot, 'deadTotal' | 'dueBacklog'>;
+  /**
+   * `deadRecent` — а не `deadTotal` — решает, красить ли и будить ли. `deadTotal` терминален и
+   * только растёт; порог по нему даёт баннер, который горит вечно и потому не сообщает ничего.
+   * Поле необязательно: путь, который читает старый сводный снимок без окна, честно откатывается
+   * на `deadTotal` вместо того, чтобы молча считать очередь здоровой.
+   */
+  outgoingDelivery: Pick<OutgoingDeliveryQueueHealthSnapshot, 'deadTotal' | 'dueBacklog'> &
+    Partial<Pick<OutgoingDeliveryQueueHealthSnapshot, 'deadRecent' | 'lastOperatorDeadAt'>>;
   outboundDeliveryProvider?: {
     recentIncidentCount: number;
     openIncidentCount?: number;
@@ -88,6 +98,19 @@ export type CriticalAlertCandidate = {
   pushTitle: string;
 };
 
+/**
+ * Мёртвые строки, появившиеся ПРЯМО СЕЙЧАС. Именно они означают «механизм отказывает», и именно
+ * этот счётчик умеет вернуться к нулю без вмешательства человека.
+ *
+ * Отличие от простого повышения порога: порог по `deadTotal` даёт ту же вечную красноту, только
+ * позже. Отличие от TTL на строках: TTL стирает доказательство отказа, а оно нужно при разборе.
+ */
+export function countActiveOutgoingDeliveryDead(
+  od: CriticalHealthSignalsInput['outgoingDelivery'],
+): number {
+  return od.deadRecent ?? od.deadTotal;
+}
+
 export function isProjectionCritical(p: CriticalHealthProjectionInput): boolean {
   if (p.probeStatus === 'unreachable' || p.probeStatus === 'error') return true;
   if (p.deadCount > 0) return true;
@@ -120,7 +143,11 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
     OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
   )
     return true;
-  if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return true;
+  if (
+    countActiveOutgoingDeliveryDead(od) > 0 ||
+    od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING
+  )
+    return true;
   if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== 'ok')
     return true;
   if (classifyTenantIsolationSignals(input.tenantIsolation).length > 0) return true;
@@ -332,8 +359,9 @@ export function classifyCriticalHealthSignals(
 
   const recentProviderIncidents = input.outboundDeliveryProvider?.recentIncidentCount ?? 0;
   const openProviderIncidents = input.outboundDeliveryProvider?.openIncidentCount ?? 0;
+  const activeDead = countActiveOutgoingDeliveryDead(input.outgoingDelivery);
   if (
-    input.outgoingDelivery.deadTotal > 0 ||
+    activeDead > 0 ||
     openProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS ||
     recentProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
   ) {
@@ -351,8 +379,11 @@ export function classifyCriticalHealthSignals(
               `Свежих классов синхронного отказа за ${OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES} мин: ${recentProviderIncidents}`,
             ]
           : []),
-        ...(input.outgoingDelivery.deadTotal > 0
-          ? [`Необработанных dead-записей очереди: ${input.outgoingDelivery.deadTotal}`]
+        ...(activeDead > 0
+          ? [
+              `Мёртвых записей очереди за последние ${OUTGOING_DELIVERY_DEAD_WINDOW_HOURS} ч: ${activeDead}`,
+              `Всего за историю: ${input.outgoingDelivery.deadTotal}`,
+            ]
           : []),
       ],
     });
