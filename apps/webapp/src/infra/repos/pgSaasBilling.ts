@@ -2,7 +2,7 @@ import { and, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, sql } f
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
-import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
@@ -12,6 +12,7 @@ import type {
   SaasBillingPlatformSummaryFilter,
   SaasBillingRefund,
   SaasBillingRepositoryPort,
+  SaasBillingSubscriptionDueForRenewal,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
 import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
@@ -36,6 +37,52 @@ import { adminAuditLog } from '../../../db/schema/schema';
 
 type Db = ReturnType<typeof getDrizzle>;
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+/**
+ * Разбор ответа `app.list_saas_billing_subscriptions_due_for_renewal(...)`. Строка, у которой нет
+ * обязательного поля, ОТБРАСЫВАЕТСЯ, а не достраивается умолчанием: продление считает деньги, и
+ * подписка без покупаемого тарифа или без конца оплаченного периода не подлежит выставлению счёта.
+ */
+function parseSaasBillingSubscriptionsDueForRenewal(
+  payload: unknown,
+): SaasBillingSubscriptionDueForRenewal[] {
+  if (!Array.isArray(payload)) throw new Error('saas_billing_renewal_due_list_invalid');
+  return payload.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const row = entry as Record<string, unknown>;
+    const text = (value: unknown): string | null =>
+      typeof value === 'string' && value.trim().length > 0 ? value : null;
+    const saasBillingSubscriptionId = text(row.saasBillingSubscriptionId);
+    const organizationId = text(row.organizationId);
+    const tariffId = text(row.tariffId);
+    const billingPeriod = text(row.billingPeriod);
+    const currentPeriodEndsAt = nullableToIsoStringSafe(
+      typeof row.currentPeriodEndsAt === 'string' ? row.currentPeriodEndsAt : null,
+    );
+    if (
+      !saasBillingSubscriptionId ||
+      !organizationId ||
+      !tariffId ||
+      !billingPeriod ||
+      !currentPeriodEndsAt
+    ) {
+      return [];
+    }
+    return [
+      {
+        saasBillingSubscriptionId,
+        organizationId,
+        tariffId,
+        pendingTariffId: text(row.pendingTariffId),
+        billingPeriod,
+        currentPeriodEndsAt,
+        savedPaymentMethodId: text(row.savedPaymentMethodId),
+        autopayConsentedAt: nullableToIsoStringSafe(text(row.autopayConsentedAt)),
+        autopayRevokedAt: nullableToIsoStringSafe(text(row.autopayRevokedAt)),
+      },
+    ];
+  });
+}
 
 function toSaasBillingInvoice(row: typeof saasBillingInvoices.$inferSelect): SaasBillingInvoice {
   return {
@@ -1607,54 +1654,26 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       });
     },
 
+    /**
+     * Межарендное перечисление «у кого кончился оплаченный период». Читается объявленным корнем,
+     * а не отношением: `app_worker`, под которым идёт машинный тик, видит по RLS только подписки
+     * `app.current_org_id()`, а платформенная роль требует живого администратора-человека,
+     * которого у тика нет (замер 19.08 на TEST: `42501 platform port context actor is not a
+     * platform administrator`, строки `billing.saas_renewal.tick` не было ни разу).
+     *
+     * Правило «за какой тариф платят» (`payableTariff.ts`) остаётся одно: корень применяет его же
+     * (`pending_tariff_id ?? tariff_id`), потому что из покупаемого тарифа берётся длина периода.
+     */
     async listSaasBillingSubscriptionsDueForRenewal({ asOf, limit }) {
-      const rows = await getDrizzle()
-        .select({
-          saasBillingSubscriptionId: saasBillingSubscriptions.id,
-          organizationId: saasBillingSubscriptions.organizationId,
-          tariffId: saasBillingSubscriptions.tariffId,
-          pendingTariffId: saasBillingSubscriptions.pendingTariffId,
-          currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
-          savedPaymentMethodId: saasBillingSubscriptions.savedPaymentMethodId,
-          autopayConsentedAt: saasBillingSubscriptions.autopayConsentedAt,
-          autopayRevokedAt: saasBillingSubscriptions.autopayRevokedAt,
-        })
-        .from(saasBillingSubscriptions)
-        .where(
-          and(
-            eq(saasBillingSubscriptions.source, 'paid_subscription'),
-            eq(saasBillingSubscriptions.status, 'active'),
-            isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
-            lte(saasBillingSubscriptions.currentPeriodEndsAt, asOf),
-          ),
-        )
-        .orderBy(saasBillingSubscriptions.currentPeriodEndsAt)
-        .limit(limit);
-      if (rows.length === 0) return [];
-      // Owner ruling 18.08.2026 — the tick charges for the tariff the next period will actually run
-      // on, so the period length it computes comes from `purchasedTariffId` too, by the same rule
-      // (and the same JS function) the invoice itself uses. A subscription whose purchased tariff
-      // row is gone is skipped here exactly as the previous inner join skipped it.
-      const purchasedIds = [...new Set(rows.map((row) => purchasedTariffId(row)))];
-      const tariffRows = await getDrizzle()
-        .select({ id: saasTariffs.id, billingPeriod: saasTariffs.billingPeriod })
-        .from(saasTariffs)
-        .where(inArray(saasTariffs.id, purchasedIds));
-      const billingPeriodById = new Map(tariffRows.map((tariff) => [tariff.id, tariff.billingPeriod]));
-      return rows.flatMap((row) => {
-        const tariffId = purchasedTariffId(row);
-        const billingPeriod = billingPeriodById.get(tariffId);
-        if (billingPeriod === undefined) return [];
-        return [
-          {
-            ...row,
-            tariffId,
-            billingPeriod,
-            // `IS NOT NULL` filtered above; the column type stays nullable at the schema level.
-            currentPeriodEndsAt: row.currentPeriodEndsAt as string,
-          },
-        ];
-      });
+      const result = await runWebappNamedRoot<{ due: unknown }>(
+        getWebappSqlDb(),
+        'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)',
+        [asOf, limit],
+        sql`SELECT app.list_saas_billing_subscriptions_due_for_renewal(
+          ${asOf}::timestamptz, ${limit}::integer
+        ) AS due`,
+      );
+      return parseSaasBillingSubscriptionsDueForRenewal(result.rows[0]?.due);
     },
 
     async createSaasBillingRenewalInvoiceIfAbsent(input) {

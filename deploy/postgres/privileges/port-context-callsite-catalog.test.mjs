@@ -479,6 +479,22 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'health.digest.enqueue', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
   },
+  // Замер 19.08: аудитория staff-веб-пуша операторского алерта читалась отношением под
+  // `app_worker` и отбивалась `42501 permission denied for table be_organization_members`; отказ
+  // гасился `.catch` диспетчера, а тик писал `success` (миграция 0040).
+  'app.list_operator_alert_staff_push_recipients()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'notifications.staff-push-audience.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgStaffUsers.ts',
+  },
+  // Замер 19.08: часовой тик продления заявлял класс `platform` с выдуманным нулевым UUID вместо
+  // администратора и падал на установке контекста — строки `billing.saas_renewal.tick` не было
+  // ни разу. Межарендное перечисление получило свою дверь (миграция 0040).
+  'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'billing.saas-renewal.due-list', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
   'app.prune_operator_health_failure_archive(integer)': {
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'health.failure-archive.prune', argCount: 1,
@@ -966,6 +982,9 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/internal/operator-health-digest/tick:POST',
     'api/internal/operator-health-critical/tick:POST',
     'api/internal/system-health-guard/tick:POST',
+    // 19.08: часовой тик продления подписок переехал сюда с платформенного класса, который
+    // требовал живого администратора и поэтому не работал ни разу.
+    'api/internal/saas-billing/renewal/tick:POST',
     'api/internal/specialist-task-reminders/tick:POST',
     'api/internal/heartbeat/pipeline_delivery:POST',
     'api/internal/heartbeat/pipeline_delivery:GET',
