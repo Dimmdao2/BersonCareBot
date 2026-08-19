@@ -77,6 +77,10 @@ export function PlatformAnalyticsPageClient({
       return;
     }
     setPeriodError(null);
+    // Загрузку помечаем здесь, в обработчике события, а не в эффекте: setState прямо в теле
+    // эффекта вызывает каскад повторных отрисовок (react-hooks/set-state-in-effect).
+    setLoading(true);
+    setLoadError(null);
     setAppliedPeriod(next);
   }, []);
 
@@ -100,8 +104,6 @@ export function PlatformAnalyticsPageClient({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
     const qs = buildAdminStatsQuery(appliedPeriod);
     void fetch(`/api/admin/platform-analytics?${qs}`)
       .then(async (res) => {
