@@ -297,6 +297,24 @@ UI-9 одобрена владельцем и зависит от C4D exact-org 
 upload использует organization/patient-owned folder contract, а назначенное видео immutable; точные field names и
 draft semantics не являются owner rulings. Media access/presign и tenant ownership проверяются high-risk циклом.
 
+### UI-EX-HOST — ссылка YouTube / RuTube / VK Video / Vimeo в упражнении (owner 2026-08-19)
+
+**Кабинет:** специалист (форма упражнения) + пациент (просмотр). Не кабинет глобального админа.
+**Почему здесь, а не в Global Admin UI:** это каталог назначений врача. Аналитика платформы только считает
+файл vs iframe; пока механики нет, там заглушка.
+
+Сейчас в упражнение ссылку вставить нельзя: только файл из медиатеки, `lfk_exercise_media.media_type` =
+`image|video|gif`, пациент смотрит `PatientMediaPlaybackVideo`. CMS статьи уже открывают YouTube/RuTube в iframe;
+VK Video и Vimeo нет и там.
+
+Файл упражнения длиннее **10 минут** не принимается — лимит в
+[`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) п. 25; иначе только хостинг.
+
+- [ ] **UI-EX-HOST-01** Форма упражнения: поле ссылки YouTube / RuTube / VK Video / Vimeo; сохранение
+      отдельным видом медиа, файлы `image|video|gif` не ломать.
+- [ ] **UI-EX-HOST-02** Пациентский показ и предпросмотр врача — iframe, тот же allowlist доменов.
+- [ ] **UI-EX-HOST-03** VK Video и Vimeo в `hostingEmbedUrls` + iframe CMS/markdown (сейчас только YouTube и RuTube).
+
 ### Client UI residual
 
 Пустой mood chart на patient «Сегодня» скрывается до первой emoji/check-in отметки. Это точечная presentation-задача,

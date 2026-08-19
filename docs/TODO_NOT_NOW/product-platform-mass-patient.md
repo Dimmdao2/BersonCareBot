@@ -13,7 +13,7 @@ Roadmap «платформы с двумя режимами» (Guest/Mass Mode +
 ## План и доки
 
 - План: [`.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md`](../../.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md) — этапы 1–10 **cancelled**
-- Инициатива: [`../PRODUCT_PLATFORM_INITIATIVE/README.md`](../PRODUCT_PLATFORM_INITIATIVE/README.md)
+- Инициатива: [`../archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE/README.md`](../archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE/README.md)
 - Канон tier vs status (справочно): [`../ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md`](../ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md)
 
 ## Что уже сделано
@@ -33,4 +33,4 @@ Roadmap «платформы с двумя режимами» (Guest/Mass Mode +
 
 ## Ближайший приоритет вместо этого
 
-[`../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md) — hardening Doctor Cabinet runtime (**Patient PWA не трогаем**).
+[`../archive/legacy-underscore/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../archive/legacy-underscore/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md) — hardening Doctor Cabinet runtime (**Patient PWA не трогаем**).

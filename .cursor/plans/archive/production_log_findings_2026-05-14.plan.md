@@ -52,7 +52,7 @@ isProject: false
 | `RUBITIME_SCHEDULE_MALFORMED` | Пустой `[]` в коде; далее не ведётся.          |
 | Operator probe                | Ожидаемый skip без активного профиля — не баг. |
 
-Журнал: [`docs/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/LOG.md`](../../docs/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/LOG.md).
+Журнал: [`docs/archive/2026-08-initiatives/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/LOG.md`](../../docs/archive/2026-08-initiatives/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/LOG.md).
 
 ## Ops: кэш, 143, Server Actions (закрыто 2026-06, prod)
 

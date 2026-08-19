@@ -122,7 +122,7 @@
 | Rubitime                                                    | ⚙️ Мост + legacy-уведомления         | Стабилизация перехода завершена; канон — own booking                                                                                           |
 | Курсы (отдельная сущность)                                  | ⏸ Частично через контент/программы   | [`COURSES_INITIATIVE/README.md`](COURSES_INITIATIVE/README.md) — **отложено**                                                                  |
 | Web Push (полный контур)                                    | ⚙️ VAPID в админке, tick напоминаний | Подписки/SW/backlog — [`PWA_INITIATIVE/BACKLOG.md`](archive/legacy-underscore/PWA_INITIATIVE/BACKLOG.md)                                                        |
-| Онлайн-консультации реабилитация/нутрициология вне Rubitime | 📋 ТЗ                                | [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md)                   |
+| Онлайн-консультации реабилитация/нутрициология вне Rubitime | ❌ отменена                          | [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](archive/2026-08-initiatives/ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) |
 
 Условные обозначения: ✅ — основной сценарий есть; ⚙️ — работает с ограничениями или в переходе; ⏸/📋 — сознательно не в ближайшем фокусе.
 

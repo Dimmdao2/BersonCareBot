@@ -1,6 +1,6 @@
 # Product analytics initiative — execution log
 
-Канонический журнал инициативы. План: [`.cursor/plans/archive/product_analytics.plan.md`](../../.cursor/plans/archive/product_analytics.plan.md).
+Канонический журнал инициативы. План: [`.cursor/plans/archive/product_analytics.plan.md`](../../../.cursor/plans/archive/product_analytics.plan.md).
 
 ## 2026-05-28 — Registration funnel events (auth error logging)
 
@@ -29,7 +29,7 @@
 | vitest (registration bundle, 44 tests)                                                            | OK        |
 | `register/route`, `register/confirm/route`, `oauth/start/route`, `auth-registration-events/route` | OK        |
 
-Связанный журнал login/register: [`../LOGIN_REGISTER_NEW_LOGIC/LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md) §2026-05-28.
+Связанный журнал login/register: [`../LOGIN_REGISTER_NEW_LOGIC/LOG.md`](../legacy-underscore/LOGIN_REGISTER_NEW_LOGIC/LOG.md) §2026-05-28.
 
 ## 2026-05-27 — Block 1 (data foundation)
 
@@ -196,7 +196,7 @@
 
 ## 2026-05-28 — Синхронизация документации (post-audit)
 
-- План: [`.cursor/plans/archive/product_analytics.plan.md`](../../.cursor/plans/archive/product_analytics.plan.md) — `todos` 1–6 `completed`, DoD `[x]`; уточнено, что `pwa/launch` пишет `heartbeat` (snapshot), не `app_open`.
+- План: [`.cursor/plans/archive/product_analytics.plan.md`](../../../.cursor/plans/archive/product_analytics.plan.md) — `todos` 1–6 `completed`, DoD `[x]`; уточнено, что `pwa/launch` пишет `heartbeat` (snapshot), не `app_open`.
 - IDE-копия плана (`product_analytics_plan_6f8e3d0b`) приведена к тому же состоянию.
 - Retention в плане: дефолты `recentDays=90`, `userHourlyDays=180`, `hourlyDays=730`, `pushDays=730` (как в `productAnalyticsRetention.ts` и `deploy/HOST_DEPLOY_README.md`).
 
@@ -273,7 +273,7 @@
 ### Сделано (связь с Operator Health)
 
 - `POST /api/internal/product-analytics/retention` — best-effort tick в **`operator_job_status`**: `job_family=analytics`, `job_key=analytics.product_analytics.retention` (`meta_json`: deleted\* / dryRun).
-- Сводка всех host cron — **`GET /api/admin/system-health`** → **`cronJobs`**, UI `/app/doctor/system-health` → «Cron-задачи хоста». Канон: [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](../OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md) § 2026-05-28, реестр `apps/webapp/src/modules/operator-health/cronJobRegistry.ts`.
+- Сводка всех host cron — **`GET /api/admin/system-health`** → **`cronJobs`**, UI `/app/doctor/system-health` → «Cron-задачи хоста». Канон: [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](../legacy-underscore/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md) § 2026-05-28, реестр `apps/webapp/src/modules/operator-health/cronJobRegistry.ts`.
 
 ### Проверки
 
@@ -289,12 +289,12 @@
 
 ### Сделано
 
-1. **`pushOpensSummary.sent`:** считается из **`product_push_notifications`**, не из **`product_analytics_hourly`**; **`opened`** — **`product_analytics_events_recent`** (`push_open`). Unit-тесты `mergePushOpenBuckets` / `summarizePushOpens` в [`loadAdminReminderStats.test.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.test.ts).
+1. **`pushOpensSummary.sent`:** считается из **`product_push_notifications`**, не из **`product_analytics_hourly`**; **`opened`** — **`product_analytics_events_recent`** (`push_open`). Unit-тесты `mergePushOpenBuckets` / `summarizePushOpens` в [`loadAdminReminderStats.test.ts`](../../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.test.ts).
 2. **KPI минут просмотра:** **`warmupVideoEstimatedWatchMinutes`**, **`videoPlaybackEstimatedWatchMinutes`** в **`loadContentEngagementStats`**; fallback — число событий (открытий / resolution) × средняя длительность каталога или **120 с** (`estimateWatchMinutes`). _Уточнение 2026-06-08:_ не через **`videoPlayback.totalResolutions`**; длительность пишет media-worker в **`video_duration_seconds`**.
-3. **Разминки:** парсинг **`content_pages.video_url`** — канонический **`/api/media/{uuid}`** (query/hash отрезаются), как в [`materialRatingTargetVideoMediaIds.ts`](../../apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts).
+3. **Разминки:** парсинг **`content_pages.video_url`** — канонический **`/api/media/{uuid}`** (query/hash отрезаются), как в [`materialRatingTargetVideoMediaIds.ts`](../../../apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts).
 4. **UI пресеты окна:** **24 ч** / **7 дн.** / **30 дн.** (`DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS`) на material-ratings, notifications, usage; **«Сутки»** (`preset=day`) на analytics/clients и детализации оценок.
-5. **Каталог упражнений:** фильтр **`load=`** — merge SSR только при наличии param в URL (`hasLoadParam` / `doctorCatalogClientFilterUrlHints` в [`doctorCatalogClientUrlSync.ts`](../../apps/webapp/src/shared/lib/doctorCatalogClientUrlSync.ts)).
-6. **Документация:** [`api.md`](../../apps/webapp/src/app/api/api.md), [`MATERIAL_RATINGS.md`](../ARCHITECTURE/MATERIAL_RATINGS.md), [`DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md), [`reminders.md`](../../apps/webapp/src/modules/reminders/reminders.md).
+5. **Каталог упражнений:** фильтр **`load=`** — merge SSR только при наличии param в URL (`hasLoadParam` / `doctorCatalogClientFilterUrlHints` в [`doctorCatalogClientUrlSync.ts`](../../../apps/webapp/src/shared/lib/doctorCatalogClientUrlSync.ts)).
+6. **Документация:** [`api.md`](../../../apps/webapp/src/app/api/api.md), [`MATERIAL_RATINGS.md`](../../ARCHITECTURE/MATERIAL_RATINGS.md), [`DOCTOR_CABINET_NAVIGATION.md`](../../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md), [`reminders.md`](../../../apps/webapp/src/modules/reminders/reminders.md).
 
 ### Проверки
 
@@ -307,4 +307,4 @@
 ### Сделано
 
 1. **Код (ранее в сессии):** `readAnalyticsIncludeTestAccounts` — только **`dev_mode`**; `adminPlaybackHealthMetrics` без hourly fallback при audience-фильтре; минуты просмотра через **`estimateWatchMinutes`** + **`video_duration_seconds`** из media-worker.
-2. **Документация:** выровнены [`MATERIAL_RATINGS.md`](../ARCHITECTURE/MATERIAL_RATINGS.md), [`DOCTOR_DASHBOARD_METRICS.md`](../ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md), [`api.md`](../../apps/webapp/src/app/api/api.md), [`reminders.md`](../../apps/webapp/src/modules/reminders/reminders.md); уточнён пункт 2 в блоке 2026-06-07 выше (fallback минут не через `videoPlayback.totalResolutions`).
+2. **Документация:** выровнены [`MATERIAL_RATINGS.md`](../../ARCHITECTURE/MATERIAL_RATINGS.md), [`DOCTOR_DASHBOARD_METRICS.md`](../../ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md), [`api.md`](../../../apps/webapp/src/app/api/api.md), [`reminders.md`](../../../apps/webapp/src/modules/reminders/reminders.md); уточнён пункт 2 в блоке 2026-06-07 выше (fallback минут не через `videoPlayback.totalResolutions`).

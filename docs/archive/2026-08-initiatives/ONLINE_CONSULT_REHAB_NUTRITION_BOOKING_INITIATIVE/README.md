@@ -9,10 +9,10 @@
 ## Документы
 
 - **Журнал:** [`LOG.md`](LOG.md)
-- Чеклист prod-логов (архив): [`.cursor/plans/archive/production_log_findings_2026-05-14.plan.md`](../../.cursor/plans/archive/production_log_findings_2026-05-14.plan.md) (пункт `online-consult-slots-rubitime-misroute` — cancelled)
+- Чеклист prod-логов (архив): [`.cursor/plans/archive/production_log_findings_2026-05-14.plan.md`](../../../.cursor/plans/archive/production_log_findings_2026-05-14.plan.md) (пункт `online-consult-slots-rubitime-misroute` — cancelled)
 
 ## Связанные материалы
 
-- Запись очная / BOOKING_REWORK: [`docs/BOOKING_REWORK_INITIATIVE/README.md`](../BOOKING_REWORK_INITIATIVE/README.md)
+- Запись очная / BOOKING_REWORK: [`docs/BOOKING_REWORK_INITIATIVE/README.md`](../../BOOKING_REWORK_INITIATIVE/README.md)
 - Исторический Rubitime-пайплайн (retired; не исполнять):
-  [`docs/archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
+  [`docs/archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)

@@ -1,6 +1,6 @@
 # Декомпозиция этапов — Product Platform
 
-> **Статус 2026-06-06:** инициатива **deferred**. Этапы 1–10 **не исполнять**. Документ сохранён как заготовка на revisit. Активная волна: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md).
+> **Статус 2026-06-06:** инициатива **deferred**. Этапы 1–10 **не исполнять**. Документ сохранён как заготовка на revisit. Активная волна: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE`](../legacy-underscore/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md).
 
 Исполнять **по порядку** — только после явного решения «revisit Product Platform».
 
@@ -11,7 +11,7 @@
 | ID  | Шаг                                         | Проверка                                                          |
 | --- | ------------------------------------------- | ----------------------------------------------------------------- |
 | 0.1 | `PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md` | файл в `docs/ARCHITECTURE/`                                       |
-| 0.2 | Инициатива + LOG                            | `docs/PRODUCT_PLATFORM_INITIATIVE/`                               |
+| 0.2 | Инициатива + LOG                            | `docs/archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE/`                               |
 | 0.3 | План в archive                              | `.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md` |
 
 ---
