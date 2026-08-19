@@ -1819,6 +1819,13 @@ const REV10_SEAM_OWNERS = [
   'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
   'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
   'app_seam_retention_sweep_owner', 'app_seam_platform_analytics_owner',
+  // Снятие этой роли 19.08 (`cfa4e45df`) было выполнено только в декларации: в кластере TEST
+  // роль осталась, её DROP держат 54 зависимости, и любая выкатка из дерева с тем коммитом
+  // валилась на reconcile и останавливала службы теста. Карантин `legacyRoles` тоже не
+  // подходит — карантинная роль обязана не иметь USAGE на `app`, а эта его держит. Роль
+  // возвращена живой до тех пор, пока снятие не будет сделано целиком: перевод 54 объектов
+  // на `app_seam_public_slug_owner` и DROP в том же приземлении.
+  'app_seam_public_clinic_card_owner',
 ] as const;
 
 function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
@@ -3990,14 +3997,12 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    // Две двери визитки клиники (миграция 0049). Владелец шва — уже существующий
-    // `app_seam_public_slug_owner`: он читает те же `organization_slug_claims` и
-    // `clinic_public_directory_entries`, и весь его шов целиком публичный — ни одной закрытой
-    // таблицы. Отдельного владельца под визитку здесь БЫЛО (`app_seam_public_clinic_card_owner`) и
-    // он снят по OWNER_PRODUCT_RULES §33.3/§33.5: роль вокруг витрины охраняет то, что и так на
-    // витрине, а стоит строки в декларации, переписи и отказ выкатки при рассинхроне.
+    // Две двери визитки клиники (миграция 0049). Перевод обеих на `app_seam_public_slug_owner`
+    // (`cfa4e45df`, по OWNER_PRODUCT_RULES §33.3/§33.5) откачен: он снимал роль из декларации,
+    // не снимая её из кластера, и ронял выкатку TEST. Возврат к снятию — вместе с переводом
+    // оставшихся в TEST 54 объектов, одним приземлением.
     'app.read_public_clinic_card(text)': rev10Function({
-      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_pre_session'],
       purpose: 'return one published clinic card, media ids included, or nothing',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
@@ -4020,7 +4025,7 @@ const REV10_CONTEXT = {
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     }),
     'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': rev10Function({
-      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_staff'],
       purpose: 'write the clinic card of the principal organization and snapshot its branches',
       typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'uuid', 'text', 'boolean'],
@@ -7341,13 +7346,6 @@ export const declaration: PrivilegeDeclaration = {
   },
   zeroState: { legacyRoles: [
     'app_identity_bootstrap',
-    // Снят из живых швов 19.08 (`cfa4e45df`, обе двери визитки переведены на
-    // `app_seam_public_slug_owner`), но в кластере остался: на TEST его DROP держат 54
-    // зависимости, а снявший коммит TEST по условию не трогал. Без этой строки reconcile
-    // валит выкатку на «undeclared managed BCB role survived» из любого дерева с тем
-    // коммитом — что и случилось 19.08, остановив службы теста. Карантин NOLOGIN здесь и
-    // есть объявленный путь для роли, пережившей свой шов.
-    'app_seam_public_clinic_card_owner',
     'app_migrator',
     'app_operational_diagnostic',
     'app_operational_web_push_reminder',
