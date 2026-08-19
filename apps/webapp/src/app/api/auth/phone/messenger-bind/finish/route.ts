@@ -148,7 +148,7 @@ export async function POST(request: Request) {
 
   const tz = parsed.data.browserCalendarIana?.trim();
   if (tz) {
-    await deps.patientCalendarTimezone.trySetInitialIfEmpty(sessionUser.userId, tz);
+    await deps.patientCalendarTimezone.syncFromDevice(sessionUser.userId, tz);
   }
 
   if (isRegistrationIntent) {
