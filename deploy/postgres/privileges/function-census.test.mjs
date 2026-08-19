@@ -143,8 +143,9 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // пронумерованная миграция его не создавала.
   // 112 → 115 (19.08): миграция публичной воронки записи — три новые двери (каталог, снимок слотов,
   // поля формы); `app.resolve_public_booking_organization(uuid,uuid)` был под учётом с 0042.
-  // 115 → 118 (19.08): две двери ЗАПИСИ публичной воронки плюс перевод корня создания приёма.
-  assert.equal(functions.length, 118);
+  // 115 → 117 (19.08): две двери ЗАПИСИ публичной воронки. Перевод корня создания приёма счётчик не
+  // двигает — сигнатура та же, менялось только тело.
+  assert.equal(functions.length, 117);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
