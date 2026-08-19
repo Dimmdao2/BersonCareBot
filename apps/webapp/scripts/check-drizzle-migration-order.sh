@@ -20,8 +20,11 @@ for sql in "${MIG_DIR}"/*.sql; do
   base="$(basename "${sql}" .sql)"
   # Four digits first, so the listing sorts the way a human reads it; a suffix letter is how a
   # migration slots between two already-applied ones without renaming either.
-  if [[ ! "${base}" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ ]]; then
-    echo "check-drizzle-migration-order: ${base}.sql is not named NNNN[suffix]_lower_snake_case" >&2
+  # Две схемы, обе законные. NNNN[suffix]_ — историческая: так названы уже применённые миграции,
+  # переименовывать их нельзя, тег в леджере привязан к имени. YYYYMMDDTHHMMSS_ — канон для новых
+  # (решение владельца 20.08): рукописный номер при параллельных ветках даёт коллизии, время — нет.
+  if [[ ! "${base}" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ && ! "${base}" =~ ^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$ ]]; then
+    echo "check-drizzle-migration-order: ${base}.sql is named neither NNNN[suffix]_lower_snake_case nor YYYYMMDDTHHMMSS_lower_snake_case" >&2
     failed=1
   fi
 done
