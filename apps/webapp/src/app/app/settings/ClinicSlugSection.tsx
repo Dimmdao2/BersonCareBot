@@ -187,7 +187,9 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
                 <DialogTitle>Изменить адрес публичной записи</DialogTitle>
                 <DialogDescription>
                   Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой
-                  клинике он не достанется никогда. При желании вы сможете вернуть его себе.
+                  клинике он не достанется никогда. Самостоятельно адрес меняют один раз за всё
+                  время работы клиники: после этой смены любую следующую, включая возврат на
+                  прежний адрес, делает поддержка.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">
@@ -201,7 +203,8 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
                     className="mt-0.5"
                   />
                   <span>
-                    Я понимаю: старый адрес останется за моей клиникой и другим не достанется.
+                    Я понимаю: старый адрес останется за моей клиникой, а самостоятельная смена
+                    у клиники одна.
                   </span>
                 </label>
                 {error ? (
