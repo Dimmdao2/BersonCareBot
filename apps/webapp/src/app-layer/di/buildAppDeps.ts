@@ -118,7 +118,6 @@ import { appointmentRowLabel } from '@/modules/appointments/appointmentLabels';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   getPatientCalendarTimezoneIana,
-  setPatientCalendarTimezoneIana,
   trySetInitialCalendarTimezoneIfEmpty,
 } from '@/infra/repos/pgPatientCalendarTimezone';
 import {
@@ -1104,9 +1103,6 @@ const patientDiarySnapshotsPort = !inMemoryRepos
 const patientCalendarTimezoneGet = inMemoryRepos
   ? async (_userId: string) => null as string | null
   : getPatientCalendarTimezoneIana;
-const patientCalendarTimezoneSet = inMemoryRepos
-  ? async (_userId: string, _value: string | null) => true
-  : setPatientCalendarTimezoneIana;
 const patientCalendarTimezoneTryInitial = inMemoryRepos
   ? async (_userId: string, _raw: string | null) => {}
   : trySetInitialCalendarTimezoneIfEmpty;
@@ -2042,7 +2038,6 @@ function _buildAppDeps() {
     patientDiarySnapshots: patientDiarySnapshotsPort,
     patientCalendarTimezone: {
       getIanaForUser: patientCalendarTimezoneGet,
-      setIanaForPatient: patientCalendarTimezoneSet,
       trySetInitialIfEmpty: patientCalendarTimezoneTryInitial,
     },
     lfkTemplates: lfkTemplatesService,

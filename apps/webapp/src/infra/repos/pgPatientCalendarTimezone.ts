@@ -1,5 +1,9 @@
 /**
  * Patient calendar timezone through the platform_users schema and patient DB function door.
+ *
+ * Только чтение и первичная запись определённого устройством значения: по §34 канона владельца
+ * (`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md`) пояс человека не настраивается, поэтому двери
+ * «записать произвольный пояс пациенту» здесь нет.
  */
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { platformUsers } from '../../../db/schema/schema';
@@ -17,33 +21,6 @@ export async function getPatientCalendarTimezoneIana(
     .where(and(eq(platformUsers.id, platformUserId), isNull(platformUsers.mergedIntoId)))
     .limit(1);
   return rows[0]?.calendarTimezone ?? null;
-}
-
-export async function setPatientCalendarTimezoneIana(
-  platformUserId: string,
-  value: string | null,
-): Promise<boolean> {
-  if (getCurrentDbPrincipal()?.kind === 'patient') {
-    const result = await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
-      runWebappSql<{ updated: boolean }>(
-        getWebappSqlDb(),
-        sql`SELECT app.set_current_patient_calendar_timezone(${value}, false) AS updated`,
-      ),
-    );
-    return result.rows[0]?.updated === true;
-  }
-  const rows = await getWebappSqlDb()
-    .update(platformUsers)
-    .set({ calendarTimezone: value, updatedAt: sql`now()` })
-    .where(
-      and(
-        eq(platformUsers.id, platformUserId),
-        eq(platformUsers.role, 'client'),
-        isNull(platformUsers.mergedIntoId),
-      ),
-    )
-    .returning({ id: platformUsers.id });
-  return rows.length > 0;
 }
 
 /**
