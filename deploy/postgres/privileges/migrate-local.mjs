@@ -6,7 +6,6 @@
  * with PGHOST/PGDATABASE (or the usual local peer defaults).  Every temporary owner membership,
  * migration statement, backfill and post-state assertion lives in the same transaction.
  */
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -14,6 +13,14 @@ import {
   parseOwnerStatements,
   renderTemporaryMembershipAssertion,
 } from './migrate-local-parse.mjs';
+import {
+  collectExpectedObjects,
+  describeObject,
+  findForeignLedgerRows,
+  readMigrationFolder,
+  renderObjectPresenceSql,
+  selectPendingMigrations,
+} from './migration-order.mjs';
 
 function value(name) {
   const at = process.argv.indexOf(`--${name}`);
@@ -27,6 +34,12 @@ function values(name) {
     if (process.argv[i] === `--${name}` && process.argv[i + 1]) result.push(process.argv[i + 1]);
   }
   return result;
+}
+
+/** Operator-facing refusals are a message, not a stack trace: the next command is the point. */
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
 }
 
 function sqlIdentifier(value) {
@@ -59,29 +72,55 @@ function spawnPsql(args, options = {}) {
     : spawnSync('psql', args, options);
 }
 
-function readDrizzleMigrations(folder) {
+/**
+ * Bookkeeping the ledger needs before it can answer "which migrations are applied" by name.
+ *
+ * `drizzle.__drizzle_migrations` was written by content hash and apply time only, so the run had to
+ * infer identity from a timestamp.  A migration file is routinely corrected in place after it has
+ * been applied (the correction is inert for databases that already ran it), which makes the content
+ * hash a moving identity and the timestamp a hand-maintained one.  The tag column makes the file
+ * name — the same thing that orders the folder — the identity, so neither an in-place correction nor
+ * a merge that renumbers anything can turn an applied migration back into a pending one.
+ *
+ * The legacy rows are labelled once from `meta/_journal.json`, the frozen historical `when -> tag`
+ * map.  It is the journal's only remaining job.
+ */
+function bootstrapLedger(db, folder) {
   const journalPath = resolve(folder, 'meta', '_journal.json');
-  const journal = JSON.parse(readFileSync(journalPath, 'utf8'));
-  if (!Array.isArray(journal.entries)) throw new Error('invalid Drizzle journal');
-  return journal.entries.map((entry) => {
-    if (!Number.isInteger(entry.idx) || !Number.isSafeInteger(entry.when) || typeof entry.tag !== 'string') {
-      throw new Error('invalid Drizzle journal entry');
-    }
-    const path = realpathSync(resolve(folder, `${entry.tag}.sql`));
-    const source = readFileSync(path, 'utf8');
-    return {
-      ...entry,
-      hash: createHash('sha256').update(source).digest('hex'),
-      path,
-      source,
-    };
-  });
+  const journal = existsSync(journalPath) ? JSON.parse(readFileSync(journalPath, 'utf8')) : { entries: [] };
+  const legacy = (journal.entries ?? []).filter(
+    (entry) => Number.isSafeInteger(entry?.when) && typeof entry?.tag === 'string',
+  );
+  const backfill = legacy.length === 0
+    ? ''
+    : `UPDATE drizzle.__drizzle_migrations AS ledger SET tag = legacy.tag
+         FROM (VALUES ${legacy.map((entry) => `(${entry.when}::bigint, ${sqlLiteral(entry.tag)})`).join(', ')})
+           AS legacy (created_at, tag)
+        WHERE ledger.tag IS NULL AND ledger.created_at = legacy.created_at;`;
+  const result = spawnPsql(
+    ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-c',
+      [
+        'CREATE SCHEMA IF NOT EXISTS drizzle;',
+        `CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+           id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);`,
+        'ALTER TABLE drizzle.__drizzle_migrations ADD COLUMN IF NOT EXISTS tag text;',
+        backfill,
+        // One row per migration is what "applied" means; make a double insert impossible to store.
+        `CREATE UNIQUE INDEX IF NOT EXISTS drizzle_migrations_tag_key
+           ON drizzle.__drizzle_migrations (tag) WHERE tag IS NOT NULL;`,
+      ].filter(Boolean).join('\n')],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr ?? '');
+    throw new Error(`cannot prepare the Drizzle migration ledger of ${db} for name-based identity`);
+  }
 }
 
 function readAppliedDrizzleRows(db) {
   const result = spawnPsql(
     ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-At', '-F', '\t', '-c',
-      'SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at'],
+      "SELECT hash, created_at, COALESCE(tag, '') FROM drizzle.__drizzle_migrations ORDER BY created_at"],
     { encoding: 'utf8' },
   );
   if (result.status !== 0) {
@@ -89,34 +128,53 @@ function readAppliedDrizzleRows(db) {
     throw new Error('cannot read Drizzle migration ledger');
   }
   return String(result.stdout ?? '').trim().split('\n').filter(Boolean).map((line) => {
-    const [hash, createdAt] = line.split('\t');
+    const [hash, createdAt, tag] = line.split('\t');
     if (!/^[0-9a-f]{64}$/u.test(hash ?? '') || !/^\d+$/u.test(createdAt ?? '')) {
       throw new Error('invalid Drizzle migration ledger row');
     }
-    return { hash, createdAt: Number(createdAt) };
+    return { hash, createdAt: Number(createdAt), tag: tag || null };
   });
 }
 
 /**
- * The ledger is applied by watermark (`when > max(created_at)`), not by content.  A journal entry
- * that is BOTH below the watermark and absent from the ledger can therefore never be picked up
- * again: every later run reports `pending=0 ... already current` over a hole in the schema.  That
- * is the silent skip this gate exists to make audible.  It is computed here, in the one place all
- * DEV and TEST runs go through (`deploy/host/migrate-dev.sh`, `deploy/host/deploy-test.sh`), so no
- * caller can hold a second, divergent copy of the rule.
+ * The ledger says a migration ran; this asks the catalog whether its objects are actually there.
+ *
+ * A ledger row is a claim, not evidence.  On 19.08 three migrations were recorded as applied on a
+ * database that was missing four of their functions, and every later run answered "pending=0,
+ * already current" — the ledger agreed with itself while the schema had a hole.  So before anything
+ * is applied, every object the applied migrations created and did not later drop is probed by name,
+ * and a single absent one stops the run and is named.
  */
-export function findSilentlySkippedMigrations(migrations, appliedRows) {
-  const applied = new Set(appliedRows.map((row) => row.createdAt));
-  const watermark = appliedRows.reduce((latest, row) => Math.max(latest, row.createdAt), 0);
-  return migrations.filter((migration) => migration.when < watermark && !applied.has(migration.when));
+function findMissingObjects(db, appliedMigrations) {
+  const objects = collectExpectedObjects(appliedMigrations);
+  const sql = renderObjectPresenceSql(objects);
+  if (!sql) return [];
+  const result = spawnPsql(
+    ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-At', '-F', '\t', '-c', sql],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr ?? '');
+    throw new Error(`cannot verify that applied migrations of ${db} still hold their objects`);
+  }
+  const present = new Map(
+    String(result.stdout ?? '').trim().split('\n').filter(Boolean).map((line) => {
+      const [at, flag] = line.split('\t');
+      return [Number(at), flag === 't'];
+    }),
+  );
+  if (present.size !== objects.length) {
+    throw new Error(`object presence probe answered for ${present.size} of ${objects.length} objects`);
+  }
+  return objects.filter((_, index) => present.get(index) === false);
 }
 
 const db = value('db');
 const migrator = value('migrator');
-// Deliberate, named recovery for an already-skipped entry.  It is never inferred: the operator must
-// spell out every tag, so an unrelated new hole opened later still stops the run instead of riding
-// along on a stale flag.
-const applyOutOfOrderTags = values('apply-out-of-order');
+// Deliberate, named recovery for a migration the ledger claims but the schema does not hold.  It
+// is never inferred: the operator spells out every tag, so a second, unrelated hole opened later
+// still stops the run instead of riding along on a stale flag.
+const reapplyTags = values('reapply');
 const legacyOwners = values('owner');
 const legacyMigration = process.argv.includes('--migration') ? realpathSync(resolve(value('migration'))) : null;
 let steps = values('step').map((step) => {
@@ -128,52 +186,66 @@ const drizzleFolder = process.argv.includes('--drizzle-folder')
   ? realpathSync(resolve(value('drizzle-folder')))
   : null;
 let drizzleSummary = null;
-if (applyOutOfOrderTags.length > 0 && !drizzleFolder) {
-  throw new Error('--apply-out-of-order is supported only with --drizzle-folder');
+if (reapplyTags.length > 0 && !drizzleFolder) {
+  throw new Error('--reapply is supported only with --drizzle-folder');
 }
 if (drizzleFolder) {
   if (steps.length > 0 || legacyOwners.length > 0 || legacyMigration) {
     throw new Error('--drizzle-folder cannot be combined with --step/--owner/--migration');
   }
-  const migrations = readDrizzleMigrations(drizzleFolder);
+  bootstrapLedger(db, drizzleFolder);
+  // File name is the order and the identity; the folder listing is the whole plan.
+  const migrations = readMigrationFolder(drizzleFolder);
   const appliedRows = readAppliedDrizzleRows(db);
-  const latestCreatedAt = appliedRows.reduce((latest, row) => Math.max(latest, row.createdAt), 0);
-  const silentlySkipped = findSilentlySkippedMigrations(migrations, appliedRows);
-  const skippedTags = new Set(silentlySkipped.map((migration) => migration.tag));
-  const unknownRequest = applyOutOfOrderTags.filter((tag) => !skippedTags.has(tag));
-  if (unknownRequest.length > 0) {
-    throw new Error(
-      `--apply-out-of-order names ${unknownRequest.join(', ')}, which is not below the ${db} watermark ${latestCreatedAt} and missing from the ledger`,
-    );
+  const pendingByLedger = selectPendingMigrations(migrations, appliedRows);
+  const pendingTags = new Set(pendingByLedger.map((migration) => migration.tag));
+
+  const unknownReapply = reapplyTags.filter((tag) => !migrations.some((migration) => migration.tag === tag));
+  if (unknownReapply.length > 0) {
+    fail(`--reapply names ${unknownReapply.join(', ')}, which is not a migration file in ${drizzleFolder}`);
   }
-  const unhandled = silentlySkipped.filter((migration) => !applyOutOfOrderTags.includes(migration.tag));
-  if (unhandled.length > 0) {
-    const listed = unhandled.map((migration) => `idx=${migration.idx} when=${migration.when} tag=${migration.tag}`);
-    throw new Error(
+  const alreadyPending = reapplyTags.filter((tag) => pendingTags.has(tag));
+  if (alreadyPending.length > 0) {
+    fail(`--reapply names ${alreadyPending.join(', ')}, which ${db} has not applied at all; it is ordinary pending work`);
+  }
+
+  const applied = migrations.filter((migration) => !pendingTags.has(migration.tag));
+  const missing = findMissingObjects(db, applied.filter((migration) => !reapplyTags.includes(migration.tag)));
+  if (missing.length > 0) {
+    const holders = [...new Set(missing.map((object) => object.tag))];
+    fail(
       [
-        `Drizzle journal and ${db} ledger describe different states: ${unhandled.length} migration(s) `
-          + `sit below the applied watermark ${latestCreatedAt} and have no ledger row, so the watermark `
-          + 'migrator will never apply them and every run would keep reporting "already current":',
-        ...listed.map((line) => `  ${line}`),
-        'Their objects are absent from the database. Re-run with '
-          + `${unhandled.map((migration) => `--apply-out-of-order ${migration.tag}`).join(' ')} `
-          + 'to apply them through this same wrapper, after confirming they carry no ordering dependency '
-          + 'on anything already applied above them.',
+        `${db} records ${holders.length} migration(s) as applied whose objects are not in the catalog, `
+          + 'so the ledger is answering for a schema it does not have:',
+        ...missing.map((object) => `  absent: ${describeObject(object)}`),
+        'Re-run with '
+          + `${holders.map((tag) => `--reapply ${tag}`).join(' ')} `
+          + 'to send them through this same wrapper again, after confirming each is safe to execute twice.',
       ].join('\n'),
     );
   }
+
   const pending = migrations.filter(
-    (migration) => migration.when > latestCreatedAt || skippedTags.has(migration.tag),
+    (migration) => pendingTags.has(migration.tag) || reapplyTags.includes(migration.tag),
   );
   steps = pending.flatMap((migration) =>
     parseOwnerStatements(migration.source, migration.tag).map((statement) => ({
       ...statement,
-      drizzle: { hash: migration.hash, tag: migration.tag, when: migration.when },
+      drizzle: { hash: migration.hash, tag: migration.tag, reapply: reapplyTags.includes(migration.tag) },
     })),
   );
-  drizzleSummary = { pending: pending.length, total: migrations.length, outOfOrder: silentlySkipped.length };
+  const foreign = findForeignLedgerRows(migrations, appliedRows);
+  drizzleSummary = {
+    pending: pending.length,
+    total: migrations.length,
+    reapplied: reapplyTags.length,
+    foreign: foreign.length,
+  };
   if (pending.length === 0) {
-    console.log(`Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length}`);
+    console.log(
+      `Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length} `
+        + `verified-objects=${collectExpectedObjects(applied).length} foreign-ledger-rows=${foreign.length}`,
+    );
     process.exit(0);
   }
 } else if (steps.length === 0) {
@@ -232,7 +304,14 @@ const statements = [
       ...(closesDrizzleMigration
         ? [
             'RESET SESSION AUTHORIZATION;',
-            `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${sqlLiteral(drizzle.hash)}, ${drizzle.when});`,
+            ...(drizzle.reapply
+              ? [`DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(drizzle.tag)};`]
+              : []),
+            // created_at is bookkeeping now, not identity: it only records the order of application.
+            `INSERT INTO drizzle.__drizzle_migrations (hash, created_at, tag)
+             VALUES (${sqlLiteral(drizzle.hash)},
+                     (SELECT COALESCE(MAX(created_at), 0) + 1000 FROM drizzle.__drizzle_migrations),
+                     ${sqlLiteral(drizzle.tag)});`,
             `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
           ]
         : []),
@@ -262,10 +341,10 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 if (drizzleSummary) {
   if (rollbackOnly) {
     console.log(
-      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} out-of-order=${drizzleSummary.outOfOrder}`,
+      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign}`,
     );
   } else {
-    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} out-of-order=${drizzleSummary.outOfOrder}`);
+    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign}`);
   }
 } else {
   console.log(`revision-10 migration committed for ${qDb} with temporary ${qMigrator} owner memberships revoked`);
