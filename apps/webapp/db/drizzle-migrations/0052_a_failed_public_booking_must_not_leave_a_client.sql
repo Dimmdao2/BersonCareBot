@@ -171,7 +171,6 @@ $function$;
 COMMENT ON FUNCTION app.assert_org_patient_count_quota_available(uuid) IS
   'The only patient_count ceiling: both creators of an org_enrollments row call it under the same transaction-scoped advisory lock.';
 
-REVOKE ALL ON FUNCTION app.assert_org_patient_count_quota_available(uuid) FROM PUBLIC;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- Прежняя дверь принимала только организацию и вписывала канал константой. Подпись меняется, поэтому
@@ -295,7 +294,6 @@ $function$;
 COMMENT ON FUNCTION app.enroll_current_patient_in_public_booking_clinic(uuid, text) IS
   'Make the identified public-booking visitor a client of a PUBLISHED clinic under the one patient_count ceiling. The person comes from the accepted patient context, the confirmation channel is an argument checked against the closed list, and the door reports what it did so a failed booking can be compensated.';
 
-REVOKE ALL ON FUNCTION app.enroll_current_patient_in_public_booking_clinic(uuid,text) FROM PUBLIC;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
@@ -399,4 +397,3 @@ $function$;
 COMMENT ON FUNCTION app.revoke_public_booking_enrollment(uuid) IS
   'Undo the public-booking client relationship when the booking itself failed. Decides from the row (public provenance, one-attempt age window, no live appointment) and never from the caller.';
 
-REVOKE ALL ON FUNCTION app.revoke_public_booking_enrollment(uuid) FROM PUBLIC;

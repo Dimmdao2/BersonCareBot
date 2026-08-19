@@ -184,7 +184,6 @@ $function$;
 COMMENT ON FUNCTION app.resolve_public_booking_client_by_phone(text, text, boolean) IS
   'Resolve-or-create the canonical platform person for a proven public-booking phone. Takes no person id from the caller and no organization: identity only.';
 
-REVOKE ALL ON FUNCTION app.resolve_public_booking_client_by_phone(text,text,boolean) FROM PUBLIC;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app

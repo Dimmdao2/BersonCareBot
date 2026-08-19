@@ -128,5 +128,3 @@ $function$;
 
 COMMENT ON FUNCTION app.enroll_current_patient_in_public_booking_clinic(uuid, text) IS
   'Make the identified public-booking visitor a client of a PUBLISHED clinic. Spends no paid patient_count seat (owner 19.08, OWNER_PRODUCT_RULES.md #33.2) -- only the staff card writer does. The person comes from the accepted patient context, the confirmation channel is an argument checked against the closed list, and the door reports what it did so a failed booking can be compensated.';
-
-REVOKE ALL ON FUNCTION app.enroll_current_patient_in_public_booking_clinic(uuid,text) FROM PUBLIC;
