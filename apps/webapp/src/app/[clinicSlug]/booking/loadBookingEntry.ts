@@ -2,7 +2,7 @@ import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrg
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   listBookableBranchesForOrganization,
-  listInPersonServicesForBranch,
+  listPublicBookableServicesForBranch,
   resolveBookableOnlineLocationForOrganization,
   type BookableBranchOption,
   type InPersonServiceListItem,
@@ -80,66 +80,51 @@ export async function loadBookingEntryScreenRsc(input: {
       async (): Promise<BookingEntryScreen> => {
         const [branches, onlineLocation] = await Promise.all([
           listBookableBranchesForOrganization(deps, input.organizationId),
-          resolveBookableOnlineLocationForOrganization(deps, input.organizationId),
+          resolveBookableOnlineLocationForOrganization(
+            deps,
+            input.organizationId,
+            listPublicBookableServicesForBranch,
+          ),
         ]);
         if (!branches) return { kind: 'unavailable' };
 
         // Идентификатор из ссылки НИКОГДА не выбирает организацию: она уже разрешена из slug и
-        // установлена принципалом. Чужой филиал поэтому просто не находится — `listInPersonServices
-        // ForBranch` отбивает `branch.organizationId !== organizationId`, а специалисты и услуги
-        // фильтруются по той же организации.
+        // установлена принципалом. Чужой филиал поэтому просто не находится —
+        // `listPublicBookableServicesForBranch` отбивает `branch.organizationId !== organizationId`.
         if (!branchId && !specialistId) {
           return { kind: 'branches', branches, onlineLocation };
         }
 
-        let specialistName: string | null = null;
+        // Специалист в ссылке: анонимная дверь каталога (`app.read_public_booking_catalog`, миграция
+        // 0047) не несёт идентичности специалиста вовсе — только уже отфильтрованные по «есть активный
+        // специалист» услуги. Резолвить имя специалиста или сузить каталог по нему здесь нечем без
+        // новой публичной двери (F1 отчёт audit 19.08, «что проверить не смог» п.2), а
+        // `bookingEngine.catalog.listSpecialists` — кабинетный `db.select()`, у анонимного класса
+        // `tenant_service` нет для него грантов вовсе (падает 42501). Строить новую дверь — за
+        // пределами этого фикса; чтобы параметр не убивал всю страницу, он логируется и игнорируется:
+        // посетитель получает настоящий (нефильтрованный по специалисту) каталог вместо «недоступно».
         if (specialistId) {
-          const specialists = deps.bookingEngine
-            ? await deps.bookingEngine.catalog.listSpecialists(input.organizationId)
-            : [];
-          const specialist = specialists.find(
-            (item) =>
-              item.id === specialistId &&
-              item.organizationId === input.organizationId &&
-              item.isActive,
-          );
-          if (!specialist) {
-            return { kind: 'stale', reason: 'specialist_gone', branches, onlineLocation };
-          }
-          specialistName = specialist.fullName;
+          console.warn('[clinic-booking] specialist scoping ignored: no public catalog door for it', {
+            source: 'app/[clinicSlug]/booking:entry',
+            organizationId: input.organizationId,
+            specialistId,
+          });
         }
 
-        // Только специалист, без филиала: филиал всё равно выбирает человек, но список сужается до
-        // тех, где этот специалист принимает. Пустой список означал бы, что специалист фактически
-        // не принимает нигде, — это экран «специалист ушёл», а не пустой список.
         if (!branchId) {
-          const withSpecialist: BookableBranchOption[] = [];
-          for (const branch of branches) {
-            const listed = await listInPersonServicesForBranch(
-              deps,
-              input.organizationId,
-              branch.id,
-              specialistId,
-            );
-            if (listed && listed.services.length > 0) withSpecialist.push(branch);
-          }
-          if (withSpecialist.length === 0) {
-            return { kind: 'stale', reason: 'specialist_gone', branches, onlineLocation };
-          }
-          return { kind: 'branches', branches: withSpecialist, onlineLocation };
+          return { kind: 'branches', branches, onlineLocation };
         }
 
-        const listed = await listInPersonServicesForBranch(
+        const listed = await listPublicBookableServicesForBranch(
           deps,
           input.organizationId,
           branchId,
-          specialistId,
         );
         if (!listed) return { kind: 'stale', reason: 'branch_gone', branches, onlineLocation };
         return {
           kind: 'services',
           branch: listed.branch,
-          specialistName,
+          specialistName: null,
           services: listed.services,
           emptyUnderConditions: listed.services.length === 0,
         };

@@ -82,6 +82,12 @@ function repositorySql(relativePath) {
 }
 
 generator('--db', dbName, '--check');
+// Same gate, port-context artifact: `--check` alone only covers privileges/allowlist
+// (`buildArtifacts` in generate-cli.mjs branches on `--port-context-only` — one call can't check
+// both). Without this second call the committed `port-context-capabilities.*.sql` files can drift
+// from the declaration (or, as found 19.08, keep unresolved merge-conflict markers) and no deploy
+// or CI step would ever notice — this reconcile is the only place that already gates on `--check`.
+generator('--db', dbName, '--check', '--port-context-only');
 const sql = [
   '\\set ON_ERROR_STOP on',
   `\\set DBNAME ${dbName}`,

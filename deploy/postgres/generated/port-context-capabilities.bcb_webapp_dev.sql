@@ -176,12 +176,9 @@ SELECT * FROM (VALUES
   ('b050275b-9e93-5016-a8b5-3203529a6cc9'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_patient'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.patient-identity-contacts.read', 'app.read_current_patient_identity_contacts()'::regprocedure),
   ('c9f02030-4719-59ed-8d9c-d4d426556823'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_patient'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'notification.current-patient-staff-profiles', 'app.read_current_patient_staff_notification_profiles(uuid,text)'::regprocedure),
   ('9ab68871-f47d-5ea9-9510-6d0a16ddbc11'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_staff'::name, 'staff'::app.port_context_class, 'messaging.patient-telegram-handle.read', 'app.read_patient_telegram_display_handle(uuid)'::regprocedure),
-<<<<<<< HEAD
-  ('7a6e7707-e5c8-588d-b302-bd7554cd82cc'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_patient'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'clinic.public-card.read', 'app.read_public_clinic_card(text)'::regprocedure),
-=======
   ('d6f47eb0-11a3-5605-aa7a-8bafbdd4d37b'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'booking.public-catalog.read', 'app.read_public_booking_catalog(uuid,uuid)'::regprocedure),
   ('676bc95f-8c21-57e8-8cba-ee788198295a'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_staff'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'booking.public-slot-snapshot.read', 'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)'::regprocedure),
->>>>>>> a8c2d3d59a2d6a8961c6aded92c0a2b5a98599a8
+  ('7a6e7707-e5c8-588d-b302-bd7554cd82cc'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_patient'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'clinic.public-card.read', 'app.read_public_clinic_card(text)'::regprocedure),
   ('d3d7a66e-6e1c-5dfb-be52-307d3f6fc32a'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_patient'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'config.runtime.public.read', 'app.read_public_runtime_setting(text,text)'::regprocedure),
   ('62fe891a-7b55-5188-8871-6b4b7a441d9f'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_patient'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'config.preauth-provider.read', 'app.read_webapp_preauth_provider_setting(text)'::regprocedure),
   ('68bf6362-0d03-5bb9-98e1-ff6ffc04fd76'::uuid, 'webapp'::app.port_name, 'bcb_dev_webapp_patient'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'config.runtime.server.read', 'app.read_webapp_server_runtime_setting(text,text)'::regprocedure),
