@@ -201,5 +201,3 @@ BEGIN
   RETURN last_sent_at;
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.read_operator_health_digest_last_sent_at() FROM PUBLIC;

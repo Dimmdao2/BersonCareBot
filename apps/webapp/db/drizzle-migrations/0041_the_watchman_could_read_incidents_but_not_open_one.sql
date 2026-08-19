@@ -124,5 +124,3 @@ BEGIN
   RETURN jsonb_build_object('id', v_id, 'openedAt', v_opened_at);
 END
 $function$;
-
-REVOKE ALL ON FUNCTION app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text) FROM PUBLIC;
