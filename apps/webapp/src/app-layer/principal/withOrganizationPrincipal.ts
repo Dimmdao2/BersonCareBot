@@ -1,10 +1,15 @@
 import {
+  createDbOrganizationPrincipal,
   getCurrentDbPrincipal,
-  runWithDbOrganizationPrincipal,
+  runWithDbPrincipal,
   runWithDbPatientPrincipal,
   runWithDbStaffPrincipal,
 } from '@bersoncare/db-principal';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
+import {
+  isPublicBookingPrincipalSource,
+  runInPublicBookingPrincipalScope,
+} from '@/app-layer/principal/publicBookingPrincipal';
 
 export type TenantPrincipalContext = {
   organizationId: string;
@@ -23,12 +28,24 @@ function normalizePrincipalSource(source: string): string {
   return trimmed;
 }
 
+/**
+ * Источник ДОЛЖЕН доехать до самого принципала: по нему инфраструктура отличает анонимную воронку
+ * публичной записи от кабинетных маршрутов абонементов и вебхуков эквайринга, которые ходят под
+ * тем же видом принципала. Раньше `source` здесь только проверялся на непустоту и выбрасывался —
+ * `runWithDbOrganizationPrincipal` принимает лишь идентификатор организации, — и различить эти
+ * три потока было физически нечем.
+ */
 export async function withExplicitOrganizationPrincipal<T>(
   ctx: TenantPrincipalContext,
   fn: () => Promise<T>,
 ): Promise<T> {
-  normalizePrincipalSource(ctx.source);
-  return runWithDbOrganizationPrincipal(ctx.organizationId, fn);
+  const source = normalizePrincipalSource(ctx.source);
+  const run = (): Promise<T> =>
+    runWithDbPrincipal(
+      createDbOrganizationPrincipal({ organizationId: ctx.organizationId, source }),
+      fn,
+    );
+  return isPublicBookingPrincipalSource(source) ? runInPublicBookingPrincipalScope(run) : run();
 }
 
 export async function withPatientOrganizationPrincipal<T>(

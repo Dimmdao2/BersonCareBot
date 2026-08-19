@@ -30,9 +30,10 @@ const EXPECTED = {
   // 194 → 195 (19.08): `critical_incident_open` — миграция 0041.
   // 195 → 196 (19.08): `platform_analytics_dashboard` — дашборд глобального админа читал
   // девятнадцать таблиц отношением и отдавал 500 на первом же 42501 (миграция 0043).
-  // 196 → 198 (19.08): `read_public_clinic_card` + `save_public_clinic_card` — публичная визитка
-  // клиники и её настройка в кабинете (миграция 0049).
-  webapp: 198,
+  // 196 → 200 (19.08): четыре двери публичной записи — миграция 0047 (ex-0043). Резолвер арендатора
+  // в классе `pre_session`, три остальные — именованные корни арендаторского класса
+  // `tenant_service`, которому сквозной `purpose: 'relation'` у порта `webapp` не выдаётся.
+  webapp: 202,
   integrator: 34,
 };
 
@@ -64,9 +65,10 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // подписок к продлению — миграция 0040.
   // 228 → 229 (19.08): открытие критического инцидента — миграция 0041.
   // 229 → 230 (19.08): корень платформенного дашборда — миграция 0043.
-  // 230 → 232 (19.08): две двери визитки клиники — миграция 0049.
-  assert.equal(rows.length, 232);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 232);
+  // 230 → 234 (19.08): четыре двери публичной записи (миграция 0047, ex-0043).
+  // 234 → 236 (19.08): две двери визитки клиники.
+  assert.equal(rows.length, 236);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 236);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -127,8 +129,9 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 211 → 213 (19.08): корень аудитории staff-веб-пуша и корень перечисления подписок (0040).
   // 213 → 214 (19.08): корень открытия критического инцидента (0041).
   // 214 → 215 (19.08): корень платформенного дашборда (0043).
-  // 215 → 217 (19.08): две двери визитки клиники (0049).
-  assert.equal(roots.length, 217);
+  // 215 → 219 (19.08): все четыре возможности публичной записи — именованные корни (0047, ex-0043).
+  // 219 → 221 (19.08): обе двери визитки клиники — именованные корни.
+  assert.equal(roots.length, 221);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

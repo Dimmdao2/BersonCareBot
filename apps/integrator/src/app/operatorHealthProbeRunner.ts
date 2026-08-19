@@ -208,34 +208,43 @@ export async function runOperatorHealthProbes(input: {
       if (outcome !== 'fail') continue;
       const detail = details[name] ?? 'probe failed';
 
-      // Решение владельца 21.07: отказ провайдера по учётным данным/квоте пейджится с ПЕРВОГО
-      // появления. Проба до этого складывала ЛЮБУЮ причину в один класс `<провайдер>_probe_failed`
-      // и ждала трёх промахов подряд, поэтому телеграмный `401 Unauthorized` был неотличим от
-      // таймаута и молчал столько же. Разбор текста ошибки — тот же, что у настоящей отправки;
-      // отдельного словаря у пробы нет.
-      const providerErrorClass = classifyOutboundProviderErrorClass(detail);
-      if (isPageOnFirstOccurrenceProviderErrorClass(providerErrorClass)) {
-        details[`${name}ProviderErrorClass`] = providerErrorClass;
+      // Один канал не должен топить отчёт по остальным: `open_or_touch_operator_probe_incident`
+      // умеет отвергнуть незнакомую пару (integration, error_class) исключением (`23514`), и до
+      // этой правки такое исключение рвало ВЕСЬ `for`, теряя отчёт по каналам, идущим следом за
+      // отказавшим (порядок обхода — max, telegram, google_calendar). Каждая итерация теперь
+      // изолирована: сбой репорта по одному каналу — warn и следующий канал, не потеря остальных.
+      try {
+        // Решение владельца 21.07: отказ провайдера по учётным данным/квоте пейджится с ПЕРВОГО
+        // появления. Проба до этого складывала ЛЮБУЮ причину в один класс `<провайдер>_probe_failed`
+        // и ждала трёх промахов подряд, поэтому телеграмный `401 Unauthorized` был неотличим от
+        // таймаута и молчал столько же. Разбор текста ошибки — тот же, что у настоящей отправки;
+        // отдельного словаря у пробы нет.
+        const providerErrorClass = classifyOutboundProviderErrorClass(detail);
+        if (isPageOnFirstOccurrenceProviderErrorClass(providerErrorClass)) {
+          details[`${name}ProviderErrorClass`] = providerErrorClass;
+          await reportOperatorFailure({
+            dispatchPort: input.dispatchPort,
+            direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+            integration,
+            errorClass: providerErrorClass,
+            errorDetail: detail,
+            alertLines: [title, detail],
+          });
+          continue;
+        }
+
+        if ((streak.consecutiveFailures[name] ?? 0) < config[name].consecutiveFailures) continue;
         await reportOperatorFailure({
           dispatchPort: input.dispatchPort,
-          direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+          direction: 'outbound',
           integration,
-          errorClass: providerErrorClass,
+          errorClass: probeErrorClass,
           errorDetail: detail,
           alertLines: [title, detail],
         });
-        continue;
+      } catch (err) {
+        logger.warn({ err, name, integration }, 'operator_health_probe_report_failure_failed');
       }
-
-      if ((streak.consecutiveFailures[name] ?? 0) < config[name].consecutiveFailures) continue;
-      await reportOperatorFailure({
-        dispatchPort: input.dispatchPort,
-        direction: 'outbound',
-        integration,
-        errorClass: probeErrorClass,
-        errorDetail: detail,
-        alertLines: [title, detail],
-      });
     }
   } catch (err) {
     logger.warn({ err }, 'operator_health_probe_job_status_failed');
