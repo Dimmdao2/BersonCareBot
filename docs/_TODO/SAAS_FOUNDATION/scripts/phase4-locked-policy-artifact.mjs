@@ -130,7 +130,13 @@ export function renderPhase4StrictPredicate(descriptor) {
     return `(${staffOrgPredicate} OR ${renderFkPathPatientPredicate(descriptor)})`;
   }
 
-  return `(${staffOrgPredicate} OR ${renderPatientPredicateForDescriptor(descriptor, { patientMode: 'enforce' })})`;
+  // Форма здесь — `(staff AND org) OR (пациентская ветка)`, то есть организация НЕ стоит над всем
+  // выражением. Собственно пациентские ветки свою организацию несут (её дописывает classSafe в
+  // declaration.ts для org-таблиц), а вот «общие» вырезы внутри пациентской ветки — «строка без
+  // владельца» (media_folders.patient_user_id IS NULL) и «каталожные target_type» (comments) —
+  // никакой организации не несли и были истинны для любого принципала. Поэтому вырезам явно
+  // передаётся организационный предикат: «общая» строка общая ВНУТРИ своей клиники.
+  return `(${staffOrgPredicate} OR ${renderPatientPredicateForDescriptor(descriptor, { patientMode: 'enforce', sharedScopeSql: orgPredicate })})`;
 }
 
 export function renderPhase4DormantCompatPredicate(descriptor) {
