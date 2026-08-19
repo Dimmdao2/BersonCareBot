@@ -447,6 +447,13 @@ test('every application seam owner and function caller has the closed role shape
 });
 
 test('every genuine pre-session root has app_pre_session as its only caller', () => {
+  // Список выше — курируемое ПОДМНОЖЕСТВО: корней, у которых единственный вызывающий
+  // `app_pre_session`, в переписи больше, а здесь перечислены признанные подлинными. Вывести его
+  // из данных нельзя, поэтому он записан переписью имён: вычеркнутая строка тихо снимала бы
+  // проверку «единственный вызывающий» с этого корня — прежний `length === 28` ловил это числом 27,
+  // не называя вычеркнутого, а без него не ловит никто.
+  assertNameCensus('genuinePreSessionRoots', GENUINE_PRE_SESSION_FUNCTIONS,
+    'roots recognised as genuinely pre-session');
   for (const functionName of GENUINE_PRE_SESSION_FUNCTIONS) {
     const matches = Object.entries(BUSINESS_SEAM_FUNCTIONS)
       .filter(([signature]) => signature.startsWith(`app.${functionName}(`));
