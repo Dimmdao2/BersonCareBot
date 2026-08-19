@@ -2246,6 +2246,9 @@ const WEBAPP_WORKER_SOURCES = [
   'api/internal/operator-health-digest/tick:POST',
   'api/internal/operator-health-critical/tick:POST',
   'api/internal/system-health-guard/tick:POST',
+  // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
+  // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
+  'api/internal/saas-billing/renewal/tick:POST',
   'api/internal/specialist-task-reminders/tick:POST',
   'api/internal/heartbeat/pipeline_delivery:POST',
   'api/internal/heartbeat/pipeline_delivery:GET',
@@ -2647,6 +2650,20 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.digest.enqueue',
       functionIdentity: 'app.enqueue_operator_health_digest_delivery(text,text,text,integer)' },
+    // Аудитория staff-веб-пуша операторского алерта: до 0040 читалась отношением под `app_worker`
+    // и отбивалась 42501 на `be_organization_members` — канал не работал, а тик писал успех.
+    webapp_operator_alert_staff_push_audience_read: { port: 'webapp',
+      runtimeName: 'operator_alert_staff_push_audience_read', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'notifications.staff-push-audience.read',
+      functionIdentity: 'app.list_operator_alert_staff_push_recipients()' },
+    // Часовой тик продления подписок: межарендное перечисление «у кого кончился оплаченный период».
+    // До 0040 тик входил платформенным принципалом с выдуманным нулевым UUID вместо актора и падал
+    // ещё на установке контекста — строки `billing.saas_renewal.tick` не появилось ни разу.
+    webapp_saas_renewal_due_list: { port: 'webapp', runtimeName: 'saas_renewal_due_list',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'billing.saas-renewal.due-list',
+      functionIdentity: 'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)' },
     // Одна уборка по сроку хранения на все запертые арендаторские таблицы: цель выбирается
     // параметром из ЗАКРЫТОГО списка внутри тела, окно приходит константой вызывающего тика.
     // Каждый тик сохраняет свою личность — общей у них только эта дверь.
@@ -3904,6 +3921,48 @@ const REV10_CONTEXT = {
           'attempt_count', 'max_attempts', 'next_retry_at', 'priority'],
         operations: ['SELECT' as const, 'INSERT' as const],
         evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0039' as const }],
+    }),
+    // Аудитория staff-веб-пуша операторского алерта. Соседний канал того же диспетчера
+    // (`telegram`/`max`/`sms`/`email`) переехал на объявленный корень ещё миграцией 0030
+    // (`app.read_admin_notification_targets(text)`), а веб-пуш остался сырым чтением отношения:
+    // `pgStaffUsers.listActiveStaffOrganizationRecipients` под `app_worker` получал
+    // `42501 permission denied for table be_organization_members`, отказ глотался `.catch`
+    // диспетчера, и критический тик рапортовал успех поверх канала, который не отработал.
+    // Тот же владелец шва, что у соседа; `app_worker` получает EXECUTE и ничего больше
+    // (миграция 0040).
+    'app.list_operator_alert_staff_push_recipients()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'return only the tenant-paired staff audience of an operator alert web push',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Перечисление подписок, у которых оплаченный период кончился, — работа МЕЖАРЕНДНАЯ: одна
+    // строка на клинику, и заранее неизвестно, на какую. Арендная дверь для неё не годится
+    // (`app_worker` видит по RLS только `current_org_id()`), а платформенная требует живого
+    // администратора-человека, которого у машинного тика нет. Отсюда собственный корень у шва
+    // коммерции — того же, что уже читает подписку и тариф в
+    // `app.refresh_saas_billing_invoice_purchased_tariff` (миграция 0040).
+    'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'return only the bounded set of paid subscriptions whose paid period has ended',
+      typedArgs: ['timestamp with time zone', 'integer'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_subscriptions',
+          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'source', 'status',
+            'current_period_ends_at', 'saved_payment_method_id', 'autopay_consented_at',
+            'autopay_revoked_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_tariffs', columns: ['id', 'billing_period'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,

@@ -26,7 +26,8 @@ const EXPECTED = {
   // 189 → 190 (19.08): `health_digest_last_sent_read` — одна дверь чтения времени последней
   // подтверждённой отправки сводки (миграция 0038).
   // 190 → 192 (19.08): `delivery_queue_health_read` + `health_digest_enqueue` — миграция 0039.
-  webapp: 192,
+  // 192 → 194 (19.08): `operator_alert_staff_push_audience_read` + `saas_renewal_due_list` (0040).
+  webapp: 194,
   integrator: 34,
 };
 
@@ -54,8 +55,10 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 221 → 223 (19.08): два корня контактов формы записи из миграции 0037.
   // 223 → 224 (19.08): `webapp_health_digest_last_sent_read` — миграция 0038.
   // 224 → 226 (19.08): `webapp_delivery_queue_health_read` + `webapp_health_digest_enqueue` (0039).
-  assert.equal(rows.length, 226);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 226);
+  // 226 → 228 (19.08): аудитория staff-веб-пуша операторского алерта и межарендное перечисление
+  // подписок к продлению — миграция 0040.
+  assert.equal(rows.length, 228);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 228);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -113,7 +116,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 206 → 208 (19.08): два корня контактов формы записи (миграция 0037).
   // 208 → 209 (19.08): корень времени последней подтверждённой сводки (миграция 0038).
   // 209 → 211 (19.08): корень снимка здоровья очереди и корень постановки сводки (миграция 0039).
-  assert.equal(roots.length, 211);
+  // 211 → 213 (19.08): корень аудитории staff-веб-пуша и корень перечисления подписок (0040).
+  assert.equal(roots.length, 213);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
