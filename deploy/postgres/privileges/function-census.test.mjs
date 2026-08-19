@@ -138,11 +138,14 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // `public.be_external_entity_mappings`: таблица удалена вместе с Rubitime. Прибавка = функции
   // наконец под учётом, новых функций не появилось.
   // 110 → 111 (19.08): корень платформенного дашборда (миграция 0043).
-  // 111 → 114 (19.08): миграция 0047 (ex-0043) — три новые двери публичной записи (каталог, снимок
+  // 111 → 112 (19.08): миграция 0046 (в работе у другого агента, не в скоупе этой миграции) добавила
+  // `app.resolve_operator_probe_incidents(text)` — сигнатура новая. Второе тело той же миграции,
+  // `app.read_operator_delivery_queue_health()`, повторяет сигнатуру из 0039 и счётчик не двигает.
+  // 112 → 115 (19.08): миграция 0047 (ex-0043) — три новые двери публичной записи (каталог, снимок
   // слотов, поля формы). Четвёртое тело, `app.resolve_public_booking_organization(uuid,uuid)`, уже
   // было под учётом с 0042 и счётчик не двигает: 0047 только перевела его гейт на
   // `app.require_accepted_context`.
-  assert.equal(functions.length, 114);
+  assert.equal(functions.length, 115);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
