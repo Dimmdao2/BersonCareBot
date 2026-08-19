@@ -18,7 +18,6 @@ public.test_results	raw_value	SCOPED	clinical_test_raw_value	yes	SCOPED	organiza
 public.be_booking_form_submissions	attribution_json	SCOPED	booking_form_attribution	yes	SCOPED	direct organization_id NOT NULL; booking form attribution stays scoped; no samples	booking form submission attribution
 public.be_patient_timeline_events	payload	SCOPED	booking_patient_timeline	yes	SCOPED	direct organization_id NOT NULL and platform_user_id FK; timeline payload stays scoped; no samples	patient timeline payload
 public.be_appointment_history_events	payload	SCOPED	booking_appointment_history	yes	SCOPED	direct organization_id NOT NULL; appointment history payload stays scoped; no samples	booking appointment history payload
-public.be_external_entity_mappings	metadata	SCOPED	booking_external_mapping_metadata	yes	SCOPED	direct organization_id NOT NULL; external mapping metadata stays scoped; no samples	external id mapping metadata
 public.be_payment_intents	metadata_json	SCOPED	booking_payment_intent_metadata	yes	SCOPED	direct organization_id NOT NULL; payment intent metadata stays scoped; no samples	payment intent metadata
 public.be_payment_provider_events	payload_json	SCOPED	booking_payment_provider_event	yes	SCOPED	direct organization_id NOT NULL; provider event payload stays scoped; no samples	payment provider webhook/event payload
 public.be_payment_history_events	payload_json	SCOPED	booking_payment_history	yes	SCOPED	direct organization_id NOT NULL; payment history payload stays scoped; no samples	payment history payload

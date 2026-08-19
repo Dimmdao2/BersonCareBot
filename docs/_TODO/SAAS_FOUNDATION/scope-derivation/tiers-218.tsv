@@ -71,7 +71,6 @@ SCOPED|public.be_booking_form_submissions
 SCOPED|public.be_branches
 SCOPED|public.be_cancellation_policies
 SCOPED|public.be_clinic_services
-SCOPED|public.be_external_entity_mappings
 SCOPED|public.be_organizations
 SCOPED|public.be_package_history_events
 SCOPED|public.be_package_items
