@@ -28,6 +28,31 @@ Downloaded files live under:
 `.tmp/` is gitignored. This is intentional: the dataset is an operations input
 for a backfill script, not a runtime application dependency.
 
+### Durable copy of the reviewed decisions (19.08.2026)
+
+`.tmp/` is not only gitignored — it is a scratch directory that any cleanup removes. On 19.08 it was
+removed, and the owner-reviewed FIO decisions in it would have been lost: they are hand-made and cannot
+be re-derived from the data. They now live under
+
+```text
+/opt/backups/bersoncarebot-owner-artifacts/fio-backfill/
+```
+
+alongside the other retained data-mutation records already kept in `/opt/backups`
+(`bersoncarebot-user-delete-audit-*`, `bersoncarebot-user-cleanup-check-*`), owner `dev`, group
+`deploy`, mode 0750/0640. **They are NOT in git and must not be: they contain the full names of real
+people.**
+
+Before running the reviewed-manifest apply, copy them back into the path this tooling expects:
+
+```bash
+mkdir -p .tmp/fio-backfill
+cp -a /opt/backups/bersoncarebot-owner-artifacts/fio-backfill/. .tmp/fio-backfill/
+```
+
+The `russiannames` dataset was deliberately NOT preserved — it is 51 MB of public data and
+`download-russiannames-dataset.mjs` fetches it again.
+
 ## Download
 
 From the repository root:
