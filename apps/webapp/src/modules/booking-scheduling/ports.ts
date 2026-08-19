@@ -142,13 +142,6 @@ export type BookingSchedulingPort = {
     branchId: string;
     serviceId: string;
   }): Promise<CanonicalBookingContext | null>;
-  /** Returns the mapped legacy id when present; otherwise the preferred canonical SSA id. */
-  resolveLegacyBranchServiceId(input: {
-    organizationId: string;
-    branchId: string;
-    serviceId: string;
-    specialistId?: string | null;
-  }): Promise<string | null>;
   listServicesByCityCode(
     organizationId: string,
     cityCode: string,
@@ -287,13 +280,6 @@ export type BookingSchedulingService = {
     branchId: string;
     serviceId: string;
   }): Promise<CanonicalBookingContext | null>;
-  /** Returns legacy id when mapped, otherwise canonical SSA id. */
-  resolveLegacyBranchServiceId(input: {
-    organizationId: string;
-    branchId: string;
-    serviceId: string;
-    specialistId?: string | null;
-  }): Promise<string | null>;
   getInPersonSlots(input: {
     organizationId?: string | null;
     branchId: string;

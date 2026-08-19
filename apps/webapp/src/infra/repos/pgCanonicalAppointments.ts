@@ -108,23 +108,16 @@ async function resolveCanonicalId(
 ): Promise<string | null> {
   const result = await runWebappPgText<{ id: string }>(
     `WITH target AS (
-       SELECT direct.id, 0 AS priority
+       SELECT direct.id
          FROM (SELECT CASE
                         WHEN $1 ~ '^be:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
                         THEN substring($1 FROM 4)::uuid
                       END AS id) direct
         WHERE direct.id IS NOT NULL
-       UNION ALL
-       SELECT mapping.canonical_id, 1 AS priority
-         FROM public.be_external_entity_mappings mapping
-        WHERE mapping.entity_type = 'appointment'
-          AND mapping.external_system = 'rubitime'
-          AND mapping.external_id = $1
      )
      SELECT appointment.id::text AS id
        FROM target
        JOIN public.be_appointments appointment ON appointment.id = target.id
-      ORDER BY target.priority
       LIMIT 1`,
     [externalId],
     tx,

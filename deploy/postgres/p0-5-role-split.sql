@@ -102,7 +102,6 @@ VALUES
   ('public', 'be_branches', 'SCOPED'),
   ('public', 'be_cancellation_policies', 'SCOPED'),
   ('public', 'be_clinic_services', 'SCOPED'),
-  ('public', 'be_external_entity_mappings', 'SCOPED'),
   ('public', 'be_organization_members', 'BOOTSTRAP'),
   ('public', 'be_organizations', 'SCOPED'),
   ('public', 'be_package_history_events', 'SCOPED'),

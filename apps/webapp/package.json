@@ -31,8 +31,6 @@
     "backfill-reminders-domain": "node scripts/backfill-reminders-domain.mjs",
     "reconcile-reminders-domain": "node scripts/reconcile-reminders-domain.mjs",
     "seed-content": "node scripts/seed-content-pages.mjs",
-    "cutover:legacy-appointments": "tsx scripts/cutover-legacy-appointments.ts",
-    "cutover:legacy-appointments:test": "vitest run --config scripts/cutover-legacy-appointments.vitest.config.ts",
     "seed:saas-test-walkthrough": "tsx scripts/seed-saas-test-walkthrough-fixtures.ts",
     "test-fixture:patient-organization-lifecycle": "tsx scripts/patient-organization-test-lifecycle.ts",
     "update:saas-product-smoke-fixture-canonical-slots": "tsx scripts/update-saas-product-smoke-fixture-canonical-slots.ts",

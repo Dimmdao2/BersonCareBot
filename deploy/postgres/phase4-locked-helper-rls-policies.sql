@@ -181,14 +181,6 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_clinic_services" FOR ALL
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_clinic_services" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
 \endif
 
--- public.be_external_entity_mappings (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."be_external_entity_mappings" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_external_entity_mappings";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_external_entity_mappings" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_external_entity_mappings" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
-\endif
 
 -- public.be_package_history_events (saas_org_dormant_p0_8_3)
 ALTER TABLE "public"."be_package_history_events" ENABLE ROW LEVEL SECURITY;

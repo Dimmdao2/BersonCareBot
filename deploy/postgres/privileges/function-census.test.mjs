@@ -132,7 +132,12 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // межарендное перечисление подписок, у которых кончился оплаченный период.
   // 107 → 108 (19.08): миграция 0041 — открытие критического инцидента: сторож видел инциденты
   // и не мог открыть ни одного.
-  assert.equal(functions.length, 108);
+  // 108 → 110 (19.08): миграция 0042 забрала в репозиторий ДВА тела, которые существовали ТОЛЬКО в
+  // живой базе — `app.read_canonical_appointment_by_external_id(text)` и
+  // `app.resolve_public_booking_organization(uuid,uuid)`. Оба перестали читать
+  // `public.be_external_entity_mappings`: таблица удалена вместе с Rubitime. Прибавка = функции
+  // наконец под учётом, новых функций не появилось.
+  assert.equal(functions.length, 110);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -407,7 +412,7 @@ test('legacy census is restored without obsolete context and overlaid by the act
     test: 232,
     dev: 230,
     triggers: 3,
-    relationEdges: 487,
+    relationEdges: 486,
   });
   assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, 232);
   assert.equal(new Set(Object.keys(BUSINESS_SEAM_FUNCTIONS)).size, 232);

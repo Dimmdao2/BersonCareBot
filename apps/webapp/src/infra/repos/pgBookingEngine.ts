@@ -30,7 +30,6 @@ import {
   beAppointments,
   beBranches,
   beClinicServices,
-  beExternalEntityMappings,
   beOrganizations,
   orgEnrollments,
   bePatientTimelineEvents,
@@ -2006,15 +2005,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               eq(bePatientTimelineEvents.domain, 'appointment'),
               eq(bePatientTimelineEvents.linkedObjectType, 'appointment'),
               eq(bePatientTimelineEvents.linkedObjectId, input.appointmentId),
-            ),
-          );
-        await tx
-          .delete(beExternalEntityMappings)
-          .where(
-            and(
-              eq(beExternalEntityMappings.organizationId, input.organizationId),
-              eq(beExternalEntityMappings.entityType, 'appointment'),
-              eq(beExternalEntityMappings.canonicalId, input.appointmentId),
             ),
           );
         const deleted = await tx

@@ -67,7 +67,7 @@ SELECT 1 / (
 SELECT 1 / (
   to_regprocedure('app.read_public_runtime_setting(text,text)') IS NOT NULL
   AND to_regprocedure('app.read_webapp_server_runtime_setting(text,text)') IS NOT NULL
-  AND to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('app.resolve_public_booking_organization(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('app.resolve_public_organization_slug(text)') IS NOT NULL
   AND to_regprocedure('app.resolve_public_organization_by_slug(text)') IS NOT NULL
   AND to_regprocedure('app.resolve_payment_webhook_organization(text,text,text)') IS NOT NULL
@@ -456,7 +456,7 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.email_auth_reset_email_otp_lockout(uuid)') IS NOT NULL \gexec
-REVOKE EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) FROM :"d3_4_bootstrap_base_role";
@@ -465,7 +465,6 @@ REVOKE SELECT ON TABLE public.be_organization_members FROM :"d3_4_bootstrap_base
 REVOKE SELECT ON TABLE public.platform_users FROM :"d3_4_bootstrap_base_role";
 REVOKE app_identity_bootstrap FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.user_channel_bindings FROM :"d3_4_bootstrap_base_role";
-REVOKE SELECT ON TABLE public.be_external_entity_mappings FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.be_specialist_service_availability FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.be_branches FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.be_clinic_services FROM :"d3_4_bootstrap_base_role";
@@ -537,7 +536,7 @@ CROSS JOIN LATERAL aclexplode(
 WHERE procedure.oid IN (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
-    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+    'app.resolve_public_booking_organization(uuid,uuid)'::regprocedure,
     'app.resolve_public_organization_slug(text)'::regprocedure,
     'app.resolve_public_organization_by_slug(text)'::regprocedure,
     'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure
@@ -550,7 +549,7 @@ WHERE procedure.oid IN (
   )
   AND NOT (
     procedure.oid IN (
-      'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+      'app.resolve_public_booking_organization(uuid,uuid)'::regprocedure,
       'app.resolve_public_organization_slug(text)'::regprocedure,
       'app.resolve_public_organization_by_slug(text)'::regprocedure,
       'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure
@@ -568,11 +567,11 @@ GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
 -- D3.4 makes app_patient SET-only, so inherited EXECUTE is deliberately unavailable at this
 -- bootstrap point. Restore only the four SECURITY DEFINER tenant resolvers directly; their
 -- overlays own the app_patient grants and the backing tables remain hidden from app_patient.
-REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)
+REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid)
   FROM :"d3_4_bootstrap_base_role" CASCADE;
-REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)
+REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid)
   FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid) TO :"d3_4_bootstrap_base_role";
 REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_organization_slug(text)
   FROM :"d3_4_bootstrap_base_role" CASCADE;
 REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_organization_slug(text)
@@ -903,7 +902,6 @@ GRANT SELECT ON TABLE public.platform_users TO :"d3_4_bootstrap_base_role";
 -- session/org principal exists.
 GRANT app_identity_bootstrap TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.user_channel_bindings TO :"d3_4_bootstrap_base_role";
-GRANT SELECT ON TABLE public.be_external_entity_mappings TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.be_specialist_service_availability TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.be_branches TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.be_clinic_services TO :"d3_4_bootstrap_base_role";
@@ -950,7 +948,7 @@ WITH RECURSIVE bootstrap_role AS (
   WHERE procedure.oid IN (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
-    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+    'app.resolve_public_booking_organization(uuid,uuid)'::regprocedure,
     'app.resolve_public_organization_slug(text)'::regprocedure,
     'app.resolve_public_organization_by_slug(text)'::regprocedure,
     'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure
@@ -1031,7 +1029,7 @@ SELECT 1 / (
   )
   AND has_function_privilege(
     :'d3_4_bootstrap_base_role',
-    'app.resolve_public_booking_organization(uuid,uuid,uuid)',
+    'app.resolve_public_booking_organization(uuid,uuid)',
     'EXECUTE'
   )
   AND has_function_privilege(
@@ -1073,7 +1071,7 @@ SELECT 1 / (
       COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
     ) privilege
     WHERE accessor.oid IN (
-        'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+        'app.resolve_public_booking_organization(uuid,uuid)'::regprocedure,
         'app.resolve_public_organization_slug(text)'::regprocedure,
         'app.resolve_public_organization_by_slug(text)'::regprocedure,
         'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure
@@ -1095,7 +1093,7 @@ SELECT 1 / (
         privilege.grantee NOT IN (accessor.proowner, bootstrap_role.oid)
         AND NOT (
           accessor.oid IN (
-            'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+            'app.resolve_public_booking_organization(uuid,uuid)'::regprocedure,
             'app.resolve_public_organization_slug(text)'::regprocedure,
             'app.resolve_public_organization_by_slug(text)'::regprocedure,
             'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure

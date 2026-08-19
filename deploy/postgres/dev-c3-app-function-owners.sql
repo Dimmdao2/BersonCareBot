@@ -107,7 +107,7 @@ WITH targets(signature, required_owner) AS (
     ('app.report_saas_isolation_event(text,text,text,text)', 'saas_telemetry_owner'),
     ('app.resolve_current_patient_treatment_program_organization(uuid)', 'app_owner'),
     ('app.resolve_payment_webhook_organization(text,text,text)', 'app_owner'),
-    ('app.resolve_public_booking_organization(uuid,uuid,uuid)', 'app_owner'),
+    ('app.resolve_public_booking_organization(uuid,uuid)', 'app_owner'),
     ('app.resolve_public_organization_by_slug(text)', 'app_owner'),
     ('app.resolve_public_organization_slug(text)', 'app_owner'),
     ('app.set_current_patient_calendar_timezone(text,boolean)', 'app_owner'),
@@ -156,7 +156,7 @@ WITH targets(signature, required_owner) AS (
     ('app.report_saas_isolation_event(text,text,text,text)', 'saas_telemetry_owner'),
     ('app.resolve_current_patient_treatment_program_organization(uuid)', 'app_owner'),
     ('app.resolve_payment_webhook_organization(text,text,text)', 'app_owner'),
-    ('app.resolve_public_booking_organization(uuid,uuid,uuid)', 'app_owner'),
+    ('app.resolve_public_booking_organization(uuid,uuid)', 'app_owner'),
     ('app.resolve_public_organization_by_slug(text)', 'app_owner'),
     ('app.resolve_public_organization_slug(text)', 'app_owner'),
     ('app.set_current_patient_calendar_timezone(text,boolean)', 'app_owner'),
@@ -179,7 +179,6 @@ ORDER BY target.signature
 GRANT SELECT ON TABLE public.be_appointments TO app_owner; -- read_current_patient_appointment_history, read_current_patient_booking_rows
 GRANT SELECT ON TABLE public.be_branches TO app_owner; -- read_current_patient_appointment_history, read_current_patient_booking_rows, resolve_public_booking_organization
 GRANT SELECT ON TABLE public.be_clinic_services TO app_owner; -- read_current_patient_appointment_history, read_current_patient_booking_rows, resolve_public_booking_organization
-GRANT SELECT ON TABLE public.be_external_entity_mappings TO app_owner; -- resolve_public_booking_organization
 GRANT SELECT ON TABLE public.be_payment_intents TO app_owner; -- resolve_payment_webhook_organization
 GRANT SELECT ON TABLE public.be_payment_provider_events TO app_owner; -- resolve_payment_webhook_organization
 GRANT SELECT ON TABLE public.be_rooms TO app_owner; -- read_current_patient_appointment_history
@@ -280,7 +279,7 @@ BEGIN
       ('app.report_saas_isolation_event(text,text,text,text)', 'saas_telemetry_owner'),
       ('app.resolve_current_patient_treatment_program_organization(uuid)', 'app_owner'),
       ('app.resolve_payment_webhook_organization(text,text,text)', 'app_owner'),
-      ('app.resolve_public_booking_organization(uuid,uuid,uuid)', 'app_owner'),
+      ('app.resolve_public_booking_organization(uuid,uuid)', 'app_owner'),
       ('app.resolve_public_organization_by_slug(text)', 'app_owner'),
       ('app.resolve_public_organization_slug(text)', 'app_owner'),
       ('app.set_current_patient_calendar_timezone(text,boolean)', 'app_owner'),

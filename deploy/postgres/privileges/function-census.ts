@@ -11123,7 +11123,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.resolve_public_booking_organization(uuid,uuid,uuid)": {
+  "app.resolve_public_booking_organization(uuid,uuid)": {
     "owner": "app_seam_public_booking_owner",
     "security": "DEFINER",
     "returns": "uuid",
@@ -11138,7 +11138,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_public_booking_owner",
     "typedArgs": [
-      "uuid",
       "uuid",
       "uuid"
     ],
@@ -11167,20 +11166,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "is_active",
           "public_widget_visible",
           "admin_manual_only"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.be_external_entity_mappings",
-        "columns": [
-          "id",
-          "organization_id",
-          "entity_type",
-          "canonical_id",
-          "metadata"
         ],
         "operations": [
           "SELECT"

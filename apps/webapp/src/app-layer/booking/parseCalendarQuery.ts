@@ -9,7 +9,6 @@ export type ParsedCalendarQuery = {
   branchId: string | null;
   roomId: string | null;
   serviceId: string | null;
-  includeFreeSlots: boolean;
   anchorDate: string;
 };
 
@@ -99,7 +98,6 @@ export function parseCalendarQuery(
   const branchId = searchParams.get('branchId')?.trim() || null;
   const roomId = searchParams.get('roomId')?.trim() || null;
   const serviceId = searchParams.get('serviceId')?.trim() || null;
-  const includeFreeSlots = searchParams.get('includeFreeSlots') === '1';
 
   return {
     rangeStart,
@@ -109,7 +107,6 @@ export function parseCalendarQuery(
     branchId,
     roomId,
     serviceId,
-    includeFreeSlots,
     anchorDate,
   };
 }
