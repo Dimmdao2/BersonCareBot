@@ -8,8 +8,10 @@ import test from 'node:test';
 import {
   collectExpectedObjects,
   findForeignLedgerRows,
+  findJournalGrowth,
   findMigrationNameViolations,
   findRenamedAppliedMigrations,
+  readFrozenLegacyMigrationNames,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
@@ -22,12 +24,16 @@ const REAL_MIGRATIONS_FOLDER = fileURLToPath(
   new URL('../../../apps/webapp/db/drizzle-migrations', import.meta.url),
 );
 
-function folderWith(files, journalEntries = null) {
+function folderWith(files, journalEntries = null, frozenEntries = null) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migration-order-'));
   for (const [name, body] of Object.entries(files)) writeFileSync(join(root, name), body);
   if (journalEntries) {
     mkdirSync(join(root, 'meta'), { recursive: true });
     writeFileSync(join(root, 'meta/_journal.json'), JSON.stringify({ entries: journalEntries }));
+  }
+  if (frozenEntries) {
+    mkdirSync(join(root, 'meta'), { recursive: true });
+    writeFileSync(join(root, 'meta/_journal.frozen.json'), JSON.stringify({ entries: frozenEntries }));
   }
   return root;
 }
@@ -182,6 +188,39 @@ test('a timestamp name passes, a fresh sequential number does not, a legacy one 
   ];
 
   assert.deepEqual(findMigrationNameViolations(migrations, legacy), ['0050_hand_picked']);
+});
+
+test('a frozen snapshot missing entirely grandfathers nothing, unlike a missing live journal', () => {
+  const folder = folderWith({ '0001_first.sql': 'SELECT 1;' });
+  assert.deepEqual(readFrozenLegacyMigrationNames(folder), []);
+});
+
+test('the frozen snapshot is read, not the live journal, for the legacy-name allowlist', () => {
+  const folder = folderWith(
+    { '0001_first.sql': 'SELECT 1;' },
+    [{ idx: 0, when: 1, tag: '0001_first' }], // live journal grew this entry
+    [], // frozen snapshot never heard of it
+  );
+  assert.deepEqual(
+    findMigrationNameViolations(readMigrationFolder(folder), readFrozenLegacyMigrationNames(folder)),
+    ['0001_first'],
+  );
+});
+
+// F2 (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md §5): on 19/20.08 a branch added a 51st entry to
+// the live journal to relabel its own hand-numbered migration as legacy, and `pnpm run lint` — which
+// checked the live journal against itself — passed. `findJournalGrowth` names the grown tag directly,
+// independent of whether any .sql file currently claims it.
+test('a tag the live journal knows and the frozen snapshot does not is journal growth', () => {
+  const frozen = [{ idx: 0, when: 1, tag: '0001_first' }];
+  const grown = [...frozen, { idx: 1, when: 2, tag: '0054_snuck_in_as_legacy' }];
+
+  assert.deepEqual(findJournalGrowth(grown, frozen), ['0054_snuck_in_as_legacy']);
+});
+
+test('a live journal identical to the frozen snapshot is not growth', () => {
+  const entries = [{ idx: 0, when: 1, tag: '0001_first' }, { idx: 1, when: 2, tag: '0002_second' }];
+  assert.deepEqual(findJournalGrowth(entries, entries), []);
 });
 
 test('a bare number, a missing slug or an out-of-range clock field is not a timestamp name', () => {

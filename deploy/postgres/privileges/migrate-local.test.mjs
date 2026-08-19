@@ -24,12 +24,13 @@ function createRollbackRuntime() {
   const psqlCalls = join(root, 'psql-calls.log');
   mkdirSync(bin);
   mkdirSync(join(migrations, 'meta'), { recursive: true });
-  writeFileSync(
-    join(migrations, 'meta/_journal.json'),
-    JSON.stringify({
-      entries: [{ idx: 0, version: '7', when: 202608170001, tag: '0001_probe' }],
-    }),
-  );
+  const journal = JSON.stringify({
+    entries: [{ idx: 0, version: '7', when: 202608170001, tag: '0001_probe' }],
+  });
+  writeFileSync(join(migrations, 'meta/_journal.json'), journal);
+  // The name check reads the frozen snapshot, never the live journal above (see module doc on
+  // `findJournalGrowth`); a fixture that wants `0001_probe` treated as legacy must freeze it too.
+  writeFileSync(join(migrations, 'meta/_journal.frozen.json'), journal);
   writeFileSync(
     join(migrations, '0001_probe.sql'),
     [
@@ -192,10 +193,14 @@ function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = n
   mkdirSync(bin);
   mkdirSync(join(migrations, 'meta'), { recursive: true });
   const tags = ['0000_first', '0001_late_arrival', '0002_third'];
-  writeFileSync(
-    join(migrations, 'meta/_journal.json'),
-    JSON.stringify({ entries: tags.map((tag, idx) => ({ idx, version: '7', when: 1800000000100 + idx * 100, tag })) }),
-  );
+  const journal = JSON.stringify({
+    entries: tags.map((tag, idx) => ({ idx, version: '7', when: 1800000000100 + idx * 100, tag })),
+  });
+  writeFileSync(join(migrations, 'meta/_journal.json'), journal);
+  // The name check reads the frozen snapshot, never the live journal above; these fixtures use
+  // legacy-shaped tags throughout, so they must be frozen too, or every ledger test below would
+  // fail the name check before ever reaching the behaviour it means to exercise.
+  writeFileSync(join(migrations, 'meta/_journal.frozen.json'), journal);
   for (const tag of tags) {
     writeFileSync(
       join(migrations, `${tag}.sql`),
@@ -386,4 +391,41 @@ test('reapply is not mistaken for a rename even when a foreign row shares its ow
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /reapplied=1/u);
+});
+
+// F1 (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md §3(a)): a new file with an old hand-picked
+// number, not in the frozen legacy snapshot, used to sail straight through this wrapper to
+// `BEGIN`/`INSERT` — the name rule lived only in `pnpm run lint`. This proves the wrapper itself now
+// refuses it before a single statement reaches psql, no lint involved.
+test('a new file with a hand-picked number the frozen snapshot does not know is refused, not applied', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+  writeFileSync(
+    join(runtime.migrations, '0051_audit_old_numbered_new_file.sql'),
+    '-- BCB-MIGRATION-OWNER: app_probe_owner\nCREATE OR REPLACE FUNCTION app.door_0051() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;\n',
+  );
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.notEqual(result.status, 0, 'a hand-picked new name must not report success');
+  assert.match(result.stderr, /0051_audit_old_numbered_new_file\.sql is not named YYYYMMDDTHHMMSS_lower_snake_case/u);
+  assert.match(result.stderr, /frozen legacy .*snapshot/u);
+  assert.doesNotMatch(result.stdout, /already current/u);
+  assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the name gate');
+});
+
+// The ordinary case this must not catch: a new file named as a timestamp is applied normally, even
+// though the frozen snapshot has never heard of it — that is the whole point of the timestamp shape.
+test('a new timestamp-named file is applied normally, not refused by the name gate', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+  writeFileSync(
+    join(runtime.migrations, '20260820T014233_new_work.sql'),
+    '-- BCB-MIGRATION-OWNER: app_probe_owner\nCREATE OR REPLACE FUNCTION app.door_new_work() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;\n',
+  );
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_new_work/u);
+  assert.match(result.stdout, /pending=1 total=4/u);
 });
