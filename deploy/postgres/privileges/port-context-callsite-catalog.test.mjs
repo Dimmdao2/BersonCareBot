@@ -457,6 +457,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'health.webhook-errors.prune', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
   },
+  // Замер 19.08: тик суточной сводки читал `public.outgoing_delivery_queue` отношением под
+  // `app_staff`, получал 42501 на первом же шаге и падал целиком — сводка не уходила ни разу
+  // (миграция 0038).
+  'app.read_operator_health_digest_last_sent_at()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.digest.last-sent.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
+  },
   'app.prune_operator_health_failure_archive(integer)': {
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'health.failure-archive.prune', argCount: 1,

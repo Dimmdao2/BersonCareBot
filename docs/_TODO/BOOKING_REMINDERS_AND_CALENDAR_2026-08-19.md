@@ -165,6 +165,130 @@ INSERT, а INSERT на эту таблицу не выдан ни одной р�
       (`runWithDeliveryWorkerPrincipal` и `runWithOrganizationPrincipal`) → красными стали ровно эти
       три теста и календарный; вернул → 7/7 зелёные.
 
+## Очередь доставки: два чтения шли под принципалом, которому её читать нельзя (19.08, ветка `wt/delivery-queue-reads-20260819`)
+
+Предыдущий пункт вернул воркеру доставки право ВЫЗВАТЬ корень ревалидации. Отказ переехал внутрь
+тела корня, и в ту же ночь рядом обнаружилось второе, независимое чтение той же очереди — из
+суточной сводки здоровья. Замер в логе PostgreSQL за 19.08: 18 отказов
+`permission denied for table outgoing_delivery_queue`, две разные роли.
+
+- [x] **Ревалидация напоминания падала уже под владельцем шва, а не у вызывающего.** Полная запись
+      отказа называет место дословно:
+
+      2026-08-19 09:01:03 bcb_test_integrator@bersoncarebot_test 42501
+      ERROR:  permission denied for table outgoing_delivery_queue
+      CONTEXT: SQL statement "SELECT *  FROM public.outgoing_delivery_queue AS candidate
+                 WHERE candidate.id = p_queue_id AND candidate.kind = 'reminder_dispatch'
+                   AND candidate.status = 'processing' FOR UPDATE"
+               PL/pgSQL function app.revalidate_patient_reminder_delivery_materialization(uuid) line 14
+
+      Принципал был правильный: `runWithDeliveryWorkerPrincipal` стоит на месте с 18.08, EXECUTE
+      проходит. `SECURITY DEFINER` переводит тело на владельца шва
+      `app_seam_reminder_materialization_owner`, а `SELECT *` / `%ROWTYPE` разворачивается в КАЖДУЮ
+      колонку отношения на разборе — у шва же только объявленные поколоночные гранты. Живая
+      проверка механизма на `bcb_webapp_dev`:
+
+      SET ROLE app_seam_reminder_materialization_owner;
+      SELECT * FROM public.outgoing_delivery_queue LIMIT 1;                      -- ERROR 42501
+      SELECT id, event_id, kind, channel, status, organization_id ... LIMIT 1;   -- 1 row
+
+      Ровно этот класс миграция 0020 уже вылечила у трёх соседних корней того же шва; четвёртый
+      корень тогда пропустили. Миграция 0038 сужает все три чтения тела до колонок, которые оно
+      использует. **Прав не выдано никому:** перечисленные колонки уже стоят в объявленных
+      поверхностях, `FOR UPDATE` держится на поколоночном UPDATE, который у шва уже был.
+
+- [x] **Чего это стоило человеку: напоминания пациентам не доставлялись, а умирали.** Состояние
+      очереди на TEST (`kind='reminder_dispatch'`) на момент замера:
+
+      status           | count | последняя ошибка
+      -----------------+-------+-------------------------------------------------------
+      dead             |   181 | permission denied for table outgoing_delivery_queue
+      failed_retryable |     3 | permission denied for table outgoing_delivery_queue
+      pending          |    83 |
+      sent             |  2501 |
+
+      Разбивка умерших за последние двое суток показывает обе стадии одного дефекта:
+      86 строк умерли 18.08 с `permission denied for FUNCTION revalidate_patient_reminder_...`
+      (12:20–19:24, это чинил предыдущий пункт), и сразу после той правки — 2 строки с
+      `permission denied for TABLE outgoing_delivery_queue` (20:21 и 21:21). Каждая строка — это
+      напоминание, которого пациент не получил: воркер бросает на ревалидации, строка уходит в
+      retry и после шести попыток становится `dead`.
+
+- [x] **Второй вызывающий — суточная сводка здоровья оператора, и она не уходила ни разу.**
+      Отказ под ролью `bcb_test_webapp_staff`:
+
+      select "sent_at" from "outgoing_delivery_queue"
+       where ("kind" = $1 and "sent_at" is not null) order by "sent_at" desc limit $2
+
+      Это `loadLatestSentOperatorHealthDigestAt` — ПЕРВЫЙ поход в базу `runOperatorHealthDigestTick`,
+      из которого берётся начало окна сводки. Отказ не перехвачен, тик падает целиком.
+      **Кто опрашивает.** Планировщик интегратора будит сводку раз в час
+      (`DIGEST_WAKE_PERIOD_MS = 60*60*1000`), но до этого чтения тик доходит только в минуту
+      `digestTime`: вне слота `isDigestSendSlot` отвечает «не слот» и тик выходит раньше. Внутри
+      слота `runFixedCadenceWake` не помечает час выполненным, пока wake отдаёт ошибку, поэтому
+      цикл планировщика повторяет попытку каждые ~5 секунд, пока минута не кончится — отсюда
+      «каждые 5 секунд». В логе это ровно 10–12 отказов в минуту 09:00 каждый день, с 16.08
+      (первое вхождение — `2026-08-16 09:00:02.321`), и ни одного в другое время суток.
+      **Что видит человек:** ничего. Сводка не уходила ни разу —
+      `select count(*) from public.outgoing_delivery_queue where kind='operator_health_digest'` → `0`,
+      строки пульса `heartbeat.digest` в `operator_job_status` не существует вовсе. Хуже: карточка
+      тика в операторском виде показывает УСПЕХ — `health.operator_health_digest.tick | success |
+      2026-08-19 09:01:02`, потому что следующий же тик в 09:01 вышел по «не слот» и перезаписал
+      строку. Отказ суток невидим, а молчащая сводка выглядит как спокойный день.
+
+- [x] **Чтение сводки переведено на объявленный корень; гранта рабочей роли не добавлено.**
+      Принципала, которому можно читать очередь, у порта webapp нет: логин состоит только в
+      `app_worker`, а SELECT на очереди держит `app_operational_delivery_worker` — роль интегратора
+      (`pg_auth_members`: `bcb_test_webapp_staff → app_worker`, `bcb_test_integrator →
+      app_operational_delivery_worker`). Прямой грант запрещён решением, которое сторожит
+      `reminder-materialization-declaration.test.mjs` («runtime roles cannot bypass … the queue
+      root»). Поэтому миграция 0038 добавляет `app.read_operator_health_digest_last_sent_at()` —
+      владелец шва `app_seam_telemetry_operator_owner` (тот же, что уже разбирает очередь в
+      `app.archive_operator_health_failures`), `execute: ['app_worker']`, форма дословно по соседу
+      `app.prune_operator_health_failure_archive(integer)`. Рабочая роль получает EXECUTE и ничего
+      больше; на таблице к поколоночным грантам ШВА добавляется одна колонка `sent_at`.
+      Зарегистрирован в обоих каталогах (`port-context-catalog.test.mjs`,
+      `port-context-callsite-catalog.test.mjs`); `generate-cli.mjs --check` — побайтно.
+
+- [x] **Живое доказательство на `bcb_webapp_dev`** (настоящие логины, настоящий порт-контекст,
+      после `migrate-dev.sh --preflight` и `--execute`):
+
+      — сводка: session_user=bcb_dev_webapp_staff, current_user=app_worker
+        app.read_operator_health_digest_last_sent_at() → 2026-08-19 07:11:00+03
+        (тем же логином прямое чтение отношения — по-прежнему отказ)
+      — ревалидация: session_user=bcb_dev_integrator, current_user=app_operational_delivery_worker
+        app.revalidate_patient_reminder_delivery_materialization(<строка reminder_dispatch>) → t
+
+      Доказательство поведения в тестах: `pgOperatorHealthDigestLastSent.unit.test.ts` — «сводка
+      получает время прошлой отправки, а не отказ очереди» и «сводки не было ни разу — это ответ
+      NULL, а не ошибка». Fault injection, два уровня: (1) в живой базе вернул телу корня
+      `SELECT * … FOR UPDATE` → тот же `42501 permission denied for table
+      outgoing_delivery_queue`, вернул тело миграции → снова `t`; (2) вернул репозиторию чтение
+      отношения → оба теста красные, вернул корень → 2/2 зелёные.
+
+- [x] **Перепись остальных чтений очереди из-под принципала, которому нельзя.** Проверено
+      исполнением `SET ROLE app_staff` на DEV — каждый запрос отвечает `42501`:
+
+      1. `pgOperatorHealthRead.getOutgoingDeliveryQueueHealth` — 12 запросов отношением (`count` по
+         статусам, `max(sent_at)`, `max(updated_at)`, разбивки по каналу и виду). Заглушено
+         `.catch(() => null)`: панель «очередь доставки» в системном здоровье и строки очереди в
+         сводке молчат. В логе TEST этот залп виден 16.08 01:52.
+      2. `adminReminderPipelineMetrics.loadAdminReminderPipelineMetrics` — `count(*)` по
+         `reminder_dispatch/processing`; отказ превращается в `{ok:false,
+         errorCode:'reminder_pipeline_metrics_failed'}`, то есть операторская воронка напоминаний
+         пуста целиком.
+      3. ЗАПИСЬ той же очереди из webapp: `pgOutgoingDeliveryQueue.enqueueReady` (сводка здоровья и
+         напоминания специалистам) и `pgDoctorBroadcastDelivery` — INSERT под `app_staff`, у
+         которого на очереди нет ни одной привилегии. Значит, суточная сводка не уедет и после
+         этой правки: чтение вылечено, постановка в очередь — следующий разрыв на том же пути.
+      4. В интеграторе `enqueueOutgoingDeliveryIfAbsent` пишет очередь сырым INSERT под
+         принципалом вызывающего, а комментарий в нём утверждает, что «каждый продюсер уже имеет
+         app_staff INSERT» — это утверждение неверно с момента запирания прав.
+
+      Пункты 1–4 — НЕ моя правка (см. «НЕ СДЕЛАНО»): у них своя дверь — универсальный корень
+      постановки исходящего (`UNIVERSAL_OUTBOUND_2026-08-19.md`) и отдельный операторский корень
+      здоровья очереди.
+
 ## НЕ СДЕЛАНО
 
 - Почему напоминания падают на ПРОДЕ, где стен RLS нет, — причина там другая и не установлена.
@@ -228,3 +352,13 @@ INSERT, а INSERT на эту таблицу не выдан ни одной р�
     правка в нём — отдельное решение.
   - **Вебапп не проверялся.** Перепись выше — по интегратору, как и было поручено; у вебаппа своя
     реализация `reportEmptyNotificationAudience`, её стены не смотрел.
+
+- **Очередь доставки, оставшиеся вызывающие** (перепись выше, пункты 1–4): панель здоровья очереди
+  и воронка напоминаний в операторском виде по-прежнему пусты, а ПОСТАНОВКА сводки в очередь под
+  `app_staff` по-прежнему запрещена — суточная сводка не уедет и с вылеченным чтением. Правка не
+  моя: постановка принадлежит универсальному корню исходящего
+  (`UNIVERSAL_OUTBOUND_2026-08-19.md`), а здоровью очереди нужен свой операторский корень —
+  это 12 запросов, а не один. Владельцу решать порядок.
+
+- **Живая проверка на TEST** для этой пары правок — не моя: выкатывает ведущий. На DEV проверено
+  всё, что на DEV проверяемо (доказательства у пунктов выше).

@@ -267,6 +267,13 @@
       "when": 1800000038000,
       "tag": "0037_the_patient_reads_own_contacts_and_writes_own_booking_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1800000039000,
+      "tag": "0038_a_star_takes_columns_the_seam_never_asked_for",
+      "breakpoints": true
     }
   ]
 }
