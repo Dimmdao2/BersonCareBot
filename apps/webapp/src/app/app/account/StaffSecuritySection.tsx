@@ -27,7 +27,6 @@ type SecurityStatus = {
 type Props = {
   initialStatus: SecurityStatus;
   hasProfileName: boolean;
-  hasTimezone: boolean;
   hasOrganization: boolean;
   hasSpecialistBinding: boolean;
   showSpecialistFirstRun?: boolean;
@@ -211,7 +210,6 @@ export function StaffSecuritySection(props: Props) {
           </DoctorSectionHeader>
           <ul className="space-y-2 text-sm">
             <li>{props.hasProfileName ? '✓' : '○'} Профиль специалиста</li>
-            <li>{props.hasTimezone ? '✓' : '○'} Часовой пояс</li>
             <li>{props.hasOrganization ? '✓' : '○'} Кабинет создан</li>
             <li>{securityReady ? '✓' : '○'} Двухфакторная защита и резервные коды</li>
             <li>{props.hasSpecialistBinding ? '✓' : '○'} Рабочий кабинет специалиста</li>
@@ -220,7 +218,7 @@ export function StaffSecuritySection(props: Props) {
           </ul>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link className="text-sm underline" href="/app/account">
-              Профиль и часовой пояс
+              Профиль специалиста
             </Link>
             {!props.hasOrganization ? (
               <Button size="sm" variant="outline" onClick={retryProvisioning}>

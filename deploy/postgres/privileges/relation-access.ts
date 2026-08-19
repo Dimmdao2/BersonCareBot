@@ -15,6 +15,18 @@ export type Revision10ClinicalAccess =
  * data class never implies a role or an operation.  Production callsites prove
  * necessity; the hand-narrowed exceptions remain narrower than the lexical
  * operation upper bound.
+ *
+ * ⚠ INSERT column lists MUST include every column Drizzle can name with the SQL `DEFAULT`
+ *   keyword, not only the columns a callsite actually sets. Drizzle's pg insert builder always
+ *   enumerates every schema column in the generated `INSERT INTO t (...) VALUES (...)`
+ *   statement — any key absent from `.values({...})` still appears in the column list with
+ *   `DEFAULT` as its value (this includes a `defaultRandom()` primary key that is never
+ *   provided by any callsite). Postgres requires column-level INSERT privilege on every column
+ *   NAMED in the statement, even ones written as DEFAULT — so a "business columns only" list
+ *   that omits `id`/`created_at`/`updated_at` fails the WHOLE insert with `42501 permission
+ *   denied for table X`, regardless of which columns the caller actually populates. Proven
+ *   2026-08-20 (docs/_TODO/OWNER_PATIENT_WALKTHROUGH_BUGS_2026-08-19.md §«Пятая ошибка»): staff
+ *   could not add a program exercise for exactly this reason on eight tables at once.
  */
 export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
   "integrator.user_reminder_delivery_logs": {
@@ -3897,7 +3909,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "exercise_id",
+          "id",
           "media_type",
           "media_url",
           "organization_id",
@@ -3995,9 +4009,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "catalog_scope",
           "contraindications",
+          "created_at",
           "created_by",
           "description",
           "difficulty_1_10",
+          "id",
+          "is_archived",
           "load_type",
           "organization_id",
           "owner_kind",
@@ -6902,15 +6919,19 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "body_md",
           "body_region_id",
+          "created_at",
           "created_by",
           "domain",
           "duration_text",
           "frequency_text",
+          "id",
+          "is_archived",
           "media",
           "organization_id",
           "quantity_text",
           "tags",
-          "title"
+          "title",
+          "updated_at"
         ]
       },
       {
@@ -7459,6 +7480,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "additional_seat_quantity",
           "amount_minor",
+          "carried_debt_minor",
           "created_at",
           "currency",
           "description",
@@ -7496,6 +7518,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "provider_idempotency_key",
           "provider_invoice_ref",
           "status",
+          "superseded_by_invoice_id",
           "tariff_billing_period",
           "tariff_id",
           "tariff_name",
@@ -7519,6 +7542,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "currency",
           "paid_at",
           "status",
+          "superseded_by_invoice_id",
           "tariff_billing_period",
           "tariff_id",
           "tariff_name",
@@ -7541,6 +7565,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "additional_seat_quantity",
           "amount_minor",
+          "carried_debt_minor",
           "currency",
           "description",
           "expires_at",
@@ -7572,6 +7597,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "provider_idempotency_key",
           "provider_invoice_ref",
           "status",
+          "superseded_by_invoice_id",
           "tariff_billing_period",
           "tariff_id",
           "tariff_name",
@@ -9339,7 +9365,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "actor_id",
+          "created_at",
           "event_type",
+          "id",
           "instance_id",
           "organization_id",
           "payload",
@@ -9388,6 +9416,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "description",
+          "id",
           "organization_id",
           "schedule_text",
           "sort_order",
@@ -9447,6 +9476,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "completed_at",
           "created_at",
           "group_id",
+          "id",
           "is_actionable",
           "item_ref_id",
           "item_type",
@@ -9599,6 +9629,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "expected_duration_days",
           "expected_duration_text",
           "goals",
+          "id",
           "instance_id",
           "local_comment",
           "objectives",
@@ -9661,11 +9692,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "assigned_by",
           "assignment_source",
+          "created_at",
+          "id",
           "organization_id",
+          "patient_plan_last_opened_at",
           "patient_user_id",
           "status",
           "template_id",
-          "title"
+          "title",
+          "updated_at"
         ]
       },
       {

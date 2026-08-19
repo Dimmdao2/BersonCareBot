@@ -18,6 +18,7 @@ import {
 } from '@/app/app/settings/bookingSoloAdminApi';
 import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { DEFAULT_BOOKING_LOCATION_PALETTE } from '@/modules/booking-engine/locationPalette';
+import { DoctorTimezoneSelect } from '@/shared/ui/doctor/DoctorTimezoneSelect';
 
 const BASE = '/api/admin/booking-engine';
 const DEFAULT_BRANCH_COLOR = '#2563eb';
@@ -178,11 +179,15 @@ export function BookingSoloLocationsSection() {
           {showAdvanced ? (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Label className="text-xs text-muted-foreground">Часовой пояс</Label>
-              <Input
-                className="h-8 w-48"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-              />
+              <div className="min-w-[16rem]">
+                <DoctorTimezoneSelect
+                  instanceId="solo-location-create-tz"
+                  aria-label="Часовой пояс локации"
+                  value={timezone}
+                  onChange={setTimezone}
+                  disabled={pending}
+                />
+              </div>
             </div>
           ) : null}
         </div>
@@ -195,6 +200,7 @@ export function BookingSoloLocationsSection() {
                 <th className="px-3 py-2 font-medium">Короткое название</th>
                 <th className="px-3 py-2 font-medium">Цвет</th>
                 <th className="px-3 py-2 font-medium">Адрес</th>
+                <th className="px-3 py-2 font-medium">Часовой пояс</th>
                 <th className="px-3 py-2 font-medium">Порядок</th>
                 <th className="px-3 py-2 font-medium">Показывать пациентам</th>
                 <th className="px-3 py-2 font-medium text-right">Действия</th>
@@ -260,6 +266,21 @@ export function BookingSoloLocationsSection() {
                         />
                       ) : (
                         (b.address ?? '—')
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === b.id ? (
+                        <div className="min-w-[14rem]">
+                          <DoctorTimezoneSelect
+                            instanceId={`solo-location-tz-${b.id}`}
+                            aria-label={`Часовой пояс — ${b.title}`}
+                            value={editTimezone}
+                            onChange={setEditTimezone}
+                            disabled={pending}
+                          />
+                        </div>
+                      ) : (
+                        b.timezone
                       )}
                     </td>
                     <td className="px-3 py-2">

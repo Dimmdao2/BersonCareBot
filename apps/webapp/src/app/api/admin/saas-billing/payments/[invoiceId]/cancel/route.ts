@@ -46,6 +46,13 @@ export async function POST(
         { ok: false, error: 'invoice_not_cancellable', status: result.status },
         { status: 409 },
       );
+    // Решение владельца 19.08: автоматический счёт за место не отменяют, его перевыставляют. Отказ
+    // именно ЗДЕСЬ, а не только в кнопке: кнопку можно не нажимать, а запрос послать.
+    case 'seat_invoice_not_cancellable':
+      return NextResponse.json(
+        { ok: false, error: 'seat_invoice_not_cancellable' },
+        { status: 409 },
+      );
     case 'cancelled':
       return NextResponse.json({ ok: true, invoice: result.invoice });
   }
