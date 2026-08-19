@@ -372,3 +372,37 @@ false → true, обе записи `{"ok":true}` (первая INSERT, втор
 
 Тесты проверяют ПОВЕДЕНИЕ (что человек делает и что получает), никогда не счётчики и не форму
 деклараций. ПРОД не трогать. Права ролям не расширять. Никакой защитной машинерии.
+
+---
+
+## Независимая сверка ведущего с реальностью (19.08, 21:0x MSK)
+
+Не по отчётам исполнителей и не по галочкам — против живого TEST и его базы.
+
+**Обе правки физически на стенде.** `git -C /opt/projects/bersoncarebot-test log -1` → `c89b5d40b98`;
+`git merge-base --is-ancestor` подтверждает, что и `1dae8918f` (медиа в комментарии), и `54c20db12`
+(подтверждение записи) — предки этого коммита. Служба поднята 19.08 18:51:31 MSK.
+
+**Отказов прав на стенде нет.** `journalctl -u bersoncarebot-webapp-test --since "today 12:00" | grep -c 42501`
+→ **0**. За сутки всего 4 строки, все до полудня — последняя 06:06:39 (`permission denied for table be_branches`),
+то есть ДО выкатки; после перезапуска ни одной.
+
+**Каналы уведомлений (ошибка 3) — путь записи открыт.** На `bersoncarebot_test`:
+`user_notification_topic_channels` содержит **315 строк**; у `app_patient` на таблице только `SELECT`
+и это ВЕРНО — запись идёт через объявленный корень `app.set_current_patient_notification_topic_channel(text,text,boolean)`
+(владелец шва `app_seam_patient_self_actions_owner`, SECURITY DEFINER), и
+`has_function_privilege('app_patient', …, 'EXECUTE')` → **t**.
+
+**Часовой пояс (ошибка 4) — значения долетают до базы.** Корень `app.set_current_patient_calendar_timezone(text,boolean)`,
+EXECUTE у `app_patient` → **t**. В `platform_users.calendar_timezone` живут не только умолчания:
+Europe/Moscow — 63, плюс Berlin, Belgrade, Yerevan, Amsterdam, Rome, Yekaterinburg, Vladivostok,
+Los_Angeles — то есть сохранение реально пишет выбранное, а не подставленное.
+
+**Оговорка честности.** Комментариев на TEST всего один (`comments`: 1 строка, `clinical_note` на
+`program_instance`), медиа со `owner_kind` комментария — ноль. Поэтому ошибка 1 подтверждена наличием
+правки на стенде и замером её пути, сделанным при починке, а НЕ свежими данными: свежих данных для неё
+на стенде нет. Числа «6 медиа-комментариев», названные ведущим ранее, относились к DEV, не к TEST.
+
+**Публичный путь жив:** `/book/saas-test-clinic-a` → 308 → `/saas-test-clinic-a/booking` → 200 (0,07 с),
+то есть порядок адреса «наш домен → slug клиники → путь записи» держится и старый вид редиректит.
+
