@@ -1,7 +1,7 @@
 /**
  * Пояс человека определяется УСТРОЙСТВОМ и не настраивается руками — §34 канона владельца
- * (`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md`). Поэтому здесь только чтение (GET) и первичная
- * запись определённого браузером значения (POST, пишет лишь когда в БД ещё `null`).
+ * (`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md`). Поэтому здесь только чтение (GET) и запись значения,
+ * которое сообщил браузер (POST): и при первом входе, и когда человек переехал.
  * Двери «поставить произвольный пояс пациенту» (PATCH) нет намеренно: она и была тем контролом,
  * который §34 снимает.
  */
@@ -12,7 +12,7 @@ import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole'
 import { routePaths } from '@/app-layer/routes/paths';
 
 const postBodySchema = z.object({
-  /** IANA из браузера (`Intl`); записывается только если в БД ещё `null`. */
+  /** IANA из браузера (`Intl`); сохранённый пояс приводится к ней. */
   browserCalendarIana: z.string().max(120).optional(),
 });
 
@@ -27,7 +27,7 @@ export async function GET() {
   return NextResponse.json({ ok: true, calendarTimezone });
 }
 
-/** Первичное заполнение из браузера при заходе в приложение (только если `calendar_timezone` ещё `null`). */
+/** Приведение сохранённого пояса к поясу устройства при заходе в приложение (§34). */
 export async function POST(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.profile });
   if (!gate.ok) return gate.response;
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   const tz = parsed.data.browserCalendarIana?.trim();
   const deps = buildAppDeps();
-  await deps.patientCalendarTimezone.trySetInitialIfEmpty(
+  await deps.patientCalendarTimezone.syncFromDevice(
     gate.session.user.userId,
     tz && tz.length > 0 ? tz : null,
   );

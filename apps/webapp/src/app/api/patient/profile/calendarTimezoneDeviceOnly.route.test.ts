@@ -8,12 +8,12 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const trySetInitialIfEmpty = vi.fn(async () => {});
+const syncFromDevice = vi.fn(async () => {});
 const getIanaForUser = vi.fn(async () => 'Asia/Novosibirsk' as string | null);
 const guard = vi.fn();
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
-  buildAppDeps: () => ({ patientCalendarTimezone: { getIanaForUser, trySetInitialIfEmpty } }),
+  buildAppDeps: () => ({ patientCalendarTimezone: { getIanaForUser, syncFromDevice } }),
 }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: () => guard(),
@@ -37,7 +37,7 @@ describe('/api/patient/profile/calendar-timezone', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(trySetInitialIfEmpty).toHaveBeenCalledWith('user-1', 'Asia/Novosibirsk');
+    expect(syncFromDevice).toHaveBeenCalledWith('user-1', 'Asia/Novosibirsk');
   });
 
   it('возвращает сохранённый пояс на чтение', async () => {

@@ -1,5 +1,5 @@
 /**
- * Пояс сотрудника: только чтение и первичная запись определённого устройством значения.
+ * Пояс сотрудника: только чтение и запись значения, определённого устройством.
  * Ручной настройки (PATCH) нет намеренно — §34 канона владельца
  * (`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md`): «часовой пояс не настраивается у человека — ни у
  * пациента, ни у специалиста, ни у админа. Определяется устройством при входе».
@@ -8,12 +8,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
   getDoctorAccountTimezone,
-  trySetInitialDoctorAccountTimezone,
+  syncDoctorAccountTimezoneFromDevice,
 } from '@/app-layer/doctor/accountTimezone';
 import { requireDoctorApiSession } from '@/app-layer/guards/requireRole';
 
 const postBodySchema = z.object({
-  /** IANA из браузера (`Intl`); записывается только если в БД ещё `null`. */
+  /** IANA из браузера (`Intl`); сохранённый пояс приводится к ней. */
   browserCalendarIana: z.string().max(120).optional(),
 });
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const tz = parsed.data.browserCalendarIana?.trim();
-  await trySetInitialDoctorAccountTimezone(
+  await syncDoctorAccountTimezoneFromDevice(
     guard.session.user.userId,
     tz && tz.length > 0 ? tz : null,
   );

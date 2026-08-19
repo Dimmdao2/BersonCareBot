@@ -34,7 +34,7 @@ export type YandexOAuthCallbackDeps = {
   oauthBindings: OAuthBindingsPort;
   userByPhone: UserByPhonePort;
   patientCalendarTimezone: {
-    trySetInitialIfEmpty(userId: string, raw: string | null): Promise<void>;
+    syncFromDevice(userId: string, raw: string | null): Promise<boolean>;
   };
 };
 
@@ -154,7 +154,7 @@ export async function handleYandexOAuthCallbackGet(
   }
 
   if (webappRuntimeDatabaseIsConfigured()) {
-    await deps.patientCalendarTimezone.trySetInitialIfEmpty(
+    await deps.patientCalendarTimezone.syncFromDevice(
       resolved.userId,
       verifiedState.browserCalendarIana ?? null,
     );

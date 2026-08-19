@@ -1,6 +1,6 @@
 import {
   getPlatformUserCalendarTimezone,
-  trySetInitialPlatformUserCalendarTimezoneIfEmpty,
+  syncPlatformUserCalendarTimezoneFromDevice,
 } from '@/infra/repos/pgPlatformUserCalendarTimezone';
 
 export async function getDoctorAccountTimezone(userId: string): Promise<string | null> {
@@ -8,12 +8,12 @@ export async function getDoctorAccountTimezone(userId: string): Promise<string |
 }
 
 /**
- * Первичное определение пояса сотрудника устройством (§34). Ручной настройки пояса у человека нет —
- * см. `StaffCalendarTimezoneBootstrap`.
+ * Пояс сотрудника догоняет устройство (§34): пишется и при первом входе, и после переезда. Ручной
+ * настройки пояса у человека нет — см. `StaffCalendarTimezoneBootstrap`.
  */
-export async function trySetInitialDoctorAccountTimezone(
+export async function syncDoctorAccountTimezoneFromDevice(
   userId: string,
   browserCalendarIana: string | null,
-): Promise<void> {
-  await trySetInitialPlatformUserCalendarTimezoneIfEmpty(userId, browserCalendarIana);
+): Promise<boolean> {
+  return syncPlatformUserCalendarTimezoneFromDevice(userId, browserCalendarIana);
 }

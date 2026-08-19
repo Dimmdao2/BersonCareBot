@@ -1,14 +1,16 @@
 /**
- * §34 канона владельца: пояс сотрудника ОПРЕДЕЛЯЕТСЯ устройством (ручной настройки нет), но уже
- * сохранённое значение при этом не переезжает молча — «человек, поставивший 9:00 в Новосибирске, в
- * Москве будет разбужен в шесть».
+ * §34 канона владельца: пояс сотрудника ОПРЕДЕЛЯЕТСЯ устройством, ручной настройки нет. Владелец,
+ * 20.08: «не спрашивать — согласен», то есть при переезде сохранённый пояс догоняет устройство молча,
+ * без вопроса. Стенные часы расписания при этом живут у ФИЛИАЛА, а не у человека, — поэтому переезд
+ * человека их не двигает.
  *
  * Отказ, который ловят эти тесты:
  *  1. определение отвалилось вместе со снятым селектором — у сотрудника пояс пустой навсегда,
- *     расписание и напоминания считаются по поясу приложения;
- *  2. обратный перекос — bootstrap пишет пояс устройства на КАЖДОЙ загрузке экрана, и одна поездка
- *     молча сдвигает всё, что сотрудник задал по стенным часам.
- * Оба дорогие (пропущенные приёмы и уведомления не в своё время) и молчаливые.
+ *     напоминания считаются по поясу приложения;
+ *  2. переезд не доезжает — воркер уведомлений продолжает считать по старому поясу, человек получает
+ *     напоминание среди ночи;
+ *  3. обратный перекос — запись уходит на КАЖДОЙ загрузке экрана, даже когда ничего не менялось.
+ * Все три молчаливые.
  */
 import { render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,13 +37,17 @@ function postCalls() {
   );
 }
 
+function respondWithStored(timezone: string | null) {
+  fetchMock.mockImplementation(async (_url: string, init?: RequestInit) =>
+    init?.method === 'POST'
+      ? Response.json({ ok: true })
+      : Response.json({ ok: true, timezone }),
+  );
+}
+
 describe('StaffCalendarTimezoneBootstrap', () => {
   it('записывает пояс устройства, когда у сотрудника его ещё нет', async () => {
-    fetchMock.mockImplementation(async (_url: string, init?: RequestInit) =>
-      init?.method === 'POST'
-        ? Response.json({ ok: true })
-        : Response.json({ ok: true, timezone: null }),
-    );
+    respondWithStored(null);
 
     render(<StaffCalendarTimezoneBootstrap />);
 
@@ -51,12 +57,19 @@ describe('StaffCalendarTimezoneBootstrap', () => {
     });
   });
 
-  it('не перезаписывает уже сохранённый пояс', async () => {
-    fetchMock.mockImplementation(async (_url: string, init?: RequestInit) =>
-      init?.method === 'POST'
-        ? Response.json({ ok: true })
-        : Response.json({ ok: true, timezone: 'Asia/Novosibirsk' }),
-    );
+  it('догоняет устройство, когда человек переехал', async () => {
+    respondWithStored('Asia/Novosibirsk');
+
+    render(<StaffCalendarTimezoneBootstrap />);
+
+    await waitFor(() => expect(postCalls()).toHaveLength(1));
+    expect(JSON.parse(postCalls()[0]![1]!.body as string)).toEqual({
+      browserCalendarIana: 'Europe/Moscow',
+    });
+  });
+
+  it('молчит, когда сохранённый пояс уже совпадает с устройством', async () => {
+    respondWithStored('Europe/Moscow');
 
     render(<StaffCalendarTimezoneBootstrap />);
 
