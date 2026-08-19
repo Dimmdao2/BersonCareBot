@@ -1819,7 +1819,6 @@ const REV10_SEAM_OWNERS = [
   'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
   'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
   'app_seam_retention_sweep_owner', 'app_seam_platform_analytics_owner',
-  'app_seam_public_clinic_card_owner',
 ] as const;
 
 function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
@@ -4094,13 +4093,14 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    // Две двери визитки клиники (миграция 0049). Собственный владелец шва: ближайший сосед
-    // `app_seam_public_slug_owner` читает те же три таблицы, но визитка добавляет к ним
-    // `media_files` и `be_branches`, а запись — UPDATE на проекцию. Растянуть шов резолвера slug
-    // на медиа-библиотеку и филиалы значило бы расширить его ровно так, как объявленные корни
-    // существуют, чтобы не расширять.
+    // Две двери визитки клиники (миграция 0049). Владелец шва — уже существующий
+    // `app_seam_public_slug_owner`: он читает те же `organization_slug_claims` и
+    // `clinic_public_directory_entries`, и весь его шов целиком публичный — ни одной закрытой
+    // таблицы. Отдельного владельца под визитку здесь БЫЛО (`app_seam_public_clinic_card_owner`) и
+    // он снят по OWNER_PRODUCT_RULES §33.3/§33.5: роль вокруг витрины охраняет то, что и так на
+    // витрине, а стоит строки в декларации, переписи и отказ выкатки при рассинхроне.
     'app.read_public_clinic_card(text)': rev10Function({
-      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_pre_session'],
       purpose: 'return one published clinic card, media ids included, or nothing',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
@@ -4123,7 +4123,7 @@ const REV10_CONTEXT = {
       databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     }),
     'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': rev10Function({
-      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_staff'],
       purpose: 'write the clinic card of the principal organization and snapshot its branches',
       typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'uuid', 'text', 'boolean'],
