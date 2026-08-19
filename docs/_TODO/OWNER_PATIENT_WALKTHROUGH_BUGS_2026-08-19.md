@@ -625,6 +625,69 @@ STATEMENT: insert into "treatment_program_instance_stage_items" (…)
 пройди заново». Снимает развилку: `migration-timestamp` приземляется, три миграции переименовываются в
 имена по времени, DEV откатывается и проходит заново.
 
+### Уточнение диагноза и починка (20.08, воркер program-item-write) — `role_table_grants` не видит колонные гранты
+
+Первый замер выше смотрел только `information_schema.role_table_grants` — эта вьюха показывает ТОЛЬКО
+табличные гранты (`columns:'table'`), а `INSERT`/`UPDATE` у `app_staff` на этих двух таблицах объявлены
+КОЛОНОЧНО (`role_column_grants`). Перепроверка `role_column_grants` **20.08 в этом проходе** показала, что
+`INSERT`/`UPDATE` у `app_staff` на `treatment_program_instance_stage_items`/`_stages` уже присутствовали —
+декларация (`relation-access.ts`) была верна с 12.08, но список колонок не включал `id`.
+
+**Настоящая причина (доказано прогоном на DEV, не догадкой):** Drizzle-ORM всегда перечисляет ВСЕ колонки
+схемы таблицы в сгенерированном `INSERT INTO t (...) VALUES (...)`, даже те, что не заданы в
+`.values({...})`, — для них подставляется SQL-ключевое слово `DEFAULT`. Postgres требует привилегию `INSERT`
+на КАЖДУЮ колонку, названную в операторе, даже со значением `DEFAULT` — включая PK `id` с `defaultRandom()`,
+который НИ ОДИН вызывающий код никогда не передаёт явно. Живая реплика упавшего оператора из лога:
+
+```sql
+insert into "treatment_program_instance_stage_items" ("id", "organization_id", ..., "settings", ...,
+  "created_at", ...) values (default, $1, ..., default, ..., default, ...)
+```
+
+Воспроизведено на DEV `SET ROLE app_staff` (транзакция, `ROLLBACK`): именование `id` со значением `DEFAULT`
+даёт `ERROR: permission denied for table ...`; тот же оператор без `id` в списке колонок проходит грант и
+падает уже на следующем слое (`accepted organization context required` — ожидаемо, контекст не установлен).
+
+**Масштаб — не одна таблица.** Тем же приёмом (`SET ROLE app_staff`, полный список колонок схемы, id/created_at/
+updated_at как `DEFAULT`) на DEV проверены ВСЕ таблицы прямого письма на пути редактирования программы;
+до починки 42501 ловили **8 из 9**:
+
+| таблица | было (грант) | стало | реальный insert-callsite, который ловит дыру |
+|---|---|---|---|
+| `treatment_program_instances` | нет `id`, `created_at`, `updated_at`, `patient_plan_last_opened_at` | добавлены все 4 | `createInstanceTree` — назначение новой программы пациенту |
+| `treatment_program_instance_stages` | нет `id` | добавлен | `createInstanceTree`, `addInstanceStage` |
+| `treatment_program_instance_stage_items` | нет `id` | добавлен | `addInstanceStageItem` — **ровно то, что владелец увидел на TEST** |
+| `treatment_program_instance_stage_groups` | нет `id` | добавлен | `createInstanceStageGroup` |
+| `treatment_program_events` | нет `id`, `created_at` | добавлены | `appendEvent` |
+| `recommendations` | нет `id`, `is_archived`, `created_at`, `updated_at` | добавлены | `createFreeformRecommendationAndStageItem`, `pgRecommendations.create` |
+| `lfk_exercises` | нет `id`, `is_archived`, `created_at` | добавлены | `createIndividualExerciseAndStageItem` |
+| `lfk_exercise_media` | нет `id`, `created_at` | добавлены | `createIndividualExerciseAndStageItem` |
+| `lfk_exercise_regions` | (без `id`-колонки вовсе) | не тронуто | уже работало |
+
+**Чем это НЕ является:** это не «дверь без своей роли» (как диспетчер очереди медиа или патентские seam-функции) —
+у `treatment_program_instance_*` уже есть `RLS FORCE` + `rev10_context_gate` + `rev10_saas_org_dormant`
+политики, ровно как у соседей с прямым (`kind:'direct'`) доступом. Проблема была ЧИСТО в списке колонок
+гранта `INSERT`, не в отсутствии стены. Добавление `app_staff` привилегий НЕ через миграцию (правило AGENTS
+§1/§10a) — только правка `deploy/postgres/privileges/relation-access.ts`, `generate-cli.mjs --check`
+побайтно совпал, живой `GRANT` применён через `reconcile`-эквивалентный SQL (те же операторы, что выдаёт
+генератор) на DEV и TEST.
+
+**Чек-лист (доказательства ниже, полный разбор — `docs/REPORTS/PROGRAM_ITEM_WRITE_GRANT_FIX_2026-08-20.md`):**
+
+- [x] Полная перепись всех insert-путей на программном письме (9 таблиц), какие уже работали (DELETE/UPDATE —
+      да, `lfk_exercise_regions` — да) и какие нет (8 из 9 insert) — отчёт §1.
+- [x] Причина найдена и доказана прогоном на живом DEV (`SET ROLE app_staff`, реальная форма Drizzle-SQL),
+      не чтением кода — отчёт §2.
+- [x] Починка — только `relation-access.ts` (декларация), НЕ миграция, НЕ грант в обход генератора;
+      `generate-cli.mjs --check` побайтно ОК до и после — отчёт §3.
+- [x] Поведенческий тест `deploy/postgres/privileges/treatment-program-staff-insert.devDbProof.test.mjs`:
+      краснеет при отозванном гранте на `id` (самопроверка внутри теста), зеленеет с текущим — отчёт §4.
+- [x] Живое доказательство на DEV через реальный API-маршрут (`POST
+      /api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items`) — строка появилась в
+      `treatment_program_instance_stage_items`, затем удалена (не мусорить в DEV) — отчёт §5.
+- [x] Межарендная стена доказана дважды: доктор чужой организации получает 404 на уровне приложения И
+      RLS-отказ `new row violates row-level security policy` при попытке в обход приложения — отчёт §6.
+- [x] Тот же грант применён на `bersoncarebot_test` (там владелец реально видел ошибку) — отчёт §7.
 
 ## Превью для видео по ссылке (YouTube/VK) — заказ владельца 20.08
 
