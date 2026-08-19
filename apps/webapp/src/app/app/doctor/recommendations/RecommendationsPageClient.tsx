@@ -126,7 +126,7 @@ function firstRecommendationMedia(r: Recommendation) {
   return [...r.media].sort((a, b) => a.sortOrder - b.sortOrder)[0];
 }
 
-/** Список/плитка: в JSON нет previewSm у рекомендаций — для image/gif подставляем исходный URL; для video — элемент video. */
+/** Список/плитка: для image/gif — через дверь (`recommendationMediaItemToPreviewUi` + `MediaThumb`), состояние берётся из `media_files` на сервере; для video — элемент video (отдельный конвейер, правило дверь не касается). */
 function RecommendationCatalogMediaThumb({
   media,
   className,

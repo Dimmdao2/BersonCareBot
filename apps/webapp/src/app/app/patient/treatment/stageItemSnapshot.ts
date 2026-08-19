@@ -51,6 +51,7 @@ export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
     const ps = o.previewStatus;
     const previewStatus =
       ps === 'pending' || ps === 'ready' || ps === 'failed' || ps === 'skipped' ? ps : null;
+    const standardRendition = typeof o.standardRendition === 'boolean' ? o.standardRendition : null;
     items.push({
       mediaUrl,
       mediaType,
@@ -58,6 +59,7 @@ export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
       ...(previewSmUrl ? { previewSmUrl } : {}),
       ...(previewMdUrl ? { previewMdUrl } : {}),
       ...(previewStatus ? { previewStatus } : {}),
+      ...(standardRendition !== null ? { standardRendition } : {}),
     });
   }
   items.sort((a, b) => a.sortOrder - b.sortOrder || a.mediaUrl.localeCompare(b.mediaUrl));

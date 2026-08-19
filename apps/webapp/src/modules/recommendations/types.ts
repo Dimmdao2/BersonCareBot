@@ -9,6 +9,12 @@ export type RecommendationMediaItem = {
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus | null;
+  /**
+   * `media_files.standard_rendition_at IS NOT NULL` — the object behind `mediaUrl` is our
+   * encoder's bounded output, not the raw upload. Absent in the persisted row; populated by the
+   * catalog media door (`catalogMediaLadderLookup`) at read time, same as the preview fields.
+   */
+  standardRendition?: boolean | null;
 };
 
 export type Recommendation = {

@@ -4,6 +4,8 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import {
   recommendationRegions,
   recommendations as recommendationsTable,
@@ -67,6 +69,37 @@ function mapRow(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Enriches recommendation media with rendition state (`catalogMediaLadderLookup`) — one batched
+ * call for the whole list/detail response, never one per media item. Persisted `media` JSON only
+ * ever carries `mediaUrl`/`mediaType`/`sortOrder` (see `normalizeMedia`); the rendition ladder is
+ * always read fresh, same as the treatment-program snapshot and template-list-preview doors.
+ */
+async function enrichRecommendationsMediaRendition(recs: Recommendation[]): Promise<Recommendation[]> {
+  const mediaIds = recs
+    .flatMap((r) => r.media)
+    .map((m) => parseMediaFileIdFromAppUrl(m.mediaUrl))
+    .filter((id): id is string => Boolean(id));
+  if (mediaIds.length === 0) return recs;
+  const byId = await catalogMediaLadderLookup(mediaIds);
+  if (byId.size === 0) return recs;
+  return recs.map((r) => ({
+    ...r,
+    media: r.media.map((m) => {
+      const mid = parseMediaFileIdFromAppUrl(m.mediaUrl);
+      const ladder = mid ? byId.get(mid) : undefined;
+      if (!ladder) return m;
+      return {
+        ...m,
+        previewSmUrl: ladder.previewSmUrl,
+        previewMdUrl: ladder.previewMdUrl,
+        previewStatus: ladder.previewStatus,
+        standardRendition: ladder.standardRendition,
+      };
+    }),
+  }));
 }
 
 function currentPrincipalOrganizationId(): string {
@@ -334,7 +367,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         cur.push(rr.bodyRegionId);
         byRec.set(rr.recommendationId, cur);
       }
-      return rows.map((r) => mapRow(r, byRec.get(r.id) ?? []));
+      return enrichRecommendationsMediaRendition(rows.map((r) => mapRow(r, byRec.get(r.id) ?? [])));
     },
 
     async getById(id: string): Promise<Recommendation | null> {
@@ -361,10 +394,13 @@ export function createPgRecommendationsPort(): RecommendationsPort {
             eq(recommendationRegions.organizationId, organizationId),
           ),
         );
-      return mapRow(
-        r0,
-        rrRows.map((x) => x.bodyRegionId),
-      );
+      const [enriched] = await enrichRecommendationsMediaRendition([
+        mapRow(
+          r0,
+          rrRows.map((x) => x.bodyRegionId),
+        ),
+      ]);
+      return enriched ?? null;
     },
 
     async create(
