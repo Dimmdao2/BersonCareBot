@@ -30,8 +30,7 @@
       Фикс: `apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts` — убран фильтр
       `media_file_id IS NULL` из CTE `queryDoctorExerciseComments`; `latestMessage` теперь
       действительно последнее сообщение пациента (текст или медиа). Остальной путь (upload/attach/
-      render) уже работал и не менялся. Доказательство — полный отчёт агента, коммит
-      `TBD` (см. `git log` на эту ветку).
+      render) уже работал и не менялся. Коммит `1dae8918f`.
 
 ## 2. Подтверждение записи очень долгое
 
