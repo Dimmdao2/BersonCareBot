@@ -35,6 +35,10 @@ export async function syncCalendarTimezoneFromDevice(
 ): Promise<boolean> {
   const candidate = raw?.trim() ?? '';
   if (!candidate || !isAcceptableIanaTimezone(candidate)) return false;
+  // Совпало — не пишем вовсе. Гарантия §34 системная, а не «экран не пошлёт лишний POST»: маршрут остаётся
+  // открытой дверью для второй вкладки, повторной отправки и будущего нативного клиента. У сотрудника то же
+  // условие стоит прямо в `WHERE`; здесь путь идёт через definer-функцию, которая сравнения не делает.
+  if ((await getPatientCalendarTimezoneIana(platformUserId)) === candidate) return false;
   if (getCurrentDbPrincipal()?.kind === 'patient') {
     const result = await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
       runWebappSql<{ updated: boolean }>(
