@@ -2,7 +2,9 @@
  * Шов постановки исходящего сообщения. Доказывается ровно то, что обещано в дизайне:
  *  1. вызывается ОДИН объявленный корень с точной сигнатурой — не сырой INSERT в таблицу;
  *  2. постановка стоит ОДНО обращение к базе, а не «сколько получится»;
- *  3. содержимое уходит в корень как один jsonb-аргумент дословно — .ics в том числе.
+ *  3. содержимое уходит в корень как один текстовый аргумент дословно (миграция 0036: `jsonb` в
+ *     порт-аргументе невоспроизводим байт в байт клиентом, разбор `::jsonb` — внутри тела корня) —
+ *     .ics в том числе.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -50,7 +52,7 @@ describe('outbound message enqueue seam', () => {
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(1);
     expect(fakes.db.execute).not.toHaveBeenCalled();
     const [, identity, args] = fakes.runWebappNamedRoot.mock.calls[0]!;
-    expect(identity).toBe('app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)');
+    expect(identity).toBe('app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)');
     expect(args).toEqual([
       ORG,
       'booking.confirmation',
@@ -62,7 +64,7 @@ describe('outbound message enqueue seam', () => {
     ]);
   });
 
-  it('дано: содержимое с .ics → когда постановка → тогда base64 доезжает до корня БАЙТ В БАЙТ внутри jsonb-аргумента', async () => {
+  it('дано: содержимое с .ics → когда постановка → тогда base64 доезжает до корня БАЙТ В БАЙТ внутри текстового аргумента', async () => {
     fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ enqueued: true }] });
 
     await createPgOutboundMessageQueue().enqueue(CONTEXT);

@@ -253,6 +253,13 @@
       "when": 1800000036000,
       "tag": "0035_one_declared_root_replaces_a_reminder_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1800000037000,
+      "tag": "0036_the_content_argument_cannot_survive_the_wire_as_jsonb",
+      "breakpoints": true
     }
   ]
 }
