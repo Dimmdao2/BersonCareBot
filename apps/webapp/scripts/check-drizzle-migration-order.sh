@@ -13,6 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MIG_DIR="${ROOT}/db/drizzle-migrations"
 JOURNAL="${MIG_DIR}/meta/_journal.json"
+LEGACY="${MIG_DIR}/meta/_legacy_names.txt"
+[[ -f "${LEGACY}" ]] || { echo "check-drizzle-migration-order: нет ${LEGACY} — замороженный список исторических имён обязателен" >&2; exit 1; }
 
 failed=0
 shopt -s nullglob
@@ -20,9 +22,20 @@ for sql in "${MIG_DIR}"/*.sql; do
   base="$(basename "${sql}" .sql)"
   # Four digits first, so the listing sorts the way a human reads it; a suffix letter is how a
   # migration slots between two already-applied ones without renaming either.
-  if [[ ! "${base}" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ ]]; then
-    echo "check-drizzle-migration-order: ${base}.sql is not named NNNN[suffix]_lower_snake_case" >&2
-    failed=1
+  # Каноническая схема ОДНА: YYYYMMDDTHHMMSS_lower_snake_case (владелец, 20.08). Рукописный номер
+  # при параллельных ветках даёт коллизии — время не даёт. Старая схема NNNN[suffix]_ законна ТОЛЬКО
+  # для пятидесяти уже применённых файлов: их имена привязаны к тегам в леджере, переименование
+  # разорвало бы тождество. Список заморожен в meta/_legacy_names.txt и НЕ пополняется.
+  if [[ ! "${base}" =~ ^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$ ]]; then
+    if grep -qxF "${base}" "${LEGACY}" 2>/dev/null; then
+      : # историческое имя из замороженного списка
+    else
+      echo "check-drizzle-migration-order: ${base}.sql — недопустимое имя. Новые миграции называются" >&2
+      echo "  YYYYMMDDTHHMMSS_lower_snake_case (например $(date -u +%Y%m%dT%H%M%S)_what_this_changes)." >&2
+      echo "  Схема с номером NNNN_ закрыта: номер выбирается рукой и в параллельных ветках сталкивается." >&2
+      echo "  Если это переименование уже применённой миграции — так нельзя: тег в леджере привязан к имени." >&2
+      failed=1
+    fi
   fi
 done
 
@@ -63,7 +76,9 @@ NODE
 fi
 
 if (( failed != 0 )); then
-  echo "Order comes from the file name: add db/drizzle-migrations/NNNN_name.sql and nothing else." >&2
+  echo "Новая миграция: db/drizzle-migrations/YYYYMMDDTHHMMSS_name.sql и ничего больше." >&2
+  echo "Порядок применения ничего не гарантирует: тождество миграции — её тег в леджере, вопрос один —" >&2
+  echo "применена или нет (решение владельца 20.08)." >&2
   echo "meta/_journal.json is the frozen historical map; do not hand-edit it to reorder anything." >&2
   exit 1
 fi
