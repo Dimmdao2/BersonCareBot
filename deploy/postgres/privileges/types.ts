@@ -291,7 +291,10 @@ export interface FunctionRelationSurface {
   /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
   evidence:
     | 'pg16-function-body-lexical-upper-bound'
-    | 'exact INSERT ON CONFLICT(event_id) in migration 0410';
+    | 'exact INSERT ON CONFLICT(event_id) in migration 0410'
+    | 'exact INSERT ON CONFLICT(event_id) in migration 0033, retyped in migration 0036'
+    | 'exact currency EXISTS in migration 0034'
+    | 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034';
 }
 
 export interface DeclaredFunction {
