@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getDoctorAccountTimezone } from '@/app-layer/doctor/accountTimezone';
 import { DoctorAccountEmailSection } from '@/app/app/settings/DoctorAccountEmailSection';
 import { DoctorNotificationChannelsSection } from '@/app/app/settings/DoctorNotificationChannelsSection';
 import { DoctorScreensToggleSection } from '@/app/app/settings/DoctorScreensToggleSection';
-import { DoctorTimezoneSection } from '@/app/app/settings/DoctorTimezoneSection';
 import { SettingsForm } from '@/app/app/settings/SettingsForm';
 import { buildDoctorNotificationTopicModels } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
 import { parseSpecialistTaskReminderChannels } from '@/modules/specialist-tasks/reminderChannels';
@@ -68,7 +66,6 @@ async function loadProfileContent(
         initialEmail={accountEmail.email}
         emailVerified={Boolean(accountEmail.emailVerifiedAt)}
       />
-      <DoctorTimezoneSection initialTimezone={await getDoctorAccountTimezone(userId)} />
       {workspaceContext?.canManageOrganization && workspaceContext.specialistId != null ? (
         <DoctorScreensToggleSection initialDisabled={workspaceContext.doctorScreensDisabled} />
       ) : null}
@@ -111,11 +108,10 @@ async function loadSecurityContent(
   recoveryOnly: boolean,
   isPlatformConsole: boolean,
 ): Promise<ReactNode> {
-  const [storedStatus, timezone, passkeyEnabled] = await Promise.all([
+  const [storedStatus, passkeyEnabled] = await Promise.all([
     runWithStaffSecuritySelfPrincipal(session.user.userId, 'app/account:security-self', () =>
       deps.staffSecurity.getStatus(),
     ),
-    recoveryOnly ? Promise.resolve(null) : getDoctorAccountTimezone(session.user.userId),
     recoveryOnly ? Promise.resolve(false) : isIndependentAuthMethodEnabled('passkey'),
   ]);
   const status = storedStatus ?? {
@@ -130,7 +126,6 @@ async function loadSecurityContent(
       <StaffSecuritySection
         initialStatus={status}
         hasProfileName={Boolean(session.user.displayName.trim())}
-        hasTimezone={Boolean(timezone)}
         hasOrganization={workspaceContext !== null}
         hasSpecialistBinding={workspaceContext?.specialistId != null}
         showSpecialistFirstRun={!isPlatformConsole}

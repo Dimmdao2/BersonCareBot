@@ -1,10 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappSql,
-  runWebappTransaction,
-  type WebappSqlTransactionExecutor,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 export type MediaWorkerClaim = {
   id: string;
@@ -23,15 +18,61 @@ export type MediaWorkerLoadedMedia = {
 };
 type JobRef = Pick<MediaWorkerClaim, 'id' | 'mediaId'>;
 
+/**
+ * Разбор очереди пересборки видео идёт ОБЪЯВЛЕННЫМИ КОРНЯМИ, а не отношением.
+ *
+ * Диспетчер очереди межарендный по построению: он спрашивает «какая работа готова», заранее не
+ * зная, чьей клиники она окажется, поэтому своего `organization_id` у него нет и быть не может.
+ * До миграции 0050 этот файл ходил в `public.media_transcode_jobs` напрямую под
+ * `app_operational_media_worker` — и не мог пройти НИКОГДА: единственная разрешающая политика этой
+ * роли на таблице собрана из арендаторских веток, обе зовут `app.current_org_id()` подзапросом
+ * (InitPlan считается один раз независимо от порядка `AND`), а та роль воркера не принимает и
+ * поднимает `42501 accepted organization context required`. Замер на TEST 19.08: воркер падал раз
+ * в 5 секунд с 18.08 19:26, видео не пересобиралось больше суток — отсюда и «тишина» при загрузке
+ * нового видео, и вечная заглушка «Видео готовится» на старом.
+ *
+ * Стена стоит на ПОСТАНОВКЕ в очередь (`app.enqueue_media_transcode_job_for_staff/_for_service`
+ * того же шва) и в ТЕЛЕ каждого корня: работа отдаётся только вместе с проверкой «организация
+ * работы совпадает с организацией файла», а завершать её может лишь тот, чей замок на ней стоит.
+ */
+/** Работа, которой не существует: пробник готовности спрашивает дверь, ничего при этом не заняв. */
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
 function controlConflict(): never {
   throw new Error('media_worker_control_conflict');
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function requiredText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+async function readJobMedia(job: JobRef, lockedBy: string): Promise<unknown> {
+  const result = await runWebappNamedRoot<{ media: unknown }>(
+    getWebappSqlDb(),
+    'app.read_media_transcode_job_media(uuid,uuid,text)',
+    [job.id, job.mediaId, lockedBy],
+    sql`SELECT app.read_media_transcode_job_media(
+      ${job.id}::uuid, ${job.mediaId}::uuid, ${lockedBy}::text
+    ) AS media`,
+  );
+  return result.rows[0]?.media ?? null;
+}
+
+/**
+ * Готовность = дверь очереди на месте и открыта ЭТОМУ принципалу. Спрашиваем её о работе, которой
+ * не бывает: ответ всегда «нет такой», но пройти до него можно только через EXECUTE, принятый
+ * контекст и чтение очереди швом — то есть ровно тот путь, который был сломан больше суток.
+ * Прежний пробник читал оба отношения напрямую и об этой поломке молчал.
+ */
 export async function assertMediaWorkerControlReady(): Promise<void> {
-  await Promise.all([
-    runWebappSql(getWebappSqlDb(), sql`SELECT 1 FROM public.media_transcode_jobs WHERE false`),
-    runWebappSql(getWebappSqlDb(), sql`SELECT 1 FROM public.media_files WHERE false`),
-  ]);
+  const probe = await readJobMedia({ id: NIL_UUID, mediaId: NIL_UUID }, 'readiness-probe');
+  if (probe !== null) throw new Error('media_worker_control_ready_probe_unexpected_row');
 }
 
 export async function reclaimAndClaimMediaWorkerJob(params: {
@@ -40,115 +81,78 @@ export async function reclaimAndClaimMediaWorkerJob(params: {
   staleLockMinutes: number;
 }): Promise<{ kind: 'disabled' | 'idle' } | { kind: 'claimed'; job: MediaWorkerClaim }> {
   if (!params.enabled) return { kind: 'disabled' };
-  return runWebappTransaction(async (tx) => {
-    await runWebappSql(tx, sql`
-      UPDATE public.media_transcode_jobs
-      SET status = 'pending', locked_at = NULL, locked_by = NULL, processing_started_at = NULL,
-          finished_at = NULL, updated_at = now(),
-          last_error = COALESCE(last_error, '') || ' [stale_lock_reclaimed]'
-      WHERE status = 'processing' AND locked_at IS NOT NULL
-        AND locked_at < now() - (${params.staleLockMinutes}::int * interval '1 minute')`);
-    const selected = await runWebappSql<{
-      id: string;
-      media_id: string;
-      job_organization_id: string | null;
-      media_organization_id: string | null;
-    }>(tx, sql`
-      SELECT j.id, j.media_id, j.organization_id AS job_organization_id, mf.organization_id AS media_organization_id
-      FROM public.media_transcode_jobs j LEFT JOIN public.media_files mf ON mf.id = j.media_id
-      WHERE j.status = 'pending' AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= now())
-      ORDER BY j.created_at ASC FOR UPDATE OF j SKIP LOCKED LIMIT 1`);
-    const row = selected.rows[0];
-    if (!row) return { kind: 'idle' } as const;
-    if (
-      !row.job_organization_id?.trim() ||
-      !row.media_organization_id?.trim() ||
-      row.job_organization_id !== row.media_organization_id
-    ) {
-      await runWebappSql(tx, sql`
-        UPDATE public.media_transcode_jobs SET status = 'failed', attempts = attempts + 1, locked_at = now(),
-          locked_by = ${params.lockedBy}, last_error = 'organization_invariant_violation', next_attempt_at = NULL,
-          processing_started_at = NULL, finished_at = now(), updated_at = now()
-        WHERE id = ${row.id}::uuid AND status = 'pending'`);
-      return { kind: 'idle' } as const;
-    }
-    const claimed = await runWebappSql<{
-      id: string;
-      media_id: string;
-      organization_id: string;
-      attempts: number;
-    }>(tx, sql`
-      UPDATE public.media_transcode_jobs SET status = 'processing', locked_at = now(), locked_by = ${params.lockedBy},
-        attempts = attempts + 1, processing_started_at = now(), finished_at = NULL, updated_at = now()
-      WHERE id = ${row.id}::uuid AND status = 'pending'
-      RETURNING id, media_id, organization_id, attempts`);
-    const job = claimed.rows[0];
-    if (!job) return { kind: 'idle' } as const;
-    return {
-      kind: 'claimed' as const,
-      job: {
-        id: job.id,
-        mediaId: job.media_id,
-        organizationId: job.organization_id,
-        attempts: job.attempts,
-      },
-    };
-  });
+  const result = await runWebappNamedRoot<{ claim: unknown }>(
+    getWebappSqlDb(),
+    'app.claim_media_transcode_job(text,integer)',
+    [params.lockedBy, params.staleLockMinutes],
+    sql`SELECT app.claim_media_transcode_job(
+      ${params.lockedBy}::text, ${params.staleLockMinutes}::integer
+    ) AS claim`,
+  );
+  const claim = asRecord(result.rows[0]?.claim);
+  if (!claim) throw new Error('media_worker_claim_invalid');
+  if (claim.kind !== 'claimed') return { kind: 'idle' };
+  const job = asRecord(claim.job);
+  const id = requiredText(job?.id);
+  const mediaId = requiredText(job?.mediaId);
+  const organizationId = requiredText(job?.organizationId);
+  const attempts = typeof job?.attempts === 'number' ? job.attempts : null;
+  // Неполная строка занятой работы НЕ достраивается умолчанием: воркер по ней пойдёт качать и
+  // перезаписывать файл, и «работа без организации» здесь означала бы работу неизвестно чью.
+  if (!id || !mediaId || !organizationId || attempts === null) {
+    throw new Error('media_worker_claim_invalid');
+  }
+  return { kind: 'claimed', job: { id, mediaId, organizationId, attempts } };
 }
 
 export async function loadMediaWorkerControlMedia(
   job: JobRef,
   lockedBy: string,
 ): Promise<MediaWorkerLoadedMedia | null> {
-  const result = await runWebappSql<{
-    id: string;
-    mime_type: string;
-    s3_key: string | null;
-    hls_master_playlist_s3_key: string | null;
-    video_processing_status: string | null;
-    video_duration_seconds: number | null;
-    usage_purpose: string | null;
-  }>(getWebappSqlDb(), sql`
-    SELECT mf.id, mf.mime_type, mf.s3_key, mf.hls_master_playlist_s3_key, mf.video_processing_status,
-      mf.video_duration_seconds, mf.usage_purpose
-    FROM public.media_transcode_jobs j JOIN public.media_files mf ON mf.id = j.media_id
-    WHERE j.id = ${job.id}::uuid AND j.media_id = ${job.mediaId}::uuid AND j.status = 'processing'
-      AND j.locked_by = ${lockedBy} AND j.organization_id = mf.organization_id`);
-  const row = result.rows[0];
-  return row
-    ? {
-        id: row.id,
-        mimeType: row.mime_type,
-        s3Key: row.s3_key,
-        hlsMasterPlaylistS3Key: row.hls_master_playlist_s3_key,
-        videoProcessingStatus: row.video_processing_status,
-        videoDurationSeconds: row.video_duration_seconds,
-        usagePurpose: row.usage_purpose,
-      }
-    : null;
+  const row = asRecord(await readJobMedia(job, lockedBy));
+  if (!row) return null;
+  const id = requiredText(row.id);
+  const mimeType = requiredText(row.mimeType);
+  if (!id || !mimeType) throw new Error('media_worker_job_media_invalid');
+  const text = (value: unknown): string | null =>
+    typeof value === 'string' && value.length > 0 ? value : null;
+  return {
+    id,
+    mimeType,
+    s3Key: text(row.s3Key),
+    hlsMasterPlaylistS3Key: text(row.hlsMasterPlaylistS3Key),
+    videoProcessingStatus: text(row.videoProcessingStatus),
+    videoDurationSeconds: typeof row.videoDurationSeconds === 'number'
+      ? row.videoDurationSeconds
+      : null,
+    usagePurpose: text(row.usagePurpose),
+  };
 }
 
-async function withOwnedProcessingJob<T>(
+type MediaWorkerOutcome = 'processing' | 'retry' | 'failed' | 'done_hls' | 'done_program';
+
+/** Исход оборота записывает корень; «не моя работа» приходит как `false` и остаётся конфликтом. */
+async function recordMediaWorkerOutcome(
   job: JobRef,
   lockedBy: string,
-  work: (tx: WebappSqlTransactionExecutor) => Promise<T>,
-): Promise<T> {
-  return runWebappTransaction(async (tx) => {
-    const locked = await runWebappSql<{ media_id: string }>(tx, sql`
-      SELECT j.media_id FROM public.media_transcode_jobs j JOIN public.media_files mf ON mf.id = j.media_id
-      WHERE j.id = ${job.id}::uuid AND j.media_id = ${job.mediaId}::uuid AND j.status = 'processing'
-        AND j.locked_by = ${lockedBy} AND j.organization_id = mf.organization_id FOR UPDATE OF j`);
-    if (!locked.rows[0]) controlConflict();
-    return work(tx);
-  });
+  outcome: MediaWorkerOutcome,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const payloadJson = JSON.stringify(payload);
+  const result = await runWebappNamedRoot<{ recorded: boolean | null }>(
+    getWebappSqlDb(),
+    'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)',
+    [job.id, job.mediaId, lockedBy, outcome, payloadJson],
+    sql`SELECT app.record_media_transcode_job_outcome(
+      ${job.id}::uuid, ${job.mediaId}::uuid, ${lockedBy}::text, ${outcome}::text,
+      ${payloadJson}::text
+    ) AS recorded`,
+  );
+  if (result.rows[0]?.recorded !== true) controlConflict();
 }
 
 export async function markMediaWorkerProcessing(job: JobRef, lockedBy: string): Promise<void> {
-  await withOwnedProcessingJob(job, lockedBy, async (tx) => {
-    await runWebappSql(tx, sql`
-      UPDATE public.media_files SET video_processing_status = 'processing', video_processing_error = NULL
-      WHERE id = ${job.mediaId}::uuid`);
-  });
+  await recordMediaWorkerOutcome(job, lockedBy, 'processing', {});
 }
 
 export async function retryMediaWorkerJob(
@@ -157,16 +161,7 @@ export async function retryMediaWorkerJob(
   nextAttemptAt: string,
   error: string,
 ): Promise<void> {
-  await withOwnedProcessingJob(job, lockedBy, async (tx) => {
-    await runWebappSql(tx, sql`
-      UPDATE public.media_transcode_jobs SET status = 'pending', last_error = ${error},
-        next_attempt_at = ${nextAttemptAt}::timestamptz, locked_at = NULL, locked_by = NULL,
-        processing_started_at = NULL, finished_at = NULL, updated_at = now()
-      WHERE id = ${job.id}::uuid`);
-    await runWebappSql(tx, sql`
-      UPDATE public.media_files SET video_processing_status = 'pending', video_processing_error = ${error}
-      WHERE id = ${job.mediaId}::uuid`);
-  });
+  await recordMediaWorkerOutcome(job, lockedBy, 'retry', { nextAttemptAt, error });
 }
 
 export async function failMediaWorkerJob(
@@ -174,15 +169,7 @@ export async function failMediaWorkerJob(
   lockedBy: string,
   error: string,
 ): Promise<void> {
-  await withOwnedProcessingJob(job, lockedBy, async (tx) => {
-    await runWebappSql(tx, sql`
-      UPDATE public.media_transcode_jobs SET status = 'failed', last_error = ${error}, locked_at = NULL,
-        locked_by = NULL, next_attempt_at = NULL, finished_at = now(), updated_at = now()
-      WHERE id = ${job.id}::uuid`);
-    await runWebappSql(tx, sql`
-      UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = ${error}
-      WHERE id = ${job.mediaId}::uuid`);
-  });
+  await recordMediaWorkerOutcome(job, lockedBy, 'failed', { error });
 }
 
 export async function completeMediaWorkerHlsJob(
@@ -196,16 +183,14 @@ export async function completeMediaWorkerHlsJob(
     durationSeconds?: number | null;
   },
 ): Promise<void> {
-  await withOwnedProcessingJob(job, lockedBy, async (tx) => {
-    await runWebappSql(tx, sql`
-      UPDATE public.media_files SET video_processing_status = 'ready', video_processing_error = NULL,
-        hls_master_playlist_s3_key = COALESCE(${values.masterKey ?? null}, hls_master_playlist_s3_key),
-        hls_artifact_prefix = COALESCE(${values.artifactPrefix ?? null}, hls_artifact_prefix),
-        poster_s3_key = COALESCE(${values.posterKey ?? null}, poster_s3_key),
-        available_qualities_json = COALESCE(${values.qualitiesJson ?? null}::jsonb, available_qualities_json),
-        video_duration_seconds = COALESCE(${values.durationSeconds ?? null}, video_duration_seconds)
-      WHERE id = ${job.mediaId}::uuid`);
-    await runWebappSql(tx, sql`UPDATE public.media_transcode_jobs SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now() WHERE id = ${job.id}::uuid`);
+  await recordMediaWorkerOutcome(job, lockedBy, 'done_hls', {
+    ...(values.masterKey === undefined ? {} : { masterKey: values.masterKey }),
+    ...(values.artifactPrefix === undefined ? {} : { artifactPrefix: values.artifactPrefix }),
+    ...(values.posterKey === undefined ? {} : { posterKey: values.posterKey }),
+    ...(values.qualitiesJson === undefined ? {} : { qualitiesJson: values.qualitiesJson }),
+    ...(values.durationSeconds === undefined || values.durationSeconds === null
+      ? {}
+      : { durationSeconds: values.durationSeconds }),
   });
 }
 
@@ -219,15 +204,10 @@ export async function completeMediaWorkerProgramJob(
     durationSeconds: number | null;
   },
 ): Promise<void> {
-  await withOwnedProcessingJob(job, lockedBy, async (tx) => {
-    await runWebappSql(tx, sql`
-      UPDATE public.media_files SET s3_key = ${values.outputKey}, mime_type = 'video/mp4',
-        video_processing_status = 'ready', video_processing_error = NULL,
-        video_delivery_override = 'mp4', available_qualities_json = ${values.qualitiesJson}::jsonb,
-        hls_master_playlist_s3_key = NULL, hls_artifact_prefix = NULL,
-        poster_s3_key = ${values.posterKey},
-        video_duration_seconds = COALESCE(${values.durationSeconds}, video_duration_seconds)
-      WHERE id = ${job.mediaId}::uuid`);
-    await runWebappSql(tx, sql`UPDATE public.media_transcode_jobs SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now() WHERE id = ${job.id}::uuid`);
+  await recordMediaWorkerOutcome(job, lockedBy, 'done_program', {
+    outputKey: values.outputKey,
+    posterKey: values.posterKey,
+    qualitiesJson: values.qualitiesJson,
+    ...(values.durationSeconds === null ? {} : { durationSeconds: values.durationSeconds }),
   });
 }
