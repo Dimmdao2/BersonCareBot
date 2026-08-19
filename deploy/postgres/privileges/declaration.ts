@@ -2624,6 +2624,15 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.failure-archive.prune',
       functionIdentity: 'app.prune_operator_health_failure_archive(integer)' },
+    // Начало окна суточной сводки здоровья — время ПОДТВЕРЖДЁННОЙ отправки прошлой сводки. До
+    // миграции 0038 вебапп читал `public.outgoing_delivery_queue` отношением под `app_staff`, у
+    // которого на очереди нет ни одной привилегии и по решению не должно быть; тик сводки падал
+    // 42501 на первом же шаге и сводка не уходила ни разу. Дверь — та же, что у соседних
+    // операторских чтений: шов телеметрии, рабочая роль `app_worker`, только EXECUTE.
+    webapp_health_digest_last_sent_read: { port: 'webapp', runtimeName: 'health_digest_last_sent_read',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.digest.last-sent.read',
+      functionIdentity: 'app.read_operator_health_digest_last_sent_at()' },
     // Одна уборка по сроку хранения на все запертые арендаторские таблицы: цель выбирается
     // параметром из ЗАКРЫТОГО списка внутри тела, окно приходит константой вызывающего тика.
     // Каждый тик сохраняет свою личность — общей у них только эта дверь.
@@ -3837,6 +3846,19 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.operator_health_failure_archive', columns: ['archived_at'],
         operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Единственное чтение очереди доставки, разрешённое порту webapp: время последней
+    // ПОДТВЕРЖДЁННОЙ отправки суточной сводки здоровья, из которого тик берёт начало окна.
+    // Рабочая роль получает EXECUTE и ничего больше — прямого гранта на очередь у `app_staff`
+    // и `app_worker` нет и не появляется (миграция 0038).
+    'app.read_operator_health_digest_last_sent_at()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'timestamp with time zone',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'return only the last confirmed operator health digest send time', typedArgs: [],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue', columns: ['kind', 'sent_at'],
+        operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)': rev10Function({
