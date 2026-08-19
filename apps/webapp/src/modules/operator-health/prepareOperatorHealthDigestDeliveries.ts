@@ -3,6 +3,7 @@ import type { OperatorHealthAlertConfig } from '@/modules/operator-alerts/operat
 import type { OperatorHealthDigestReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import { stampOperatorAlertSubject } from '@/modules/operator-alerts/operatorAlertEnvLabel';
 import type { GlobalAdminWebPushRecipientsPort } from './globalAdminWebPushRecipientsPort';
 
 export type OperatorHealthDigestRecipients = {
@@ -115,6 +116,9 @@ export function prepareOperatorHealthDigestDeliveries(
     .join('\n')
     .slice(0, 3900);
   if (!text) return [];
+  // Тот же чокпоинт, что и у dispatchOperatorAlert/sendOperatorFallbackEmail: одна метка
+  // окружения на email-subject и заголовок web-push, посчитанная один раз для всей рассылки.
+  const title = stampOperatorAlertSubject(input.title);
   const channels = input.config.channels.digest;
   const result: OperatorHealthDigestReadyOutgoingDelivery[] = [];
   for (const channel of ['telegram', 'max', 'sms', 'email', 'web_push'] as const) {
@@ -141,7 +145,7 @@ export function prepareOperatorHealthDigestDeliveries(
             outboundMessageClass: 'operator_security',
             outboundCapability: 'operator_alert',
           },
-          payload: intentPayload(channel, recipient, text, input.title, input.url, eventId),
+          payload: intentPayload(channel, recipient, text, title, input.url, eventId),
         },
       });
     }
