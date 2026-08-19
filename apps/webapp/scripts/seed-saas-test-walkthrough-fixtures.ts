@@ -1941,7 +1941,11 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
     const safeProof = safeSurfaceProof.rows[0];
     assertCount('global_admin', safeProof?.global_admin_count ?? 0, 1);
     assertCount('shared_patient_login', safeProof?.shared_patient_login_count ?? 0, 1);
-    assertCount('registration_settings_mirrored', safeProof?.registration_setting_count ?? 0, 2);
+    // 2 → 1 (19.08): запрос ограничен `key='specialist_signup_enabled' AND scope='admin' AND
+    // organization_id IS NULL`, а на таблице стоит UNIQUE (key, scope) WHERE organization_id IS NULL
+    // (`system_settings_global_key_scope_uidx`). То есть строк физически не может быть больше одной,
+    // и ожидание двух было невыполнимо на ЛЮБОМ окружении — проверка просто никогда не запускалась.
+    assertCount('registration_settings_mirrored', safeProof?.registration_setting_count ?? 0, 1);
     assertCount('local_media', safeProof?.local_media_count ?? 0, 2);
     assertCount('tariff', safeProof?.tariff_count ?? 0, 1);
     assertCount('disabled_notifications', safeProof?.disabled_notification_count ?? 0, 2);
