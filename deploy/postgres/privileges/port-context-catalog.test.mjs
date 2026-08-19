@@ -38,7 +38,8 @@ const EXPECTED = {
   // 203 → 205 (19.08): обе двери визитки клиники (миграция 0049, встречная ветка).
   // 202 → 205 (19.08): три двери разбора очереди пересборки видео — `media_transcode_claim`,
   // `media_transcode_job_media_read`, `media_transcode_outcome_record` (миграция 0050).
-  webapp: 205,
+  // 205 → 208 (20.08, сведение): четыре двери публичной записи минус смена подписи существующей.
+  webapp: 208,
   integrator: 34,
 };
 
@@ -78,8 +79,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 237 → 239 (19.08): две двери визитки клиники (миграция 0049, встречная ветка).
   // 234 → 236 (19.08): две двери визитки клиники.
   // 236 → 239 (19.08): три двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(rows.length, 239);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 239);
+  assert.equal(rows.length, 242);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 242);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -146,7 +147,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 222 → 224 (19.08): обе двери визитки клиники — именованные корни (0049, встречная ветка).
   // 219 → 221 (19.08): обе двери визитки клиники — именованные корни.
   // 221 → 224 (19.08): все три возможности разбора очереди пересборки видео — именованные корни.
-  assert.equal(roots.length, 224);
+  assert.equal(roots.length, 227);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
