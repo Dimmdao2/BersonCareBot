@@ -353,24 +353,10 @@
       "breakpoints": true
     },
     {
-      "idx": 50,
+      "idx": 49,
       "version": "7",
-      "when": 1800000053000,
-      "tag": "0051_a_public_visitor_becomes_a_client_when_identified",
-      "breakpoints": true
-    },
-    {
-      "idx": 51,
-      "version": "7",
-      "when": 1800000055000,
-      "tag": "0052_a_failed_public_booking_must_not_leave_a_client",
-      "breakpoints": true
-    },
-    {
-      "idx": 52,
-      "version": "7",
-      "when": 1800000056000,
-      "tag": "0053_a_visitor_booking_spends_no_tariff_seat",
+      "when": 1800000060000,
+      "tag": "0048_a_lifetime_allowance_counted_by_join_is_not_lifetime",
       "breakpoints": true
     }
   ]

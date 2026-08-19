@@ -1,7 +1,7 @@
 /**
  * The order of webapp migrations, and the proof that an applied one is really in the database.
  *
- * Two rules live here, and only here, so every runner (`migrate-local.mjs` for DEV/TEST/PROD,
+ * Three rules live here, and only here, so every runner (`migrate-local.mjs` for DEV/TEST/PROD,
  * `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` for the local/template path) reads the same
  * copy:
  *
@@ -12,10 +12,17 @@
  *      "every file above the highest applied timestamp".  A watermark makes a skip permanent and
  *      silent: a migration that lands below it is never pending again and the runner keeps printing
  *      "already current" over a hole in the schema.
+ *   3. EVERY MIGRATION OWES A PROOF.  Before anything is applied, every applied migration has to
+ *      answer for itself: with an object it still owns in the catalog, or — when it creates no
+ *      object the classifier can name — with an explicit `-- BCB-MIGRATION-VERIFY: SELECT …` probe
+ *      in its header.  Rule 2 alone made "applied" a claim anybody could type into the ledger for
+ *      the migrations that promise nothing; rule 3 is what makes the claim answerable for all of
+ *      them, not only for the ones that happen to create a function.
  *
  * `meta/_journal.json` is no longer read for order.  It survives as the frozen historical
  * `when -> tag` map used once per database to label ledger rows written before the tag column
- * existed (`backfillLedgerTagsSql`).
+ * existed, and "frozen" is enforced, not asked for: `meta/_journal.frozen` pins its digest, because
+ * one appended line hands another branch's ledger row the name of a migration nobody ran.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -109,11 +116,49 @@ END
 $bcb_ledger$;`;
 }
 
-/** The frozen historical `when -> tag` map, or an empty one when the folder no longer carries it. */
+/**
+ * The digest `meta/_journal.frozen` pins.  Only `when` and `tag` go into it: those two fields are the
+ * whole of the map's remaining job, and the rest of the file (idx, version, breakpoints) is Drizzle
+ * bookkeeping nobody reads any more.
+ */
+export function journalDigest(entries) {
+  const canonical = (entries ?? [])
+    .map((entry) => `${entry?.when}\t${entry?.tag}`)
+    .join('\n');
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+/**
+ * The frozen historical `when -> tag` map, or an empty one when the folder no longer carries it.
+ *
+ * The map hands a name to a ledger row that has none, so appending one line to it is enough to make
+ * a row somebody else's migration wrote answer to the name of a migration that never ran — the
+ * whole forgery costs one line and leaves no other trace.  So the map is pinned: `meta/_journal.frozen`
+ * carries its digest, both runners refuse a mismatch, and a merge that genuinely has to extend the
+ * map must move the pin in the same commit, where a reviewer sees it.
+ */
 export function readLegacyJournalEntries(folder) {
   const path = resolve(folder, 'meta', '_journal.json');
   if (!existsSync(path)) return [];
-  return JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
+  const entries = JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
+  const pinPath = resolve(folder, 'meta', '_journal.frozen');
+  const digest = journalDigest(entries);
+  if (!existsSync(pinPath)) {
+    throw new Error(
+      `the historical migration map ${path} has no freeze pin next to it; write its digest ${digest} `
+        + 'to meta/_journal.frozen in the same commit, or delete the map — an unpinned map can be '
+        + "extended by one line to give another branch's ledger row the name of a migration nobody ran",
+    );
+  }
+  const pinned = readFileSync(pinPath, 'utf8').trim();
+  if (pinned !== digest) {
+    throw new Error(
+      `the historical migration map ${path} is not the frozen one: it digests to ${digest}, `
+        + `meta/_journal.frozen pins ${pinned || '(empty)'}. The map does not order anything and is not `
+        + 'hand-edited; if a merge really has to extend it, move the pin in the same commit.',
+    );
+  }
+  return entries;
 }
 
 const QUALIFIED = String.raw`(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*)(?:\.(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*))?`;
@@ -237,33 +282,135 @@ export function collectExpectedObjects(migrations) {
   return [...expected.values()];
 }
 
-/** One catalog probe per object; a false row is a hole the ledger claims is filled. */
-export function renderObjectPresenceSql(objects) {
-  const probes = objects.map((object, index) => {
-    const schema = object.schema ? `n.nspname = ${literal(object.schema)}` : 'true';
-    const relation = object.relation
-      ? `c.relname = ${literal(object.relation.name)}${object.relation.schema ? ` AND rn.nspname = ${literal(object.relation.schema)}` : ''}`
-      : 'true';
-    const query = {
-      function: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE p.proname = ${literal(object.name)} AND ${schema})`,
-      table: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('r','p','f') AND ${schema})`,
-      view: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('v','m') AND ${schema})`,
-      index: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('i','I'))`,
-      type: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = ${literal(object.name)} AND ${schema})`,
-      column: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE a.attname = ${literal(object.name)} AND NOT a.attisdropped AND a.attnum > 0 AND ${relation})`,
-      constraint: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_class c ON c.oid = k.conrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE k.conname = ${literal(object.name)} AND ${relation})`,
-      trigger: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g JOIN pg_catalog.pg_class c ON c.oid = g.tgrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE g.tgname = ${literal(object.name)} AND NOT g.tgisinternal AND ${relation})`,
-    }[object.kind];
-    return `SELECT ${index} AS at, (${query}) AS present`;
-  });
-  return probes.length === 0 ? null : probes.join('\nUNION ALL\n');
+/** The catalog question for one object: does it exist, by name and kind? */
+function objectPresenceQuery(object) {
+  const schema = object.schema ? `n.nspname = ${literal(object.schema)}` : 'true';
+  const relation = object.relation
+    ? `c.relname = ${literal(object.relation.name)}${object.relation.schema ? ` AND rn.nspname = ${literal(object.relation.schema)}` : ''}`
+    : 'true';
+  return {
+    function: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE p.proname = ${literal(object.name)} AND ${schema})`,
+    table: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('r','p','f') AND ${schema})`,
+    view: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('v','m') AND ${schema})`,
+    index: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('i','I'))`,
+    type: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = ${literal(object.name)} AND ${schema})`,
+    column: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE a.attname = ${literal(object.name)} AND NOT a.attisdropped AND a.attnum > 0 AND ${relation})`,
+    constraint: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_class c ON c.oid = k.conrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE k.conname = ${literal(object.name)} AND ${relation})`,
+    trigger: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g JOIN pg_catalog.pg_class c ON c.oid = g.tgrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE g.tgname = ${literal(object.name)} AND NOT g.tgisinternal AND ${relation})`,
+  }[object.kind];
 }
 
-function literal(value) {
-  return `'${String(value).replaceAll("'", "''")}'`;
+/** One catalog probe per object; a false row is a hole the ledger claims is filled. */
+export function renderObjectPresenceSql(objects) {
+  return renderProofSql(objects.map((object) => ({ kind: 'object', tag: object.tag, object })));
+}
+
+const VERIFY_HEADER = /^--\s*BCB-MIGRATION-VERIFY:\s*(.+?)\s*$/u;
+
+/**
+ * The `-- BCB-MIGRATION-VERIFY:` probes a migration carries, read from its LEADING comment block —
+ * the run of blank and `--` lines the file opens with.
+ *
+ * Only the leading block, because everything after it can be the body of a `CREATE FUNCTION`, and a
+ * migration must not be able to declare its own proof from inside a string literal it wrote.
+ *
+ * A probe is one `SELECT` returning one boolean, run read-only before any DDL, by the same identity
+ * that writes the ledger.  Semicolons and comment starters are refused: the probe is embedded as a
+ * scalar subquery, and either of those would let it end the surrounding statement.
+ */
+export function readVerifyProbes(source) {
+  const probes = [];
+  for (const line of String(source ?? '').split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    if (!trimmed.startsWith('--')) break;
+    const match = VERIFY_HEADER.exec(trimmed);
+    if (!match) continue;
+    const probe = match[1].trim();
+    if (!/^SELECT\s/iu.test(probe)) {
+      throw new Error(`BCB-MIGRATION-VERIFY must be a single SELECT, got: ${probe}`);
+    }
+    if (/;|--|\/\*/u.test(probe)) {
+      throw new Error(`BCB-MIGRATION-VERIFY must not carry a statement terminator or a comment: ${probe}`);
+    }
+    probes.push(probe);
+  }
+  return probes;
+}
+
+/**
+ * Everything the applied migrations owe the database, in one list: the objects they still hold, and
+ * the explicit probes of the ones that hold no object a classifier can name.
+ */
+export function collectMigrationProofs(migrations) {
+  const proofs = collectExpectedObjects(migrations).map((object) => ({
+    kind: 'object',
+    tag: object.tag,
+    object,
+  }));
+  for (const migration of migrations) {
+    for (const probe of readVerifyProbes(migration.source)) {
+      proofs.push({ kind: 'verify', tag: migration.tag, probe });
+    }
+  }
+  return proofs;
+}
+
+/**
+ * Migrations that owe nothing and therefore prove nothing: no surviving object of their own, no
+ * VERIFY probe.  A hand-written ledger row for one of these is indistinguishable from a real one,
+ * which is exactly the hole the lint gate refuses to let a new migration open.
+ */
+export function findUnprovedMigrations(migrations) {
+  const proved = new Set(collectMigrationProofs(migrations).map((proof) => proof.tag));
+  return migrations.filter((migration) => !proved.has(migration.tag)).map((migration) => migration.tag);
+}
+
+/** One row per proof, each carrying its own index, so an answer can never be read by position. */
+export function renderProofSql(proofs) {
+  if (proofs.length === 0) return null;
+  return proofs
+    .map((proof, index) => {
+      const query = proof.kind === 'verify' ? proof.probe : objectPresenceQuery(proof.object);
+      return `SELECT ${index} AS at, (${query}) AS present`;
+    })
+    .join('\nUNION ALL\n');
+}
+
+/**
+ * The proofs the database did not answer for.
+ *
+ * Answers are matched by the `at` each row carries, never by arrival order: the probe is a
+ * `UNION ALL`, which promises no order at all, and reading it by position turns a missing row into a
+ * silent "present".  A short or duplicated answer set is a refusal, not a default.
+ */
+export function interpretProofAnswers(proofs, answers) {
+  const byIndex = new Map();
+  for (const answer of answers) {
+    const at = Number(answer.at);
+    if (!Number.isInteger(at) || at < 0 || at >= proofs.length) {
+      throw new Error(`migration proof probe answered for an unknown index ${answer.at}`);
+    }
+    if (byIndex.has(at)) throw new Error(`migration proof probe answered twice for index ${at}`);
+    byIndex.set(at, answer.present === true);
+  }
+  if (byIndex.size !== proofs.length) {
+    throw new Error(`migration proof probe answered for ${byIndex.size} of ${proofs.length} proofs`);
+  }
+  return proofs.filter((_, index) => byIndex.get(index) === false);
 }
 
 export function describeObject(object) {
   const where = object.relation ? ` on ${object.relation.schema ? `${object.relation.schema}.` : ''}${object.relation.name}` : '';
   return `${object.kind} ${object.schema ? `${object.schema}.` : ''}${object.name}${where} (from ${object.tag})`;
+}
+
+export function describeProof(proof) {
+  return proof.kind === 'verify'
+    ? `verified state of ${proof.tag}: ${proof.probe}`
+    : describeObject(proof.object);
+}
+
+function literal(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
 }

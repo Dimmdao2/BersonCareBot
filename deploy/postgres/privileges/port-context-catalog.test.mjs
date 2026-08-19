@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
+import { assertNameCensus } from './name-census.mjs';
 import {
   generateCatalogClosureVerifierSql,
   generateEnvLoginVariableSql,
@@ -15,33 +16,7 @@ import {
   resolvePortContextCapabilities,
 } from './generate.mjs';
 
-// +3 (19.08): три возможности миграции 0030 — один корень аудитории доставки под `tenant_service`
-// и два класса (`pre_session`, `service`) на одном теле операторских адресатов.
-const EXPECTED = {
-  // 183 → 184 (19.08): `retention_sweep` — одна дверь уборки по сроку хранения (миграция 0031).
-  // 184 → 186 (19.08): `patient_outbound_message_enqueue` + `staff_outbound_message_enqueue` —
-  // одна дверь постановки исходящего сообщения, два класса контекста (миграция 0033).
-  // 186 → 187 (19.08): `appointment_reminder_generation_replace` — миграция 0034.
-  // 187 → 189 (19.08): два корня контактов формы записи из миграции 0037.
-  // 189 → 190 (19.08): `health_digest_last_sent_read` — одна дверь чтения времени последней
-  // подтверждённой отправки сводки (миграция 0038).
-  // 190 → 192 (19.08): `delivery_queue_health_read` + `health_digest_enqueue` — миграция 0039.
-  // 192 → 194 (19.08): `operator_alert_staff_push_audience_read` + `saas_renewal_due_list` (0040).
-  // 194 → 195 (19.08): `critical_incident_open` — миграция 0041.
-  // 195 → 196 (19.08): `platform_analytics_dashboard` — дашборд глобального админа читал
-  // девятнадцать таблиц отношением и отдавал 500 на первом же 42501 (миграция 0043).
-  // 196 → 200 (19.08): четыре двери публичной записи — миграция 0047 (ex-0043). Резолвер арендатора
-  // в классе `pre_session`, три остальные — именованные корни арендаторского класса
-  // `tenant_service`, которому сквозной `purpose: 'relation'` у порта `webapp` не выдаётся.
-  // 200 → 202 (19.08): две двери ЗАПИСИ публичной воронки (миграция 0051).
-  // 202 → 203 (19.08): компенсация неудавшейся записи (миграция 0052).
-  // 203 → 205 (19.08): обе двери визитки клиники (миграция 0049, встречная ветка).
-  // 202 → 205 (19.08): три двери разбора очереди пересборки видео — `media_transcode_claim`,
-  // `media_transcode_job_media_read`, `media_transcode_outcome_record` (миграция 0050).
-  // 205 → 208 (20.08, сведение): четыре двери публичной записи минус смена подписи существующей.
-  webapp: 208,
-  integrator: 34,
-};
+const PORTS = ['webapp', 'integrator'];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -57,30 +32,18 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  // 217 → 218 (19.08): `webapp_retention_sweep` — одна дверь уборки по сроку хранения на четыре
-  // запертые арендаторские таблицы (миграция 0031). Прибавка одна, а не по одной на таблицу.
-  // 218 → 220 (19.08): пациент и staff идут в ОДИН корень постановки исходящего сообщения
-  // (`outbound.message.enqueue`). Возможности две, потому что классов контекста два; дверь одна —
-  // это и есть «роль и права и контекст подставлять надо в одном месте».
-  // 220 → 221 (19.08): `appointment_reminder_generation_replace` — одна дверь замены поколения
-  // напоминаний о записи (миграция 0034).
-  // 221 → 223 (19.08): два корня контактов формы записи из миграции 0037.
-  // 223 → 224 (19.08): `webapp_health_digest_last_sent_read` — миграция 0038.
-  // 224 → 226 (19.08): `webapp_delivery_queue_health_read` + `webapp_health_digest_enqueue` (0039).
-  // 226 → 228 (19.08): аудитория staff-веб-пуша операторского алерта и межарендное перечисление
-  // подписок к продлению — миграция 0040.
-  // 228 → 229 (19.08): открытие критического инцидента — миграция 0041.
-  // 229 → 230 (19.08): корень платформенного дашборда — миграция 0043.
-  // 230 → 234 (19.08): четыре двери публичной записи (миграция 0047, ex-0043).
-  // 234 → 236 (19.08): две двери ЗАПИСИ публичной воронки — личность посетителя и его отношение
-  // с клиникой (миграция 0051).
-  // 236 → 237 (19.08): компенсация неудавшейся записи — отношение, заведённое ради записи, которой
-  // не случилось, снимается той же воронкой (миграция 0052).
-  // 237 → 239 (19.08): две двери визитки клиники (миграция 0049, встречная ветка).
-  // 234 → 236 (19.08): две двери визитки клиники.
-  // 236 → 239 (19.08): три двери разбора очереди пересборки видео (миграция 0050).
-  assert.equal(rows.length, 242);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 242);
+  // Резолвер обязан отдать РОВНО объявленный каталог возможностей, один в один. Счёт «236» не
+  // отличал потерянную возможность от лишней и не называл ни ту, ни другую; сверка имён с самим
+  // каталогом (второй копии не заводим — AGENTS.md §5) называет обе стороны расхождения.
+  assert.deepEqual(
+    rows.map((row) => row.name).sort(),
+    Object.keys(declaration.portContext.capabilities).sort(),
+    'resolved capabilities must be exactly the declared capability catalog',
+  );
+  const duplicateIds = rows.map((row) => row.capabilityId)
+    .filter((id, index, all) => all.indexOf(id) !== index);
+  assert.deepEqual(duplicateIds.map((id) => rows.filter((row) => row.capabilityId === id)
+    .map((row) => `${row.port}/${row.name}`).join(' = ')), [], 'capability IDs must stay unique');
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -90,7 +53,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
     row.functionIdentity ?? '',
   ].join('\0'))).size <= rows.length, 'capability IDs remain the authority even when descriptive tuples coincide');
 
-  for (const [port, count] of Object.entries(EXPECTED)) {
+  for (const port of PORTS) {
     const rendered = renderPortContextRuntimeEnv(
       declaration,
       'test',
@@ -98,7 +61,13 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
       port,
     );
     const descriptors = JSON.parse(rendered.value);
-    assert.equal(Object.keys(descriptors).length, count);
+    // Лишнее имя в рантайм-каталоге — дверь, которой нет в декларации: приложение получит
+    // дескриптор, который никто не сверял. Счёт портов этого не называл.
+    assert.deepEqual(
+      Object.keys(descriptors).sort(),
+      rows.filter((row) => row.port === port).map((row) => row.runtimeName).sort(),
+      `${port} runtime catalog must carry exactly the resolved capabilities`,
+    );
     for (const row of rows.filter((candidate) => candidate.port === port)) {
       assert.deepEqual(descriptors[row.runtimeName], {
         capabilityId: row.capabilityId,
@@ -131,23 +100,15 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  // 202 → 203 (19.08): корень уборки по сроку хранения `app.prune_retention_target(...)`.
-  // 203 → 205 (19.08): ОДИН корень постановки исходящего сообщения, две возможности — пациент и
-  // staff; счётчик считает возможности с функцией, а не функции.
-  // 205 → 206 (19.08): корень замены поколения напоминаний о записи (миграция 0034).
-  // 206 → 208 (19.08): два корня контактов формы записи (миграция 0037).
-  // 208 → 209 (19.08): корень времени последней подтверждённой сводки (миграция 0038).
-  // 209 → 211 (19.08): корень снимка здоровья очереди и корень постановки сводки (миграция 0039).
-  // 211 → 213 (19.08): корень аудитории staff-веб-пуша и корень перечисления подписок (0040).
-  // 213 → 214 (19.08): корень открытия критического инцидента (0041).
-  // 214 → 215 (19.08): корень платформенного дашборда (0043).
-  // 215 → 219 (19.08): все четыре возможности публичной записи — именованные корни (0047, ex-0043).
-  // 219 → 221 (19.08): две двери ЗАПИСИ публичной воронки — тоже именованные корни (0051).
-  // 221 → 222 (19.08): корень компенсации неудавшейся записи (0052).
-  // 222 → 224 (19.08): обе двери визитки клиники — именованные корни (0049, встречная ветка).
-  // 219 → 221 (19.08): обе двери визитки клиники — именованные корни.
-  // 221 → 224 (19.08): все три возможности разбора очереди пересборки видео — именованные корни.
-  assert.equal(roots.length, 227);
+  // Дверь без `functionIdentity` — это возможность со сквозным `purpose: 'relation'`: доступ к
+  // отношениям целиком вместо одного именованного корня. Счётчик корней («221») падал бы числом
+  // 220 и не сказал бы, КАКАЯ дверь разъехалась в relation-wide. Поэтому фиксируем поимённо
+  // ДОПОЛНЕНИЕ — оно короткое и меняться не должно вовсе.
+  assertNameCensus(
+    'relationWideCapabilities',
+    rows.filter((row) => !row.functionIdentity).map((row) => `${row.port}/${row.name}`),
+    'capabilities that hold relation-wide access instead of one named root',
+  );
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

@@ -1,6 +1,8 @@
 -- BCB-MIGRATION-OWNER: app_seam_reminder_specialist_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- Функцию позже переопределяла соседняя миграция; собственное доказательство — что она есть.
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.read_current_patient_staff_notification_profiles(uuid,text)') IS NOT NULL
 CREATE OR REPLACE FUNCTION app.read_current_patient_staff_notification_profiles(
   p_organization_id uuid,
   p_topic_code text
