@@ -98,7 +98,7 @@ describe.skipIf(!enabled)('публичная визитка против нас
     }[];
     expect(rows).toHaveLength(2);
     for (const fn of rows) {
-      expect(fn.owner).toBe('app_seam_public_clinic_card_owner');
+      expect(fn.owner).toBe('app_seam_public_slug_owner');
       expect(fn.security_definer).toBe(true);
     }
     const read = rows.find((fn) => fn.identity.startsWith('app.read_public_clinic_card'));
