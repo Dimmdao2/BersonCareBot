@@ -358,12 +358,6 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
-REVOKE ALL ON FUNCTION app.patient_reminder_materialization_fingerprint(text,text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.patient_reminder_materialization_fingerprint(text,text)
-  FROM app_operational_scheduler, app_staff, app_tenant_service;
-
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.commit_patient_reminder_materialization(
@@ -709,12 +703,8 @@ BEGIN
 END
 $function$;
 
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
--- The old two-step mutation functions remain only as private rollback-compatible catalog objects.
--- No runtime role can execute them; new application code has exactly one mutation callsite.
-REVOKE ALL ON FUNCTION app.upsert_patient_reminder_occurrence_plan(
-  text,text,uuid,uuid,text,timestamp with time zone
-) FROM PUBLIC, app_staff, app_tenant_service;
-REVOKE ALL ON FUNCTION app.mark_patient_reminder_occurrence_queued(text,integer,text[])
-  FROM PUBLIC, app_staff, app_tenant_service;
+-- The old two-step mutation functions app.upsert_patient_reminder_occurrence_plan and
+-- app.mark_patient_reminder_occurrence_queued remain only as private rollback-compatible catalog
+-- objects: no runtime role may execute them, and new application code has exactly one mutation
+-- callsite. That closure is state of the privilege layer, so it is declared in
+-- deploy/postgres/privileges/declaration.ts and applied by reconcile, never by this migration.

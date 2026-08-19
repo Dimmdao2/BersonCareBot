@@ -33,7 +33,7 @@ const EXPECTED = {
   // 196 → 200 (19.08): четыре двери публичной записи — миграция 0047 (ex-0043). Резолвер арендатора
   // в классе `pre_session`, три остальные — именованные корни арендаторского класса
   // `tenant_service`, которому сквозной `purpose: 'relation'` у порта `webapp` не выдаётся.
-  webapp: 200,
+  webapp: 202,
   integrator: 34,
 };
 
@@ -66,8 +66,9 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 228 → 229 (19.08): открытие критического инцидента — миграция 0041.
   // 229 → 230 (19.08): корень платформенного дашборда — миграция 0043.
   // 230 → 234 (19.08): четыре двери публичной записи (миграция 0047, ex-0043).
-  assert.equal(rows.length, 234);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 234);
+  // 234 → 236 (19.08): две двери визитки клиники.
+  assert.equal(rows.length, 236);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 236);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -129,7 +130,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 213 → 214 (19.08): корень открытия критического инцидента (0041).
   // 214 → 215 (19.08): корень платформенного дашборда (0043).
   // 215 → 219 (19.08): все четыре возможности публичной записи — именованные корни (0047, ex-0043).
-  assert.equal(roots.length, 219);
+  // 219 → 221 (19.08): обе двери визитки клиники — именованные корни.
+  assert.equal(roots.length, 221);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

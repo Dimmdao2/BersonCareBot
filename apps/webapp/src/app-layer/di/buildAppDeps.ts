@@ -367,6 +367,8 @@ import { createPatientBookingCatalogService } from '@/modules/patient-booking/pa
 import { createPgPatientBookingCatalogPort } from '@/infra/repos/pgPatientBookingCatalog';
 import { inMemoryPatientBookingCatalogPort } from '@/infra/repos/inMemoryPatientBookingCatalog';
 import { createPgClinicDirectoryPort } from '@/infra/repos/pgClinicDirectory';
+import { createClinicPublicCardService } from '@/modules/clinic-public-card/service';
+import { createPgClinicPublicCardPort } from '@/infra/repos/pgClinicPublicCard';
 import { createClinicDirectoryService } from '@/modules/clinic-directory/service';
 import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganizationMembership';
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
@@ -683,6 +685,9 @@ const clinicSeatsService = createClinicSeatsService({
 });
 const clinicDirectoryService = !inMemoryRepos
   ? createClinicDirectoryService(createPgClinicDirectoryPort())
+  : null;
+const clinicPublicCardService = !inMemoryRepos
+  ? createClinicPublicCardService(createPgClinicPublicCardPort())
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =
@@ -2044,6 +2049,7 @@ function _buildAppDeps() {
     lfkAssignments: lfkAssignmentsService,
     /** `/book/{publicSlug}` bootstrap resolver (owner canon OWNER_RULINGS_2026-07-17.md §1). */
     clinicDirectory: clinicDirectoryService,
+    clinicPublicCard: clinicPublicCardService,
     bookingEngine: bookingEngineService,
     bookingSync: bookingSyncPortForPayments,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
