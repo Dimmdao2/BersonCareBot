@@ -623,7 +623,8 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     // если генератор выпустил другое количество строк-контрактов, деплой сверяет не то, что думает.
     // Оракул — сама декларация, поэтому легальная новая функция двигает обе стороны разом и правки
     // теста не требует; расхождение остаётся ровно там, где оно и есть.
-    const expectedDefiners = functionsFor(database).filter(([, fn]) => fn.security === 'DEFINER').length;
+    const definerSignatures = functionsFor(database)
+      .filter(([, fn]) => fn.security === 'DEFINER').map(([signature]) => signature);
     const surfaceVerifier = first.slice(
       first.indexOf('-- Function-body relation-operation verifier:'),
       first.indexOf('ALTER FUNCTION ', first.indexOf('-- Function-body relation-operation verifier:')),
@@ -637,10 +638,20 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(first, /am\.member = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /am\.roleid = 'app_seam_dedicated_bot_owner'::regrole/);
     assert.match(first, /REVOKE ALL ON FUNCTION app\.resolve_clinic_dedicated_bot_organization\(text,text\) FROM PUBLIC/);
+    // Сам ПРЕДМЕТ сверки — поимённо: артефакт перечисляет тела, которые деплой пойдёт проверять на
+    // живой базе, и этот список обязан быть ровно объявленным набором DEFINER-функций. Число
+    // `functions=N` совпадает и тогда, когда одно тело подменено другим, — тогда деплой сверяет не
+    // то, что декларация думает, и молчит об этом.
+    const verifiedSignatures = [...surfaceVerifier
+      .slice(surfaceVerifier.indexOf('INSERT INTO bcb_function_surface_functions(signature) VALUES'))
+      .matchAll(/^ {2}\('([^']+)'\),?$/gmu)].map(([, signature]) => signature);
+    assert.deepEqual([...verifiedSignatures].sort(), [...definerSignatures].sort(),
+      `${database}: the generated body-surface verifier checks a different set of function bodies `
+      + 'than the declaration declares SECURITY DEFINER');
     const verifiedFunctions = /BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=(\d+)/u.exec(surfaceVerifier)?.[1];
-    assert.equal(Number(verifiedFunctions), expectedDefiners,
-      `${database}: generated verifier declares functions=${verifiedFunctions}, `
-      + `the declaration holds ${expectedDefiners} DEFINER functions`);
+    assert.equal(Number(verifiedFunctions), verifiedSignatures.length,
+      `${database}: generated verifier declares functions=${verifiedFunctions} but seeds `
+      + `${verifiedSignatures.length} function bodies into its own check`);
     assert.ok(surfaceVerifier.includes('special_contracts=8'));
     assert.match(surfaceVerifier, /CREATE TEMP TABLE bcb_function_surface_special_contracts/);
     assert.ok(surfaceVerifier.includes("('app_control.enforce_relation_birth_wall()', 'relation-birth-wall')"));
