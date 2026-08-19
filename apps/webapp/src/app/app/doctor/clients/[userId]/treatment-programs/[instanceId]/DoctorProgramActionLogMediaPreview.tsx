@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
 import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import type { MediaPreviewUiModel } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 
 export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string }) {
   const { mediaFileId } = props;
@@ -60,14 +62,30 @@ export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string 
     );
   }
 
+  /**
+   * Изображение — только через {@link MediaThumb}: он показывает файл лишь после перекодирования
+   * (`standard_rendition_at`), а до него — заглушку «готовится». Раньше здесь стоял прямой
+   * `<img src="/api/media/…">` с `onError`, то есть на экран шла исходная загрузка пациента,
+   * а «не готово» и «не загрузилось» были одним и тем же состоянием.
+   */
+  const imagePreview: MediaPreviewUiModel = {
+    id: mediaFileId,
+    kind: 'image',
+    url: `/api/media/${encodeURIComponent(mediaFileId)}`,
+    previewStatus: playback?.preview.status ?? 'pending',
+    previewSmUrl: playback?.preview.smUrl ?? null,
+    previewMdUrl: playback?.preview.mdUrl ?? null,
+    standardRendition: playback?.preview.standardRendition === true,
+  };
+
   return (
     <span className="mt-1 block max-w-xs">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`/api/media/${encodeURIComponent(mediaFileId)}`}
-        alt=""
+      <MediaThumb
+        media={imagePreview}
         className="max-h-32 max-w-full rounded-md object-contain"
-        onError={() => setFailed(true)}
+        imgClassName="max-h-32 max-w-full rounded-md object-contain"
+        sizes="320px"
+        alt=""
       />
     </span>
   );
