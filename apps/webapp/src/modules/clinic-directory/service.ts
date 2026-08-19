@@ -91,6 +91,12 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       if (state.currentSlug && !input.irreversibleRenameConfirmed) {
         return { ok: false, code: 'rename_confirmation_required' };
       }
+      // Единственная самостоятельная смена на всю жизнь клиники (владелец 19.08). Отказ выдаётся
+      // ДО брони: иначе клиника заняла бы новое имя и получила отказ уже после, а имя осталось бы
+      // висеть за ней. Причина своя — «имя занято» здесь было бы ложью о чужом владении.
+      if (state.currentSlug && input.initiatedBy === 'clinic' && !state.selfRenameAllowed) {
+        return { ok: false, code: 'self_rename_allowance_spent' };
+      }
 
       const reserved = await port.reserveSlug({
         organizationId: input.organizationId,

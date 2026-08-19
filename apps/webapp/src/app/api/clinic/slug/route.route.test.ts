@@ -60,8 +60,44 @@ describe('clinic-owner slug mutation', () => {
       organizationId: ORGANIZATION_ID,
       slug: 'nova-clinic',
       irreversibleRenameConfirmed: true,
+      initiatedBy: 'clinic',
     });
     expect(fakes.getSlugManagementState).toHaveBeenCalledWith(ORGANIZATION_ID);
+  });
+
+  it('исчерпанное право на смену — отдельный отказ, а не «имя занято»', async () => {
+    fakes.setOrganizationSlug.mockResolvedValue({
+      ok: false,
+      code: 'self_rename_allowance_spent',
+    });
+
+    const response = await POST(request('another-name'));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'self_rename_allowance_spent',
+    });
+  });
+
+  it('клиника не может объявить себя админом через тело запроса', async () => {
+    // Гейт маршрута — кабинет клиники. Если бы `initiatedBy` приходил из тела, клиника обошла бы
+    // единственную самостоятельную смену, назвавшись платформенным админом.
+    const req = new Request('http://localhost/api/clinic/slug', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'nova-clinic',
+        irreversibleRenameConfirmed: true,
+        initiatedBy: 'platform_admin',
+      }),
+    });
+
+    const result = await POST(req);
+
+    expect(result.status).toBe(400);
+    await expect(result.json()).resolves.toEqual({ ok: false, error: 'invalid_body' });
+    expect(fakes.setOrganizationSlug).not.toHaveBeenCalled();
   });
 
   it('returns a safe unique-slug conflict', async () => {

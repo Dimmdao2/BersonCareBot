@@ -58,12 +58,30 @@ export type RenameOrganizationSlugInput = {
 
 export type OrganizationSlugManagementState = {
   currentSlug: string | null;
+  /**
+   * Сколько смен адреса клиника сделала САМА. Считается по событиям
+   * `organization_slug_rename_events`, чей актор — член этой же организации; отдельного поля-счётчика
+   * нет намеренно (производное поле разошлось бы с событийной таблицей).
+   */
+  selfRenamesUsed: number;
+  /**
+   * Осталась ли у клиники её единственная самостоятельная смена (владелец 19.08: «Клинике дается ОДНА
+   * смена слаг самостоятельно (за весь период жизни)»). Смена, инициированная админом платформы по
+   * обращению в поддержку, лимит не тратит — её актор не член клиники и в счёт не идёт.
+   */
+  selfRenameAllowed: boolean;
 };
 
 export type SetOrganizationSlugInput = {
   organizationId: string;
   slug: string;
   irreversibleRenameConfirmed: boolean;
+  /**
+   * Кто инициировал смену. `clinic` тратит единственное самостоятельное переименование;
+   * `platform_admin` — обращение в поддержку, лимитом не ограничено (владелец 19.08).
+   * Никогда не приходит из тела запроса: маршрут проставляет его из своего гейта.
+   */
+  initiatedBy: 'clinic' | 'platform_admin';
 };
 
 export type OrganizationSlugMutationErrorCode =
@@ -78,7 +96,8 @@ export type OrganizationSlugMutationErrorCode =
   | 'slug_too_long'
   | 'slug_unchanged'
   | 'reserved_slug'
-  | 'rename_confirmation_required';
+  | 'rename_confirmation_required'
+  | 'self_rename_allowance_spent';
 
 export type OrganizationSlugMutationResult =
   | { ok: true; slug: string }

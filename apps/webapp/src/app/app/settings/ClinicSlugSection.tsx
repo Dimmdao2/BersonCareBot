@@ -55,6 +55,8 @@ export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
       return 'Введите адрес, отличный от текущего.';
     case 'rename_confirmation_required':
       return 'Подтвердите переименование.';
+    case 'self_rename_allowance_spent':
+      return 'Адрес можно сменить самостоятельно один раз, и он уже сменён. Дальнейшую смену делает поддержка — напишите ей.';
     default:
       return 'Не удалось сохранить адрес. Повторите попытку.';
   }
@@ -166,6 +168,7 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
             </p>
           ) : null}
 
+          {state.selfRenameAllowed ? (
           <Dialog
             open={renameOpen}
             onOpenChange={(open) => {
@@ -219,6 +222,13 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
               </div>
             </DialogContent>
           </Dialog>
+          ) : (
+            // Владелец 19.08: «уведомлять об этом специально нигде не надо» — поэтому здесь ровно
+            // одна строка на месте кнопки, без баннера, письма и записи в журнале кабинета.
+            <p className="text-sm text-muted-foreground">
+              Самостоятельная смена адреса уже использована. Дальнейшую смену делает поддержка.
+            </p>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

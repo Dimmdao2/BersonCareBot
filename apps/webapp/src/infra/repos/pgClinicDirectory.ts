@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
@@ -13,6 +13,7 @@ import {
 } from '@/infra/db/runWebappSql';
 import type { ClinicDirectoryPort } from '@/modules/clinic-directory/ports';
 import {
+  beOrganizationMembers,
   beOrganizations,
   clinicPublicDirectoryEntries,
   organizationSlugClaims,
@@ -93,8 +94,26 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
           ),
         )
         .limit(1);
+      // Самостоятельные смены — те, чей актор является членом ЭТОЙ организации. Смена, сделанная
+      // админом платформы по обращению в поддержку, лимит не тратит: он клинике не член, и inner
+      // join её просто не находит. Счётчика-колонки намеренно нет — событийная таблица и есть
+      // источник истины, производное поле с ней разошлось бы (владелец 19.08, план §14).
+      const [selfRenames] = await db
+        .select({ used: count() })
+        .from(organizationSlugRenameEvents)
+        .innerJoin(
+          beOrganizationMembers,
+          and(
+            eq(beOrganizationMembers.platformUserId, organizationSlugRenameEvents.actorPlatformUserId),
+            eq(beOrganizationMembers.organizationId, organizationSlugRenameEvents.organizationId),
+          ),
+        )
+        .where(eq(organizationSlugRenameEvents.organizationId, organizationId));
+      const used = Number(selfRenames?.used ?? 0);
       return {
         currentSlug: current?.slug ?? null,
+        selfRenamesUsed: used,
+        selfRenameAllowed: used < 1,
       };
     },
 
