@@ -56,8 +56,8 @@
     "db:introspect": "drizzle-kit introspect && node scripts/fix-drizzle-introspect-defaults.mjs",
     "db:introspect:fix": "node scripts/fix-drizzle-introspect-defaults.mjs",
     "db:verify-public-table-count": "node scripts/verify-drizzle-public-table-count.mjs",
-    "db:migrate:drizzle": "drizzle-kit migrate",
-    "db:seed-drizzle-meta": "node scripts/seed-drizzle-migrations-meta.mjs"
+    "db:migrate:drizzle": "node scripts/refuse-retired-migration-shortcut.mjs db:migrate:drizzle",
+    "db:seed-drizzle-meta": "node scripts/refuse-retired-migration-shortcut.mjs db:seed-drizzle-meta"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1107.0",

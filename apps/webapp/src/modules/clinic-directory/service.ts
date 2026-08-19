@@ -91,6 +91,12 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       if (state.currentSlug && !input.irreversibleRenameConfirmed) {
         return { ok: false, code: 'rename_confirmation_required' };
       }
+      // Единственная пожизненная самостоятельная смена (владелец 19.08) ЗДЕСЬ НЕ ПРОВЕРЯЕТСЯ и не
+      // должна. Любая проверка на этом уровне читает состояние отдельным запросом, до чужого
+      // коммита, — две одновременные смены прошли бы обе. Решение принимает и записывает одна и та
+      // же транзакция внутри `renameSlug`; сюда её отказ приходит своим кодом
+      // `self_rename_allowance_spent` и уходит наверх нетронутым — «имя занято» здесь было бы
+      // ложью о чужом владении.
 
       const reserved = await port.reserveSlug({
         organizationId: input.organizationId,
@@ -102,6 +108,7 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
         ? port.renameSlug({
             organizationId: input.organizationId,
             reservedSlug: reserved.slug,
+            initiatedBy: input.initiatedBy,
           })
         : port.claimReservedSlug({
             organizationId: input.organizationId,

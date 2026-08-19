@@ -1,6 +1,9 @@
 -- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- Смысл миграции — снять jsonb-вариант и оставить text-вариант; проверка присутствия видит
+-- только имя функции и такую замену не различает.
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.enqueue_outbound_message(uuid,text,text,text,text,jsonb,integer)') IS NULL AND to_regprocedure('app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)') IS NOT NULL
 -- TEMPORARY LOCAL MIGRATION NUMBER 0036
 --
 -- Найдено 19.08 в соседней работе по напоминаниям: `app.enqueue_outbound_message(...)` (миграция

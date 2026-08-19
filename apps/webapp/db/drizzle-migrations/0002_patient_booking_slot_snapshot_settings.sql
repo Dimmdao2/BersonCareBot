@@ -1,6 +1,9 @@
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- Функцию позже переопределяла соседняя миграция, поэтому в общем списке объектов она числится
+-- за той, последней. Собственное доказательство этой миграции — что функция вообще есть.
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.read_current_patient_booking_slot_snapshot(uuid,uuid,text,text)') IS NOT NULL
 CREATE OR REPLACE FUNCTION app.read_current_patient_booking_slot_snapshot(
   p_branch_id uuid,
   p_service_id uuid,
