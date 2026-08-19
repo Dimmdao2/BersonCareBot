@@ -62,6 +62,33 @@ async function readAnalyticsTestAccountIdentifiers(deps: {
   return normalizeTestAccountIdentifiersValue(inner);
 }
 
+/**
+ * Идентификаторы тестовых/служебных учёток БЕЗ резолва их id. Резолв (`platform_users`,
+ * `user_channel_bindings`) доступен не каждому принципалу: платформенная аналитика ходит под
+ * ролью, у которой на эти таблицы прав нет, и отсекает учётки уже за дверью агрегата. Политика
+ * «кого считать тестовым» при этом остаётся здесь, одна на все поверхности.
+ */
+export async function loadAnalyticsTestAccountSpec(deps: {
+  systemSettings: SettingsReader;
+}): Promise<{
+  includeTestAccounts: boolean;
+  testPhones: string[];
+  testTelegramIds: string[];
+  testMaxIds: string[];
+}> {
+  const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
+  if (includeTestAccounts) {
+    return { includeTestAccounts: true, testPhones: [], testTelegramIds: [], testMaxIds: [] };
+  }
+  const spec = await readAnalyticsTestAccountIdentifiers(deps);
+  return {
+    includeTestAccounts: false,
+    testPhones: spec?.phones ?? [],
+    testTelegramIds: spec?.telegramIds ?? [],
+    testMaxIds: spec?.maxIds ?? [],
+  };
+}
+
 export async function loadAnalyticsAudienceContext(deps: {
   systemSettings: SettingsReader;
   loadExcludedUserIds: (input: {

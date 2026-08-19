@@ -1,11 +1,25 @@
 import type { PlatformAnalyticsDashboard } from '@/modules/platform-analytics/types';
 import type { VideoDurationBucket } from '@/modules/platform-analytics/durationBuckets';
 
+/**
+ * Тестовые/служебные учётки, которые не должны попадать в платформенные цифры. Приходят
+ * идентификаторами, а не готовым списком id: список id резолвится по `platform_users` и
+ * `user_channel_bindings`, а у платформенного принципала на них нет прав — резолв живёт за той же
+ * дверью, что и сами агрегаты.
+ */
+export type PlatformAnalyticsAudienceSpec = {
+  includeTestAccounts: boolean;
+  testPhones: string[];
+  testTelegramIds: string[];
+  testMaxIds: string[];
+};
+
 export type PlatformAnalyticsWindow = {
   iana: string;
   startUtcIso: string;
   endExclusiveUtcIso: string;
   dayKeys: string[];
+  audience: PlatformAnalyticsAudienceSpec;
 };
 
 export type NamedCountRaw = {
@@ -39,39 +53,38 @@ export type ProgramActivityRaw = {
   patientsWithProgram: number;
   visitDaysSum: number;
   markDaysSum: number;
-  patientsWithVisitDays: number;
+};
+
+export type VideoPlaybackRaw = {
+  viewsTotal: number;
+  viewsUnique: number;
+  hlsResolves: number;
+  mp4Resolves: number;
+  playbackErrors: number;
+  byDay: Map<string, number>;
+};
+
+/** Один снимок дашборда: все цифры сняты в один момент и не расходятся между собой. */
+export type PlatformAnalyticsSnapshot = {
+  clinics: NamedCountRaw;
+  specialists: NamedCountRaw;
+  patients: NamedCountRaw;
+  pageViews: PageViewRaw[];
+  bookings: { created: number; cancelled: number };
+  programsAssigned: number;
+  clinicalVisits: number;
+  cmsArticlesCreated: number;
+  exercises: ExerciseSplitRaw;
+  videoVolumeExercises: VideoVolumeRaw;
+  videoVolumeCms: VideoVolumeRaw;
+  completions: { completions: number; withRepsOrDifficulty: number };
+  homeWellbeingMarks: number;
+  programActivity: ProgramActivityRaw;
+  playback: VideoPlaybackRaw;
 };
 
 export type PlatformAnalyticsPort = {
-  countClinics(window: PlatformAnalyticsWindow): Promise<NamedCountRaw>;
-  countSpecialists(window: PlatformAnalyticsWindow): Promise<NamedCountRaw>;
-  countPatients(window: PlatformAnalyticsWindow): Promise<NamedCountRaw>;
-  listPageViews(window: PlatformAnalyticsWindow): Promise<PageViewRaw[]>;
-  countBookings(window: PlatformAnalyticsWindow): Promise<{ created: number; cancelled: number }>;
-  countProgramsAssigned(window: PlatformAnalyticsWindow): Promise<number>;
-  countClinicalVisits(window: PlatformAnalyticsWindow): Promise<number>;
-  countCmsArticles(window: PlatformAnalyticsWindow): Promise<number>;
-  countExercises(window: PlatformAnalyticsWindow): Promise<ExerciseSplitRaw>;
-  videoVolumeExercises(window: PlatformAnalyticsWindow): Promise<VideoVolumeRaw>;
-  videoVolumeCms(window: PlatformAnalyticsWindow): Promise<VideoVolumeRaw>;
-  countCompletions(window: PlatformAnalyticsWindow): Promise<{
-    completions: number;
-    withRepsOrDifficulty: number;
-  }>;
-  countHomeWellbeing(window: PlatformAnalyticsWindow): Promise<number>;
-  programActivity(window: PlatformAnalyticsWindow): Promise<ProgramActivityRaw>;
-  videoPlayback(window: PlatformAnalyticsWindow): Promise<{
-    viewsTotal: number;
-    viewsUnique: number;
-    hlsResolves: number;
-    mp4Resolves: number;
-    playbackErrors: number;
-  }>;
-};
-
-export type PlatformAnalyticsDashboardParams = PlatformAnalyticsWindow & {
-  fromDay: string;
-  toDay: string;
+  readSnapshot(window: PlatformAnalyticsWindow): Promise<PlatformAnalyticsSnapshot>;
 };
 
 export type { PlatformAnalyticsDashboard };

@@ -1,476 +1,189 @@
-import { and, count, countDistinct, eq, gte, inArray, isNull, lt, ne, or, sql, sum } from 'drizzle-orm';
-import { getDrizzle } from '@/app-layer/db/drizzle';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
-  beAppointments,
-  beOrganizations,
-  beSpecialists,
-} from '../../../db/schema/bookingEngine';
-import { clinicalVisit } from '../../../db/schema/patientClinical';
-import { programActionLog } from '../../../db/schema/programActionLog';
-import { productAnalyticsHourly, productAnalyticsUserHourly } from '../../../db/schema/productAnalytics';
-import { treatmentProgramInstances } from '../../../db/schema/treatmentProgramInstances';
-import {
-  contentPages,
-  contentSections,
-  lfkExerciseMedia,
-  lfkExercises,
-  mediaFiles,
-  mediaPlaybackClientEvents,
-  mediaPlaybackResolutionEvents,
-  mediaHlsProxyErrorEvents,
-  platformUsers,
-  symptomEntries,
-  symptomTrackings,
-} from '../../../db/schema/schema';
-import { PRODUCT_ANALYTICS_DIM_ALL } from '@/modules/product-analytics/types';
+  ALWAYS_EXCLUDED_ANALYTICS_PHONES,
+  STAFF_ANALYTICS_ROLES,
+} from '@/infra/repos/pgAnalyticsAudience';
 import {
   classifyMediaUrlKind,
   isHostingIframeKind,
 } from '@/modules/platform-analytics/hostingUrlKind';
 import {
   emptyDurationBucketCounts,
-  videoDurationBucket,
+  VIDEO_DURATION_BUCKETS,
   type VideoDurationBucket,
 } from '@/modules/platform-analytics/durationBuckets';
 import type {
   NamedCountRaw,
+  PageViewRaw,
+  PlatformAnalyticsAudienceSpec,
   PlatformAnalyticsPort,
-  PlatformAnalyticsWindow,
+  PlatformAnalyticsSnapshot,
   VideoVolumeRaw,
 } from '@/modules/platform-analytics/ports';
-import { GENERAL_WELLBEING_SYMPTOM_KEY } from '@/modules/patient-mood/wellbeingConstants';
-
-const CANCELLED_STATUSES = [
-  'cancelled_by_patient',
-  'cancelled_by_specialist',
-  'late_cancellation',
-] as const;
 
 function asCount(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'bigint') return Number(value);
-  if (typeof value === 'string') return Number.parseInt(value, 10) || 0;
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
   return 0;
 }
 
-function inWindow(col: Parameters<typeof gte>[0], window: PlatformAnalyticsWindow) {
-  return and(gte(col, window.startUtcIso), lt(col, window.endExclusiveUtcIso));
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
-function localDaySql(iana: string, col: unknown) {
-  return sql<string>`(timezone(${iana}::text, ${col}))::date::text`;
-}
-
-async function countNowAndByDay(args: {
-  now: Promise<{ c: unknown }[]>;
-  period: Promise<{ c: unknown }[]>;
-  days: Promise<{ d: string | null; c: unknown }[]>;
-}): Promise<NamedCountRaw> {
-  const [nowRows, periodRows, dayRows] = await Promise.all([args.now, args.period, args.days]);
+function namedCount(value: unknown): NamedCountRaw {
+  const node = asRecord(value);
   const byDay = new Map<string, number>();
-  for (const row of dayRows) {
-    if (row.d) byDay.set(row.d, asCount(row.c));
+  for (const [day, count] of Object.entries(asRecord(node.byDay))) {
+    byDay.set(day, asCount(count));
+  }
+  return { now: asCount(node.now), inPeriod: asCount(node.inPeriod), byDay };
+}
+
+function dayMap(value: unknown): Map<string, number> {
+  const byDay = new Map<string, number>();
+  for (const [day, count] of Object.entries(asRecord(value))) byDay.set(day, asCount(count));
+  return byDay;
+}
+
+function pageViews(value: unknown): PageViewRaw[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((row) => {
+    const node = asRecord(row);
+    return {
+      pageKey: typeof node.pageKey === 'string' ? node.pageKey : '',
+      entryChannel: typeof node.entryChannel === 'string' ? node.entryChannel : '',
+      views: asCount(node.views),
+    };
+  });
+}
+
+function videoVolume(value: unknown): VideoVolumeRaw {
+  const node = asRecord(value);
+  const rawBuckets = asRecord(node.durationBuckets);
+  const durationBuckets = emptyDurationBucketCounts();
+  for (const bucket of VIDEO_DURATION_BUCKETS satisfies readonly VideoDurationBucket[]) {
+    durationBuckets[bucket] = asCount(rawBuckets[bucket]);
   }
   return {
-    now: asCount(nowRows[0]?.c),
-    inPeriod: asCount(periodRows[0]?.c),
-    byDay,
+    originalsBytes: asCount(node.originalsBytes),
+    videoCount: asCount(node.videoCount),
+    durationBuckets,
   };
 }
 
-function accumulateDuration(
-  buckets: Record<VideoDurationBucket, number>,
-  seconds: number | null,
-  n = 1,
-) {
-  buckets[videoDurationBucket(seconds)] += n;
+/**
+ * Файл vs iframe хостинга классифицируется ОДНИМ классификатором (`hostingUrlKind.ts`) — тем же,
+ * которым пользуется остальной код. Дверь отдаёт пары «адрес → сколько», а не готовый счёт, чтобы
+ * второй копии правила в SQL не появилось.
+ */
+function exerciseVideoSplit(value: unknown): { videoFiles: number; videoIframe: number } {
+  let videoFiles = 0;
+  let videoIframe = 0;
+  if (Array.isArray(value)) {
+    for (const row of value) {
+      const node = asRecord(row);
+      if (typeof node.url !== 'string') continue;
+      const count = asCount(node.count);
+      const kind = classifyMediaUrlKind(node.url);
+      if (isHostingIframeKind(kind)) videoIframe += count;
+      else if (kind === 'file') videoFiles += count;
+    }
+  }
+  return { videoFiles, videoIframe };
+}
+
+function audienceJson(audience: PlatformAnalyticsAudienceSpec): string {
+  return JSON.stringify({
+    excludeStaffRoles: true,
+    staffRoles: [...STAFF_ANALYTICS_ROLES],
+    excludedPhones: [...ALWAYS_EXCLUDED_ANALYTICS_PHONES, ...audience.testPhones],
+    telegramIds: audience.testTelegramIds,
+    maxIds: audience.testMaxIds,
+  });
 }
 
 export function createPgPlatformAnalyticsPort(): PlatformAnalyticsPort {
   return {
-    async countClinics(window) {
-      const db = getDrizzle();
-      const day = localDaySql(window.iana, beOrganizations.createdAt);
-      return countNowAndByDay({
-        now: db
-          .select({ c: count() })
-          .from(beOrganizations)
-          .where(eq(beOrganizations.isActive, true)),
-        period: db
-          .select({ c: count() })
-          .from(beOrganizations)
-          .where(inWindow(beOrganizations.createdAt, window)),
-        days: db
-          .select({ d: day, c: count() })
-          .from(beOrganizations)
-          .where(inWindow(beOrganizations.createdAt, window))
-          .groupBy(day),
-      });
-    },
-
-    async countSpecialists(window) {
-      const db = getDrizzle();
-      const day = localDaySql(window.iana, beSpecialists.createdAt);
-      return countNowAndByDay({
-        now: db
-          .select({ c: count() })
-          .from(beSpecialists)
-          .where(eq(beSpecialists.isActive, true)),
-        period: db
-          .select({ c: count() })
-          .from(beSpecialists)
-          .where(inWindow(beSpecialists.createdAt, window)),
-        days: db
-          .select({ d: day, c: count() })
-          .from(beSpecialists)
-          .where(inWindow(beSpecialists.createdAt, window))
-          .groupBy(day),
-      });
-    },
-
-    async countPatients(window) {
-      const db = getDrizzle();
-      const patientNow = and(
-        eq(platformUsers.role, 'client'),
-        isNull(platformUsers.mergedIntoId),
-        eq(platformUsers.isArchived, false),
+    async readSnapshot(window): Promise<PlatformAnalyticsSnapshot> {
+      // Идентичность корня пишется ЛИТЕРАЛОМ в самом вызове: каталог call-site читает её из AST,
+      // и вынесенная в константу строка для него — «dynamic named-root identity», то есть дверь
+      // перестаёт быть проверяемой. Один объявленный корень на весь дашборд: платформенная роль
+      // не имеет привилегий на семнадцать из девятнадцати читаемых таблиц (замер 19.08,
+      // миграция 0043) и по решению владельца D1 получить их не должна — дверь отдаёт СЧЁТ, а не
+      // строки, поэтому цифры появляются, а медицинские данные роли по-прежнему не видны.
+      const args = [
+        window.startUtcIso,
+        window.endExclusiveUtcIso,
+        window.iana,
+        audienceJson(window.audience),
+      ] as const;
+      const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+        getWebappSqlDb(),
+        'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)',
+        args,
+        sql`SELECT app.read_platform_analytics_dashboard(
+          ${sql.param(args[0])}::timestamptz,
+          ${sql.param(args[1])}::timestamptz,
+          ${sql.param(args[2])}::text,
+          ${sql.param(args[3])}::text
+        ) AS snapshot`,
       );
-      const day = localDaySql(window.iana, platformUsers.createdAt);
-      return countNowAndByDay({
-        now: db.select({ c: count() }).from(platformUsers).where(patientNow),
-        period: db
-          .select({ c: count() })
-          .from(platformUsers)
-          .where(
-            and(
-              eq(platformUsers.role, 'client'),
-              isNull(platformUsers.mergedIntoId),
-              inWindow(platformUsers.createdAt, window),
-            ),
-          ),
-        days: db
-          .select({ d: day, c: count() })
-          .from(platformUsers)
-          .where(
-            and(
-              eq(platformUsers.role, 'client'),
-              isNull(platformUsers.mergedIntoId),
-              inWindow(platformUsers.createdAt, window),
-            ),
-          )
-          .groupBy(day),
-      });
-    },
 
-    async listPageViews(window) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({
-          pageKey: productAnalyticsHourly.pageKey,
-          entryChannel: productAnalyticsHourly.entryChannel,
-          views: sum(productAnalyticsHourly.eventCount),
-        })
-        .from(productAnalyticsHourly)
-        .where(
-          and(
-            eq(productAnalyticsHourly.eventType, 'page_view'),
-            ne(productAnalyticsHourly.pageKey, PRODUCT_ANALYTICS_DIM_ALL),
-            gte(productAnalyticsHourly.bucketHour, window.startUtcIso),
-            lt(productAnalyticsHourly.bucketHour, window.endExclusiveUtcIso),
-          ),
-        )
-        .groupBy(productAnalyticsHourly.pageKey, productAnalyticsHourly.entryChannel);
-      return rows.map((row) => ({
-        pageKey: row.pageKey,
-        entryChannel: row.entryChannel,
-        views: asCount(row.views),
-      }));
-    },
+      const raw = asRecord(result.rows[0]?.snapshot);
+      const exercises = asRecord(raw.exercises);
+      const split = exerciseVideoSplit(exercises.mediaUrls);
+      const playback = asRecord(raw.playback);
+      const programActivity = asRecord(raw.programActivity);
+      const completions = asRecord(raw.completions);
+      const bookings = asRecord(raw.bookings);
 
-    async countBookings(window) {
-      const db = getDrizzle();
-      const [createdRows, cancelledRows] = await Promise.all([
-        db
-          .select({ c: count() })
-          .from(beAppointments)
-          .where(and(isNull(beAppointments.deletedAt), inWindow(beAppointments.createdAt, window))),
-        db
-          .select({ c: count() })
-          .from(beAppointments)
-          .where(
-            and(
-              isNull(beAppointments.deletedAt),
-              inArray(beAppointments.status, [...CANCELLED_STATUSES]),
-              inWindow(beAppointments.updatedAt, window),
-            ),
-          ),
-      ]);
-      return { created: asCount(createdRows[0]?.c), cancelled: asCount(cancelledRows[0]?.c) };
-    },
-
-    async countProgramsAssigned(window) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ c: count() })
-        .from(treatmentProgramInstances)
-        .where(inWindow(treatmentProgramInstances.createdAt, window));
-      return asCount(rows[0]?.c);
-    },
-
-    async countClinicalVisits(window) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ c: count() })
-        .from(clinicalVisit)
-        .where(inWindow(clinicalVisit.createdAt, window));
-      return asCount(rows[0]?.c);
-    },
-
-    async countCmsArticles(window) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ c: count() })
-        .from(contentPages)
-        .innerJoin(contentSections, eq(contentPages.section, contentSections.slug))
-        .where(
-          and(
-            isNull(contentPages.deletedAt),
-            or(isNull(contentSections.systemParentCode), ne(contentSections.systemParentCode, 'warmups')),
-            inWindow(contentPages.createdAt, window),
-          ),
-        );
-      return asCount(rows[0]?.c);
-    },
-
-    async countExercises(window) {
-      const db = getDrizzle();
-      const exerciseWhere = and(
-        eq(lfkExercises.ownerKind, 'organization'),
-        inWindow(lfkExercises.createdAt, window),
-      );
-      const [totals, media] = await Promise.all([
-        db
-          .select({
-            created: count(),
-            creators: countDistinct(lfkExercises.createdBy),
-            personal: sql<number>`cast(count(*) filter (where ${lfkExercises.catalogScope} = 'personal') as int)`,
-            catalog: sql<number>`cast(count(*) filter (where ${lfkExercises.catalogScope} = 'catalog') as int)`,
-          })
-          .from(lfkExercises)
-          .where(exerciseWhere),
-        db
-          .select({ url: lfkExerciseMedia.mediaUrl })
-          .from(lfkExerciseMedia)
-          .innerJoin(lfkExercises, eq(lfkExerciseMedia.exerciseId, lfkExercises.id))
-          .where(and(exerciseWhere, eq(lfkExerciseMedia.mediaType, 'video'))),
-      ]);
-      let videoFiles = 0;
-      let videoIframe = 0;
-      for (const row of media) {
-        const kind = classifyMediaUrlKind(row.url);
-        if (isHostingIframeKind(kind)) videoIframe += 1;
-        else if (kind === 'file') videoFiles += 1;
-      }
-      const t = totals[0];
       return {
-        created: asCount(t?.created),
-        creators: asCount(t?.creators),
-        personal: asCount(t?.personal),
-        catalog: asCount(t?.catalog),
-        videoFiles,
-        videoIframe,
-      };
-    },
-
-    async videoVolumeExercises(window) {
-      const db = getDrizzle();
-      const mediaIdSql = sql<string>`substring(${lfkExerciseMedia.mediaUrl} from '/api/media/([0-9a-fA-F-]{36})')`;
-      const rows = await db
-        .select({
-          sizeBytes: mediaFiles.sizeBytes,
-          duration: mediaFiles.videoDurationSeconds,
-        })
-        .from(lfkExerciseMedia)
-        .innerJoin(lfkExercises, eq(lfkExerciseMedia.exerciseId, lfkExercises.id))
-        .innerJoin(mediaFiles, sql`${mediaFiles.id}::text = ${mediaIdSql}`)
-        .where(
-          and(
-            eq(lfkExercises.ownerKind, 'organization'),
-            eq(lfkExerciseMedia.mediaType, 'video'),
-            inWindow(lfkExercises.createdAt, window),
-          ),
-        );
-      return volumeFromRows(rows);
-    },
-
-    async videoVolumeCms(window) {
-      const db = getDrizzle();
-      const mediaIdSql = sql<string>`substring(${contentPages.videoUrl} from '/api/media/([0-9a-fA-F-]{36})')`;
-      const rows = await db
-        .select({
-          sizeBytes: mediaFiles.sizeBytes,
-          duration: mediaFiles.videoDurationSeconds,
-        })
-        .from(contentPages)
-        .innerJoin(contentSections, eq(contentPages.section, contentSections.slug))
-        .innerJoin(mediaFiles, sql`${mediaFiles.id}::text = ${mediaIdSql}`)
-        .where(
-          and(
-            isNull(contentPages.deletedAt),
-            or(isNull(contentSections.systemParentCode), ne(contentSections.systemParentCode, 'warmups')),
-            inWindow(contentPages.createdAt, window),
-          ),
-        );
-      return volumeFromRows(rows);
-    },
-
-    async countCompletions(window) {
-      const db = getDrizzle();
-      const [allRows, metricRows] = await Promise.all([
-        db
-          .select({ c: count() })
-          .from(programActionLog)
-          .where(and(eq(programActionLog.actionType, 'done'), inWindow(programActionLog.createdAt, window))),
-        db
-          .select({ c: count() })
-          .from(programActionLog)
-          .where(
-            and(
-              eq(programActionLog.actionType, 'done'),
-              inWindow(programActionLog.createdAt, window),
-              sql`(
-                (${programActionLog.payload} ->> 'reps') is not null
-                or (${programActionLog.payload} ->> 'perceivedDifficulty') is not null
-                or (${programActionLog.payload} ->> 'difficulty') is not null
-              )`,
-            ),
-          ),
-      ]);
-      return {
-        completions: asCount(allRows[0]?.c),
-        withRepsOrDifficulty: asCount(metricRows[0]?.c),
-      };
-    },
-
-    async countHomeWellbeing(window) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ c: count() })
-        .from(symptomEntries)
-        .innerJoin(symptomTrackings, eq(symptomEntries.trackingId, symptomTrackings.id))
-        .where(
-          and(
-            eq(symptomTrackings.symptomKey, GENERAL_WELLBEING_SYMPTOM_KEY),
-            inWindow(symptomEntries.recordedAt, window),
-          ),
-        );
-      return asCount(rows[0]?.c);
-    },
-
-    async programActivity(window) {
-      const db = getDrizzle();
-      const visitDay = localDaySql(window.iana, productAnalyticsUserHourly.bucketHour);
-      const markDay = localDaySql(window.iana, programActionLog.createdAt);
-      const [patientRows, visitRows, markRows] = await Promise.all([
-        db
-          .select({ c: countDistinct(treatmentProgramInstances.patientUserId) })
-          .from(treatmentProgramInstances)
-          .where(eq(treatmentProgramInstances.status, 'active')),
-        db
-          .select({ c: sql<number>`count(distinct (${productAnalyticsUserHourly.userId}::text || ':' || ${visitDay}))` })
-          .from(productAnalyticsUserHourly)
-          .innerJoin(
-            treatmentProgramInstances,
-            and(
-              eq(treatmentProgramInstances.patientUserId, productAnalyticsUserHourly.userId),
-              eq(treatmentProgramInstances.status, 'active'),
-            ),
-          )
-          .where(
-            and(
-              gte(productAnalyticsUserHourly.bucketHour, window.startUtcIso),
-              lt(productAnalyticsUserHourly.bucketHour, window.endExclusiveUtcIso),
-              sql`${productAnalyticsUserHourly.pageViews} > 0`,
-              sql`${productAnalyticsUserHourly.pageKey} like '/app/patient/treatment%'`,
-            ),
-          ),
-        db
-          .select({ c: sql<number>`count(distinct (${programActionLog.patientUserId}::text || ':' || ${markDay}))` })
-          .from(programActionLog)
-          .innerJoin(
-            treatmentProgramInstances,
-            and(
-              eq(treatmentProgramInstances.id, programActionLog.instanceId),
-              eq(treatmentProgramInstances.status, 'active'),
-            ),
-          )
-          .where(
-            and(eq(programActionLog.actionType, 'done'), inWindow(programActionLog.createdAt, window)),
-          ),
-      ]);
-      return {
-        patientsWithProgram: asCount(patientRows[0]?.c),
-        visitDaysSum: asCount(visitRows[0]?.c),
-        markDaysSum: asCount(markRows[0]?.c),
-        patientsWithVisitDays: 0,
-      };
-    },
-
-    async videoPlayback(window) {
-      const db = getDrizzle();
-      const [totalRows, uniqueRows, deliveryRows, clientErr, proxyErr] = await Promise.all([
-        db
-          .select({ c: count() })
-          .from(mediaPlaybackResolutionEvents)
-          .where(inWindow(mediaPlaybackResolutionEvents.resolvedAt, window)),
-        db
-          .select({
-            c: sql<number>`count(distinct (${mediaPlaybackResolutionEvents.userId}::text || ':' || ${mediaPlaybackResolutionEvents.mediaId}::text))`,
-          })
-          .from(mediaPlaybackResolutionEvents)
-          .where(inWindow(mediaPlaybackResolutionEvents.resolvedAt, window)),
-        db
-          .select({
-            delivery: mediaPlaybackResolutionEvents.delivery,
-            c: count(),
-          })
-          .from(mediaPlaybackResolutionEvents)
-          .where(inWindow(mediaPlaybackResolutionEvents.resolvedAt, window))
-          .groupBy(mediaPlaybackResolutionEvents.delivery),
-        db
-          .select({ c: count() })
-          .from(mediaPlaybackClientEvents)
-          .where(inWindow(mediaPlaybackClientEvents.createdAt, window)),
-        db
-          .select({ c: count() })
-          .from(mediaHlsProxyErrorEvents)
-          .where(inWindow(mediaHlsProxyErrorEvents.createdAt, window)),
-      ]);
-      let hlsResolves = 0;
-      let mp4Resolves = 0;
-      for (const row of deliveryRows) {
-        if (row.delivery === 'hls') hlsResolves = asCount(row.c);
-        if (row.delivery === 'mp4') mp4Resolves = asCount(row.c);
-      }
-      return {
-        viewsTotal: asCount(totalRows[0]?.c),
-        viewsUnique: asCount(uniqueRows[0]?.c),
-        hlsResolves,
-        mp4Resolves,
-        playbackErrors: asCount(clientErr[0]?.c) + asCount(proxyErr[0]?.c),
+        clinics: namedCount(raw.clinics),
+        specialists: namedCount(raw.specialists),
+        patients: namedCount(raw.patients),
+        pageViews: pageViews(raw.pageViews),
+        bookings: {
+          created: asCount(bookings.created),
+          cancelled: asCount(bookings.cancelled),
+        },
+        programsAssigned: asCount(raw.programsAssigned),
+        clinicalVisits: asCount(raw.clinicalVisits),
+        cmsArticlesCreated: asCount(raw.cmsArticlesCreated),
+        exercises: {
+          created: asCount(exercises.created),
+          creators: asCount(exercises.creators),
+          personal: asCount(exercises.personal),
+          catalog: asCount(exercises.catalog),
+          videoFiles: split.videoFiles,
+          videoIframe: split.videoIframe,
+        },
+        videoVolumeExercises: videoVolume(raw.videoVolumeExercises),
+        videoVolumeCms: videoVolume(raw.videoVolumeCms),
+        completions: {
+          completions: asCount(completions.completions),
+          withRepsOrDifficulty: asCount(completions.withRepsOrDifficulty),
+        },
+        homeWellbeingMarks: asCount(raw.homeWellbeingMarks),
+        programActivity: {
+          patientsWithProgram: asCount(programActivity.patientsWithProgram),
+          visitDaysSum: asCount(programActivity.visitDaysSum),
+          markDaysSum: asCount(programActivity.markDaysSum),
+        },
+        playback: {
+          viewsTotal: asCount(playback.viewsTotal),
+          viewsUnique: asCount(playback.viewsUnique),
+          hlsResolves: asCount(playback.hlsResolves),
+          mp4Resolves: asCount(playback.mp4Resolves),
+          playbackErrors: asCount(playback.playbackErrors),
+          byDay: dayMap(playback.byDay),
+        },
       };
     },
   };
-}
-
-function volumeFromRows(
-  rows: { sizeBytes: number | null; duration: number | null }[],
-): VideoVolumeRaw {
-  const durationBuckets = emptyDurationBucketCounts();
-  let originalsBytes = 0;
-  for (const row of rows) {
-    originalsBytes += row.sizeBytes ?? 0;
-    accumulateDuration(durationBuckets, row.duration);
-  }
-  return { originalsBytes, videoCount: rows.length, durationBuckets };
 }
