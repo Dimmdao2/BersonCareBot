@@ -310,10 +310,23 @@ VK Video и Vimeo нет и там.
 Файл упражнения длиннее **10 минут** не принимается — лимит в
 [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) п. 25; иначе только хостинг.
 
-- [ ] **UI-EX-HOST-01** Форма упражнения: поле ссылки YouTube / RuTube / VK Video / Vimeo; сохранение
+Разбор устройства, приватность каждого хоста и открытый вопрос владельцу —
+[`EXTERNAL_VIDEO_LINK_2026-08-19.md`](../EXTERNAL_VIDEO_LINK_2026-08-19.md).
+
+- [x] **UI-EX-HOST-01** Форма упражнения: поле ссылки YouTube / RuTube / VK Video / Vimeo; сохранение
       отдельным видом медиа, файлы `image|video|gif` не ломать.
-- [ ] **UI-EX-HOST-02** Пациентский показ и предпросмотр врача — iframe, тот же allowlist доменов.
-- [ ] **UI-EX-HOST-03** VK Video и Vimeo в `hostingEmbedUrls` + iframe CMS/markdown (сейчас только YouTube и RuTube).
+      (✓ миграция `0043_a_link_to_a_video_host_is_a_kind_of_media.sql` — `media_type = 'hosted_video'`;
+      `ExerciseForm.tsx` поле ссылки; `actionsShared.ts` канонизация и отказ;
+      `hostedVideoExerciseSave.unit.test.ts`)
+- [x] **UI-EX-HOST-02** Пациентский показ и предпросмотр врача — iframe, тот же allowlist доменов.
+      (✓ `shared/ui/{patient,doctor}/media/HostedVideoEmbed.tsx`; пациентский слот —
+      `PatientProgramStageItemPageClient.tsx`; `hostedVideoSlot.ui.test.tsx`)
+- [x] **UI-EX-HOST-03** VK Video и Vimeo в `hostingEmbedUrls` + iframe CMS/markdown (сейчас только YouTube и RuTube).
+      (✓ `hostingEmbedUrls.ts` — четыре хоста, одна дверь `toHostedVideoEmbedSrc`; поле ссылки в
+      `ContentForm.tsx`, allowlist на записи в `content/actions.ts`; `hostedVideoLink.unit.test.ts`)
+
+**Живой приёмки владельцем ещё не было**, и открыт вопрос «грузить чужой плеер сразу или по клику» —
+см. план-файл выше. Гейт длительности файла (10/20 минут) — не здесь, это GA-L в STAGE_01.
 
 ### Client UI residual
 

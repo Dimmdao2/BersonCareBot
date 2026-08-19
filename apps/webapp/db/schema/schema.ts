@@ -1842,7 +1842,7 @@ export const lfkExerciseMedia = pgTable(
     }).onDelete('cascade'),
     check(
       'lfk_exercise_media_media_type_check',
-      sql`media_type = ANY (ARRAY['image'::text, 'video'::text, 'gif'::text])`,
+      sql`media_type = ANY (ARRAY['image'::text, 'video'::text, 'gif'::text, 'hosted_video'::text])`,
     ),
     check(
       'lfk_exercise_media_owner_check',

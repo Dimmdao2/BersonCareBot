@@ -13,6 +13,10 @@ import {
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import {
+  HOSTED_VIDEO_ALLOWED_HOSTS_RU,
+  parseHostedVideoLink,
+} from '@/shared/lib/hostingEmbedUrls';
 
 export type SaveContentPageState = { ok: boolean; error?: string };
 
@@ -92,16 +96,30 @@ export async function saveContentPage(
   if (imageUrl && !(API_MEDIA_URL_RE.test(imageUrl) || isLegacyAbsoluteUrl(imageUrl))) {
     return { ok: false, error: 'Картинка должна быть выбрана из библиотеки файлов' };
   }
-  if (videoUrl && !(API_MEDIA_URL_RE.test(videoUrl) || isLegacyAbsoluteUrl(videoUrl))) {
-    return { ok: false, error: 'Видео должно быть выбрано из библиотеки файлов' };
-  }
-
+  /*
+   * Два допустимых вида видео и ничего третьего: файл медиатеки либо ссылка на один из четырёх
+   * разрешённых хостингов (решение владельца 19.08). Прежняя ветка `videoType = 'url'` принимала
+   * ЛЮБОЙ абсолютный URL и отдавала его дальше как «встраиваемое видео» — то есть allowlist
+   * хостов существовал только на рендере, а в базу могло лечь что угодно.
+   *
+   * `videoType` теперь называет сам хост (`youtube` | `rutube` | `vk` | `vimeo`), а не «url»:
+   * платформенная аналитика считает срез именно по хосту.
+   */
   let videoType: string | null = null;
+  let videoUrlToStore = videoUrl;
   if (videoUrl) {
     if (API_MEDIA_URL_RE.test(videoUrl)) {
       videoType = 'api';
     } else {
-      videoType = videoUrl.includes('youtube') || videoUrl.includes('youtu.be') ? 'youtube' : 'url';
+      const hosted = parseHostedVideoLink(videoUrl);
+      if (!hosted) {
+        return {
+          ok: false,
+          error: `Видео: выберите файл из библиотеки или вставьте ссылку на ${HOSTED_VIDEO_ALLOWED_HOSTS_RU}.`,
+        };
+      }
+      videoType = hosted.provider;
+      videoUrlToStore = hosted.canonicalUrl;
     }
   }
 
@@ -179,7 +197,7 @@ export async function saveContentPage(
           sortOrder,
           isPublished,
           requiresAuth,
-          videoUrl,
+          videoUrl: videoUrlToStore,
           videoType,
           imageUrl,
           linkedCourseId,
@@ -244,7 +262,7 @@ export async function saveContentPage(
         sortOrder,
         isPublished,
         requiresAuth,
-        videoUrl,
+        videoUrl: videoUrlToStore,
         videoType,
         imageUrl,
         linkedCourseId,

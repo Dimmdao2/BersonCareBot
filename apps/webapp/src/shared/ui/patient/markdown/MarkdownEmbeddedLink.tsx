@@ -2,23 +2,11 @@
 
 import { cn } from '@/lib/utils';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
-import { toRutubeEmbedSrc, toYoutubeEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { isHostedVideoEmbedSrc, toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
 import { parseApiMediaIdFromMarkdownHref } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
 import { type AnchorHTMLAttributes, type ReactNode, useEffect, useState } from 'react';
 import type { Components } from 'react-markdown';
-
-function hostedIframeOriginAllowed(embedSrc: string): boolean {
-  try {
-    const u = new URL(embedSrc);
-    const host = u.hostname.replace(/^www\./, '');
-    if (host === 'youtube.com' && u.pathname.startsWith('/embed')) return true;
-    if (host === 'rutube.ru' && u.pathname.startsWith('/play/embed')) return true;
-    return false;
-  } catch {
-    return false;
-  }
-}
 
 function anchorTitle(children: ReactNode): string {
   if (typeof children === 'string' && children.trim()) return children.trim();
@@ -165,8 +153,8 @@ export const MarkdownEmbeddedLink: Components['a'] = ({
     );
   }
 
-  const hostedEmbedSrc = toYoutubeEmbedSrc(href) ?? toRutubeEmbedSrc(href);
-  if (hostedEmbedSrc && hostedIframeOriginAllowed(hostedEmbedSrc)) {
+  const hostedEmbedSrc = toHostedVideoEmbedSrc(href);
+  if (hostedEmbedSrc && isHostedVideoEmbedSrc(hostedEmbedSrc)) {
     return (
       <span className={cn('markdown-host-embed my-3 block w-full max-w-full', className)}>
         <div className="relative aspect-video w-full overflow-hidden rounded-lg">

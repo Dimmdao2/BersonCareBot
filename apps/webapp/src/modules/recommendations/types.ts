@@ -3,7 +3,8 @@ import type { RecommendationDomain } from './recommendationDomain';
 
 export type RecommendationMediaItem = {
   mediaUrl: string;
-  mediaType: 'image' | 'video' | 'gif';
+  /** `hosted_video` — ссылка на внешний хостинг вместо файла медиатеки (см. `ExerciseMediaType`). */
+  mediaType: 'image' | 'video' | 'gif' | 'hosted_video';
   sortOrder: number;
   /** Превью воркера для малого размера; в JSON рекомендации в БД может отсутствовать — подставляется при `buildSnapshot`. */
   previewSmUrl?: string | null;

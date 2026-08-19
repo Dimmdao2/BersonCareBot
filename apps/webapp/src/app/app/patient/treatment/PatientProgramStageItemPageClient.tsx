@@ -21,6 +21,7 @@ import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab'
 import { resolvePatientProgramItemPage } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
 import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
 import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
+import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
 import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
 import { recommendationMediaItemToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
 import { parseApiMediaIdFromPlayableUrl } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
@@ -173,6 +174,22 @@ const ITEM_MAX_TODAY_DOTS = 24;
 function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: string }) {
   const { media, title } = props;
   if (!media) return null;
+
+  /*
+   * Внешнее видео занимает тот же слот, что и файловый плеер: у нас нет ни файла, ни HLS —
+   * ролик показывает сам хост в `<iframe>` (решение владельца 19.08). Проверка стоит до
+   * файловой ветки: та ищет id медиатеки в URL и на ссылку хостинга ответила бы отказом
+   * «видео без привязки к медиатеке».
+   */
+  if (media.mediaType === 'hosted_video') {
+    return (
+      <HostedVideoEmbed
+        url={media.mediaUrl}
+        title={title}
+        className="shrink-0 rounded-none"
+      />
+    );
+  }
 
   if (media.mediaType === 'video') {
     const mediaId = parseApiMediaIdFromPlayableUrl(media.mediaUrl);

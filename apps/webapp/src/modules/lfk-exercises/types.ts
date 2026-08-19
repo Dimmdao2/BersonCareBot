@@ -6,7 +6,12 @@ import { mergeCatalogBodyRegionIds } from '@/shared/lib/mergeCatalogBodyRegionId
 /** Код из справочника `load_type` (`reference_items`); не ограничивать union — админка добавляет значения. */
 export type ExerciseLoadType = string;
 
-export type ExerciseMediaType = 'image' | 'video' | 'gif';
+/**
+ * `hosted_video` — ссылка на внешний хостинг (YouTube/RuTube/VK Видео/Vimeo), а не файл медиатеки:
+ * строки `media_files` за ней нет, конвертации и своей миниатюры не будет, показ — через iframe
+ * (`shared/lib/hostingEmbedUrls.ts`). Остальные три всегда означают `/api/media/{uuid}`.
+ */
+export type ExerciseMediaType = 'image' | 'video' | 'gif' | 'hosted_video';
 export type ExerciseOwnerKind = 'organization' | 'platform';
 export type ExerciseCatalogScope = 'catalog' | 'personal';
 
