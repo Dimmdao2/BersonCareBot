@@ -11,7 +11,7 @@ const fakes = vi.hoisted(() => ({
   isVerifiedEmailGlobalAdminAsync: vi.fn(),
   enterStaffSecuritySelfPrincipal: vi.fn(),
   findByUserId: vi.fn(),
-  trySetInitialIfEmpty: vi.fn(),
+  syncFromDevice: vi.fn(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
@@ -56,7 +56,7 @@ beforeEach(() => {
   fakes.buildAppDeps.mockReturnValue({
     emailOtpPublicDb: {},
     userByPhone: { findByUserId: fakes.findByUserId },
-    patientCalendarTimezone: { trySetInitialIfEmpty: fakes.trySetInitialIfEmpty },
+    patientCalendarTimezone: { syncFromDevice: fakes.syncFromDevice },
   });
   fakes.findByUserId.mockResolvedValue(user);
   fakes.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
