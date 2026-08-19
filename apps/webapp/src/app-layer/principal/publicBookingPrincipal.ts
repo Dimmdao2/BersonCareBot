@@ -19,6 +19,7 @@ export const PUBLIC_BOOKING_PRINCIPAL_SOURCES = [
   'app/book/[slug]:load-cities',
   'app/book/[slug]:load-services',
   'app/book:load-direct-slot-context',
+  'app/[clinicSlug]/booking:entry',
   'api/booking/public/slots:GET',
   'api/booking/public/form-fields:GET',
   'api/booking/public/create:POST',

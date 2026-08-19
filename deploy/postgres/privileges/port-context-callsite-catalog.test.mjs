@@ -400,6 +400,18 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'config.preauth-provider.read', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
   },
+  // Публичная визитка клиники `/{clinic}` (владелец 19.08): чтение под bootstrap-ролью, запись
+  // владельцем клиники. Миграция 0049.
+  'app.read_public_clinic_card(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'clinic.public-card.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgClinicPublicCard.ts',
+  },
+  'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': {
+    port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
+    purpose: 'clinic.public-card.save', argCount: 8,
+    source: 'apps/webapp/src/infra/repos/pgClinicPublicCard.ts',
+  },
   'app.resolve_public_organization_by_slug(text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'booking.public-organization.resolve', argCount: 1,
