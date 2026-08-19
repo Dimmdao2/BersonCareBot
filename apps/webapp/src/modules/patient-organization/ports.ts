@@ -39,7 +39,6 @@ export type CreateManualOrganizationClientResult =
         | 'identity_conflict'
         | 'inactive_enrollment'
         | 'idempotency_conflict'
-        | 'patient_count_limit_reached'
         | 'create_failed';
     };
 

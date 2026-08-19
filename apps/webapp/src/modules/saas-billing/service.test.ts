@@ -312,7 +312,7 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
 
   it('refuses a blocked downgrade before any provider call', async () => {
     const { service, setManualSaasBillingSubscription, createIntent } = scheduledService([
-      { mechanic: 'patient_count', reason: 'quota_exceeded' },
+      { mechanic: 'branches', reason: 'quota_exceeded' },
     ]);
 
     await expect(service.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-small', actorId: 'actor' }))
@@ -379,7 +379,7 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({ createIntent }) as never,
-      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks: [{ mechanic: 'patient_count', reason: 'quota_exceeded' }], appliesNextPeriod: true }),
+      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks: [{ mechanic: 'branches', reason: 'quota_exceeded' }], appliesNextPeriod: true }),
     });
 
     await expect(service.createOwnTariffRenewalInvoice('org')).rejects.toThrow('saas_billing_tariff_downgrade_blocked');
@@ -1107,7 +1107,7 @@ describe('К5: повторный тик по тому же периоду не 
       currentTariffId: 'tariff-current',
       targetTariffId: 'tariff-small',
       appliesNextPeriod: true,
-      blocks: [{ mechanic: 'patient_count' as const, reason: 'quota_exceeded' as const }],
+      blocks: [{ mechanic: 'branches' as const, reason: 'quota_exceeded' as const }],
     }));
     const service = createSaasBillingService({
       repository: {
