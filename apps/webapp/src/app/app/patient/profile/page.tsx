@@ -12,7 +12,6 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { getSupportContactUrl } from '@/modules/system-settings/supportContactUrl';
 import { LogoutSection } from './LogoutSection';
-import { PatientCalendarTimezoneSection } from './PatientCalendarTimezoneSection';
 import { PatientProfileHero } from './PatientProfileHero';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { getAuthChannelPolicy, getClientVisibleAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
@@ -138,10 +137,6 @@ export default async function PatientProfilePage() {
               Расписание
             </Link>
           </div>
-        </section>
-
-        <section className={patientSectionSurfaceClass}>
-          <PatientCalendarTimezoneSection />
         </section>
 
         {passkeyEnabled ? (

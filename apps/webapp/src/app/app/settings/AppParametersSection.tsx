@@ -1,16 +1,14 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
-import TimezoneSelect, { type ITimezoneOption } from 'react-timezone-select';
+import { useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { isValidSupportContactSetting } from '@/lib/url/isValidSupportContactSetting';
 import { isValidIanaTimeZoneId } from '@/shared/timezone/ianaTimezonesForAdminUi';
-import { mergePatientTimezoneSelectLabels } from '@/shared/timezone/patientTimezoneSelectLabels';
 import { patchAdminSetting } from './patchAdminSetting';
-import { doctorTimezoneSelectStyles } from './DoctorTimezoneSection';
+import { DoctorTimezoneSelect } from '@/shared/ui/doctor/DoctorTimezoneSelect';
 
 export type AppParametersSectionProps = {
   supportContactUrl: string;
@@ -26,11 +24,6 @@ export function AppParametersSection({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const timezoneLabels = useMemo(
-    () => mergePatientTimezoneSelectLabels(timezone.trim() || 'Europe/Moscow'),
-    [timezone],
-  );
 
   function handleSave() {
     setSaved(false);
@@ -94,20 +87,13 @@ export function AppParametersSection({
         <section className="flex flex-col gap-2">
           <p className="text-sm font-semibold">Таймзона отображения записей</p>
           <div className="max-w-lg">
-            <TimezoneSelect
+            <DoctorTimezoneSelect
               instanceId="app-display-timezone"
               inputId="app-display-timezone"
-              value={(timezone.trim() || 'Europe/Moscow') as never}
-              onChange={(tz: ITimezoneOption) => setTimezone(tz.value)}
-              timezones={timezoneLabels}
-              labelStyle="original"
-              displayValue="UTC"
-              isDisabled={isPending}
-              isSearchable
-              styles={doctorTimezoneSelectStyles as never}
-              menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-              menuPosition="fixed"
-              maxMenuHeight={280}
+              aria-label="Таймзона приложения"
+              value={timezone}
+              onChange={setTimezone}
+              disabled={isPending}
             />
           </div>
           <span className="text-xs text-muted-foreground">

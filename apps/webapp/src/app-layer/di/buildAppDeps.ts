@@ -118,8 +118,7 @@ import { appointmentRowLabel } from '@/modules/appointments/appointmentLabels';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   getPatientCalendarTimezoneIana,
-  setPatientCalendarTimezoneIana,
-  trySetInitialCalendarTimezoneIfEmpty,
+  syncCalendarTimezoneFromDevice,
 } from '@/infra/repos/pgPatientCalendarTimezone';
 import {
   formatAppointmentDateNumericRu,
@@ -1101,12 +1100,9 @@ const patientDiarySnapshotsPort = !inMemoryRepos
 const patientCalendarTimezoneGet = inMemoryRepos
   ? async (_userId: string) => null as string | null
   : getPatientCalendarTimezoneIana;
-const patientCalendarTimezoneSet = inMemoryRepos
-  ? async (_userId: string, _value: string | null) => true
-  : setPatientCalendarTimezoneIana;
-const patientCalendarTimezoneTryInitial = inMemoryRepos
-  ? async (_userId: string, _raw: string | null) => {}
-  : trySetInitialCalendarTimezoneIfEmpty;
+const patientCalendarTimezoneSync = inMemoryRepos
+  ? async (_userId: string, _raw: string | null) => false
+  : syncCalendarTimezoneFromDevice;
 const doctorPatientMessageStaffDeps = {
   staffUsers: staffUsersPort,
   topicChannelPrefs: topicChannelPrefsPort,
@@ -2039,8 +2035,7 @@ function _buildAppDeps() {
     patientDiarySnapshots: patientDiarySnapshotsPort,
     patientCalendarTimezone: {
       getIanaForUser: patientCalendarTimezoneGet,
-      setIanaForPatient: patientCalendarTimezoneSet,
-      trySetInitialIfEmpty: patientCalendarTimezoneTryInitial,
+      syncFromDevice: patientCalendarTimezoneSync,
     },
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
