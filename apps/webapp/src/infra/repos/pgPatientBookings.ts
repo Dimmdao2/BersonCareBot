@@ -1,7 +1,9 @@
 /** Wave 3 phase 13B — domain SQL via `runWebappPgText`. */
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientBookings as patientBookingsTable } from '../../../db/schema/schema';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import {
   getWebappSqlDb,
@@ -87,6 +89,54 @@ async function readCurrentPatientBookingRow(
   );
   const row = result.rows[0]?.booking;
   return row ? mapRow(row) : null;
+}
+
+/**
+ * Schema-derived row shape for direct reads of the `patient_bookings` table (Drizzle query
+ * builder, not `SELECT *`): renaming/dropping a column here is a compile error, not a silent
+ * `undefined` at runtime — see census finding 0.2 in
+ * `docs/_TODO/TEXT_SQL_TO_BUILDER_PLAN_2026-08-19.md`. `canonicalInPersonContext` is
+ * deliberately absent: it is never a real column (see the doc comment on
+ * `listCurrentPatientBookingRows` below), only a field the RPC capability's jsonb payload adds —
+ * `mapRow` below leaves it `null` for table rows, exactly as the hand-written `Row` type already
+ * did for the same three call sites.
+ */
+type PatientBookingsTableRow = typeof patientBookingsTable.$inferSelect;
+
+function mapTableRow(row: PatientBookingsTableRow): PatientBookingRecord {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    userId: row.platformUserId ?? null,
+    bookingType: row.bookingType as PatientBookingRecord['bookingType'],
+    city: row.city,
+    category: row.category as PatientBookingRecord['category'],
+    slotStart: toIsoStringSafe(row.slotStart),
+    slotEnd: toIsoStringSafe(row.slotEnd),
+    status: row.status as PatientBookingRecord['status'],
+    cancelledAt: nullableToIsoStringSafe(row.cancelledAt),
+    cancelReason: row.cancelReason,
+    gcalEventId: row.gcalEventId,
+    contactPhone: row.contactPhone,
+    contactEmail: row.contactEmail,
+    contactName: row.contactName,
+    reminder24hSent: row.reminder24HSent,
+    reminder2hSent: row.reminder2HSent,
+    createdAt: toIsoStringSafe(row.createdAt),
+    updatedAt: toIsoStringSafe(row.updatedAt),
+    branchServiceId: row.branchServiceId ?? null,
+    branchId: row.branchId ?? null,
+    serviceId: row.serviceId ?? null,
+    cityCodeSnapshot: row.cityCodeSnapshot ?? null,
+    branchTitleSnapshot: row.branchTitleSnapshot ?? null,
+    serviceTitleSnapshot: row.serviceTitleSnapshot ?? null,
+    durationMinutesSnapshot: row.durationMinutesSnapshot ?? null,
+    priceMinorSnapshot: row.priceMinorSnapshot ?? null,
+    canonicalAppointmentId: row.canonicalAppointmentId ?? null,
+    canonicalInPersonContext: null,
+    provenanceCreatedBy: row.provenanceCreatedBy ?? null,
+    provenanceUpdatedBy: row.provenanceUpdatedBy ?? null,
+  };
 }
 
 function mapRow(row: Row): PatientBookingRecord {
@@ -395,35 +445,41 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       void userId;
       return readCurrentPatientBookingRow(bookingId, 'booking');
     }
-    const result = await runWebappPgText<Row>(
-      `SELECT * FROM patient_bookings WHERE id = $1 AND platform_user_id = $2 LIMIT 1`,
-      [bookingId, userId],
-    );
-    const row = result.rows[0];
-    return row ? mapRow(row) : null;
+    const [row] = await getDrizzle()
+      .select()
+      .from(patientBookingsTable)
+      .where(
+        and(
+          eq(patientBookingsTable.id, bookingId),
+          eq(patientBookingsTable.platformUserId, userId),
+        ),
+      )
+      .limit(1);
+    return row ? mapTableRow(row) : null;
   },
 
   async getById(bookingId) {
     if (isCurrentPatientPrincipal()) {
       return readCurrentPatientBookingRow(bookingId, 'booking');
     }
-    const result = await runWebappPgText<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [
-      bookingId,
-    ]);
-    const row = result.rows[0];
-    return row ? mapRow(row) : null;
+    const [row] = await getDrizzle()
+      .select()
+      .from(patientBookingsTable)
+      .where(eq(patientBookingsTable.id, bookingId))
+      .limit(1);
+    return row ? mapTableRow(row) : null;
   },
 
   async getByCanonicalAppointmentId(canonicalAppointmentId) {
     if (isCurrentPatientPrincipal()) {
       return readCurrentPatientBookingRow(canonicalAppointmentId, 'appointment');
     }
-    const result = await runWebappPgText<Row>(
-      `SELECT * FROM patient_bookings WHERE canonical_appointment_id = $1::uuid LIMIT 1`,
-      [canonicalAppointmentId],
-    );
-    const row = result.rows[0];
-    return row ? mapRow(row) : null;
+    const [row] = await getDrizzle()
+      .select()
+      .from(patientBookingsTable)
+      .where(eq(patientBookingsTable.canonicalAppointmentId, canonicalAppointmentId))
+      .limit(1);
+    return row ? mapTableRow(row) : null;
   },
 
   async listUpcomingByUser(userId, nowIso) {
