@@ -43,7 +43,6 @@ function formatError(code: string | undefined): string {
 const DOWNGRADE_BLOCK_LABELS: Record<string, string> = {
   clinic_team: 'места специалистов',
   branches: 'филиалы',
-  patient_count: 'пациенты',
 };
 
 function formatTariffChangeError(body: { error?: string; blocks?: Array<{ mechanic?: string }> } | null): string {

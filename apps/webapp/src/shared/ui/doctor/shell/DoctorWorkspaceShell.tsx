@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { AppAccessDeniedToastEffect } from '@/shared/ui/AppAccessDeniedToastEffect';
 import { StaffPwaBootstrap } from '@/shared/ui/doctor/pwa/StaffPwaBootstrap';
 import { StaffWebPushBootstrap } from '@/shared/ui/doctor/pwa/StaffWebPushBootstrap';
+import { StaffCalendarTimezoneBootstrap } from '@/shared/ui/doctor/StaffCalendarTimezoneBootstrap';
 import { canAccessDoctor } from '@/modules/roles/service';
 import { resolveLaunchCapabilities } from '@/app-layer/guards/workspaceCapabilities';
 import { DoctorAdminSidebar } from '@/shared/ui/doctor/shell/DoctorAdminSidebar';
@@ -102,6 +103,7 @@ export function DoctorWorkspaceShell({
       </Suspense>
       <StaffPwaBootstrap />
       <StaffWebPushBootstrap />
+      <StaffCalendarTimezoneBootstrap />
       <div className="flex min-h-screen flex-col bg-background">
         <DoctorHeader
           userDisplayName={userDisplayName}

@@ -9,7 +9,7 @@ import {
   proratedSeatPriceMinor,
 } from '@/modules/saas-billing/proration';
 
-export type StockQuotaMechanic = 'patient_count' | 'branches' | 'files';
+export type StockQuotaMechanic = 'branches' | 'files';
 export type TransactionQuotaMechanic = StockQuotaMechanic | 'clinic_team';
 
 export class StockQuotaReachedError extends Error {

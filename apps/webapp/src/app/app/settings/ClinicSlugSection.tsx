@@ -10,6 +10,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
@@ -73,7 +74,7 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
   const publicUrl = useMemo(
     () =>
       state.currentSlug
-        ? `${appBaseUrl.replace(/\/$/, '')}/book/${encodeURIComponent(state.currentSlug)}`
+        ? `${appBaseUrl.replace(/\/$/, '')}${publicBookPaths.forSlug(state.currentSlug)}`
         : null,
     [appBaseUrl, state.currentSlug],
   );

@@ -40,7 +40,6 @@ import { PATCH as updateCourse } from '@/app/api/doctor/courses/[id]/route';
 import { DELETE as revokeClinicInvite } from '@/app/api/clinic/invites/[id]/route';
 import { POST as createClinicInvite } from '@/app/api/clinic/invites/route';
 import { POST as createBranch } from '@/app/api/admin/booking-engine/branches/route';
-import { POST as createDoctorClientRoute } from '@/app/api/doctor/clients/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { togglePatientHomeBlockVisibility } from '@/app/app/settings/patient-home/actions';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
@@ -248,26 +247,10 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
     expect(createPhysicalBranch).not.toHaveBeenCalled();
   });
 
-  it('refuses creating a patient card and never calls the write port', async () => {
-    const createManualOrganizationClient = vi.fn();
-    vi.mocked(buildAppDeps).mockReturnValue({
-      orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
-      patientOrganization: { createManualOrganizationClient },
-      emailSetupAccess: { requestContactEmailSetup: vi.fn() },
-    } as unknown as ReturnType<typeof buildAppDeps>);
-
-    const response = await createDoctorClientRoute(
-      request('https://app.example.test/api/doctor/clients', {
-        requestId: '33333333-3333-4333-8333-333333333333',
-        lastName: 'Иванов',
-        firstName: 'Иван',
-      }),
-    );
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
-    expect(createManualOrganizationClient).not.toHaveBeenCalled();
-  });
+  // ⚠ СНЯТО Т12 (владелец 19.08, «лимит клиентов - убрать»). У создания карточки клиента больше нет
+  // тарифной механики, а значит и лестницы доступа: `read_only` его теперь НЕ останавливает.
+  // Разбор последствия и открытый вопрос ведущему —
+  // `docs/REPORTS/PATIENT_COUNT_LIMIT_REMOVAL_2026-08-19.md`, раздел «НЕ СДЕЛАНО».
 
   it('refuses connecting an external calendar and never reaches the OAuth config', async () => {
     vi.mocked(buildAppDeps).mockReturnValue({
