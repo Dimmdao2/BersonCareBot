@@ -1071,9 +1071,10 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.clinical_visit', cls: 'P', org: true, why: 'Клинический визит — приём как таковой: осмотр, '
     + 'манипуляции, рекомендации' },
   { t: 'public.comments', cls: 'P', org: true, why: 'Комментарии к сущностям — диалог врач↔пациент вокруг '
-    + 'упражнений, тестов, программ', pol: 'D10: дизъюнкт target_type = '
-    + 'ANY(exercise,test,test_set,recommendation,lesson) стоит БЕЗ условия и в USING, и в WITH CHECK — сотрудник '
-    + 'клиники A правит комментарии клиники B', defect: ['D10-comments'] },
+    + 'упражнений, тестов, программ', pol: 'D10 ЗАКРЫТ 19.08: дизъюнкт target_type = '
+    + 'ANY(exercise,test,test_set,recommendation,lesson) стоял БЕЗ условия и в USING, и в WITH CHECK — сотрудник '
+    + 'клиники A правил комментарии клиники B. Каталожный вырез теперь несёт свою организацию '
+    + '(rls-sql-renderer.mjs sharedScopeSql): «общая» строка общая ВНУТРИ своей клиники' },
   { t: 'public.content_access_grants_webapp', cls: 'P', org: true, why: 'Выданные пациенту доступы к контенту — '
     + 'пациент теряет доступ к выданным ему материалам' },
   { t: 'public.content_pages', cls: 'C', org: true, wall: 'clinic+patient',
@@ -1157,9 +1158,11 @@ const TABLE_ROWS: TableRow[] = [
     + 'логотипы, файлы пациента', pol: 'D9: в пациентской ветке saas_org_dormant_p0_8_3 нет проверки organization_id '
     + '— пациент клиники A читает s3_key любого файла клиники B', defect: ['D9-media-files'] },
   { t: 'public.media_folders', cls: 'P', org: true, why: 'Папки медиатеки, в т.ч. личные папки пациентов — файлы '
-    + 'клиента и библиотека клиники раскладываются по папкам', pol: 'D11: дизъюнкт без условий (patient_user_id IS '
-    + 'NULL) пропускает всю библиотеку клиники любой сессии с грантом — и в USING, и в WITH CHECK',
-    defect: ['D11-media-folders'] },
+    + 'клиента и библиотека клиники раскладываются по папкам', pol: 'D11 ЗАКРЫТ 19.08: дизъюнкт без условий '
+    + '(patient_user_id IS NULL) пропускал всю библиотеку клиники любой сессии с грантом — и в USING, и в WITH '
+    + 'CHECK. Замер на bcb_webapp_dev: сотрудник клиники d0000000-…-0004 видел 11 строк клиники a0000000-…-0001, '
+    + 'после правки — 0, своя библиотека по-прежнему 11. Вырез «строка без владельца» теперь несёт организацию '
+    + '(rls-sql-renderer.mjs sharedScopeSql)' },
   { t: 'public.media_hls_proxy_error_events', cls: 'T', org: true, wall: 'platform-role', why: 'Отказы HLS-прокси — '
     + 'диагностика «видео не играет» у конкретного пациента', wallWhy: W_PLATFORM_TELEMETRY, pol: 'I7: у app_staff '
     + 'есть awd, но нет r, при этом код строит SELECT-агрегаты (playbackClientEvents.ts:113-127) — несогласованный '
