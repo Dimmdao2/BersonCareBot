@@ -146,7 +146,8 @@ test('all latest active B0-forward definers have exact executable relation-opera
   // 112 → 115 (19.08): миграция публичной воронки записи — три новые двери (каталог, снимок слотов,
   // поля формы). Четвёртое тело, `app.resolve_public_booking_organization(uuid,uuid)`, было под учётом
   // с 0042 и счётчик не двигает: миграция только перевела его гейт на `app.require_accepted_context`.
-  assert.equal(functions.length, 115);
+  // 115 → 116 (19.08): миграция 0047 забрала в перепись `app.open_or_touch_operator_probe_incident
+  assert.equal(functions.length, 116);
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
