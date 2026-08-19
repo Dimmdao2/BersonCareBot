@@ -71,8 +71,28 @@ export async function POST(request: Request, context: RouteContext) {
     let settings;
     try {
       settings = await deps.payments!.getSettings(organizationId);
-    } catch {
-      return { ok: false as const, reason: 'settings_unavailable' };
+    } catch (error) {
+      // The acquirer has already taken the patient's money; this callback is the only notice we get
+      // that it happened. Answering 4xx retires the webhook permanently, so a settings read that was
+      // refused (42501) or that could not run at all used to end with the payment charged and never
+      // reconciled, with nothing written down anywhere. 5xx keeps the provider retrying, which is the
+      // behaviour that recovers on its own once the read works again.
+      //
+      // Nothing legitimate is being reclassified here: `getSettings` either returns a settings object
+      // or throws. "This clinic has no such provider enabled" is the separate `providerCfg` branch
+      // just below and still answers `payment_provider_unavailable`.
+      const code =
+        typeof (error as { code?: unknown } | null)?.code === 'string'
+          ? (error as { code: string }).code
+          : 'unknown';
+      console.error('[patient-acquiring-webhook] payment settings read failed', {
+        category: code === '42501' ? 'capability_denied' : 'repository_unavailable',
+        errorClass: error instanceof Error ? error.name : 'unknown',
+        code,
+        providerId,
+        organizationId,
+      });
+      return { ok: false as const, reason: 'settings_unavailable', status: 503 };
     }
 
     const providerCfg = settings.providers.find(

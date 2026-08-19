@@ -93,6 +93,10 @@ export async function collectOperatorHealthDigestInput(params: {
     outgoingDelivery: {
       dueBacklog: health.outgoingDelivery.dueBacklog,
       deadTotal: health.outgoingDelivery.deadTotal,
+      // Окно берётся у объявленного корня очереди; сводный снимок его не несёт. Корень не
+      // прочитался — поле не выставляется, и сводка честно откатывается на исторический счётчик,
+      // а не объявляет очередь здоровой.
+      ...(deliveryQueue ? { deadRecent: deliveryQueue.deadRecent } : {}),
     },
     outboundDeliveryProvider: {
       recentIncidentCount: countRecentOutboundProviderFailureIncidents(openIncidents, nowMs),
@@ -121,7 +125,7 @@ export async function collectOperatorHealthDigestInput(params: {
     jobFailures,
     snapshotLines,
     hasStopIssue:
-      health.outgoingDelivery.deadTotal > 0 ||
+      (deliveryQueue ? deliveryQueue.deadRecent : health.outgoingDelivery.deadTotal) > 0 ||
       openIncidents.some((incident) => incident.direction === 'outbound_delivery_provider'),
     // Снимок не прочитался → поле не выставляем: сводка тогда честно печатает
     // «Доказательство доставки: НЕ СОБРАНО» и не имеет права быть зелёной.

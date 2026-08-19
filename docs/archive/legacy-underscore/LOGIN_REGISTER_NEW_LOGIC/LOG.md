@@ -16,7 +16,7 @@
 - System failures (`errorClass=system`) дублируются в `admin_audit_log` (`action=auth_register_failure`).
 - Admin: `GET /api/admin/auth-registration-events`; UI «Ошибки регистрации» на `/app/doctor/audit-log` (фильтры preset/eventType/authMethod, «все ошибки», copy attemptId).
 
-**Документация:** `apps/webapp/src/modules/auth/auth.md` (§Журнал воронки), `apps/webapp/src/app/api/api.md` (`admin/auth-registration-events`), `docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`.
+**Документация:** `apps/webapp/src/modules/auth/auth.md` (§Журнал воронки), `apps/webapp/src/app/api/api.md` (`admin/auth-registration-events`), `docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`.
 
 **Проверки:** `pnpm --dir apps/webapp run typecheck`; vitest (44 теста): `maskContactHint`, `registrationErrorClass`, `recordAuthRegistration`, `register/route`, `register/confirm/route`, `oauth/start/route`, `auth-registration-events/route`, messenger-bind start/finish, `oauthYandexResolve`.
 

@@ -97,8 +97,26 @@ function readAppliedDrizzleRows(db) {
   });
 }
 
+/**
+ * The ledger is applied by watermark (`when > max(created_at)`), not by content.  A journal entry
+ * that is BOTH below the watermark and absent from the ledger can therefore never be picked up
+ * again: every later run reports `pending=0 ... already current` over a hole in the schema.  That
+ * is the silent skip this gate exists to make audible.  It is computed here, in the one place all
+ * DEV and TEST runs go through (`deploy/host/migrate-dev.sh`, `deploy/host/deploy-test.sh`), so no
+ * caller can hold a second, divergent copy of the rule.
+ */
+export function findSilentlySkippedMigrations(migrations, appliedRows) {
+  const applied = new Set(appliedRows.map((row) => row.createdAt));
+  const watermark = appliedRows.reduce((latest, row) => Math.max(latest, row.createdAt), 0);
+  return migrations.filter((migration) => migration.when < watermark && !applied.has(migration.when));
+}
+
 const db = value('db');
 const migrator = value('migrator');
+// Deliberate, named recovery for an already-skipped entry.  It is never inferred: the operator must
+// spell out every tag, so an unrelated new hole opened later still stops the run instead of riding
+// along on a stale flag.
+const applyOutOfOrderTags = values('apply-out-of-order');
 const legacyOwners = values('owner');
 const legacyMigration = process.argv.includes('--migration') ? realpathSync(resolve(value('migration'))) : null;
 let steps = values('step').map((step) => {
@@ -110,6 +128,9 @@ const drizzleFolder = process.argv.includes('--drizzle-folder')
   ? realpathSync(resolve(value('drizzle-folder')))
   : null;
 let drizzleSummary = null;
+if (applyOutOfOrderTags.length > 0 && !drizzleFolder) {
+  throw new Error('--apply-out-of-order is supported only with --drizzle-folder');
+}
 if (drizzleFolder) {
   if (steps.length > 0 || legacyOwners.length > 0 || legacyMigration) {
     throw new Error('--drizzle-folder cannot be combined with --step/--owner/--migration');
@@ -117,14 +138,40 @@ if (drizzleFolder) {
   const migrations = readDrizzleMigrations(drizzleFolder);
   const appliedRows = readAppliedDrizzleRows(db);
   const latestCreatedAt = appliedRows.reduce((latest, row) => Math.max(latest, row.createdAt), 0);
-  const pending = migrations.filter((migration) => migration.when > latestCreatedAt);
+  const silentlySkipped = findSilentlySkippedMigrations(migrations, appliedRows);
+  const skippedTags = new Set(silentlySkipped.map((migration) => migration.tag));
+  const unknownRequest = applyOutOfOrderTags.filter((tag) => !skippedTags.has(tag));
+  if (unknownRequest.length > 0) {
+    throw new Error(
+      `--apply-out-of-order names ${unknownRequest.join(', ')}, which is not below the ${db} watermark ${latestCreatedAt} and missing from the ledger`,
+    );
+  }
+  const unhandled = silentlySkipped.filter((migration) => !applyOutOfOrderTags.includes(migration.tag));
+  if (unhandled.length > 0) {
+    const listed = unhandled.map((migration) => `idx=${migration.idx} when=${migration.when} tag=${migration.tag}`);
+    throw new Error(
+      [
+        `Drizzle journal and ${db} ledger describe different states: ${unhandled.length} migration(s) `
+          + `sit below the applied watermark ${latestCreatedAt} and have no ledger row, so the watermark `
+          + 'migrator will never apply them and every run would keep reporting "already current":',
+        ...listed.map((line) => `  ${line}`),
+        'Their objects are absent from the database. Re-run with '
+          + `${unhandled.map((migration) => `--apply-out-of-order ${migration.tag}`).join(' ')} `
+          + 'to apply them through this same wrapper, after confirming they carry no ordering dependency '
+          + 'on anything already applied above them.',
+      ].join('\n'),
+    );
+  }
+  const pending = migrations.filter(
+    (migration) => migration.when > latestCreatedAt || skippedTags.has(migration.tag),
+  );
   steps = pending.flatMap((migration) =>
     parseOwnerStatements(migration.source, migration.tag).map((statement) => ({
       ...statement,
       drizzle: { hash: migration.hash, tag: migration.tag, when: migration.when },
     })),
   );
-  drizzleSummary = { pending: pending.length, total: migrations.length };
+  drizzleSummary = { pending: pending.length, total: migrations.length, outOfOrder: silentlySkipped.length };
   if (pending.length === 0) {
     console.log(`Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length}`);
     process.exit(0);
@@ -215,10 +262,10 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 if (drizzleSummary) {
   if (rollbackOnly) {
     console.log(
-      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total}`,
+      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} out-of-order=${drizzleSummary.outOfOrder}`,
     );
   } else {
-    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total}`);
+    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} out-of-order=${drizzleSummary.outOfOrder}`);
   }
 } else {
   console.log(`revision-10 migration committed for ${qDb} with temporary ${qMigrator} owner memberships revoked`);

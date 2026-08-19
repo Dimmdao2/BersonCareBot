@@ -1,6 +1,6 @@
 'use client';
 
-import { ImageOff } from 'lucide-react';
+import { ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { MediaThumbPhase } from './mediaThumbState';
 import { getMediaThumbPhase } from './mediaThumbState';
@@ -37,6 +37,7 @@ export function MediaThumb({
   const mdUrl = media.previewMdUrl;
   const skippedLabel = labels?.skipped ?? 'Превью не создаётся';
   const failedLabel = labels?.failed ?? 'Превью недоступно';
+  const pendingLabel = media.kind === 'video' ? 'Видео готовится' : 'Изображение готовится';
 
   if (phase === 'non_visual') {
     return null;
@@ -77,10 +78,6 @@ export function MediaThumb({
     );
   }
 
-  if (phase === 'pending' || phase === 'source') {
-    return <div className={cn('animate-pulse bg-muted/50', className)} aria-hidden />;
-  }
-
   if (phase === 'failed' || phase === 'skipped') {
     return (
       <div
@@ -95,6 +92,22 @@ export function MediaThumb({
     );
   }
 
-  /* phase === "ready" but missing smUrl — skeleton */
-  return <div className={cn('animate-pulse bg-muted/50', className)} aria-hidden />;
+  /**
+   * Nothing may be shown yet: the row carries no standard rendition, so the only bytes on hand are
+   * the user's own upload (SECURITY_CANON §5). This is a wait, not a breakage, and it says so —
+   * a grey box reads as a torn picture. Driven by the row alone; an `<img>` that fails to load is a
+   * different condition and keeps its own wording above.
+   */
+  return (
+    <div
+      className={cn(
+        'flex flex-col items-center justify-center gap-1 bg-muted/30 text-xs text-muted-foreground',
+        className,
+      )}
+      role="status"
+    >
+      <Loader2 className="h-8 w-8 animate-spin opacity-60" aria-hidden />
+      <span className="px-1 text-center">{pendingLabel}</span>
+    </div>
+  );
 }

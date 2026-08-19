@@ -49,6 +49,7 @@ function buildCatalogService() {
     upsertService: vi.fn(),
     deactivateService: vi.fn(),
     upsertSpecialistServiceAvailability: vi.fn(),
+    listPublicBookableServicesForBranch: vi.fn(),
     listSpecialistServiceAvailability: vi.fn(),
     deactivateSpecialistServiceAvailability: vi.fn(),
     upsertServiceLocationAvailability: vi.fn(),

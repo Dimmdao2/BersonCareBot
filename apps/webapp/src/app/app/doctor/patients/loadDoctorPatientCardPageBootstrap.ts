@@ -386,9 +386,7 @@ export async function loadDoctorPatientCardTabBootstrap(
         (): PatientProgramInteractionPolicy | null => null,
       ),
       membershipAccess.specialistNavigation && deps.memberships
-        ? deps.memberships
-            .listPatientPackagesForUser(patientUserId, workspace.organizationId)
-            .catch(() => null)
+        ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
         : Promise.resolve(null),
       (async () => {
         const patientIana =
@@ -466,9 +464,7 @@ export async function loadDoctorPatientCardTabBootstrap(
     const [appointmentsResult, packagesResult, paymentsSummaryResult] = await Promise.allSettled([
       deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
       membershipAccess.specialistNavigation && deps.memberships
-        ? deps.memberships
-            .listPatientPackagesForUser(patientUserId, workspace.organizationId)
-            .catch(() => null)
+        ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
         : Promise.resolve(null),
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.patientPayments.listPaymentsWithSummary(patientUserId),
@@ -576,24 +572,24 @@ export async function loadDoctorPatientCardTabBootstrap(
         ),
         deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
         membershipAccess.specialistNavigation && deps.memberships
-          ? deps.memberships
-              .listPatientPackagesForUser(patientUserId, workspace.organizationId)
-              .catch(() => null)
+          ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
           : Promise.resolve(null),
         deps.payments
-          ? deps.payments
-              .listPaymentHistoryForUser(patientUserId, workspace.organizationId)
-              .catch(() => [])
+          ? deps.payments.listPaymentHistoryForUser(patientUserId, workspace.organizationId)
           : Promise.resolve([]),
       ]);
 
     const paymentsSummary =
       paymentsSummaryResult.status === 'fulfilled' ? paymentsSummaryResult.value : null;
+    // A refused acquiring-history read must not be folded into the timeline as "no acquiring events".
+    // Both halves feed one money figure, so either half failing makes the whole timeline wrong rather
+    // than short, and the tab has to say so. `deps.payments` being absent is the separate, legitimate
+    // empty: it settles fulfilled with `[]` above and still builds a cash-only timeline.
     const historyEvents =
-      historyEventsResult.status === 'fulfilled' ? historyEventsResult.value : [];
+      historyEventsResult.status === 'fulfilled' ? historyEventsResult.value : null;
     const patientPaymentRows = paymentsSummary?.payments ?? [];
     const finances =
-      paymentsSummaryResult.status === 'fulfilled' && paymentsSummary
+      paymentsSummary && historyEvents
         ? buildFinancesTimeline(patientPaymentRows, historyEvents)
         : null;
 

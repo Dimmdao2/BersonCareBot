@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { logger } from '@/app-layer/logging/logger';
 import type { createBookingEngineService } from '@/modules/booking-engine/service';
 import type {
   BeAppointment,
@@ -33,7 +34,8 @@ import {
 } from './bookingLifecycleNotifications';
 import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
-import { buildPatientCreatedMessageText } from './patientMessageText';
+import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
+import type { BookingCreatedEffectsPort } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
 import { buildDoctorCreatedMessageText } from './doctorMessageText';
 import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
@@ -49,6 +51,14 @@ function isPostgresExclusionViolation(err: unknown): boolean {
   );
 }
 
+/**
+ * Телефон и почта, набранные человеком в форме записи, — его данные, и их потеря есть отказ,
+ * поэтому она сообщается, а не глотается. Подтверждённую запись это по-прежнему не откатывает:
+ * визит существует, контакты — дополнение к нему.
+ *
+ * До 19.08 здесь стоял голый `catch {}`, и он прятал полную потерю: КАЖДАЯ пациентская запись
+ * получала отказ на `platform_users`, и ни одной строки контактов не появлялось никогда.
+ */
 async function persistBookingFormContacts(
   deps: CanonicalBookingDeps,
   createInput: CreatePatientBookingInput,
@@ -64,8 +74,11 @@ async function persistBookingFormContacts(
       contactEmail: createInput.contactEmail,
       identity,
     });
-  } catch {
-    // Contact enrichment is explicitly best-effort and must not roll back a confirmed booking.
+  } catch (err) {
+    logger.error(
+      { err, platformUserId: createInput.userId },
+      '[booking] booking form contacts were not stored',
+    );
   }
 }
 
@@ -84,6 +97,14 @@ export type CanonicalBookingDeps = {
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
+  /** Порт постановки исходящего сообщения в очередь доставки (письмо-подтверждение записи). */
+  outboundMessageQueue: OutboundMessageQueuePort;
+  /**
+   * Последствия создания записи: уведомления пациенту/персоналу и напоминания. Владелец 19.08:
+   * «интегратор тут вообще ни при чем. Запись делает вебапп». Отсутствие порта — только изолированные
+   * фикстуры без доставки; рабочая сборка внедряет его в `buildAppDeps`.
+   */
+  bookingCreatedEffects?: BookingCreatedEffectsPort | null;
 };
 
 function toPendingRowOnline(
@@ -557,65 +578,94 @@ export async function createBookingOnCanonicalEngine(
     }
   }
 
-  try {
-    const createNotify = resolveBookingNotifyTargets(
-      'booking.created',
-      { notifyPatient: true, notifyStaff: true },
-      (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
+  const createNotify = resolveBookingNotifyTargets(
+    'booking.created',
+    { notifyPatient: true, notifyStaff: true },
+    (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
+  );
+  const createTimeZone = (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
+
+  // Пациентское уведомление (владелец 19.08: «Запись делает вебапп»). Получателя и текст определяет
+  // вебапп по своей базе, сообщение уходит строкой очереди доставки — отправит воркер интегратора.
+  // Уже НЕ через интегратор и НЕ синхронной отправкой в Telegram/MAX внутри запроса пациента.
+  if (deps.bookingCreatedEffects) {
+    await Promise.all(
+      appointments.map((item, index) => {
+        const row = confirmedRows[index] ?? pendingRows[index]!;
+        return deps.bookingCreatedEffects!.apply({
+          organizationId: item.organizationId,
+          bookingId: row.id,
+          canonicalAppointmentId: item.id,
+          platformUserId: createInput.userId,
+          contactName: row.contactName,
+          contactPhone: row.contactPhone,
+          slotStart: row.slotStart,
+          slotEnd: row.slotEnd,
+          bookingType: row.bookingType,
+          city: row.city,
+          cityCodeSnapshot: row.cityCodeSnapshot,
+          notifyPatient: createNotify.notifyPatient,
+          timeZone: createTimeZone,
+        });
+      }),
     );
-    if (createNotify.notifyPatient || createNotify.notifyStaff) {
-      const timeZone = (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
-      await Promise.all(
-        appointments.map((item, index) => {
-          const row = confirmedRows[index] ?? pendingRows[index]!;
-          return deps.syncPort.emitBookingEvent({
-            eventType: 'booking.created',
-            idempotencyKey: `booking.created:${row.id}`,
-            payload: {
-              organizationId: item.organizationId,
-              bookingId: row.id,
-              userId: createInput.userId,
-              bookingType: row.bookingType,
-              city: row.city ?? undefined,
-              category: row.category,
-              slotStart: row.slotStart,
-              slotEnd: row.slotEnd,
-              contactName: row.contactName,
-              ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
-              contactPhone: row.contactPhone,
-              contactEmail: row.contactEmail ?? undefined,
-              cityCodeSnapshot: row.cityCodeSnapshot,
-              serviceTitleSnapshot: row.serviceTitleSnapshot,
-              canonicalAppointmentId: item.id,
-              reminderPlan: appointmentReminderPlanForPreset(item.appointmentReminderPresetId),
-              cancelPendingReminders: true,
-              patientMessageText: buildPatientCreatedMessageText(
-                {
-                  slotStart: row.slotStart,
-                  bookingType: row.bookingType,
-                  city: row.city,
-                  cityCodeSnapshot: row.cityCodeSnapshot,
-                },
-                timeZone,
-              ),
-              doctorNotify: createNotify.notifyStaff,
-              doctorMessageText: buildDoctorCreatedMessageText(
-                { slotStart: row.slotStart, contactName: row.contactName, contactPhone: row.contactPhone },
-                timeZone,
-              ),
-              ...resolveBookingCalendarSyncFields('booking.created'),
-            },
-          });
-        }),
-      );
-    }
-  } catch {
-    // Notifications are best-effort.
   }
 
-  // #81: отправить пациенту письмо с .ics-вложением (best-effort, не роняет booking).
+  // Осталось у интегратора ровно то, что вебапп сделать не может: глобальная аудитория
+  // администраторов (объявленный корень читается только из классов `pre_session`/`service`, ни один
+  // из них не доступен принципалу пациента) и внешний календарь (учётные данные Google — у
+  // интегратора). `patientPushVariant: null` и отсутствие `patientMessageText` — потому что
+  // пациентское сообщение теперь ставит вебапп сам; двойной отправки быть не должно.
+  try {
+    await Promise.all(
+      appointments.map((item, index) => {
+        const row = confirmedRows[index] ?? pendingRows[index]!;
+        return deps.syncPort.emitBookingEvent({
+          eventType: 'booking.created',
+          idempotencyKey: `booking.created:${row.id}`,
+          payload: {
+            organizationId: item.organizationId,
+            bookingId: row.id,
+            userId: createInput.userId,
+            bookingType: row.bookingType,
+            city: row.city ?? undefined,
+            category: row.category,
+            slotStart: row.slotStart,
+            slotEnd: row.slotEnd,
+            contactName: row.contactName,
+            contactPhone: row.contactPhone,
+            contactEmail: row.contactEmail ?? undefined,
+            cityCodeSnapshot: row.cityCodeSnapshot,
+            serviceTitleSnapshot: row.serviceTitleSnapshot,
+            canonicalAppointmentId: item.id,
+            reminderPlan: appointmentReminderPlanForPreset(item.appointmentReminderPresetId),
+            cancelPendingReminders: true,
+            suppressPatientNotification: true,
+            doctorNotify: createNotify.notifyStaff,
+            doctorMessageText: buildDoctorCreatedMessageText(
+              {
+                slotStart: row.slotStart,
+                contactName: row.contactName,
+                contactPhone: row.contactPhone,
+              },
+              createTimeZone,
+            ),
+            ...resolveBookingCalendarSyncFields('booking.created'),
+          },
+        });
+      }),
+    );
+  } catch {
+    // Событие остаётся best-effort ровно как было: запись уже зафиксирована.
+  }
+
+  // #81: письмо пациенту с .ics-вложением. Владелец 19.08: «письмо и уведомление не надо ждать —
+  // абсолютно точно». `await` остаётся НАМЕРЕННО: он ждёт одну постановку строки в очередь, а не
+  // SMTP. Плавающий промис здесь недопустим — ответ убил бы его, и письма не было бы вовсе; ждать
+  // при этом больше нечего, потому что отправляет воркер доставки интегратора.
   await sendBookingConfirmationEmail({
     bookingId: (confirmed ?? pending).id,
+    organizationId: orgId,
     contactEmail: createInput.contactEmail,
     slotStart: pendingRow.slotStart,
     slotEnd: pendingRow.slotEnd,
@@ -623,7 +673,7 @@ export async function createBookingOnCanonicalEngine(
     locationLabel:
       pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === 'online' ? 'Онлайн' : null),
     contactName: createInput.contactName,
-  });
+  }, { outboundMessageQueue: deps.outboundMessageQueue });
 
   await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;

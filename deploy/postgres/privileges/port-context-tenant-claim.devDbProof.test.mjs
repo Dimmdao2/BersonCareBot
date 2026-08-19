@@ -97,7 +97,13 @@ SELECT ref.opaque_ref || '|' || own.organization_id || '|' || foreign_org.organi
   }
 });
 
-test('patient: заявка принимается только на организацию с действующим зачислением, и только на себя', { skip: !ENABLED }, () => {
+// Клиент клиники — НЕ «действующая запись».  Определение владельца (19.08, дословно): «КЛИЕНТ — ТОТ
+// У КОГО ЕСТЬ ВИЗИТ ИЛИ НАЗНАЧЕНА ПРОГРАММА ИЛИ ЕСТЬ ПРИГЛАШЕНИЕ ИЛИ ПЕРЕПИСКА ИЛИ ЗАПИСЬ — короче
+// есть аккаунт и какой-то контекст от этой клиники/специалиста. Даже просто созданный доктором
+// клиент — уже клиент. Без записей и чатов и визитов.»  Поэтому гейт спрашивает про СУЩЕСТВОВАНИЕ
+// строки `org_enrollments`, а не про её статус: карточка, заведённая врачом, живёт в статусе
+// `invited` и прежним `status='active'` отрезалась от своей же клиники.
+test('patient: заявка принимается на клинику, чьим клиентом он числится, и только на себя', { skip: !ENABLED }, () => {
   const [patientRef, ownOrg, foreignOrg] = fixture(`
 SELECT ref.opaque_ref || '|' || own.organization_id || '|' || foreign_org.organization_id
   FROM app_ext.variant_a_identity_refs ref
@@ -108,10 +114,9 @@ SELECT ref.opaque_ref || '|' || own.organization_id || '|' || foreign_org.organi
      WHERE other.organization_id <> own.organization_id
        AND NOT EXISTS (SELECT 1 FROM public.org_enrollments mine
                         WHERE mine.platform_user_id = ref.physical_user_id
-                          AND mine.organization_id = other.organization_id
-                          AND mine.status = 'active')
+                          AND mine.organization_id = other.organization_id)
      LIMIT 1) AS foreign_org ON TRUE
- LIMIT 1;`, 'пациент с действующим зачислением и вторая организация без его зачисления');
+ LIMIT 1;`, 'пациент с зачислением и вторая организация, где у него нет НИКАКОГО зачисления');
 
   assert.equal(
     claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectRef: patientRef, organizationId: ownOrg }),
@@ -127,6 +132,19 @@ SELECT ref.opaque_ref || '|' || own.organization_id || '|' || foreign_org.organi
     const refusal = claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectRef: patientRef, organizationId });
     assert.match(refusal, /^42501\|/u, `${label} организация принята: ${refusal}`);
   }
+
+  // Карточка, заведённая врачом: аккаунт есть, зачисление есть, но оно `invited` — ни записи, ни
+  // визита, ни чата.  Это клиент, и гейт обязан его пускать.
+  const [invitedRef, invitedOrg] = fixture(`
+SELECT ref.opaque_ref || '|' || e.organization_id
+  FROM app_ext.variant_a_identity_refs ref
+  JOIN public.org_enrollments e ON e.platform_user_id = ref.physical_user_id AND e.status = 'invited'
+ LIMIT 1;`, 'клиент, заведённый врачом (зачисление в статусе invited)');
+  assert.equal(
+    claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: invitedRef, subjectRef: invitedRef, organizationId: invitedOrg }),
+    'ok',
+    'клиент, заведённый врачом, не пущен в свою же клинику',
+  );
 
   const [otherRef] = fixture(
     `SELECT opaque_ref FROM app_ext.variant_a_identity_refs WHERE opaque_ref <> '${patientRef}'::uuid LIMIT 1;`,

@@ -26,7 +26,6 @@ const expectedRows = new Map([
   ['public.be_booking_form_submissions', 'attribution_json'],
   ['public.be_patient_timeline_events', 'payload'],
   ['public.be_appointment_history_events', 'payload'],
-  ['public.be_external_entity_mappings', 'metadata'],
   ['public.be_payment_intents', 'metadata_json'],
   ['public.be_payment_provider_events', 'payload_json'],
   ['public.be_payment_history_events', 'payload_json'],

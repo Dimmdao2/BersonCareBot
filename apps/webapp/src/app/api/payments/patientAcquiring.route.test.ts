@@ -514,4 +514,51 @@ describe('patient acquiring webhook HTTP boundary', () => {
       providerPaymentId: 'provider-payment-1074',
     });
   });
+
+  // The money is already taken by the time this callback arrives, and the acquirer decides whether to
+  // try again purely from our status class. A 4xx retires the callback for good, so a settings read
+  // that merely could not run once cost the clinic the whole reconciliation, permanently and in
+  // silence. The assertion is on the retry class, not on an exact code.
+  it('keeps the acquirer retrying when the clinic payment settings cannot be read', async () => {
+    fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(ORGANIZATION_ID);
+    fakes.getPaymentSettings.mockRejectedValue(
+      Object.assign(new Error('permission denied for table payment_settings'), { code: '42501' }),
+    );
+
+    const response = await receivePatientWebhook(webhookRequest('settings-unreadable'), {
+      params: Promise.resolve({ provider: 'alfabank' }),
+    });
+
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'settings_unavailable',
+    });
+    expect(fakes.handleWebhook).not.toHaveBeenCalled();
+  });
+
+  // The other half of the same fix: a clinic that simply has not switched this provider on is a
+  // settled answer, not an outage, and has to stay in the non-retry class. Without this the test above
+  // could be satisfied by turning every refusal into a 5xx.
+  it('still refuses without retry when the clinic has this provider switched off', async () => {
+    fakes.resolveAcquiringWebhookOrganization.mockResolvedValue(ORGANIZATION_ID);
+    fakes.getPaymentSettings.mockResolvedValue({
+      enabled: true,
+      defaultProviderId: 'alfabank',
+      providers: [
+        { id: 'alfabank', label: 'Clinic', enabled: false, webhookSecret: 'clinic-secret' },
+      ],
+    });
+
+    const response = await receivePatientWebhook(webhookRequest('provider-off'), {
+      params: Promise.resolve({ provider: 'alfabank' }),
+    });
+
+    expect(response.status).toBeLessThan(500);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'payment_provider_unavailable',
+    });
+    expect(fakes.handleWebhook).not.toHaveBeenCalled();
+  });
 });

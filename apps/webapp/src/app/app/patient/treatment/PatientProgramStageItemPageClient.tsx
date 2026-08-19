@@ -21,6 +21,9 @@ import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab'
 import { resolvePatientProgramItemPage } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
 import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
 import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
+import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
+import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
+import { recommendationMediaItemToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
 import { parseApiMediaIdFromPlayableUrl } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import {
   mergeLastActivityDisplayedIso,
@@ -172,6 +175,22 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
   const { media, title } = props;
   if (!media) return null;
 
+  /*
+   * Внешнее видео занимает тот же слот, что и файловый плеер: у нас нет ни файла, ни HLS —
+   * ролик показывает сам хост в `<iframe>` (решение владельца 19.08). Проверка стоит до
+   * файловой ветки: та ищет id медиатеки в URL и на ссылку хостинга ответила бы отказом
+   * «видео без привязки к медиатеке».
+   */
+  if (media.mediaType === 'hosted_video') {
+    return (
+      <HostedVideoEmbed
+        url={media.mediaUrl}
+        title={title}
+        className="shrink-0 rounded-none"
+      />
+    );
+  }
+
   if (media.mediaType === 'video') {
     const mediaId = parseApiMediaIdFromPlayableUrl(media.mediaUrl);
     if (!mediaId) {
@@ -195,11 +214,24 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
     );
   }
 
-  const imgSrc = media.previewMdUrl ?? media.previewSmUrl ?? media.mediaUrl;
+  /**
+   * Through the door, not around it (owner ruling 19.08,
+   * `docs/_TODO/GET_IMAGE_ACCESSOR_2026-08-19.md`): `MediaThumb` decides thumbnail vs. stored
+   * re-encode vs. «готовится» vs. error from `media`'s true rendition state. The previous
+   * `media.previewMdUrl ?? media.previewSmUrl ?? media.mediaUrl` fallback always rendered an
+   * `<img>`, including for a file that was never converted — exactly the raw upload the standard
+   * rendition exists to keep off the wire.
+   */
   return (
     <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-muted/20">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imgSrc} alt={title} className="h-full w-full object-contain" loading="eager" />
+      <MediaThumb
+        media={recommendationMediaItemToPreviewUi(media)}
+        className="h-full w-full"
+        imgClassName="h-full w-full object-contain"
+        alt={title}
+        lazy={false}
+        sizes="100vw"
+      />
     </div>
   );
 }

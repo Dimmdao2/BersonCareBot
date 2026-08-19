@@ -831,23 +831,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
-  "public.be_external_entity_mappings": {
-    "kind": "direct",
-    "purpose": "сопоставление «наш id ↔ id внешней системы» — рвётся связь с Rubitime/внешними системами, начинаются дубли",
-    "codePaths": [
-      "apps/webapp/src/infra/repos/pgBookingEngine.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT",
-          "DELETE"
-        ],
-        "columns": "table"
-      }
-    ]
-  },
   "public.be_organization_members": {
     "kind": "direct",
     "purpose": "членство человека в клинике — никто не определяется как врач/админ клиники — падает вся авторизация кабинета",

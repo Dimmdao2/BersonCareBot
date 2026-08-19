@@ -19,7 +19,21 @@ import {
 // и два класса (`pre_session`, `service`) на одном теле операторских адресатов.
 const EXPECTED = {
   // 183 → 184 (19.08): `retention_sweep` — одна дверь уборки по сроку хранения (миграция 0031).
-  webapp: 184,
+  // 184 → 186 (19.08): `patient_outbound_message_enqueue` + `staff_outbound_message_enqueue` —
+  // одна дверь постановки исходящего сообщения, два класса контекста (миграция 0033).
+  // 186 → 187 (19.08): `appointment_reminder_generation_replace` — миграция 0034.
+  // 187 → 189 (19.08): два корня контактов формы записи из миграции 0037.
+  // 189 → 190 (19.08): `health_digest_last_sent_read` — одна дверь чтения времени последней
+  // подтверждённой отправки сводки (миграция 0038).
+  // 190 → 192 (19.08): `delivery_queue_health_read` + `health_digest_enqueue` — миграция 0039.
+  // 192 → 194 (19.08): `operator_alert_staff_push_audience_read` + `saas_renewal_due_list` (0040).
+  // 194 → 195 (19.08): `critical_incident_open` — миграция 0041.
+  // 195 → 196 (19.08): `platform_analytics_dashboard` — дашборд глобального админа читал
+  // девятнадцать таблиц отношением и отдавал 500 на первом же 42501 (миграция 0043).
+  // 196 → 200 (19.08): четыре двери публичной записи — миграция 0047 (ex-0043). Резолвер арендатора
+  // в классе `pre_session`, три остальные — именованные корни арендаторского класса
+  // `tenant_service`, которому сквозной `purpose: 'relation'` у порта `webapp` не выдаётся.
+  webapp: 202,
   integrator: 34,
 };
 
@@ -39,8 +53,22 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
   // 217 → 218 (19.08): `webapp_retention_sweep` — одна дверь уборки по сроку хранения на четыре
   // запертые арендаторские таблицы (миграция 0031). Прибавка одна, а не по одной на таблицу.
-  assert.equal(rows.length, 218);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 218);
+  // 218 → 220 (19.08): пациент и staff идут в ОДИН корень постановки исходящего сообщения
+  // (`outbound.message.enqueue`). Возможности две, потому что классов контекста два; дверь одна —
+  // это и есть «роль и права и контекст подставлять надо в одном месте».
+  // 220 → 221 (19.08): `appointment_reminder_generation_replace` — одна дверь замены поколения
+  // напоминаний о записи (миграция 0034).
+  // 221 → 223 (19.08): два корня контактов формы записи из миграции 0037.
+  // 223 → 224 (19.08): `webapp_health_digest_last_sent_read` — миграция 0038.
+  // 224 → 226 (19.08): `webapp_delivery_queue_health_read` + `webapp_health_digest_enqueue` (0039).
+  // 226 → 228 (19.08): аудитория staff-веб-пуша операторского алерта и межарендное перечисление
+  // подписок к продлению — миграция 0040.
+  // 228 → 229 (19.08): открытие критического инцидента — миграция 0041.
+  // 229 → 230 (19.08): корень платформенного дашборда — миграция 0043.
+  // 230 → 234 (19.08): четыре двери публичной записи (миграция 0047, ex-0043).
+  // 234 → 236 (19.08): две двери визитки клиники.
+  assert.equal(rows.length, 236);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 236);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -92,7 +120,18 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
   // 202 → 203 (19.08): корень уборки по сроку хранения `app.prune_retention_target(...)`.
-  assert.equal(roots.length, 203);
+  // 203 → 205 (19.08): ОДИН корень постановки исходящего сообщения, две возможности — пациент и
+  // staff; счётчик считает возможности с функцией, а не функции.
+  // 205 → 206 (19.08): корень замены поколения напоминаний о записи (миграция 0034).
+  // 206 → 208 (19.08): два корня контактов формы записи (миграция 0037).
+  // 208 → 209 (19.08): корень времени последней подтверждённой сводки (миграция 0038).
+  // 209 → 211 (19.08): корень снимка здоровья очереди и корень постановки сводки (миграция 0039).
+  // 211 → 213 (19.08): корень аудитории staff-веб-пуша и корень перечисления подписок (0040).
+  // 213 → 214 (19.08): корень открытия критического инцидента (0041).
+  // 214 → 215 (19.08): корень платформенного дашборда (0043).
+  // 215 → 219 (19.08): все четыре возможности публичной записи — именованные корни (0047, ex-0043).
+  // 219 → 221 (19.08): обе двери визитки клиники — именованные корни.
+  assert.equal(roots.length, 221);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

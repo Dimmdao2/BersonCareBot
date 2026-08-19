@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   and,
   asc,
@@ -39,6 +40,56 @@ import {
 /** Dead queue rows that count toward operator degradation (excludes blocked-bot finals). */
 export function countAsOperatorOutgoingDeliveryDead(failureClass: string | null): boolean {
   return failureClass !== 'recipient_blocked_bot';
+}
+
+const queueCountMapSchema = z.record(z.string(), z.number().finite().nonnegative());
+
+const outgoingDeliveryQueueHealthRootSchema = z
+  .object({
+    dueBacklog: z.number().finite().nonnegative(),
+    deadTotal: z.number().finite().nonnegative(),
+    deadRecent: z.number().finite().nonnegative(),
+    lastOperatorDeadAt: z.string().nullable(),
+    blockedRecipientTotal: z.number().finite().nonnegative(),
+    processingCount: z.number().finite().nonnegative(),
+    confirmedSentLast24h: z.number().finite().nonnegative(),
+    oldestDueCreatedAt: z.string().nullable(),
+    lastSentAt: z.string().nullable(),
+    lastQueueActivityAt: z.string().nullable(),
+    dueByChannel: queueCountMapSchema,
+    dueByKind: queueCountMapSchema,
+    deadByKind: queueCountMapSchema,
+  })
+  .strict();
+
+/** Возраст самой старой готовой строки считается здесь: корень отдаёт момент, а не длительность. */
+export function parseOutgoingDeliveryQueueHealthSnapshot(
+  raw: unknown,
+  nowMs: number = Date.now(),
+): OutgoingDeliveryQueueHealthSnapshot {
+  const parsed = outgoingDeliveryQueueHealthRootSchema.parse(raw);
+  let oldestDueAgeSeconds: number | null = null;
+  if (parsed.oldestDueCreatedAt) {
+    const createdAtMs = Date.parse(parsed.oldestDueCreatedAt);
+    if (!Number.isNaN(createdAtMs)) {
+      oldestDueAgeSeconds = Math.max(0, Math.floor((nowMs - createdAtMs) / 1000));
+    }
+  }
+  return {
+    dueBacklog: parsed.dueBacklog,
+    deadTotal: parsed.deadTotal,
+    deadRecent: parsed.deadRecent,
+    lastOperatorDeadAt: parsed.lastOperatorDeadAt,
+    blockedRecipientTotal: parsed.blockedRecipientTotal,
+    oldestDueAgeSeconds,
+    dueByChannel: parsed.dueByChannel,
+    dueByKind: parsed.dueByKind,
+    deadByKind: parsed.deadByKind,
+    processingCount: parsed.processingCount,
+    lastSentAt: parsed.lastSentAt,
+    confirmedSentLast24h: parsed.confirmedSentLast24h,
+    lastQueueActivityAt: parsed.lastQueueActivityAt,
+  };
 }
 
 export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
@@ -202,113 +253,23 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     };
   },
 
+  /**
+   * Снимок здоровья очереди доставки — объявленным корнем, а не двенадцатью запросами отношением.
+   *
+   * До миграции 0039 это были ровно двенадцать `db.select()` по `public.outgoing_delivery_queue`
+   * под `app_staff`/`app_worker`, у которых на этой таблице нет НИ ОДНОЙ привилегии и по решению не
+   * должно быть. Вызов стоит в голом `Promise.all` внутри `collectCriticalHealthSignalsBase`,
+   * поэтому 42501 ронял не панель, а весь пятиминутный критический тик и баннер здоровья у врача:
+   * оператор не получал ни одного критического алерта.
+   */
   async getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot> {
-    const db = getDrizzle();
-    const dueWh = and(
-      inArray(outgoingDeliveryQueue.status, ['pending', 'failed_retryable']),
-      lte(outgoingDeliveryQueue.nextRetryAt, sql`now()`),
+    const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+      getWebappSqlDb(),
+      'app.read_operator_delivery_queue_health()',
+      [],
+      sql`SELECT app.read_operator_delivery_queue_health() AS snapshot`,
     );
-    const operatorDeadWh = and(
-      eq(outgoingDeliveryQueue.status, 'dead'),
-      or(
-        isNull(outgoingDeliveryQueue.failureClass),
-        ne(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
-      ),
-    );
-    const blockedDeadWh = and(
-      eq(outgoingDeliveryQueue.status, 'dead'),
-      eq(outgoingDeliveryQueue.failureClass, 'recipient_blocked_bot'),
-    );
-    const [
-      dueRows,
-      deadRows,
-      blockedDeadRows,
-      oldestRows,
-      channelRows,
-      kindDueRows,
-      kindDeadRows,
-      processingRows,
-      activityRows,
-      sentRows,
-      confirmedSentRows,
-    ] = await Promise.all([
-      db.select({ c: count() }).from(outgoingDeliveryQueue).where(dueWh),
-      db.select({ c: count() }).from(outgoingDeliveryQueue).where(operatorDeadWh),
-      db.select({ c: count() }).from(outgoingDeliveryQueue).where(blockedDeadWh),
-      db
-        .select({ createdAt: outgoingDeliveryQueue.createdAt })
-        .from(outgoingDeliveryQueue)
-        .where(dueWh)
-        .orderBy(asc(outgoingDeliveryQueue.createdAt))
-        .limit(1),
-      db
-        .select({ channel: outgoingDeliveryQueue.channel, n: count() })
-        .from(outgoingDeliveryQueue)
-        .where(dueWh)
-        .groupBy(outgoingDeliveryQueue.channel),
-      db
-        .select({ kind: outgoingDeliveryQueue.kind, n: count() })
-        .from(outgoingDeliveryQueue)
-        .where(dueWh)
-        .groupBy(outgoingDeliveryQueue.kind),
-      db
-        .select({ kind: outgoingDeliveryQueue.kind, n: count() })
-        .from(outgoingDeliveryQueue)
-        .where(operatorDeadWh)
-        .groupBy(outgoingDeliveryQueue.kind),
-      db
-        .select({ c: count() })
-        .from(outgoingDeliveryQueue)
-        .where(eq(outgoingDeliveryQueue.status, 'processing')),
-      db.select({ mx: max(outgoingDeliveryQueue.updatedAt) }).from(outgoingDeliveryQueue),
-      db.select({ mx: max(outgoingDeliveryQueue.sentAt) }).from(outgoingDeliveryQueue),
-      // D-d: позитивное доказательство доставки за окно сводки.
-      db
-        .select({ c: count() })
-        .from(outgoingDeliveryQueue)
-        .where(
-          and(
-            eq(outgoingDeliveryQueue.status, 'sent'),
-            gte(outgoingDeliveryQueue.sentAt, sql`now() - interval '24 hours'`),
-          ),
-        ),
-    ]);
-    const dueRow = dueRows[0];
-    const deadRow = deadRows[0];
-    const blockedDeadRow = blockedDeadRows[0];
-    const oldestAt = oldestRows[0]?.createdAt;
-    let oldestDueAgeSeconds: number | null = null;
-    if (oldestAt) {
-      const t = new Date(oldestAt).getTime();
-      if (!Number.isNaN(t)) {
-        oldestDueAgeSeconds = Math.max(0, Math.floor((Date.now() - t) / 1000));
-      }
-    }
-    const dueByChannel: Record<string, number> = {};
-    for (const r of channelRows) {
-      dueByChannel[r.channel] = Number(r.n ?? 0);
-    }
-    const dueByKind: Record<string, number> = {};
-    for (const r of kindDueRows) {
-      dueByKind[r.kind] = Number(r.n ?? 0);
-    }
-    const deadByKind: Record<string, number> = {};
-    for (const r of kindDeadRows) {
-      deadByKind[r.kind] = Number(r.n ?? 0);
-    }
-    return {
-      dueBacklog: Number(dueRow?.c ?? 0),
-      deadTotal: Number(deadRow?.c ?? 0),
-      blockedRecipientTotal: Number(blockedDeadRow?.c ?? 0),
-      oldestDueAgeSeconds,
-      dueByChannel,
-      dueByKind,
-      deadByKind,
-      processingCount: Number(processingRows[0]?.c ?? 0),
-      lastSentAt: sentRows[0]?.mx ?? null,
-      confirmedSentLast24h: Number(confirmedSentRows[0]?.c ?? 0),
-      lastQueueActivityAt: activityRows[0]?.mx ?? null,
-    };
+    return parseOutgoingDeliveryQueueHealthSnapshot(result.rows[0]?.snapshot);
   },
 
   async getIntegratorPushOutboxHealth(): Promise<IntegratorPushOutboxHealthSnapshot> {

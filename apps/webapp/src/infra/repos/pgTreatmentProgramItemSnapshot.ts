@@ -1,14 +1,14 @@
 /** Wave 3 phase 15C — catalog media preview lookup via `runWebappPgText`. */
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
 import { clinicalTests } from '../../../db/schema/clinicalTests';
 import { recommendations } from '../../../db/schema/recommendations';
 import { contentPages, lfkExerciseMedia, lfkExercises } from '../../../db/schema/schema';
 import type { MediaPreviewStatus } from '@/modules/media/types';
 import type { TreatmentProgramItemSnapshotPort } from '@/modules/treatment-program/ports';
 import type { TreatmentProgramItemType } from '@/modules/treatment-program/types';
-import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { isMechanicEnabled } from '@/modules/org-entitlements/service';
@@ -37,7 +37,8 @@ function clinicalTestMediaToCatalogRows(raw: unknown): CatalogMediaRowInput[] {
         : '';
     if (!mediaUrl) continue;
     const mt = (m as { mediaType?: unknown }).mediaType;
-    const mediaType = mt === 'image' || mt === 'video' || mt === 'gif' ? mt : 'image';
+    const mediaType =
+      mt === 'image' || mt === 'video' || mt === 'gif' || mt === 'hosted_video' ? mt : 'image';
     const sortOrder =
       typeof (m as { sortOrder?: unknown }).sortOrder === 'number' &&
       Number.isFinite((m as { sortOrder: number }).sortOrder)
@@ -52,50 +53,31 @@ type CatalogMediaSnapshotRow = CatalogMediaRowInput & {
   previewSmUrl: string | null;
   previewMdUrl: string | null;
   previewStatus: MediaPreviewStatus;
+  standardRendition: boolean;
 };
 
 /**
- * Дополняет каталожные медиа (`/api/media/{uuid}`) полями превью воркера из `media_files` — для снимков
- * элементов программы (пациентский UI без join к БД на клиенте).
+ * Дополняет каталожные медиа (`/api/media/{uuid}`) состоянием лестницы (`catalogMediaLadderLookup`) —
+ * для снимков элементов программы (пациентский UI без join к БД на клиенте). Один батч-запрос на
+ * весь снимок, не на картинку.
  */
 async function catalogMediaRowsWithWorkerPreviews(
   rows: CatalogMediaRowInput[],
 ): Promise<CatalogMediaSnapshotRow[]> {
   if (rows.length === 0) return [];
-  const fileIds = [
-    ...new Set(rows.map((r) => parseMediaFileIdFromAppUrl(r.mediaUrl)).filter(Boolean)),
-  ] as string[];
-  const byId = new Map<
-    string,
-    { preview_sm_key: string | null; preview_md_key: string | null; preview_status: string | null }
-  >();
-  if (fileIds.length > 0) {
-    const r = await runWebappPgText<{
-      id: string;
-      preview_sm_key: string | null;
-      preview_md_key: string | null;
-      preview_status: string | null;
-    }>(
-      `SELECT id::text AS id, preview_sm_key, preview_md_key, preview_status
-       FROM media_files
-       WHERE id = ANY($1::uuid[])`,
-      [fileIds],
-    );
-    for (const row of r.rows) {
-      byId.set(String(row.id).toLowerCase(), row);
-    }
-  }
+  const fileIds = rows
+    .map((r) => parseMediaFileIdFromAppUrl(r.mediaUrl))
+    .filter((id): id is string => Boolean(id));
+  const byId = await catalogMediaLadderLookup(fileIds);
   return rows.map((row) => {
     const mid = parseMediaFileIdFromAppUrl(row.mediaUrl);
-    const mf = mid ? byId.get(mid) : undefined;
-    const previewSmUrl = mid && mf?.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
-    const previewMdUrl = mid && mf?.preview_md_key?.trim() ? mediaPreviewUrlById(mid, 'md') : null;
-    const previewStatus = (mf?.preview_status ?? 'pending') as MediaPreviewStatus;
+    const ladder = mid ? byId.get(mid) : undefined;
     return {
       ...row,
-      previewSmUrl,
-      previewMdUrl,
-      previewStatus,
+      previewSmUrl: ladder?.previewSmUrl ?? null,
+      previewMdUrl: ladder?.previewMdUrl ?? null,
+      previewStatus: ladder?.previewStatus ?? 'pending',
+      standardRendition: ladder?.standardRendition ?? false,
     };
   });
 }
@@ -161,6 +143,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
                   previewSmUrl: m.previewSmUrl,
                   previewMdUrl: m.previewMdUrl,
                   previewStatus: m.previewStatus,
+                  standardRendition: m.standardRendition,
                 }))
               : null;
           return {
@@ -191,6 +174,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
                   previewSmUrl: m.previewSmUrl,
                   previewMdUrl: m.previewMdUrl,
                   previewStatus: m.previewStatus,
+                  standardRendition: m.standardRendition,
                 }))
               : undefined;
           const line: Record<string, unknown> = {
@@ -224,6 +208,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
                   previewSmUrl: m.previewSmUrl,
                   previewMdUrl: m.previewMdUrl,
                   previewStatus: m.previewStatus,
+                  standardRendition: m.standardRendition,
                 }))
               : null;
           return {

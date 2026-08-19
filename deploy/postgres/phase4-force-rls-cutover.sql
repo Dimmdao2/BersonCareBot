@@ -106,7 +106,6 @@ VALUES
   ('"public"."be_branches"'),
   ('"public"."be_cancellation_policies"'),
   ('"public"."be_clinic_services"'),
-  ('"public"."be_external_entity_mappings"'),
   ('"public"."be_package_history_events"'),
   ('"public"."be_package_usages"'),
   ('"public"."be_patient_booking_profiles"'),

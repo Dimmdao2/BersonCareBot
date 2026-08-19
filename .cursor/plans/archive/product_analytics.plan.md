@@ -77,7 +77,7 @@ flowchart LR
 - [`apps/webapp/src/app/api/internal/product-analytics/retention/`](apps/webapp/src/app/api/internal/product-analytics/retention/)
 - [`apps/webapp/public/sw.js`](apps/webapp/public/sw.js), web-push copy/send, patient shell bootstrap
 - [`apps/webapp/src/app/app/settings/`](apps/webapp/src/app/app/settings/) — новая admin-вкладка + секция UI
-- [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md), [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md)
+- [`docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md), [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md)
 
 **Вне scope (явно не делать в этом плане):**
 
@@ -368,7 +368,7 @@ Admin API отдаёт:
 
 **Содержимое:** internal retention route, хостовый cron runbook, инициативный LOG, финальные targeted тесты.
 
-**Файлы:** `app/api/internal/product-analytics/retention/route.ts`, `deploy/HOST_DEPLOY_README.md`, `docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`, test files.
+**Файлы:** `app/api/internal/product-analytics/retention/route.ts`, `deploy/HOST_DEPLOY_README.md`, `docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`, test files.
 
 **Критерий завершения:** housekeeping описан copy-paste командами, dryRun/real режимы проверены, тесты зелёные.
 
@@ -401,7 +401,7 @@ Admin API отдаёт:
 
 ## Execution log
 
-**Журнал (канон):** [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md) — решения, проверки, smoke, ограничения SW.
+**Журнал (канон):** [`docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md) — решения, проверки, smoke, ограничения SW.
 
 ### Block 1 (2026-05-27) — закрыт
 
@@ -409,23 +409,23 @@ Admin API отдаёт:
 
 ### Block 2 (2026-05-27) — закрыт
 
-См. раздел «2026-05-27 — Block 2» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): ingest, post-review (UUID guard, тесты канала).
+См. раздел «2026-05-27 — Block 2» в [`docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): ingest, post-review (UUID guard, тесты канала).
 
 ### Block 3 (2026-05-27) — закрыт
 
-См. раздел «2026-05-27 — Block 3» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): trackingId, SW push-open, post-review (occurrence UUID guard).
+См. раздел «2026-05-27 — Block 3» в [`docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): trackingId, SW push-open, post-review (occurrence UUID guard).
 
 ### Block 4 (2026-05-27) — закрыт
 
-См. раздел «2026-05-27 — Block 4» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): `buildAdminDashboard`, `GET /api/admin/product-analytics`, `api.md`.
+См. раздел «2026-05-27 — Block 4» в [`docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): `buildAdminDashboard`, `GET /api/admin/product-analytics`, `api.md`.
 
 ### Block 5 (2026-05-27) — закрыт
 
-См. раздел «2026-05-27 — Block 5» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): вкладка «Использование», `ProductAnalyticsSection`.
+См. раздел «2026-05-27 — Block 5» в [`docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): вкладка «Использование», `ProductAnalyticsSection`.
 
 ### Block 6 (2026-05-27) — закрыт
 
-См. раздел «2026-05-27 — Block 6» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): retention endpoint, host cron, финальные тесты.
+См. раздел «2026-05-27 — Block 6» в [`docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): retention endpoint, host cron, финальные тесты.
 
 ## Definition of Done
 

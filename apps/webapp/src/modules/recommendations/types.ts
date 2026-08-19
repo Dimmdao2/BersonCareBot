@@ -3,12 +3,19 @@ import type { RecommendationDomain } from './recommendationDomain';
 
 export type RecommendationMediaItem = {
   mediaUrl: string;
-  mediaType: 'image' | 'video' | 'gif';
+  /** `hosted_video` — ссылка на внешний хостинг вместо файла медиатеки (см. `ExerciseMediaType`). */
+  mediaType: 'image' | 'video' | 'gif' | 'hosted_video';
   sortOrder: number;
   /** Превью воркера для малого размера; в JSON рекомендации в БД может отсутствовать — подставляется при `buildSnapshot`. */
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus | null;
+  /**
+   * `media_files.standard_rendition_at IS NOT NULL` — the object behind `mediaUrl` is our
+   * encoder's bounded output, not the raw upload. Absent in the persisted row; populated by the
+   * catalog media door (`catalogMediaLadderLookup`) at read time, same as the preview fields.
+   */
+  standardRendition?: boolean | null;
 };
 
 export type Recommendation = {

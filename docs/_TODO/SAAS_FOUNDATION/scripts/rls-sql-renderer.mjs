@@ -179,6 +179,24 @@ export function renderStaffOrPatientPredicate({
   return `(${renderStaffActorCheck()} OR ${patientPredicate})`;
 }
 
+// «Общий» (org-shared) вырез ОБЯЗАН нести организационный предикат. Слово «общая» здесь всегда
+// значило «общая ВНУТРИ клиники», и там, где вырез стоит под конъюнкцией с организацией
+// (renderOrgAndPatientPredicate: `org AND (staff OR patient)`), так и получалось. Но в форме
+// `(staff AND org) OR (пациентская ветка)` — её строит renderPhase4StrictPredicate, и именно она
+// приземляется в политики — вырез оказывался ОТДЕЛЬНЫМ дизъюнктом верхнего уровня: ветка,
+// истинная для ЛЮБОГО принципала, без проверки организации и роли. Живой замер на bcb_webapp_dev
+// (19.08): сотрудник клиники d0000000-…-0004 читал 11 строк public.media_folders клиники
+// a0000000-…-0001 и строку public.comments чужой клиники. Поэтому вырез принимает `sharedScopeSql`
+// — предикат, которым он ограничен. Вызывающая сторона, у которой организация уже стоит
+// конъюнктом над всем выражением, его не передаёт, и форма там не меняется.
+function scopedSharedBranch(branchSql, sharedScopeSql) {
+  if (sharedScopeSql === undefined || sharedScopeSql === null) return branchSql;
+  if (typeof sharedScopeSql !== 'string' || sharedScopeSql.length === 0) {
+    throw new Error('Shared-branch scope must be a non-empty SQL string when provided');
+  }
+  return `(${branchSql} AND ${sharedScopeSql})`;
+}
+
 // For patient-owned columns that are NULLABLE because NULL means "not an individual patient's
 // row" (org-shared/catalog row, e.g. public.media_folders standard/root folders) rather than
 // "unknown/unlinked patient" — those rows must stay visible to everyone in the org (patients
@@ -190,28 +208,32 @@ export function renderNullableSharedStaffOrPatientPredicate({
   patientColumn,
   castType = 'uuid',
   patientMode = 'enforce',
+  sharedScopeSql,
 } = {}) {
   if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
     throw new Error('Nullable shared staff-or-patient predicate requires a patientColumn');
   }
 
   const columnSql = quoteSqlIdentifier(patientColumn);
+  const sharedBranch = scopedSharedBranch(`${columnSql} IS NULL`, sharedScopeSql);
 
-  return `(${columnSql} IS NULL OR ${renderStaffOrPatientPredicate({ patientColumn, castType, patientMode })})`;
+  return `(${sharedBranch} OR ${renderStaffOrPatientPredicate({ patientColumn, castType, patientMode })})`;
 }
 
 export function renderNullableSharedPatientPredicate({
   patientColumn,
   castType = 'uuid',
   patientMode = 'enforce',
+  sharedScopeSql,
 } = {}) {
   if (typeof patientColumn !== 'string' || patientColumn.length === 0) {
     throw new Error('Nullable shared patient predicate requires a patientColumn');
   }
 
   const columnSql = quoteSqlIdentifier(patientColumn);
+  const sharedBranch = scopedSharedBranch(`${columnSql} IS NULL`, sharedScopeSql);
 
-  return `(${columnSql} IS NULL OR ${renderPatientPredicate({ patientColumn, mode: patientMode, castType })})`;
+  return `(${sharedBranch} OR ${renderPatientPredicate({ patientColumn, mode: patientMode, castType })})`;
 }
 
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
@@ -434,6 +456,7 @@ export function renderPolymorphicPatientPredicate({
   sharedTypeValues = [],
   variants = [],
   mode = 'enforce',
+  sharedScopeSql,
 } = {}) {
   assertPatientMode(mode);
 
@@ -450,7 +473,9 @@ export function renderPolymorphicPatientPredicate({
 
   if (sharedTypeValues.length > 0) {
     const list = sharedTypeValues.map(quoteSqlLiteral).join(', ');
-    branches.push(`${typeColumnSql} = ANY (ARRAY[${list}]::text[])`);
+    branches.push(
+      scopedSharedBranch(`${typeColumnSql} = ANY (ARRAY[${list}]::text[])`, sharedScopeSql),
+    );
   }
 
   for (const variant of variants) {
@@ -484,16 +509,22 @@ export function renderPolymorphicPatientPredicate({
   return ownOrSharedPredicate;
 }
 
-export function renderStaffOrPolymorphicPatientPredicate(config, { patientMode = 'enforce' } = {}) {
-  return `(${renderStaffActorCheck()} OR ${renderPolymorphicPatientPredicate({ ...config, mode: patientMode })})`;
+export function renderStaffOrPolymorphicPatientPredicate(
+  config,
+  { patientMode = 'enforce', sharedScopeSql } = {},
+) {
+  return `(${renderStaffActorCheck()} OR ${renderPolymorphicPatientPredicate({ ...config, mode: patientMode, sharedScopeSql })})`;
 }
 
 export function renderStaffOrPatientPredicateForDescriptor(
   descriptor,
-  { patientMode = 'enforce' } = {},
+  { patientMode = 'enforce', sharedScopeSql } = {},
 ) {
   if (descriptor.patientPolymorphic) {
-    return renderStaffOrPolymorphicPatientPredicate(descriptor.patientPolymorphic, { patientMode });
+    return renderStaffOrPolymorphicPatientPredicate(descriptor.patientPolymorphic, {
+      patientMode,
+      sharedScopeSql,
+    });
   }
 
   if (descriptor.patientConditionalChain) {
@@ -510,20 +541,32 @@ export function renderStaffOrPatientPredicateForDescriptor(
     return renderStaffOrPatientChainPredicate({ ...descriptor.patientChain, patientMode });
   }
 
-  const render = descriptor.patientColumnNullableShared
-    ? renderNullableSharedStaffOrPatientPredicate
-    : renderStaffOrPatientPredicate;
+  if (descriptor.patientColumnNullableShared) {
+    return renderNullableSharedStaffOrPatientPredicate({
+      patientColumn: descriptor.patientColumn,
+      castType: descriptor.patientColumnCastType ?? 'uuid',
+      patientMode,
+      sharedScopeSql,
+    });
+  }
 
-  return render({
+  return renderStaffOrPatientPredicate({
     patientColumn: descriptor.patientColumn,
     castType: descriptor.patientColumnCastType ?? 'uuid',
     patientMode,
   });
 }
 
-export function renderPatientPredicateForDescriptor(descriptor, { patientMode = 'enforce' } = {}) {
+export function renderPatientPredicateForDescriptor(
+  descriptor,
+  { patientMode = 'enforce', sharedScopeSql } = {},
+) {
   if (descriptor.patientPolymorphic) {
-    return renderPolymorphicPatientPredicate(descriptor.patientPolymorphic, { mode: patientMode });
+    return renderPolymorphicPatientPredicate({
+      ...descriptor.patientPolymorphic,
+      mode: patientMode,
+      sharedScopeSql,
+    });
   }
 
   if (descriptor.patientConditionalChain) {
@@ -544,14 +587,18 @@ export function renderPatientPredicateForDescriptor(descriptor, { patientMode = 
     return renderPatientChainPredicate({ ...descriptor.patientChain, mode: patientMode });
   }
 
-  const render = descriptor.patientColumnNullableShared
-    ? renderNullableSharedPatientPredicate
-    : renderPatientPredicate;
+  if (descriptor.patientColumnNullableShared) {
+    return renderNullableSharedPatientPredicate({
+      patientColumn: descriptor.patientColumn,
+      castType: descriptor.patientColumnCastType ?? 'uuid',
+      patientMode,
+      sharedScopeSql,
+    });
+  }
 
-  return render({
+  return renderPatientPredicate({
     patientColumn: descriptor.patientColumn,
     castType: descriptor.patientColumnCastType ?? 'uuid',
-    patientMode,
     mode: patientMode,
   });
 }

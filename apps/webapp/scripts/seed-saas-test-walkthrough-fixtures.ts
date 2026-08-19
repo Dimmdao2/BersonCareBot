@@ -88,14 +88,6 @@ const ids = {
     '53000000-0000-4000-8000-0000000054a3',
     '53000000-0000-4000-8000-0000000054b1',
   ],
-  externalMappings: [
-    '53000000-0000-4000-8000-0000000055a1',
-    '53000000-0000-4000-8000-0000000055b1',
-  ],
-  legacyBranchServices: [
-    '53000000-0000-4000-8000-0000000056a1',
-    '53000000-0000-4000-8000-0000000056b1',
-  ],
   mediaFiles: ['53000000-0000-4000-8000-0000000080a1', '53000000-0000-4000-8000-0000000080b1'],
   exerciseMedia: ['53000000-0000-4000-8000-0000000081a1', '53000000-0000-4000-8000-0000000081b1'],
   tariff: '53000000-0000-4000-8000-0000000094a1',
@@ -802,9 +794,6 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       .delete(schema.beWorkingHours)
       .where(inArray(schema.beWorkingHours.id, [...ids.workingHours]));
     await tx
-      .delete(schema.beExternalEntityMappings)
-      .where(inArray(schema.beExternalEntityMappings.id, [...ids.externalMappings]));
-    await tx
       .delete(schema.beSpecialistServiceAvailability)
       .where(
         inArray(schema.beSpecialistServiceAvailability.id, [...ids.specialistServiceAvailability]),
@@ -834,6 +823,17 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           set: { title, isActive: true, updatedAt: nowIso },
         });
       await tx.execute(sql`SELECT app.seed_reference_catalog_snapshot(${organizationId}::uuid)`);
+      // A directory entry is refused unless the organization already holds the slug as its
+      // `current` claim (`app.guard_clinic_directory_current_slug`). The claim is what a real
+      // signup writes first, so the fixture writes it first too — reconciled, not assumed.
+      await tx
+        .insert(schema.organizationSlugClaims)
+        .values({ organizationId, slug, kind: 'current', updatedAt: nowIso })
+        .onConflictDoUpdate({
+          target: schema.organizationSlugClaims.organizationId,
+          targetWhere: sql`${schema.organizationSlugClaims.kind} = 'current'`,
+          set: { slug, updatedAt: nowIso },
+        });
       // Canonical public booking link `/book/{publicSlug}` (OWNER_RULINGS_2026-07-17.md §1):
       // reconcile the published directory entry so the demo clinics are click-through-verifiable.
       await tx
@@ -1073,34 +1073,6 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         cityCode: 'test-b',
         isActive: true,
         sortOrder: 0,
-        updatedAt: nowIso,
-      },
-    ]);
-    await tx.insert(schema.beExternalEntityMappings).values([
-      {
-        id: ids.externalMappings[0],
-        organizationId: ids.organizationA,
-        entityType: 'availability',
-        canonicalId: ids.specialistServiceAvailability[0],
-        externalSystem: 'saas_test_fixture',
-        externalId: `saas-fixture:${ids.legacyBranchServices[0]}`,
-        metadata: {
-          fixture: SAAS_TEST_FIXTURE_MANIFEST.namespace,
-          legacy_branch_service_id: ids.legacyBranchServices[0],
-        },
-        updatedAt: nowIso,
-      },
-      {
-        id: ids.externalMappings[1],
-        organizationId: ids.organizationB,
-        entityType: 'availability',
-        canonicalId: ids.specialistServiceAvailability[1],
-        externalSystem: 'saas_test_fixture',
-        externalId: `saas-fixture:${ids.legacyBranchServices[1]}`,
-        metadata: {
-          fixture: SAAS_TEST_FIXTURE_MANIFEST.namespace,
-          legacy_branch_service_id: ids.legacyBranchServices[1],
-        },
         updatedAt: nowIso,
       },
     ]);
@@ -1834,9 +1806,12 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       );
     assertCount('diary_snapshots', fixtureSnapshots[0]?.value ?? 0, 21);
 
-    const bookingProof = await tx.execute<{ mapping_count: number; schedulable_count: number }>(sql`
+    const bookingProof = await tx.execute<{
+      availability_count: number;
+      schedulable_count: number;
+    }>(sql`
       SELECT
-        count(*)::int AS mapping_count,
+        count(*)::int AS availability_count,
         count(*) FILTER (WHERE EXISTS (
           SELECT 1
           FROM generate_series(current_date, current_date + 13, interval '1 day') AS day(candidate_date)
@@ -1850,7 +1825,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
             AND NOT EXISTS (
               SELECT 1
               FROM be_appointments appointment
-              WHERE appointment.organization_id = map.organization_id
+              WHERE appointment.organization_id = ssa.organization_id
                 AND appointment.specialist_id = ssa.specialist_id
                 AND appointment.deleted_at IS NULL
                 AND appointment.status IN (
@@ -1867,34 +1842,30 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
                 ) AT TIME ZONE branch.timezone)
             )
         ))::int AS schedulable_count
-      FROM be_external_entity_mappings map
-      JOIN be_specialist_service_availability ssa
-        ON ssa.id = map.canonical_id
-       AND ssa.organization_id = map.organization_id
-       AND ssa.is_active = true
+      FROM be_specialist_service_availability ssa
       JOIN be_branches branch
         ON branch.id = ssa.branch_id
-       AND branch.organization_id = map.organization_id
+       AND branch.organization_id = ssa.organization_id
        AND branch.is_active = true
       JOIN be_clinic_services svc
         ON svc.id = ssa.service_id
-       AND svc.organization_id = map.organization_id
+       AND svc.organization_id = ssa.organization_id
        AND svc.is_active = true
       JOIN be_working_hours wh
-        ON wh.organization_id = map.organization_id
+        ON wh.organization_id = ssa.organization_id
        AND wh.specialist_id = ssa.specialist_id
        AND wh.branch_id = ssa.branch_id
-      WHERE map.id IN (${sql.join(
-        ids.externalMappings.map((id) => sql`${id}::uuid`),
-        sql`, `,
-      )})
-        AND map.entity_type = 'availability'
-        AND map.metadata->>'legacy_branch_service_id' IN (${sql.join(
-          ids.legacyBranchServices.map((id) => sql`${id}`),
+      WHERE ssa.is_active = true
+        AND ssa.id IN (${sql.join(
+          ids.specialistServiceAvailability.map((id) => sql`${id}::uuid`),
           sql`, `,
         )})
     `);
-    assertCount('public_booking_mappings', bookingProof.rows[0]?.mapping_count ?? 0, 2);
+    assertCount(
+      'public_booking_availability_contexts',
+      bookingProof.rows[0]?.availability_count ?? 0,
+      2,
+    );
     assertCount(
       'public_booking_schedulable_contexts',
       bookingProof.rows[0]?.schedulable_count ?? 0,
@@ -1970,7 +1941,11 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
     const safeProof = safeSurfaceProof.rows[0];
     assertCount('global_admin', safeProof?.global_admin_count ?? 0, 1);
     assertCount('shared_patient_login', safeProof?.shared_patient_login_count ?? 0, 1);
-    assertCount('registration_settings_mirrored', safeProof?.registration_setting_count ?? 0, 2);
+    // 2 → 1 (19.08): запрос ограничен `key='specialist_signup_enabled' AND scope='admin' AND
+    // organization_id IS NULL`, а на таблице стоит UNIQUE (key, scope) WHERE organization_id IS NULL
+    // (`system_settings_global_key_scope_uidx`). То есть строк физически не может быть больше одной,
+    // и ожидание двух было невыполнимо на ЛЮБОМ окружении — проверка просто никогда не запускалась.
+    assertCount('registration_settings_mirrored', safeProof?.registration_setting_count ?? 0, 1);
     assertCount('local_media', safeProof?.local_media_count ?? 0, 2);
     assertCount('tariff', safeProof?.tariff_count ?? 0, 1);
     assertCount('disabled_notifications', safeProof?.disabled_notification_count ?? 0, 2);

@@ -6,9 +6,9 @@
  * TEST. Root cause: apps/webapp/src/infra/repos/pgPatientBookings.ts:171 does a raw
  * `LEFT JOIN be_branches` under the app_patient DB role inside listUpcomingByUser/
  * listHistoryByUser (→ listMyBookings → this page). But deploy/postgres/
- * public-booking-bootstrap-resolver.sql:158-168 FATAL-asserts that app_patient must NEVER get
- * direct SELECT on be_branches/be_clinic_services/be_specialist_service_availability/
- * be_external_entity_mappings — that access is meant to go only through the SECURITY DEFINER
+ * public-booking-bootstrap-resolver.sql FATAL-asserts that app_patient must NEVER get
+ * direct SELECT on be_branches/be_clinic_services/be_specialist_service_availability
+ * — that access is meant to go only through the SECURITY DEFINER
  * app.resolve_public_booking_organization(). This is a genuine code bug (a query that never
  * migrated to the definer seam this repo's own security convention requires), not a missing
  * grant — confirmed read-only via information_schema.role_table_grants (app_patient has zero

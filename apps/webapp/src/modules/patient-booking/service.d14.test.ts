@@ -119,6 +119,9 @@ function buildService(input: {
   };
 
   const service = createPatientBookingService({
+    // Постановка письма в очередь: в этих тестах доставка не проверяется, но порт обязателен —
+    // запись без пути доставки подтверждения неполна, поэтому он не необязательный.
+    outboundMessageQueue: { enqueue: async () => true },
     bookingsPort: bookingsPort as unknown as Parameters<typeof createPatientBookingService>[0]['bookingsPort'],
     syncPort: {
       emitBookingEvent: async (evt: unknown) => {

@@ -179,3 +179,111 @@ test('normal legacy execution still accepts migration, backfill and post files',
   assert.match(transaction, /\nCOMMIT;\s*$/u);
   assert.doesNotMatch(transaction, /^ROLLBACK;\s*$/mu);
 });
+
+// The watermark migrator applies `when > max(created_at)`.  These three cases pin the gate that
+// makes a journal entry stranded below that watermark audible instead of "pending=0 already
+// current" — the failure that left `app.read_public_clinic_card(text)` absent from TEST on 19.08
+// while the ledger reported every migration applied.
+function createWatermarkRuntime(ledgerWhens) {
+  const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-local-watermark-'));
+  const bin = join(root, 'bin');
+  const migrations = join(root, 'migrations');
+  const capture = join(root, 'transaction.sql');
+  mkdirSync(bin);
+  mkdirSync(join(migrations, 'meta'), { recursive: true });
+  const entries = [
+    { idx: 0, version: '7', when: 1800000000100, tag: '0000_first' },
+    { idx: 1, version: '7', when: 1800000000200, tag: '0001_stranded' },
+    { idx: 2, version: '7', when: 1800000000300, tag: '0002_third' },
+  ];
+  writeFileSync(join(migrations, 'meta/_journal.json'), JSON.stringify({ entries }));
+  for (const entry of entries) {
+    writeFileSync(
+      join(migrations, `${entry.tag}.sql`),
+      ['-- BCB-MIGRATION-OWNER: app_probe_owner', `SELECT '${entry.tag}';`, ''].join('\n'),
+    );
+  }
+  const ledger = ledgerWhens
+    .map((when, index) => `${String(index + 1).repeat(64).slice(0, 64).replaceAll(/[^0-9a-f]/gu, 'a')}\t${when}`)
+    .join('\n');
+  writeFileSync(
+    join(bin, 'psql'),
+    `#!/usr/bin/env bash
+set -eu
+for arg in "$@"; do
+  if [[ "$arg" == '-c' ]]; then printf '%b\\n' ${JSON.stringify(ledger)}; exit 0; fi
+done
+cat > '${capture}'
+`,
+  );
+  chmodSync(join(bin, 'psql'), 0o755);
+  return { bin, capture, migrations, root };
+}
+
+function runWatermarkMigrator(runtime, extraArgs = []) {
+  return spawnSync(
+    process.execPath,
+    [
+      migratorPath,
+      '--db',
+      'bersoncarebot_test',
+      '--migrator',
+      'bcb_test_migrator',
+      '--drizzle-folder',
+      runtime.migrations,
+      ...extraArgs,
+    ],
+    { encoding: 'utf8', env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` } },
+  );
+}
+
+test('a journal entry below the ledger watermark and absent from it stops the run loudly', () => {
+  const runtime = createWatermarkRuntime([1800000000100, 1800000000300]);
+
+  const result = runWatermarkMigrator(runtime);
+
+  assert.notEqual(result.status, 0, 'silently skipped migration must not report success');
+  assert.match(result.stderr, /describe different states/u);
+  assert.match(result.stderr, /when=1800000000200 tag=0001_stranded/u);
+  assert.match(result.stderr, /--apply-out-of-order 0001_stranded/u);
+  assert.doesNotMatch(result.stdout, /already current/u);
+  assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the gate');
+});
+
+test('the named out-of-order opt-in applies exactly the stranded entry through the same wrapper', () => {
+  const runtime = createWatermarkRuntime([1800000000100, 1800000000300]);
+
+  const result = runWatermarkMigrator(runtime, ['--apply-out-of-order', '0001_stranded']);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(transaction, /SELECT '0001_stranded';/u);
+  assert.doesNotMatch(transaction, /SELECT '0002_third';/u);
+  // Its true journal timestamp is what lands in the ledger, so the hole closes instead of moving.
+  assert.match(
+    transaction,
+    /INSERT INTO drizzle\.__drizzle_migrations \(hash, created_at\) VALUES \('[0-9a-f]{64}', 1800000000200\);/u,
+  );
+  assert.match(transaction, /\nCOMMIT;\s*$/u);
+  assert.match(result.stdout, /out-of-order=1/u);
+});
+
+test('a second stranded entry still stops a run that opted in for only the first', () => {
+  const runtime = createWatermarkRuntime([1800000000300]);
+
+  const result = runWatermarkMigrator(runtime, ['--apply-out-of-order', '0001_stranded']);
+
+  assert.notEqual(result.status, 0, 'an unnamed hole must not ride along on a stale flag');
+  assert.match(result.stderr, /when=1800000000100 tag=0000_first/u);
+  assert.doesNotMatch(result.stderr, /tag=0001_stranded/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('an aligned journal and ledger still report themselves current', () => {
+  const runtime = createWatermarkRuntime([1800000000100, 1800000000200, 1800000000300]);
+
+  const result = runWatermarkMigrator(runtime);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /already current for "bersoncarebot_test": pending=0 total=3/u);
+});

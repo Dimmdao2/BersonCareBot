@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { after } from 'next/server';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 import {
   getIntegratorApiUrl,
@@ -94,20 +95,65 @@ function integratorErrorCode(json: Record<string, unknown>): string {
   return 'booking_lifecycle_event_failed';
 }
 
-export function createBookingSyncPort(): BookingSyncPort {
+/** Отправка события интегратору: подписанный POST + существующая лестница повторов. */
+async function deliverBookingLifecycleEvent(input: {
+  eventType: string;
+  idempotencyKey: string;
+  payload: Record<string, unknown>;
+}): Promise<void> {
+  const { status, json } = await postSignedWithRetry('/api/bersoncare/booking/lifecycle-event', {
+    eventType: input.eventType,
+    idempotencyKey: input.idempotencyKey,
+    payload: input.payload,
+  });
+  if (status >= 400 || json.ok !== true) {
+    throw new Error(integratorErrorCode(json));
+  }
+}
+
+/**
+ * Отложить работу за пределы ответа человеку. Внутри запроса это `after()` Next (тот же приём уже
+ * стоит в `api/auth/phone/start`); вне запроса — cron-скрипты, воркеры, тесты — `after()` бросает,
+ * и тогда работа выполняется НА МЕСТЕ, то есть поведение вне запроса не меняется вовсе.
+ */
+export type DeferOutsideResponse = (work: () => Promise<void>) => Promise<void>;
+
+const deferWithNextAfter: DeferOutsideResponse = async (work) => {
+  try {
+    after(work);
+  } catch {
+    await work();
+  }
+};
+
+export function createBookingSyncPort(options?: { defer?: DeferOutsideResponse }): BookingSyncPort {
+  const defer = options?.defer ?? deferWithNextAfter;
   return {
     async emitBookingEvent(input): Promise<void> {
-      const { status, json } = await postSignedWithRetry(
-        '/api/bersoncare/booking/lifecycle-event',
-        {
-          eventType: input.eventType,
-          idempotencyKey: input.idempotencyKey,
-          payload: input.payload,
-        },
-      );
-      if (status >= 400 || json.ok !== true) {
-        throw new Error(integratorErrorCode(json));
+      const event = {
+        eventType: input.eventType,
+        idempotencyKey: input.idempotencyKey,
+        payload: input.payload as unknown as Record<string, unknown>,
+      };
+      if (input.waitForDelivery === true) {
+        await deliverBookingLifecycleEvent(event);
+        return;
       }
+      // Человек уже получил ответ; отказ отправки ниже НЕ проглатывается пустым `catch {}`, как
+      // раньше на каждом вызывающем, а называется в журнале своим именем и с ключом события —
+      // иначе трёхсекундное ожидание отказа было ещё и невидимым.
+      await defer(async () => {
+        try {
+          await deliverBookingLifecycleEvent(event);
+        } catch (err) {
+          console.error('[booking-lifecycle] deferred integrator event failed', {
+            event: 'booking_lifecycle_emit_failed',
+            eventType: event.eventType,
+            idempotencyKey: event.idempotencyKey,
+            err,
+          });
+        }
+      });
     },
   };
 }

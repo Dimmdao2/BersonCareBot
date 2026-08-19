@@ -11,10 +11,9 @@
  * ⚠ ЭТОТ СКРИПТ НЕ УДАЛЯЕТ НИ ОДНОГО АККАУНТА (platform_users). Только записи.
  *
  * Что удаляет (в одной транзакции при --commit):
- *   1. be_external_entity_mappings (entity_type='appointment') для целевых записей;
- *   2. be_appointments целевых (CASCADE снесёт audit-детей: events/history/reschedules/
+ *   1. be_appointments целевых (CASCADE снесёт audit-детей: events/history/reschedules/
  *      cancellations/staff_comments/form_submissions; payments/patient_bookings → SET NULL);
- *   3. patient_bookings проекции этих плейсхолдеров;
+ *   2. patient_bookings проекции этих плейсхолдеров;
  *
  * Цель = записи, где platform_user_id принадлежит НЕ-admin плейсхолдеру с целевым телефоном,
  *   ИЛИ phone_normalized/contact_phone — целевой телефон. Admin-аккаунты исключены by design.
@@ -54,7 +53,6 @@ import { randomUUID } from 'node:crypto';
 import { and, count, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import {
   beAppointments,
-  beExternalEntityMappings,
   patientBookings,
   platformUsers,
 } from '../db/schema';
@@ -78,7 +76,6 @@ const PHONES = ['+70000000000', '+79189000782'];
 
 type CleanupStats = {
   be_appointments_to_delete: number;
-  appointment_mappings_to_delete: number;
   patient_bookings_to_delete: number;
 };
 
@@ -296,29 +293,14 @@ async function main() {
     const appointmentIds = appointmentRows.map((row) => row.id);
     detailedAudit.appointmentIds = appointmentIds;
 
-    const [mappingCountRow, patientBookingCountRow] = await Promise.all([
-      appointmentIds.length === 0
-        ? Promise.resolve({ value: 0 })
-        : db
-            .select({ value: count() })
-            .from(beExternalEntityMappings)
-            .where(
-              and(
-                eq(beExternalEntityMappings.entityType, 'appointment'),
-                inArray(beExternalEntityMappings.canonicalId, appointmentIds),
-              ),
-            )
-            .then((rows) => rows[0] ?? { value: 0 }),
-      db
-        .select({ value: count() })
-        .from(patientBookings)
-        .where(patientBookingWhere)
-        .then((rows) => rows[0] ?? { value: 0 }),
-    ]);
+    const patientBookingCountRow = await db
+      .select({ value: count() })
+      .from(patientBookings)
+      .where(patientBookingWhere)
+      .then((rows) => rows[0] ?? { value: 0 });
 
     const stats: CleanupStats = {
       be_appointments_to_delete: appointmentIds.length,
-      appointment_mappings_to_delete: Number(mappingCountRow.value),
       patient_bookings_to_delete: Number(patientBookingCountRow.value),
     };
 
@@ -362,16 +344,6 @@ async function main() {
           previewIds.some((id, index) => id !== transactionIds[index])
         ) {
           throw new Error('ABORT: appointment target set changed after preview');
-        }
-        if (lockedAppointmentIds.length > 0) {
-          await tx
-            .delete(beExternalEntityMappings)
-            .where(
-              and(
-                eq(beExternalEntityMappings.entityType, 'appointment'),
-                inArray(beExternalEntityMappings.canonicalId, lockedAppointmentIds),
-              ),
-            );
         }
         await tx.delete(beAppointments).where(appointmentWhere);
         await tx.delete(patientBookings).where(patientBookingWhere);

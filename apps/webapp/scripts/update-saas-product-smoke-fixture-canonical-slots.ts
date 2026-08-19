@@ -36,7 +36,6 @@ export type CanonicalSlotCandidate = Readonly<{
 export type CanonicalSlotProbe = Readonly<{
   databaseName: string;
   organizationCount: number;
-  legacyMatchCount: number;
   candidates: readonly CanonicalSlotCandidate[];
 }>;
 
@@ -51,7 +50,7 @@ type ProtectedMetadata = Readonly<{
 type UpdateDependencies = Readonly<{
   expectedOwnerId: number;
   expectedGroupId: number;
-  query: (organizationSlug: string, legacyRef: string | null) => CanonicalSlotProbe;
+  query: (organizationSlug: string) => CanonicalSlotProbe;
   validateProtectedFile: (path: string) => void;
   checkFixture: (path: string) => void;
   log: (message: string) => void;
@@ -85,7 +84,6 @@ export function parseFixtureForCanonicalSlots(text: string): Readonly<{
   document: JsonRecord;
   refs: JsonRecord;
   organizationSlug: string;
-  legacyRef: string | null;
 }> {
   let parsed: unknown;
   try {
@@ -96,21 +94,12 @@ export function parseFixtureForCanonicalSlots(text: string): Readonly<{
   if (!isJsonRecord(parsed) || !isJsonRecord(parsed.refs)) fail('fixture_refs_invalid');
   const organizationSlug = requireString(parsed.refs, 'publicBookingOrganizationSlug');
   if (!SLUG_PATTERN.test(organizationSlug)) fail('organization_slug_invalid');
-
-  const legacyValue = parsed.refs.publicBookingServiceId;
-  const legacyRef =
-    typeof legacyValue === 'string' && legacyValue.trim() ? legacyValue.trim() : null;
-  if (legacyRef !== null && !UUID_PATTERN.test(legacyRef)) fail('legacy_ref_invalid');
-  return { document: parsed, refs: parsed.refs, organizationSlug, legacyRef };
+  return { document: parsed, refs: parsed.refs, organizationSlug };
 }
 
-export function resolveOneCanonicalSlotPair(
-  probe: CanonicalSlotProbe,
-  legacyRefRequired: boolean,
-): CanonicalSlotCandidate {
+export function resolveOneCanonicalSlotPair(probe: CanonicalSlotProbe): CanonicalSlotCandidate {
   if (probe.databaseName !== EXACT_TEST_DATABASE) fail('wrong_database');
   if (probe.organizationCount !== 1) fail('organization_not_unique');
-  if (legacyRefRequired && probe.legacyMatchCount !== 1) fail('legacy_ref_not_unique');
   if (probe.candidates.length === 0) fail('canonical_slot_pair_not_found');
   if (probe.candidates.length !== 1) fail('canonical_slot_pair_ambiguous');
   const candidate = probe.candidates[0];
@@ -220,10 +209,7 @@ export function updateCanonicalSlotRefs(
     dependencies.expectedGroupId,
   );
   const parsed = parseFixtureForCanonicalSlots(originalContents);
-  const candidate = resolveOneCanonicalSlotPair(
-    dependencies.query(parsed.organizationSlug, parsed.legacyRef),
-    parsed.legacyRef !== null,
-  );
+  const candidate = resolveOneCanonicalSlotPair(dependencies.query(parsed.organizationSlug));
   const updatedDocument: JsonRecord = {
     ...parsed.document,
     refs: {
@@ -287,11 +273,9 @@ function shellQuoteSqlLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-export function buildReadOnlyProbeSql(organizationSlug: string, legacyRef: string | null): string {
+export function buildReadOnlyProbeSql(organizationSlug: string): string {
   if (!SLUG_PATTERN.test(organizationSlug)) fail('organization_slug_invalid');
-  if (legacyRef !== null && !UUID_PATTERN.test(legacyRef)) fail('legacy_ref_invalid');
   const slugLiteral = shellQuoteSqlLiteral(organizationSlug);
-  const legacyLiteral = shellQuoteSqlLiteral(legacyRef ?? '');
   return `
 BEGIN READ ONLY;
 SET LOCAL statement_timeout = '10s';
@@ -303,16 +287,6 @@ WITH slug_org AS (
    AND organization.is_active = true
   WHERE directory.slug = ${slugLiteral}
     AND directory.is_published = true
-), legacy_pairs AS (
-  SELECT DISTINCT mapping.organization_id, availability.branch_id, availability.service_id
-  FROM public.be_external_entity_mappings AS mapping
-  JOIN public.be_specialist_service_availability AS availability
-    ON availability.id = mapping.canonical_id
-   AND availability.organization_id = mapping.organization_id
-   AND availability.is_active = true
-  WHERE ${legacyLiteral} <> ''
-    AND mapping.entity_type = 'availability'
-    AND mapping.metadata ->> 'legacy_branch_service_id' = ${legacyLiteral}
 ), candidates AS (
   SELECT DISTINCT branch.id AS branch_id, service.id AS clinic_service_id
   FROM slug_org
@@ -329,17 +303,10 @@ WITH slug_org AS (
    AND availability.branch_id = branch.id
    AND availability.service_id = service.id
    AND availability.is_active = true
-  WHERE ${legacyLiteral} = '' OR EXISTS (
-    SELECT 1 FROM legacy_pairs
-    WHERE legacy_pairs.organization_id = slug_org.organization_id
-      AND legacy_pairs.branch_id = branch.id
-      AND legacy_pairs.service_id = service.id
-  )
 )
 SELECT json_build_object(
   'databaseName', current_database(),
   'organizationCount', (SELECT count(*)::int FROM slug_org),
-  'legacyMatchCount', (SELECT count(*)::int FROM legacy_pairs),
   'candidates', COALESCE((
     SELECT json_agg(json_build_object(
       'branchId', candidates.branch_id,
@@ -352,7 +319,7 @@ ROLLBACK;
 `;
 }
 
-function runReadOnlyProbe(organizationSlug: string, legacyRef: string | null): CanonicalSlotProbe {
+function runReadOnlyProbe(organizationSlug: string): CanonicalSlotProbe {
   const result = spawnSync(
     'sudo',
     [
@@ -369,7 +336,7 @@ function runReadOnlyProbe(organizationSlug: string, legacyRef: string | null): C
     ],
     {
       encoding: 'utf8',
-      input: buildReadOnlyProbeSql(organizationSlug, legacyRef),
+      input: buildReadOnlyProbeSql(organizationSlug),
       maxBuffer: 1024 * 1024,
     },
   );
@@ -392,15 +359,13 @@ function runReadOnlyProbe(organizationSlug: string, legacyRef: string | null): C
   });
   if (
     typeof parsed.databaseName !== 'string' ||
-    typeof parsed.organizationCount !== 'number' ||
-    typeof parsed.legacyMatchCount !== 'number'
+    typeof parsed.organizationCount !== 'number'
   ) {
     fail('database_probe_invalid');
   }
   return {
     databaseName: parsed.databaseName,
     organizationCount: parsed.organizationCount,
-    legacyMatchCount: parsed.legacyMatchCount,
     candidates,
   };
 }

@@ -62,6 +62,7 @@ import { createDoctorAppointmentsService } from '@/modules/doctor-appointments/s
 import { createDoctorMessagingService } from '@/modules/doctor-messaging/service';
 import { createDoctorStatsService } from '@/modules/doctor-stats/service';
 import { createAdminPlatformUserStatsService } from '@/modules/admin-platform-stats/service';
+import { createPlatformAnalyticsService } from '@/modules/platform-analytics/service';
 import { createProductAnalyticsService } from '@/modules/product-analytics/service';
 import { createPgProductAnalyticsPort } from '@/infra/repos/pgProductAnalytics';
 import { createInMemoryProductAnalyticsPort } from '@/infra/repos/inMemoryProductAnalytics';
@@ -102,6 +103,8 @@ import { createPgMessageLogPort } from '@/infra/repos/pgMessageLog';
 import { createPgDoctorClientsPort } from '@/infra/repos/pgDoctorClients';
 import { createPgAdminPlatformUserStatsPort } from '@/infra/repos/pgAdminPlatformUserStats';
 import { createInMemoryAdminPlatformUserStatsPort } from '@/infra/repos/inMemoryAdminPlatformUserStats';
+import { createPgPlatformAnalyticsPort } from '@/infra/repos/pgPlatformAnalytics';
+import { createInMemoryPlatformAnalyticsPort } from '@/infra/repos/inMemoryPlatformAnalytics';
 import { createPgDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/pgDoctorAnalyticsMetricAccounts';
 import { inMemoryDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts';
 import { createPgDoctorCanonicalAppointmentsPort } from '@/infra/repos/pgDoctorCanonicalAppointments';
@@ -350,6 +353,8 @@ import { getDeliveryTargetsForUser } from '@/modules/channel-preferences/deliver
 import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegratorDeliveryTargets';
 import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
+import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
+import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
 import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
@@ -362,6 +367,8 @@ import { createPatientBookingCatalogService } from '@/modules/patient-booking/pa
 import { createPgPatientBookingCatalogPort } from '@/infra/repos/pgPatientBookingCatalog';
 import { inMemoryPatientBookingCatalogPort } from '@/infra/repos/inMemoryPatientBookingCatalog';
 import { createPgClinicDirectoryPort } from '@/infra/repos/pgClinicDirectory';
+import { createClinicPublicCardService } from '@/modules/clinic-public-card/service';
+import { createPgClinicPublicCardPort } from '@/infra/repos/pgClinicPublicCard';
 import { createClinicDirectoryService } from '@/modules/clinic-directory/service';
 import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganizationMembership';
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
@@ -417,7 +424,10 @@ import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
-import { createPgPlatformUserContactsPort } from '@/infra/repos/pgPlatformUserContacts';
+import {
+  createPgPlatformUserContactsPort,
+  readCurrentPatientIdentityContacts,
+} from '@/infra/repos/pgPlatformUserContacts';
 import { createInMemoryPlatformUserContactsPort } from '@/infra/repos/inMemoryPlatformUserContacts';
 import { createPlatformUserContactsService } from '@/modules/platform-user-contacts/service';
 import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/bookingContactUpsert';
@@ -467,6 +477,11 @@ const productAnalyticsPort = !inMemoryRepos
   ? createPgProductAnalyticsPort()
   : createInMemoryProductAnalyticsPort();
 const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
+
+const platformAnalyticsPort = !inMemoryRepos
+  ? createPgPlatformAnalyticsPort()
+  : createInMemoryPlatformAnalyticsPort();
+const platformAnalytics = createPlatformAnalyticsService(platformAnalyticsPort);
 
 const operatorHealthReadPort = !inMemoryRepos
   ? pgOperatorHealthReadPort
@@ -670,6 +685,9 @@ const clinicSeatsService = createClinicSeatsService({
 });
 const clinicDirectoryService = !inMemoryRepos
   ? createClinicDirectoryService(createPgClinicDirectoryPort())
+  : null;
+const clinicPublicCardService = !inMemoryRepos
+  ? createClinicPublicCardService(createPgClinicPublicCardPort())
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =
@@ -1259,7 +1277,27 @@ const coursesService = createCoursesService({
     treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
 
+// Аудитория доставки интегратора — один объявленный корень; здесь он же обслуживает пациентское
+// уведомление о созданной записи, которое вебапп теперь ставит в очередь сам.
+const integratorDeliveryTargetsPort = inMemoryRepos
+  ? inMemoryIntegratorDeliveryTargetsPort
+  : createPgIntegratorDeliveryTargetsPort();
+
+const bookingCreatedEffectsPort = createBookingCreatedEffects({
+  outboundMessageQueue: createPgOutboundMessageQueue(),
+  deliveryTargets: {
+    getTargets: (params) =>
+      getDeliveryTargetsForIntegrator(params, {
+        integratorDeliveryTargets: integratorDeliveryTargetsPort,
+      }),
+  },
+});
+
 patientBookingService = createPatientBookingService({
+  bookingCreatedEffects: bookingCreatedEffectsPort,
+  // Один объявленный корень постановки исходящего сообщения — письмо-подтверждение записи
+  // больше не ждёт SMTP внутри запроса (решение владельца 19.08).
+  outboundMessageQueue: createPgOutboundMessageQueue(),
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
   bookingEngine: bookingEngineService,
@@ -1282,7 +1320,13 @@ patientBookingService = createPatientBookingService({
   memberships: membershipsServiceResolved,
   clientHistory: clientHistoryService,
   platformUserContacts: platformUserContactsService,
+  // A patient booking its own visit reads its own two contact fields through the declared patient
+  // root. The staff client projection behind `getClientIdentity` is denied to `app_patient` on
+  // `platform_users` — and it was never what this caller needed.
   getPlatformUserIdentityContacts: async (userId) => {
+    if (getCurrentDbPrincipal()?.kind === 'patient') {
+      return readCurrentPatientIdentityContacts();
+    }
     const identity = await doctorClientsPort.getClientIdentity(userId);
     if (!identity) return null;
     return { phone: identity.phone, email: identity.email ?? null };
@@ -1550,9 +1594,7 @@ function _buildAppDeps() {
   // Стена участия, сверка integratorUserId, привязки, предпочтения и готовность каналов живут
   // внутри `app.read_integrator_delivery_target_snapshot(...)`.
   const integratorDeliveryTargetsDeps = {
-    integratorDeliveryTargets: inMemoryRepos
-      ? inMemoryIntegratorDeliveryTargetsPort
-      : createPgIntegratorDeliveryTargetsPort(),
+    integratorDeliveryTargets: integratorDeliveryTargetsPort,
   };
   return {
     auth: {
@@ -1691,6 +1733,7 @@ function _buildAppDeps() {
     }),
     doctorAnalyticsMetricAccounts: doctorAnalyticsMetricAccountsPort,
     adminPlatformUserStats,
+    platformAnalytics,
     productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({
       assertWriteClearance: assertMechanicWriteClearance,
@@ -2006,6 +2049,7 @@ function _buildAppDeps() {
     lfkAssignments: lfkAssignmentsService,
     /** `/book/{publicSlug}` bootstrap resolver (owner canon OWNER_RULINGS_2026-07-17.md §1). */
     clinicDirectory: clinicDirectoryService,
+    clinicPublicCard: clinicPublicCardService,
     bookingEngine: bookingEngineService,
     bookingSync: bookingSyncPortForPayments,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */

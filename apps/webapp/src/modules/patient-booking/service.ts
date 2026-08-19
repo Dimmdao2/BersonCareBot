@@ -23,6 +23,8 @@ type BookingAppointmentLifecycleService = ReturnType<
 >;
 import { validateCreatePatientBookingInput } from './createInputValidation';
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from './canonicalCreate';
+import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
+import type { BookingCreatedEffectsPort } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
 import {
   buildBookingNotificationsSent,
   resolveBookingNotifyTargets,
@@ -132,6 +134,10 @@ export function createPatientBookingService(input: {
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
+  /** Порт постановки исходящего сообщения в очередь доставки. Внедряется из `buildAppDeps`. */
+  outboundMessageQueue: OutboundMessageQueuePort;
+  /** Пациентское уведомление о созданной записи — работа вебаппа (владелец 19.08). */
+  bookingCreatedEffects?: BookingCreatedEffectsPort | null;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
@@ -168,6 +174,8 @@ export function createPatientBookingService(input: {
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
           getAppDisplayTimeZone: input.getAppDisplayTimeZone,
+          outboundMessageQueue: input.outboundMessageQueue,
+          bookingCreatedEffects: input.bookingCreatedEffects ?? null,
         }
       : null;
 

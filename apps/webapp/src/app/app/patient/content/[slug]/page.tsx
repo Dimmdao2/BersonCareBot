@@ -19,7 +19,7 @@ import { resolvePatientCanViewContent } from '@/app-layer/platform-access';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { PatientBackToSectionShellRow } from '@/shared/ui/patient/PatientBackToSectionShellRow';
 import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
-import { toYoutubeOrRutubeEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
 import {
   parseApiMediaIdFromHref,
   parseApiMediaIdFromPlayableUrl,
@@ -112,7 +112,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           : `/api/media/${item.videoSource.mediaId}`
         : undefined;
   const hostedVideoIframeSrc = videoPlayableUrl
-    ? toYoutubeOrRutubeEmbedSrc(videoPlayableUrl)
+    ? toHostedVideoEmbedSrc(videoPlayableUrl)
     : null;
 
   let appTrustedOrigin: string | null = null;

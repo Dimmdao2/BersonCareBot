@@ -1,24 +1,39 @@
 /**
- * Отправка пациенту письма-подтверждения записи с вложенным .ics-файлом.
+ * Письмо-подтверждение записи с .ics-вложением.
  *
- * Вызывается как best-effort после успешного создания/подтверждения бронирования.
- * Правила:
- *   - Если у записи нет contactEmail — тихо пропускаем (не бросаем ошибку).
- *   - Ошибка отправки — только лог, не роняем на UI (правило A12).
- *   - Отправка идёт через relayOutbound → integrator SMTP (тот же транспорт, что и рассылки).
+ * Решение владельца 19.08: «письмо и уведомление не надо ждать — абсолютно точно». До этой правки
+ * функция ждала синхронный HTTP-relay к интегратору, который держал ответ пациенту до конца
+ * SMTP-хендшейка — 9.0 с из 12.4 с подтверждения записи. Теперь она кладёт сообщение в очередь
+ * доставки одним объявленным корнем (`app.enqueue_outbound_message`) и возвращается; отправку,
+ * ретраи и планирование делает воркер доставки интегратора — «у него есть планировщик, есть
+ * ретраи, все есть».
+ *
+ * Правила, сохранённые дословно:
+ *   - нет contactEmail — тихо пропускаем;
+ *   - ошибка постановки — только лог, запись уже подтверждена (правило A12);
+ *   - НИКОГДА не бросает.
+ *
+ * Идемпотентность стала строже, а не слабее. Была: relay выводил 24-часовой ключ дедупа из
+ * `messageId`. Стала: `event_id` = `booking.confirmation:<bookingId>` в UNIQUE-колонке очереди с
+ * `ON CONFLICT DO NOTHING` — навсегда. Ретрай очереди повторяет отправку ОДНОЙ строки; второе
+ * письмо и второй календарный файл создать невозможно.
  *
  * #81: email delivery of .ics on booking confirmation.
  */
 
-import { relayOutbound } from '@/modules/messaging/relayOutbound';
-import type { RelayOutboundDeps } from '@/modules/messaging/relayOutbound';
 import { env } from '@/config/env';
 import { buildIcsContent } from '@/shared/lib/buildCalendarLinks';
 import { logger } from '@/infra/logging/logger';
+import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
+
+/** Назначение сообщения. Идёт в `event_id`; ветки по нему не строит никто. */
+export const BOOKING_CONFIRMATION_PURPOSE = 'booking.confirmation';
 
 export type BookingConfirmationEmailInput = {
-  /** Уникальный ID брони (для idempotencyKey и UID ICS). */
+  /** Уникальный ID брони (ключ идемпотентности и UID ICS). */
   bookingId: string;
+  /** Арендатор, которому принадлежит запись. */
+  organizationId: string;
   /** Email пациента. Если не указан — функция немедленно возвращается. */
   contactEmail: string | null | undefined;
   /** Дата и время начала (ISO). */
@@ -33,15 +48,22 @@ export type BookingConfirmationEmailInput = {
   contactName?: string | null;
 };
 
-export type BookingConfirmationEmailDeps = RelayOutboundDeps;
+export type BookingConfirmationEmailDeps = {
+  /**
+   * Порт постановки в очередь. Внедряется из `buildAppDeps`, а не импортируется: модуль не знает
+   * про `infra/repos` (§5 clean architecture). Отсутствие порта — не молчаливый пропуск письма,
+   * а видимая ошибка в логе через общий catch ниже.
+   */
+  outboundMessageQueue: OutboundMessageQueuePort;
+};
 
 /**
- * Отправляет письмо с .ics-вложением. Возвращает `true` при успехе, `false` при пропуске/ошибке.
- * НИКОГДА не бросает исключение — только логирует.
+ * Кладёт письмо в очередь доставки. `true` — сообщение поставлено этим вызовом,
+ * `false` — пропущено, уже стоит в очереди, или постановка не удалась.
  */
 export async function sendBookingConfirmationEmail(
   input: BookingConfirmationEmailInput,
-  deps: BookingConfirmationEmailDeps = {},
+  deps: BookingConfirmationEmailDeps,
 ): Promise<boolean> {
   const { contactEmail } = input;
 
@@ -63,7 +85,7 @@ export async function sendBookingConfirmationEmail(
       appBaseUrl,
     );
 
-    // Base64 для передачи через relay-outbound JSON body.
+    // Base64 — ровно то, что читает email-адаптер интегратора из payload.icsContent.
     const icsBase64 = Buffer.from(icsText, 'utf-8').toString('base64');
 
     const greeting = input.contactName?.trim()
@@ -94,43 +116,32 @@ export async function sendBookingConfirmationEmail(
       '<p>С уважением, BersonCare</p>',
     ].join('\n');
 
-    const result = await relayOutbound(
-      {
-        messageId: `booking.confirmation.ics:${input.bookingId}`,
-        channel: 'email',
-        recipient: contactEmail.trim(),
+    const enqueued = await deps.outboundMessageQueue.enqueue({
+      organizationId: input.organizationId,
+      purpose: BOOKING_CONFIRMATION_PURPOSE,
+      idempotencyKey: input.bookingId,
+      channel: 'email',
+      recipient: contactEmail.trim(),
+      content: {
         text: textBody,
         html: htmlBody,
-        metadata: {
-          subject: `Запись подтверждена: ${input.serviceTitle}`,
-        },
+        subject: `Запись подтверждена: ${input.serviceTitle}`,
         icsContent: icsBase64,
         icsFilename: `bersoncare-booking-${input.bookingId}.ics`,
       },
-      deps,
-    );
-
-    if (!result.ok) {
-      logger.warn(
-        {
-          event: 'booking.confirmation_email.relay_failed',
-          bookingId: input.bookingId,
-          reason: result.reason,
-        },
-        'booking confirmation email relay failed (best-effort, booking already confirmed)',
-      );
-      return false;
-    }
+    });
 
     logger.info(
       {
-        event: 'booking.confirmation_email.sent',
+        event: 'booking.confirmation_email.enqueued',
         bookingId: input.bookingId,
-        status: result.status,
+        enqueued,
       },
-      'booking confirmation email sent',
+      enqueued
+        ? 'booking confirmation email queued'
+        : 'booking confirmation email already queued (idempotent no-op)',
     );
-    return true;
+    return enqueued;
   } catch (err) {
     logger.warn(
       {
@@ -138,7 +149,7 @@ export async function sendBookingConfirmationEmail(
         event: 'booking.confirmation_email.error',
         bookingId: input.bookingId,
       },
-      'booking confirmation email failed (best-effort, booking already confirmed)',
+      'booking confirmation email enqueue failed (best-effort, booking already confirmed)',
     );
     return false;
   }

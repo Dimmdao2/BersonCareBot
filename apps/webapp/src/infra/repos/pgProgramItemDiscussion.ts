@@ -121,9 +121,15 @@ async function queryDoctorExerciseComments(
     ? sql`${treatmentProgramInstances.assignedBy} = ${assignedByUserId}::uuid`
     : inArray(treatmentProgramInstances.patientUserId, patientUserIds);
 
-  // CTE: latest PATIENT TEXT message per exercise stage-item (DISTINCT ON = one row per item).
-  // senderRole='patient' + mediaFileId IS NULL are now INSIDE the CTE WHERE so:
-  //   - The CTE always yields the latest patient text comment per stageItem.
+  // CTE: latest PATIENT message (text or media) per exercise stage-item (DISTINCT ON = one row
+  // per item). senderRole='patient' is INSIDE the CTE WHERE so:
+  //   - The CTE always yields the latest patient message per stageItem, whether it carries body
+  //     text, an attached media file, or both. A media-only comment (body IS NULL) is the same
+  //     "patient marked this exercise" event as a text one and must surface the same way —
+  //     excluding it here silently hid every media-only submission from the doctor's cross-patient
+  //     triage lists (found 19.08: a patient's media-only comment never appeared in
+  //     listUnreadExerciseCommentsForDoctor/listExerciseCommentsForDoctor even though the message
+  //     existed and was visible inside the item's own thread).
   //   - Answered threads (doctor replied after) still surface: we look at the latest
   //     patient message, not the latest overall. No outer senderRole check needed.
   //   - unreadOnly uses createdAt > lastReadAt on the latest patient comment.
@@ -180,9 +186,9 @@ async function queryDoctorExerciseComments(
           sql`${treatmentProgramInstances.assignmentSource} = ANY(ARRAY['doctor','course']::text[])`,
           eq(treatmentProgramInstanceStageItems.itemType, 'exercise'),
           eq(treatmentProgramInstanceStageItems.status, 'active'),
-          // Only patient text messages inside CTE — so DISTINCT ON picks latest patient comment.
+          // Only patient messages inside CTE — so DISTINCT ON picks the latest patient comment,
+          // text or media-only alike (see rationale above the CTE).
           eq(programItemDiscussionMessages.senderRole, 'patient'),
-          sql`${programItemDiscussionMessages.mediaFileId} IS NULL`,
         ),
       )
       .orderBy(

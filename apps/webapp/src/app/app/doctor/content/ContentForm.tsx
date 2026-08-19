@@ -24,6 +24,11 @@ import {
 import { HELP_SECTION_SLUG } from '@/modules/content-sections/types';
 import type { PatientHomeCmsReturnQuery } from '@/modules/patient-home/patientHomeCmsReturnUrls';
 import { fallbackSlug, slugFromTitle } from '@/shared/lib/slugify';
+import {
+  HOSTED_VIDEO_ALLOWED_HOSTS_RU,
+  hostedVideoLinkRejectionRu,
+  parseHostedVideoLink,
+} from '@/shared/lib/hostingEmbedUrls';
 import { ruRatingCountLabel } from '@/shared/lib/ruRatingCountLabel';
 import { MediaLibraryPickerDialog } from './MediaLibraryPickerDialog';
 import { ContentPreview } from './ContentPreview';
@@ -122,6 +127,34 @@ export function ContentForm({
   const [slugValue, setSlugValue] = useState(page?.slug ?? '');
   const [imageUrlValue, setImageUrlValue] = useState(page?.imageUrl ?? '');
   const [videoUrlValue, setVideoUrlValue] = useState(page?.videoUrl ?? '');
+  const [hostedVideoDraft, setHostedVideoDraft] = useState(() =>
+    parseHostedVideoLink(page?.videoUrl ?? '') ? (page?.videoUrl ?? '') : '',
+  );
+  const [hostedVideoError, setHostedVideoError] = useState<string | null>(null);
+
+  /** Выбранное видео — ссылка на хостинг, а не файл медиатеки. */
+  const isHostedVideoSelected = parseHostedVideoLink(videoUrlValue) !== null;
+
+  /**
+   * Канонизация — та же функция, что и на сервере: в поле остаётся то, что реально сохранится,
+   * без utm-хвостов, плейлистов и тайм-кодов. Отказ называет разрешённые хосты.
+   */
+  function applyHostedVideoLink(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setHostedVideoError(null);
+      if (isHostedVideoSelected) setVideoUrlValue('');
+      return;
+    }
+    const link = parseHostedVideoLink(trimmed);
+    if (!link) {
+      setHostedVideoError(hostedVideoLinkRejectionRu(trimmed));
+      return;
+    }
+    setHostedVideoError(null);
+    setHostedVideoDraft(link.canonicalUrl);
+    setVideoUrlValue(link.canonicalUrl);
+  }
   const [isPublishedValue, setIsPublishedValue] = useState(page?.isPublished ?? true);
   const [requiresAuthValue, setRequiresAuthValue] = useState(page?.requiresAuth ?? false);
   const [sectionValue, setSectionValue] = useState(defaultSectionSlugForSelect);
@@ -167,6 +200,8 @@ export function ContentForm({
     setSlugValue(page?.slug ?? '');
     setImageUrlValue(page?.imageUrl ?? '');
     setVideoUrlValue(page?.videoUrl ?? '');
+    setHostedVideoDraft(parseHostedVideoLink(page?.videoUrl ?? '') ? (page?.videoUrl ?? '') : '');
+    setHostedVideoError(null);
     setIsPublishedValue(page?.isPublished ?? true);
     setRequiresAuthValue(page?.requiresAuth ?? false);
     setSectionValue(newSection);
@@ -655,15 +690,47 @@ export function ContentForm({
               />
             </div>
 
-            {/* Видео */}
+            {/* Видео: либо файл медиатеки, либо ссылка на разрешённый хостинг */}
             <div className="flex flex-col gap-1.5">
               <Label className={fieldLabelClass}>Видео</Label>
               <input type="hidden" name="video_url" value={videoUrlValue} />
-              <MediaLibraryPickerDialog
-                kind="video"
-                value={videoUrlValue}
-                onChange={setVideoUrlValue}
-              />
+              {isHostedVideoSelected ? null : (
+                <MediaLibraryPickerDialog
+                  kind="video"
+                  value={videoUrlValue}
+                  onChange={setVideoUrlValue}
+                />
+              )}
+              {videoUrlValue && !isHostedVideoSelected ? null : (
+                <>
+                  <Label htmlFor="content-hosted-video" className={fieldLabelClass}>
+                    Или ссылка ({HOSTED_VIDEO_ALLOWED_HOSTS_RU})
+                  </Label>
+                  <Input
+                    id="content-hosted-video"
+                    inputMode="url"
+                    value={hostedVideoDraft}
+                    onChange={(e) => {
+                      setHostedVideoDraft(e.target.value);
+                      setHostedVideoError(null);
+                    }}
+                    onBlur={() => applyHostedVideoLink(hostedVideoDraft)}
+                    placeholder="https://rutube.ru/video/…"
+                    aria-describedby={
+                      hostedVideoError ? 'content-hosted-video-error' : undefined
+                    }
+                  />
+                  {hostedVideoError ? (
+                    <p
+                      id="content-hosted-video-error"
+                      role="alert"
+                      className="text-sm text-destructive"
+                    >
+                      {hostedVideoError}
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
 
             {/* Связан с курсом */}

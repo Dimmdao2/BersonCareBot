@@ -10,9 +10,7 @@ import { registerOperatorHealthProbeRoute } from '../integrations/bersoncare/ope
 import { registerBersoncareBookingLifecycleRoute } from '../integrations/bersoncare/bookingLifecycleRoute.js';
 import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
-import {
-  resolveActiveTenantForIntegratorUserId,
-} from '../infra/db/repos/channelUsers.js';
+import { resolveActiveTenantForIntegratorUserId } from '../infra/db/repos/channelUsers.js';
 import type { ResolvedIntegratorUserTenant } from '../infra/db/repos/channelUsers.js';
 import { resolveActiveOrganizationIdForChannel } from '../infra/db/repos/platformUserByChannel.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
@@ -20,7 +18,10 @@ import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDelive
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
-import type { OutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
+import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+  type OutboundProviderErrorClass,
+} from '@bersoncare/operator-db-schema';
 import {
   runWithBootstrapPrincipal,
   runWithOrganizationPrincipal,
@@ -120,7 +121,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     errorClass: OutboundProviderErrorClass,
   ): Promise<void> => {
     await recordOperatorFailureIncident({
-      direction: 'outbound_delivery_provider',
+      direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
       integration,
       errorClass,
       errorDetail: null,

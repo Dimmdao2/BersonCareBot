@@ -297,6 +297,37 @@ UI-9 одобрена владельцем и зависит от C4D exact-org 
 upload использует organization/patient-owned folder contract, а назначенное видео immutable; точные field names и
 draft semantics не являются owner rulings. Media access/presign и tenant ownership проверяются high-risk циклом.
 
+### UI-EX-HOST — ссылка YouTube / RuTube / VK Video / Vimeo в упражнении (owner 2026-08-19)
+
+**Кабинет:** специалист (форма упражнения) + пациент (просмотр). Не кабинет глобального админа.
+**Почему здесь, а не в Global Admin UI:** это каталог назначений врача. Аналитика платформы только считает
+файл vs iframe; пока механики нет, там заглушка.
+
+Сейчас в упражнение ссылку вставить нельзя: только файл из медиатеки, `lfk_exercise_media.media_type` =
+`image|video|gif`, пациент смотрит `PatientMediaPlaybackVideo`. CMS статьи уже открывают YouTube/RuTube в iframe;
+VK Video и Vimeo нет и там.
+
+Файл упражнения длиннее **10 минут** не принимается — лимит в
+[`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) п. 25; иначе только хостинг.
+
+Разбор устройства, приватность каждого хоста и открытый вопрос владельцу —
+[`EXTERNAL_VIDEO_LINK_2026-08-19.md`](../EXTERNAL_VIDEO_LINK_2026-08-19.md).
+
+- [x] **UI-EX-HOST-01** Форма упражнения: поле ссылки YouTube / RuTube / VK Video / Vimeo; сохранение
+      отдельным видом медиа, файлы `image|video|gif` не ломать.
+      (✓ миграция `0044_a_link_to_a_video_host_is_a_kind_of_media.sql` — `media_type = 'hosted_video'`;
+      `ExerciseForm.tsx` поле ссылки; `actionsShared.ts` канонизация и отказ;
+      `hostedVideoExerciseSave.unit.test.ts`)
+- [x] **UI-EX-HOST-02** Пациентский показ и предпросмотр врача — iframe, тот же allowlist доменов.
+      (✓ `shared/ui/{patient,doctor}/media/HostedVideoEmbed.tsx`; пациентский слот —
+      `PatientProgramStageItemPageClient.tsx`; `hostedVideoSlot.ui.test.tsx`)
+- [x] **UI-EX-HOST-03** VK Video и Vimeo в `hostingEmbedUrls` + iframe CMS/markdown (сейчас только YouTube и RuTube).
+      (✓ `hostingEmbedUrls.ts` — четыре хоста, одна дверь `toHostedVideoEmbedSrc`; поле ссылки в
+      `ContentForm.tsx`, allowlist на записи в `content/actions.ts`; `hostedVideoLink.unit.test.ts`)
+
+**Живой приёмки владельцем ещё не было**, и открыт вопрос «грузить чужой плеер сразу или по клику» —
+см. план-файл выше. Гейт длительности файла (10/20 минут) — не здесь, это GA-L в STAGE_01.
+
 ### Client UI residual
 
 Пустой mood chart на patient «Сегодня» скрывается до первой emoji/check-in отметки. Это точечная presentation-задача,

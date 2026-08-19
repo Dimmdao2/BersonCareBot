@@ -32,9 +32,9 @@ import { isDoctorMenuLinkVisible } from '@/shared/ui/doctor/doctorNavLinks';
  */
 const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   {
-    id: 'account-security',
-    label: 'Безопасность',
-    href: '/app/account?tab=security',
+    id: 'account',
+    label: 'Аккаунт',
+    href: '/app/account',
     accessTier: 'global_admin',
   },
   {

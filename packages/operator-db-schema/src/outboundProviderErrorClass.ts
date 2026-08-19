@@ -174,3 +174,13 @@ export function describeOutboundProviderErrorClass(errorClass: string | null | u
       return String(errorClass ?? 'неизвестный класс');
   }
 }
+
+/**
+ * Значение `operator_incidents.direction` для отказа исходящего провайдера доставки.
+ *
+ * Оно ОДНО на оба приложения намеренно. Раньше строку писали литералом в четырёх местах
+ * интегратора, а webapp сравнивал со своей константой; проба здоровья писала рядом свой
+ * `'outbound'`, и её отказ по учётным данным не попадал в путь «пейджить с первого появления»
+ * ни при каком содержании ошибки. Совпадение двух строк — не то, что стоит проверять глазами.
+ */
+export const OUTBOUND_PROVIDER_INCIDENT_DIRECTION = 'outbound_delivery_provider';

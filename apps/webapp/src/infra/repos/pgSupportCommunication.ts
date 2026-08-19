@@ -1087,18 +1087,25 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           requestedOrganizationId ?? conversation.rows[0]?.organization_id,
         );
         if (!organizationId) return;
-        await runWebappPgText(
-          `UPDATE support_conversations
-           SET updated_at = now()
-           WHERE id = $1::uuid AND organization_id = $2::uuid`,
-          [conversationId, organizationId],
-          tx,
-        );
-        await runWebappPgText(
+        // Mark first, then touch the parent only if something was actually marked. These two ran in
+        // the opposite order, and the conversation touch carried no guard at all while its sibling
+        // correctly carried `AND read_at IS NULL` — so every open of a doctor chat rewrote the
+        // conversation row even when there was nothing unread in it. The doctor panel calls this on
+        // mount, after each full message reload, and again whenever the parent re-renders, which made
+        // a read-only action a steady stream of no-change row versions.
+        const marked = await runWebappPgText(
           `UPDATE support_conversation_messages
            SET read_at = COALESCE(read_at, now())
            WHERE conversation_id = $1::uuid AND organization_id = $2::uuid
              AND sender_role = 'user' AND read_at IS NULL`,
+          [conversationId, organizationId],
+          tx,
+        );
+        if ((marked.rowCount ?? 0) === 0) return;
+        await runWebappPgText(
+          `UPDATE support_conversations
+           SET updated_at = now()
+           WHERE id = $1::uuid AND organization_id = $2::uuid`,
           [conversationId, organizationId],
           tx,
         );

@@ -93,6 +93,40 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'media.transcode.enqueue', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
   },
+  // Один корень на все исходящие сообщения. Два дескриптора — потому что классов контекста два
+  // (пациент и staff), а дверь одна: вид сообщения — это `purpose` в аргументах, а не своя функция.
+  // Шестой аргумент — `text`, не `jsonb` (миграция 0036): jsonb в сигнатуре порт-аргумента
+  // невоспроизводим байт в байт клиентом и ронял КАЖДЫЙ вызов раньше похода в базу.
+  'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)': {
+    port: 'webapp', argCount: 7, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_patient', contextClass: 'patient',
+        purpose: 'outbound.message.enqueue' },
+      { targetRole: 'app_staff', contextClass: 'staff',
+        purpose: 'outbound.message.enqueue' },
+    ],
+    source: 'apps/webapp/src/infra/repos/pgOutboundMessageQueue.ts',
+  },
+  // Единственный корень замены поколения напоминаний о записи (миграция 0034). До него вебапп писал
+  // очередь напрямую, а INSERT на неё не выдан ни одной рабочей роли — строк не появлялось вовсе.
+  'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.appointment-generation.replace', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgAppointmentReminderMaterialization.ts',
+  },
+  // Два корня контактов формы записи (миграция 0037). До них вебапп под пациентом звал ВРАЧЕБНЫЙ
+  // порт к `platform_users`, получал 42501 на каждой записи, и пустой перехват съедал отказ —
+  // телефон и почта из формы не сохранялись ни у кого.
+  'app.read_current_patient_identity_contacts()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-identity-contacts.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgPlatformUserContacts.ts',
+  },
+  'app.record_current_patient_booking_contact(text,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-contact.record', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPlatformUserContacts.ts',
+  },
   'app.enqueue_media_transcode_job_for_service(uuid)': {
     port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
     purpose: 'media.transcode.enqueue', argCount: 1,
@@ -233,6 +267,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.phone-messenger-bind.completion-state', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts',
   },
+  // Замер 19.08 живым запросом под сессией глобального админа: страница отдавала HTTP 500, а в
+  // журнале Postgres 42501 на СЕМНАДЦАТИ из девятнадцати читаемых таблиц. Тридцать операторов
+  // отношением сведены в один снимок за одной дверью (миграция 0043).
+  'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'analytics.platform-dashboard.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgPlatformAnalytics.ts',
+  },
   'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': {
     port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
     purpose: 'analytics.registration-events.read', argCount: 7,
@@ -358,10 +400,47 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'config.preauth-provider.read', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
   },
+  // Публичная визитка клиники `/{clinic}` (владелец 19.08): чтение под bootstrap-ролью, запись
+  // владельцем клиники. Миграция 0049.
+  'app.read_public_clinic_card(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'clinic.public-card.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgClinicPublicCard.ts',
+  },
+  'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': {
+    port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
+    purpose: 'clinic.public-card.save', argCount: 8,
+    source: 'apps/webapp/src/infra/repos/pgClinicPublicCard.ts',
+  },
   'app.resolve_public_organization_by_slug(text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'booking.public-organization.resolve', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgClinicDirectory.ts',
+  },
+  // Замер 19.08: `GET /book/<слаг>` неделю отвечал «Каталог недоступен» (и 503 на шагах слотов и
+  // формы) в КАЖДОЙ опубликованной клинике. Организационный принципал вебаппа проецируется на класс
+  // `tenant_service`, а обычное реляционное чтение берёт возможность с `purpose: 'relation'` — у
+  // порта `webapp` такой у арендаторского класса нет и по SCHEME §3 быть не должно. Дверей у
+  // публичной записи не было ни одной: это не деградация части, а ноль. Четыре корня — миграция 0043.
+  'app.resolve_public_booking_organization(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-tenant.resolve', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_public_booking_catalog(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-catalog.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-slot-snapshot.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.list_public_booking_form_fields()': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-form-fields.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgBookingForm.ts',
   },
   'app.resolve_public_organization_slug(text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
@@ -421,6 +500,52 @@ const EXPECTED_ROOTS = new Map(Object.entries({
   'app.prune_integration_webhook_error_events(integer)': {
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'health.webhook-errors.prune', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
+  // Замер 19.08: тик суточной сводки читал `public.outgoing_delivery_queue` отношением под
+  // `app_staff`, получал 42501 на первом же шаге и падал целиком — сводка не уходила ни разу
+  // (миграция 0038).
+  'app.read_operator_health_digest_last_sent_at()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.digest.last-sent.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
+  },
+  // Замер 19.08: снимок здоровья очереди шёл двенадцатью запросами отношением под `app_staff` и
+  // ронял ВЕСЬ пятиминутный критический тик (голый `Promise.all`), а не одну панель (миграция 0039).
+  'app.read_operator_delivery_queue_health()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.delivery-queue.aggregate', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts',
+  },
+  // Замер 19.08: строк `kind='operator_health_digest'` в очереди НОЛЬ за всю историю — постановка
+  // шла прямым INSERT под `app_staff`, у которого на очереди нет ни одной привилегии (0039).
+  'app.enqueue_operator_health_digest_delivery(text,text,text,integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.digest.enqueue', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
+  },
+  // Замер 19.08: аудитория staff-веб-пуша операторского алерта читалась отношением под
+  // `app_worker` и отбивалась `42501 permission denied for table be_organization_members`; отказ
+  // гасился `.catch` диспетчера, а тик писал `success` (миграция 0040).
+  'app.list_operator_alert_staff_push_recipients()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'notifications.staff-push-audience.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgStaffUsers.ts',
+  },
+  // Замер 19.08: часовой тик продления заявлял класс `platform` с выдуманным нулевым UUID вместо
+  // администратора и падал на установке контекста — строки `billing.saas_renewal.tick` не было
+  // ни разу. Межарендное перечисление получило свою дверь (миграция 0040).
+  'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'billing.saas-renewal.due-list', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  // Замер 19.08 на TEST: сторож читал инциденты и не мог открыть ни одного — прямой INSERT под
+  // `app_worker` отбивался `42501 permission denied for table operator_incidents` каждые пять
+  // минут, и тик падал целиком именно тогда, когда что-то заметил (миграция 0041).
+  'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.critical-incident.open-or-touch', argCount: 5,
     source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
   },
   'app.prune_operator_health_failure_archive(integer)': {
@@ -910,6 +1035,9 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/internal/operator-health-digest/tick:POST',
     'api/internal/operator-health-critical/tick:POST',
     'api/internal/system-health-guard/tick:POST',
+    // 19.08: часовой тик продления подписок переехал сюда с платформенного класса, который
+    // требовал живого администратора и поэтому не работал ни разу.
+    'api/internal/saas-billing/renewal/tick:POST',
     'api/internal/specialist-task-reminders/tick:POST',
     'api/internal/heartbeat/pipeline_delivery:POST',
     'api/internal/heartbeat/pipeline_delivery:GET',

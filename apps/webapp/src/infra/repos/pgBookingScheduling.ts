@@ -6,10 +6,14 @@ import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
 import { getServerRuntimeInteger } from '@/modules/system-settings/configAdapter';
+import {
+  currentPublicBookingRuntimeSettings,
+  isCurrentPublicBookingPrincipal,
+  rememberPublicBookingRuntimeSettings,
+} from '@/app-layer/principal/publicBookingPrincipal';
 import {
   beAppointments,
   beBranches,
@@ -56,7 +60,7 @@ const ACTIVE_APPOINTMENT_STATUSES = [
   'manual_review_required',
 ];
 
-const patientBookingContextSchema = z.object({
+const bookingSnapshotContextSchema = z.object({
   organizationId: z.string().uuid(),
   branchId: z.string().uuid(),
   specialistId: z.string().uuid(),
@@ -90,8 +94,14 @@ const patientBookingContextSchema = z.object({
   }).optional(),
 });
 
-const patientBookingSlotSnapshotSchema = z.object({
-  context: patientBookingContextSchema,
+/**
+ * Одна форма снимка на обе двери шага выбора времени: пациентскую
+ * (`app.read_current_patient_booking_creation_snapshot`) и публичную
+ * (`app.read_public_booking_slot_snapshot`). Публичная не отдаёт `patientCatalogSnapshot` —
+ * поле необязательное именно поэтому, а не «на всякий случай».
+ */
+const bookingSlotSnapshotSchema = z.object({
+  context: bookingSnapshotContextSchema,
   workingHours: z.array(
     z.object({
       weekday: z.number().int(),
@@ -141,7 +151,7 @@ async function readCurrentPatientBookingSlotSnapshot(input: {
     ) AS snapshot`,
   );
   const snapshot = result.rows[0]?.snapshot;
-  return snapshot == null ? null : patientBookingSlotSnapshotSchema.parse(snapshot);
+  return snapshot == null ? null : bookingSlotSnapshotSchema.parse(snapshot);
 }
 
 async function readCurrentPatientBookingRuntimeInteger(
@@ -156,6 +166,45 @@ async function readCurrentPatientBookingRuntimeInteger(
   const value = result.rows[0]?.value;
   if (value == null) throw new Error('catalog_unavailable');
   return value;
+}
+
+/**
+ * Публичная дверь шага выбора времени. Возвращает `null` на неопубликованной клинике, на чужом
+ * филиале и на услуге, которую снаружи записывать нельзя, — вызывающий обязан трактовать `null`
+ * как «нет такого», а не как «читаем как раньше»: реляционного пути у класса `tenant_service` нет.
+ */
+async function readPublicBookingSlotSnapshot(input: {
+  branchId: string;
+  serviceId: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+    getWebappSqlDb(),
+    'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)',
+    [input.branchId, input.serviceId, input.dateFrom, input.dateTo],
+    sql`SELECT app.read_public_booking_slot_snapshot(
+      ${input.branchId}::uuid,
+      ${input.serviceId}::uuid,
+      ${input.dateFrom}::text,
+      ${input.dateTo}::text
+    ) AS snapshot`,
+  );
+  const snapshot = result.rows[0]?.snapshot;
+  if (snapshot == null) return null;
+  const parsed = bookingSlotSnapshotSchema.parse(snapshot);
+  rememberPublicBookingRuntimeSettings({
+    minNoticeHours: parsed.minNoticeHours,
+    maxConsecutiveSlotHours: parsed.maxConsecutiveSlotHours,
+  });
+  return parsed;
+}
+
+/** Обе настройки записи приезжают внутри снимка; отдельного чтения настроек публичной двери нет. */
+function requirePublicBookingRuntimeSettings() {
+  const settings = currentPublicBookingRuntimeSettings();
+  if (!settings) throw new Error('catalog_unavailable');
+  return settings;
 }
 
 export type BookingBusyIntervalsInput = {
@@ -285,18 +334,38 @@ export function createPgBookingSchedulingPort(
 ): BookingSchedulingPort {
   return {
     async resolvePublicBookingOrganization({ branchId, serviceId }) {
-      const result = await runWebappPgText<{ organization_id: string | null }>(
-        `SELECT app.resolve_public_booking_organization(
-           $1::uuid,
-           $2::uuid,
-           $3::uuid
-         )::text AS organization_id`,
-        [branchId?.trim() || null, serviceId?.trim() || null, null],
+      // Именованный корень, а не свободный текст: способность порта выбирается по ТОЧНОЙ
+      // идентичности функции и хешу типизированных аргументов. `runWebappPgText` не устанавливает
+      // операцию вовсе, поэтому вызов отвергался до отправки statement'а.
+      const normalizedBranchId = branchId?.trim() || null;
+      const normalizedServiceId = serviceId?.trim() || null;
+      const result = await runWebappNamedRoot<{ organization_id: string | null }>(
+        getWebappSqlDb(),
+        'app.resolve_public_booking_organization(uuid,uuid)',
+        [normalizedBranchId, normalizedServiceId],
+        sql`SELECT app.resolve_public_booking_organization(
+          ${normalizedBranchId}::uuid,
+          ${normalizedServiceId}::uuid
+        )::text AS organization_id`,
       );
       return result.rows[0]?.organization_id ?? null;
     },
 
     async resolveCanonicalInPersonContext({ organizationId, branchId, serviceId }) {
+      if (isCurrentPublicBookingPrincipal()) {
+        const today = new Date().toISOString().slice(0, 10);
+        const snapshot = await readPublicBookingSlotSnapshot({
+          branchId,
+          serviceId,
+          dateFrom: today,
+          dateTo: today,
+        });
+        if (!snapshot) return null;
+        if (organizationId && snapshot.context.organizationId !== organizationId) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return snapshot.context;
+      }
       if (isCurrentPatientPrincipal()) {
         const today = new Date().toISOString().slice(0, 10);
         const snapshot = await readCurrentPatientBookingSlotSnapshot({
@@ -346,40 +415,6 @@ export function createPgBookingSchedulingPort(
       return resolveCanonicalAvailabilityContext(availabilityId);
     },
 
-    async resolveLegacyBranchServiceId({ organizationId, branchId, serviceId, specialistId }) {
-      const db = getDrizzle();
-      const ssaConds = [
-        eq(beSpecialistServiceAvailability.organizationId, organizationId),
-        eq(beSpecialistServiceAvailability.branchId, branchId),
-        eq(beSpecialistServiceAvailability.serviceId, serviceId),
-        eq(beSpecialistServiceAvailability.isActive, true),
-      ];
-      if (specialistId) {
-        ssaConds.push(eq(beSpecialistServiceAvailability.specialistId, specialistId));
-      }
-      const ssaRows = await db
-        .select({
-          id: beSpecialistServiceAvailability.id,
-          createdAt: beSpecialistServiceAvailability.createdAt,
-        })
-        .from(beSpecialistServiceAvailability)
-        .innerJoin(
-          beSpecialists,
-          and(
-            eq(beSpecialists.id, beSpecialistServiceAvailability.specialistId),
-            eq(beSpecialists.organizationId, organizationId),
-            eq(beSpecialists.isActive, true),
-          ),
-        )
-        .where(and(...ssaConds));
-      if (ssaRows.length === 0) return null;
-
-      const pickedId = pickPreferredSsaId(
-        ssaRows.map((r) => ({ id: r.id, createdAt: r.createdAt, isActive: true })),
-      );
-      return pickedId;
-    },
-
     async listServicesByCityCode(organizationId, cityCode) {
       const db = getDrizzle();
       const rows = await db
@@ -401,6 +436,31 @@ export function createPgBookingSchedulingPort(
     },
 
     async getSlots(context) {
+      if (isCurrentPublicBookingPrincipal()) {
+        if (!context.branchId || !context.serviceId) {
+          throw new Error('branch_service_not_found');
+        }
+        const snapshot = await readPublicBookingSlotSnapshot({
+          branchId: context.branchId,
+          serviceId: context.serviceId,
+          dateFrom: context.dateFrom,
+          dateTo: context.dateTo,
+        });
+        if (!snapshot) throw new Error('branch_service_not_found');
+        if (
+          snapshot.context.organizationId !== context.organizationId ||
+          snapshot.context.specialistId !== context.specialistId
+        ) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return computeSlotsFromData(context, {
+          workingHours: snapshot.workingHours,
+          workingDays: snapshot.workingDays,
+          busy: snapshot.busy,
+          bufferMinutes: snapshot.bufferMinutes,
+          minNoticeHours: snapshot.minNoticeHours,
+        });
+      }
       if (isCurrentPatientPrincipal()) {
         if (!context.branchId || !context.serviceId) {
           throw new Error('branch_service_not_found');
@@ -586,6 +646,9 @@ export function createPgBookingSchedulingPort(
     },
 
     async getMinNoticeHours(organizationId) {
+      if (isCurrentPublicBookingPrincipal()) {
+        return requirePublicBookingRuntimeSettings().minNoticeHours;
+      }
       if (isCurrentPatientPrincipal()) {
         return readCurrentPatientBookingRuntimeInteger('booking_min_notice_hours');
       }
@@ -593,6 +656,9 @@ export function createPgBookingSchedulingPort(
     },
 
     async getMaxConsecutiveSlotHours(organizationId) {
+      if (isCurrentPublicBookingPrincipal()) {
+        return requirePublicBookingRuntimeSettings().maxConsecutiveSlotHours;
+      }
       if (isCurrentPatientPrincipal()) {
         return readCurrentPatientBookingRuntimeInteger('booking_max_consecutive_slot_hours');
       }
