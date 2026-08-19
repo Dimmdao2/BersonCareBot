@@ -45,7 +45,7 @@ describe('MediaLightbox image source', () => {
   });
 
   it('requests no image while the preview is missing and the upload was not converted', () => {
-    render(
+    const { getByText } = render(
       <MediaLightbox
         open
         item={item({ previewStatus: 'pending', standardRendition: false })}
@@ -53,6 +53,8 @@ describe('MediaLightbox image source', () => {
       />,
     );
     expect(document.querySelector('img')).toBeNull();
+    /* Not a grey rectangle: the screen says the file is still being prepared. */
+    expect(getByText('Изображение готовится')).toBeInTheDocument();
   });
 
   /* `standardRendition: true` on purpose: the status must win over the conversion fact. */

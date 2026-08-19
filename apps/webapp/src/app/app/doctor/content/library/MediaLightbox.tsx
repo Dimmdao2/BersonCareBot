@@ -1,6 +1,6 @@
 'use client';
 
-import { ImageOff } from 'lucide-react';
+import { ImageOff, Loader2 } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
 import { Dialog, DialogContent, DialogTitle } from '@/shared/ui/doctor/primitives/dialog';
@@ -80,10 +80,19 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
                   </span>
                 </div>
               ) : (
+                /**
+                 * Not converted yet: the file itself may not be shown (SECURITY_CANON §5). The
+                 * screen names the wait instead of leaving a grey rectangle that reads as broken.
+                 */
                 <div
-                  className="h-[50vh] max-h-[70vh] w-full animate-pulse rounded-md bg-muted/50"
-                  aria-hidden
-                />
+                  className={cn(
+                    'flex h-[50vh] max-h-[70vh] w-full flex-col items-center justify-center gap-2 rounded-md bg-muted/30 p-4 text-sm text-muted-foreground',
+                  )}
+                  role="status"
+                >
+                  <Loader2 className="h-12 w-12 animate-spin opacity-60" aria-hidden />
+                  <span>Изображение готовится</span>
+                </div>
               )
             ) : item.kind === 'video' ? (
               <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">
