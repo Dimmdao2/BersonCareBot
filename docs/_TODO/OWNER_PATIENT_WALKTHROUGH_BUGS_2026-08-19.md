@@ -34,9 +34,33 @@
 
 ## 4. Часовой пояс сохраняется без подтверждения
 
-- [ ] Человек должен видеть, что сохранение произошло. Как именно — по тому, как это уже сделано
+- [x] Человек должен видеть, что сохранение произошло. Как именно — по тому, как это уже сделано
       на соседних экранах этого же кабинета; новых узоров не изобретать.
-- [ ] Доказать: сохранение показывает подтверждение, ошибка показывает ошибку.
+      Уже закрыто коммитом `75f5452a7` (18.08, до этого плана) — `toast.success('Часовой пояс
+      сохранён')` в `PatientCalendarTimezoneSection.tsx`, тот же `react-hot-toast`, что и у соседних
+      секций страницы профиля (`AuthOtpChannelPreference`, `DiaryDataPurgeSection`). Ошибка и раньше
+      не глоталась: `msg` показывает текст под кнопкой (`'Выберите корректный пояс из списка.'` /
+      `'Не удалось сохранить.'`). Проверено: экран НЕ в `SWALLOWED_ERRORS_CENSUS_2026-08-19.md`
+      (`grep -n -i "timezone" docs/_TODO/SWALLOWED_ERRORS_CENSUS_2026-08-19.md` → 0 совпадений) —
+      это чистый UI-разрыв «нет подтверждения», не проглоченная ошибка БД.
+- [x] Доказать: сохранение показывает подтверждение, ошибка показывает ошибку.
+      **Live TEST, 19.08** (сервис `bersoncarebot-webapp-test` крутит `485a84256`, включает фикс):
+      - Backend-контракт под пациентским логином `kinesiospace@gmail.com`:
+        `PATCH /api/patient/profile/calendar-timezone {"calendarTimezone":"Europe/Samara"}` →
+        `200 {"ok":true}`, следующий `GET` подтверждает `calendarTimezone:"Europe/Samara"`;
+        `PATCH {"calendarTimezone":"Not/AZone"}` → `400 {"ok":false,"error":"invalid_timezone"}`.
+        Пояс возвращён на `Europe/Moscow` после проверки.
+      - Живой рендер: headless Chromium (`playwright-core` из `/home/dev/brain/node_modules`) зашёл
+        под тем же логином на `/app/app/patient/profile`, нажал «Сохранить пояс» — на экране всплыл
+        зелёный тост «Часовой пояс сохранён» (скрин `/tmp/tz-toast.png`, не входит в репозиторий).
+      - Unit-тест `PatientCalendarTimezoneSection.ui.test.tsx` (уже в коммите `75f5452a7`) кроет оба
+        пути поведенчески: `toastSuccess` вызывается с текстом на успехе, и НЕ вызывается при отказе
+        сервера, показывая вместо этого текст ошибки. Прогон:
+        `pnpm --dir apps/webapp test src/app/app/patient/profile/` → `2 files, 3 tests passed`.
+      - Fault injection (19.08, воркер этой задачи): закомментировал `toast.success(...)` в файле →
+        `pnpm --dir apps/webapp test .../PatientCalendarTimezoneSection.ui.test.tsx` → 1 из 2 тестов
+        красный (`toastSuccess` не вызван) → откатил правку (`git status` чист) → тест снова
+        `2 passed`.
 
 ## Правила
 
