@@ -3404,6 +3404,32 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // Миграция 0050. Снять переехавший долг со счёта-преемника, когда оплата за место всё-таки
+    // пришла по старой живой ссылке провайдера. Сумму шов НЕ принимает — выводит её из строки
+    // погашенного счёта, а организацию сверяет на каждой строке цепочки. Писать `amount_minor` и
+    // `carried_debt_minor` арендной роли по-прежнему нельзя: денежная стена ровно за тем и стоит,
+    // чтобы сумму счёта менял один узкий шов, а не любой путь под ролью клиники.
+    'app.release_carried_seat_debt(uuid,uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_clinic_billing'],
+      purpose: 'release a carried seat debt from its successor invoice when the superseded invoice is paid after all',
+      typedArgs: ['uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_invoices',
+          columns: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+            'carried_debt_minor', 'superseded_by_invoice_id', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: {
+            SELECT: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+              'carried_debt_minor', 'superseded_by_invoice_id'],
+            // Обе денежные колонки меняются ОДНИМ вычитанием и только вниз: снимается ровно та
+            // сумма, что переехала. `carried_debt_minor <= amount_minor` держит ограничение таблицы.
+            UPDATE: ['amount_minor', 'carried_debt_minor', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.touch_current_patient_support_conversation_activity(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.touch_current_patient_support_conversation_activity(uuid)'],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS[

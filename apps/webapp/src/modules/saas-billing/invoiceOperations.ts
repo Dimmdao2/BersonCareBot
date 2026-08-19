@@ -96,3 +96,41 @@ export async function reissueWithSuccessor<TSuccessor, TRetired>(steps: {
   const retired = await steps.retireSuperseded(successor);
   return { successor, retired };
 }
+
+/**
+ * ОПЛАТА ПРИШЛА ПО СЧЁТУ, КОТОРЫЙ УЖЕ ПОГАШЕН ПРЕЕМНИКОМ — что это значит.
+ *
+ * Почему такой порядок событий вообще возможен. `pending` означает, что заказ отдан провайдеру и
+ * плательщик держит в руках живую ссылку на оплату. Закрыть чужой чек-аут нам нечем: в порту
+ * провайдера (`PaymentProviderPort`) такой операции нет вовсе. Значит между «долг переехал в счёт
+ * следующего периода» и «клиника всё-таки нажала оплатить по старой ссылке» может пройти сколько
+ * угодно времени, и деньги у провайдера спишутся.
+ *
+ * Что было до этого правила: захват платежа отвечал на такой счёт `duplicate: true` и 200, то есть
+ * ВЫБРАСЫВАЛ оплату молча. Списание у провайдера произошло, а те же деньги стояли строкой внутри
+ * счёта-преемника — одна услуга оплачена дважды, продукт знает про один раз, тревоги нет.
+ *
+ * Три исхода, и ни в одном деньги не пропадают:
+ *
+ * - `settle_superseded` — счёт погашен преемником. Сумму надо снять с преемника (шов
+ *   `app.release_carried_seat_debt`) и погасить этот счёт как оплаченный: переезд отменяется ровно
+ *   на ту сумму, которую эта оплата закрыла.
+ * - `closed` — счёт аннулирован БЕЗ преемника или отбит провайдером: услуги за ним не стоит.
+ * - `ordinary` — обычный живой счёт, обычный захват.
+ */
+export type SaasBillingPaidInvoiceSubject = {
+  status: SaasBillingInvoiceStatus;
+  supersededByInvoiceId: string | null;
+};
+
+export type SaasBillingPaidInvoiceRoute = 'ordinary' | 'settle_superseded' | 'closed';
+
+export function saasBillingPaidInvoiceRoute(
+  invoice: SaasBillingPaidInvoiceSubject,
+): SaasBillingPaidInvoiceRoute {
+  if (invoice.status === 'void') {
+    return invoice.supersededByInvoiceId ? 'settle_superseded' : 'closed';
+  }
+  if (invoice.status === 'failed') return 'closed';
+  return 'ordinary';
+}

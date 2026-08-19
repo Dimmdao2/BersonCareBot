@@ -25,8 +25,13 @@ import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
   saasBillingInvoiceReissueVerdict,
+  saasBillingPaidInvoiceRoute,
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
+import {
+  isSaasBillingSeatDebtForPeriod,
+  saasBillingSeatDebtCandidateBound,
+} from '@/modules/saas-billing/seatDebt';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
@@ -166,7 +171,16 @@ async function readSeatDebtForPeriod(
     periodCurrency: string;
   },
 ): Promise<{ rows: Array<typeof saasBillingInvoices.$inferSelect>; totalMinor: number }> {
-  const rows = await tx
+  const scope = {
+    organizationId: input.organizationId,
+    saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+    periodStartsAt: input.periodStartsAt,
+    asOf: input.asOf,
+  };
+  // SQL сужает НАДМНОЖЕСТВО и берёт его под замок — ровно то, что покрывает частичный индекс
+  // `idx_saas_billing_invoices_seat_debt`. Кто из этих строк долг, решает общее правило модуля, а
+  // не второе, отдельно написанное здесь условие: две копии одного правила расходятся молча.
+  const candidates = await tx
     .select()
     .from(saasBillingInvoices)
     .where(
@@ -175,11 +189,11 @@ async function readSeatDebtForPeriod(
         eq(saasBillingInvoices.saasBillingSubscriptionId, input.saasBillingSubscriptionId),
         eq(saasBillingInvoices.invoiceKind, 'seat_overage'),
         inArray(saasBillingInvoices.status, ['draft', 'pending']),
-        lte(saasBillingInvoices.servicePeriodEndsAt, input.periodStartsAt),
-        lte(saasBillingInvoices.servicePeriodEndsAt, input.asOf),
+        lte(saasBillingInvoices.servicePeriodEndsAt, saasBillingSeatDebtCandidateBound(scope)),
       ),
     )
     .for('update');
+  const rows = candidates.filter((row) => isSaasBillingSeatDebtForPeriod(row, scope));
   return {
     rows,
     totalMinor: carriedSeatDebtMinor({ periodCurrency: input.periodCurrency, debts: rows }),
@@ -283,6 +297,31 @@ async function refreshSaasBillingInvoicePurchasedTariff(
   );
   const row = result.rows[0] as { refreshed: boolean } | undefined;
   return row?.refreshed === true;
+}
+
+/**
+ * Снять с счёта-преемника долг, который эта оплата закрыла на самом деле.
+ *
+ * Сумму шов выводит из строки погашенного счёта сам и от вызывающего её не принимает — иначе
+ * денежная стена (`amount_minor` арендной роли не писабельна) обходилась бы простым аргументом.
+ * Ответ — слово, а не число: `released` — долг снят и счёт можно гасить как оплаченный;
+ * `already_billed` — снимать не с чего, преемник уже оплачен; `not_superseded` — счёт вообще не
+ * погашен преемником.
+ */
+async function releaseCarriedSeatDebt(
+  tx: Transaction,
+  saasBillingInvoiceId: string,
+  organizationId: string,
+): Promise<'released' | 'already_billed' | 'not_superseded'> {
+  const result = await tx.execute(
+    sql`SELECT app.release_carried_seat_debt(${saasBillingInvoiceId}::uuid, ${organizationId}::uuid) AS outcome`,
+  );
+  const row = result.rows[0] as { outcome: string } | undefined;
+  return row?.outcome === 'released'
+    ? 'released'
+    : row?.outcome === 'not_superseded'
+      ? 'not_superseded'
+      : 'already_billed';
 }
 
 async function upsertSaasBillingAccount(
@@ -1381,13 +1420,53 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         const [invoice] = await tx.select().from(saasBillingInvoices).where(and(
           eq(saasBillingInvoices.id, invoiceIdentity.id), eq(saasBillingInvoices.organizationId, input.organizationId),
         )).limit(1).for('update');
-        if (!invoice || invoice.status === 'void' || invoice.status === 'failed') {
-          return { captured: false, duplicate: true };
+        if (!invoice) return { captured: false, duplicate: true };
+        const route = saasBillingPaidInvoiceRoute(invoice);
+        if (route === 'closed') return { captured: false, duplicate: true };
+        if (route === 'settle_superseded') {
+          // Деньги пришли по счёту, чей долг уже переехал в счёт-преемник. Молчать здесь нельзя:
+          // списание у провайдера состоялось, а та же сумма стоит строкой внутри преемника.
+          const settled = await releaseCarriedSeatDebt(tx, invoice.id, input.organizationId);
+          if (settled !== 'released') {
+            // Снять долг не с чего: преемник уже оплачен (или долг в нём уже сняли). Услуга
+            // оплачена дважды по-настоящему, и арифметикой это не чинится — это работа оператора.
+            // Счёт НЕ переводится в `paid`: он остаётся погашенным преемником, а факт лишнего
+            // платежа записывается туда, где оператор его видит, вместо тихого `duplicate: true`.
+            await tx.insert(adminAuditLog).values({
+              organizationId: input.organizationId,
+              actorId: null,
+              action: 'saas_billing_superseded_invoice_paid_refund_due',
+              targetId: invoice.id,
+              details: {
+                reason: settled,
+                amountMinor: invoice.amountMinor,
+                currency: invoice.currency,
+                supersededByInvoiceId: invoice.supersededByInvoiceId,
+                providerId: event.providerId,
+                providerEventId: event.providerEventId,
+              },
+              status: 'error',
+            });
+            await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
+              eq(saasBillingProviderEvents.providerId, event.providerId),
+              eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
+            ));
+            return { captured: false, duplicate: false };
+          }
+          // Переезд отменён ровно на эту сумму — счёт снова стоит сам за себя и дальше гасится
+          // обычным путём, включая выдачу места.
         }
         const wasPaid = invoice.status === 'paid';
         if (!wasPaid) {
-          await tx.update(saasBillingInvoices).set({ status: 'paid', paidAt: input.paidAt, updatedAt: new Date().toISOString() })
-            .where(eq(saasBillingInvoices.id, invoice.id));
+          // Ссылка на преемника снимается ТЕМ ЖЕ оператором, что ставит `paid`: два ограничения
+          // таблицы (`…_superseded_is_void_check` и `…_seat_void_has_successor_check`) не оставляют
+          // между ними ни одного разрешённого промежуточного состояния — и не должны.
+          await tx.update(saasBillingInvoices).set({
+            status: 'paid',
+            paidAt: input.paidAt,
+            updatedAt: new Date().toISOString(),
+            ...(route === 'settle_superseded' ? { supersededByInvoiceId: null } : {}),
+          }).where(eq(saasBillingInvoices.id, invoice.id));
         }
         // The subscription lock serializes separately delivered seat captures before allowance
         // changes, including replays that carry a different provider event id.

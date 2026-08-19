@@ -312,3 +312,115 @@ describe('неоплаченный к концу периода счёт за м
     expect(storedUnpaid?.supersededByInvoiceId).toBe(nextPeriod?.id);
   });
 });
+
+/**
+ * Поломка, которую ловит этот блок, одной строкой: «клиника заплатила по старой живой ссылке
+ * провайдера после того, как долг переехал в счёт следующего периода, — списание прошло, а те же
+ * деньги остались строкой внутри нового счёта».
+ *
+ * Отказ дорогой и молчаливый одновременно: провайдер списывает деньги и получает 200, продукт
+ * отвечает `duplicate: true` и не меняет ничего, тревоги нет. Наружу — исправно работающий биллинг,
+ * в котором одна услуга оплачена дважды. Закрыть ссылку у провайдера нам нечем: в
+ * `PaymentProviderPort` такой операции нет, поэтому порядок «сначала переезд, потом оплата»
+ * физически возможен и должен быть обработан, а не запрещён.
+ */
+describe('оплата по счёту, чей долг уже переехал', () => {
+  it('снимает переехавший долг с преемника и засчитывает место (оплата ПОСЛЕ переезда)', async () => {
+    const world = scenario();
+    await withPaidPeriod(world);
+    const unpaidSeat = await world.buySeat('seat-unpaid');
+
+    world.setNow(PERIOD_ENDS_AT);
+    const nextPeriod = await world.service.createOwnTariffRenewalInvoice(ORGANIZATION_ID);
+    expect(nextPeriod.amountMinor).toBe(TARIFF.priceMinor + unpaidSeat.amountMinor);
+
+    // Через час клиника всё-таки платит по старой ссылке.
+    await world.pay(unpaidSeat.id, 'event-late-seat');
+
+    const rows = await world.invoices();
+    const paidSeatRow = rows.find((row) => row.id === unpaidSeat.id);
+    const successor = rows.find((row) => row.id === nextPeriod.id);
+
+    // Деньги не выброшены: счёт оплачен, место открыто.
+    expect(paidSeatRow?.status).toBe('paid');
+    expect(paidSeatRow?.supersededByInvoiceId).toBeNull();
+    expect((await world.subscription()).paidAdditionalSeats).toBe(1);
+
+    // И не списаны дважды: из счёта-преемника ушла ровно эта сумма — и из долга, и из суммы к оплате.
+    expect(successor?.carriedDebtMinor).toBe(0);
+    expect(successor?.amountMinor).toBe(TARIFF.priceMinor);
+
+    // Сведение: за место заплачено ровно один раз.
+    const payable = rows
+      .filter((row) => row.status !== 'void' && row.id !== nextPeriod.id)
+      .filter((row) => row.invoiceKind === 'seat_overage')
+      .reduce((total, row) => total + row.amountMinor, 0);
+    expect(payable).toBe(unpaidSeat.amountMinor);
+  });
+
+  it('оплата ДО переезда: долг не считается долгом, следующий счёт идёт по цене тарифа', async () => {
+    const world = scenario();
+    await withPaidPeriod(world);
+    const seat = await world.buySeat('seat-unpaid');
+    await world.pay(seat.id, 'event-seat-in-time');
+
+    world.setNow(PERIOD_ENDS_AT);
+    const nextPeriod = await world.service.createOwnTariffRenewalInvoice(ORGANIZATION_ID);
+
+    expect(nextPeriod.carriedDebtMinor).toBe(0);
+    // Цена следующего периода — тариф: оплаченное место открыло счётчик, но в новом периоде
+    // оплачиваются места по ЖИВОМУ составу команды, а он в этом сценарии пуст.
+    expect(nextPeriod.amountMinor).toBe(TARIFF.priceMinor);
+    expect((await world.invoices()).find((row) => row.id === seat.id)?.status).toBe('paid');
+  });
+
+  it('преемник уже оплачен — деньги не выбрасываются молча и место не выдаётся дважды', async () => {
+    const world = scenario();
+    await withPaidPeriod(world);
+    const unpaidSeat = await world.buySeat('seat-unpaid');
+
+    world.setNow(PERIOD_ENDS_AT);
+    const nextPeriod = await world.service.createOwnTariffRenewalInvoice(ORGANIZATION_ID);
+    await world.pay(nextPeriod.id, 'event-next-period');
+
+    await world.pay(unpaidSeat.id, 'event-late-seat');
+
+    const rows = await world.invoices();
+    // Сумма оплаченного счёта задним числом не правится: он уже оплачен именно на эту сумму.
+    expect(rows.find((row) => row.id === nextPeriod.id)?.amountMinor).toBe(
+      TARIFF.priceMinor + unpaidSeat.amountMinor,
+    );
+    // Счёт остаётся погашенным преемником: услуга оплачена дважды, и это возврат, а не арифметика.
+    const late = rows.find((row) => row.id === unpaidSeat.id);
+    expect(late?.status).toBe('void');
+    expect(late?.supersededByInvoiceId).toBe(nextPeriod.id);
+  });
+
+  it('перевыставленный счёт: оплата по старой ссылке снимает долг с ЕГО преемника', async () => {
+    const world = scenario();
+    await withPaidPeriod(world);
+    const seat = await world.buySeat('seat-1');
+
+    world.setNow('2026-07-20T00:00:00.000Z');
+    const reissued = await world.service.reissueSeatOverageInvoice({
+      saasBillingInvoiceId: seat.id,
+      actorId: 'platform-admin',
+      reason: 'счёт протух у провайдера',
+    });
+    if (reissued.outcome !== 'reissued') throw new Error('reissued expected');
+
+    // Преемник тоже не оплачен к концу периода — его долг едет в счёт следующего периода.
+    world.setNow(PERIOD_ENDS_AT);
+    const nextPeriod = await world.service.createOwnTariffRenewalInvoice(ORGANIZATION_ID);
+    expect(nextPeriod.carriedDebtMinor).toBe(seat.amountMinor);
+
+    // Оплата приходит по САМОЙ старой ссылке — цепочка преемников проходится до живого счёта.
+    await world.pay(seat.id, 'event-oldest-link');
+
+    const rows = await world.invoices();
+    expect(rows.find((row) => row.id === seat.id)?.status).toBe('paid');
+    expect(rows.find((row) => row.id === nextPeriod.id)?.carriedDebtMinor).toBe(0);
+    expect(rows.find((row) => row.id === nextPeriod.id)?.amountMinor).toBe(TARIFF.priceMinor);
+    expect((await world.subscription()).paidAdditionalSeats).toBe(1);
+  });
+});

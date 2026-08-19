@@ -18,8 +18,10 @@ import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
   saasBillingInvoiceReissueVerdict,
+  saasBillingPaidInvoiceRoute,
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
+import { isSaasBillingSeatDebtForPeriod } from '@/modules/saas-billing/seatDebt';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
 
@@ -122,8 +124,8 @@ export function createInMemorySaasBillingRepository(
     return { invoice: row, created: true };
   }
 
-  /** Двойник повторяет правило pg-репозитория дословно: долгом за место считается НЕОПЛАЧЕННЫЙ счёт
-   *  за место, чей отрезок услуги закончился не позже начала нового периода. */
+  /** Двойник не ПОВТОРЯЕТ правило боевого репозитория, а зовёт то же самое: копия правила о деньгах
+   *  расходится молча, и именно так снятое из боевого WHERE условие `asOf` осталось незамеченным. */
   function readSeatDebtForPeriod(input: {
     organizationId: string;
     saasBillingSubscriptionId: string;
@@ -131,19 +133,46 @@ export function createInMemorySaasBillingRepository(
     asOf: string;
     periodCurrency: string;
   }): { debts: SaasBillingInvoice[]; totalMinor: number } {
-    const debts = [...invoices.values()].filter(
-      (row) =>
-        row.organizationId === input.organizationId &&
-        row.saasBillingSubscriptionId === input.saasBillingSubscriptionId &&
-        row.invoiceKind === 'seat_overage' &&
-        (row.status === 'draft' || row.status === 'pending') &&
-        row.servicePeriodEndsAt <= input.periodStartsAt &&
-        row.servicePeriodEndsAt <= input.asOf,
+    const debts = [...invoices.values()].filter((row) =>
+      isSaasBillingSeatDebtForPeriod(row, {
+        organizationId: input.organizationId,
+        saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+        periodStartsAt: input.periodStartsAt,
+        asOf: input.asOf,
+      }),
     );
     return {
       debts,
       totalMinor: carriedSeatDebtMinor({ periodCurrency: input.periodCurrency, debts }),
     };
+  }
+
+  /**
+   *  Снять с счёта-преемника долг, который пришедшая оплата закрыла на самом деле, — тот же расчёт,
+   *  что делает шов `app.release_carried_seat_debt` в боевой базе, и с тем же ответом «да/нет».
+   *
+   *  Цепочка преемников проходится до первого не погашенного счёта: долг мог переезжать не один
+   *  раз. Снимать его можно только с ещё не оплаченного счёта и только пока он в нём стоит;
+   *  «преемник уже оплачен» — это не арифметика, а лишние деньги и работа оператора.
+   */
+  function releaseCarriedSeatDebt(superseded: SaasBillingInvoice): boolean {
+    let successor = superseded.supersededByInvoiceId
+      ? invoices.get(superseded.supersededByInvoiceId)
+      : undefined;
+    for (let hop = 0; successor && successor.status === 'void' && hop < 16; hop += 1) {
+      successor = successor.supersededByInvoiceId
+        ? invoices.get(successor.supersededByInvoiceId)
+        : undefined;
+    }
+    if (!successor || successor.currency !== superseded.currency) return false;
+    if (successor.status !== 'draft' && successor.status !== 'pending') return false;
+    if (successor.carriedDebtMinor < superseded.amountMinor) return false;
+    invoices.set(successor.id, {
+      ...successor,
+      amountMinor: successor.amountMinor - superseded.amountMinor,
+      carriedDebtMinor: successor.carriedDebtMinor - superseded.amountMinor,
+    });
+    return true;
   }
 
   /** Гашение долга ПОСЛЕ появления преемника — место при этом не отбирается: счётчик
@@ -763,12 +792,23 @@ export function createInMemorySaasBillingRepository(
     async captureSaasBillingPaymentSucceeded(input) {
       const key = `${input.event.providerId}:${input.event.providerEventId}`;
       const existingEvent = events.get(key);
-      const current = invoices.get(input.saasBillingInvoiceId);
+      let current = invoices.get(input.saasBillingInvoiceId);
       if (!current || current.organizationId !== input.organizationId) {
         return { captured: false, duplicate: Boolean(existingEvent) };
       }
-      if (current.status === 'void' || current.status === 'failed') {
+      const route = saasBillingPaidInvoiceRoute(current);
+      if (route === 'closed') {
         return { captured: false, duplicate: Boolean(existingEvent) };
+      }
+      if (route === 'settle_superseded') {
+        // Тот же порядок, что в боевом репозитории: снять долг со счёта-преемника и только после
+        // этого гасить сам счёт. Не сняли — деньги лишние, счёт остаётся погашенным преемником, а
+        // оплата не выбрасывается молча (в PG на этом месте пишется запись аудита оператору).
+        if (!releaseCarriedSeatDebt(current)) {
+          return { captured: false, duplicate: false };
+        }
+        current = { ...current, supersededByInvoiceId: null };
+        invoices.set(current.id, current);
       }
       if (!existingEvent) {
         events.set(key, {
