@@ -834,6 +834,17 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           set: { title, isActive: true, updatedAt: nowIso },
         });
       await tx.execute(sql`SELECT app.seed_reference_catalog_snapshot(${organizationId}::uuid)`);
+      // A directory entry is refused unless the organization already holds the slug as its
+      // `current` claim (`app.guard_clinic_directory_current_slug`). The claim is what a real
+      // signup writes first, so the fixture writes it first too — reconciled, not assumed.
+      await tx
+        .insert(schema.organizationSlugClaims)
+        .values({ organizationId, slug, kind: 'current', updatedAt: nowIso })
+        .onConflictDoUpdate({
+          target: schema.organizationSlugClaims.organizationId,
+          setWhere: sql`${schema.organizationSlugClaims.kind} = 'current'`,
+          set: { slug, updatedAt: nowIso },
+        });
       // Canonical public booking link `/book/{publicSlug}` (OWNER_RULINGS_2026-07-17.md §1):
       // reconcile the published directory entry so the demo clinics are click-through-verifiable.
       await tx
