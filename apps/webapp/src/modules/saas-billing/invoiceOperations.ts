@@ -112,25 +112,46 @@ export async function reissueWithSuccessor<TSuccessor, TRetired>(steps: {
  *
  * Три исхода, и ни в одном деньги не пропадают:
  *
- * - `settle_superseded` — счёт погашен преемником. Сумму надо снять с преемника (шов
- *   `app.release_carried_seat_debt`) и погасить этот счёт как оплаченный: переезд отменяется ровно
- *   на ту сумму, которую эта оплата закрыла.
- * - `closed` — счёт аннулирован БЕЗ преемника или отбит провайдером: услуги за ним не стоит.
- * - `ordinary` — обычный живой счёт, обычный захват.
+ * - счёт погашен преемником — сумму надо снять с преемника (шов `app.release_carried_seat_debt`) и
+ *   погасить этот счёт как оплаченный: переезд отменяется ровно на ту сумму, которую оплата закрыла;
+ * - снять не удалось (преемник уже оплачен) — услуга оплачена дважды по-настоящему, и это возврат,
+ *   а не арифметика: вызывающий обязан сделать платёж видимым оператору, а не ответить «дубликат»;
+ * - аннулирован БЕЗ преемника или отбит провайдером — услуги за счётом не стоит.
  */
 export type SaasBillingPaidInvoiceSubject = {
   status: SaasBillingInvoiceStatus;
   supersededByInvoiceId: string | null;
 };
 
-export type SaasBillingPaidInvoiceRoute = 'ordinary' | 'settle_superseded' | 'closed';
-
-export function saasBillingPaidInvoiceRoute(
+/**
+ * ПОРЯДОК захвата оплаты — здесь, и только здесь, по образцу {@link reissueWithSuccessor}.
+ *
+ * Для счёта, погашенного преемником, `markPaid` физически НЕДОСТИЖИМ, пока `settleSuperseded` не
+ * ответил `released`: это не правило, которое можно забыть позвать, а форма функции. Ровно та же
+ * разница, что между «аннулировали и, если повезёт, выставим новый» и «сумма переехала»: путь, на
+ * котором деньги удваиваются, нечем выразить.
+ *
+ * `markPaid` получает признак того, что счёт пришёл с погашенного пути: вызывающий обязан снять
+ * ссылку на преемника ТЕМ ЖЕ действием, которым ставит `paid` — ограничения таблицы
+ * `…_superseded_is_void_check` и `…_seat_void_has_successor_check` не оставляют между ними ни
+ * одного разрешённого промежуточного состояния.
+ */
+export async function captureSaasBillingPaidInvoice<T>(
   invoice: SaasBillingPaidInvoiceSubject,
-): SaasBillingPaidInvoiceRoute {
+  steps: {
+    /** Снять переехавший долг со счёта-преемника. `blocked` — снимать не с чего, преемник оплачен. */
+    settleSuperseded: (supersededByInvoiceId: string) => Promise<'released' | 'blocked'>;
+    markPaid: (cameFromSupersededPath: boolean) => Promise<T>;
+    refuse: (reason: 'closed' | 'superseded_debt_already_billed') => Promise<T>;
+  },
+): Promise<T> {
+  if (invoice.status === 'failed') return steps.refuse('closed');
   if (invoice.status === 'void') {
-    return invoice.supersededByInvoiceId ? 'settle_superseded' : 'closed';
+    // Аннулирован БЕЗ преемника — за таким счётом не стоит услуги, платить было нечего.
+    if (!invoice.supersededByInvoiceId) return steps.refuse('closed');
+    const settled = await steps.settleSuperseded(invoice.supersededByInvoiceId);
+    if (settled !== 'released') return steps.refuse('superseded_debt_already_billed');
+    return steps.markPaid(true);
   }
-  if (invoice.status === 'failed') return 'closed';
-  return 'ordinary';
+  return steps.markPaid(false);
 }

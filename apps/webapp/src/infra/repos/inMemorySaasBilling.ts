@@ -18,7 +18,7 @@ import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
   saasBillingInvoiceReissueVerdict,
-  saasBillingPaidInvoiceRoute,
+  captureSaasBillingPaidInvoice,
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
 import { isSaasBillingSeatDebtForPeriod } from '@/modules/saas-billing/seatDebt';
@@ -792,113 +792,117 @@ export function createInMemorySaasBillingRepository(
     async captureSaasBillingPaymentSucceeded(input) {
       const key = `${input.event.providerId}:${input.event.providerEventId}`;
       const existingEvent = events.get(key);
-      let current = invoices.get(input.saasBillingInvoiceId);
+      const current = invoices.get(input.saasBillingInvoiceId);
       if (!current || current.organizationId !== input.organizationId) {
         return { captured: false, duplicate: Boolean(existingEvent) };
       }
-      const route = saasBillingPaidInvoiceRoute(current);
-      if (route === 'closed') {
-        return { captured: false, duplicate: Boolean(existingEvent) };
-      }
-      if (route === 'settle_superseded') {
+      const invoice = current;
+      return captureSaasBillingPaidInvoice(invoice, {
         // Тот же порядок, что в боевом репозитории: снять долг со счёта-преемника и только после
-        // этого гасить сам счёт. Не сняли — деньги лишние, счёт остаётся погашенным преемником, а
-        // оплата не выбрасывается молча (в PG на этом месте пишется запись аудита оператору).
-        if (!releaseCarriedSeatDebt(current)) {
-          return { captured: false, duplicate: false };
-        }
-        current = { ...current, supersededByInvoiceId: null };
-        invoices.set(current.id, current);
-      }
-      if (!existingEvent) {
-        events.set(key, {
-          id: crypto.randomUUID(),
-          organizationId: input.organizationId,
-          saasBillingInvoiceId: current.id,
-          providerId: input.event.providerId,
-          providerEventId: input.event.providerEventId,
-          eventType: input.event.type,
-          processedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-        });
-      }
-      if (current.status !== 'paid') invoices.set(current.id, { ...current, status: 'paid' });
-      const entry = [...rows.entries()].find(
-        ([, row]) => row.id === current.saasBillingSubscriptionId,
-      );
-      if (!entry) throw new Error('saas_billing_subscription_not_found');
-      const [subscriptionKeyValue, subscription] = entry;
-      if (input.savedPaymentMethodId && current.invoiceKind === 'tariff_period') {
-        rows.set(subscriptionKeyValue, {
-          ...subscription,
-          savedPaymentMethodId: input.savedPaymentMethodId,
-        });
-      }
-      if (current.invoiceKind === 'seat_overage' && current.status !== 'paid') {
-        rows.set(subscriptionKeyValue, {
-          ...subscription,
-          paidAdditionalSeats: subscription.paidAdditionalSeats + current.additionalSeatQuantity,
-        });
-      }
-      if (
-        current.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
-        current.status !== 'paid' &&
-        current.servicePeriodEndsAt === subscription.currentPeriodEndsAt
-      ) {
-        const targetTariff = paidPeriodSnapshotPrice(current.tariffSnapshot);
-        const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(current.tariffSnapshot);
-        if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
-          throw new Error('saas_billing_additional_seat_price_missing');
-        }
-        for (const invoice of invoices.values()) {
-          if (
-            invoice.saasBillingSubscriptionId === subscription.id &&
-            invoice.invoiceKind === 'tariff_period' &&
-            invoice.description === null &&
-            invoice.status === 'paid' &&
-            invoice.servicePeriodStartsAt === subscription.currentPeriodEndsAt
-          ) {
-            invoices.set(invoice.id, {
-              ...invoice,
-              tariffId: current.tariffId,
-              tariffName: current.tariffName,
-              currency: targetTariff.currency,
-              tariffBillingPeriod: targetTariff.billingPeriod,
-              tariffSnapshot: current.tariffSnapshot,
+        // этого гасить сам счёт.
+        settleSuperseded: async () => (releaseCarriedSeatDebt(invoice) ? 'released' : 'blocked'),
+        // Не сняли — деньги лишние, счёт остаётся погашенным преемником, а оплата не выбрасывается
+        // молча (в PG на этом месте пишется запись аудита оператору).
+        refuse: async (reason) => ({
+          captured: false,
+          duplicate: reason === 'closed' ? Boolean(existingEvent) : false,
+        }),
+        markPaid: async (cameFromSupersededPath) => {
+          const paidInvoice = cameFromSupersededPath
+            ? { ...invoice, supersededByInvoiceId: null }
+            : invoice;
+          if (cameFromSupersededPath) invoices.set(paidInvoice.id, paidInvoice);
+          if (!existingEvent) {
+            events.set(key, {
+              id: crypto.randomUUID(),
+              organizationId: input.organizationId,
+              saasBillingInvoiceId: paidInvoice.id,
+              providerId: input.event.providerId,
+              providerEventId: input.event.providerEventId,
+              eventType: input.event.type,
+              processedAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
             });
           }
-        }
-        rows.set(subscriptionKeyValue, {
-          ...subscription,
-          tariffId: current.tariffId,
-          pendingTariffId: null,
-          tariffSnapshot: current.tariffSnapshot,
-          status: 'active',
-          lifecycleState: 'active',
-        });
-        organizationTariffs.set(input.organizationId, current.tariffId);
-      }
-      const due =
-        current.invoiceKind === 'tariff_period' &&
-        current.servicePeriodStartsAt <= input.paidAt &&
-        (subscription.currentPeriodEndsAt === current.servicePeriodStartsAt ||
-          (subscription.currentPeriodEndsAt === null &&
-            current.tariffId === (subscription.pendingTariffId ?? subscription.tariffId)));
-      if (due) {
-        const latest = rows.get(subscriptionKeyValue) as SaasBillingSubscription;
-        rows.set(subscriptionKeyValue, {
-          ...latest,
-          tariffId: current.tariffId,
-          pendingTariffId: null,
-          status: 'active',
-          lifecycleState: 'active',
-          currentPeriodStartsAt: current.servicePeriodStartsAt,
-          currentPeriodEndsAt: current.servicePeriodEndsAt,
-          tariffSnapshot: current.tariffSnapshot,
-        });
-        organizationTariffs.set(input.organizationId, current.tariffId);
-      }
-      return { captured: current.status !== 'paid', duplicate: Boolean(existingEvent) };
+          if (paidInvoice.status !== 'paid') invoices.set(paidInvoice.id, { ...paidInvoice, status: 'paid' });
+          const entry = [...rows.entries()].find(
+            ([, subscriptionRow]) => subscriptionRow.id === paidInvoice.saasBillingSubscriptionId,
+          );
+          if (!entry) throw new Error('saas_billing_subscription_not_found');
+          const [subscriptionKeyValue, subscription] = entry;
+          if (input.savedPaymentMethodId && paidInvoice.invoiceKind === 'tariff_period') {
+            rows.set(subscriptionKeyValue, {
+              ...subscription,
+              savedPaymentMethodId: input.savedPaymentMethodId,
+            });
+          }
+          if (paidInvoice.invoiceKind === 'seat_overage' && paidInvoice.status !== 'paid') {
+            rows.set(subscriptionKeyValue, {
+              ...subscription,
+              paidAdditionalSeats: subscription.paidAdditionalSeats + paidInvoice.additionalSeatQuantity,
+            });
+          }
+          if (
+            paidInvoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
+            paidInvoice.status !== 'paid' &&
+            paidInvoice.servicePeriodEndsAt === subscription.currentPeriodEndsAt
+          ) {
+            const targetTariff = paidPeriodSnapshotPrice(paidInvoice.tariffSnapshot);
+            const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(paidInvoice.tariffSnapshot);
+            if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
+              throw new Error('saas_billing_additional_seat_price_missing');
+            }
+            for (const invoice of invoices.values()) {
+              if (
+                invoice.saasBillingSubscriptionId === subscription.id &&
+                invoice.invoiceKind === 'tariff_period' &&
+                invoice.description === null &&
+                invoice.status === 'paid' &&
+                invoice.servicePeriodStartsAt === subscription.currentPeriodEndsAt
+              ) {
+                invoices.set(invoice.id, {
+                  ...invoice,
+                  tariffId: paidInvoice.tariffId,
+                  tariffName: paidInvoice.tariffName,
+                  currency: targetTariff.currency,
+                  tariffBillingPeriod: targetTariff.billingPeriod,
+                  tariffSnapshot: paidInvoice.tariffSnapshot,
+                });
+              }
+            }
+            rows.set(subscriptionKeyValue, {
+              ...subscription,
+              tariffId: paidInvoice.tariffId,
+              pendingTariffId: null,
+              tariffSnapshot: paidInvoice.tariffSnapshot,
+              status: 'active',
+              lifecycleState: 'active',
+            });
+            organizationTariffs.set(input.organizationId, paidInvoice.tariffId);
+          }
+          const due =
+            paidInvoice.invoiceKind === 'tariff_period' &&
+            paidInvoice.servicePeriodStartsAt <= input.paidAt &&
+            (subscription.currentPeriodEndsAt === paidInvoice.servicePeriodStartsAt ||
+              (subscription.currentPeriodEndsAt === null &&
+                paidInvoice.tariffId === (subscription.pendingTariffId ?? subscription.tariffId)));
+          if (due) {
+            const latest = rows.get(subscriptionKeyValue) as SaasBillingSubscription;
+            rows.set(subscriptionKeyValue, {
+              ...latest,
+              tariffId: paidInvoice.tariffId,
+              pendingTariffId: null,
+              status: 'active',
+              lifecycleState: 'active',
+              currentPeriodStartsAt: paidInvoice.servicePeriodStartsAt,
+              currentPeriodEndsAt: paidInvoice.servicePeriodEndsAt,
+              tariffSnapshot: paidInvoice.tariffSnapshot,
+            });
+            organizationTariffs.set(input.organizationId, paidInvoice.tariffId);
+          }
+          return { captured: paidInvoice.status !== 'paid', duplicate: Boolean(existingEvent) };
+        },
+      });
     },
 
     async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {

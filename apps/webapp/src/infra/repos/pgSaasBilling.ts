@@ -25,7 +25,7 @@ import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
   saasBillingInvoiceReissueVerdict,
-  saasBillingPaidInvoiceRoute,
+  captureSaasBillingPaidInvoice,
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
 import {
@@ -1421,24 +1421,24 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           eq(saasBillingInvoices.id, invoiceIdentity.id), eq(saasBillingInvoices.organizationId, input.organizationId),
         )).limit(1).for('update');
         if (!invoice) return { captured: false, duplicate: true };
-        const route = saasBillingPaidInvoiceRoute(invoice);
-        if (route === 'closed') return { captured: false, duplicate: true };
-        if (route === 'settle_superseded') {
+        return captureSaasBillingPaidInvoice(invoice, {
           // Деньги пришли по счёту, чей долг уже переехал в счёт-преемник. Молчать здесь нельзя:
           // списание у провайдера состоялось, а та же сумма стоит строкой внутри преемника.
-          const settled = await releaseCarriedSeatDebt(tx, invoice.id, input.organizationId);
-          if (settled !== 'released') {
-            // Снять долг не с чего: преемник уже оплачен (или долг в нём уже сняли). Услуга
-            // оплачена дважды по-настоящему, и арифметикой это не чинится — это работа оператора.
-            // Счёт НЕ переводится в `paid`: он остаётся погашенным преемником, а факт лишнего
-            // платежа записывается туда, где оператор его видит, вместо тихого `duplicate: true`.
+          settleSuperseded: async () =>
+            (await releaseCarriedSeatDebt(tx, invoice.id, input.organizationId)) === 'released'
+              ? 'released'
+              : 'blocked',
+          // Снять долг не с чего: преемник уже оплачен. Услуга оплачена дважды по-настоящему, и
+          // арифметикой это не чинится — это возврат, работа оператора. Счёт НЕ переводится в
+          // `paid`, но и оплата не выбрасывается: она попадает туда, где оператор её видит.
+          refuse: async (reason) => {
+            if (reason === 'closed') return { captured: false, duplicate: true };
             await tx.insert(adminAuditLog).values({
               organizationId: input.organizationId,
               actorId: null,
               action: 'saas_billing_superseded_invoice_paid_refund_due',
               targetId: invoice.id,
               details: {
-                reason: settled,
                 amountMinor: invoice.amountMinor,
                 currency: invoice.currency,
                 supersededByInvoiceId: invoice.supersededByInvoiceId,
@@ -1452,85 +1452,85 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
             ));
             return { captured: false, duplicate: false };
-          }
-          // Переезд отменён ровно на эту сумму — счёт снова стоит сам за себя и дальше гасится
-          // обычным путём, включая выдачу места.
-        }
-        const wasPaid = invoice.status === 'paid';
-        if (!wasPaid) {
-          // Ссылка на преемника снимается ТЕМ ЖЕ оператором, что ставит `paid`: два ограничения
-          // таблицы (`…_superseded_is_void_check` и `…_seat_void_has_successor_check`) не оставляют
-          // между ними ни одного разрешённого промежуточного состояния — и не должны.
-          await tx.update(saasBillingInvoices).set({
-            status: 'paid',
-            paidAt: input.paidAt,
-            updatedAt: new Date().toISOString(),
-            ...(route === 'settle_superseded' ? { supersededByInvoiceId: null } : {}),
-          }).where(eq(saasBillingInvoices.id, invoice.id));
-        }
-        // The subscription lock serializes separately delivered seat captures before allowance
-        // changes, including replays that carry a different provider event id.
-        if (input.savedPaymentMethodId && invoice.invoiceKind === 'tariff_period') {
-          await tx.update(saasBillingSubscriptions).set({ savedPaymentMethodId: input.savedPaymentMethodId, updatedAt: new Date().toISOString() })
-            .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
-        }
-        if (invoice.invoiceKind === 'seat_overage') {
-          if (!wasPaid) {
-            await tx.update(saasBillingSubscriptions).set({
-              paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} + ${invoice.additionalSeatQuantity}`,
-              updatedAt: new Date().toISOString(),
-            }).where(eq(saasBillingSubscriptions.id, subscription.id));
-          }
-        } else if (
-          invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
-          !wasPaid &&
-          invoice.servicePeriodEndsAt === subscription.currentPeriodEndsAt
-        ) {
-          const tariffSnapshot =
-            invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
-          const targetTariff = paidPeriodSnapshotPrice(tariffSnapshot);
-          const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(tariffSnapshot);
-          if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
-            throw new Error('saas_billing_additional_seat_price_missing');
-          }
-          await tx
-            .update(saasBillingInvoices)
-            .set({
-              tariffId: invoice.tariffId,
-              tariffName: invoice.tariffName,
-              currency: targetTariff.currency,
-              tariffBillingPeriod: targetTariff.billingPeriod,
-              tariffSnapshot,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(
-              and(
-                eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
-                eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
-                isNull(saasBillingInvoices.description),
-                eq(saasBillingInvoices.status, 'paid'),
-                eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
-              ),
-            );
-          await tx
-            .update(saasBillingSubscriptions)
-            .set({
-              tariffId: invoice.tariffId,
-              pendingTariffId: null,
-              tariffSnapshot,
-              status: 'active',
-              lifecycleState: 'active',
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(saasBillingSubscriptions.id, subscription.id));
-          await applyPaidSaasBillingTariff(tx, invoice.id, input.organizationId);
-        } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
-          await promotePaidInvoice(tx, invoice, input.organizationId);
-        }
-        await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
-          eq(saasBillingProviderEvents.providerId, event.providerId), eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
-        ));
-        return { captured: !wasPaid, duplicate: wasPaid };
+          },
+          markPaid: async (cameFromSupersededPath) => {
+            const wasPaid = invoice.status === 'paid';
+            if (!wasPaid) {
+              // Ссылка на преемника снимается ТЕМ ЖЕ оператором, что ставит `paid`: два ограничения
+              // таблицы (`…_superseded_is_void_check` и `…_seat_void_has_successor_check`) не оставляют
+              // между ними ни одного разрешённого промежуточного состояния — и не должны.
+              await tx.update(saasBillingInvoices).set({
+                status: 'paid',
+                paidAt: input.paidAt,
+                updatedAt: new Date().toISOString(),
+                ...(cameFromSupersededPath ? { supersededByInvoiceId: null } : {}),
+              }).where(eq(saasBillingInvoices.id, invoice.id));
+            }
+            // The subscription lock serializes separately delivered seat captures before allowance
+            // changes, including replays that carry a different provider event id.
+            if (input.savedPaymentMethodId && invoice.invoiceKind === 'tariff_period') {
+              await tx.update(saasBillingSubscriptions).set({ savedPaymentMethodId: input.savedPaymentMethodId, updatedAt: new Date().toISOString() })
+                .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
+            }
+            if (invoice.invoiceKind === 'seat_overage') {
+              if (!wasPaid) {
+                await tx.update(saasBillingSubscriptions).set({
+                  paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} + ${invoice.additionalSeatQuantity}`,
+                  updatedAt: new Date().toISOString(),
+                }).where(eq(saasBillingSubscriptions.id, subscription.id));
+              }
+            } else if (
+              invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
+              !wasPaid &&
+              invoice.servicePeriodEndsAt === subscription.currentPeriodEndsAt
+            ) {
+              const tariffSnapshot =
+                invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
+              const targetTariff = paidPeriodSnapshotPrice(tariffSnapshot);
+              const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(tariffSnapshot);
+              if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
+                throw new Error('saas_billing_additional_seat_price_missing');
+              }
+              await tx
+                .update(saasBillingInvoices)
+                .set({
+                  tariffId: invoice.tariffId,
+                  tariffName: invoice.tariffName,
+                  currency: targetTariff.currency,
+                  tariffBillingPeriod: targetTariff.billingPeriod,
+                  tariffSnapshot,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(
+                  and(
+                    eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
+                    eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+                    isNull(saasBillingInvoices.description),
+                    eq(saasBillingInvoices.status, 'paid'),
+                    eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
+                  ),
+                );
+              await tx
+                .update(saasBillingSubscriptions)
+                .set({
+                  tariffId: invoice.tariffId,
+                  pendingTariffId: null,
+                  tariffSnapshot,
+                  status: 'active',
+                  lifecycleState: 'active',
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(saasBillingSubscriptions.id, subscription.id));
+              await applyPaidSaasBillingTariff(tx, invoice.id, input.organizationId);
+            } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
+              await promotePaidInvoice(tx, invoice, input.organizationId);
+            }
+            await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
+              eq(saasBillingProviderEvents.providerId, event.providerId), eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
+            ));
+            return { captured: !wasPaid, duplicate: wasPaid };
+          },
+        });
       });
     },
 
