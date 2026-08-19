@@ -13,11 +13,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   getTargetsByPhoneMock,
   loadAdminMessengerIdListsMock,
+  recordOperatorFailureIncidentMock,
   reportOperatorFailureMock,
   syncCanonicalAppointmentToCalendarMock,
 } = vi.hoisted(() => ({
   getTargetsByPhoneMock: vi.fn(async () => ({ channelBindings: { telegramId: '123' } })),
   loadAdminMessengerIdListsMock: vi.fn(async () => ({ telegram: ['777'], max: [] })),
+  recordOperatorFailureIncidentMock: vi.fn(async (_input: Record<string, unknown>) => ({
+    id: 'incident',
+    occurrenceCount: 1,
+  })),
   reportOperatorFailureMock: vi.fn(async (_input: Record<string, unknown>) => undefined),
   syncCanonicalAppointmentToCalendarMock: vi.fn(async (_input: Record<string, unknown>) => undefined),
 }));
@@ -27,6 +32,7 @@ vi.mock('../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js', (
   loadAdminMessengerIdLists: loadAdminMessengerIdListsMock,
 }));
 vi.mock('../../infra/operatorIncident/reportOperatorFailure.js', () => ({
+  recordOperatorFailureIncident: recordOperatorFailureIncidentMock,
   reportOperatorFailure: reportOperatorFailureMock,
 }));
 vi.mock('../../infra/adapters/deliveryTargetsPort.js', () => ({
@@ -39,6 +45,7 @@ vi.mock('../google-calendar/sync.js', () => ({
 }));
 
 import {
+  BOOKING_LIFECYCLE_STEP_INCIDENT_DIRECTION,
   BOOKING_REMINDER_MATERIALIZATION_TOPIC,
   handleBookingLifecycleEvent,
 } from './bookingLifecycleRoute.js';
@@ -179,6 +186,29 @@ describe('booking.created: упавший шаг не отменяет оста�
         direction: EMPTY_AUDIENCE_INCIDENT_DIRECTION,
         integration: BOOKING_REMINDER_MATERIALIZATION_TOPIC,
         errorClass: 'reminder_materialization_failed',
+      }),
+    ]);
+  });
+
+  it('врач не получил сообщения о записи — оператор узнаёт об этом, а не только журнал', async () => {
+    loadAdminMessengerIdListsMock.mockRejectedValue(new Error('admin_targets_unavailable'));
+
+    await expect(
+      handleBookingLifecycleEvent(createdEvent(), dispatchPort(), {
+        idempotencyPort: persistentIdempotencyPort(),
+        webappEventsPort: webappEventsPort(async () => ({ ok: true, status: 200 })),
+      }),
+    ).rejects.toThrow('doctor_message');
+
+    expect(
+      recordOperatorFailureIncidentMock.mock.calls
+        .map((call) => call[0])
+        .filter((input) => input.integration === 'doctor_message'),
+    ).toEqual([
+      expect.objectContaining({
+        direction: BOOKING_LIFECYCLE_STEP_INCIDENT_DIRECTION,
+        integration: 'doctor_message',
+        errorClass: 'booking.created_step_failed',
       }),
     ]);
   });
