@@ -90,6 +90,81 @@ INSERT, а INSERT на эту таблицу не выдан ни одной р�
       сообщения о записи — оператор узнаёт об этом, а не только журнал». Fault injection: обернул
       вызов в `if (false)` → красный ровно этот тест, вернул → 4/4 зелёные.
 
+## Громкость отказа была объявлена, но запрещена базой (19.08, ветка `wt/integrator-incident-denied-20260819`)
+
+Предыдущий пункт чек-листа объявил, что упавший шаг открывает операторский инцидент. База это
+запрещала. В логе PostgreSQL за окно после выкатки, роль `bcb_test_integrator`:
+`permission denied for function open_or_touch_operator_incident` и
+`permission denied for function read_integrator_google_calendar_setting`. В журнале сервиса рядом —
+`booking lifecycle step incident could not be recorded`. То есть отказ шага назывался в журнале и
+НЕ доходил до оператора ни разу.
+
+- [x] **Инцидент оператора недостижим из арендного контекста — почему.** `bookingLifecycleRoute`
+      выполняет событие внутри `runWithOrganizationPrincipal` (строка 903), а порт-контекст ставит
+      `SET LOCAL ROLE app_tenant_service`. EXECUTE на `app.open_or_touch_operator_incident` держит
+      ОДНА роль — `app_operational_delivery_worker`, и тело корня требует привилегированного
+      контекста ровно для неё (`app.require_attested_context_for_roles`). Живое воспроизведение на
+      `bcb_webapp_dev` настоящим логином `bcb_dev_integrator` и настоящей установкой контекста:
+
+      session role in this context: {"u":"app_tenant_service","r":"app_tenant_service"}
+      open_or_touch_operator_incident: DENIED code=42501
+      read_integrator_google_calendar_setting(org): DENIED code=42501
+      read_integrator_google_calendar_setting(global): DENIED code=42501
+
+- [x] **Роль выбирает обёртка возможности, а не тот, кто сообщает об отказе.**
+      `openOrTouchOperatorIncident` (`apps/integrator/src/infra/db/repos/operatorHealthDrizzle.ts`)
+      теперь входит в `runWithDeliveryWorkerPrincipal` — существующий адаптер, чья собственная
+      документация описывает ровно этот класс провала («…и никогда у каждого вызывающего — именно
+      так `app.revalidate_patient_reminder_delivery_materialization` перестала работать на TEST»).
+      Той же формы уже держится `readAvailabilityValueJson`
+      (`apps/integrator/src/infra/db/platformIntegrationAvailability.ts`). **Ни одного нового права
+      рабочей роли не выдано:** `app_operational_delivery_worker` уже имел EXECUTE, контур проб
+      остался у `app_operational_scheduler` со своей узкой дверью.
+
+- [x] **Перепись мест, где инцидент оператора не открывался.** Заперты были ВСЕ контуры, кроме
+      воркера доставки и планировщика — девять мест: `bookingLifecycleRoute.ts:199, 290, 302, 357,
+      366, 505` (то есть `reportEmptyNotificationAudience` в интеграторе не работал целиком),
+      `writePort.ts:564`, `writePort.ts:931` — арендный принципал → 42501; `routes.ts:122` (отказ
+      провайдера SMS/почты) и `relayOutboundRoute.ts:223` — принципала нет вовсе, вызов падал ещё
+      до базы («An integrator principal is required in port-context mode»). Каждое место глушило
+      ошибку в `logger.warn`. Один чокпоинт закрыл все девять.
+
+- [x] **Календарь клиники: корень был выдан вызывающему, которого не существует.** EXECUTE на
+      `app.read_integrator_google_calendar_setting(text,uuid)` держал `app_integrator_request`.
+      Принципала класса `integrator` на пути календаря нет ни одного: шаг записи приходит с
+      организацией (`app_tenant_service`), проба оператора — под планировщиком. Корень был
+      недостижим для КАЖДОГО живого вызывающего, а пустой `catch` в `readConfigFromDb` превращал
+      42501 в «календарь у клиники не подключён» — то же самое, что владелец видит на проде.
+      Объявление исправлено в `deploy/postgres/privileges/declaration.ts`: `execute` →
+      `['app_tenant_service']`, как у близнеца `app.read_integrator_clinic_delivery_credential(text,uuid)`
+      (тот же точный org-скоуп в теле). `readConfigFromDb`
+      (`apps/integrator/src/integrations/google-calendar/runtimeConfig.ts`) теперь читает
+      конфигурацию в контексте ЭТОЙ клиники, поэтому и проба оператора попадает в ту же дверь.
+      Сгенерированные артефакты перегенерированы, расхождение — ровно три строки на базу
+      (attested-роль, GRANT EXECUTE, строка переписи); прав на таблицы не добавлено ни одного.
+
+- [x] **Живое доказательство на `bcb_webapp_dev`** (настоящие логины, настоящий порт-контекст,
+      боевой код интегратора; после `migrate-dev.sh --preflight` и `--execute`):
+
+      — booking-lifecycle contour: organization principal (app_tenant_service) —
+        operator incident for a failed lifecycle step: OK {"id":"748459a4-…","occurrenceCount":1}
+        clinic calendar setting (google_calendar_id): OK "dev-proof@example.com"
+        platform calendar identity (google_client_id): OK "1090999466397-….apps.googleusercontent.com"
+      — bare HTTP handler contour: no ambient principal at all (routes.ts:122) —
+        operator incident for an SMS provider failure: OK {"id":"3a61a3ca-…","occurrenceCount":1}
+      — operator probe contour: infra principal scheduler:handle-tick-event —
+        google calendar config for one clinic: OK {"clientIdRead":true,"calendarIdRead":true,"enabled":true}
+
+      Доказательство поведения в тестах:
+      `operatorHealthDrizzle.openOrTouchOperatorIncident.test.ts` — «шаг события записи упал под
+      арендным принципалом → инцидент всё равно уходит в базу под ролью доставки», «отказ провайдера
+      на хендлере вовсе без принципала → инцидент всё равно получает принципала», «тик проб под
+      планировщиком → контур инцидента НЕ переключается на роль доставки»; и
+      `runtimeConfig.principal.unit.test.ts` — «проба оператора под принципалом планировщика →
+      конфигурация клиники читается в контексте ЭТОЙ клиники». Fault injection: снял оба скоупа
+      (`runWithDeliveryWorkerPrincipal` и `runWithOrganizationPrincipal`) → красными стали ровно эти
+      три теста и календарный; вернул → 7/7 зелёные.
+
 ## НЕ СДЕЛАНО
 
 - Почему напоминания падают на ПРОДЕ, где стен RLS нет, — причина там другая и не установлена.
@@ -133,3 +208,23 @@ INSERT, а INSERT на эту таблицу не выдан ни одной р�
   из-за глотания выше: шаг `google_calendar` не может упасть, поэтому и инцидента по нему не бывает.
   Чтобы отказ календаря стал виден, надо снять `catch` внутри
   `trySyncCanonicalBookingToGoogleCalendar` — это по-прежнему отдельное решение.
+
+  **Не сделано этой работой (`wt/integrator-incident-denied-20260819`):**
+
+  - **Живая проверка на TEST** — выкатывает ведущий; в ветке правка доезжает обычным
+    `reconcile-access.mjs`, тем же путём, что и на DEV.
+  - **`app.read_integrator_platform_integration_availability()` выдана только
+    `app_operational_delivery_worker`.** Это не дефект: её обёртка
+    (`platformIntegrationAvailability.ts`) сама входит в контур доставки. Названо, чтобы следующий
+    читатель не принял узкий грант за поломку.
+  - **Данные календаря на DEV/TEST лежат глобальной строкой (`organization_id IS NULL`), а
+    org-ветка корня требует ТОЧНУЮ строку клиники.** Даже с исправленным правом клиника, чьи
+    `google_calendar_id`/`google_calendar_enabled` не перенесены в org-строку, читает `null`. Для
+    доказательства на DEV строка клиники заведена вручную. Перенос данных — не эта работа.
+  - **Легаси-оверлей `deploy/postgres/integrator-server-runtime-config.sql` по-прежнему пишет
+    `GRANT EXECUTE … TO :"integrator_runtime_config_role"` на календарный корень.** Ни один
+    deploy-скрипт его не применяет (права идут из объявления через `reconcile-access.mjs`), поэтому
+    он не переспорит правку; но текст файла разошёлся с объявлением. Не трогал: чужой файл, и
+    правка в нём — отдельное решение.
+  - **Вебапп не проверялся.** Перепись выше — по интегратору, как и было поручено; у вебаппа своя
+    реализация `reportEmptyNotificationAudience`, её стены не смотрел.

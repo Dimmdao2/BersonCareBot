@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import {
+  runWithOrganizationPrincipal,
+  runWithInfraPrincipal,
+} from '../../principal/organizationPrincipal.js';
 
 const query = vi.fn();
 const technicalRuntimeRole = vi.fn<() => string | undefined>(() => undefined);
@@ -51,6 +56,74 @@ describe('openOrTouchOperatorIncident', () => {
     // The narrow door takes integration/error_class only — the caller cannot smuggle a dedup_key
     // or a direction for another contour through it.
     expect(params).toEqual(['max', 'max_probe_failed', 'getMyInfo returned null']);
+    technicalRuntimeRole.mockReturnValue(undefined);
+  });
+
+  // EXECUTE на этом корне держит ТОЛЬКО `app_operational_delivery_worker`. Инцидент при этом
+  // открывают все контуры подряд: шаг события записи под арендным принципалом, отказ провайдера на
+  // голом HTTP-хендлере вовсе без принципала, фолбэк write-port. До 19.08 каждый такой инцидент
+  // терялся на 42501 внутри пустого catch — отказ был назван в журнале и не доходил до оператора.
+  it('дано: шаг события записи упал под арендным принципалом → тогда инцидент всё равно уходит в базу под ролью доставки, а не под арендной', async () => {
+    const principalsAtQuery: Array<string | undefined> = [];
+    query.mockImplementationOnce(async () => {
+      principalsAtQuery.push(getCurrentDbPrincipal()?.kind);
+      return { rows: [{ id: 'incident-3', occurrence_count: 1 }] };
+    });
+    const { openOrTouchOperatorIncident } = await import('./operatorHealthDrizzle.js');
+
+    await runWithOrganizationPrincipal('11111111-1111-4111-8111-111111111111', () =>
+      openOrTouchOperatorIncident({
+        dedupKey: 'booking_lifecycle_step:doctor_message:booking.created_step_failed',
+        direction: 'booking_lifecycle_step',
+        integration: 'doctor_message',
+        errorClass: 'booking.created_step_failed',
+        errorDetail: 'no admin notification targets',
+      }));
+
+    expect(principalsAtQuery).toEqual(['infra']);
+  });
+
+  it('дано: отказ провайдера на хендлере вовсе без принципала → тогда инцидент всё равно получает принципала, а не падает до базы', async () => {
+    const principalsAtQuery: Array<string | undefined> = [];
+    query.mockImplementationOnce(async () => {
+      principalsAtQuery.push(getCurrentDbPrincipal()?.kind);
+      return { rows: [{ id: 'incident-4', occurrence_count: 1 }] };
+    });
+    const { openOrTouchOperatorIncident } = await import('./operatorHealthDrizzle.js');
+
+    await openOrTouchOperatorIncident({
+      dedupKey: 'outbound_delivery_provider:smsc:provider_unavailable',
+      direction: 'outbound_delivery_provider',
+      integration: 'smsc',
+      errorClass: 'provider_unavailable',
+      errorDetail: null,
+    });
+
+    expect(principalsAtQuery).toEqual(['infra']);
+  });
+
+  // Проба остаётся у планировщика: узкая дверь `open_or_touch_operator_probe_incident` выдана
+  // только ему, и подмена контекста на доставку закрыла бы её.
+  it('дано: тик проб под планировщиком → тогда контур инцидента НЕ переключается на роль доставки', async () => {
+    technicalRuntimeRole.mockReturnValue('app_operational_scheduler');
+    const sources: Array<string | undefined> = [];
+    query.mockImplementationOnce(async () => {
+      const principal = getCurrentDbPrincipal();
+      sources.push(principal?.kind === 'infra' ? principal.source : principal?.kind);
+      return { rows: [{ id: 'incident-5', occurrence_count: 1 }] };
+    });
+    const { openOrTouchOperatorIncident } = await import('./operatorHealthDrizzle.js');
+
+    await runWithInfraPrincipal({ source: 'scheduler:handle-tick-event' }, () =>
+      openOrTouchOperatorIncident({
+        dedupKey: 'outbound:max:max_probe_failed',
+        direction: 'outbound',
+        integration: 'max',
+        errorClass: 'max_probe_failed',
+        errorDetail: null,
+      }));
+
+    expect(sources).toEqual(['scheduler:handle-tick-event']);
     technicalRuntimeRole.mockReturnValue(undefined);
   });
 
