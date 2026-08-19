@@ -351,6 +351,13 @@
       "when": 1800000051000,
       "tag": "0047_the_opening_door_did_not_learn_the_new_alarm_words",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1800000052000,
+      "tag": "0050_a_clinic_is_billed_for_seats_not_for_people",
+      "breakpoints": true
     }
   ]
 }

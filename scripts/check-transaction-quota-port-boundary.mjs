@@ -13,11 +13,10 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const sourceRoot = join(repoRoot, 'apps/webapp/src');
 const quotaPortPath = join(sourceRoot, 'infra/repos/transactionQuotaPort.ts');
 const quotaPortModule = '@/infra/repos/transactionQuotaPort';
-const protectedTables = new Set([
-  'beBranches',
-  'orgEnrollments',
-  'organizationMemberInvites',
-]);
+// Т12 (владелец 19.08, дословно): «лимит клиентов - убрать». `orgEnrollments` ушла отсюда вместе с
+// механикой `patient_count` — у карточки клиента больше нет потолка, значит и охранять на этой
+// таблице нечего; оставить её здесь значило бы требовать блокировку под квоту, которой нет.
+const protectedTables = new Set(['beBranches', 'organizationMemberInvites']);
 const quotaLockPrefixes = ['saas_quota:', 'clinic_invite_seats:'];
 
 function listProductionTypeScript(dir) {
@@ -165,11 +164,6 @@ function selfTest() {
        export async function create(tx) { await tx.insert(beBranches).values({}); }`,
     ],
     [
-      'patient writer without the port',
-      `import { orgEnrollments } from '../../../db/schema/bookingEngine';
-       export async function enroll(tx) { await tx.insert(orgEnrollments).values({}); }`,
-    ],
-    [
       'team writer with a duplicated local lock',
       `const key = \`clinic_invite_seats:\${organizationId}\`;
        export async function invite(tx) { await tx.execute(key); }`,
@@ -187,12 +181,12 @@ function selfTest() {
   const accepted = sourceSignals(
     featurePath,
     `import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
-     import { orgEnrollments } from '../../../db/schema/bookingEngine';
-     export async function enroll(tx, organizationId) {
+     import { beBranches } from '../../../db/schema/bookingEngine';
+     export async function addBranch(tx, organizationId) {
        await transactionQuotaPort.withinLock(
          tx,
-         { organizationId, mechanic: 'patient_count' },
-         async (quota) => { await quota.assertStockAvailable(async () => 0); await tx.insert(orgEnrollments).values({}); },
+         { organizationId, mechanic: 'branches' },
+         async (quota) => { await quota.assertStockAvailable(async () => 0); await tx.insert(beBranches).values({}); },
        );
      }`,
   );

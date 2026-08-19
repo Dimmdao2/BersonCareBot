@@ -17,24 +17,19 @@ const quotaAmountSchema = {
 };
 const warningAtPercentSchema = z.number().int().min(0).max(100).nullable();
 
-// §5a item 2.6a (owner 31.07) — the early-warning threshold exists only for patients and file
-// volume; branches deliberately have no such field, so a percent sent for them is rejected at the
-// boundary instead of being stored and ignored.
+// §5a item 2.6a (owner 31.07) — the early-warning threshold exists only for file volume since Т12
+// (19.08) took the client count away; branches deliberately have no such field, so a percent sent
+// for them is rejected at the boundary instead of being stored and ignored.
 const storageQuotaSchema = z.object({
   ...quotaAmountSchema,
   unit: z.literal('bytes'),
-  warningAtPercent: warningAtPercentSchema,
-});
-const patientStockQuotaSchema = z.object({
-  ...quotaAmountSchema,
-  unit: z.literal('items'),
   warningAtPercent: warningAtPercentSchema,
 });
 const branchStockQuotaSchema = z
   .object({ ...quotaAmountSchema, unit: z.literal('items') })
   .strict();
 /** Overrides carry the mechanic separately; `assertQuota` in the service rejects a mismatch. */
-const quotaSchema = z.union([storageQuotaSchema, patientStockQuotaSchema, branchStockQuotaSchema]);
+const quotaSchema = z.union([storageQuotaSchema, branchStockQuotaSchema]);
 
 // §T3 — a tariff's own list of marketing letters; a notification row below references one by id
 // instead of embedding its text. Shape-only: subject/body are owner data, never inspected here.
@@ -77,7 +72,6 @@ const tariffInputSchema = z.object({
   quotas: z
     .object({
       files: storageQuotaSchema.optional(),
-      patient_count: patientStockQuotaSchema.optional(),
       branches: branchStockQuotaSchema.optional(),
     })
     .strict(),

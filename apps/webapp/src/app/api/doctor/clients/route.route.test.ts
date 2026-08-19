@@ -1,44 +1,65 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+/**
+ * Т12 (владелец 19.08, дословно): «лимит клиентов - убрать».
+ *
+ * Что здесь доказывается ПОВЕДЕНИЕМ, а не отсутствием строки в коде: врач заводит клиента, и по
+ * дороге НИКТО не спрашивает тариф. Реестр механик поднимается настоящий, резолвер механик —
+ * настоящая функция `resolveMechanicAccess`, которой подсунут порт, отвечающий «выключено» на
+ * ЛЮБУЮ механику. Если бы у создания клиента остался хоть какой-то тарифный гейт, он бы прочитал
+ * этот порт и вернул 403; тест ловит и это (`expect(...).not.toHaveBeenCalled()`), и результат.
+ *
+ * Ниже по стеку тоже настоящее: `createDoctorClient` и `createPatientOrganizationService`. Весь
+ * запрос выполняется внутри `runWithoutMechanicWriteClearance` — то есть в контексте, где ни одно
+ * mutation-решение не отмечено. Прежняя физическая дверь 3.2 на этом бросала
+ * `MechanicWriteClearanceRequiredError`; теперь двери нет.
+ */
 const fakes = vi.hoisted(() => ({
   requireDoctorWorkspaceApiContext: vi.fn(),
-  requireEntitlementForMutation: vi.fn(),
-  createDoctorClient: vi.fn(),
+  resolveMechanicAccess: vi.fn(),
+  createManualOrganizationClient: vi.fn(),
 }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspaceApiContext,
 }));
-// Only the entitlement DECISION is faked; the product sentence stays the real one, so the
-// assertion below cannot pass against a message this test invented.
-vi.mock('@/app-layer/guards/requireEntitlement', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/app-layer/guards/requireEntitlement')>()),
-  requireEntitlementForMutation: fakes.requireEntitlementForMutation,
-}));
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (_ctx: unknown, _source: string, work: () => Promise<unknown>) =>
     work(),
 }));
-vi.mock('@/app-layer/doctor/createDoctorClient', () => ({
-  createDoctorClient: fakes.createDoctorClient,
-}));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
-  buildAppDeps: () => ({ patientOrganization: {}, emailSetupAccess: {} }),
+  buildAppDeps: () => ({
+    patientOrganization: createPatientOrganizationService({
+      port: {
+        listActiveEnrollmentsByPlatformUser: async () => [],
+        hasActiveEnrollment: async () => false,
+        hasSchedulableClientRelationship: async () => false,
+        createManualOrganizationClient: fakes.createManualOrganizationClient,
+        findTreatmentProgramOrganizationForPatient: async () => null,
+        findTreatmentProgramDescriptionForPatient: async () => null,
+      } as unknown as PatientOrganizationPort,
+    }),
+    emailSetupAccess: { requestContactEmailSetup: vi.fn() },
+    orgEntitlements: { resolveMechanicAccess: fakes.resolveMechanicAccess },
+  }),
 }));
 
+import { runWithoutMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import { createPatientOrganizationService } from '@/modules/patient-organization/service';
+import type { PatientOrganizationPort } from '@/modules/patient-organization/ports';
 import { POST } from './route';
 
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 
-function request() {
+function request(lastName: string) {
   return new Request('http://test/api/doctor/clients', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ lastName: 'Иванов', firstName: 'Иван', phone: '+79990000000' }),
+    body: JSON.stringify({ lastName, firstName: 'Иван', phone: '+79990000000' }),
   });
 }
 
-describe('doctor client create', () => {
+describe('doctor client create — Т12, у клиники нет лимита клиентов', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
@@ -49,55 +70,53 @@ describe('doctor client create', () => {
         session: { user: { userId: 'user-1' } },
       },
     });
-    fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
-  });
-
-  /**
-   * Owner live pass 18.08, L-1. «Пациенты» is a limit-bearing mechanic, so after the ruling its
-   * only refusal is the tariff ceiling — and it must reach the screen as a sentence naming that
-   * limit. Breakage this pins: the doctor is shown `patient_count_limit_reached` instead.
-   */
-  it('explains a refused patient in words when the tariff number is used up', async () => {
-    fakes.createDoctorClient.mockResolvedValue({
-      ok: false,
-      error: 'patient_count_limit_reached',
+    // «Любой тариф» в самой недружелюбной форме: на что ни спроси — доступа нет.
+    fakes.resolveMechanicAccess.mockResolvedValue({
+      state: 'disabled',
+      policySource: 'unconfigured',
+      warning: null,
+      mutationAllowed: false,
     });
-
-    const response = await POST(request());
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: 'patient_count_limit_reached',
-      mechanic: 'patient_count',
-      message:
-        'Невозможно создать пациента: в тарифе клиники исчерпан лимит «Пациенты». ' +
-        'Чтобы продолжить, увеличьте лимит в тарифе клиники.',
-    });
-  });
-
-  // The permissive half: nothing about the tariff stands between a doctor and a created patient
-  // once the entitlement decision passed.
-  it('creates the patient when the tariff allows it', async () => {
-    fakes.createDoctorClient.mockResolvedValue({
-      ok: true,
+    fakes.createManualOrganizationClient.mockImplementation(async () => ({
+      ok: true as const,
       userId: 'patient-1',
       displayName: 'Иванов Иван',
-      firstName: 'Иван',
       lastName: 'Иванов',
+      firstName: 'Иван',
       patronymic: null,
       phoneNormalized: '+79990000000',
       created: true,
-      emailSetupEnqueued: false,
+    }));
+  });
+
+  it('заводит клиента, не спросив тариф, и на сотом клиенте так же, как на первом', async () => {
+    // «При любом числе уже существующих пациентов»: сотня подряд, ни одна не встречает потолка.
+    for (let index = 0; index < 100; index += 1) {
+      const response = await runWithoutMechanicWriteClearance(() =>
+        POST(request(`Иванов${index}`)),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: true,
+        client: { id: 'patient-1' },
+        created: true,
+      });
+    }
+
+    expect(fakes.createManualOrganizationClient).toHaveBeenCalledTimes(100);
+    expect(fakes.resolveMechanicAccess).not.toHaveBeenCalled();
+  });
+
+  it('отказ по существу дела остаётся отказом: 409 на занятый email', async () => {
+    fakes.createManualOrganizationClient.mockResolvedValue({
+      ok: false as const,
+      error: 'email_conflict' as const,
     });
 
-    const response = await POST(request());
+    const response = await runWithoutMechanicWriteClearance(() => POST(request('Иванов')));
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: true,
-      client: { id: 'patient-1' },
-      created: true,
-    });
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'email_conflict' });
   });
 });
