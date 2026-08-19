@@ -77,6 +77,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
         reminderPlan: appointmentReminderPlanForPreset(presetId),
         cancelPendingReminders: true,
       },
+      // Ждём НАМЕРЕННО: отказ этого события человек видит как 503 `schedule_sync_failed` ниже.
+      // Событие записи ушло с пути запроса (владелец 19.08), но здесь оно ПОТРЕБЛЯЕТСЯ — уберём
+      // ожидание, и человек получит «сохранено» там, где напоминания не пересобрались.
+      waitForDelivery: true,
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'schedule_sync_failed' }, { status: 503 });

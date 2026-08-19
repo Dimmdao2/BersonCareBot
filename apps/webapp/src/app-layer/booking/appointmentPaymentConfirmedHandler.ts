@@ -76,6 +76,9 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
         ),
         ...resolveBookingCalendarSyncFields('booking.payment_captured'),
       },
+      // Ждём НАМЕРЕННО: бросок отсюда уходит вызывающему вебхука платежей, и повтор вебхука —
+      // единственное, что доигрывает это событие. Отложить его = потерять повтор.
+      waitForDelivery: true,
     });
   };
 }

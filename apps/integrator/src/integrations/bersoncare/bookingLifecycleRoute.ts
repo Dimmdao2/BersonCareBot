@@ -10,7 +10,10 @@ import {
   EMPTY_AUDIENCE_INCIDENT_DIRECTION,
   reportEmptyNotificationAudience,
 } from '../../infra/operatorIncident/reportEmptyNotificationAudience.js';
-import { reportOperatorFailure } from '../../infra/operatorIncident/reportOperatorFailure.js';
+import {
+  recordOperatorFailureIncident,
+  reportOperatorFailure,
+} from '../../infra/operatorIncident/reportOperatorFailure.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type {
   DbWritePort,
@@ -36,6 +39,12 @@ import {
 export const BOOKING_LINKED_CHANNEL_TOPIC = 'booking_linked_channel_message';
 export const BOOKING_STAFF_MESSAGE_TOPIC = 'booking_staff_message';
 export const BOOKING_REMINDER_MATERIALIZATION_TOPIC = 'booking_reminder_materialization';
+
+/**
+ * Направление инцидента об упавшем шаге события записи. Отдельное от
+ * `EMPTY_AUDIENCE_INCIDENT_DIRECTION`: там причина «некому слать», здесь — «шаг не отработал».
+ */
+export const BOOKING_LIFECYCLE_STEP_INCIDENT_DIRECTION = 'booking_lifecycle_step';
 
 const WINDOW_SECONDS = 300;
 const BOOKING_EVENT_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
@@ -180,6 +189,30 @@ async function runBookingLifecycleSteps(
         },
         'booking lifecycle step failed; the remaining steps still run',
       );
+      // Отказ шага перестаёт быть только строкой журнала. Раньше он уходил в 502, вебапп его
+      // выбрасывал пустым `catch {}` — и о том, что врач не получил сообщения, а календарь не
+      // обновился, не узнавал никто. Инцидент открывается БЕЗ немедленного алерта
+      // (`recordOperatorFailureIncident`): шаг напоминаний шлёт свой громкий алерт сам, и второго
+      // на то же событие быть не должно. Ключ дедупликации — `direction:integration:errorClass`,
+      // то есть один сломанный шаг = один инцидент, а не по одному на запись.
+      try {
+        await recordOperatorFailureIncident({
+          direction: BOOKING_LIFECYCLE_STEP_INCIDENT_DIRECTION,
+          integration: step.name,
+          errorClass: `${key.eventType}_step_failed`,
+          errorDetail: errorMessageOf(error).slice(0, 500),
+        });
+      } catch (incidentError) {
+        logger.warn(
+          {
+            err: incidentError,
+            scope: 'booking_lifecycle',
+            event: 'booking_lifecycle_step_incident_failed',
+            step: step.name,
+          },
+          'booking lifecycle step incident could not be recorded',
+        );
+      }
     }
   }
   if (failures.length > 0) throw new BookingLifecycleStepFailure(failures);
