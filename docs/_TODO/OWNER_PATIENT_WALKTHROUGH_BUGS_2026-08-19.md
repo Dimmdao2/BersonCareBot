@@ -265,6 +265,109 @@ false → true, обе записи `{"ok":true}` (первая INSERT, втор
         красный (`toastSuccess` не вызван) → откатил правку (`git status` чист) → тест снова
         `2 passed`.
 
+## 5. Запись теряет телефон и почту, набранные человеком в форме
+
+Найдено в ходе работы по п. 2 (не названо владельцем отдельно) и подтверждено замером: КАЖДАЯ
+пациентская запись молча теряла контакты, которые человек ввёл в форму. Врач, которому надо
+позвонить или написать, не получал ни телефона, ни почты.
+
+- [x] Воспроизвести отказ самому, а не поверить отчёту.
+      **DEV, `bcb_webapp_dev`, 19.08.** Один `POST /api/booking/create` под демо-пациентом
+      (`00000000-0000-0000-0000-000000000001`, форма: `+79995550111`,
+      `repro.contacts@example.test`) → ответ `200 {"ok":true}`, запись
+      `12e9a805-9e15-4241-963a-921cf3195ff5` создана, и ровно один отказ в журнале PostgreSQL:
+
+      ```
+      2026-08-19 07:20:31.523 MSK [3670168] bcb_dev_webapp_patient@bcb_webapp_dev 42501
+      ERROR:  permission denied for table platform_users
+      STATEMENT:  SELECT pu.id, ui.display_name AS display_name,
+                  uc_pri_phone.value_normalized AS phone_normalized, pu.created_at, …
+      ```
+
+      `select … from platform_user_contacts where platform_user_id='00000000-…-0001'` → **0 строк**.
+
+- [x] Назвать причину. `persistBookingFormContacts` (`canonicalCreate.ts`) спрашивал контакты
+      человека у ДОКТОРСКОГО порта — `doctorClientsPort.getClientIdentity`
+      (`pgDoctorClients.ts`), который отдаёт персональную проекцию клиента: ФИО из
+      `user_identity`, привязки мессенджеров, признаки «заблокирован»/«в архиве», причину
+      блокировки. Под принципалом пациента это чтение закрыто и должно быть закрыто:
+      `platform_users` — единственная таблица ПДн. Вызывающему нужны ровно `{phone, email}` о
+      САМОМ СЕБЕ, остальное он выбрасывает. Стена права — спрашивал не тот порт.
+      Второй отказ, невидимый из-за первого: у `app_patient` на `public.platform_user_contacts`
+      нет НИ ОДНОЙ привилегии (`information_schema.column_privileges`, 19.08 — строки только у
+      `app_object_owner`, `app_staff`, `app_tenant_service`), поэтому писать было тоже нечем.
+      Голый `catch {}` в `persistBookingFormContacts` и ещё два внутри
+      `upsertBookingFormContactsBestEffort` делали потерю ненаблюдаемой на всех трёх уровнях.
+
+- [x] Закрыть объявленными корнями, не расширяя права рабочих ролей.
+      Миграция `0037_the_patient_reads_own_contacts_and_writes_own_booking_contact.sql`, форма —
+      как у соседей 0033/0035: вызывающий передаёт КОНТЕКСТ, читает и пишет владелец шва.
+      - `app.read_current_patient_identity_contacts()` → `{o_phone, o_email}` о самом вызывающем;
+      - `app.record_current_patient_booking_contact(text,text,text)` → строка контакта на самом
+        вызывающем, `source` назначает корень (`'booking'`), арендатор берётся из контекста.
+      Владелец обоих — `app_seam_patient_booking_owner`, тот же, что уже владеет
+      `create_current_patient_booking_pending` и `save_current_patient_booking_form_answers`:
+      чтение и запись контактов — части ОДНОГО шага записи на приём.
+      Личность вызывающего аргументом не принимается ни в каком виде — она приходит из принятого
+      контекста порта (`app.current_patient_user_id()`), поэтому «прочитать чужое» и «записать на
+      чужого» невыразимы, а не запрещены проверкой.
+      **Ни одна рабочая роль не получила табличных грантов:** `app_patient` получает только
+      EXECUTE на два корня; поверхность владельца шва генератор вывел из объявленных
+      `relationSurfaces` (`node deploy/postgres/privileges/generate-cli.mjs --check` — побайтно).
+      После применения `information_schema.column_privileges` для `app_patient` на
+      `platform_user_contacts` по-прежнему даёт **0 строк**.
+
+- [x] Прекратить глотание. Три `catch {}` убраны: два внутренних — совсем (отказ доходит до
+      единственного места, которое знает, что он значит), внешний — заменён на `logger.error`
+      «[booking] booking form contacts were not stored». Подтверждённая запись по-прежнему НЕ
+      откатывается: визит существует, контакты — дополнение к нему.
+
+- [x] Доказать живьём: пациент записывается, и набранные им телефон с почтой лежат в базе.
+      **DEV, 19.08, после применения миграции.** `POST /api/booking/create` (запись
+      `c248f320-0f8b-4a29-bf31-cf8ffdb38902`) → `200 {"ok":true}`, ноль отказов `42501` под
+      `bcb_dev_webapp_patient` в журнале за окно запроса, и в базе:
+
+      ```
+      platform_user_id                     | organization_id                      | contact_type | value                       | source
+      00000000-0000-0000-0000-000000000001 | d0000000-0000-4000-8000-000000000004 | email        | repro.contacts@example.test | booking
+      00000000-0000-0000-0000-000000000001 | d0000000-0000-4000-8000-000000000004 | phone        | +79995550111                | booking
+      ```
+
+- [x] Внесение поломки. Вернул в `buildAppDeps.ts` старую привязку
+      (`getPlatformUserIdentityContacts` → `doctorClientsPort.getClientIdentity`) — живая запись
+      снова даёт `42501 permission denied for table platform_users` под
+      `bcb_dev_webapp_patient`, новой строки контакта не появляется, но теперь это ВИДНО:
+      в журнале вебаппа `[booking] booking form contacts were not stored`. Возврат правки —
+      контакты снова записываются, отказов нет.
+      Тест `apps/webapp/src/modules/patient-booking/bookingFormContacts.unit.test.ts` держит два
+      поведения: набранные контакты лежат в контактах человека после записи, и потерянный контакт
+      сообщается, а подтверждённая запись остаётся. Возврат внешнего `catch {}` красит второй.
+
+### Соседние места, где привязан тот же докторский метод (проверено, НЕ чинилось)
+
+Оба вызова названы ведущим как непроверенные риски. Проверка — трассировка достижимости плюс уже
+измеренный отказ ровно этого запроса под пациентским принципалом. Ни один живьём не прогонялся, и
+ни один не чинился: в этой работе их нет, решение — за ведущим.
+
+- `buildAppDeps.ts:952` `resolvePayerEmail` → `doctorClientsPort.getClientIdentity`.
+  **Достижим под пациентом:** `canonicalCreate.ts:484` зовёт
+  `payments.createAppointmentPaymentIntent` внутри `POST /api/booking/create`, то есть под
+  `app_patient`; `payments/service.ts:416` берёт оттуда `customerEmail` для чека. Следствие:
+  чек предоплаты уходит без почты плательщика. Второй вызов
+  (`memberships` → `createPackagePaymentIntent`, маршрут `/api/booking/memberships/purchase`)
+  идёт под `withExplicitOrganizationPrincipal` — этим дефектом не задет.
+  Живьём не воспроизведён: у демо-организации на DEV нет ни строки `be_prepayment_policies`, ни
+  услуги с `prepayment_applicable`, а заводить их — менять общую DEV-среду ради пробы.
+- `buildAppDeps.ts:1127` `resolvePatientLabelForDoctorNotify` → тот же метод.
+  **Достижим под пациентом:** внедрён в `treatmentProgramPatientActions`, который зовут маршруты
+  `/api/patient/treatment-program-instances/**` (заметка пациента к пункту программы →
+  уведомление врачу). Следствие: врач получает уведомление с пустым именем пациента.
+  Второе внедрение того же значения (`buildAppDeps.ts:1399`, поддержка со стороны интегратора)
+  идёт под организационным принципалом и не задето.
+  Живьём не воспроизведён: у демо-пациента на DEV нет ни одного экземпляра программы
+  (`select … from treatment_program_instances where patient_user_id='…-0001'` → 0 строк).
+
+
 ## Правила
 
 Тесты проверяют ПОВЕДЕНИЕ (что человек делает и что получает), никогда не счётчики и не форму

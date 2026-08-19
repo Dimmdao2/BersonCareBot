@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { logger } from '@/app-layer/logging/logger';
 import type { createBookingEngineService } from '@/modules/booking-engine/service';
 import type {
   BeAppointment,
@@ -50,6 +51,14 @@ function isPostgresExclusionViolation(err: unknown): boolean {
   );
 }
 
+/**
+ * Телефон и почта, набранные человеком в форме записи, — его данные, и их потеря есть отказ,
+ * поэтому она сообщается, а не глотается. Подтверждённую запись это по-прежнему не откатывает:
+ * визит существует, контакты — дополнение к нему.
+ *
+ * До 19.08 здесь стоял голый `catch {}`, и он прятал полную потерю: КАЖДАЯ пациентская запись
+ * получала отказ на `platform_users`, и ни одной строки контактов не появлялось никогда.
+ */
 async function persistBookingFormContacts(
   deps: CanonicalBookingDeps,
   createInput: CreatePatientBookingInput,
@@ -65,8 +74,11 @@ async function persistBookingFormContacts(
       contactEmail: createInput.contactEmail,
       identity,
     });
-  } catch {
-    // Contact enrichment is explicitly best-effort and must not roll back a confirmed booking.
+  } catch (err) {
+    logger.error(
+      { err, platformUserId: createInput.userId },
+      '[booking] booking form contacts were not stored',
+    );
   }
 }
 
