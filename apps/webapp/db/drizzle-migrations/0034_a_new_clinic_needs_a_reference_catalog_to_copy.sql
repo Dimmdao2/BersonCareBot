@@ -1,3 +1,4 @@
+-- BCB-MIGRATION-BACKFILL
 -- Базовый справочник, из которого каждая новая клиника получает свой снимок.
 --
 -- Найдено 19.08.2026: на bersoncarebot_test таблица reference_catalog_baselines ПУСТА, и поэтому
