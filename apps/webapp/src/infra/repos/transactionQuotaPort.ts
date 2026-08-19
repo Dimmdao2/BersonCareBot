@@ -71,18 +71,18 @@ export function decideStockQuota(input: {
 /**
  * `patient_count` — the ONE ceiling, and it is not this file's to decide any more.
  *
- * Two writers create a client relationship: this application's staff card writer
- * (`ensureInvitedOrganizationClientRelationship`) and the public-booking door
- * (`app.enroll_current_patient_in_public_booking_clinic`). The second one has no relational access
- * to tariffs at all — a patient login may not read `be_organizations` or `saas_*` — so a check
- * written in TypeScript could never be the check BOTH of them pass. Measured on DEV 19.08: a widget
- * booking took the 246th client place on a tariff limited to one, and the clinic's own reception
- * desk then got `patient_count_limit_reached` on the very next card.
+ * Owner 19.08 (`OWNER_PRODUCT_RULES.md` §33.2): booking an appointment does not spend a paid client
+ * place by itself — only a staff-opened card does. Two functions create an `org_enrollments` row
+ * (this application's staff card writer, `ensureInvitedOrganizationClientRelationship`, and the
+ * public-booking door `app.enroll_current_patient_in_public_booking_clinic`), but this ceiling has
+ * exactly one caller: the staff writer, from here. Migration 0053 removed the door's call after 0052
+ * had briefly added it — that made the count symmetric but also refused a visitor's own booking for a
+ * reason that is not theirs to bear, which the owner ruled against.
  *
- * So the rule lives in `app.assert_org_patient_count_quota_available`, where both writers meet, and
- * this function is only the transport. It runs inside the caller's transaction on purpose: the
- * advisory lock the door takes is transaction-scoped, which is what keeps the count and the insert
- * that follows it atomic.
+ * The rule lives in `app.assert_org_patient_count_quota_available` because the check needs reads
+ * (`be_organizations.tariff_id`, tariff snapshot, entitlement overrides) this application's patient
+ * login cannot make relationally. This function is only the transport, run inside the caller's own
+ * transaction so the advisory lock and the insert that follows it stay atomic.
  */
 export async function assertOrgPatientCountQuotaAvailable(
   tx: WebappSqlExecutor,

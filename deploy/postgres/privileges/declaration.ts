@@ -4032,15 +4032,17 @@ const REV10_CONTEXT = {
     // поэтому записать в клиенты можно только себя. Канал подтверждения — АРГУМЕНТ (миграция 0052):
     // почта такой же полноправный канал, что и телефон (`AUTH_AND_IDENTITY_CANON.md` §15), а состав
     // обязательных полей публичной формы задаёт клиника (`OWNER_PRODUCT_RULES.md` §33).
+    //
+    // Оплаченное число клиентов эта дверь НЕ проверяет и не расходует (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2: «запись на приём сама по себе лимита не расходует»). 0052 звала
+    // сюда `app.assert_org_patient_count_quota_available` делегированием — 0053 убрала вызов, поэтому
+    // делегирования здесь больше нет.
     'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_patient'],
       purpose: 'make the identified public-booking visitor a client of a published clinic',
       typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
-      // Оплаченное число клиентов проверяет ОДНА функция на оба пути создания отношения — сюда она
-      // попадает делегированием, а не собственным грантом пациентской роли.
-      delegatesTo: ['app.assert_org_patient_count_quota_available(uuid)'],
       relationSurfaces: [
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4071,12 +4073,14 @@ const REV10_CONTEXT = {
       ],
     }),
     // ЕДИНСТВЕННЫЙ потолок оплаченного числа клиентов. Владелец — коммерческий шов: ровно у него уже
-    // есть все чтения правила. Прямой EXECUTE — только у персонала клиники (его писатель карточек
-    // зовёт функцию из своей реляционной транзакции); публичная дверь достаёт её делегированием.
+    // есть все чтения правила. Прямой EXECUTE — только у персонала клиники: её писатель карточек
+    // зовёт функцию из своей реляционной транзакции. Публичная дверь (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2) больше НЕ вызывающий — запись на приём не тратит оплаченное
+    // место, и у этой функции снова ровно один вызывающий, как до 0052.
     'app.assert_org_patient_count_quota_available(uuid)': rev10Function({
       owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_staff', 'app_seam_public_booking_owner'],
-      purpose: 'the only patient_count ceiling shared by both creators of an org_enrollments row',
+      execute: ['app_staff'],
+      purpose: 'the only patient_count ceiling, spent by the staff card writer alone',
       typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],

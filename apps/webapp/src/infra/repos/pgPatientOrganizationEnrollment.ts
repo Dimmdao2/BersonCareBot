@@ -45,13 +45,14 @@ export async function ensureInvitedOrganizationClientRelationship(
   // never blocked by this quota. Archiving/discharging a patient removes its row from this count
   // (see `SchedulableClientEnrollmentStatus`), freeing the slot for a new one.
   //
-  // The rule itself no longer lives here. Since 2026-08-19 there are TWO creators of a client
-  // relationship — this staff writer and the public-booking door — and a ceiling only one of them
-  // passes is not a ceiling (measured: a widget booking took the 246th place on a tariff limited to
-  // 1, after which this very route answered `patient_count_limit_reached`). Both now call the same
-  // `app.assert_org_patient_count_quota_available`, which takes the same transaction-scoped
-  // advisory lock the port used to take, so the check and the insert below stay atomic and the two
-  // creators serialize against each other.
+  // The rule itself no longer lives here — it lives in `app.assert_org_patient_count_quota_available`,
+  // which takes the same transaction-scoped advisory lock the port used to take, so the check and the
+  // insert below stay atomic. This IS the only caller (owner 19.08, `OWNER_PRODUCT_RULES.md` §33.2):
+  // there are two creators of a client relationship — this staff writer and the public-booking door
+  // (`app.enroll_current_patient_in_public_booking_clinic`) — but only a staff-opened card spends the
+  // clinic's paid place. A public visitor's own booking does not, by owner ruling; migration 0053
+  // removed the door's call after 0052 had briefly added it for symmetry and, with it, refused
+  // visitors for a reason that was never theirs to bear.
   await assertOrgPatientCountQuotaAvailable(tx, organizationId);
 
   await tx

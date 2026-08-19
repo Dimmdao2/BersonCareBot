@@ -71,10 +71,11 @@ export type PublicBookingEnrollment = {
  * MUST run under a patient principal: the door reads the person from `app.current_patient_user_id()`
  * and accepts none from the caller, so nobody can enrol somebody else into a clinic.
  *
- * The paid client ceiling lives INSIDE the door since 2026-08-19: a new relationship spends one of
- * the clinic's paid places, and the widget must not spend places the reception desk then cannot.
- * There is exactly one such check for both creators of a relationship —
- * `app.assert_org_patient_count_quota_available`.
+ * This door does NOT spend the clinic's paid client ceiling (owner 19.08, `OWNER_PRODUCT_RULES.md`
+ * §33.2 — migration 0053, reverting the 2026-08-19 change that briefly put it here): «запись на приём
+ * сама по себе лимита не расходует и не должна его расходовать». `app.assert_org_patient_count_quota_available`
+ * still exists and is unchanged — the staff card writer (`ensureInvitedOrganizationClientRelationship`)
+ * is its only caller again.
  */
 export async function enrollCurrentPatientInPublicBookingClinic(
   organizationId: string,

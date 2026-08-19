@@ -365,6 +365,13 @@
       "when": 1800000055000,
       "tag": "0052_a_failed_public_booking_must_not_leave_a_client",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1800000056000,
+      "tag": "0053_a_visitor_booking_spends_no_tariff_seat",
+      "breakpoints": true
     }
   ]
 }

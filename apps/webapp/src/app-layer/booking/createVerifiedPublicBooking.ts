@@ -64,8 +64,9 @@ export async function createVerifiedPublicBooking(
 ): Promise<PatientBookingRecord> {
   // Identity-only principal: the visitor may not be a client of this clinic yet, and a principal
   // claiming an organisation the person has no enrolment row for is refused by the tenant-claim
-  // gate. This step is what creates that row — and the one place the clinic's paid client ceiling
-  // is charged for the public funnel.
+  // gate. This step is what creates that row. It does NOT spend the clinic's paid client ceiling
+  // (owner 19.08, `OWNER_PRODUCT_RULES.md` §33.2 — migration 0053): booking an appointment does not
+  // spend a paid place by itself, only a staff-opened card does.
   const enrolment = await withPatientIdentityPrincipal(
     {
       platformUserId,
