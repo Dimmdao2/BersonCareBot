@@ -164,7 +164,7 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('db_error'), appBase));
   }
 
-  await deps.patientCalendarTimezone.trySetInitialIfEmpty(
+  await deps.patientCalendarTimezone.syncFromDevice(
     resolved.userId,
     verified.browserCalendarIana ?? null,
   );

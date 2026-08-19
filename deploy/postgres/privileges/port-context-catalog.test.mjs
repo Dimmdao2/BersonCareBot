@@ -33,7 +33,9 @@ const EXPECTED = {
   // 196 → 200 (19.08): четыре двери публичной записи — миграция 0047 (ex-0043). Резолвер арендатора
   // в классе `pre_session`, три остальные — именованные корни арендаторского класса
   // `tenant_service`, которому сквозной `purpose: 'relation'` у порта `webapp` не выдаётся.
-  webapp: 202,
+  // 202 → 205 (19.08): три двери разбора очереди пересборки видео — `media_transcode_claim`,
+  // `media_transcode_job_media_read`, `media_transcode_outcome_record` (миграция 0050).
+  webapp: 205,
   integrator: 34,
 };
 
@@ -67,8 +69,9 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 229 → 230 (19.08): корень платформенного дашборда — миграция 0043.
   // 230 → 234 (19.08): четыре двери публичной записи (миграция 0047, ex-0043).
   // 234 → 236 (19.08): две двери визитки клиники.
-  assert.equal(rows.length, 236);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 236);
+  // 236 → 239 (19.08): три двери разбора очереди пересборки видео (миграция 0050).
+  assert.equal(rows.length, 239);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 239);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -131,7 +134,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 214 → 215 (19.08): корень платформенного дашборда (0043).
   // 215 → 219 (19.08): все четыре возможности публичной записи — именованные корни (0047, ex-0043).
   // 219 → 221 (19.08): обе двери визитки клиники — именованные корни.
-  assert.equal(roots.length, 221);
+  // 221 → 224 (19.08): все три возможности разбора очереди пересборки видео — именованные корни.
+  assert.equal(roots.length, 224);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

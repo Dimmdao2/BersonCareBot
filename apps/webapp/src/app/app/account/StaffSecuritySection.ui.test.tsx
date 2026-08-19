@@ -20,7 +20,6 @@ describe('StaffSecuritySection role/capability projection', () => {
       <StaffSecuritySection
         initialStatus={status}
         hasProfileName
-        hasTimezone
         hasOrganization
         hasSpecialistBinding={false}
         showSpecialistFirstRun={false}
@@ -37,7 +36,6 @@ describe('StaffSecuritySection role/capability projection', () => {
       <StaffSecuritySection
         initialStatus={status}
         hasProfileName
-        hasTimezone
         hasOrganization
         hasSpecialistBinding={false}
         showSpecialistFirstRun

@@ -2587,6 +2587,21 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
       purpose: 'media.transcode.enqueue',
       functionIdentity: 'app.enqueue_media_transcode_job_for_service(uuid)' },
+    // Разбор той же очереди. До 0050 он шёл отношением и отбивался `42501 accepted organization
+    // context required` на КАЖДОМ обороте петли: диспетчер межарендный, `organization_id` у него
+    // нет, а политика роли на `public.media_transcode_jobs` требует именно его.
+    media_transcode_claim: { port: 'webapp', runtimeName: 'media_transcode_claim',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.claim',
+      functionIdentity: 'app.claim_media_transcode_job(text,integer)' },
+    media_transcode_job_media_read: { port: 'webapp', runtimeName: 'media_transcode_job_media_read',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.job-media.read',
+      functionIdentity: 'app.read_media_transcode_job_media(uuid,uuid,text)' },
+    media_transcode_outcome_record: { port: 'webapp', runtimeName: 'media_transcode_outcome_record',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.outcome.record',
+      functionIdentity: 'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)' },
     // Both context classes reach the SAME root: the message context, not the caller class, decides
     // what gets sent. A patient booking and a staff-initiated notice are one mechanism.
     patient_outbound_message_enqueue: { port: 'webapp',
@@ -5420,7 +5435,12 @@ const REV10_CONTEXT = {
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.submit_current_patient_test_attempt)),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
       owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
-      execute: ['app_seam_patient_lfk_media_owner'],
+      // Ядро зовут только `_for_staff`/`_for_service` — оба SECURITY DEFINER ТОГО ЖЕ владельца,
+      // то есть внутри них `current_user` уже владелец ядра и EXECUTE у него подразумеваемый.
+      // Явный грант владельцу самому себе ничего не добавлял, а внутренний делегированный шов по
+      // канону обязан быть caller-free (как все `*_impl`); проверка увидела это, когда
+      // `public.media_transcode_jobs` осталась без прямых ролей (миграция 0050).
+      execute: [],
       purpose: 'private idempotent media transcode producer shared by exact patient/staff/service roots',
       typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'], invocation: 'internal' as const,
@@ -5494,6 +5514,76 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [], delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
+    }),
+    // Три двери разбора очереди пересборки видео (миграция 0050). Постановка в очередь уже стояла
+    // за корнем этого же шва (`app.enqueue_media_transcode_job_for_staff/_for_service`), а разбор
+    // ходил отношением под `app_operational_media_worker` — и не мог взять НИ ОДНОЙ работы:
+    // единственная разрешающая политика этой роли на `public.media_transcode_jobs` состоит из
+    // арендаторских веток, обе зовут `app.current_org_id()` подзапросом-InitPlan'ом, а та на роли
+    // воркера не возвращает NULL, а поднимает `42501 accepted organization context required`.
+    // Отказ приходит ровно тогда, когда узлу есть что фильтровать, поэтому ПУСТАЯ очередь молчала,
+    // а первая же поставленная работа начинала петлю падения. Замер на TEST 19.08: воркер падал
+    // раз в 5 секунд с 18.08 19:26, видео не пересобиралось больше суток; воспроизведено на живой
+    // bcb_webapp_dev тем же боевым маршрутом при возвращённых старых правах.
+    // Диспетчер очереди межарендный по построению — своего `organization_id` у него нет и быть не
+    // может, поэтому дверь у него собственная, а стена «организация работы = организация файла»
+    // стоит в теле каждого корня.
+    'app.claim_media_transcode_job(text,integer)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.claim',
+      typedArgs: ['text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'attempts', 'created_at',
+            'updated_at', 'locked_at', 'locked_by', 'last_error', 'next_attempt_at',
+            'processing_started_at', 'finished_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files', columns: ['id', 'organization_id'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_media_transcode_job_media(uuid,uuid,text)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.job-media.read',
+      typedArgs: ['uuid', 'uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'locked_by'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'organization_id', 'mime_type', 's3_key', 'hls_master_playlist_s3_key',
+            'video_processing_status', 'video_duration_seconds', 'usage_purpose'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Один исход — одна дверь. Ветка выбирается параметром из ЗАКРЫТОГО списка внутри тела, как у
+    // соседа `app.prune_retention_target(text,integer,boolean)`: каждый исход сохраняет своё
+    // поведение, общей у них только эта дверь.
+    'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.outcome.record',
+      typedArgs: ['uuid', 'uuid', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'locked_by', 'locked_at',
+            'last_error', 'next_attempt_at', 'processing_started_at', 'finished_at', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'organization_id', 'mime_type', 's3_key', 'video_processing_status',
+            'video_processing_error', 'video_delivery_override', 'available_qualities_json',
+            'hls_master_playlist_s3_key', 'hls_artifact_prefix', 'poster_s3_key',
+            'video_duration_seconds'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.resolve_active_organization_for_integrator_user_id(bigint)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
@@ -6327,18 +6417,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['SELECT'], columns: ['media_id', 'user_id'] },
     ],
   },
-  'public.media_transcode_jobs': {
-    kind: 'direct',
-    purpose: 'the accepted operational media worker claims and completes cross-tenant transcode jobs',
-    codePaths: ['apps/webapp/src/infra/repos/pgMediaWorkerControl.ts'],
-    grants: [
-      { role: 'app_operational_media_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_operational_media_worker', operations: ['UPDATE'], columns: [
-        'attempts', 'finished_at', 'last_error', 'locked_at', 'locked_by', 'next_attempt_at',
-        'processing_started_at', 'status', 'updated_at',
-      ] },
-    ],
-  },
+  // `public.media_transcode_jobs` прямой поверхности БОЛЬШЕ НЕ ИМЕЕТ. Гранты
+  // `app_operational_media_worker` стояли здесь с формулировкой «диспетчер забирает и завершает
+  // межарендные работы», но были мертвы: единственная разрешающая политика этой роли на таблице
+  // (`rev10_saas_org_dormant_p0_8_4`) собрана из арендаторских веток, обе зовут
+  // `app.current_org_id()`, а та роль воркера не принимает и поднимает 42501 — то есть ни один
+  // оператор под этой ролью не доходил до строки очереди. Убраны в миграции 0050 вместе с переводом диспетчера на
+  // три корня шва `app_seam_patient_lfk_media_owner`; без прямых ролей генератор больше не рисует
+  // на таблицу и саму неудовлетворимую политику. Доступ теперь целиком `named-seams`.
   'public.operator_job_status': {
     kind: 'direct',
     purpose: 'the accepted webapp worker records and reads scheduler health ticks',

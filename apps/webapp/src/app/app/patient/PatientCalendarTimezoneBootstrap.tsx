@@ -8,8 +8,10 @@ import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana'
 export const PATIENT_CALENDAR_TZ_BOOTSTRAP_EVENT = 'patient-calendar-tz-bootstrapped';
 
 /**
- * При первом заходе в кабинет: если `calendar_timezone` ещё `null`, подставляем IANA из `Intl` в браузере
- * (как при регистрации), не перезаписывая уже выбранный пояс.
+ * При каждом заходе в кабинет сверяем сохранённый `calendar_timezone` с поясом устройства (`Intl`) и,
+ * если они разошлись — первый вход или человек переехал, — молча приводим сохранённый к устройству.
+ * Ручной настройки пояса у человека нет и вопрос ему не задаётся (§34 канона владельца; владелец,
+ * 20.08 — «не спрашивать»). Запись уходит, только когда значения разные.
  */
 export function PatientCalendarTimezoneBootstrap() {
   const router = useRouter();
@@ -17,6 +19,9 @@ export function PatientCalendarTimezoneBootstrap() {
   useEffect(() => {
     void (async () => {
       try {
+        const browserTz = getBrowserCalendarIanaForAuth();
+        if (!browserTz) return;
+
         const getRes = await fetch('/api/patient/profile/calendar-timezone');
         const data = (await getRes.json().catch(() => null)) as {
           ok?: boolean;
@@ -24,11 +29,7 @@ export function PatientCalendarTimezoneBootstrap() {
         };
         if (!getRes.ok || !data?.ok) return;
 
-        const raw = data.calendarTimezone?.trim() ?? '';
-        if (raw.length > 0) return;
-
-        const browserTz = getBrowserCalendarIanaForAuth();
-        if (!browserTz) return;
+        if ((data.calendarTimezone?.trim() ?? '') === browserTz) return;
 
         const postRes = await fetch('/api/patient/profile/calendar-timezone', {
           method: 'POST',
