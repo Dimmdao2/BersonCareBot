@@ -548,14 +548,23 @@ export async function handleBookingLifecycleEvent(
     const timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
 
     if (eventType === 'booking.created') {
-      const patientText = resolvePatientMessageText(payload, patientCreatedText(payload, timeZone));
-      await sendLinkedChannelMessage({
-        dispatchPort,
-        phoneNormalized: contactPhone,
-        organizationId: payload.organizationId,
-        text: patientText,
-        eventId: `booking-created:${bookingId}`,
-      });
+      // 19.08: `suppressPatientNotification` теперь читается и здесь. Вебапп, создавший запись, сам
+      // ставит пациентское сообщение в очередь доставки (`app.enqueue_outbound_message`) — тогда он
+      // выставляет флаг, и второй отправки быть не должно. Отправитель без флага (старый вызывающий)
+      // получает прежнее поведение бит в бит.
+      if (payload.suppressPatientNotification !== true) {
+        const patientText = resolvePatientMessageText(
+          payload,
+          patientCreatedText(payload, timeZone),
+        );
+        await sendLinkedChannelMessage({
+          dispatchPort,
+          phoneNormalized: contactPhone,
+          organizationId: payload.organizationId,
+          text: patientText,
+          eventId: `booking-created:${bookingId}`,
+        });
+      }
       if (shouldNotifyDoctor(payload)) {
         await sendDoctorMessage(
           dispatchPort,

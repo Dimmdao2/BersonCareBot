@@ -351,6 +351,7 @@ import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegrato
 import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
+import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
 import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
@@ -1260,7 +1261,24 @@ const coursesService = createCoursesService({
     treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
 
+// Аудитория доставки интегратора — один объявленный корень; здесь он же обслуживает пациентское
+// уведомление о созданной записи, которое вебапп теперь ставит в очередь сам.
+const integratorDeliveryTargetsPort = inMemoryRepos
+  ? inMemoryIntegratorDeliveryTargetsPort
+  : createPgIntegratorDeliveryTargetsPort();
+
+const bookingCreatedEffectsPort = createBookingCreatedEffects({
+  outboundMessageQueue: createPgOutboundMessageQueue(),
+  deliveryTargets: {
+    getTargets: (params) =>
+      getDeliveryTargetsForIntegrator(params, {
+        integratorDeliveryTargets: integratorDeliveryTargetsPort,
+      }),
+  },
+});
+
 patientBookingService = createPatientBookingService({
+  bookingCreatedEffects: bookingCreatedEffectsPort,
   // Один объявленный корень постановки исходящего сообщения — письмо-подтверждение записи
   // больше не ждёт SMTP внутри запроса (решение владельца 19.08).
   outboundMessageQueue: createPgOutboundMessageQueue(),
@@ -1554,9 +1572,7 @@ function _buildAppDeps() {
   // Стена участия, сверка integratorUserId, привязки, предпочтения и готовность каналов живут
   // внутри `app.read_integrator_delivery_target_snapshot(...)`.
   const integratorDeliveryTargetsDeps = {
-    integratorDeliveryTargets: inMemoryRepos
-      ? inMemoryIntegratorDeliveryTargetsPort
-      : createPgIntegratorDeliveryTargetsPort(),
+    integratorDeliveryTargets: integratorDeliveryTargetsPort,
   };
   return {
     auth: {

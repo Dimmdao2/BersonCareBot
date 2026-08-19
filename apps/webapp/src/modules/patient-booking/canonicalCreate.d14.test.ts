@@ -96,36 +96,66 @@ const createInput: CreatePatientBookingInput = {
   contactPhone: '+79990000000',
 };
 
-describe('D14: booking.created отправляет cancelPendingReminders и patientMessageText', () => {
-  it('кладёт cancelPendingReminders: true и текст подтверждения в тайзоне организации', async () => {
+describe('booking.created: пациентское сообщение ставит вебапп, а не событие интегратора', () => {
+  it('пациент получает ровно одно сообщение — строкой очереди доставки', async () => {
+    const enqueued: Array<Record<string, unknown>> = [];
     const events: Array<Record<string, unknown>> = [];
     const deps = buildDeps(
       async (input) => {
         events.push((input as { payload: Record<string, unknown> }).payload);
       },
-      { getAppDisplayTimeZone: async () => 'Europe/Moscow' },
+      {
+        getAppDisplayTimeZone: async () => 'Europe/Moscow',
+        outboundMessageQueue: {
+          enqueue: async (context) => {
+            enqueued.push(context as unknown as Record<string, unknown>);
+            return true;
+          },
+        },
+        bookingCreatedEffects: {
+          apply: async (input) => {
+            enqueued.push({
+              purpose: 'booking.created.patient',
+              notifyPatient: input.notifyPatient,
+              text: `Запись подтверждена: ${input.slotStart}`,
+            });
+          },
+        },
+      },
     );
 
     await createBookingOnCanonicalEngine(deps, createInput);
 
+    // Человек получает сообщение ОДИН раз и по одному маршруту: его ставит вебапп.
+    expect(enqueued.filter((row) => row.purpose === 'booking.created.patient')).toHaveLength(1);
+    // Событие интегратора этого сообщения больше не несёт и просит его не отправлять.
     expect(events).toHaveLength(1);
+    expect(events[0]!.patientMessageText).toBeUndefined();
+    expect(events[0]!.suppressPatientNotification).toBe(true);
     expect(events[0]!.cancelPendingReminders).toBe(true);
-    expect(events[0]!.patientMessageText).toBe(
-      'Запись подтверждена: 10 мар. 2027 г., 12:00\nОнлайн',
-    );
   });
 
-  it('регрессия: если вебапп перестанет класть patientMessageText, тест краснеет', async () => {
-    const events: Array<Record<string, unknown>> = [];
-    const deps = buildDeps(async (input) => {
-      events.push((input as { payload: Record<string, unknown> }).payload);
+  it('выключенное настройкой клиники пациентское уведомление не ставится в очередь', async () => {
+    const applied: Array<{ notifyPatient: boolean }> = [];
+    const deps = buildDeps(async () => undefined, {
+      getBookingLifecycleNotificationSettings: async () => ({
+        events: {
+          'booking.created': { enabled: true, notifyPatient: false, notifyStaff: true },
+          'booking.cancelled': { enabled: true, notifyPatient: true, notifyStaff: true },
+          'booking.rescheduled': { enabled: true, notifyPatient: true, notifyStaff: true },
+          'booking.payment_captured': { enabled: true, notifyPatient: true, notifyStaff: true },
+        },
+      }),
+      bookingCreatedEffects: {
+        apply: async (input) => {
+          applied.push({ notifyPatient: input.notifyPatient });
+        },
+      },
     });
 
     await createBookingOnCanonicalEngine(deps, createInput);
 
-    // Поломка «вебапп больше не шлёт текст» выглядела бы как `patientMessageText` === undefined.
-    expect(typeof events[0]!.patientMessageText).toBe('string');
-    expect((events[0]!.patientMessageText as string).length).toBeGreaterThan(0);
+    expect(applied).toEqual([{ notifyPatient: false }]);
   });
 });
 
