@@ -38,6 +38,10 @@ const ROLE_LABELS: Record<string, string> = {
 const INVITE_ERROR_MESSAGES: Record<string, string> = {
   seat_limit_reached:
     'Достигнут лимит мест специалистов по тарифу. Освободите место или расширьте тариф.',
+  // Р-15: отдельный счёт покрывает остаток ТЕКУЩЕГО оплаченного периода. Периода нет — покрывать
+  // нечего, и человеку говорится ровно это, а не «оплатите полный тариф места за ноль дней».
+  seat_overage_paid_period_over:
+    'Оплаченный период тарифа закончился. Оплатите продление — после этого можно будет добавить место сверх тарифа.',
   already_member: 'Этот email уже участвует в организации.',
   invalid_email: 'Некорректный email',
 };
@@ -250,7 +254,10 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
         await submitInvite();
         return;
       }
-      setInviteError('Не удалось создать оплату дополнительного места');
+      setInviteError(
+        (body?.ok === false && INVITE_ERROR_MESSAGES[body.error]) ||
+          'Не удалось создать оплату дополнительного места',
+      );
     } catch {
       setInviteError('Не удалось создать оплату дополнительного места');
     } finally {

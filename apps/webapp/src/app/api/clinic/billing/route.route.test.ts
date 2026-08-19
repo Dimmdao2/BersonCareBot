@@ -216,9 +216,18 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     });
   }
 
-  function quoteFor(priceMinor: number, organization: string = organizationId): string {
-    return issueSeatOverageQuote({ organizationId: organization, priceMinor, currency: 'RUB' })
-      .token;
+  function quoteFor(
+    priceMinor: number,
+    organization: string = organizationId,
+    // Конец суток КЛИНИКИ (Р-15) приходит от двери и задаётся здесь явно, а не берётся у машины.
+    dayEndsAt: string = '2999-01-01T00:00:00.000Z',
+  ): string {
+    return issueSeatOverageQuote({
+      organizationId: organization,
+      priceMinor,
+      currency: 'RUB',
+      dayEndsAt,
+    }).token;
   }
 
   it('does not issue an invoice when a seat became available', async () => {
@@ -326,12 +335,14 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
    * полночью остаток оплаченного периода короче и место дешевле. Прежняя сверка сумм отказывала
    * ровно здесь — отказ сохранён.
    */
-  it('refuses a quote that would cross the UTC day boundary its price is rounded by', async () => {
+  it('refuses a quote that would cross the clinic day boundary its price is rounded by', async () => {
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(new Date('2026-08-19T23:55:00.000Z'));
-      const quote = quoteFor(15_000);
-      vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'));
+      // Конец московских суток 19.08 — 21:00 UTC. Именно в этот момент цена места пересчитывается
+      // на новый, более короткий остаток периода (Р-15), поэтому котировка его не переживает.
+      vi.setSystemTime(new Date('2026-08-19T20:55:00.000Z'));
+      const quote = quoteFor(15_000, organizationId, '2026-08-19T21:00:00.000Z');
+      vi.setSystemTime(new Date('2026-08-19T21:00:00.000Z'));
 
       const response = await POST(request({ purchase: 'seat_overage', quote }));
 
@@ -350,6 +361,7 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       outcome: 'price_changed',
       priceMinor: 18_000,
       currency: 'RUB',
+      dayEndsAt: '2999-01-01T00:00:00.000Z',
     });
 
     const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));

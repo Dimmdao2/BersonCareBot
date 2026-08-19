@@ -9,10 +9,9 @@ import type {
 } from '@/modules/saas-billing/ports';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
-import {
-  proratedRemainingPeriodAmountMinor,
-  proratedSeatPriceMinor,
-} from '@/modules/saas-billing/proration';
+import { proratedRemainingPeriodAmountMinor } from '@/modules/saas-billing/proration';
+import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
 
@@ -83,8 +82,15 @@ export function createInMemorySaasBillingRepository(
       postTrialBehavior: string;
       postTrialTariffId: string | null;
     } | null;
+    /**
+     * Часы двойника. Нужны с тех пор, как момент продажи места определяет сам репозиторий, а не
+     * сценарий: без общих часов сценарный тест с подменённым временем спрашивал бы у двойника
+     * настоящее «сейчас» и получал цену другого дня.
+     */
+    now?: () => Date;
   } = {},
 ): SaasBillingRepositoryPort {
+  const now = input.now ?? (() => new Date());
   const rows = new Map<string, SaasBillingSubscription>();
   const organizationTariffs = new Map<string, string | null>();
   const organizationTrials = new Map<
@@ -851,23 +857,35 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
-      // Как в pg-репозитории: цену места считает сервер — из тарифа, пропорционально дням до конца
-      // оплаченного периода, — а цена из котировки только СВЕРЯЕТСЯ. Двойник, который выставлял бы
-      // счёт на присланную сумму, описывал бы контракт, которого нет.
+      // Как в pg-репозитории: решение принимает ЕДИНСТВЕННАЯ дверь `decideSeatOverage`, а цена из
+      // котировки только СВЕРЯЕТСЯ. Двойник со своим расчётом описывал бы контракт, которого нет.
+      // Мест у двойника нет вовсе, поэтому он всегда стоит ровно на пределе: `used` = предел.
       const seatTariff = tariffs.get(purchasedTariffId(authority));
-      const seatPriceMinor = seatTariff?.additionalSeatPriceMinor ?? null;
-      const seatCurrency = seatTariff?.currency ?? null;
-      if (seatPriceMinor === null || seatCurrency === null) {
+      const offer = decideSeatOverage({
+        includedSeats: 0,
+        paidAdditionalSeats: authority.paidAdditionalSeats,
+        used: authority.paidAdditionalSeats,
+        additionalSeatPriceMinor: seatTariff?.additionalSeatPriceMinor ?? null,
+        currency: seatTariff?.currency ?? null,
+        currentPeriodStartsAt: authority.currentPeriodStartsAt,
+        currentPeriodEndsAt: authority.currentPeriodEndsAt,
+        asOf: now().toISOString(),
+        timeZone: DEFAULT_APP_DISPLAY_TIMEZONE,
+      });
+      if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
+      if (offer.outcome === 'seat_not_sold') {
         return { outcome: 'seat_overage_unavailable' as const };
       }
-      const priceMinor = proratedSeatPriceMinor({
-        seatPriceMinor,
-        periodStartsAt: authority.currentPeriodStartsAt,
-        periodEndsAt: authority.currentPeriodEndsAt,
-        asOf: input.servicePeriodStartsAt,
-      });
-      if (input.quotePriceMinor !== priceMinor || input.quoteCurrency !== seatCurrency) {
-        return { outcome: 'price_changed' as const, priceMinor, currency: seatCurrency };
+      if (offer.outcome === 'paid_period_over') {
+        return { outcome: 'paid_period_over' as const };
+      }
+      if (input.quotePriceMinor !== offer.priceMinor || input.quoteCurrency !== offer.currency) {
+        return {
+          outcome: 'price_changed' as const,
+          priceMinor: offer.priceMinor,
+          currency: offer.currency,
+          dayEndsAt: offer.invoiceExpiresAt,
+        };
       }
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
@@ -879,13 +897,13 @@ export function createInMemorySaasBillingRepository(
         invoiceKind: 'seat_overage',
         additionalSeatQuantity: 1,
         description: 'Дополнительное место специалиста сверх тарифа',
-        amountMinor: priceMinor,
-        currency: seatCurrency,
+        amountMinor: offer.priceMinor,
+        currency: offer.currency,
         tariffBillingPeriod: 'month',
         tariffSnapshot: null,
-        servicePeriodStartsAt: input.servicePeriodStartsAt,
-        servicePeriodEndsAt: input.servicePeriodEndsAt,
-        expiresAt: input.expiresAt,
+        servicePeriodStartsAt: offer.servicePeriodStartsAt,
+        servicePeriodEndsAt: offer.servicePeriodEndsAt,
+        expiresAt: offer.invoiceExpiresAt,
         status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,

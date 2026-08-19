@@ -4,10 +4,12 @@ import { beOrganizationMembers, beOrganizations } from '../../../db/schema/booki
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
+import { billableAdditionalSeats } from '@/modules/saas-billing/proration';
 import {
-  billableAdditionalSeats,
-  proratedSeatPriceMinor,
-} from '@/modules/saas-billing/proration';
+  decideSeatOverage,
+  type SeatOverageOffer,
+} from '@/modules/saas-billing/seatOverage';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 export type StockQuotaMechanic = 'patient_count' | 'branches' | 'files';
 export type TransactionQuotaMechanic = StockQuotaMechanic | 'clinic_team';
@@ -31,16 +33,6 @@ type EffectiveTariffRow = {
 };
 
 export type StockQuotaDecision = 'allowed' | 'reached';
-
-export type ClinicTeamQuotaDecision =
-  | { allowed: true }
-  | { allowed: false; code: 'seat_limit_reached' }
-  | {
-      allowed: false;
-      code: 'seat_overage_confirmation_required';
-      priceMinor: number;
-      currency: string;
-    };
 
 function parseStockQuota(value: unknown): StockQuota | null {
   if (!value || typeof value !== 'object') return null;
@@ -66,44 +58,6 @@ export function decideStockQuota(input: {
   const limit = quota?.kind === 'numeric' ? quota.limit : null;
   if (limit === null) return 'allowed';
   return input.used + input.increment > limit ? 'reached' : 'allowed';
-}
-
-/**
- * Pure decision shared by the transaction-scoped clinic-team seat recount.
- *
- * This is the ONE place a paid seat is priced: the number quoted to the clinic on the team screen
- * and the number written on its invoice are the same call, so they cannot disagree. The price is
- * prorated to the days left in the already-paid period (owner 18.08) — see `proratedSeatPriceMinor`.
- */
-export function decideClinicTeamQuota(input: {
-  includedSeats: number | null;
-  paidAdditionalSeats: number;
-  used: number;
-  additionalSeatPriceMinor: number | null;
-  currency: string | null;
-  currentPeriodStartsAt: string | null;
-  currentPeriodEndsAt: string | null;
-  asOf: string;
-}): ClinicTeamQuotaDecision {
-  if (input.includedSeats === null) {
-    return { allowed: false, code: 'seat_limit_reached' };
-  }
-  const limit = input.includedSeats + input.paidAdditionalSeats;
-  if (input.used < limit) return { allowed: true };
-  if (input.additionalSeatPriceMinor === null || input.currency === null) {
-    return { allowed: false, code: 'seat_limit_reached' };
-  }
-  return {
-    allowed: false,
-    code: 'seat_overage_confirmation_required',
-    priceMinor: proratedSeatPriceMinor({
-      seatPriceMinor: input.additionalSeatPriceMinor,
-      periodStartsAt: input.currentPeriodStartsAt,
-      periodEndsAt: input.currentPeriodEndsAt,
-      asOf: input.asOf,
-    }),
-    currency: input.currency,
-  };
 }
 
 async function readEffectiveTariff(
@@ -255,7 +209,7 @@ export function createTransactionQuotaPort() {
         ): Promise<void>;
         resolveClinicTeamAvailability(input?: {
           excludedPendingEmail?: string;
-        }): Promise<ClinicTeamQuotaDecision>;
+        }): Promise<SeatOverageOffer>;
         resolveBillableAdditionalSeats(paidAdditionalSeats: number): Promise<number>;
       }) => Promise<T>,
     ): Promise<T> {
@@ -280,12 +234,23 @@ export function createTransactionQuotaPort() {
             throw new StockQuotaReachedError(input.mechanic as StockQuotaMechanic);
           }
         },
+        /**
+         * ЕДИНСТВЕННЫЙ вход к решению «можно ли продать место и почём» — и дверь приглашения, и
+         * дверь покупки идут сюда, под тем же замком организации. Само решение живёт в
+         * `modules/saas-billing/seatOverage.ts`; здесь только сбор входных данных.
+         *
+         * Часовой пояс — существующий источник «бизнес-времени» приложения
+         * (`system_settings.app_display_timezone`), тот же, по которому клиника видит записи и
+         * слоты. Второго источника суток не заводим: у организации своего пояса в схеме нет, а у
+         * филиалов он свой на каждый филиал и на вопрос «какие сутки у клиники» не отвечает.
+         */
         async resolveClinicTeamAvailability(options = {}) {
           const context = await readClinicTeamContext(tx, input.organizationId);
-          return decideClinicTeamQuota({
+          return decideSeatOverage({
             ...context,
             used: await countClinicTeamUsage(tx, input.organizationId, options.excludedPendingEmail),
             asOf: new Date().toISOString(),
+            timeZone: await getAppDisplayTimeZone(),
           });
         },
         /**

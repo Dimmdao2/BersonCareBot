@@ -548,16 +548,11 @@ export function createSaasBillingService(dependencies: {
       input.organizationId,
     );
     const provider = await resolvePaymentProvider();
-    const periodStart = now().toISOString();
-    // Решение владельца 18.08: «Доп счёт только один раз, и только до конца основного оплаченного
-    // периода». The seat is sold INTO the period the clinic has already paid for, so the invoice
-    // window ends where that period ends — it does not open a fresh full period from today, which
-    // is what overlapped the paid one and charged a full seat price for days already covered.
-    // No paid period yet means there is nothing to sell a seat into: the clinic pays its tariff
-    // first.
-    if (!subscription.currentPeriodEndsAt) {
-      return { outcome: 'seat_overage_unavailable' as const };
-    }
+    // Здесь БОЛЬШЕ НЕ РЕШАЕТСЯ, можно ли продать место и почём. Раньше решалось: сценарий сам
+    // проверял оплаченный период и сам собирал отрезок услуги и срок счёта — и отвечал не так, как
+    // расчёт цены на пути приглашения. Владелец 19.08: «Как можно решать что-то в двух местах?».
+    // Теперь ответ целиком выдаёт `modules/saas-billing/seatOverage.ts` внутри репозитория, под
+    // замком организации: цена, отрезок услуги и срок жизни счёта приходят одним предложением.
     const result = await dependencies.repository.createSeatOverageInvoiceIfNeeded({
       organizationId: input.organizationId,
       saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
@@ -568,9 +563,6 @@ export function createSaasBillingService(dependencies: {
       // теперь выводится из личности покупки внутри котировки. Повтор той же котировки — тот же
       // ключ, то есть тот же счёт. Второй счёт требует второй котировки.
       providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.quote.purchaseKey}`,
-      expiresAt: saasBillingInvoiceExpiresAt(periodStart, provider.invoiceValidityDays),
-      servicePeriodStartsAt: periodStart,
-      servicePeriodEndsAt: subscription.currentPeriodEndsAt,
     });
     if (result.outcome !== 'invoice') return result;
     if (result.invoice.providerCheckoutUrl) {

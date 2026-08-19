@@ -56,6 +56,7 @@ export async function handleSeatOveragePurchase(
           organizationId: ctx.organizationId,
           priceMinor: result.priceMinor,
           currency: result.currency,
+          dayEndsAt: result.dayEndsAt,
         }),
       },
       { status: 402 },
@@ -64,6 +65,14 @@ export async function handleSeatOveragePurchase(
   if (result.outcome === 'seat_overage_unavailable') {
     return NextResponse.json(
       { ok: false, error: 'saas_billing_seat_overage_unavailable' },
+      { status: 409 },
+    );
+  }
+  // Р-15: пока клиника думала, оплаченный период кончился. Остатка нет — продавать не во что,
+  // и место открывается только после оплаты продления, а не этого счёта.
+  if (result.outcome === 'paid_period_over') {
+    return NextResponse.json(
+      { ok: false, error: 'seat_overage_paid_period_over' },
       { status: 409 },
     );
   }

@@ -142,6 +142,8 @@ describe('POST /api/clinic/invites — §5a item 5.1 seat overage confirmation',
         code: 'seat_overage_confirmation_required',
         priceMinor,
         currency,
+        // Конец суток клиники приходит из той же двери, что и цена (Р-15).
+        dayEndsAt: '2999-01-01T00:00:00.000Z',
       });
     const createManualSaasBillingInvoice = vi.fn().mockResolvedValue({ id: 'invoice-1' });
     fakes.buildAppDeps.mockReturnValue({

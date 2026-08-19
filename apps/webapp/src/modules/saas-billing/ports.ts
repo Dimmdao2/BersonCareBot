@@ -202,7 +202,9 @@ export type SaasBillingPlatformBreakdownRow = {
 export type SaasBillingSeatOverageInvoiceResult =
   | { outcome: 'seat_available' }
   | { outcome: 'seat_overage_unavailable' }
-  | { outcome: 'price_changed'; priceMinor: number; currency: string }
+  /** Р-15: оплаченного периода нет или он кончился — остатка, в который продают место, нет. */
+  | { outcome: 'paid_period_over' }
+  | { outcome: 'price_changed'; priceMinor: number; currency: string; dayEndsAt: string }
   | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
 
 export type SaasBillingReconciliationDiscrepancy =
@@ -512,6 +514,11 @@ export type SaasBillingRepositoryPort = {
    * unit price under the clinic billing principal while holding the same organization lock as
    * invite creation. A same-key draft is returned before the capacity check so a failed PSP call
    * remains retryable with the original provider idempotency key.
+   *
+   * У входа НЕТ ни отрезка услуги, ни срока оплаты: и то, и другое выдаёт единственная дверь
+   * `modules/saas-billing/seatOverage.ts` вместе с ценой, под тем же замком. Пока эти параметры
+   * здесь были, сценарный слой считал их сам — и на кончившемся периоде выписывал счёт, чья услуга
+   * заканчивалась раньше, чем начиналась. Убраны из сигнатуры, чтобы второй ответ не компилировался.
    */
   createSeatOverageInvoiceIfNeeded(input: {
     organizationId: string;
@@ -526,10 +533,6 @@ export type SaasBillingRepositoryPort = {
     quoteCurrency: string;
     providerId: string;
     providerIdempotencyKey: string;
-    servicePeriodStartsAt: string;
-    servicePeriodEndsAt: string;
-    /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
-    expiresAt: string;
   }): Promise<SaasBillingSeatOverageInvoiceResult>;
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by

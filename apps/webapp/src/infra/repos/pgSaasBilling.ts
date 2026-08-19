@@ -1446,10 +1446,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           )
           .limit(1)
           .for('update');
-        const decision = await quota.resolveClinicTeamAvailability();
-        if (decision.allowed) return { outcome: 'seat_available' as const };
-        if (decision.code === 'seat_limit_reached') {
+        const offer = await quota.resolveClinicTeamAvailability();
+        if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
+        if (offer.outcome === 'seat_not_sold') {
           return { outcome: 'seat_overage_unavailable' as const };
+        }
+        // Р-15: остатка оплаченного периода нет — продавать не во что, счёт не выписывается.
+        if (offer.outcome === 'paid_period_over') {
+          return { outcome: 'paid_period_over' as const };
         }
 
         const effectiveTariffResult = await tx.execute(sql`
@@ -1481,16 +1485,17 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
         // Котировка сервера сверяется со свежим расчётом под той же блокировкой. Расхождение
         // возможно, пока котировка жива: тариф отредактировали, период сдвинулся. На счёт всегда
-        // идёт `decision.priceMinor` — то, что посчитал `decideClinicTeamQuota` здесь и сейчас, —
-        // а не число из запроса; равенство лишь доказывает, что человеку показали именно его.
+        // идёт `offer.priceMinor` — то, что посчитала единственная дверь здесь и сейчас, — а не
+        // число из запроса; равенство лишь доказывает, что человеку показали именно его.
         if (
-          input.quotePriceMinor !== decision.priceMinor ||
-          input.quoteCurrency !== decision.currency
+          input.quotePriceMinor !== offer.priceMinor ||
+          input.quoteCurrency !== offer.currency
         ) {
           return {
             outcome: 'price_changed' as const,
-            priceMinor: decision.priceMinor,
-            currency: decision.currency,
+            priceMinor: offer.priceMinor,
+            currency: offer.currency,
+            dayEndsAt: offer.invoiceExpiresAt,
           };
         }
         if (existing) {
@@ -1510,13 +1515,17 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           invoiceKind: 'seat_overage',
           additionalSeatQuantity: 1,
           description: 'Дополнительное место специалиста сверх тарифа',
-          amountMinor: decision.priceMinor,
-          currency: decision.currency,
+          amountMinor: offer.priceMinor,
+          currency: offer.currency,
           tariffBillingPeriod: tariff.billing_period,
           tariffSnapshot: tariff.tariff_snapshot,
-          servicePeriodStartsAt: input.servicePeriodStartsAt,
-          servicePeriodEndsAt: input.servicePeriodEndsAt,
-          expiresAt: input.expiresAt,
+          // Сумма, отрезок услуги и срок оплаты — из ОДНОГО предложения. Собранные по отдельности,
+          // они и разъезжались: полный тариф за ноль дней и услуга, кончавшаяся раньше начала.
+          servicePeriodStartsAt: offer.servicePeriodStartsAt,
+          servicePeriodEndsAt: offer.servicePeriodEndsAt,
+          // Р-15: «Счёт на добавление нового сотрудника действует до конца суток» — здесь это
+          // конец местных суток клиники, а не общий `invoiceValidityDays` остальных счетов.
+          expiresAt: offer.invoiceExpiresAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,

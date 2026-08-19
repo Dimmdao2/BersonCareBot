@@ -33,8 +33,19 @@ export type SeatOveragePricing = { priceMinor: number; currency: string };
 
 export type CreateOrganizationInviteResult =
   | { ok: true; invite: OrganizationInviteRecord }
-  | { ok: false; code: 'already_member' | 'seat_limit_reached' }
-  | { ok: false; code: 'seat_overage_confirmation_required'; priceMinor: number; currency: string };
+  | {
+      ok: false;
+      /** `seat_overage_paid_period_over` — Р-15: остатка оплаченного периода нет, продавать не во что. */
+      code: 'already_member' | 'seat_limit_reached' | 'seat_overage_paid_period_over';
+    }
+  | {
+      ok: false;
+      code: 'seat_overage_confirmation_required';
+      priceMinor: number;
+      currency: string;
+      /** Конец суток клиники из того же предложения двери — срок жизни котировки и счёта (Р-15). */
+      dayEndsAt: string;
+    };
 
 export type AcceptOrganizationInviteResult =
   | {
