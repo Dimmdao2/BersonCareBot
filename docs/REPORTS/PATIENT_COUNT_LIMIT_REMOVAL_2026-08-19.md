@@ -106,10 +106,23 @@ SELECT (SELECT count(*) FROM public.saas_tariffs
    `executed` пуст. Вернувшийся в любой форме потолок обязан будет и залочиться, и пересчитать —
    оба следа тут красные.
 
-**Арбитр (обязателен по `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`):** вернуть в
-`route.ts` строку `await requireEntitlementForMutation(gate.ctx, 'patient_count' as never)` — первый
-тест обязан покраснеть на `resolveMechanicAccess` и на статусе; вернуть блок `withinLock` в
-`pgPatientOrganizationEnrollment.ts` — второй обязан покраснеть на `executed`.
+**Арбитр (обязателен по `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`) — ПРОГНАН, не
+описан.** После коммита правок в дерево внесены две поломки: в `route.ts` возвращён вызов
+`requireEntitlementForMutation(gate.ctx, ...)` перед разбором тела, в
+`pgPatientOrganizationEnrollment.ts` — блок `transactionQuotaPort.withinLock` с пересчётом
+`org_enrollments` перед вставкой (обе — на механике `branches`, потому что `patient_count` уже не
+проходит по типам; проверяется-то сам факт потолка, а не его имя). Результат прогона:
+
+```
+× заводит клиента, не спросив тариф, и на сотом клиенте так же, как на первом
+× отказ по существу дела остаётся отказом: 409 на занятый email
+× заводит связь без единого SQL-обращения к счётчику (клиника уже с 0 / 1 / 42 / 10000 клиентами)
+Test Files  2 failed (2) · Tests  6 failed | 1 passed (7)
+```
+
+Уцелел ровно один кейс — «уже заведённая связь остаётся как есть»: он идёт по раннему возврату, до
+места, куда вернули потолок, и краснеть был не должен. Поломки откачены (`git checkout --`), оба
+файла снова зелёные (7/7).
 
 Удалён `apps/webapp/src/modules/patient-organization/service.mechanicWriteClearance.test.ts`: он
 целиком описывал дверь 3.2 для `patient_count`, а двери больше нет. Его смысл — «запись клиента
