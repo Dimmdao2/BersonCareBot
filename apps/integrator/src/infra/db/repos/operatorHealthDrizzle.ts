@@ -1,8 +1,13 @@
 /**
  * Запись и обновление operator health таблиц через Drizzle (без сырого SQL в приложении).
  */
-import { and, eq, isNull, like, sql } from 'drizzle-orm';
-import { operatorIncidents, operatorJobStatus } from '@bersoncare/operator-db-schema';
+import { and, eq, inArray, isNull, like, sql } from 'drizzle-orm';
+import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+  PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES,
+  operatorIncidents,
+  operatorJobStatus,
+} from '@bersoncare/operator-db-schema';
 import { createDbPort } from '../client.js';
 import { getIntegratorDrizzle } from '../drizzle.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
@@ -269,8 +274,35 @@ export async function getOperatorOutboundProbeLastRunAt(): Promise<Record<string
   );
 }
 
+/**
+ * Проба выздоровела — закрыть то, что открыла она сама.
+ *
+ * Ключей два, потому что у пробы два класса отказа. Обычный промах (таймаут, сеть) живёт под
+ * `outbound:<интеграция>:` и ждёт порога подряд идущих промахов. Отказ по учётным данным, квоте
+ * или ненастроенности пейджится с первого раза и потому лежит там же, где такой же отказ
+ * настоящей отправки, — под `outbound_delivery_provider:<интеграция>:`.
+ *
+ * Во втором пространстве закрываются ТОЛЬКО классы «пейджить с первого раза». Успешный `getMe`
+ * доказывает, что учётные данные и квота в порядке, — и ничего не говорит про `provider_send_failed`
+ * конкретного сообщения. Закрыть там чужую строку значило бы потушить живой отказ отправки
+ * успехом соседней проверки.
+ */
+export async function resolveOpenOperatorOutboundProbeIncidents(
+  integration: 'max' | 'telegram' | 'google_calendar',
+): Promise<number> {
+  const probeResolved = await resolveOpenOperatorIncidentsByDedupKeyPrefix(
+    `outbound:${integration}:`,
+  );
+  const providerResolved = await resolveOpenOperatorIncidentsByDedupKeyPrefix(
+    `${OUTBOUND_PROVIDER_INCIDENT_DIRECTION}:${integration}:`,
+    PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES,
+  );
+  return probeResolved + providerResolved;
+}
+
 export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(
   prefix: string,
+  onlyErrorClasses?: readonly string[],
 ): Promise<number> {
   // The scheduler has no DML on public.operator_incidents; its capability writes resolved_at only
   // and rejects any prefix outside the three outbound probes.
@@ -287,7 +319,13 @@ export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(
   const rows = await db
     .update(operatorIncidents)
     .set({ resolvedAt: finishedAt })
-    .where(and(isNull(operatorIncidents.resolvedAt), like(operatorIncidents.dedupKey, pattern)))
+    .where(
+      and(
+        isNull(operatorIncidents.resolvedAt),
+        like(operatorIncidents.dedupKey, pattern),
+        ...(onlyErrorClasses ? [inArray(operatorIncidents.errorClass, [...onlyErrorClasses])] : []),
+      ),
+    )
     .returning({ id: operatorIncidents.id });
   return rows.length;
 }

@@ -27,7 +27,10 @@ import {
 } from '../../delivery/recipientBotBlocked.js';
 import { logger } from '../../observability/logger.js';
 import { recordOperatorFailureIncident } from '../../operatorIncident/reportOperatorFailure.js';
-import { classifyOutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
+import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+  classifyOutboundProviderErrorClass,
+} from '@bersoncare/operator-db-schema';
 import {
   markOperatorIncidentAlertSent,
   operatorIncidentAlertAlreadySent,
@@ -412,7 +415,7 @@ async function recordAuthEmailOtpDeliveryDeadIncident(
   if (row.kind !== AUTH_EMAIL_OTP_QUEUE_KIND) return;
   try {
     await recordOperatorFailureIncident({
-      direction: 'outbound_delivery_provider',
+      direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
       integration: row.channel,
       errorClass: classifyOutboundProviderErrorClass(safeError),
       errorDetail: null,
@@ -438,7 +441,7 @@ async function recordOutboundMessageDeliveryDeadIncident(
   if (row.kind !== OUTBOUND_MESSAGE_QUEUE_KIND) return;
   try {
     await recordOperatorFailureIncident({
-      direction: 'outbound_delivery_provider',
+      direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
       integration: row.channel,
       errorClass: classifyOutboundProviderErrorClass(safeError),
       errorDetail: null,
@@ -790,7 +793,12 @@ export async function processOutgoingDeliveryRow(
       row.id,
     );
     if (!materializationCurrent) {
-      await logQueueDeliveryAttemptBestEffort(writePort, intent, row.channel, 'stale_materialization');
+      await logQueueDeliveryAttemptBestEffort(
+        writePort,
+        intent,
+        row.channel,
+        'stale_materialization',
+      );
       await queueMarkSent(db, row.id);
       return;
     }
@@ -1050,7 +1058,9 @@ export async function processOutgoingDeliveryRow(
         return;
       }
       if (row.kind === 'appointment_reminder') {
-        const message = truncateDeliveryErrorMessage(err instanceof Error ? err.message : String(err));
+        const message = truncateDeliveryErrorMessage(
+          err instanceof Error ? err.message : String(err),
+        );
         const isRecipientBlocked =
           (row.channel === 'telegram' || row.channel === 'max') &&
           classifyRecipientBlockedBotError(err, row.channel) !== null;
