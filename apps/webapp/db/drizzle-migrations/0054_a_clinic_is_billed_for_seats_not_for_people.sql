@@ -1,5 +1,14 @@
 -- BCB-MIGRATION-BACKFILL
--- TEMPORARY LOCAL MIGRATION NUMBER 0050
+-- TEMPORARY LOCAL MIGRATION NUMBER 0054
+--
+-- Renumbered from 0050 (F1, night-wave audit 2026-08-19): the slot `when=1800000052000` this file
+-- carried in `meta/_journal.json` was already occupied on DEV by a foreign migration's ledger row
+-- (hash `786853cc…` vs this file's `aaf78837…`); the one-time legacy tag-backfill matched on that
+-- `when` and mislabelled the foreign row with this file's tag, so the ledger claimed this migration
+-- applied while `patient_count` never left `saas_tariffs`/`saas_org_entitlement_overrides` on any
+-- stand. File not applied anywhere yet, so renaming is allowed (AGENTS.md §1, "Миграции после
+-- baseline B0"). New tag has no ledger row on DEV or TEST — see
+-- docs/REPORTS/PATIENT_COUNT_REMOVAL_2026-08-19.md for the proof.
 --
 -- Решение владельца 19.08, дословно (`docs/OWNER_DECISIONS.md` → Т12): «лимит клиентов - убрать».
 -- Толкование там же: количество клиентов клиникой не ограничивается ни в одном тарифе; считаем и
