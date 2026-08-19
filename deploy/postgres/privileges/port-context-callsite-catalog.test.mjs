@@ -465,6 +465,20 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'health.digest.last-sent.read', argCount: 0,
     source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
   },
+  // Замер 19.08: снимок здоровья очереди шёл двенадцатью запросами отношением под `app_staff` и
+  // ронял ВЕСЬ пятиминутный критический тик (голый `Promise.all`), а не одну панель (миграция 0039).
+  'app.read_operator_delivery_queue_health()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.delivery-queue.aggregate', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts',
+  },
+  // Замер 19.08: строк `kind='operator_health_digest'` в очереди НОЛЬ за всю историю — постановка
+  // шла прямым INSERT под `app_staff`, у которого на очереди нет ни одной привилегии (0039).
+  'app.enqueue_operator_health_digest_delivery(text,text,text,integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.digest.enqueue', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
+  },
   'app.prune_operator_health_failure_archive(integer)': {
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'health.failure-archive.prune', argCount: 1,

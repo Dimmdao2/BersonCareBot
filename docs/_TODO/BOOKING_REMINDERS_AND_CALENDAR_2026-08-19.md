@@ -289,6 +289,122 @@ INSERT, а INSERT на эту таблицу не выдан ни одной р�
       постановки исходящего (`UNIVERSAL_OUTBOUND_2026-08-19.md`) и отдельный операторский корень
       здоровья очереди.
 
+## Очередь доставки: сторож не имел права читать свою очередь и не имел права её пополнять (19.08, ветка `wt/operator-queue-health-20260819`)
+
+Предыдущая работа вылечила ОДНО чтение очереди из вебаппа (время прошлой сводки, миграция 0038) и
+оставила переписью четыре места. Здесь они воспроизведены поштучно, и перепись оказалась верна не
+целиком.
+
+- [x] **Воспроизведение: `app_staff` и `app_worker` отказаны на очереди — да, оба.** На
+      `bcb_webapp_dev`, транзакция откачена:
+
+      BEGIN; SET LOCAL ROLE app_staff;  SELECT count(*) FROM public.outgoing_delivery_queue
+        WHERE status in ('pending','failed_retryable');   -- 42501 permission denied for table
+      BEGIN; SET LOCAL ROLE app_worker; (тот же запрос)   -- 42501 permission denied for table
+      BEGIN; SET LOCAL ROLE app_staff;  INSERT INTO public.outgoing_delivery_queue
+        (event_id,kind,channel,status) VALUES ('x','operator_health_digest','email','pending');
+                                                          -- 42501 permission denied for table
+      BEGIN; SET LOCAL ROLE app_tenant_service; (INSERT doctor_broadcast)  -- 42501
+      BEGIN; SET LOCAL ROLE app_operational_delivery_worker; (INSERT reminder_dispatch) -- 42501
+
+      Последняя строка — находка сверх переписи: у роли доставки на очереди есть SELECT и
+      поколоночный UPDATE, но INSERT'а нет тоже. То есть пункт 4 переписи («интегратор пишет
+      очередь сырым INSERT под принципалом вызывающего») сломан не только у арендных принципалов,
+      а у ВСЕХ.
+
+- [x] **Пункт 1 переписи реален, но последствие названо неверно, и настоящее — хуже.**
+      `getOutgoingDeliveryQueueHealth` действительно отказан (в логе TEST виден весь залп из
+      двенадцати запросов под `bcb_test_webapp_staff`). Но админская страница «Здоровье системы»
+      его НЕ вызывает: числа очереди она берёт из курированного корня
+      `app.read_curated_system_health()` (владелец `saas_system_health_owner`) через отдельный
+      диагностический пул — `pgCuratedSystemHealthDiagnostics.ts`. Единственные два вызывающих
+      отказанного метода:
+
+      1. `collectCriticalHealthSignalsBase` — и вызов стоит в ГОЛОМ `Promise.all`, без `catch`.
+         Значит 42501 роняет не панель, а ВЕСЬ пятиминутный критический тик
+         (`runOperatorHealthCriticalTick`) и баннер здоровья в кабинете врача
+         (`collectOperatorHealthBannerInput` идёт той же дорогой). Человеку это стоит НИ ОДНОГО
+         критического операторского алерта: ни про мёртвую очередь, ни про backlog, ни про
+         потерянный пульс доставки, ни про пробой изоляции арендаторов — весь классификатор
+         `classifyCriticalHealthSignals` не доезжает до вызова.
+      2. `collectOperatorHealthDigestInput.ts:55` — заглушено `.catch(() => null)`, поэтому в
+         суточной сводке строки очереди просто молчат.
+
+- [x] **Пункт 2 переписи НЕ реален.** `loadAdminReminderPipelineMetrics` не вызывает НИКТО:
+      `grep -rn "loadAdminReminderPipelineMetrics"` по всему репозиторию даёт ровно две строки —
+      объявление функции и цитату в этом плане. Воронка напоминаний в операторском виде
+      наполняется из `curatedSnapshot.remindersPipeline` (тот же курированный корень), а код
+      `reminder_pipeline_metrics_failed` в живом ответе не появляется вовсе: статус воронки берётся
+      из `curatedResult.errorCode`. Это мёртвый код, а не живой разрыв; правка его не трогала —
+      удаление мёртвого кода отдельным решением, см. «НЕ СДЕЛАНО».
+
+- [x] **Снимок здоровья очереди переведён на объявленный корень; гранта рабочей роли не добавлено.**
+      Двенадцать запросов отношением сведены в ОДИН корень
+      `app.read_operator_delivery_queue_health()` — владелец шва `app_seam_telemetry_operator_owner`
+      (тот же, что уже разбирает очередь в `app.archive_operator_health_failures` и отдаёт время
+      прошлой сводки в 0038), `execute: ['app_worker']`, форма дословно по соседу из 0038. Миграция
+      `apps/webapp/db/drizzle-migrations/0039_the_operator_watchman_may_not_read_its_own_queue.sql`,
+      объявление — `deploy/postgres/privileges/declaration.ts`, вызов —
+      `apps/webapp/src/infra/repos/pgOperatorHealthRead.ts`. **Рабочая роль получает EXECUTE и
+      ничего больше**; на таблице к поколоночным грантам ШВА добавляются ровно две недостающие
+      колонки — `next_retry_at` и `updated_at`. Весь дифф прав в сгенерированном артефакте — три
+      строки: две `GRANT EXECUTE … TO "app_worker"` и один поколоночный `GRANT SELECT … TO
+      "app_seam_telemetry_operator_owner"`.
+
+- [x] **Постановка суточной сводки переведена на объявленный корень — это и был следующий разрыв.**
+      `app.enqueue_operator_health_digest_delivery(text,text,text,integer)` — владелец шва доставки
+      `app_seam_delivery_scope_owner` (тот же, что держит `app.enqueue_outbound_message`),
+      `execute: ['app_worker']`. **Ни одного нового поколоночного гранта:** все десять колонок
+      вставки у шва уже были. Универсальный корень исходящего для сводки НЕ подошёл и подменён не
+      был: он жёстко ставит `kind='outbound_message'` и сам собирает payload, а сводку интегратор
+      отбирает именно по `kind='operator_health_digest'` (`outgoingDeliveryScope.ts:40`) и по
+      операторскому классу `operator_security`/`operator_alert`. Прямой путь снят, двух путей не
+      оставлено: ветка `operator_health_digest` удалена из
+      `pgOutgoingDeliveryQueue.enqueueReady`, а `OperatorHealthDigestReadyOutgoingDelivery` выведена
+      из `ReadyOutgoingDelivery` — тем же приёмом, что 0034 применила к напоминанию о записи.
+
+- [x] **Живое доказательство на `bcb_webapp_dev`** (настоящий логин `bcb_dev_webapp_staff`,
+      настоящая установка порт-контекста тем самым infra-источником, которым ходит тик сводки —
+      `api/integrator/operator-health/digest-wake:POST`; боевой код репозиториев; после
+      `migrate-dev.sh --preflight` и `--execute`):
+
+      principal: {"s":"bcb_dev_webapp_staff","c":"app_worker"}
+      queue health snapshot: {"dueBacklog":91,"deadTotal":0,"blockedRecipientTotal":87,
+        "oldestDueAgeSeconds":148142,"dueByChannel":{"email":3,"telegram":45,"web_push":43},
+        "dueByKind":{"outbound_message":14,"reminder_dispatch":77},"deadByKind":{},
+        "processingCount":0,"lastSentAt":"2026-08-04T10:53:20.833+03:00",
+        "confirmedSentLast24h":0,"lastQueueActivityAt":"2026-08-19T07:44:59.461+03:00"}
+      digest last sent at: null
+      digest enqueue inserted: 1
+      digest enqueue repeat inserted (idempotency): 0
+
+      Строка сводки ДЕЙСТВИТЕЛЬНО появилась — раньше их не появлялось ни одной за всю историю:
+
+      id                   | da3bd90c-5847-40ee-8b63-297af803b69e
+      event_id             | operator-health-digest:2026-08-19:email:proof0001
+      kind                 | operator_health_digest
+      channel              | email
+      status               | pending
+      attempt_count/max    | 0 / 6
+      organization_id NULL | t
+      outboundCapability   | operator_alert
+
+      Следующий прогон снимка увидел её сам: `dueByKind` стал
+      `{"outbound_message":14,"reminder_dispatch":77,"operator_health_digest":1}` — то есть чтение и
+      постановка сошлись на одном и том же живом ряде. Строка пробы после доказательства удалена с
+      DEV, чтобы dev не инициировал доставку (§1b).
+
+      Доказательство поведения в тестах:
+      `apps/webapp/src/infra/repos/pgOperatorQueueHealthRoot.unit.test.ts` — «оператор видит
+      настоящие числа очереди, а не пустую панель», «суточная сводка попадает в очередь: строка
+      ставится, а не теряется на отказе», «повторный тик тех же суток не рождает второй сводки».
+      Fault injection, два уровня: (1) в живой базе снял у шва единственную колонку
+      (`REVOKE SELECT (updated_at) … FROM app_seam_telemetry_operator_owner`) → живая проба легла с
+      `42501 permission denied for table outgoing_delivery_queue`, вернул грант → снимок снова
+      настоящий; (2) вернул репозиторию чтение отношения → красным стал ровно тест «оператор видит
+      настоящие числа», вернул корень → 3/3 зелёные.
+
+
 ## НЕ СДЕЛАНО
 
 - Почему напоминания падают на ПРОДЕ, где стен RLS нет, — причина там другая и не установлена.
@@ -362,3 +478,54 @@ INSERT, а INSERT на эту таблицу не выдан ни одной р�
 
 - **Живая проверка на TEST** для этой пары правок — не моя: выкатывает ведущий. На DEV проверено
   всё, что на DEV проверяемо (доказательства у пунктов выше).
+
+- **Работа `wt/operator-queue-health-20260819`, что осталось за границей:**
+
+  - **Живая проверка на TEST** — не моя: выкатывает ведущий. На DEV проверено всё, что на DEV
+    проверяемо (доказательства у пунктов выше). До выкатки суточная сводка на TEST по-прежнему не
+    уедет и критический тик по-прежнему падает.
+
+  - **`pgDoctorBroadcastDelivery.commitAuditAndDeliveryQueue` — НЕ починена.** Отказ реален
+    (`SET LOCAL ROLE app_tenant_service; INSERT … 'doctor_broadcast'` → 42501), но это не одна
+    вставка: одна транзакция пишет `broadcast_audit`, N строк очереди и `broadcast_audit_recipients`
+    и обязана быть атомарной, а объявленный корень по построению не может начинаться внутри
+    транзакции отношений (`runWebappNamedRoot`: «Webapp named root must start before the relation
+    transaction»). Значит корень должен принять ВЕСЬ пакет рассылки целиком и собрать все три
+    записи у себя — это отдельная работа со своей приёмкой, а не попутная правка. Названо, а не
+    залатано молча.
+
+  - **`pgOutgoingDeliveryQueue.enqueueReady` для `specialist_task_reminder` — НЕ починена.** Тот же
+    класс: вставка живёт внутри транзакции задачи специалиста (`pgSpecialistTasks.ts:119,155,280`)
+    и вдобавок зовёт `app.refresh_specialist_task_reminder_materialization` тем же `tx`. Ветка
+    `reminder_dispatch` того же метода — тоже. Оба требуют своего корня формы 0034
+    (корень получает поколение целиком), не переезда вызова.
+
+  - **Интеграторский `enqueueOutgoingDeliveryIfAbsent` — НЕ починена, и разрыв шире, чем в
+    переписи.** INSERT на очередь не выдан НИ ОДНОЙ рабочей роли, включая
+    `app_operational_delivery_worker` (замер выше). Значит комментарий в теле функции («каждый
+    успешный продюсер уже имеет app_staff INSERT») неверен вдвойне, а вместе с постановкой падает
+    и стоящая рядом ретенция (`deleteExpiredSentOutgoingDeliveries`). Через эту функцию идут
+    операторские алерты (`reportOperatorFailure.ts:130,168`, `kind='operator_alert'`) и
+    `inbound_reply` (`jobQueue.ts:105`) — то есть НИ ОДИН операторский алерт интегратора в очередь
+    не попадает. Форма починки уже есть у соседа в том же файле:
+    `enqueueAcceptedIncomingReplyIfAbsent` ходит объявленным корнем
+    `app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)` под
+    `runWithDbInfraPrincipal`. Это чужой контур (интегратор) и отдельная приёмка.
+
+  - **`loadAdminReminderPipelineMetrics` — мёртвый код, оставлен как есть.** Вызывающих ноль
+    (доказательство в чек-листе выше). Он читает очередь отношением и упрётся в 42501 у первого же,
+    кто его оживит. Удалять мёртвый код или оживлять его через снимок очереди — решение владельца,
+    а не попутная правка: в плане такого пункта нет.
+
+  - **Сторож по-прежнему рапортует успех поверх молчащего механизма — эта правка того НЕ чинит.**
+    Механизм: `/api/integrator/operator-health/digest-wake` зовёт
+    `recordOperatorCronJobTickBestEffort(..., success: true)` на ЛЮБОЙ успешный возврат тика,
+    включая `{sent:false, reason:'not_slot'}`. Планировщик будит сводку раз в час, поэтому тик в
+    09:01 выходит по «не слот» и перезаписывает строку `health.operator_health_digest.tick` поверх
+    настоящего отказа в 09:00. Моя правка убирает ПРИЧИНУ отказа, но не убирает затирание: любой
+    следующий отказ в слоте будет так же закрашен соседним «не слот».
+    **Наименьшая верная починка** (не построена, требует решения владельца): не писать тик вовсе,
+    когда работы не было — то есть в `apps/webapp/src/app/api/integrator/operator-health/digest-wake/route.ts`
+    пропускать `recordOperatorCronJobTickBestEffort` при `result.reason === 'not_slot'`. Строка
+    состояния тогда описывает последнюю попытку СДЕЛАТЬ сводку, а не последний холостой опрос.
+    То же самое место и в `/api/internal/operator-health-digest/tick/route.ts`.

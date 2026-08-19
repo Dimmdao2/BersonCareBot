@@ -25,7 +25,8 @@ const EXPECTED = {
   // 187 → 189 (19.08): два корня контактов формы записи из миграции 0037.
   // 189 → 190 (19.08): `health_digest_last_sent_read` — одна дверь чтения времени последней
   // подтверждённой отправки сводки (миграция 0038).
-  webapp: 190,
+  // 190 → 192 (19.08): `delivery_queue_health_read` + `health_digest_enqueue` — миграция 0039.
+  webapp: 192,
   integrator: 34,
 };
 
@@ -52,8 +53,9 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // напоминаний о записи (миграция 0034).
   // 221 → 223 (19.08): два корня контактов формы записи из миграции 0037.
   // 223 → 224 (19.08): `webapp_health_digest_last_sent_read` — миграция 0038.
-  assert.equal(rows.length, 224);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 224);
+  // 224 → 226 (19.08): `webapp_delivery_queue_health_read` + `webapp_health_digest_enqueue` (0039).
+  assert.equal(rows.length, 226);
+  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 226);
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -110,7 +112,8 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   // 205 → 206 (19.08): корень замены поколения напоминаний о записи (миграция 0034).
   // 206 → 208 (19.08): два корня контактов формы записи (миграция 0037).
   // 208 → 209 (19.08): корень времени последней подтверждённой сводки (миграция 0038).
-  assert.equal(roots.length, 209);
+  // 209 → 211 (19.08): корень снимка здоровья очереди и корень постановки сводки (миграция 0039).
+  assert.equal(roots.length, 211);
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );

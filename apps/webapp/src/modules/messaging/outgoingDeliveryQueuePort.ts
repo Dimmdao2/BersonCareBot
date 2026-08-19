@@ -82,10 +82,13 @@ export type PatientReminderReadyOutgoingDelivery = {
  * через табличный шов, а через объявленный корень
  * `app.replace_appointment_reminder_generation` (миграция 0034) — INSERT на очередь не выдан ни
  * одной рабочей роли, поэтому этот путь и не работал никогда.
+ *
+ * `OperatorHealthDigestReadyOutgoingDelivery` вышла отсюда по той же причине (миграция 0039):
+ * суточная сводка ставится корнем `app.enqueue_operator_health_digest_delivery`, а прямой INSERT
+ * под `app_staff` отвечал 42501 — сводка не уходила ни разу. Двух путей не оставлено.
  */
 export type ReadyOutgoingDelivery =
   | SpecialistTaskReadyOutgoingDelivery
-  | OperatorHealthDigestReadyOutgoingDelivery
   | PatientReminderReadyOutgoingDelivery;
 
 /** The only webapp write seam for `public.outgoing_delivery_queue`. */

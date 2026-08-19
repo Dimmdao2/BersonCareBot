@@ -274,6 +274,13 @@
       "when": 1800000039000,
       "tag": "0038_a_star_takes_columns_the_seam_never_asked_for",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1800000040000,
+      "tag": "0039_the_operator_watchman_may_not_read_its_own_queue",
+      "breakpoints": true
     }
   ]
 }
