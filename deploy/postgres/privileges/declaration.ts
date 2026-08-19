@@ -2633,6 +2633,20 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.digest.last-sent.read',
       functionIdentity: 'app.read_operator_health_digest_last_sent_at()' },
+    // Двенадцать запросов отношением под `app_staff` (`getOutgoingDeliveryQueueHealth`) стояли в
+    // ГОЛОМ `Promise.all` критического тика — падал весь пятиминутный тик и баннер врача, а не
+    // одна панель. Одна дверь вместо двенадцати запросов, тот же шов операторской телеметрии.
+    webapp_delivery_queue_health_read: { port: 'webapp', runtimeName: 'delivery_queue_health_read',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.delivery-queue.aggregate',
+      functionIdentity: 'app.read_operator_delivery_queue_health()' },
+    // Постановка суточной сводки в очередь: INSERT на очередь не выдан ни одной рабочей роли,
+    // поэтому строк `operator_health_digest` не появлялось вовсе. Свой корень, а не универсальный
+    // корень исходящего: у сводки собственный вид строки и собственный операторский класс.
+    webapp_health_digest_enqueue: { port: 'webapp', runtimeName: 'health_digest_enqueue',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.digest.enqueue',
+      functionIdentity: 'app.enqueue_operator_health_digest_delivery(text,text,text,integer)' },
     // Одна уборка по сроку хранения на все запертые арендаторские таблицы: цель выбирается
     // параметром из ЗАКРЫТОГО списка внутри тела, окно приходит константой вызывающего тика.
     // Каждый тик сохраняет свою личность — общей у них только эта дверь.
@@ -3860,6 +3874,36 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'public.outgoing_delivery_queue', columns: ['kind', 'sent_at'],
         operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Единственное АГРЕГАТНОЕ чтение очереди, разрешённое порту webapp: снимок здоровья очереди
+    // для критического тика и суточной сводки. Двенадцать запросов отношением сведены в один
+    // корень. Рабочая роль получает EXECUTE и ничего больше; шву добавляются ровно две колонки,
+    // которых у него не было — `next_retry_at` и `updated_at` (миграция 0039).
+    'app.read_operator_delivery_queue_health()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'return only the aggregated operator delivery-queue health snapshot', typedArgs: [],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
+        columns: ['status', 'next_retry_at', 'failure_class', 'created_at', 'channel', 'kind',
+          'sent_at', 'updated_at'],
+        operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Единственная дверь постановки суточной сводки здоровья. До неё вебапп писал очередь прямым
+    // INSERT под `app_staff`, у которого на ней нет ни одной привилегии, — сводка не уходила ни
+    // разу. `app_worker` получает EXECUTE; все десять колонок вставки у шва уже были (0039).
+    'app.enqueue_operator_health_digest_delivery(text,text,text,integer)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'enqueue only one operator health digest delivery row',
+      typedArgs: ['text', 'text', 'text', 'integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
+        columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
+          'attempt_count', 'max_attempts', 'next_retry_at', 'priority'],
+        operations: ['SELECT' as const, 'INSERT' as const],
+        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0039' as const }],
     }),
     'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
