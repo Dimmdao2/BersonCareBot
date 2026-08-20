@@ -706,6 +706,18 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       интегратора пишет в `public.outgoing_delivery_queue` (`infra/db/repos/jobQueue.ts`). Блокер «DROP
       заблокирован дренажом до ~29.08» снят реальностью — дренировать нечего. Открытым по D10a остаётся снос
       `integrator.delivery_attempt_logs` в пользу `public.notification_delivery_attempts`.
+      🟡 **Перепись производителей/читателей 20.08** (`D10A_D16_CONSOLIDATION_2026-08-20.md`, докс-only,
+      приземлено): снос ещё НЕ готов — жив один писатель (`messageLogs.ts:81` →
+      `app.record_operational_delivery_attempt_audit`, десятиаргументный именованный root) и два
+      зарегистрированных CLI-читателя (`backfill-communication-history`, `reconcile-communication-domain` —
+      второй реально вызывается `scripts/stage6-release-gate.mjs:44`, релиз-гейтом). Оба ридера вне скоупа
+      `apps/webapp/src/**`, которым был ограничен воркер. Отдельно найден спящий второй писатель через C4-оверлей
+      (`deploy/postgres/c4-operational-runtime.sql:926-996`, девятиаргументный `record_operational_delivery_attempt_audit`,
+      провижинится `provision-c4-operational-runtime.sh`) — сейчас не вызывается ни одним найденным caller'ом, но
+      способен вернуть legacy-писателя при провижининге оверлея; надо свести с десятиаргументным контрактом ДО
+      сноса. **Следующий шаг — не новый воркер, а решение оркестратора**: расширить скоуп на
+      `apps/webapp/scripts/**` + разобраться с C4-оверлеем, только потом готовить DROP-миграцию (не применять —
+      воркеры миграции не применяют).
 - [x] **D10b — уборка и возврат зависших в очереди доставки.** ✅ **ЗАКРЫТО 31.07** (`4f203d08d`, `94cb2af4c`):
       возврат по таймауту, «мёртвая полка» при превышении числа возвратов, уборка выполненных. Доказано на
       настоящей `bersoncarebot_test`, проверено поломкой лидом.
@@ -724,6 +736,11 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       живая очередь (проверено на живой DEV). Остаток D16 = тот же остаток, что у D10a: свести
       `integrator.delivery_attempt_logs` в `notification_delivery_attempts` и убедиться, что у интегратора
       не осталось второго независимого цикла опроса — задача в работе, не ждёт дат.
+      ✅ **Вторая часть D16 (нет второго независимого цикла) ПОДТВЕРЖДЕНА 20.08** (`D10A_D16_CONSOLIDATION_2026-08-20.md`):
+      единственный `while(true)`-потребитель `outgoing_delivery_queue` — `worker:outgoing-delivery-tick`
+      (`worker/main.ts:83-102` → `outgoingDeliveryWorker.ts:1218`). Остальные циклы (`projectionOutboxLoop`,
+      `directPublicWriteRetryLoop`, планировщик `scheduler/main.ts`) полят другие таблицы, не эту очередь.
+      Остаток D16 = остаток D10a (снос `delivery_attempt_logs`), см. правку выше.
 - [ ] **D18 — вычистить весь остаток сырого SQL в обоих приложениях.** Решение и объём — **Р-D18** (§2.3).
       - [x] **D18a — запрет на НОВЫЙ сырой SQL.** `scripts/check-no-new-raw-sql.mjs`, подключён к root и webapp
             lint. После D18c debt-манифест удалён: gate разрешает только поимённые low-level DB-порты,
@@ -1013,6 +1030,28 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       `D20_TESTS_LEVEL2_REPORT.md`, `D20_TESTS_LEVEL3_REPORT.md`); пункт остаётся открыт только на level 4+.
       Сюда же входит дыра в защите D3/D4 (карта, раздел «Дыра в защите D3/D4 — поимённо») — владелец 31.07
       отнёс её к тем же модулям, которые нужно покрыть правильными тестами.
+      ✅ **Level 4 D1-D3 закрыт 20.08** (`D20_LEVEL4_FIX_D1D3_REPORT.md`) — `executeCanonicalWriteOrLegacy`
+      различает transport error / rejected-key / accepted acknowledgement, `writePort.reminderRuleFallback.test.ts`
+      зелёный, 5/5.
+      ✅ **D6 (реальный ACL-дефект) закрыт 20.08** — `app_patient` не имел гранта на
+      `integrator.direct_public_write_retries`, хотя `writePort.ts` на неудачной `reminders.rule.upsert`
+      реально уходит в этот путь под принципалом `app_patient` (`runWithIntegratorPrincipal`). Точечный
+      column-scoped `INSERT`-грант добавлен в `deploy/postgres/privileges/declaration.ts`, только декларация,
+      применения нет. Ведущий перепроверил лично: путь принципала подтверждён чтением кода, тест
+      `relation-access.test.mjs` 41/41, найденная typecheck-ошибка на `declaration.ts:6023` существовала ДО
+      фикса (проверено на текущем `feat`, не его). Отчёт — `D20_LEVEL4_REMAINDER_2026-08-20.md`. Ветка
+      `wt/d20-level4-remainder-20260820` (`4bbbda02f`) готова к приземлению, ждёт явного разрешения владельца —
+      это код (изменение прав), не докс.
+      🟡 **Три реальных owner-question, не додуманы воркером (правильно):**
+      1. **D4** — единственное живое подтверждение принципала (`writeReminderRulesDirect.rls.integration.test.ts`)
+         опт-ин и требует именованного TEST-подключения; обычный CI его не гоняет. Какое окружение/креды
+         санкционировать под ordinary-CI прогон?
+      2. **D5** — путь `patient support mirror` при недоступности вебаппа возвращает `{ mirrored: false }` без
+         устойчивой очереди и без явного отказа — карта не определяет нужное поведение. Durable outbox или явный
+         refusal?
+      3. **Седьмая находка (обход хендофа reminder-rule)** — `writePort.ts` зовёт `upsertReminderRuleDirect`
+         напрямую, `WebappEventsPort` не имеет контракта хендофа для reminder-rule (в отличие от D1-D3). Оставить
+         прямую интеграторскую запись или завести новый canonical-хендоф в вебаппе?
 - [x] **D21 — напоминания о самопомощи как часть общей системы, а не своя ветка.** Решение — **Р-D21** (§2.3):
       уезжают собственное планирование, расчёты «отложить»/«выключить до», своя таксономия причин пропуска и
       русские тексты в `handlers/reminders.ts`; остаётся доставка выбранным каналом, тихих часов и автоповтора
