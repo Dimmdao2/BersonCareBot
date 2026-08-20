@@ -1,7 +1,8 @@
 -- BCB-MIGRATION-OWNER: app_seam_org_directory_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- TEMPORARY LOCAL MIGRATION NUMBER 0050
+-- Имя по таймштамп-схеме (решение владельца 20.08: новые миграции только YYYYMMDDTHHMMSS_).
+-- Прежнее имя 0050_… отвергалось гейтом: номер занят, старая схема закрыта для новых.
 --
 -- `app_platform_settings` на `public.be_organizations` имеет UPDATE только на `tariff_id` и
 -- `updated_at` — колонка `is_active` читается, но не переключается из вебаппа. Карточка клиники
