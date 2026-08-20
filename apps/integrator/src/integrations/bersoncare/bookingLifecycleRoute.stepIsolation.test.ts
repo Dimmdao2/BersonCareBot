@@ -108,7 +108,6 @@ function recipientsOf(dispatch: ReturnType<typeof vi.fn>): string[] {
 
 function webappEventsPort(materialize: WebappEventsPort['materializeAppointmentReminders']) {
   return {
-    emit: vi.fn(async () => ({ ok: true, status: 200 })),
     notifyPatientWebPush: vi.fn(async () => undefined),
     materializeAppointmentReminders: materialize,
   } as unknown as WebappEventsPort;

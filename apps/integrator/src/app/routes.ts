@@ -17,7 +17,7 @@ import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicat
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
-import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
+import type { AppDeps } from './di.js';
 import {
   OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
   type OutboundProviderErrorClass,
@@ -36,9 +36,6 @@ export type HealthResponse = {
   ok: true;
   db: 'up' | 'down';
 };
-
-/** Response shape for projection health (release gate). */
-export type ProjectionHealthResponse = ProjectionHealthSnapshot;
 
 function createResolveOrganizationIdForMessengerIdentity(): (
   externalId: string,
@@ -132,25 +129,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     const dbOk = await deps.healthCheckDb();
     const body: HealthResponse = { ok: true, db: dbOk ? 'up' : 'down' };
     return body;
-  });
-
-  app.get<{ Reply: ProjectionHealthResponse }>('/health/projection', async (_request, reply) => {
-    try {
-      const snapshot = await deps.getProjectionHealth();
-      return reply.code(200).send(snapshot);
-    } catch (error) {
-      reportIntegratorIsolationFailure(error);
-      return reply.code(503).send({
-        pendingCount: 0,
-        deadCount: 0,
-        cancelledCount: 0,
-        oldestPendingAt: null,
-        processingCount: 0,
-        retryDistribution: {},
-        lastSuccessAt: null,
-        retriesOverThreshold: 0,
-      });
-    }
   });
 
   await registerBersoncareSendSmsRoute(app, {
