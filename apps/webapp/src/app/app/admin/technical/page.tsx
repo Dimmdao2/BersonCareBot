@@ -1,7 +1,6 @@
 import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
 import { loadAdminSettingsPageData } from '@/app/app/settings/adminSettingsData';
 import { AdminSettingsSection } from '@/app/app/settings/AdminSettingsSection';
-import { OperatorHealthAlertsSection } from '@/app/app/settings/OperatorHealthAlertsSection';
 import { OperatorHealthProjectionThresholdsSection } from '@/app/app/settings/OperatorHealthProjectionThresholdsSection';
 import { ErrorTrackingSettingsSection } from '@/app/app/settings/ErrorTrackingSettingsSection';
 import { OperatorHealthProbeSettingsSection } from '@/app/app/admin/system-health/OperatorHealthProbeSettingsSection';
@@ -42,10 +41,6 @@ export default async function DoctorAdminTechnicalPage() {
         materialRatingsEnabled={diagnostics.materialRatingsEnabled}
       />
       <OperatorHealthProbeSettingsSection />
-      <OperatorHealthAlertsSection
-        initialConfig={diagnostics.operatorHealthAlertsConfig}
-        initialFallbackEmail={diagnostics.operatorAlertFallbackEmail}
-      />
       <OperatorHealthProjectionThresholdsSection
         initialThresholds={diagnostics.operatorHealthProjectionThresholds}
       />

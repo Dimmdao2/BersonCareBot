@@ -50,9 +50,17 @@ const PLATFORM_BILLING_PORT_STUBS = {
   }),
   getPaidPeriodPolicy: async () => null,
   setPaidPeriodPolicy: async () => {},
+  setOrganizationActive: async (_organizationId: string, isActive: boolean) => ({
+    isActive,
+    changed: true,
+  }),
 } satisfies Pick<
   PlatformEntitlementsPort,
-  'listBillingPeriods' | 'upsertBillingPeriod' | 'getPaidPeriodPolicy' | 'setPaidPeriodPolicy'
+  | 'listBillingPeriods'
+  | 'upsertBillingPeriod'
+  | 'getPaidPeriodPolicy'
+  | 'setPaidPeriodPolicy'
+  | 'setOrganizationActive'
 >;
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
