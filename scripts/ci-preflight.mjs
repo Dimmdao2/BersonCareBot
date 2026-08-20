@@ -75,8 +75,19 @@ function unlandedBranches() {
   } catch {
     return []; // не git-дерево или нет веток wt/* — второе условие неприменимо
   }
+  // Ветка, которую владелец держит невлитой НАМЕРЕННО, — не «забытое сведение». Без этого различия
+  // гейт запрещал прогон ровно в том порядке, который владелец и задал: свести всё кроме трека D,
+  // потом CI, потом деплой. Держащая ветка объявляется явно и печатается в выводе — молча она
+  // не пропускается, поэтому забытая ветка по-прежнему отказывает.
+  const held = new Set(
+    (process.env.BCB_CI_HELD_BRANCHES ?? '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean),
+  );
   const pending = [];
   for (const branch of refs.split('\n').map((l) => l.trim()).filter(Boolean)) {
+    if (held.has(branch)) continue;
     let count = '0';
     try {
       count = execFileSync('git', ['rev-list', '--count', `${target}..${branch}`], {
@@ -94,6 +105,16 @@ function main() {
   const agents = livePortAgents();
   const writers = agents.filter((a) => !a.readOnly);
   const pending = unlandedBranches();
+  const heldNames = (process.env.BCB_CI_HELD_BRANCHES ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (heldNames.length > 0) {
+    // Держащая ветка не проходит молча: прогон обязан сказать, чего он НЕ мерил.
+    console.warn(
+      `ci-preflight: намеренно не влиты и НЕ измеряются этим прогоном: ${heldNames.join(', ')}.`,
+    );
+  }
 
   if (writers.length === 0 && pending.length === 0) {
     process.exit(0);
