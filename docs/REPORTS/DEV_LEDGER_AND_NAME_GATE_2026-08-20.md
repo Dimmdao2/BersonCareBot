@@ -24,12 +24,39 @@ ledger, нет.
 node /home/dev/brain/tools/code-search.mjs "run-webapp-drizzle-migrate journal migration file name validation check-drizzle-migration-order" --repo bcb -k 20
 ```
 
-Вывод (релевантные результаты):
+Полный вывод:
 
 ```text
+# code-search: «run-webapp-drizzle-migrate journal migration file name validation check-drizzle-migration-order» · репо bcb · лексический BM25 · индекс 2026-08-20T10:45:03.151Z (24970 чанков)
+
+• bcb/docs/REPORTS/MIGRATION_LEDGER_ORPHANS_2026-08-20.md:201-250
+    $ bash deploy/host/migrate-dev.sh --preflight
+• bcb/docs/REPORTS/MIGRATION_LEDGER_ORPHANS_2026-08-20.md:161-210
+• bcb/docs/REPORTS/MIGRATION_BYPASS_REAUDIT_2026-08-20.md:121-170
+    вызова. Любой, кто наберёт переменную окружения с любым непустым значением (в том числе случайно,
 • bcb/apps/webapp/scripts/run-webapp-drizzle-migrate.mjs:241-290
+• bcb/docs/REPORTS/MIGRATION_TIMESTAMP_FIX_2026-08-20.md:41-90
+• bcb/docs/REPORTS/MIGRATION_ORDER_AUDIT_2026-08-19.md:321-370
+• bcb/apps/webapp/drizzle.config.ts:1-50
+    import path from 'node:path';
+• bcb/docs/REPORTS/MIGRATION_LEDGER_RED_FIX_2026-08-20.md:81-130
+    20260819T182039_a_visitor_booking_spends_no_tariff_seat|556c698a61df
 • bcb/deploy/postgres/privileges/migration-order.mjs:1-50
+    /**
 • bcb/apps/webapp/scripts/check-drizzle-migration-order.sh:81-95
+    }
+• bcb/docs/REPORTS/AUDIT_MIGRATION_LEDGER_2026-08-20.md:41-90
+    # строки с tag IS NULL:
+• bcb/docs/REPORTS/MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md:241-290
+    $ cd bcb-wt-drop-patient-count-20260819
+• bcb/docs/REPORTS/MIGRATION_TIMESTAMP_FIX_2026-08-20.md:281-330
+    ### Побочная находка при откате: две загрязнённые ledger-строки (найдены и исправлены)
+• bcb/docs/REPORTS/MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md:81-130
+    ### (а) Новый файл со старым числовым именем — **FAIL, находка**
+• bcb/docs/REPORTS/MIGRATION_ORDER_AUDIT_2026-08-19.md:281-330
+    $ node …/migrate-local.mjs --drizzle-folder /tmp/audit-folder …
+• bcb/docs/REPORTS/AUDIT_MIGRATION_LEDGER_2026-08-20.md:81-130
+    run-webapp-drizzle-migrate.mjs    → "[migrate] migration_name_violation … 0099zz…"
 ```
 
 Команда измерения (включая обе разности):
