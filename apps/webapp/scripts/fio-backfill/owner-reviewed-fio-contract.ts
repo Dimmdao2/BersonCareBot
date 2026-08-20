@@ -21,6 +21,12 @@ export type OwnerReviewedFioManifestRow = {
   desiredAfter: FioNameState;
 };
 
+export type OwnerReviewedFioPreserveCurrentException = {
+  id: string;
+  exactCurrent: FioIdentityState;
+  reference: string;
+};
+
 /**
  * Owner ruling 2026-07-25 (B-8): the reviewed-ФИО apply must also be runnable during the SaaS
  * cutover, not only against TEST. The environment is part of the HASHED payload, so a TEST-approved
@@ -49,7 +55,7 @@ export type OwnerReviewedFioManifestPayload = {
   };
   exceptions: {
     expectedMissing: Array<{ id: string; reference: string }>;
-    preserveCurrent: Array<{ id: string; exactCurrent: FioIdentityState; reference: string }>;
+    preserveCurrent: OwnerReviewedFioPreserveCurrentException[];
   };
   rows: OwnerReviewedFioManifestRow[];
 };
@@ -82,13 +88,18 @@ export type OwnerReviewedFioRollbackArtifact = OwnerReviewedFioRollbackPayload &
 
 export type CurrentFioRow = FioIdentityState & { id: string };
 
+type FioManifestSubject = OwnerReviewedFioManifestRow | OwnerReviewedFioPreserveCurrentException;
+
 export type FioPlan = {
   updates: Array<{ manifest: OwnerReviewedFioManifestRow; current: CurrentFioRow }>;
   alreadyMatched: OwnerReviewedFioManifestRow[];
   expectedMissing: OwnerReviewedFioManifestRow[];
-  preservedCurrent: Array<{ manifest: OwnerReviewedFioManifestRow; current: CurrentFioRow }>;
-  unexpectedMissing: OwnerReviewedFioManifestRow[];
-  unexpectedDrift: Array<{ manifest: OwnerReviewedFioManifestRow; current: CurrentFioRow | null }>;
+  preservedCurrent: Array<{
+    manifest: FioManifestSubject;
+    current: CurrentFioRow;
+  }>;
+  unexpectedMissing: FioManifestSubject[];
+  unexpectedDrift: Array<{ manifest: FioManifestSubject; current: CurrentFioRow | null }>;
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -281,16 +292,16 @@ export function parseManifestPayload(value: unknown): OwnerReviewedFioManifestPa
     assertExactKeys(rawException, ['id', 'exactCurrent', 'reference'], label);
     assertUuid(rawException.id, `${label}.id`);
     assertNonEmptyString(rawException.reference, `${label}.reference`);
-    if (!rowIds.has(rawException.id)) throw new Error('manifest exception ID must exist in rows');
     if (exceptionIds.has(rawException.id))
       throw new Error('manifest contains duplicate exception IDs');
     exceptionIds.add(rawException.id);
     const exactCurrent = parseIdentityState(rawException.exactCurrent, `${label}.exactCurrent`);
-    const row = rows.find((candidate) => candidate.id === rawException.id)!;
-    if (sameIdentityState(exactCurrent, row.expectedBefore)) {
+    const row = rows.find((candidate) => candidate.id === rawException.id);
+    if (row && sameIdentityState(exactCurrent, row.expectedBefore)) {
       throw new Error('preserve-current exception must differ from expectedBefore');
     }
     if (
+      row &&
       sameNameState(exactCurrent, row.desiredAfter) &&
       exactCurrent.mergedIntoId === row.expectedBefore.mergedIntoId
     ) {
@@ -499,7 +510,28 @@ export function planManifest(
       plan.unexpectedDrift.push({ manifest: row, current });
     }
   }
+  const rowIds = new Set(manifest.rows.map((row) => row.id));
+  for (const exception of manifest.exceptions.preserveCurrent) {
+    if (rowIds.has(exception.id)) continue;
+    const current = byId.get(exception.id);
+    if (current && sameIdentityState(current, exception.exactCurrent)) {
+      plan.preservedCurrent.push({ manifest: exception, current });
+    } else if (!current) {
+      plan.unexpectedMissing.push(exception);
+    } else {
+      plan.unexpectedDrift.push({ manifest: exception, current });
+    }
+  }
   return plan;
+}
+
+export function manifestTargetIds(manifest: OwnerReviewedFioManifest): string[] {
+  return Array.from(
+    new Set([
+      ...manifest.rows.map((row) => row.id),
+      ...manifest.exceptions.preserveCurrent.map((exception) => exception.id),
+    ]),
+  );
 }
 
 export function enforceFailClosedPlan(plan: FioPlan): void {
@@ -526,7 +558,9 @@ export function assertTestTarget(
     throw new Error('DATABASE_URL must use PostgreSQL');
   }
   if (!isExactLocalFioTransport(parsed))
-    throw new Error('TEST FIO operation requires exact loopback TCP or local peer socket transport');
+    throw new Error(
+      'TEST FIO operation requires exact loopback TCP or local peer socket transport',
+    );
   const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
   if (urlDatabase !== 'bersoncarebot_test')
     throw new Error('DATABASE_URL must target bersoncarebot_test');
@@ -536,13 +570,20 @@ export function assertTestTarget(
 
 function isExactLocalFioTransport(parsed: URL): boolean {
   if (parsed.hostname === '127.0.0.1' && parsed.searchParams.size === 0) return true;
-  if (parsed.hostname !== '' || parsed.username !== '' || parsed.password !== '' || parsed.port !== '') {
+  if (
+    parsed.hostname !== '' ||
+    parsed.username !== '' ||
+    parsed.password !== '' ||
+    parsed.port !== ''
+  ) {
     return false;
   }
   const parameters = [...parsed.searchParams.entries()];
-  return parameters.length === 1
-    && parameters[0]?.[0] === 'host'
-    && parameters[0]?.[1] === '/var/run/postgresql';
+  return (
+    parameters.length === 1 &&
+    parameters[0]?.[0] === 'host' &&
+    parameters[0]?.[1] === '/var/run/postgresql'
+  );
 }
 
 export type FioApplyTargetOptions = {

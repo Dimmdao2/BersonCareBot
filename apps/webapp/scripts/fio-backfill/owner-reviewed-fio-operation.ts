@@ -6,6 +6,7 @@ import {
   buildRollbackArtifact,
   buildManifest,
   enforceFailClosedPlan,
+  manifestTargetIds,
   parseAndVerifyManifest,
   parseAndVerifyRollbackArtifact,
   planManifest,
@@ -150,7 +151,7 @@ export async function previewOwnerReviewedFio(
   manifest: OwnerReviewedFioManifest,
   db: FioDatabasePort,
 ) {
-  return planManifest(manifest, await db.readRows(manifest.rows.map((row) => row.id)));
+  return planManifest(manifest, await db.readRows(manifestTargetIds(manifest)));
 }
 
 export async function applyOwnerReviewedFio(
@@ -166,7 +167,7 @@ export async function applyOwnerReviewedFio(
   artifactSha256: string | null;
 }> {
   return db.transaction(async (tx) => {
-    const plan = planManifest(manifest, await tx.lockRows(manifest.rows.map((row) => row.id)));
+    const plan = planManifest(manifest, await tx.lockRows(manifestTargetIds(manifest)));
     enforceFailClosedPlan(plan);
     if (plan.updates.length === 0) return { plan, artifactPath: null, artifactSha256: null };
 
