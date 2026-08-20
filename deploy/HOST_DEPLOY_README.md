@@ -680,9 +680,6 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - `webapp.prod` не обязан дублировать cutover-переменные — URL для скриптов живут в `cutover.prod`;
 - preferred схема для cutover/gate — отдельный `cutover.prod`.
 
-`projection-health` не читает этот файл и не получает DB credentials. Он проверяет живой integrator через
-`{INTEGRATOR_API_URL}/health/projection` либо loopback (`PORT`, по умолчанию `127.0.0.1:3200`).
-
 ### Dev env
 
 Фактически на audited host:
@@ -875,10 +872,7 @@ sudo systemctl status \
 
 ```bash
 curl -s http://127.0.0.1:3200/health
-curl -s http://127.0.0.1:3200/health/projection
 curl -s http://127.0.0.1:6200/api/health
-# то же snapshot projection_outbox через webapp (прокси на integrator):
-curl -s http://127.0.0.1:6200/api/health/projection
 ```
 
 ### nginx

@@ -5,7 +5,6 @@ import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
-  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
 import type {
   HealthFailureArchiveClearBatchResult,
@@ -72,13 +71,6 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult> {
     return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE, input);
-  },
-
-  async archiveProjectionDeadBatch(input: {
-    limit: number;
-    archivedByUserId: string;
-  }): Promise<HealthFailureArchiveClearBatchResult> {
-    return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE, input);
   },
 
   async archiveOutgoingReminderDeadBatch(input: {

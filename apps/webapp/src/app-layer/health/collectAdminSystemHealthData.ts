@@ -19,7 +19,6 @@ import {
   type IntegrationsHealthSnapshot,
 } from '@/modules/operator-health/integrationHealthSnapshot';
 import { readProbeConsecutiveFailRuns } from '@/modules/operator-health/probeOutboundMeta';
-import { proxyIntegratorProjectionHealth } from '@/app-layer/health/proxyIntegratorProjectionHealth';
 import type {
   IntegratorPushOutboxHealthSnapshot,
   OperatorJobStatusTickRow,
@@ -59,19 +58,6 @@ const INTEGRATOR_TIMEOUT_MS = 8_000;
 
 type DbStatus = 'up' | 'down';
 type IntegratorApiStatus = 'ok' | 'unreachable' | 'error';
-type ProjectionStatus = 'ok' | 'degraded' | 'unreachable' | 'error';
-
-type ProjectionSnapshot = {
-  deadCount?: number;
-  pendingCount?: number;
-  processingCount?: number;
-  cancelledCount?: number;
-  oldestPendingAt?: string | null;
-  retryDistribution?: Record<number, number>;
-  retriesOverThreshold?: number;
-  lastSuccessAt?: string | null;
-} & Record<string, unknown>;
-
 type PreviewStatus = 'pending' | 'ready' | 'failed' | 'skipped';
 type PreviewMime = 'video/quicktime' | 'image/heic' | 'image/heif';
 type MediaPreviewStatus = 'ok' | 'degraded' | 'error';
@@ -235,7 +221,6 @@ export type IntegratorPushOutboxHealthPayload = IntegratorPushOutboxHealthSnapsh
 export type SystemHealthResponse = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
-  projection: { status: ProjectionStatus; snapshot?: ProjectionSnapshot };
   mediaCronWorkers: { status: 'configured' | 'not_configured' };
   mediaPreview: {
     status: MediaPreviewStatus;
@@ -284,7 +269,6 @@ export type SystemHealthResponse = {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
       integratorApi: { status: string; durationMs: number; errorCode?: string };
-      projection: { status: string; durationMs: number; errorCode?: string };
       mediaPreview: { status: string; durationMs: number; errorCode?: string };
       videoPlayback: { status: string; durationMs: number; errorCode?: string };
       videoPlaybackClient: { status: string; durationMs: number; errorCode?: string };
@@ -324,13 +308,6 @@ function asObject(value: unknown): Record<string, unknown> | null {
 
 function toDbStatus(value: unknown): DbStatus | undefined {
   return value === 'up' || value === 'down' ? value : undefined;
-}
-
-function toProjectionStatus(snapshot: ProjectionSnapshot): ProjectionStatus {
-  const deadCount = typeof snapshot.deadCount === 'number' ? snapshot.deadCount : 0;
-  const retriesOverThreshold =
-    typeof snapshot.retriesOverThreshold === 'number' ? snapshot.retriesOverThreshold : 0;
-  return deadCount > 0 || retriesOverThreshold > 0 ? 'degraded' : 'ok';
 }
 
 async function probeWebappDb(): Promise<ProbeResult<DbStatus>> {
@@ -386,46 +363,6 @@ async function probeIntegratorApi(): Promise<ProbeResult<{ status: 'ok'; db?: Db
       ok: false,
       status: 'unreachable',
       errorCode: 'integrator_health_unreachable',
-      durationMs: elapsedMs(startedAt),
-    };
-  }
-}
-
-async function probeProjection(): Promise<
-  ProbeResult<{ status: ProjectionStatus; snapshot?: ProjectionSnapshot }>
-> {
-  const startedAt = Date.now();
-  try {
-    const response = await proxyIntegratorProjectionHealth();
-    const payload = asObject(await response.json().catch(() => null));
-    if (payload == null) {
-      return {
-        ok: false,
-        status: 'error',
-        errorCode: 'projection_invalid_payload',
-        durationMs: elapsedMs(startedAt),
-      };
-    }
-    if (!response.ok) {
-      const code = typeof payload.error === 'string' ? payload.error : 'projection_probe_failed';
-      return {
-        ok: false,
-        status: code.includes('unreachable') ? 'unreachable' : 'error',
-        errorCode: code,
-        durationMs: elapsedMs(startedAt),
-      };
-    }
-    const snapshot = payload as ProjectionSnapshot;
-    return {
-      ok: true,
-      value: { status: toProjectionStatus(snapshot), snapshot },
-      durationMs: elapsedMs(startedAt),
-    };
-  } catch {
-    return {
-      ok: false,
-      status: 'error',
-      errorCode: 'projection_probe_exception',
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -794,7 +731,6 @@ function logProbe(
   probe:
     | 'webapp_db'
     | 'integrator_api'
-    | 'projection'
     | 'media_preview'
     | 'video_playback'
     | 'video_playback_client'
@@ -879,7 +815,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const [
     webappDb,
     integratorApi,
-    projection,
     mediaPreview,
     videoPlayback,
     videoPlaybackClient,
@@ -888,7 +823,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   ] = await Promise.allSettled([
     probeWebappDb(),
     probeIntegratorApi(),
-    probeProjection(),
     curatedResult.ok
       ? probeMediaPreview(curatedResult.value)
       : Promise.resolve<
@@ -940,10 +874,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       ? integratorApi.value
       : { ok: false, status: 'error', errorCode: 'integrator_probe_rejected', durationMs: 0 };
 
-  const projectionResult: ProbeResult<{ status: ProjectionStatus; snapshot?: ProjectionSnapshot }> =
-    projection.status === 'fulfilled'
-      ? projection.value
-      : { ok: false, status: 'error', errorCode: 'projection_probe_rejected', durationMs: 0 };
   const mediaPreviewResult: ProbeResult<{
     status: MediaPreviewStatus;
     stalePendingCount: number;
@@ -1239,12 +1169,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           ...(integratorApiResult.value.db ? { db: integratorApiResult.value.db } : {}),
         }
       : { status: integratorApiResult.status },
-    projection: projectionResult.ok
-      ? {
-          status: projectionResult.value.status,
-          ...(projectionResult.value.snapshot ? { snapshot: projectionResult.value.snapshot } : {}),
-        }
-      : { status: projectionResult.status },
     mediaCronWorkers: {
       status: env.INTERNAL_JOB_SECRET && isS3MediaEnabled(env) ? 'configured' : 'not_configured',
     },
@@ -1282,11 +1206,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           status: integratorApiResult.ok ? 'ok' : integratorApiResult.status,
           durationMs: integratorApiResult.durationMs,
           ...(integratorApiResult.ok ? {} : { errorCode: integratorApiResult.errorCode }),
-        },
-        projection: {
-          status: projectionResult.ok ? projectionResult.value.status : projectionResult.status,
-          durationMs: projectionResult.durationMs,
-          ...(projectionResult.ok ? {} : { errorCode: projectionResult.errorCode }),
         },
         mediaPreview: {
           status: mediaPreviewResult.ok
@@ -1379,7 +1298,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
 
   logProbe('webapp_db', webappDbResult, response.webappDb);
   logProbe('integrator_api', integratorApiResult, response.integratorApi.status);
-  logProbe('projection', projectionResult, response.projection.status);
   logProbe('media_preview', mediaPreviewResult, response.mediaPreview.status);
   logProbe('video_playback', videoPlaybackResult, response.videoPlayback.status);
   logProbe('video_playback_client', videoPlaybackClientResult, response.videoPlaybackClient.status);

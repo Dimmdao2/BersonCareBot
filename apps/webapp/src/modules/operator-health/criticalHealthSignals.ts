@@ -36,20 +36,12 @@ const OPERATOR_PROBE_FAILURE_ERROR_CLASSES = new Set([
 
 export type DbStatus = 'up' | 'down';
 export type IntegratorApiStatus = 'ok' | 'unreachable' | 'error';
-export type ProjectionProbeStatus = 'ok' | 'degraded' | 'unreachable' | 'error';
-
-export type CriticalHealthProjectionInput = {
-  probeStatus: ProjectionProbeStatus;
-  deadCount: number;
-  retriesOverThreshold: number;
-};
 
 export type VideoTranscodeHealthStatus = 'ok' | 'degraded' | 'error';
 
 export type CriticalHealthSignalsInput = {
   webappDb: DbStatus;
   integratorApi: IntegratorApiStatus;
-  projection: CriticalHealthProjectionInput;
   /**
    * `deadRecent` — а не `deadTotal` — решает, красить ли и будить ли. `deadTotal` терминален и
    * только растёт; порог по нему даёт баннер, который горит вечно и потому не сообщает ничего.
@@ -111,22 +103,9 @@ export function countActiveOutgoingDeliveryDead(
   return od.deadRecent ?? od.deadTotal;
 }
 
-export function isProjectionCritical(p: CriticalHealthProjectionInput): boolean {
-  if (p.probeStatus === 'unreachable' || p.probeStatus === 'error') return true;
-  if (p.deadCount > 0) return true;
-  return false;
-}
-
-export function isProjectionBannerWarn(p: CriticalHealthProjectionInput): boolean {
-  if (isProjectionCritical(p)) return true;
-  if (p.probeStatus === 'degraded' || p.retriesOverThreshold > 0) return true;
-  return false;
-}
-
 export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerInput): boolean {
   if (input.webappDb === 'down') return true;
   if (input.integratorApi !== 'ok') return true;
-  if (isProjectionBannerWarn(input.projection)) return true;
   if (input.videoTranscodeStatus === 'error') return true;
   if (Object.values(input.backupJobs).some((j) => j.lastStatus === 'failure')) return true;
   if (input.operatorIncidentsOpenCount > 0) return true;
@@ -336,26 +315,6 @@ export function classifyCriticalHealthSignals(
     });
   }
 
-  if (isProjectionCritical(input.projection)) {
-    const reason =
-      input.projection.probeStatus === 'unreachable' || input.projection.probeStatus === 'error'
-        ? input.projection.probeStatus
-        : input.projection.deadCount > 0
-          ? `dead:${input.projection.deadCount}`
-          : 'critical';
-    out.push({
-      topic: 'projection',
-      dedupKey: `critical:projection:${reason}`,
-      pushTitle: 'Критичный сбой: projection outbox',
-      lines: [
-        `Projection: ${input.projection.probeStatus}`,
-        ...(input.projection.deadCount > 0 ? [`dead: ${input.projection.deadCount}`] : []),
-        ...(input.projection.retriesOverThreshold > 0
-          ? [`retriesOverThreshold: ${input.projection.retriesOverThreshold}`]
-          : []),
-      ],
-    });
-  }
 
   const recentProviderIncidents = input.outboundDeliveryProvider?.recentIncidentCount ?? 0;
   const openProviderIncidents = input.outboundDeliveryProvider?.openIncidentCount ?? 0;

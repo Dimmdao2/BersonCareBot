@@ -11,7 +11,6 @@ import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
-  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   type HealthFailureArchiveProbe,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
 import { parseNotificationsTopics } from '@/modules/patient-notifications/notificationsTopics';
@@ -21,10 +20,6 @@ import {
   mergeOperatorHealthAlertConfigFromLegacy,
   type OperatorHealthAlertConfig,
 } from '@/modules/operator-alerts/operatorHealthAlertConfig';
-import {
-  parseOperatorHealthProjectionThresholds,
-  type OperatorHealthProjectionThresholds,
-} from '@/modules/operator-health/operatorHealthProjectionThresholds';
 import { parseOperatorAlertFallbackEmailSetting } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 import { RuntimeSettingUnavailableError } from '@/modules/system-settings/runtimeSettingUnavailable';
 
@@ -51,7 +46,7 @@ const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'patient_app_maintenance_message', 'patient_program_discussion_doctor_reply_from_log_enabled',
   'patient_program_discussion_ui_enabled', 'patient_program_discussion_media_submission_enabled',
   'patient_booking_url', 'operator_health_alert_config', 'admin_incident_alert_config',
-  'operator_alert_fallback_email', 'operator_health_projection_thresholds',
+  'operator_alert_fallback_email',
   'video_playback_api_enabled', 'video_default_delivery', 'video_hls_pipeline_enabled',
   'video_hls_new_uploads_auto_transcode', 'video_hls_reconcile_enabled', 'video_watermark_enabled',
   'video_presign_ttl_seconds', 'support_contact_url', 'app_display_timezone',
@@ -188,7 +183,6 @@ export function parseHealthArchiveProbeParam(
   if (
     s === HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE ||
     s === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE ||
-    s === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE ||
     s === HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE
   ) {
     return s;
@@ -217,7 +211,6 @@ export type AdminDiagnosticsSettings = {
   materialRatingsEnabled: boolean;
   operatorHealthAlertsConfig: OperatorHealthAlertConfig;
   operatorAlertFallbackEmail: string;
-  operatorHealthProjectionThresholds: OperatorHealthProjectionThresholds;
 };
 
 export type AdminSettingsPageData = {
@@ -387,10 +380,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       parseOperatorAlertFallbackEmailSetting(
         adminSettingsList.find((x) => x.key === 'operator_alert_fallback_email')?.valueJson ?? null,
       ) ?? '',
-    operatorHealthProjectionThresholds: parseOperatorHealthProjectionThresholds(
-      adminSettingsList.find((x) => x.key === 'operator_health_projection_thresholds')?.valueJson ??
-        null,
-    ),
   };
 
   return {
