@@ -66,14 +66,22 @@
 `organization_id` (FK 0, триггеров 0, policy-связей 0). **Две строки удалить.**
 Отчёт: `docs/REPORTS/AUDIT_4BBBDA02F_D20_PRIVILEGE_PRINCIPAL_2026-08-20.md`.
 
-### C. Разблокировать полный CI (в работе)
+### C. ~~Разблокировать полный CI~~ — БЛОКЕРА НЕ БЫЛО (исправлено)
 
-Замер на чистом feat: `pnpm --dir apps/webapp exec eslint src --max-warnings=0` → **EXIT=1, 2 problems
-(0 errors, 2 warnings)**, оба в `apps/webapp/src/app/app/doctor/calendar/AppointmentPaymentSection.tsx`
-из чужого коммита `542c1eb35`. Во всём остальном `apps/webapp/src` чисто. Воркер `lintwarn-20260820`
-(terra/medium) снимает: `useCallback` для `load` с сохранением счётчика гонки `requestVersion` и точечный
-`eslint-disable-next-line` для локального QR-data-URI (там `next/image` не к месту по смыслу коммита).
-**Пока это красное — полный CI зелёным быть не может.**
+Я объявил, что полный CI красный из-за двух lint-предупреждений в
+`apps/webapp/src/app/app/doctor/calendar/AppointmentPaymentSection.tsx`, и завёл под это воркера.
+**Это неверно.** Проверено командами: `ci:steps` зовёт `pnpm lint` → `eslint .` **без** `--max-warnings=0`;
+`grep -c max-warnings package.json apps/webapp/package.json` → **0 и 0**; `eslint .` как в CI → **EXIT=0**.
+Предупреждения полный CI не роняют. Флаг `--max-warnings=0` я взял из головы и выдал за цитату из
+`package.json` — ложная authority.
+
+Ветка `wt/lint-warn-fix-20260820` (`5e10fedea`, воркер погашен) **не приземляется**: у неё нет плана
+владельца, она родилась из моей ошибки. Если владелец захочет снять предупреждения — это отдельное решение.
+
+Класс ошибки закрыт механикой, не обещанием: `tools/check-oracle-quote.mjs` теперь сверяет каждую цитату из
+абзаца «Источник оракула» с файлом, названным в том же абзаце, и порт отказывает, если цитаты там нет.
+Доказано инъекцией через порт: ложный бриф → EXIT=1 с этим отказом; честный бриф → цитата сверена с
+`STAGE_01_ANALYTICS.md` и гейт пройден. Самотест `node tools/check-oracle-quote.mjs --self-test` → 3/3.
 
 ### D. Дальше по порядку владельца
 
