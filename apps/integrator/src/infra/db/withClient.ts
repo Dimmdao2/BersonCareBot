@@ -97,7 +97,6 @@ const allowedLockedInfraSources = new Set([
   'worker:direct-public-write-retry-tick',
   'worker:job-queue-drain',
   'worker:outgoing-delivery-tick',
-  'worker:projection-outbox-tick',
 ]);
 
 export type IntegratorTechnicalRuntimeRole =
@@ -110,7 +109,6 @@ const workerInfraSources = new Set([
   'worker:direct-public-write-retry-tick',
   'worker:job-queue-drain',
   'worker:outgoing-delivery-tick',
-  'worker:projection-outbox-tick',
 ]);
 const schedulerInfraSources = new Set([
   'scheduler:acquire-lock',
