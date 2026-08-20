@@ -24,7 +24,6 @@ import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
-  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
@@ -39,12 +38,10 @@ type ArchiveItem = {
   rawErrorTruncated: string | null;
 };
 
-/** Тип строки в таблице: queue_kind для outgoing, event_type для projection. */
+/** Тип строки в таблице: queue_kind для outgoing. */
 export function archiveRowTypeLabel(summary: Record<string, unknown>): string {
   const queueKind = summary.queue_kind;
   if (typeof queueKind === 'string' && queueKind.length > 0) return queueKind;
-  const eventType = summary.event_type;
-  if (typeof eventType === 'string' && eventType.length > 0) return eventType;
   return '—';
 }
 
@@ -141,9 +138,6 @@ export function HealthFailureArchiveSection({
                 </SelectItem>
                 <SelectItem value={HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}>
                   Синк в integrator
-                </SelectItem>
-                <SelectItem value={HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}>
-                  Синхронизация событий
                 </SelectItem>
                 <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}>
                   Напоминания (reminder_dispatch)

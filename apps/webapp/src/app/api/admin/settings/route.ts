@@ -57,7 +57,6 @@ import {
 import { normalizeAdminIncidentAlertConfigForAdminPatch } from '@/modules/admin-incidents/adminIncidentAlertConfig';
 import { normalizeOperatorHealthAlertConfigForAdminPatch } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import { normalizeOperatorAlertFallbackEmail } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
-import { normalizeOperatorHealthProjectionThresholdsForAdminPatch } from '@/modules/operator-health/operatorHealthProjectionThresholds';
 import { parseSmtpOutboundPatchValue } from '@/modules/system-settings/smtpOutboundPatch';
 import {
   hasStoredWebPushVapidPrivate,
@@ -189,7 +188,6 @@ const ADMIN_SCOPE_KEYS = [
   'operator_health_alert_config',
   'operator_alert_fallback_email',
   'operator_health_probe_config',
-  'operator_health_projection_thresholds',
   'operator_heartbeat_config',
   ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
 ] as const;
@@ -851,15 +849,6 @@ export async function PATCH(request: Request) {
         { ok: false, error: `operator_alert_fallback_email_${checked.error}`, message },
         { status: 400 },
       );
-    }
-    normalizedValue = { value: checked.value };
-  }
-
-  if (parsed.data.key === 'operator_health_projection_thresholds') {
-    const inner = normalizedValue.value;
-    const checked = normalizeOperatorHealthProjectionThresholdsForAdminPatch(inner);
-    if (!checked.ok) {
-      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: checked.value };
   }

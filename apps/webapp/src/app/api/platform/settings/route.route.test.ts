@@ -37,7 +37,10 @@ const session = {
   },
 };
 
-function setting(key: 'telegram_bot_token' | 'telegram_webhook_secret', value: string) {
+function setting(
+  key: 'telegram_bot_token' | 'telegram_webhook_secret' | 'telegram_mode',
+  value: string,
+) {
   return {
     key,
     scope: 'admin' as const,
@@ -90,19 +93,23 @@ describe('/api/platform/settings Telegram credentials', () => {
     });
   });
 
-  it('accepts both Telegram secret keys and still rejects an unknown key', async () => {
+  it('accepts Telegram settings and still rejects an unknown key', async () => {
     const token = 'new-telegram-token';
     const webhookSecret = 'new-telegram-webhook-secret';
+    const telegramMode = 'long_polling';
     fakes.updateSetting
       .mockResolvedValueOnce(setting('telegram_bot_token', token))
-      .mockResolvedValueOnce(setting('telegram_webhook_secret', webhookSecret));
+      .mockResolvedValueOnce(setting('telegram_webhook_secret', webhookSecret))
+      .mockResolvedValueOnce(setting('telegram_mode', telegramMode));
 
     const tokenResponse = await patch({ key: 'telegram_bot_token', value: ` ${token} ` });
     const webhookResponse = await patch({ key: 'telegram_webhook_secret', value: webhookSecret });
+    const modeResponse = await patch({ key: 'telegram_mode', value: telegramMode });
     const unknownResponse = await patch({ key: 'not_a_platform_setting', value: true });
 
     expect(tokenResponse.status).toBe(200);
     expect(webhookResponse.status).toBe(200);
+    expect(modeResponse.status).toBe(200);
     expect(await tokenResponse.text()).not.toContain(token);
     expect(await webhookResponse.text()).not.toContain(webhookSecret);
     expect(fakes.updateSetting).toHaveBeenNthCalledWith(
@@ -110,6 +117,14 @@ describe('/api/platform/settings Telegram credentials', () => {
       'telegram_bot_token',
       'admin',
       { value: token },
+      session.user.userId,
+      { organizationId: null },
+    );
+    expect(fakes.updateSetting).toHaveBeenNthCalledWith(
+      3,
+      'telegram_mode',
+      'admin',
+      { value: telegramMode },
       session.user.userId,
       { organizationId: null },
     );
@@ -123,6 +138,6 @@ describe('/api/platform/settings Telegram credentials', () => {
     );
     expect(unknownResponse.status).toBe(400);
     await expect(unknownResponse.json()).resolves.toEqual({ ok: false, error: 'invalid_body' });
-    expect(fakes.updateSetting).toHaveBeenCalledTimes(2);
+    expect(fakes.updateSetting).toHaveBeenCalledTimes(3);
   });
 });

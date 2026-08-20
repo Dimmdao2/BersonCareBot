@@ -12,8 +12,6 @@ async function start() {
   const { assertApiIsolationTelemetryWriterReady } =
     await import('./infra/observability/saasIsolationTelemetry.js');
   const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
-  const { assertIntegratorDiagnosticPoolReady } =
-    await import('./infra/db/operationalPoolReadiness.js');
   const { createDbPort } = await import('./infra/db/client.js');
   const { buildApp } = await import('./app/index.js');
   const { env } = await import('./config/env.js');
@@ -26,7 +24,6 @@ async function start() {
 
   await runStartupMigrationGate();
   await assertApiIsolationTelemetryWriterReady();
-  await assertIntegratorDiagnosticPoolReady();
   const app = await buildApp();
   await app.listen({
     port: env.PORT,

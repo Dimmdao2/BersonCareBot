@@ -1282,12 +1282,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     reason: 'critical mechanic (patient_diaries) — never tariff-gated',
   },
   {
-    file: 'src/app/api/integrator/events/route.ts',
-    exportName: 'POST',
-    reason:
-      'critical mechanic (patient_diaries) — never tariff-gated; diary write handlers live in handleIntegratorEvent',
-  },
-  {
     file: 'src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts',
     exportName: 'GET',
     reason: 'read/download route',

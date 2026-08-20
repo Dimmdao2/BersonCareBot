@@ -35,7 +35,6 @@ import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
-  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
@@ -56,19 +55,6 @@ type HealthOperatorAction =
 
 type DbStatus = 'up' | 'down';
 type IntegratorApiStatus = 'ok' | 'unreachable' | 'error';
-type ProjectionStatus = 'ok' | 'degraded' | 'unreachable' | 'error';
-
-type ProjectionSnapshot = {
-  deadCount?: number;
-  pendingCount?: number;
-  processingCount?: number;
-  cancelledCount?: number;
-  oldestPendingAt?: string | null;
-  retryDistribution?: Record<number, number>;
-  retriesOverThreshold?: number;
-  lastSuccessAt?: string | null;
-} & Record<string, unknown>;
-
 type PreviewStatus = 'pending' | 'ready' | 'failed' | 'skipped';
 type PreviewMime = 'video/quicktime' | 'image/heic' | 'image/heif';
 type MediaPreviewStatus = 'ok' | 'degraded' | 'error';
@@ -77,7 +63,6 @@ type MediaPreviewCounters = Record<PreviewMime, Record<PreviewStatus, number>>;
 type SystemHealthPayload = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
-  projection: { status: ProjectionStatus; snapshot?: ProjectionSnapshot };
   mediaCronWorkers: { status: 'configured' | 'not_configured' };
   mediaPreview: {
     status: MediaPreviewStatus;
@@ -295,7 +280,6 @@ type SystemHealthPayload = {
     probes?: {
       webappDb?: { status: string; durationMs: number; errorCode?: string };
       integratorApi?: { status: string; durationMs: number; errorCode?: string };
-      projection?: { status: string; durationMs: number; errorCode?: string };
       mediaPreview?: { status: string; durationMs: number; errorCode?: string };
       videoPlayback?: { status: string; durationMs: number; errorCode?: string };
       videoPlaybackClient?: { status: string; durationMs: number; errorCode?: string };
@@ -428,26 +412,9 @@ export function computeWorkerStatus(payload: SystemHealthPayload | null): {
   }
 
   const api = payload.integratorApi.status === 'ok' ? 'active' : 'down';
-  const lastSuccessAt = payload.projection.snapshot?.lastSuccessAt;
-  const pendingCount = payload.projection.snapshot?.pendingCount ?? 0;
-  const processingCount = payload.projection.snapshot?.processingCount ?? 0;
-  const queueEmpty = pendingCount === 0 && processingCount === 0;
-
-  if (queueEmpty) {
-    return { api, worker: 'idle', webapp: 'running' };
-  }
-
-  if (!lastSuccessAt) {
-    return { api, worker: 'no_signal', webapp: 'running' };
-  }
-  const ageMs = Date.now() - new Date(lastSuccessAt).getTime();
-  if (!Number.isFinite(ageMs) || ageMs < 0) {
-    return { api, worker: 'no_signal', webapp: 'running' };
-  }
-  const fortyMinutesMs = 40 * 60 * 1000;
   return {
     api,
-    worker: ageMs <= fortyMinutesMs ? 'active' : 'no_activity',
+    worker: api === 'active' ? 'active' : 'no_signal',
     webapp: 'running',
   };
 }
@@ -923,15 +890,6 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
     ? 'playback_disabled'
     : (data?.videoHlsProxy?.status ?? 'error');
   const transcodeAccordionStatus = data?.videoTranscode?.status ?? 'error';
-  const projection = data?.projection.snapshot;
-  const queuePending = projection?.pendingCount ?? 0;
-  const queueProcessing = projection?.processingCount ?? 0;
-  const queueDead = projection?.deadCount ?? 0;
-  const queueCancelled = projection?.cancelledCount ?? 0;
-  const queueRetries = projection?.retriesOverThreshold ?? 0;
-  const lastSuccess = projection?.lastSuccessAt ?? null;
-  const oldestPending = projection?.oldestPendingAt ?? null;
-  const queueEmpty = queuePending === 0 && queueProcessing === 0;
   const openOperatorIncidents = data?.operatorIncidents ?? {
     openCount: 0,
     occurrenceCount: 0,
@@ -1299,81 +1257,11 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Очереди и воркеры
             </p>
-            <HealthAccordionItem
-              name="Синхронизация событий"
-              status={data?.projection.status ?? 'error'}
-            >
-              <DetailRow
-                label="Итог"
-                value={
-                  data?.projection.status === 'ok'
-                    ? 'Очередь в норме'
-                    : data?.projection.status === 'degraded'
-                      ? 'Есть отложенные или проблемные записи'
-                      : 'Проба недоступна или ошибочна'
-                }
-              />
-              <DetailRow
-                label="Смысл"
-                value="Это не доставка уведомлений пользователю. Это внутренняя синхронизация событий между integrator и webapp."
-              />
-              <DetailRow
-                label="Ждут обработки / обрабатываются сейчас"
-                value={queueEmpty ? 'Очередь пуста' : `${queuePending} / ${queueProcessing}`}
-              />
-              <DetailRow label="Ошибок без повтора (dead)" value={String(queueDead)} />
-              <p className="text-[11px] text-muted-foreground">
-                dead: задачи, которые окончательно упали и больше не повторяются
-              </p>
-              <DetailRow label="Отменено (cancelled)" value={String(queueCancelled)} />
-              <p className="text-[11px] text-muted-foreground">
-                cancelled: задачи, отменённые системой
-              </p>
-              <DetailRow label="Повторов сверх порога" value={String(queueRetries)} />
-              <p className="text-[11px] text-muted-foreground">
-                retries exhausted: задачи, у которых закончились попытки повторной обработки
-              </p>
-              <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
-              <DetailRow label="Самая старая задача ждёт с" value={formatDateTime(oldestPending)} />
-              {queueDead > 0 ? (
-                <div className="pt-3">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      setClearError(null);
-                      setOperatorAction({
-                        kind: 'archive',
-                        probe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
-                      });
-                    }}
-                  >
-                    Заархивировать и сбросить dead
-                  </Button>
-                </div>
-              ) : null}
-              <ProbeInfo probe={data?.meta?.probes?.projection} />
-            </HealthAccordionItem>
-
             <HealthAccordionItem name="Фоновая обработка интеграций" status={workers.worker}>
               <DetailRow label="Итог" value={workerLabel(workers.worker)} />
               <DetailRow
                 label="Смысл"
-                value="Оценка по последнему успеху и текущей очереди outbox; не равна статусу systemd."
-              />
-              <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
-              <DetailRow
-                label="Текущая очередь"
-                value={
-                  queueEmpty
-                    ? 'Очередь пуста'
-                    : `ждут: ${queuePending}, в работе: ${queueProcessing}`
-                }
-              />
-              <DetailRow
-                label="Порог «активен»"
-                value="успех не старше 40 минут при непустой очереди"
+                value="Доступность API integrator; не равна статусу systemd воркера."
               />
             </HealthAccordionItem>
 
@@ -2345,12 +2233,6 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
               Архив: очередь синка в integrator
             </Link>
             <Link
-              href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}`}
-              className="text-foreground underline underline-offset-2"
-            >
-              Архив: синхронизация событий
-            </Link>
-            <Link
               href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}`}
               className="text-foreground underline underline-offset-2"
             >
@@ -2383,9 +2265,7 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
                 ? 'Закроет все открытые инциденты. Повторные алерты не отправляются.'
                 : operatorAction?.kind === 'acknowledge_incidents'
                   ? 'Остановит критические повторы. Инцидент останется красным и попадёт в ежедневную сводку до закрытия.'
-                  : operatorAction?.probe === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE
-                    ? 'Удалит dead из очереди синхронизации; копия в архиве. Это не повторная постановка в очередь.'
-                    : `Необратимо удалит dead-строки из очереди; копия останется в архиве до ${HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дней. Задачи due и журнал рассылок не пересчитываются.`}
+                  : `Необратимо удалит dead-строки из очереди; копия останется в архиве до ${HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дней. Задачи due и журнал рассылок не пересчитываются.`}
             </DialogDescription>
           </DialogHeader>
           {clearError ? (

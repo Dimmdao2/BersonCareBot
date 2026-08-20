@@ -240,12 +240,6 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 `/api/auth/exchange`, `/api/auth/telegram-init`, **`/api/auth/max-init`**, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, **`/api/auth/phone/messenger-bind/start`**, **`/api/auth/phone/messenger-bind/status`**, **`/api/auth/phone/messenger-bind/finish`**, **`/api/integrator/phone-messenger-bind/complete`**, `/api/auth/channel-link/start`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET). Пациентский контур: `POST /api/patient/support` (см. выше).
 
-## Integrator → webapp: идемпотентность `POST /api/integrator/events`
-
-Наблюдаемость и поля успеха/отказа для M2M (`ok === true` в JSON при 200/202), а также логи TX-привязки телефона в интеграторе — в `apps/webapp/INTEGRATOR_CONTRACT.md` (раздел Contract Principles → Observability) и `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/STAGE_05_OBSERVABILITY_TESTS_DOCS.md`.
-
-Ключ в таблице **`idempotency_keys`** строится от **семантического** тела события: из JSON убираются поля, не меняющие смысл доставки (в т.ч. верхнеуровневый `occurredAt` и дублирующий `idempotencyKey` внутри body), затем стабильная сериализация и хеш. Повтор с тем же смыслом после успешной обработки отдаёт **кэшированный ответ**; расхождение смысла при том же внешнем ключе — **409**. Если клиент добавляет **новые** верхнеуровневые поля к событию, они участвуют в хеше — возможен ложный конфликт, пока формат не стабилизирован.
-
 ## Integrator → webapp: опциональный `POST /api/integrator/messenger-phone/bind`
 
 Только для **внешнего** M2M-клиента (другой сервис, админка): та же каноническая транзакция привязки `public.platform_users` / `public.user_channel_bindings`, что **`user.phone.link`** в integrator, подпись **`x-bersoncare-timestamp` / `x-bersoncare-signature`**, обязательный **`x-bersoncare-idempotency-key`**. Семантический хеш для кеша успешного ответа — поля **`channelCode`**, **`externalId`**, **`phoneNormalized`** (`apps/webapp/src/infra/idempotency/messengerPhoneBindRequestHash.ts`). При **одной БД** сценарии бота **не** вызывают этот URL — привязка идёт через `user.phone.link` в процессе integrator. Контракт и коды ответов: `apps/webapp/INTEGRATOR_CONTRACT.md`, этап: `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`.

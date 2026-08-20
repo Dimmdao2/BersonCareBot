@@ -318,15 +318,6 @@ export type GatewayResult =
 /** Совместимый алиас прежнего имени dispatch-контракта. */
 export type OutgoingDispatcher = DispatchPort;
 
-/** Payload for POST /api/integrator/events (webapp contract). */
-export type WebappEventBody = {
-  eventType: string;
-  eventId?: string;
-  occurredAt?: string;
-  idempotencyKey?: string;
-  payload?: Record<string, unknown>;
-};
-
 export type SupportQuestionCanonicalWrite = {
   organizationId: string;
   questionId: string;
@@ -340,7 +331,6 @@ export type SupportDeliveryCanonicalWrite = {
 
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
-  emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
   wakeOperatorHealthDigest?(input: {
     wakeId: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
@@ -390,13 +380,6 @@ export type WebappEventsPort = {
     error?: string;
     current?: boolean;
     inserted?: number;
-  }>;
-  /** Единый webapp-thread: сообщение пациента из бота (POST /api/integrator/support/sync-user-message). */
-  syncSupportUserMessage?(input: { body: string; idempotencyKey: string }): Promise<{
-    ok: boolean;
-    status: number;
-    error?: string;
-    canonicalWrite?: { conversationId: string; organizationId: string };
   }>;
   /** Ответ врача из admin_reply для `webapp:platform:{uuid}` (POST /api/integrator/support/admin-reply). */
   applySupportAdminReply?(input: {
