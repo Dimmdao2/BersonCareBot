@@ -1,5 +1,9 @@
 \set ON_ERROR_STOP on
 
+-- Keep the history carry inside the canonical cutover entrypoint as well as the explicit
+-- pre-assertion data stage. Its deterministic key makes this second invocation a no-op.
+\ir prod-to-target-carry-legacy-appointments.sql
+
 BEGIN;
 SET LOCAL lock_timeout = '10s';
 SET LOCAL statement_timeout = '0';
