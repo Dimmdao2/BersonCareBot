@@ -112,6 +112,26 @@ describe('registration tariff policy archive wall', () => {
       'tariff_used_by_registration_tariff_policy',
     );
   });
+
+  // Owner 20.08 removed the downgrade controls from the constructor, not the backend lifecycle.
+  // Breakage: an ordinary save omits the hidden field and silently replaces its persisted policy
+  // with `{}`, changing whether a later downgrade is allowed.
+  it('preserves the stored downgrade lifecycle when the commercial UI omits that field', async () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    const audit = { actorId: 'admin', reason: 'edit visible tariff fields' };
+    const tariff = await service.createTariff(
+      { ...tariffInput, downgradePolicies: { branches: 'freeze_growth' } },
+      audit,
+    );
+    const { downgradePolicies: _hiddenField, ...visibleTariffInput } = {
+      ...tariffInput,
+      name: 'Registration tariff renamed',
+    };
+
+    const updated = await service.updateTariff(tariff.id, visibleTariffInput, audit);
+
+    expect(updated.downgradePolicies).toEqual({ branches: 'freeze_growth' });
+  });
 });
 
 const unconfiguredPolicies = {
