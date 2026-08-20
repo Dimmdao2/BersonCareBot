@@ -22,6 +22,7 @@
     "app.delete_current_patient_reminder_rule",
     "app.delete_current_patient_symptom_entry",
     "app.enqueue_current_reminder_rule_push",
+    "app.enqueue_integrator_outgoing_delivery",
     "app.enqueue_operator_health_digest_delivery",
     "app.enqueue_outbound_message",
     "app.enrich_current_patient_program_completion",

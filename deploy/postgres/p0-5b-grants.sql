@@ -58,7 +58,6 @@ VALUES
   ('integrator', 'delivery_attempt_logs'),
   ('integrator', 'idempotency_keys'),
   ('integrator', 'integration_data_quality_incidents'),
-  ('integrator', 'projection_outbox'),
   ('integrator', 'user_reminder_delivery_logs'),
   ('integrator', 'user_reminder_occurrences'),
   ('public', 'admin_audit_log'),

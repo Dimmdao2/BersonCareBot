@@ -1933,9 +1933,6 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           + (SELECT count(*) FROM integrator_push_outbox
             WHERE idempotency_key LIKE 'saas-fixture:%'
                OR payload::text LIKE '%saas_test_walkthrough%')
-          + (SELECT count(*) FROM integrator.projection_outbox
-            WHERE idempotency_key LIKE 'saas-fixture:%'
-               OR payload::text LIKE '%saas_test_walkthrough%')
         )::int AS fixture_outbox_count
     `);
     const safeProof = safeSurfaceProof.rows[0];

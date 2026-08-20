@@ -874,11 +874,6 @@ const TABLE_ROWS: TableRow[] = [
     revoke: { app_staff: 'D14: raw_value может содержать исходное значение поля пациента или филиала.' },
     pol: 'по смыслу клиническая стена (инцидент принадлежит интеграции конкретной клиники), но organization_id нет; '
     + 'при 3 строках приоритет низкий (evidence/15 §19).', defect: ['D14-integrator-no-wall'] },
-  { t: 'integrator.projection_outbox', cls: 'S', org: false, why: 'очередь проекций событий в webapp — события '
-    + 'интегратора перестают доезжать в webapp',
-    revoke: { app_staff: 'D14: payload несёт события по конкретным пациентам и записям.' },
-    pol: 'приоритет понижен — ставить после переезда поддержки, когда ясен остаточный состав событий (evidence/15 '
-    + '§15).', defect: ['D14-integrator-no-wall'] },
   { t: 'integrator.question_messages', cls: 'P', why: 'сообщения внутри вопроса — обрывается нитка ответа на вопрос',
     defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало '
@@ -2306,10 +2301,6 @@ const REV10_CONTEXT = {
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'migration.ledger.read', functionIdentity: 'app.read_integrator_migration_ledger()',
       runtimeSources: INTEGRATOR_MIGRATION_LEDGER_SOURCES },
-    integrator_projection_health_read: { port: 'integrator', runtimeName: 'projection_health',
-      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
-      purpose: 'integrator.projection-health.read',
-      functionIdentity: 'app.read_integrator_projection_health(integer)' },
     integrator_provider_runtime_setting_read: { port: 'integrator', runtimeName: 'provider_runtime_setting',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'config.integrator-provider.read',
@@ -2329,10 +2320,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'integrator.reminder-occurrence-finalized.record',
       functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
-    integrator_inbound_reply_enqueue: { port: 'integrator', runtimeName: 'inbound_reply_enqueue',
+    integrator_outgoing_delivery_enqueue: { port: 'integrator', runtimeName: 'outgoing_delivery_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
-      contextClass: 'service', purpose: 'delivery.inbound-reply.enqueue',
-      functionIdentity: 'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)' },
+      contextClass: 'service', purpose: 'delivery.outgoing.enqueue',
+      functionIdentity: 'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)' },
     integrator_webhook_outcome_record: { port: 'integrator', runtimeName: 'webhook_outcome_record',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'integrator.webhook-outcome.record',
@@ -3324,15 +3315,15 @@ const REV10_CONTEXT = {
         'app_tenant_service',
       ],
     },
-    'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)': rev10Function({
+    'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
-      execute: ['app_operational_delivery_worker'], purpose: 'enqueue one failed accepted-event messenger reply',
-      typedArgs: ['text', 'text', 'text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      execute: ['app_operational_delivery_worker'], purpose: 'enqueue one integrator-owned outgoing delivery',
+      typedArgs: ['text', 'text', 'text', 'text', 'integer', 'timestamp with time zone', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
         columns: ['event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts',
           'next_retry_at', 'organization_id'], operations: ['SELECT' as const, 'INSERT' as const],
-        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0410' as const }],
+        evidence: 'exact INSERT ON CONFLICT(event_id) in D20 parameterized enqueue root' as const }],
     }),
     // The single declared enqueue root for outbound messages (owner ruling 19.08: one universal
     // mechanism taking a context, not one function per message kind). Runtime roles get EXECUTE
@@ -4270,15 +4261,6 @@ const REV10_CONTEXT = {
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.schema_migrations', columns: ['version', 'applied_at'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
-    }),
-    'app.read_integrator_projection_health(integer)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_service'],
-      purpose: 'return only aggregate projection-delivery health without exposing event payloads',
-      typedArgs: ['integer'], volatility: 'STABLE', parallel: 'RESTRICTED',
-      proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
-      relationSurfaces: [{ relation: 'integrator.projection_outbox',
-        columns: ['status', 'next_try_at', 'attempts_done', 'updated_at'], operations: ['SELECT' as const],
-        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.list_integration_webhook_burst_signals(integer,integer)': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_worker'],
@@ -5917,10 +5899,6 @@ const REV10_CONTEXT = {
         { relation: 'public.integrator_push_outbox', columns: ['id', 'kind', 'status', 'last_error',
           'created_at'], operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'integrator.projection_outbox', columns: ['id', 'event_type', 'idempotency_key',
-          'status', 'attempts_done', 'last_error', 'created_at'],
-          operations: ['SELECT' as const, 'DELETE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.operator_health_failure_archive', columns: ['organization_id', 'archived_by_user_id',
           'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json',
           'raw_error_truncated'],
@@ -6672,17 +6650,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/app/api/doctor/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
-    ],
-  },
-  'integrator.projection_outbox': {
-    kind: 'direct', purpose: 'enqueue projections in request transactions and drain them in the dedicated worker',
-    codePaths: ['apps/integrator/src/infra/db/repos/projectionOutbox.ts', 'apps/integrator/src/infra/runtime/worker/projectionWorker.ts'],
-    grants: [
-      { role: 'app_integrator_request', operations: ['INSERT'],
-        columns: ['event_type', 'idempotency_key', 'occurred_at', 'payload'] },
-      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
-        columns: ['status', 'updated_at', 'attempts_done', 'next_try_at', 'last_error'] },
     ],
   },
   'integrator.direct_public_write_retries': {

@@ -8,7 +8,6 @@
  * sanitized context when a send has no queue row (D10a canonical journal).
  */
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DbPort, DbWriteMutation, DbWritePort } from '../../../kernel/contracts/index.js';
 import { createOperatorAwareDeliveryAttemptWritePort } from '../../runtime/worker/operatorDeliveryAttemptWritePort.js';
@@ -23,17 +22,24 @@ import { runIntegratorSql } from '../runIntegratorSql.js';
 const enabled =
   process.env.RUN_OPERATOR_DELIVERY_ATTEMPT_TEST === '1' &&
   process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.INTEGRATOR_DB_URL ?? process.env.DATABASE_URL ?? '').trim()) &&
-  Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
+  process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' &&
+  Boolean((process.env.INTEGRATOR_DB_URL ?? '').trim());
 
 const TEST_FIXTURE_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
 
 describe.skipIf(!enabled)(
   'createOperatorAwareDeliveryAttemptWritePort (opt-in, real Postgres)',
   () => {
-    const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
+    const harness = createRealPostgresIntegrationTestHarness(
+      'worker:outgoing-delivery-tick',
+      'port-context',
+    );
     const writtenQueueEventIds: string[] = [];
     const writtenLogEventIds: string[] = [];
+
+    function sqlLiteral(value: string): string {
+      return `'${value.replaceAll("'", "''")}'`;
+    }
 
     function createWorkerShapedWritePort(db: DbPort): DbWritePort {
       const tenantWritePort: DbWritePort = {
@@ -62,19 +68,19 @@ describe.skipIf(!enabled)(
           },
         },
       };
-      await harness.withFixtures((db) =>
-        runIntegratorSql(
-          db,
-          sql`INSERT INTO public.outgoing_delivery_queue (
-            event_id, organization_id, kind, channel, payload_json,
-            status, attempt_count, max_attempts, next_retry_at
-          ) VALUES (
-            ${eventId}, ${input.organizationId ?? null}::uuid, ${input.kind}, ${input.channel},
-            ${JSON.stringify(payload)}::jsonb,
-            'sent', 1, 6, now()
-          )`,
-        ),
-      );
+      const organizationId = input.organizationId === undefined
+        ? 'NULL'
+        : `${sqlLiteral(input.organizationId)}::uuid`;
+      harness.withAdminSocket(`
+        INSERT INTO public.outgoing_delivery_queue (
+          event_id, organization_id, kind, channel, payload_json,
+          status, attempt_count, max_attempts, next_retry_at
+        ) VALUES (
+          ${sqlLiteral(eventId)}, ${organizationId}, ${sqlLiteral(input.kind)},
+          ${sqlLiteral(input.channel)}, ${sqlLiteral(JSON.stringify(payload))}::jsonb,
+          'sent', 1, 6, now()
+        );
+      `);
       return eventId;
     }
 
@@ -136,16 +142,16 @@ describe.skipIf(!enabled)(
     async function readLoggedAttempts(
       eventId: string,
     ): Promise<{ status: string; attempt: number; kind: unknown }[]> {
-      const result = await harness.withFixtures((db) =>
-        runIntegratorSql<{ status: string; attempt: number; kind: unknown }>(
-          db,
-          sql`SELECT status, (metadata->>'attempt')::int AS attempt, intent_type AS kind
-              FROM public.notification_delivery_attempts
-              WHERE event_id = ${eventId}
-              ORDER BY (metadata->>'attempt')::int`,
-        ),
-      );
-      return result.rows;
+      const raw = harness.withAdminSocket(`
+        SELECT json_agg(row_to_json(attempt) ORDER BY attempt.attempt)::text
+        FROM (
+          SELECT status, (metadata->>'attempt')::int AS attempt, intent_type AS kind
+          FROM public.notification_delivery_attempts
+          WHERE event_id = ${sqlLiteral(eventId)}
+          ORDER BY (metadata->>'attempt')::int
+        ) AS attempt;
+      `);
+      return (JSON.parse(raw) as { status: string; attempt: number; kind: unknown }[] | null) ?? [];
     }
 
     async function readQueueBackedContext(eventId: string): Promise<
@@ -157,26 +163,23 @@ describe.skipIf(!enabled)(
         queueSource: boolean | null;
       }[]
     > {
-      const result = await harness.withFixtures((db) =>
-        runIntegratorSql<{
-          organizationId: string | null;
-          intentType: string | null;
-          topicCode: string | null;
-          integratorUserId: string | null;
-          queueSource: boolean | null;
-        }>(
-          db,
-          sql`SELECT
-                organization_id::text AS "organizationId",
-                intent_type AS "intentType",
-                topic_code AS "topicCode",
-                integrator_user_id AS "integratorUserId",
-                (metadata->>'queueSource')::boolean AS "queueSource"
-              FROM public.notification_delivery_attempts
-              WHERE event_id = ${eventId}`,
-        ),
-      );
-      return result.rows;
+      const raw = harness.withAdminSocket(`
+        SELECT json_agg(row_to_json(attempt))::text
+        FROM (
+          SELECT organization_id::text AS "organizationId", intent_type AS "intentType",
+                 topic_code AS "topicCode", integrator_user_id AS "integratorUserId",
+                 (metadata->>'queueSource')::boolean AS "queueSource"
+          FROM public.notification_delivery_attempts
+          WHERE event_id = ${sqlLiteral(eventId)}
+        ) AS attempt;
+      `);
+      return (JSON.parse(raw) as {
+        organizationId: string | null;
+        intentType: string | null;
+        topicCode: string | null;
+        integratorUserId: string | null;
+        queueSource: boolean | null;
+      }[] | null) ?? [];
     }
 
     async function readLoggedAttemptContext(eventId: string): Promise<
@@ -187,24 +190,22 @@ describe.skipIf(!enabled)(
         queueSource: boolean | null;
       }[]
     > {
-      const result = await harness.withFixtures((db) =>
-        runIntegratorSql<{
-          organizationId: string | null;
-          intentType: string | null;
-          correlationId: string | null;
-          queueSource: boolean | null;
-        }>(
-          db,
-          sql`SELECT
-                organization_id::text AS "organizationId",
-                intent_type AS "intentType",
-                metadata->>'correlationId' AS "correlationId",
-                (metadata->>'queueSource')::boolean AS "queueSource"
-              FROM public.notification_delivery_attempts
-              WHERE event_id = ${eventId}`,
-        ),
-      );
-      return result.rows;
+      const raw = harness.withAdminSocket(`
+        SELECT json_agg(row_to_json(attempt))::text
+        FROM (
+          SELECT organization_id::text AS "organizationId", intent_type AS "intentType",
+                 metadata->>'correlationId' AS "correlationId",
+                 (metadata->>'queueSource')::boolean AS "queueSource"
+          FROM public.notification_delivery_attempts
+          WHERE event_id = ${sqlLiteral(eventId)}
+        ) AS attempt;
+      `);
+      return (JSON.parse(raw) as {
+        organizationId: string | null;
+        intentType: string | null;
+        correlationId: string | null;
+        queueSource: boolean | null;
+      }[] | null) ?? [];
     }
 
     beforeAll(async () => {
@@ -212,20 +213,16 @@ describe.skipIf(!enabled)(
     });
 
     afterAll(async () => {
-      await harness.withFixtures(async (db) => {
-        for (const eventId of writtenQueueEventIds) {
-          await runIntegratorSql(
-            db,
-            sql`DELETE FROM public.outgoing_delivery_queue WHERE event_id = ${eventId}`,
-          );
-        }
-        for (const eventId of writtenLogEventIds) {
-          await runIntegratorSql(
-            db,
-            sql`DELETE FROM public.notification_delivery_attempts WHERE event_id = ${eventId}`,
-          );
-        }
-      });
+      for (const eventId of writtenQueueEventIds) {
+        harness.withAdminSocket(
+          `DELETE FROM public.outgoing_delivery_queue WHERE event_id = ${sqlLiteral(eventId)};`,
+        );
+      }
+      for (const eventId of writtenLogEventIds) {
+        harness.withAdminSocket(
+          `DELETE FROM public.notification_delivery_attempts WHERE event_id = ${sqlLiteral(eventId)};`,
+        );
+      }
     });
 
     it('records a successful reminder_dispatch attempt via worker-shaped writePort', async () => {

@@ -2,34 +2,28 @@
  * Opt-in REAL-Postgres RLS proof for the D5 direct write, added after an independent audit found (and
  * this fix addresses) a live defect: `upsertReminderRuleDirect` was RLS-DENIED under the real
  * "integrator" principal (`runWithIntegratorPrincipal`) — the exact shape the webapp's
- * `reminder.rule.upserted` write path runs under for an already-known user (organization_id
- * SET, patient_user_id NULL, `SET ROLE app_patient`). Mock-based unit tests cannot catch this: the mock
+ * `reminder.rule.upserted` write path runs under for an already-known user. Mock-based unit tests cannot catch this: the mock
  * DbPort never applies a real PostgreSQL role/RLS check, so a wrong-principal write silently "succeeds"
- * against the mock regardless. This test talks to a REAL Postgres (the TEST database on this box) via
- * the app's OWN `createDbPort()` + `@bersoncare/db-principal` signed-context mechanism (so principal
- * application at pool-client-checkout is exercised exactly as in production), proving:
- *   1. The BARE integrator login (no principal at all) is denied.
- *   2. The real "integrator" principal (org set, patient NULL) WITHOUT the fix's org-principal re-wrap
- *      is ALSO denied (this is the regression the audit found).
+ * against the mock regardless. This test talks to a REAL named DEV/TEST Postgres through the app's OWN
+ * `createDbPort()` port-context path, so every query runs inside a transaction opened by
+ * `app.begin_port_context`, proving:
+ *   1. A call with no declared principal is denied before any unscoped SQL can run.
+ *   2. The real `app_integrator_request` principal WITHOUT the fix's org-principal re-wrap is ALSO
+ *      denied (this is the regression the audit found).
  *   3. The SAME "integrator" principal WITH the fix's org-principal re-wrap (mirrors
- *      `writeDirectPublic` in directPublic/writePort.ts) SUCCEEDS, with the full field set and a
- *      non-NULL organization_id.
- * Verification/cleanup reads also go through `createDbPort()` under an explicit org principal (the
- * `bcb_test_integrator_login` role cannot SELECT a FORCE-RLS public table at all without one — same
- * defect class) rather than a superuser bypass, so the whole test stays inside the real grant/RLS
- * surface the app itself runs under.
+ *      `writeDirectPublic` in directPublic/writePort.ts) enters `app_tenant_service` and SUCCEEDS,
+ *      with the full field set and a non-NULL organization_id.
+ * Verification/cleanup reads also go through `createDbPort()` under the same explicit organization
+ * principal rather than a superuser bypass, so the whole test stays inside the real grant/RLS surface.
  *
- *   USE_REAL_DATABASE=1 RUN_REMINDER_RULES_RLS_TEST=1 DB_PRINCIPAL_CONTEXT_MODE=locked \
- *   DATABASE_URL=<TEST bcb_test_integrator_login connection string> \
- *   DB_PRINCIPAL_SIGNING_SECRET=<TEST DB_PRINCIPAL_SIGNING_SECRET> \
- *   pnpm exec vitest run src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts
+ *   set -a
+ *   source /home/dev/dev-projects/BersonCareBot/.env
+ *   set +a
+ *   USE_REAL_DATABASE=1 RUN_REMINDER_RULES_RLS_TEST=1 \
+ *     pnpm --dir apps/integrator exec vitest run \
+ *     src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts
  *
- * DB_PRINCIPAL_CONTEXT_MODE=locked is REQUIRED — without it `@bersoncare/db-principal` never installs
- * the signed context / SET ROLE at all (this repo's vitest.setup.ts sets no default for this var), so
- * every assertion in this file would fail for the WRONG reason (no principal applied at all, not the
- * RLS behavior under a real one).
- *
- * Never run against prod (assertTestDb below refuses any database name that isn't test-shaped).
+ * Never run against prod (assertTestDb below permits only bcb_webapp_dev or a *_test database).
  * Cleans up every row it writes; nothing is committed permanently.
  */
 import { afterAll, describe, expect, it } from 'vitest';
@@ -44,8 +38,8 @@ import {
 const enabled =
   process.env.RUN_REMINDER_RULES_RLS_TEST === '1' &&
   process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.DATABASE_URL ?? '').trim()) &&
-  Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
+  process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' &&
+  Boolean((process.env.INTEGRATOR_DB_URL ?? '').trim());
 
 describe.skipIf(!enabled)(
   'upsertReminderRuleDirect RLS under the real integrator principal (opt-in, real Postgres)',
@@ -61,8 +55,10 @@ describe.skipIf(!enabled)(
         createDbPort().query<{ n: string }>('SELECT current_database() AS n', []),
       );
       const n = r.rows[0]?.n ?? '';
-      if (!/_test$/i.test(n)) {
-        throw new Error(`refusing: current_database="${n}" — expected a *_test database`);
+      if (n !== 'bcb_webapp_dev' && !/_test$/i.test(n)) {
+        throw new Error(
+          `refusing: current_database="${n}" — expected bcb_webapp_dev or a *_test database`,
+        );
       }
     }
 

@@ -170,10 +170,34 @@ export function extractFunctionReturnShapes(source, text) {
   return definitions;
 }
 
+function extractDroppedFunctionNames(text) {
+  let executable = '';
+  let cursor = 0;
+  while (cursor < text.length) {
+    if (text[cursor] === "'" || text[cursor] === '"' || text.startsWith('--', cursor)
+        || text.startsWith('/*', cursor) || /^\$[a-zA-Z_0-9]*\$/u.test(text.slice(cursor))) {
+      const end = skipQuoted(text, cursor);
+      executable += ' '.repeat(end - cursor);
+      cursor = end;
+      continue;
+    }
+    executable += text[cursor];
+    cursor += 1;
+  }
+  return [...executable.matchAll(
+    /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([a-zA-Z_][\w$]*\.[a-zA-Z_][\w$]*)\s*\(/gimu,
+  )].map((match) => match[1].toLowerCase());
+}
+
 export function latestFunctionReturnShapes(sources) {
   const byName = new Map();
   for (const { source, text } of sources) {
-    for (const row of extractFunctionReturnShapes(source, text)) byName.set(row.name, row);
+    const definitions = extractFunctionReturnShapes(source, text);
+    const definedNames = new Set(definitions.map((row) => row.name));
+    for (const row of definitions) byName.set(row.name, row);
+    for (const name of extractDroppedFunctionNames(text)) {
+      if (!definedNames.has(name)) byName.delete(name);
+    }
   }
   return byName;
 }

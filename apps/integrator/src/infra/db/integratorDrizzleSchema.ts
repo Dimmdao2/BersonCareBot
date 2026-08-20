@@ -12,7 +12,6 @@ import {
   userReminderDeliveryLogs,
   userReminderOccurrences,
 } from './schema/integratorDomainRepos.js';
-import { projectionOutbox } from './schema/integratorQueues.js';
 
 export const integratorDrizzleSchema = {
   operatorIncidents,
@@ -23,7 +22,6 @@ export const integratorDrizzleSchema = {
   platformUsers,
   userChannelBindings,
   reminderRules,
-  projectionOutbox,
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,

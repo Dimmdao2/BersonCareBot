@@ -144,6 +144,9 @@ const s01RetiredLegacyBookingProjectionTables = new Set([
 // The historical tier registry is immutable evidence. Runtime grants must not mention the relation
 // after the atomic legacy identity migration has physically removed it.
 const retiredLegacyIdentityTables = new Set(['integrator.message_drafts']);
+// D10 retired the projection transport after its producers and consumers reached zero. Keep the
+// historical tier registry immutable, but do not render a GRANT for the dropped relation.
+const retiredProjectionTransportTables = new Set(['integrator.projection_outbox']);
 export const appStaffNoRuntimeDmlTables = new Set();
 
 const appStaffGrantTiers = new Set(['SCOPED', 'BOOTSTRAP', 'INFRA', 'LEGACY', 'TELEMETRY']);
@@ -168,6 +171,7 @@ export function getAppStaffGrantTables() {
         !r7DroppedRawRubitimeTables.has(row.table) &&
         !s01RetiredLegacyBookingProjectionTables.has(row.table) &&
         !retiredLegacyIdentityTables.has(row.table) &&
+        !retiredProjectionTransportTables.has(row.table) &&
         !appStaffNoRuntimeDmlTables.has(row.table),
     )
     .map((row) => ({ ...splitQualifiedName(row.table), qualifiedName: row.table, tier: row.tier }))

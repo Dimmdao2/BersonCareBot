@@ -40,7 +40,6 @@ const TABLES: Array<{ schema: string; table: string }> = [
   { schema: 'public', table: 'support_conversation_messages' },
   { schema: 'public', table: 'support_questions' },
   { schema: 'public', table: 'support_question_messages' },
-  { schema: 'integrator', table: 'projection_outbox' },
   { schema: 'public', table: 'outgoing_delivery_queue' },
   { schema: 'public', table: 'idempotency_keys' },
   { schema: 'integrator', table: 'idempotency_keys' },
@@ -160,16 +159,6 @@ async function main(): Promise<void> {
          WHERE NULLIF(TRIM(c.value_normalized), '') IS NOT NULL
            AND NULLIF(TRIM(pu.phone_normalized), '') IS NOT NULL
            AND TRIM(c.value_normalized) <> TRIM(pu.phone_normalized)`,
-      ),
-      optionalScalar(
-        client,
-        'projection_outbox_terminal_done',
-        `SELECT count(*)::text AS count FROM integrator.projection_outbox WHERE status IN ('done', 'cancelled')`,
-      ),
-      optionalScalar(
-        client,
-        'projection_outbox_dead',
-        `SELECT count(*)::text AS count FROM integrator.projection_outbox WHERE status = 'dead'`,
       ),
       optionalScalar(
         client,
