@@ -4,6 +4,27 @@ Status: **УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026 → `docs/OWNER_DECISIONS
 Оставшийся текст — историческая запись и не является исполняемым runbook; описанные disposable,
 PROD A→B0, reset/restore и cutover-команды удалены из active checkout.
 
+**ЧАСТИЧНО ВОССТАНОВЛЕНО 20.08.2026:** `609a19f94` («salvage: establish B0-forward candidate without
+replay», 17.08) вместе с санкционированной historical/A0/A1 чисткой удалил и часть машинерии, которую
+сам B0-декрет прямо требует — репетицию одной цельной `A → B0` миграции на чистом PROD-дампе
+(`docs/OWNER_DECISIONS.md` §«B0 вместо исторической цепочки миграций», владелец 16.08). Шесть файлов
+восстановлены из `609a19f94^` и приведены в соответствие с сегодняшним кодом: `deploy/host/restore-test-db-from-dump.sh`,
+`deploy/host/deploy-test-full-reset.sh` + `.test.mjs`, `scripts/refresh-prod-to-target-cutover.mjs`,
+`scripts/prod-to-target-baseline-policy.mjs`, `deploy/postgres/prod-to-target-cutover.sql`. Строка ниже
+про `restore-test-db-from-dump.sh` как repo-tracked теперь снова верна.
+
+**Протокол в целом ВСЁ ЕЩЁ не исполняем.** `deploy-test-saas.sh` (3770 строк, единственный вызываемый
+`deploy-test-full-reset.sh` engine) и SQL-соседи `prod-to-target-cutover.sql` —
+`prod-to-target-cutover-start.sql`, `prod-to-target-cutover-data.sql`, `prod-to-target-cutover-finish.sql`
+— и все четыре сгенерированных артефакта `deploy/postgres/generated/prod-to-target/*.sql` этим восстановлением
+НЕ затронуты, остаются отсутствующими и требуют отдельного прохода: `deploy-test-saas.sh` написан против
+до-декларативной модели прав (до переноса ACL/grants на reconcile-путь, тот же `609a19f94`) и не может быть
+просто скопирован обратно без пересмотра. `scripts/prod-to-target-cutover-executable-gate.mjs` и соседние
+`*-contract.test.mjs`/`single-target-cutover.acceptance.sh` пропали следующим коммитом того же дня,
+`bfe6b48f0` (17.08, «remove alternate B0 paths»), — вне зоны ответственности этого восстановления
+(мандат ограничен `609a19f94`). Полная таблица
+классификации 668 путей, удалённых `609a19f94`: `docs/_TODO/SAAS_FOUNDATION/B0_SALVAGE_DELETION_CLASSIFICATION_2026-08-20.md`.
+
 Заменённый протокол был: **ACTIVE OWNER-GATED TEST REHEARSAL (owner 2026-08-15).** The target is the named
 `bersoncarebot_test` database restored directly from the fresh current PROD dump. There is no intermediate or
 disposable database in this rehearsal. Each deploy/cutover still touches one target DB only.

@@ -37,6 +37,8 @@
     "prove:error-tracking-load": "pnpm --dir packages/error-tracking run build && pnpm --dir apps/integrator run build && node --expose-gc scripts/prove-error-tracking-load.mjs",
     "prove:error-tracking-load:3": "pnpm --dir packages/error-tracking run build && pnpm --dir apps/integrator run build && for run in 1 2 3; do node --expose-gc scripts/prove-error-tracking-load.mjs; done",
     "check:saas-db-regression": "node scripts/check-saas-db-regression.mjs",
+    "refresh:prod-to-target-cutover": "node scripts/refresh-prod-to-target-cutover.mjs --confirm-local-dev-target-refresh",
+    "check:prod-to-target-cutover": "node scripts/refresh-prod-to-target-cutover.mjs --check",
     "check:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs",
     "check:new-table-rls-coverage": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs",
     "check:saas-product-smoke-contract": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs --self-test",
