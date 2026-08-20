@@ -826,7 +826,13 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       обязателен по типу (D34 хвост, этот коммит). Пункт остаётся открыт: полный census оставшихся
       webapp→integrator delivery швов и закрытие чекбокса после независимого аудита.
 
-- [ ] **D40 — `directPublic/` сводится в один порт (владелец 20.08).** Решение владельца, дословно: «не один
+- [x] **D40 — `directPublic/` сводится в один порт (владелец 20.08).** Evidence 2026-08-20: единый
+      `apps/integrator/src/infra/db/directPublic/writePort.ts` (`writeDirectPublic(operation, write,
+      options)`) выбирает organization principal для семи direct-public операций; все production-вызовы
+      в `writePort.ts` и retry worker проходят через него. `pnpm --dir apps/integrator typecheck`,
+      `pnpm --dir apps/integrator lint` и `/home/dev/brain/host-orch/run-tests.sh 'pnpm --dir
+      apps/integrator exec vitest run'` — PASS (последний rc=0, 28s).
+      Решение владельца, дословно: «не один
       порт, а россыпь — не может быть такого, у нас должно быть только 2 места через которые пишется и
       читается БД… чинить сразу — это то что должно вычищаться сразу и беспощадно». Сейчас
       `apps/integrator/src/infra/db/directPublic/` — 7 экспортируемых пишущих функций в 5 файлах

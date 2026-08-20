@@ -60,13 +60,11 @@ import {
 } from './directPublic/writeReminderProjectionDirect.js';
 import { enqueueDirectPublicWriteRetry } from './repos/directPublicWriteRetry.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
-import {
-  runWithIntegratorPrincipal,
-  runWithOrganizationPrincipal,
-} from '../principal/organizationPrincipal.js';
+import { runWithIntegratorPrincipal } from '../principal/organizationPrincipal.js';
 import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
 import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPhoneBind.js';
+import { writeDirectPublic } from './directPublic/writePort.js';
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
@@ -92,11 +90,6 @@ import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPh
  * — `fn` runs under whatever principal is already active, and its own resolver fails closed / throws as
  * before, routed by the caller to the existing fallback.
  */
-function runDirectPublicWriteWithOrgPrincipal<T>(fn: () => Promise<T>): Promise<T> {
-  const organizationId = getCurrentDbPrincipalOrganizationId();
-  return organizationId ? runWithOrganizationPrincipal(organizationId, fn) : fn();
-}
-
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
@@ -269,7 +262,7 @@ export function createDbWritePort(
             // writeIdentityAndPreferencesDirect.ts). Under the bare "integrator" principal
             // (`app_patient`, org set, `patient_user_id` NULL) every `platform_users` FORCE-RLS policy
             // denies it — reads come back silently empty, writes get permission-denied. Same
-            // `runDirectPublicWriteWithOrgPrincipal` idiom as the D3-D5 direct writes below.
+            // `writeDirectPublic` applies the same organization principal as the D3-D5 direct writes.
             const input = {
               channelCode,
               externalId,
@@ -281,7 +274,7 @@ export function createDbWritePort(
             if (getCurrentDbPrincipal()?.kind === 'bootstrap') {
               await upsertBootstrapChannelIdentity(db, input);
             } else {
-              await runDirectPublicWriteWithOrgPrincipal(() =>
+              await writeDirectPublic('identity-upsert', () =>
                 writeIdentityAndPreferencesDirect(db, input, {
                   mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
                 }),
@@ -366,7 +359,7 @@ export function createDbWritePort(
             // Same D15b/4 fix as `user.upsert` above: this binding-first canonical write is RLS-denied
             // under the bare integrator principal, so it runs with the already-resolved organization
             // principal. It does not create or update integrator-local identity/user rows.
-            await runDirectPublicWriteWithOrgPrincipal(() =>
+            await writeDirectPublic('phone-bind', () =>
               db.tx(async (txDb) => {
                 const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
                   channelCode: resource,
@@ -413,7 +406,7 @@ export function createDbWritePort(
                 // Same D15b/4 fix: `admin_audit_log` insert/update, also RLS-scoped by
                 // `organization_id` (`saas_org_dormant_p0_8_3`) — denied under the bare integrator
                 // principal, blocked entirely for `app_patient` (no grant at all).
-                void runDirectPublicWriteWithOrgPrincipal(() =>
+                void writeDirectPublic('admin-audit-write', () =>
                   recordMessengerPhoneBindBlocked({
                     db,
                     ...(getDispatchPort ? { getDispatchPort } : {}),
@@ -533,7 +526,7 @@ export function createDbWritePort(
             resolvedOrganizationId,
           };
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
+            await writeDirectPublic('reminder-rule-upsert', () =>
               upsertReminderRuleDirect(db, directInput),
             );
           } catch (err) {
@@ -604,7 +597,7 @@ export function createDbWritePort(
           );
           if (!directInput) return;
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
+            await writeDirectPublic('reminder-occurrence-finalize', () =>
               recordReminderOccurrenceFinalizedDirect(db, directInput!),
             );
           } catch (err) {
@@ -654,7 +647,7 @@ export function createDbWritePort(
           );
           if (!directInput) return;
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
+            await writeDirectPublic('reminder-occurrence-finalize', () =>
               recordReminderOccurrenceFinalizedDirect(db, directInput!),
             );
           } catch (err) {
@@ -690,7 +683,7 @@ export function createDbWritePort(
               occurredAt: context.occurredAt,
             };
             try {
-              await runDirectPublicWriteWithOrgPrincipal(() =>
+              await writeDirectPublic('reminder-occurrence-finalize', () =>
                 recordReminderOccurrenceFinalizedDirect(db, directInput),
               );
             } catch (err) {
@@ -763,7 +756,7 @@ export function createDbWritePort(
           );
           if (!directInput) return;
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
+            await writeDirectPublic('reminder-delivery-append', () =>
               appendReminderDeliveryEventDirect(db, directInput!),
             );
           } catch (err) {
@@ -824,7 +817,7 @@ export function createDbWritePort(
           );
           if (!directInput) return;
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
+            await writeDirectPublic('content-access-grant-upsert', () =>
               upsertContentAccessGrantDirect(db, directInput!),
             );
           } catch (err) {
@@ -972,8 +965,10 @@ export function createDbWritePort(
                 // organizationId is already a known, validated value here (guarded above) — wrap with it
                 // directly rather than relying on the ambient principal (this mutation can also be reached
                 // from delivery/retry paths without an ambient organization principal at all).
-                await runWithOrganizationPrincipal(organizationId, () =>
-                  appendSupportDeliveryEventDirect(db, directInput),
+                await writeDirectPublic(
+                  'support-delivery-append',
+                  () => appendSupportDeliveryEventDirect(db, directInput),
+                  { organizationId },
                 );
               } catch (err) {
                 await enqueueDirectPublicWriteRetry(db, {
