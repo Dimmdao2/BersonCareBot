@@ -789,6 +789,7 @@ const remindersService = createRemindersService(reminderRulesPort, {
 });
 const mediaStoragePort =
   !inMemoryRepos && isS3MediaEnabled(env) ? createS3MediaStoragePort() : mockMediaStoragePort;
+const mediaService = createMediaService(mediaStoragePort);
 const inMemoryPlaybackUserVideoFirstResolveKeys = new Set<string>();
 const playbackUserVideoFirstResolvePort: PlaybackUserVideoFirstResolvePort = !inMemoryRepos
   ? createPgPlaybackUserVideoFirstResolvePort()
@@ -1239,6 +1240,7 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
   templates: treatmentProgramService,
   snapshots: treatmentProgramItemSnapshotPort,
   itemRefs: treatmentProgramItemRefValidationPort,
+  media: mediaService,
   events: treatmentProgramEventsPort,
   testAttempts: treatmentProgramTestAttemptsPort,
   getDefaultPromoTemplateId: ({ organizationId } = {}) =>
@@ -1503,7 +1505,6 @@ const appointmentReminderMaterialization: AppointmentReminderMaterializationPort
         return { current: true, inserted: input.deliveries.length };
       },
     };
-const mediaService = createMediaService(mediaStoragePort);
 const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
   contentPages: contentPagesPort,

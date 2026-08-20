@@ -25,6 +25,7 @@ function buildService() {
     templates,
     snapshots: {} as never,
     itemRefs: {} as never,
+    media: {} as never,
     getDefaultPromoTemplateId: async () => TEMPLATE_ID,
     assertWriteClearance: assertMechanicWriteClearance,
   });

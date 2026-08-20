@@ -143,3 +143,23 @@ describe.each([
     expect(access.tariffId).toBe(POST_PAID_TARIFF_ID);
   });
 });
+
+describe('T10/T13 — global paid-period outcome is tariff-independent', () => {
+  it.each([
+    TARIFF_ID,
+    '10000000-0000-4000-8000-000000000099',
+  ])('returns the same read_only result for tariff %s regardless of its local policy JSON', (tariffId) => {
+    const access = resolveCommercialAccess({
+      organizationTariffId: tariffId,
+      trial: null,
+      paidPeriod: paidPeriod('read_only'),
+      now: PERIOD_ENDS_AT_MS + 1000,
+    });
+
+    expect(access).toMatchObject({
+      lifecycle: 'read_only',
+      tariffId,
+      source: 'assignment',
+    });
+  });
+});

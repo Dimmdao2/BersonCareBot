@@ -7,6 +7,7 @@ import {
   type OrgMechanic,
   type Tariff,
   type TariffQuota,
+  type DowngradePolicyMap,
   type TrialPolicy,
   type PaidPeriodPolicy,
 } from '@/modules/org-entitlements/types';
@@ -58,8 +59,8 @@ const accessPolicySchema = z.object({
   terminalState: z.enum(['read_only', 'disabled']),
 });
 
-// §5a stage 4b.3 — the union covers both mechanic classes; `assertDowngradePolicy` (service.ts)
-// rejects a value that doesn't match the mechanic's own class, so this schema only bounds the set.
+// Backward-compatible API input for the already persisted downgrade lifecycle. The commercial
+// constructor no longer renders or submits this field; omission preserves the stored policy.
 const downgradePolicySchema = z.enum(['block', 'freeze_growth', 'disable_immediately', 'read_only']);
 
 const tariffInputSchema = z.object({
@@ -78,7 +79,7 @@ const tariffInputSchema = z.object({
   systemAccessPolicy: accessPolicySchema.nullable(),
   /** Accepted for API compat; service always persists `{}` (#1069 T1, owner 05.08). */
   mechanicAccessPolicies: z.record(z.string(), accessPolicySchema),
-  downgradePolicies: z.record(z.string(), downgradePolicySchema),
+  downgradePolicies: z.record(z.string(), downgradePolicySchema).optional(),
   mailingTemplates: z.array(mailingTemplateSchema),
   /** §5a item 2.6a — required: a tariff with no seat count is not a saveable tariff. */
   includedSeats: z.number().int().nonnegative(),
@@ -175,7 +176,9 @@ const operationSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start_trial'), organizationId: uuidSchema, reason: reasonSchema }),
 ]);
 
-type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>;
+type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt' | 'downgradePolicies'> & {
+  downgradePolicies?: DowngradePolicyMap;
+};
 
 export async function GET() {
   const gate = await requirePlatformOperationsApiContext();
