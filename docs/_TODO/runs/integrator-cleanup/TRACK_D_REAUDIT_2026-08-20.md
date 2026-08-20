@@ -37,12 +37,21 @@ count → phone presence → `created_at` → `integrator_user_id` → UUID tieb
 relay of a webapp decision.
 
 This is real but not an undiscovered gap: `WORK_ORDER.md` D25/D26 and `IDENTITY_AND_MERGE_SCHEME.md` §2b/§2d name
-exactly this function and leave it open. The owner explicitly deferred D26 on 04.08 ("не надо делать сейчас") — the
-code being unfixed is a known, owner-approved deferral, not an oversight. What WAS stale: D26's quoted merge-conflict
-rule ("auto-merge only for an account with NO history") is the OLD wording; the owner refined it further today
+exactly this function and leave it open. The owner explicitly deferred D26 on 04.08 ("не надо делать сейчас,
+остальное напрямую влияет на работу системы") — a real, valid decision at the time, with a stated reason: finish
+what's operationally load-bearing first (D25, D27–D30). The code being unfixed as of 04.08 was a known deferral, not
+an oversight.
+
+**Two things the lead is responsible for, not the document:** (1) `WORK_ORDER.md`'s quoted merge-conflict rule
+("auto-merge only for an account with NO history") is the OLD wording — the owner refined it further today
 (`IDENTITY_AND_MERGE_SCHEME.md` §5.2b, commit `e2b43625f`, 15:17 20.08): block only when qualifying medical data
-exists on BOTH sides simultaneously, not any one-sided history. `WORK_ORDER.md`'s D26 bullet had not caught up to
-the same-day refinement — fixed in-place.
+exists on BOTH sides simultaneously. The lead had not gone back and updated the D26 bullet after that refinement —
+fixed in-place now, but this was the lead's omission, not the plan document failing to "catch up" on its own.
+(2) The 04.08 deferral's own stated reason ("finish what affects live operation first") is, as of 20.08, largely
+satisfied: D27/D28/D29 are closed, D25 is down to one owed live two-webhook verification, D30 is blocked by an
+external data-drain timer (~29.08), not by unfinished priority work. A "не сейчас" from 04.08 is not evergreen —
+its expiry condition has been met, and D26 is flagged in §2.3/checklist as ripe for the owner to actually schedule
+now, not still deferred by default.
 
 ## 3. Five findings from the systematic sweep (DB-privilege/RLS assumptions vs. current authority)
 
