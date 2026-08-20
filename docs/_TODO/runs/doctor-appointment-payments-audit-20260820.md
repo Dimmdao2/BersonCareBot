@@ -110,3 +110,18 @@
 - `pnpm exec prettier --check` over all changed TypeScript files → `PASS`; the repository's Prettier installation has no SQL parser, so the migration is validated by the required migration gates instead. `git diff --check` → `PASS`.
 
 Owner live interaction acceptance remains open; no DEV/TEST DB, dev server, PROD, full CI, push, integrator source, or dependency change was performed.
+
+---
+
+## Lead-finding fixer appendix — local QR (2026-08-20)
+
+- Replaced the external QR image request with `localQrCodeDataUri(link)`: a local QR Code Model 2 byte-mode (UTF-8, error correction L, versions 1–10) encoder that renders an SVG data URI. The server-returned `link` remains the sole payment identity; no QR persistence, provider call, or dependency was added.
+- `AppointmentPaymentSection` keeps the accessible ordinary payment link next to the QR and its existing appointment/version reset clears both together.
+- Targeted tests now verify a local data URI, preserve the exact visible href, reject network image sources, and prove that changing the exact URL changes the deterministic QR output.
+
+### QR scan evidence
+
+- Generated `/tmp/qr-reference/payment-qr.svg` from the local encoder for `https://pay.example.test/appointment-1?token=scan-proof`, rendered it with ImageMagick (`convert ... -resize 1200x1200`) to `payment-qr.png` successfully.
+- No independent decoder is installed: exact discovery command `compgen -c | sort -u | rg -i '(^|[-_])(zbar|zxing|qr|barcode|opencv|decode|dmtx)'` returned only `qrencode` (an encoder), `qrttoppm`, and unrelated `sg_decode_sense`; Python imports `cv2` and `pyzbar` are unavailable. No package was installed.
+- Structural check remains reproducible: the generated SVG uses a 4-module quiet zone and Model 2 matrix size (`viewBox` = matrix + 8); encoder capacity selection, Reed–Solomon parity, finder/timing/alignment/version/format patterns, and byte-mode data placement are covered by the deterministic unit path. A live scan with an independent decoder remains the owner/runtime acceptance gate.
+- `pnpm --dir apps/webapp typecheck` remains `FAIL` (exit 2) in this worktree on pre-existing unresolved workspace packages (`@bersoncare/db-principal`, `@bersoncare/platform-merge`, `@bersoncare/operator-db-schema`) and prior payment route/fixture diagnostics. After the local QR correction, its captured output has no diagnostics for `localQrCode`, `AppointmentPaymentSection`, or `DoctorCalendarEventPanel.ui.test`.

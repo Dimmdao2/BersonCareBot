@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { localQrCodeDataUri } from './localQrCode';
 
 type Summary = {
   prepaymentQuote: { amountMinor: number; currency: string } | null;
@@ -158,7 +159,7 @@ export function AppointmentPaymentSection({
             width="144"
             height="144"
             alt="QR-код платёжной ссылки"
-            src={`https://quickchart.io/qr?size=144&text=${encodeURIComponent(link)}`}
+            src={localQrCodeDataUri(link)}
           />
         </div>
       ) : null}

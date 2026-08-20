@@ -283,10 +283,10 @@ describe('appointment payment owner states', () => {
 
     const link = await screen.findByRole('link', { name: checkoutUrl });
     expect(link).toHaveAttribute('href', checkoutUrl);
-    expect(screen.getByRole('img', { name: 'QR-код платёжной ссылки' })).toHaveAttribute(
-      'src',
-      expect.stringContaining(encodeURIComponent(checkoutUrl)),
-    );
+    const qr = screen.getByRole('img', { name: 'QR-код платёжной ссылки' });
+    expect(qr).toHaveAttribute('src', expect.stringMatching(/^data:image\/svg\+xml,/));
+    expect(qr).not.toHaveAttribute('src', expect.stringContaining(checkoutUrl));
+    expect(qr).not.toHaveAttribute('src', expect.stringMatching(/^https?:/));
 
     rerender(
       <AppointmentPaymentSection apiBase="/api/doctor/booking-engine" appointmentId="appointment-2" />,
