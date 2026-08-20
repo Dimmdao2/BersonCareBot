@@ -134,6 +134,16 @@ test('global tariff skips the target tariff local unpaid ladder in both SQL door
   assert.match(output, /mechanic\|full_access\|global_paid_period\|true/u);
 });
 
+test('global read_only and blocked override the source tariff local unpaid ladder in both SQL doors', { skip: !ENABLED }, () => {
+  const readOnly = psql(fixtureSql({ behavior: 'read_only' }));
+  assert.match(readOnly, /cabinet\|read_only\|global_paid_period/u);
+  assert.match(readOnly, /mechanic\|read_only\|global_paid_period\|false/u);
+
+  const blocked = psql(fixtureSql({ behavior: 'blocked' }));
+  assert.match(blocked, /cabinet\|disabled\|global_paid_period/u);
+  assert.match(blocked, /mechanic\|disabled\|global_paid_period\|false/u);
+});
+
 test('a stricter global update preserves the earned grace rung in both SQL doors', { skip: !ENABLED }, () => {
   const output = psql(
     fixtureSql({
