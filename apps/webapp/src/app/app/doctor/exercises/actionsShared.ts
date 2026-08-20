@@ -212,8 +212,7 @@ export async function bulkCreateExercisesFromMediaCore(
       continue;
     }
     const normalizedBulk = normalizeExerciseMedia(row.mediaUrl, row.mediaType);
-    const mediaErr = normalizedBulk.ok ? null : normalizedBulk.error;
-    if (mediaErr) {
+    if (!normalizedBulk.ok) {
       failed += 1;
       continue;
     }

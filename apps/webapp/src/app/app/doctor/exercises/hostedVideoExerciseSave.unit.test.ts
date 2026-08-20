@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { VideoAttachmentDurationResult } from '@/modules/media/videoDurationLimit';
+
 /**
  * Решение владельца 19.08: «в упражнение нужно вставить ссылку на YouTube / RuTube / VK Видео /
  * Vimeo». Здесь проверяется поведение сохранения, а не форма кода: что именно ложится в
@@ -11,7 +13,9 @@ type CreatedExerciseInput = { media?: { mediaUrl: string; mediaType: string }[] 
 // Параметр объявлен намеренно: без него `mock.calls[0]` — пустой кортеж, и утверждение о том,
 // что именно легло в media, пришлось бы протаскивать через приведение типа.
 const createExercise = vi.fn(async (_input: CreatedExerciseInput) => ({ id: 'new-exercise' }));
-const getVideoAttachmentDurationRejection = vi.fn(async () => ({ ok: true as const }));
+const getVideoAttachmentDurationRejection = vi.fn(
+  async (): Promise<VideoAttachmentDurationResult> => ({ ok: true }),
+);
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: async () => ({
