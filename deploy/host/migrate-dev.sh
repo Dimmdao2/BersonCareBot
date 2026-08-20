@@ -30,15 +30,21 @@ ACTIVE_CHILD_PID=""
 
 usage() {
   cat <<'EOF'
-Usage: bash deploy/host/migrate-dev.sh --preflight|--execute [--reapply <tag> ...]
+Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
+         [--apply-out-of-order <tag>]... [--reapply <tag>]...
 
 Validates the exact existing local bcb_webapp_dev target. --preflight executes pending
 webapp Drizzle DDL through the NOLOGIN bcb_dev_migrator and its declared owners in a
 single transaction ending in ROLLBACK. --execute applies pending integrator and webapp
 migrations, then atomically reconciles and audits the declaration-owned access state.
 
+The two recovery options are forwarded verbatim to the owner-ordered migrator, which is the
+only thing that accepts them; they exist so a ledger that has drifted from the journal
+(--apply-out-of-order) or from the catalog (--reapply) can be repaired through this whole
+route -- preflight, reconcile and port-context env included -- instead of beside it.
+
 --reapply names a migration the ledger claims but the database does not answer for, and
-sends it through the wrapper again. It is only available here, with --execute, because the
+sends it through the wrapper again. It is only available with --execute, because the
 declaration reconcile that follows is what gives a rebuilt definer function back its
 attestation seam and its EXECUTE grant.
 EOF
@@ -101,20 +107,28 @@ if [[ $# -lt 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; the
   exit 2
 fi
 shift
-
+# Nothing but the two named recovery options may ride along, and each one must name its tag: the
+# migrator refuses a tag it has not itself reported as stranded or drifted, so a stale flag left in
+# a command line cannot quietly re-run anything.
+#
 # --reapply lives here and not on the wrapper because rebuilding an object from its migration file
 # rebuilds only what the file says. A declaration-owned definer function is more than that: the
 # attestation wrapper in its body and the EXECUTE grant for the role that calls it arrive with the
-# privilege declaration. Reapplied by the bare wrapper, the function comes back without either — the
+# privilege declaration. Reapplied by the bare wrapper, the function comes back without either -- the
 # recovery leaves the object weaker than the hole it repaired. This entrypoint always reconciles the
 # declaration as its last execute step, which is what makes the recovery whole.
-REAPPLY_ARGS=()
+#
+# The tag pattern accepts both naming schemes on purpose: a recovery names a tag that is ALREADY in
+# the ledger, and the ledger still carries the frozen historical NNNN_ names alongside the current
+# timestamp scheme. This is the one place old names stay legal; new migrations are never named that way.
+RECOVERY_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --reapply)
-      [[ -n "${2:-}" ]] || fatal '--reapply needs the tag of a migration file'
-      [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ ]] || fatal "--reapply tag is not a migration name: $2"
-      REAPPLY_ARGS+=(--reapply "$2")
+    --apply-out-of-order|--reapply)
+      [[ $# -ge 2 && -n "${2:-}" && "${2:0:2}" != "--" ]] || { usage; exit 2; }
+      [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ || "$2" =~ ^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$ ]] \
+        || fatal "$1 tag is not a migration name: $2"
+      RECOVERY_ARGS+=("$1" "$2")
       shift 2
       ;;
     *)
@@ -123,11 +137,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-if [[ "$MODE" == "--preflight" && ${#REAPPLY_ARGS[@]} -gt 0 ]]; then
-  fatal '--reapply is a recovery, not a validation: run it with --execute so the declaration reconcile follows'
+if [[ "$MODE" == "--preflight" && ${#RECOVERY_ARGS[@]} -gt 0 ]]; then
+  fatal 'a recovery option is not a validation: run it with --execute so the declaration reconcile follows'
 fi
-# The wrapper refuses --reapply without this marker, so a bare `node migrate-local.mjs --reapply` can
-# no longer strip a definer function of its seam and its EXECUTE grant and call it a repair.
+# The wrapper refuses a recovery option without this marker, so a bare `node migrate-local.mjs
+# --reapply` can no longer strip a definer function of its seam and its EXECUTE grant and call it a repair.
 export BCB_MIGRATION_ENTRYPOINT=migrate-dev.sh
 
 [[ "$EUID" -ne 0 ]] || fatal "run this wrapper as the non-root repository owner"
@@ -194,7 +208,8 @@ if [[ "$MODE" == "--preflight" ]]; then
     --migrator "$MIGRATOR_ROLE" \
     --drizzle-folder "$DRIZZLE_FOLDER" \
     --sudo-postgres \
-    --rollback-only
+    --rollback-only \
+    ${RECOVERY_ARGS[@]+"${RECOVERY_ARGS[@]}"}
   echo "migrate-dev preflight: PASS (post-cutover DEV; rollback-only webapp DDL validation complete)"
   exit 0
 fi
@@ -221,7 +236,7 @@ run_tracked node "$OWNER_MIGRATOR" \
   --migrator "$MIGRATOR_ROLE" \
   --drizzle-folder "$DRIZZLE_FOLDER" \
   --sudo-postgres \
-  ${REAPPLY_ARGS[@]+"${REAPPLY_ARGS[@]}"}
+  ${RECOVERY_ARGS[@]+"${RECOVERY_ARGS[@]}"}
 run_tracked node "$INTEGRATOR_MIGRATOR" \
   --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
   --root "$REPO_ROOT/apps/integrator" --sudo-postgres
