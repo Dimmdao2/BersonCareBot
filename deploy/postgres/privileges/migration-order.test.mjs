@@ -8,10 +8,8 @@ import test from 'node:test';
 import {
   collectExpectedObjects,
   findForeignLedgerRows,
-  findJournalGrowth,
   findMigrationNameViolations,
   findRenamedAppliedMigrations,
-  readFrozenLegacyMigrationNames,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
@@ -24,16 +22,12 @@ const REAL_MIGRATIONS_FOLDER = fileURLToPath(
   new URL('../../../apps/webapp/db/drizzle-migrations', import.meta.url),
 );
 
-function folderWith(files, journalEntries = null, frozenEntries = null) {
+function folderWith(files, journalEntries = null) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migration-order-'));
   for (const [name, body] of Object.entries(files)) writeFileSync(join(root, name), body);
   if (journalEntries) {
     mkdirSync(join(root, 'meta'), { recursive: true });
     writeFileSync(join(root, 'meta/_journal.json'), JSON.stringify({ entries: journalEntries }));
-  }
-  if (frozenEntries) {
-    mkdirSync(join(root, 'meta'), { recursive: true });
-    writeFileSync(join(root, 'meta/_journal.frozen.json'), JSON.stringify({ entries: frozenEntries }));
   }
   return root;
 }
@@ -177,67 +171,37 @@ test('every expected object gets one positional catalog probe', () => {
   assert.equal(renderObjectPresenceSql([]), null);
 });
 
-// A new migration's name is a timestamp; only tags the frozen journal already knows keep the old
-// sequential shape, and that set can never grow, so this tightens on its own as work adds files.
-test('a timestamp name passes, a fresh sequential number does not, a legacy one does', () => {
-  const legacy = [{ tag: '0001_first' }];
+// Every migration name is a timestamp. The retired journal and allowlist cannot create exceptions.
+test('a timestamp name passes and every sequential name fails', () => {
   const migrations = [
-    migration('0001_first'), // legacy, in the journal
+    migration('0001_first'),
     migration('20260820T014233_new_work'), // new, timestamp-shaped
-    migration('0050_hand_picked'), // new, but still the old shape -> collision-prone
+    migration('0050_hand_picked'),
   ];
 
-  assert.deepEqual(findMigrationNameViolations(migrations, legacy), ['0050_hand_picked']);
+  assert.deepEqual(findMigrationNameViolations(migrations), ['0001_first', '0050_hand_picked']);
 });
 
-test('a frozen snapshot missing entirely grandfathers nothing, unlike a missing live journal', () => {
-  const folder = folderWith({ '0001_first.sql': 'SELECT 1;' });
-  assert.deepEqual(readFrozenLegacyMigrationNames(folder), []);
-});
-
-test('the frozen snapshot is read, not the live journal, for the legacy-name allowlist', () => {
+test('a matching live journal entry does not exempt a sequential migration name', () => {
   const folder = folderWith(
     { '0001_first.sql': 'SELECT 1;' },
-    [{ idx: 0, when: 1, tag: '0001_first' }], // live journal grew this entry
-    [], // frozen snapshot never heard of it
+    [{ idx: 0, when: 1, tag: '0001_first' }],
   );
-  assert.deepEqual(
-    findMigrationNameViolations(readMigrationFolder(folder), readFrozenLegacyMigrationNames(folder)),
-    ['0001_first'],
-  );
-});
-
-// F2 (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md §5): on 19/20.08 a branch added a 51st entry to
-// the live journal to relabel its own hand-numbered migration as legacy, and `pnpm run lint` — which
-// checked the live journal against itself — passed. `findJournalGrowth` names the grown tag directly,
-// independent of whether any .sql file currently claims it.
-test('a tag the live journal knows and the frozen snapshot does not is journal growth', () => {
-  const frozen = [{ idx: 0, when: 1, tag: '0001_first' }];
-  const grown = [...frozen, { idx: 1, when: 2, tag: '0054_snuck_in_as_legacy' }];
-
-  assert.deepEqual(findJournalGrowth(grown, frozen), ['0054_snuck_in_as_legacy']);
-});
-
-test('a live journal identical to the frozen snapshot is not growth', () => {
-  const entries = [{ idx: 0, when: 1, tag: '0001_first' }, { idx: 1, when: 2, tag: '0002_second' }];
-  assert.deepEqual(findJournalGrowth(entries, entries), []);
+  assert.deepEqual(findMigrationNameViolations(readMigrationFolder(folder)), ['0001_first']);
 });
 
 test('a bare number, a missing slug or an out-of-range clock field is not a timestamp name', () => {
   for (const tag of ['20260820_missing_time', '2026082T014233_short_date', '20260820T014233', '20260820T0142_short_time']) {
-    assert.deepEqual(findMigrationNameViolations([migration(tag)], []), [tag], tag);
+    assert.deepEqual(findMigrationNameViolations([migration(tag)]), [tag], tag);
   }
 });
 
-// This is the fact the naming change rests on: legacy '0001'.. sorts before every timestamp name,
-// because '0' < '2' — checked here against the sort the runners actually use, on the real folder,
-// not assumed from reading the regex.
-test('every real legacy migration name sorts before a 2026 timestamp name, by the sort runners use', () => {
-  const legacy = readMigrationFolder(REAL_MIGRATIONS_FOLDER).map((entry) => entry.tag);
-  assert.ok(legacy.length > 0, 'the real migrations folder must not be empty for this to prove anything');
-  const sorted = [...legacy, '20260820T014233_after_everything_legacy'].sort();
-  assert.deepEqual(sorted.slice(-1), ['20260820T014233_after_everything_legacy']);
-  assert.deepEqual(sorted.slice(0, legacy.length), [...legacy].sort());
+// The historical files and their allowlist are retired. The real folder therefore has no
+// grandfathered names: every active file must satisfy the timestamp rule on its own.
+test('every real migration has a timestamp name without a legacy allowlist', () => {
+  const migrations = readMigrationFolder(REAL_MIGRATIONS_FOLDER);
+  assert.ok(migrations.length > 0, 'the real migrations folder must not be empty for this to prove anything');
+  assert.deepEqual(findMigrationNameViolations(migrations), []);
 });
 
 test('a pending file byte-identical to a foreign ledger row is a rename of an applied migration', () => {

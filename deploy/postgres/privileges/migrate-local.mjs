@@ -19,7 +19,6 @@ import {
   findForeignLedgerRows,
   findMigrationNameViolations,
   findRenamedAppliedMigrations,
-  readFrozenLegacyMigrationNames,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
@@ -227,16 +226,15 @@ if (drizzleFolder) {
   // File name is the order and the identity; the folder listing is the whole plan.
   const migrations = readMigrationFolder(drizzleFolder);
   // The name rule used to live only in `pnpm run lint` (`check-drizzle-migration-order.sh`): a file
-  // with an old hand-picked number, not in the frozen legacy snapshot, sailed through this wrapper
+  // with an old hand-picked number sailed through this wrapper
   // straight to `BEGIN`/`INSERT` — proven live on 20.08 (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md
   // §3(a)). Every runner that can commit a migration checks the same thing lint does, from the same
-  // module, against the same frozen file — never the live journal (see module doc, `findJournalGrowth`).
-  const nameViolations = findMigrationNameViolations(migrations, readFrozenLegacyMigrationNames(drizzleFolder));
+  // module. The historical exception list was retired on 20.08.2026, so no journal can exempt a tag.
+  const nameViolations = findMigrationNameViolations(migrations);
   if (nameViolations.length > 0) {
     fail(
       nameViolations
-        .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case, and the frozen legacy `
-          + 'snapshot (meta/_journal.frozen.json) does not know it as a legacy name.')
+        .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case; there are no exceptions.`)
         .join('\n'),
     );
   }
