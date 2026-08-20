@@ -19,6 +19,10 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   }),
 }));
 
+vi.mock('@/infra/logging/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn() },
+}));
+
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: async (
     _workspace: unknown,
@@ -103,6 +107,23 @@ describe('врач прикладывает к упражнению ссылку
     /* `video` означает файл `/api/media/{uuid}`; ссылка хостинга под этим видом не проходит. */
     expect(res.ok).toBe(false);
     expect(createExercise).not.toHaveBeenCalled();
+  });
+
+  it('не принимает непробированный absolute URL под видом файла', async () => {
+    const res = await saveDoctorExerciseCore(
+      form({
+        title: 'Мостик',
+        mediaUrl: 'https://cdn.example.com/overlong-video.mp4',
+        mediaType: 'video',
+      }),
+    );
+
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringContaining('библиотек'),
+    });
+    expect(createExercise).not.toHaveBeenCalled();
+    expect(getVideoAttachmentDurationRejection).not.toHaveBeenCalled();
   });
 
   it('файл из библиотеки сохраняется как раньше', async () => {

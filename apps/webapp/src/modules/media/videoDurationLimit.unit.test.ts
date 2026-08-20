@@ -18,8 +18,11 @@ function video(durationSeconds: number | null): MediaRecord {
 }
 
 describe('video attachment duration limits', () => {
-  it('keeps the owner thresholds independent and rejects just-over-limit files', () => {
+  it('keeps the owner thresholds independent', () => {
     expect(VIDEO_DURATION_LIMIT_SECONDS).toEqual({ exercise: 600, cms: 1200 });
+  });
+
+  it('rejects files just over each limit', () => {
     expect(validateVideoAttachmentDuration('exercise', video(601))).toMatchObject({
       ok: false,
       code: 'video_duration_limit_exceeded',
@@ -31,14 +34,21 @@ describe('video attachment duration limits', () => {
       error: expect.stringContaining('20 минут'),
     });
     expect(validateVideoAttachmentDuration('cms', video(601))).toEqual({ ok: true });
-    expect(validateVideoAttachmentDuration('exercise', video(600))).toEqual({ ok: true });
   });
 
-  it('waits for a trusted probe and leaves non-video media outside the gate', () => {
+  it('accepts the exact 600 and 1200 second boundaries', () => {
+    expect(validateVideoAttachmentDuration('exercise', video(600))).toEqual({ ok: true });
+    expect(validateVideoAttachmentDuration('cms', video(1200))).toEqual({ ok: true });
+  });
+
+  it('waits for a trusted duration probe', () => {
     expect(validateVideoAttachmentDuration('exercise', video(null))).toMatchObject({
       ok: false,
       code: 'video_duration_pending',
     });
+  });
+
+  it('leaves non-video media outside the duration gate', () => {
     expect(
       validateVideoAttachmentDuration('exercise', { ...video(3600), kind: 'image' }),
     ).toEqual({ ok: true });
