@@ -18,11 +18,6 @@ export type IntegratorCanonicalPairResponse = {
   canonicalB: string;
 };
 
-export type IntegratorMergeResponse = {
-  ok: true;
-  result: Record<string, unknown>;
-};
-
 async function integratorM2mPostJson<T>(
   path: string,
   body: unknown,
@@ -115,31 +110,4 @@ export async function checkIntegratorCanonicalPair(
     canonicalA: String(data.canonicalA ?? ''),
     canonicalB: String(data.canonicalB ?? ''),
   };
-}
-
-export async function callIntegratorUserMerge(input: {
-  winnerIntegratorUserId: string;
-  loserIntegratorUserId: string;
-  dryRun?: boolean;
-}): Promise<
-  | { ok: true; result: Record<string, unknown> }
-  | { ok: false; reason: 'unconfigured' }
-  | { ok: false; reason: 'timeout' }
-  | { ok: false; reason: 'http'; status: number; bodyText: string }
-> {
-  const r = await integratorM2mPostJson<IntegratorMergeResponse>('/api/integrator/users/merge', {
-    winnerIntegratorUserId: input.winnerIntegratorUserId,
-    loserIntegratorUserId: input.loserIntegratorUserId,
-    dryRun: input.dryRun === true,
-  });
-  if (!r.ok) {
-    if (r.reason === 'unconfigured') return { ok: false, reason: 'unconfigured' };
-    if (r.reason === 'timeout') return { ok: false, reason: 'timeout' };
-    return { ok: false, reason: 'http', status: r.status, bodyText: r.bodyText };
-  }
-  const data = r.data;
-  if (!data || typeof data !== 'object' || data.ok !== true || !data.result) {
-    return { ok: false, reason: 'http', status: 502, bodyText: 'bad_shape' };
-  }
-  return { ok: true, result: data.result as Record<string, unknown> };
 }

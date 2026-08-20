@@ -6,7 +6,7 @@ export async function deliverIntegratorPushPayload(row: IntegratorPushOutboxRow)
   if (row.kind === 'reminder_rule_upsert') {
     const rule = row.payload as unknown as ReminderRule;
     if (!rule.integratorUserId) return;
-    await postReminderRuleUpsertToIntegrator(rule);
+    await postReminderRuleUpsertToIntegrator(rule, row.idempotencyKey);
     return;
   }
 }

@@ -1,7 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DbWriteDbResult, DbWritePort } from '../../kernel/contracts/index.js';
+import type {
+  DbWriteDbResult,
+  DbWritePort,
+  IdempotencyPort,
+} from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import type { ResolvedIntegratorUserTenant } from '../../infra/db/repos/channelUsers.js';
@@ -63,6 +67,7 @@ function verifySignature(
 export type BersoncareReminderRulesDeps = {
   writePort: DbWritePort;
   sharedSecret: string;
+  idempotencyPort: IdempotencyPort;
   resolveTenantForIntegratorUserId?: (
     integratorUserId: string,
   ) => Promise<ResolvedIntegratorUserTenant | null>;
@@ -72,7 +77,7 @@ export async function registerBersoncareReminderRulesRoute(
   app: FastifyInstance,
   deps: BersoncareReminderRulesDeps,
 ): Promise<void> {
-  const { writePort, sharedSecret, resolveTenantForIntegratorUserId } = deps;
+  const { writePort, sharedSecret, resolveTenantForIntegratorUserId, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -111,11 +116,15 @@ export async function registerBersoncareReminderRulesRoute(
       }
 
       const payload = parsed.data.payload;
+      const idempotencyKey = parsed.data.idempotencyKey;
       if (
         payload.scheduleType !== 'slots_v1' &&
         payload.windowStartMinute >= payload.windowEndMinute
       ) {
         return reply.code(400).send({ ok: false, error: 'invalid_window' });
+      }
+      if (idempotencyKey && !(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
+        return reply.code(200).send({ ok: true, status: 'duplicate' });
       }
 
       try {
@@ -167,9 +176,7 @@ export async function registerBersoncareReminderRulesRoute(
         let tenant: ResolvedIntegratorUserTenant | null = null;
         if (resolveTenantForIntegratorUserId) {
           try {
-            tenant = await resolveTenantForIntegratorUserId(
-              payload.integratorUserId,
-            );
+            tenant = await resolveTenantForIntegratorUserId(payload.integratorUserId);
           } catch {
             tenant = null;
           }
@@ -181,6 +188,7 @@ export async function registerBersoncareReminderRulesRoute(
         }
         return reply.code(200).send({ ok: true });
       } catch (err) {
+        if (idempotencyKey) await idempotencyPort.release?.(idempotencyKey);
         logger.error({ err }, 'bersoncare reminders/rules: write failed');
         return reply.code(502).send({ ok: false, error: 'write_failed' });
       }

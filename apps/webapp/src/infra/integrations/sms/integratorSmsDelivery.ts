@@ -8,7 +8,7 @@
  *
  * `integratorSmsAdapter` (the login/messenger path) and the A-3 anonymous booking path both use it.
  */
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 
 export type SmsCodeDeliveryResult =
@@ -25,6 +25,16 @@ type OtpDeliveryOutcome = 'success' | 'delivery_failed' | 'rate_limited';
 
 export function signIntegratorPayload(timestamp: string, rawBody: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
+}
+
+/** Stable for a transport retry; a new OTP code (including explicit resend) gets a new key. */
+export function otpDeliveryIdempotencyKey(
+  channel: string,
+  recipient: string,
+  code: string,
+): string {
+  const digest = createHash('sha256').update(`${channel}:${recipient}:${code}`).digest('hex');
+  return `otp:${channel}:${digest}`;
 }
 
 /** Маска номера для operational-логов (без полного E.164). */
@@ -58,7 +68,11 @@ export async function deliverSmsCodeViaIntegrator(
   const url = `${deps.integratorBaseUrl.replace(/\/$/, '')}/api/bersoncare/send-sms`;
   const phoneMask = maskPhoneForOpsLog(phone);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const body = JSON.stringify({ phone, code });
+  const body = JSON.stringify({
+    phone,
+    code,
+    idempotencyKey: otpDeliveryIdempotencyKey('sms', phone, code),
+  });
   const signature = signIntegratorPayload(timestamp, body, deps.sharedSecret);
 
   try {

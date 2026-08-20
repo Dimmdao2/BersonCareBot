@@ -12,10 +12,10 @@
  * OTP safety: when a `code` is present the eventId is prefixed with `otp:email:` so that
  * sanitizePayloadForLogs (dispatchPort) redacts the code from delivery_attempt_logs (PLAN S9 DoD).
  */
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DispatchPort, DbPort } from '../../kernel/contracts/index.js';
+import type { DispatchPort, DbPort, IdempotencyPort } from '../../kernel/contracts/index.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { isResolvedMailerConfigured } from '../email/mailer.js';
 import { messageToIntent } from '../../infra/adapters/channelRouting.js';
@@ -36,6 +36,7 @@ const sendEmailBodySchema = z
     code: z.string().optional(),
     text: z.string().optional(),
     templateId: z.string().optional(),
+    idempotencyKey: z.string().min(1),
   })
   .refine((data) => Boolean(data.code?.trim() || data.text?.trim()), {
     message: 'code_or_text_required',
@@ -72,6 +73,7 @@ export type BersoncareSendEmailDeps = {
   dispatchPort: DispatchPort;
   isAuthChannelEnabled: (channel: 'email') => Promise<boolean>;
   recordProviderFailure: (reason: OutboundProviderErrorClass) => Promise<void>;
+  idempotencyPort: IdempotencyPort;
 };
 
 async function recordProviderFailureSafely(
@@ -92,7 +94,14 @@ export async function registerBersoncareSendEmailRoute(
   app: FastifyInstance,
   deps: BersoncareSendEmailDeps,
 ): Promise<void> {
-  const { sharedSecret, db, dispatchPort, isAuthChannelEnabled, recordProviderFailure } = deps;
+  const {
+    sharedSecret,
+    db,
+    dispatchPort,
+    isAuthChannelEnabled,
+    recordProviderFailure,
+    idempotencyPort,
+  } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -145,13 +154,16 @@ export async function registerBersoncareSendEmailRoute(
       await recordProviderFailureSafely(recordProviderFailure, 'provider_not_configured');
       return reply.code(503).send({ ok: false, error: 'email_not_configured' });
     }
+    if (!(await idempotencyPort.tryAcquire(payload.idempotencyKey, 24 * 60 * 60))) {
+      return reply.code(200).send({ ok: true, status: 'duplicate' });
+    }
 
     const subject = isAuthCode ? 'Код подтверждения BersonCare' : (payload.subject ?? 'BersonCare');
     const text = isAuthCode ? `Ваш код BersonCare: ${payload.code}` : (payload.text?.trim() ?? '');
 
     // OTP safety: prefix eventId with 'otp:email:' when a code is present so that
     // sanitizePayloadForLogs (dispatchPort) redacts it from delivery_attempt_logs.
-    const eventId = isAuthCode ? `otp:email:${randomUUID()}` : `email:send:${randomUUID()}`;
+    const eventId = payload.idempotencyKey;
 
     const msg: UnifiedOutgoingMessage = {
       kind: 'message.send',
@@ -176,6 +188,7 @@ export async function registerBersoncareSendEmailRoute(
     try {
       await dispatchPort.dispatchOutgoing(messageToIntent(msg));
     } catch (error) {
+      await idempotencyPort.release?.(payload.idempotencyKey);
       if (isOutboundMessagePolicyDenied(error)) {
         return reply.code(403).send({ ok: false, error: 'egress_policy_denied' });
       }
