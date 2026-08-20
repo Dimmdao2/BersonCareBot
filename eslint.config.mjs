@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import js from '@eslint/js';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
@@ -17,9 +19,38 @@ const settingsTableSqlBans = [
   { selector: `Literal[value=/${SETTINGS_TABLE_SQL_RE}/i]`, message: SETTINGS_TABLE_SQL_MESSAGE },
 ];
 
+
+/**
+ * Игнор eslint'а обязан быть НАДМНОЖЕСТВОМ .gitignore, иначе два списка расходятся молча.
+ * 20.08: соседний агент оставил в дереве `.shots/` (202 МБ чужих скриншотов и бандлов
+ * chrome-расширения). Git его игнорирует, eslint — нет, и полный CI встал на 351 ошибке
+ * в чужом минифицированном JS. Чинить это дописыванием ещё одной строки в ручной список —
+ * значит ждать следующего такого каталога. Поэтому источник истины один: сам .gitignore,
+ * а ручной список ниже оставлен только для того, что git как раз ОТСЛЕЖИВАЕТ
+ * (например `apps/webapp/**` — рабочий код, который линтуется своим конфигом).
+ */
+function gitignorePatterns() {
+  let raw;
+  try {
+    raw = readFileSync(new URL('.gitignore', import.meta.url), 'utf8');
+  } catch {
+    return []; // .gitignore нет — ручного списка достаточно, конфиг не падает
+  }
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#') && !line.startsWith('!'))
+    .flatMap((line) => {
+      const pattern = line.replace(/\/$/, '');
+      // Путь с разделителем якорится от корня; голое имя может лежать на любой глубине.
+      return pattern.includes('/') ? [pattern, `${pattern}/**`] : [`**/${pattern}`, `**/${pattern}/**`];
+    });
+}
+
 export default [
   {
     ignores: [
+      ...gitignorePatterns(),
       'dist/**',
       'node_modules/**',
       'coverage/**',
