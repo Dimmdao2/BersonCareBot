@@ -1337,7 +1337,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       в течение которого можно оплатить СО СКИДКОЙ. Дословно: «закончился триал, применяется правило из блока
       "После триала", при этом независимо от того что это — блокировка, только чтение или минимальный тариф
       который я назначил — у человека есть например 3 дня на оплату со скидкой».
-- [ ] **Т10. Поведение после завершения ОПЛАЧЕННОГО периода — одна общая настройка.** Владелец 04.08: «я
+- [x] **Т10. Поведение после завершения ОПЛАЧЕННОГО периода — одна общая настройка.** Владелец 04.08: «я
       говоил про периоды оплаты и про общую настройку поведения после завершения оплаты например».
 
       **Как надо делать:** что происходит, когда оплаченный период кончился — блокировка, только чтение или
@@ -1350,22 +1350,25 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       singleton-настройка существует, но варианты `read_only` / `blocked` перекрываются тарифной лестницей и потому
       ещё не образуют самостоятельное runtime-поведение. Не расползать это поведение по механикам, свести в один вход.
 
-      ⛔ **ПЕРЕОТКРЫТО 20.08:** прежнее доказательство было ложным: UI и singleton существовали, но
+      ✅ **ПОВТОРНО ЗАКРЫТО 20.08:** прежнее доказательство было ложным: UI и singleton существовали, но
       `app.resolve_organization_{cabinet,mechanic}_access` после global lifecycle снова применял
       `tariff.system_access_policy`, поэтому тариф мог заменить выбранный outcome `read_only`/`blocked`.
       Forward migration `20260820T175432_paid_period_global_access_authority.sql` ставит global outcome
       перед тарифной лестницей в ОБЕИХ SQL-дверях; `requireEntitlementForMutation` расширен для
-      mechanic-less mutation и закрывает `POST /api/doctor/clients`. Повторно закрывать только после
-      целевого прогона: зависимости рабочего дерева отсутствуют (`pnpm --dir apps/webapp test -- …` →
-      `vitest: not found`). Owner walkthrough/full CI не закрывать этим пунктом.
+      mechanic-less mutation и закрывает `POST /api/doctor/clients`. После независимого аудита
+      исправлены все 4 finding: global `tariff` минует локальную лестницу, а изменение global policy
+      не сокращает earned rung по истории `saas_paid_period_policy_update`. Доказательство на именованной DEV:
+      `RUN_GLOBAL_PAID_PERIOD_ACCESS_DB=1 node --test deploy/postgres/privileges/global-paid-period-access.devDbProof.test.mjs`
+      → 2/2; route 4/4, fast 47/47, unit 8/8, UI 1/1; `migrate-dev.sh --preflight` и `--execute` → PASS.
+      Owner walkthrough/full CI не закрываются этим пунктом.
 
-- [ ] **T13. Только чтение при неоплате — общая mutation-дверь.** Реализация 20.08: mechanic-less
+- [x] **T13. Только чтение при неоплате — общая mutation-дверь.** ✅ ЗАКРЫТО 20.08: mechanic-less
       `POST /api/doctor/clients` проходит расширенный существующий `requireEntitlementForMutation`,
       получает `commercial_read_only`/`commercial_blocked` до `createDoctorClient`; остальные
       mechanic-bearing write paths остаются на том же chokepoint и получают SQL global outcome.
-      Повторно закрыть только после целевого прогона route/UI/org-entitlements tests; он сейчас
-      заблокирован отсутствующим `vitest` в рабочем дереве. Чтение в read_only и owner walkthrough
-      этим пунктом не закрыты.
+      Route oracle → 4/4, fast cabinet/mutation suite → 47/47, registry coverage → 8/8; живой DEV oracle
+      обеих SQL-дверей → 2/2 (`tariff` = full/mutation allowed; earned grace сохранён). Owner walkthrough
+      остаётся отдельной приёмкой, а не частью этого code/test-пункта.
 
 - [x] **Т9. Периоды оплаты задаются в тарифе, а не в коде; «день» как период — убрать.** Владелец 04.08,
       дословно: «И что блять за тарифное значение день для оплаты? Я понимаю месяц, полгода, год - но даже это

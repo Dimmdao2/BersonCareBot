@@ -92,3 +92,24 @@ Authority: команда владельца 20.08.2026, `docs/OWNER_DECISIONS.m
   класс и finding №4.
 
 Full CI, lint и typecheck не запускались по brief. PROD/TEST и текущая `feat` не затрагивались.
+
+## Fix evidence 20.08.2026
+
+Fixer устранил ровно четыре finding; финальная приёмка SHA остаётся за оркестратором.
+
+1. `OVERRIDABLE_MECHANICS` восстановлен только как источник org override selector; tariff downgrade-controls и
+   их payload не возвращены. UI acceptance: 1/1 passed.
+2. В migration leading block добавлены owner/schema/language markers. `check-drizzle-migration-order.sh` и
+   `check-migration-privileges.mjs` зелёны; штатные `migrate-dev.sh --preflight` и `--execute` завершились PASS.
+3. Global `tariff` теперь даёт `full_access` в обеих SQL-дверях и не запускает local unpaid ladder
+   целевого тарифа.
+4. Обе двери читают `saas_paid_period_policy_update`: из текущей и исторических global choices
+   выбирается не более строгий earned outcome; при ужесточении сначала доживает уже начатый
+   local grace/read-only rung.
+
+Живой oracle обеих SQL-дверей:
+`RUN_GLOBAL_PAID_PERIOD_ACCESS_DB=1 node --test deploy/postgres/privileges/global-paid-period-access.devDbProof.test.mjs`
+— 2/2 passed на `bcb_webapp_dev`, каждый fixture в отдельной транзакции с `ROLLBACK`.
+
+Повторён весь audit targeted suite: route 4/4, fast 47/47, unit 8/8, downgrade lifecycle 1/1,
+UI 1/1. Full CI, lint и typecheck по fix-brief не запускались; PROD/TEST/`feat` не затрагивались.

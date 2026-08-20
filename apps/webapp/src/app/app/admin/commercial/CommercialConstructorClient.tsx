@@ -147,6 +147,9 @@ const NOTIFICATION_CONDITION_LABELS: Record<AccessNotificationCondition, string>
 const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
   (mechanic) => MECHANIC_REGISTRY[mechanic].class === 'возможность',
 );
+const OVERRIDABLE_MECHANICS = MECHANICS.filter(
+  (mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'никогда',
+);
 const emptyMechanics = (): Record<OrgMechanic, boolean> =>
   Object.fromEntries(CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, false])) as Record<
     OrgMechanic,
