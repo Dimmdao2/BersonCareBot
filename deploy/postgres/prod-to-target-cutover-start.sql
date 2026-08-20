@@ -1,17 +1,25 @@
 \set ON_ERROR_STOP on
+\set VERBOSITY verbose
 
 -- Keep the history carry inside the canonical cutover entrypoint as well as the explicit
 -- pre-assertion data stage. Its deterministic key makes this second invocation a no-op.
-\ir prod-to-target-carry-legacy-appointments.sql
-
+\echo '=== CUTOVER STEP S01/06: carry unresolved legacy appointment history ==='
 BEGIN;
 SET LOCAL lock_timeout = '10s';
 SET LOCAL statement_timeout = '0';
 SET LOCAL check_function_bodies = off;
+\set cutover_parent_transaction true
+\ir prod-to-target-carry-legacy-appointments.sql
+\unset cutover_parent_transaction
+\set cutover_s01_result :cutover_legacy_appointment_carry_result
 
-SELECT set_config('bcb.cutover.expected_database', :'cutover_database', true);
-SELECT set_config('bcb.cutover.canonical_organization_id', :'canonical_organization_id', true);
-SELECT set_config('bcb.cutover.canonical_specialist_id', :'canonical_specialist_id', true);
+\echo '=== CUTOVER STEP S02/06: validate cutover target and source shape ==='
+SELECT set_config('bcb.cutover.expected_database', :'cutover_database', true) AS ignored
+\gset
+SELECT set_config('bcb.cutover.canonical_organization_id', :'canonical_organization_id', true) AS ignored
+\gset
+SELECT set_config('bcb.cutover.canonical_specialist_id', :'canonical_specialist_id', true) AS ignored
+\gset
 
 DO $preflight$
 BEGIN
@@ -32,8 +40,29 @@ BEGIN
 END
 $preflight$;
 
+SELECT json_build_object(
+  'status', 'pass',
+  'databaseMatched', true,
+  'requiredSourceRelations', 3,
+  'requiredSourceRelationsPresent', (
+    SELECT count(*) FROM (VALUES
+      (to_regclass('public.platform_users')),
+      (to_regclass('public.be_appointments')),
+      (to_regclass('integrator.identities'))
+    ) AS required(relation_oid)
+    WHERE relation_oid IS NOT NULL
+  ),
+  'staleCutoverSchemas', (
+    SELECT count(*) FROM pg_namespace
+    WHERE nspname IN ('cutover_source_public', 'cutover_source_integrator', 'cutover_source_drizzle')
+  )
+)::text AS result
+\gset cutover_s02_
+SELECT :'cutover_s02_result'::json AS cutover_step_s02_validate_source_shape;
+
 -- Complete the canonical appointment transfer for rows that existed only in the
 -- patient-facing Rubitime projection and therefore were not present in appointment_records.
+\echo '=== CUTOVER STEP S03/06: complete patient-projection appointment transfer ==='
 WITH candidates AS (
   SELECT
     booking.*,
@@ -118,7 +147,8 @@ WITH candidates AS (
   ON CONFLICT (id) DO NOTHING
   RETURNING id
 )
-SELECT count(*) AS patient_projection_appointments_inserted FROM inserted;
+SELECT count(*) AS rows_written FROM inserted
+\gset cutover_s03_
 
 INSERT INTO public.be_external_entity_mappings (
   organization_id, entity_type, canonical_id, external_system, external_id,
@@ -185,7 +215,31 @@ WHERE booking.rubitime_id IS NOT NULL
       AND history.payload ->> 'externalId' = booking.rubitime_id::text
   );
 
+SELECT json_build_object(
+  'status', 'pass',
+  'rowsWritten', :cutover_s03_rows_written,
+  'canonicalRowsFromPatientBookings', (
+    SELECT count(*) FROM public.be_appointments
+    WHERE attribution_json ->> 'sourceTable' = 'patient_bookings'
+  ),
+  'rubitimeAppointmentMappings', (
+    SELECT count(*) FROM public.be_external_entity_mappings
+    WHERE external_system = 'rubitime' AND entity_type = 'appointment'
+  ),
+  'unmappedPatientBookings', (
+    SELECT count(*) FROM public.patient_bookings
+    WHERE rubitime_id IS NOT NULL AND canonical_appointment_id IS NULL
+  ),
+  'cutoverHistoryEvents', (
+    SELECT count(*) FROM public.be_appointment_history_events
+    WHERE event_type = 'legacy_cutover_imported'
+  )
+)::text AS result
+\gset cutover_s03_
+SELECT :'cutover_s03_result'::json AS cutover_step_s03_patient_projection_appointments;
+
 -- Preserve legacy messenger identities as canonical platform identities and bindings.
+\echo '=== CUTOVER STEP S04/06: preserve messenger identities and channel bindings ==='
 INSERT INTO public.platform_users (
   integrator_user_id, display_name, first_name, last_name, role, created_at, updated_at
 )
@@ -228,7 +282,31 @@ WHERE NOT state_row.is_active
   AND binding.external_id = identity_row.external_id
   AND binding.bot_blocked_at IS NULL;
 
+SELECT json_build_object(
+  'status', 'pass',
+  'legacyMessengerIdentities', (
+    SELECT count(*) FROM integrator.identities WHERE resource IN ('telegram', 'max', 'vk')
+  ),
+  'canonicalChannelBindings', (
+    SELECT count(*) FROM public.user_channel_bindings WHERE channel_code IN ('telegram', 'max', 'vk')
+  ),
+  'unmappedMessengerIdentities', (
+    SELECT count(*)
+    FROM integrator.identities identity_row
+    LEFT JOIN public.user_channel_bindings binding
+      ON binding.channel_code = identity_row.resource
+     AND binding.external_id = identity_row.external_id
+    WHERE identity_row.resource IN ('telegram', 'max', 'vk') AND binding.user_id IS NULL
+  ),
+  'blockedChannelBindings', (
+    SELECT count(*) FROM public.user_channel_bindings WHERE bot_blocked_at IS NOT NULL
+  )
+)::text AS result
+\gset cutover_s04_
+SELECT :'cutover_s04_result'::json AS cutover_step_s04_messenger_identities;
+
 -- Final neutral provenance accepted by the target checks.
+\echo '=== CUTOVER STEP S05/06: normalize provenance and validate prepared data ==='
 ALTER TABLE public.patient_bookings DROP CONSTRAINT IF EXISTS patient_bookings_source_check;
 ALTER TABLE public.be_appointments DROP CONSTRAINT IF EXISTS be_appointments_source_check;
 UPDATE public.patient_bookings SET source = 'imported' WHERE source = 'rubitime_projection';
@@ -318,6 +396,42 @@ BEGIN
 END
 $data_gate$;
 
+SELECT json_build_object(
+  'status', 'pass',
+  'unmappedPatientBookings', (
+    SELECT count(*) FROM public.patient_bookings
+    WHERE rubitime_id IS NOT NULL AND canonical_appointment_id IS NULL
+  ),
+  'unmappedMessengerIdentities', (
+    SELECT count(*)
+    FROM integrator.identities identity_row
+    LEFT JOIN public.user_channel_bindings binding
+      ON binding.channel_code = identity_row.resource
+     AND binding.external_id = identity_row.external_id
+    WHERE identity_row.resource IN ('telegram', 'max', 'vk') AND binding.user_id IS NULL
+  ),
+  'legacyProjectionSourceValuesRemaining', (
+    (SELECT count(*) FROM public.patient_bookings WHERE source = 'rubitime_projection')
+    + (SELECT count(*) FROM public.be_appointments WHERE source = 'rubitime_projection')
+  ),
+  'unsupportedPendingLegacyRetryJobs', (
+    SELECT count(*) FROM integrator.rubitime_create_retry_jobs legacy
+    WHERE legacy.status IN ('pending', 'processing')
+      AND (
+        legacy.kind IS DISTINCT FROM 'message.deliver'
+        OR legacy.payload_json #>> '{intent,type}' IS DISTINCT FROM 'message.send'
+        OR NULLIF(legacy.payload_json #>> '{intent,meta,eventId}', '') IS NULL
+        OR COALESCE(
+          NULLIF(legacy.payload_json #>> '{intent,payload,delivery,channels,0}', ''),
+          NULLIF(legacy.payload_json #>> '{targets,0,resource}', '')
+        ) IS NULL
+      )
+  )
+)::text AS result
+\gset cutover_s05_
+SELECT :'cutover_s05_result'::json AS cutover_step_s05_prepared_data_gate;
+
+\echo '=== CUTOVER STEP S06/06: swap source schemas and create target schema shell ==='
 ALTER SCHEMA public RENAME TO cutover_source_public;
 ALTER SCHEMA integrator RENAME TO cutover_source_integrator;
 ALTER SCHEMA drizzle RENAME TO cutover_source_drizzle;
@@ -336,3 +450,23 @@ CREATE SCHEMA integrator;
 
 ALTER EXTENSION btree_gist SET SCHEMA public;
 ALTER EXTENSION pgcrypto SET SCHEMA app_ext;
+
+SELECT json_build_object(
+  'status', 'pass',
+  'sourceSchemasPreserved', (
+    SELECT count(*) FROM pg_namespace
+    WHERE nspname IN ('cutover_source_public', 'cutover_source_integrator', 'cutover_source_drizzle')
+  ),
+  'targetSchemasCreated', (
+    SELECT count(*) FROM pg_namespace
+    WHERE nspname IN ('public', 'app', 'app_control', 'app_ext', 'drizzle', 'integrator')
+  ),
+  'sourceSystemSettingsOrganizationColumnPresent', EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'cutover_source_public'
+      AND table_name = 'system_settings'
+      AND column_name = 'organization_id'
+  )
+)::text AS result
+\gset cutover_s06_
+SELECT :'cutover_s06_result'::json AS cutover_step_s06_schema_swap;
