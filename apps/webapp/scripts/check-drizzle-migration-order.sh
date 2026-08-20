@@ -17,26 +17,35 @@ REPO_ROOT="$(cd "${ROOT}/../.." && pwd)"
 MIG_DIR="${ROOT}/db/drizzle-migrations"
 JOURNAL="${MIG_DIR}/meta/_journal.json"
 MIGRATION_ORDER_MODULE="${REPO_ROOT}/deploy/postgres/privileges/migration-order.mjs"
+PRIVILEGE_DECLARATION="${REPO_ROOT}/deploy/postgres/privileges/declaration.ts"
 
 failed=0
 
-node --input-type=module - "${MIG_DIR}" "${JOURNAL}" "${MIGRATION_ORDER_MODULE}" <<'NODE' || failed=1
+(
+cd "${REPO_ROOT}"
+node --experimental-strip-types --input-type=module - \
+  "${MIG_DIR}" "${JOURNAL}" "${MIGRATION_ORDER_MODULE}" "${PRIVILEGE_DECLARATION}" "${REPO_ROOT}" <<'NODE'
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const [migrationsDir, journalPath, moduleFile] = process.argv.slice(2);
-const { findMigrationNameViolations, readMigrationFolder } = await import(pathToFileURL(moduleFile));
+const [migrationsDir, journalPath, moduleFile, declarationFile, repoRoot] = process.argv.slice(2);
+const { findMigrationStaticViolations, readMigrationFolder } = await import(pathToFileURL(moduleFile));
+const { default: declaration } = await import(pathToFileURL(declarationFile));
 
 const journal = fs.existsSync(journalPath) ? JSON.parse(fs.readFileSync(journalPath, 'utf8')) : { entries: [] };
 const entries = journal.entries ?? [];
 let failed = false;
 
-const violations = findMigrationNameViolations(readMigrationFolder(migrationsDir));
-for (const tag of violations) {
+const migrations = readMigrationFolder(migrationsDir);
+const declaredRelations = new Set([
+  ...Object.keys(declaration.databases.bcb_webapp_dev.tables),
+  ...Object.keys(declaration.portContext?.privateRelations ?? {}),
+]);
+for (const violation of findMigrationStaticViolations(migrations, declaredRelations)) {
   console.error(
-    `check-drizzle-migration-order: ${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case; ` +
-      'there are no exceptions',
+    `check-drizzle-migration-order: ${path.relative(repoRoot, violation.file)} ` +
+      `statement ${violation.statementIndex}: ${violation.reason}; ${violation.action}`,
   );
   failed = true;
 }
@@ -66,6 +75,7 @@ for (const entry of entries) {
 }
 process.exit(failed ? 1 : 0);
 NODE
+) || failed=1
 
 if (( failed != 0 )); then
   echo "New migrations are named db/drizzle-migrations/YYYYMMDDTHHMMSS_name.sql (UTC); nothing hands out a number." >&2

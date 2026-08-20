@@ -35,11 +35,14 @@ function integratorCategoryFromRule(rule: ReminderRule): string {
   return 'exercise';
 }
 
-export async function postReminderRuleUpsertToIntegrator(rule: ReminderRule): Promise<void> {
+export async function postReminderRuleUpsertToIntegrator(
+  rule: ReminderRule,
+  existingIdempotencyKey?: string,
+): Promise<void> {
   if (!rule.integratorUserId) return;
   const { baseUrl, secret } = await requireM2m();
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const idempotencyKey = `rule_${rule.id}_${timestamp}`;
+  const idempotencyKey = existingIdempotencyKey ?? `reminder_rule:${rule.id}`;
   const customTitleForIntegrator =
     rule.customTitle?.trim() ||
     (rule.linkedObjectType === 'rehab_program' ? rule.displayTitle?.trim() || null : null) ||

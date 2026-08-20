@@ -17,6 +17,8 @@ const clinicPayment: PatientPayment = {
   comment: null,
   service: null,
   visitId: null,
+  appointmentId: null,
+  idempotencyKey: null,
   provider: 'clinic-provider-b',
   providerPaymentId: 'provider-payment-1074',
   createdBy: 'doctor-1074',
@@ -26,6 +28,7 @@ const clinicPayment: PatientPayment = {
 function portWithPayment(payment: PatientPayment | null): PatientPaymentsPort {
   return {
     listPayments: vi.fn(),
+    listAppointmentPayments: vi.fn(),
     addCashPayment: vi.fn(),
     // The pre-principal webhook path must not fall back to the ordinary row reader.
     findByProviderPaymentReference: vi.fn().mockRejectedValue(

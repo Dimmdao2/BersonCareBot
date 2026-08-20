@@ -22,19 +22,20 @@ async function resolveAppointmentPaymentContext(appointmentId: string) {
       ok: false as const,
       response: NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 }),
     };
-  if (!appointment.platformUserId)
+  const platformUserId = appointment.platformUserId;
+  if (!platformUserId)
     return {
       ok: false as const,
       response: NextResponse.json({ ok: false, error: 'patient_required' }, { status: 409 }),
     };
-  return { ok: true as const, gate, appointment };
+  return { ok: true as const, gate, appointment, platformUserId };
 }
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id: appointmentId } = await context.params;
   const resolved = await resolveAppointmentPaymentContext(appointmentId);
   if (!resolved.ok) return resolved.response;
-  const { gate, appointment } = resolved;
+  const { gate, platformUserId } = resolved;
   const deps = buildAppDeps();
   if (!deps.payments) {
     return NextResponse.json({ ok: false, error: 'payments_unavailable' }, { status: 503 });
@@ -47,7 +48,7 @@ export async function GET(_request: Request, context: RouteContext) {
       service.getPaymentState({
         appointmentId,
         organizationId: gate.ctx.organizationId,
-        platformUserId: appointment.platformUserId,
+        platformUserId,
       }),
   );
   if (!state.summary) {
@@ -74,7 +75,7 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = postSchema.safeParse(body);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
-  const { gate, appointment } = resolved;
+  const { gate, platformUserId } = resolved;
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
   if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
@@ -92,7 +93,7 @@ export async function POST(request: Request, context: RouteContext) {
           action: parsed.data.action,
           appointmentId,
           organizationId: gate.ctx.organizationId,
-          platformUserId: appointment.platformUserId,
+          platformUserId,
           createdBy: gate.ctx.session.user.userId,
           returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
         }),

@@ -24,10 +24,8 @@ import {
   type DirectPublicWriteRetryRow,
 } from '../../db/repos/directPublicWriteRetry.js';
 import { logger } from '../../observability/logger.js';
-import {
-  runWithInfraPrincipal,
-  runWithOrganizationPrincipal,
-} from '../../principal/organizationPrincipal.js';
+import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
+import { writeDirectPublic } from '../../db/directPublic/writePort.js';
 
 const RETRY_BASE_SECONDS = 30;
 const MAX_BACKOFF_SECONDS = 3600;
@@ -64,16 +62,22 @@ export async function executeDirectPublicWriteRetry(
     retry.operation === 'reminder_rule_upsert' ||
     retry.operation === 'support_delivery_attempt_append'
   ) {
-    await runWithOrganizationPrincipal(retry.organizationId, async () => {
-      if (retry.operation === 'reminder_rule_upsert') {
-        await upsertReminderRuleDirect(db, retry.payload as UpsertReminderRuleDirectInput);
-        return;
-      }
-      await appendSupportDeliveryEventDirect(
-        db,
-        retry.payload as AppendSupportDeliveryEventDirectInput,
-      );
-    });
+    await writeDirectPublic(
+      retry.operation === 'reminder_rule_upsert'
+        ? 'reminder-rule-upsert'
+        : 'support-delivery-append',
+      async () => {
+        if (retry.operation === 'reminder_rule_upsert') {
+          await upsertReminderRuleDirect(db, retry.payload as UpsertReminderRuleDirectInput);
+          return;
+        }
+        await appendSupportDeliveryEventDirect(
+          db,
+          retry.payload as AppendSupportDeliveryEventDirectInput,
+        );
+      },
+      { organizationId: retry.organizationId },
+    );
     return;
   }
   if (
@@ -81,20 +85,23 @@ export async function executeDirectPublicWriteRetry(
     retry.operation === 'reminder_occurrence_failed_record' ||
     retry.operation === 'reminder_occurrence_expired_record'
   ) {
-    await recordReminderOccurrenceFinalizedDirect(
-      db,
-      retry.payload as ReminderOccurrenceFinalizedDirectInput,
+    await writeDirectPublic('reminder-occurrence-finalize', () =>
+      recordReminderOccurrenceFinalizedDirect(
+        db,
+        retry.payload as ReminderOccurrenceFinalizedDirectInput,
+      ),
     );
     return;
   }
   if (retry.operation === 'reminder_delivery_log_append') {
-    await appendReminderDeliveryEventDirect(
-      db,
-      retry.payload as ReminderDeliveryLoggedDirectInput,
+    await writeDirectPublic('reminder-delivery-append', () =>
+      appendReminderDeliveryEventDirect(db, retry.payload as ReminderDeliveryLoggedDirectInput),
     );
     return;
   }
-  await upsertContentAccessGrantDirect(db, retry.payload as ContentAccessGrantDirectInput);
+  await writeDirectPublic('content-access-grant-upsert', () =>
+    upsertContentAccessGrantDirect(db, retry.payload as ContentAccessGrantDirectInput),
+  );
 }
 
 export async function runDirectPublicWriteRetryWorkerTick(

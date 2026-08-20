@@ -206,7 +206,12 @@ test('migrate-dev preflight accepts only the stationary post-cutover migrator', 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /preflight: PASS/u);
   const calls = readFileSync(runtime.capture, 'utf8');
+  assert.match(calls, /--relation-wall-registry-seed-only/su);
   assert.match(calls, /migrate-local\.mjs.*--drizzle-folder.*--rollback-only/su);
+  assert.ok(
+    calls.indexOf('--relation-wall-registry-seed-only') < calls.indexOf('migrate-local.mjs'),
+    'declaration-derived registry seed must precede rollback-only DDL',
+  );
   assert.doesNotMatch(
     calls,
     /migrate-integrator-local|reconcile-access|update-dev-port-context-env|pnpm/u,
@@ -251,6 +256,9 @@ test('migrate-dev executes the canonical B0-forward owner order before mandatory
     line.includes('<--shared-role-baseline>'),
   );
   const sharedRoleVerify = callLines.findIndex((line) => line.includes('<--shared-role-verify>'));
+  const relationRegistrySeed = callLines.findIndex((line) =>
+    line.includes('<--relation-wall-registry-seed-only>'),
+  );
   const firstIntegrator = callLines.findIndex((line) =>
     line.includes('migrate-integrator-local.mjs'),
   );
@@ -265,7 +273,8 @@ test('migrate-dev executes the canonical B0-forward owner order before mandatory
   assert.ok(
     sharedRoleBaseline >= 0 &&
       sharedRoleVerify > sharedRoleBaseline &&
-      firstIntegrator > sharedRoleVerify &&
+      relationRegistrySeed > sharedRoleVerify &&
+      firstIntegrator > relationRegistrySeed &&
       webapp > firstIntegrator &&
       secondIntegrator > webapp &&
       reconcile > secondIntegrator &&

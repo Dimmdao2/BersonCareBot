@@ -138,6 +138,16 @@ test('the restored wall rejects an undeclared table with 42501', { skip: !ENABLE
   assertRejectedByBirthWall(undeclared, 'create undeclared table after contract');
 });
 
+test('the restored wall rejects a declared table created by the wrong owner with 42501',
+  { skip: !ENABLED }, () => {
+    const wrongOwner = runWithEmptyRegistry(CONTRACT_SQL, `
+INSERT INTO app_control.relation_wall_registry (schema_name, table_name, data_class, wall, expected_owner)
+VALUES ('app_ext', 'bcb_birth_wall_declared_proof', 'S', 'proof', 'app_object_owner');
+CREATE TABLE app_ext.bcb_birth_wall_declared_proof (id integer);
+`);
+    assertRejectedByBirthWall(wrongOwner, 'create declared table as postgres instead of app_object_owner');
+  });
+
 test('the restored wall allows a declared table and enables forced RLS', { skip: !ENABLED }, () => {
   const declared = runWithEmptyRegistry(CONTRACT_SQL, `
 INSERT INTO app_control.relation_wall_registry (schema_name, table_name, data_class, wall, expected_owner)

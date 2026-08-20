@@ -825,6 +825,35 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       (`doctorSupportMessagingService.ts`, `sendProgramNoteReply.ts`); (4) eventGateway ingress dedup — порт
       обязателен по типу (D34 хвост, этот коммит). Пункт остаётся открыт: полный census оставшихся
       webapp→integrator delivery швов и закрытие чекбокса после независимого аудита.
+      Перепись остальных швов 20.08: `docs/REPORTS/D39_DELIVERY_SEAM_CENSUS_2026-08-20.md`; чекбокс не
+      закрыт — требуется независимый аудит.
+      **Р-D39a (владелец, 20.08), действует.** Ручной merge пользователей интегратора оказался мёртвым кодом
+      (нет вызовов, нет receiver-маршрута) — удалён, а не обвешан ключом. Единственный оставшийся open
+      question — transactional email: владелец согласился не дедуплицировать по умолчанию (дубль дешевле
+      проглоченной осознанной отправки); ключ идемпотентности для конкретного retry — только явно от
+      вызывающего кода. Код уже в этом состоянии, менять нечего. Оба пункта переписи закрыты; чекбокс D39
+      по-прежнему ждёт независимого аудита остальных 4 швов, решение по email на это не влияет.
+
+- [x] **D40 — `directPublic/` сводится в один порт (владелец 20.08).** Evidence 2026-08-20: единый
+      `apps/integrator/src/infra/db/directPublic/writePort.ts` (`writeDirectPublic(operation, write,
+      options)`) выбирает organization principal для семи direct-public операций; все production-вызовы
+      в `writePort.ts` и retry worker проходят через него. `pnpm --dir apps/integrator typecheck`,
+      `pnpm --dir apps/integrator lint` и `/home/dev/brain/host-orch/run-tests.sh 'pnpm --dir
+      apps/integrator exec vitest run'` — PASS (последний rc=0, 28s).
+      Решение владельца, дословно: «не один
+      порт, а россыпь — не может быть такого, у нас должно быть только 2 места через которые пишется и
+      читается БД… чинить сразу — это то что должно вычищаться сразу и беспощадно». Сейчас
+      `apps/integrator/src/infra/db/directPublic/` — 7 экспортируемых пишущих функций в 5 файлах
+      (`bootstrapMessengerPhoneBind.ts`, `mergeCandidatesDirect.ts`, `writeIdentityAndPreferencesDirect.ts`,
+      `writeReminderProjectionDirect.ts`, `writeSupportQuestionsDirect.ts` (4 функции),
+      `writeReminderRulesDirect.ts`, `resolveDirectPublicActor.ts`), каждая сама решает, какой SQL и какую
+      роль (`runWithOrganizationPrincipal`/`runWithIntegratorPrincipal`) вызвать; общий у них только
+      низкоуровневый `runIntegratorSql`, не консолидированный порт. Роль/логин у каждой законные (проверено
+      20.08: `organizationPrincipal.ts:19-27` — стандартный, не привилегированный путь) — дыра не в обходе
+      прав, а в том, что решение «какой SQL/какая роль» принимается в 7 местах вместо одного. Свести к одной
+      точке (функции/модулю), которая инкапсулирует выбор роли и SQL, остальные 6 вызывают её. Часть общего
+      требования «ровно 2 db-chokepoint'а на приложение» — не заводить как отдельную будущую архитектуру,
+      это тот же принцип, что уже действует для остальной части кодовой базы.
 
 - [x] **D38 — у каждого переключателя админки есть потребитель, и потребитель один**
       Evidence 2026-08-05: экземпляр 1 (2FA) — `9863f5b5b`, единый предикат
