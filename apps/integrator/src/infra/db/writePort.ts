@@ -925,6 +925,22 @@ export function createDbWritePort(
             payloadJson,
             occurredAt,
           };
+          const recordDeliveryAttemptFailureIncident = async (
+            errorClass: string,
+            errorDetail: string,
+          ): Promise<void> => {
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'support_delivery_events',
+              errorClass,
+              errorDetail,
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, intentEventId, correlationId },
+                'delivery.attempt.log: failed to record operator incident',
+              );
+            });
+          };
           await executeCanonicalWriteOrLegacy({
             sync: webappEventsPort?.syncSupportDeliveryAttempt
               ? () =>
@@ -946,6 +962,11 @@ export function createDbWritePort(
             accepts: (canonicalWrite) =>
               canonicalWrite.deliveryAttemptId === deliveryAttemptId &&
               canonicalWrite.organizationId === organizationId,
+            onHandoffFailure: async (failure) =>
+              recordDeliveryAttemptFailureIncident(
+                'delivery_attempt_log_canonical_handoff_failure',
+                failure,
+              ),
             legacyWrite: async () => {
               try {
                 // organizationId is already a known, validated value here (guarded above) — wrap with it
@@ -969,17 +990,10 @@ export function createDbWritePort(
                   { err, mutationType: mutation.type, intentEventId, correlationId, channel },
                   'delivery.attempt.log: direct public write failed, queued durable direct retry',
                 );
-                await recordOperatorFailureIncident({
-                  direction: 'db_write',
-                  integration: 'support_delivery_events',
-                  errorClass: 'delivery_attempt_log_direct_write_fallback',
-                  errorDetail: 'direct_write_unexpected_error',
-                }).catch((incidentErr: unknown) => {
-                  logger.error(
-                    { err: incidentErr, mutationType: mutation.type, intentEventId, correlationId },
-                    'delivery.attempt.log: failed to record operator incident for direct-write fallback',
-                  );
-                });
+                await recordDeliveryAttemptFailureIncident(
+                  'delivery_attempt_log_direct_write_fallback',
+                  'direct_write_unexpected_error',
+                );
               }
             },
           });

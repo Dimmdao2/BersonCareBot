@@ -40,7 +40,7 @@ describe('D4 webapp canonical write handoff', () => {
     expect(legacyWrite).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects a canonical acknowledgement for another natural key and keeps the legacy path', async () => {
+  it('rejects a canonical acknowledgement for another natural key without a legacy write', async () => {
     const legacyWrite = vi.fn().mockResolvedValue(undefined);
 
     const handled = await executeCanonicalWriteOrLegacy<{
@@ -59,6 +59,6 @@ describe('D4 webapp canonical write handoff', () => {
     });
 
     expect(handled).toBe(false);
-    expect(legacyWrite).toHaveBeenCalledTimes(1);
+    expect(legacyWrite).not.toHaveBeenCalled();
   });
 });
