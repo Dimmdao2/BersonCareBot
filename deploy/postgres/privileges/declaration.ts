@@ -2319,6 +2319,16 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
       functionIdentity: 'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
+    integrator_port_reminder_occurrence_finalized_record: { port: 'integrator',
+      runtimeName: 'reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.reminder-occurrence-finalized.record',
+      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
+    integrator_delivery_reminder_occurrence_finalized_record: { port: 'integrator',
+      runtimeName: 'delivery_reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+      purpose: 'integrator.reminder-occurrence-finalized.record',
+      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     integrator_inbound_reply_enqueue: { port: 'integrator', runtimeName: 'inbound_reply_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'delivery.inbound-reply.enqueue',
@@ -7118,6 +7128,8 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   const rolePredicate = ordinaryRoles.length > 0
     ? ordinaryRoles.map((role) => `current_user = '${role}'::name`).join(' OR ')
     : 'false';
+  if (tableKey === 'public.content_access_grants_webapp') return "(CASE WHEN current_user = 'app_operational_delivery_worker'::name THEN true WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) ELSE false END)";
+  if (tableKey === 'public.reminder_delivery_events') return "(CASE WHEN current_user = 'app_operational_delivery_worker'::name THEN true WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) OR (app.current_integrator_user_id() IS NOT NULL AND integrator_user_id = app.current_integrator_user_id()) ELSE false END)";
   if (tableKey === 'public.clinical_test_regions') return `(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())`
     + ' AND EXISTS (SELECT 1 FROM public.tests parent_test WHERE parent_test.id = clinical_test_id AND parent_test.organization_id = (SELECT app.current_org_id()))'
     + ' AND EXISTS (SELECT 1 FROM public.reference_items parent_region WHERE parent_region.id = body_region_id AND parent_region.organization_id = (SELECT app.current_org_id())))';
@@ -7469,9 +7481,10 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       ? `(current_user = 'app_platform_settings'::name OR (${predicate}))`
       : predicate;
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
-      'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
+      'public.be_patient_booking_profiles', 'public.content_access_grants_webapp', 'public.content_pages',
+      'public.content_sections',
       'public.content_section_slug_history', 'public.reference_categories', 'public.reference_items',
-      'public.reminder_occurrence_history',
+      'public.reminder_delivery_events', 'public.reminder_occurrence_history',
       'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
       'public.support_conversations']).has(key);
     const directBusiness: PolicyDecl[] = access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{

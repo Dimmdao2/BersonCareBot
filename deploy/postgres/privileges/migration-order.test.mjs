@@ -233,7 +233,9 @@ test('a bare number, a missing slug or an out-of-range clock field is not a time
 // because '0' < '2' — checked here against the sort the runners actually use, on the real folder,
 // not assumed from reading the regex.
 test('every real legacy migration name sorts before a 2026 timestamp name, by the sort runners use', () => {
-  const legacy = readMigrationFolder(REAL_MIGRATIONS_FOLDER).map((entry) => entry.tag);
+  const legacy = readMigrationFolder(REAL_MIGRATIONS_FOLDER)
+    .map((entry) => entry.tag)
+    .filter((tag) => tag.startsWith('0'));
   assert.ok(legacy.length > 0, 'the real migrations folder must not be empty for this to prove anything');
   const sorted = [...legacy, '20260820T014233_after_everything_legacy'].sort();
   assert.deepEqual(sorted.slice(-1), ['20260820T014233_after_everything_legacy']);

@@ -8,6 +8,10 @@ const fakes = vi.hoisted(() => ({
   fail: vi.fn(),
   reschedule: vi.fn(),
   runInfra: vi.fn(async (_input: unknown, fn: () => Promise<unknown>) => fn()),
+  runOrg: vi.fn(async (_organizationId: string, fn: () => Promise<unknown>) => fn()),
+  occurrence: vi.fn(),
+  delivery: vi.fn(),
+  contentGrant: vi.fn(),
 }));
 
 vi.mock('../../db/repos/directPublicWriteRetry.js', () => ({
@@ -19,10 +23,18 @@ vi.mock('../../db/repos/directPublicWriteRetry.js', () => ({
 }));
 vi.mock('../../principal/organizationPrincipal.js', () => ({
   runWithInfraPrincipal: fakes.runInfra,
-  runWithOrganizationPrincipal: async (_organizationId: string, fn: () => Promise<unknown>) => fn(),
+  runWithOrganizationPrincipal: fakes.runOrg,
+}));
+vi.mock('../../db/directPublic/writeReminderProjectionDirect.js', () => ({
+  recordReminderOccurrenceFinalizedDirect: fakes.occurrence,
+  appendReminderDeliveryEventDirect: fakes.delivery,
+  upsertContentAccessGrantDirect: fakes.contentGrant,
 }));
 
-import { runDirectPublicWriteRetryWorkerTick } from './directPublicWriteRetryWorker.js';
+import {
+  executeDirectPublicWriteRetry,
+  runDirectPublicWriteRetryWorkerTick,
+} from './directPublicWriteRetryWorker.js';
 
 const unusedDb = {} as DbPort;
 
@@ -82,5 +94,71 @@ describe('direct public write retry worker', () => {
       expect.objectContaining({ id: 8, lastError: 'temporary database failure' }),
     );
     expect(fakes.complete).not.toHaveBeenCalled();
+  });
+
+  it('keeps projection replay writes in the outer delivery capability', async () => {
+    const organizationId = 'a0000000-0000-4000-8000-000000000001';
+    const common = {
+      id: 9,
+      organizationId,
+      idempotencyKey: 'direct-public-write:projection-9',
+      attemptCount: 1,
+      maxAttempts: 5,
+    };
+
+    await executeDirectPublicWriteRetry(unusedDb, {
+      ...common,
+      operation: 'reminder_occurrence_sent_record',
+      payload: {
+        integratorOccurrenceId: 'occurrence-9',
+        integratorRuleId: 'rule-9',
+        integratorUserId: '9',
+        platformUserId: 'b0000000-0000-4000-8000-000000000001',
+        organizationId,
+        category: 'appointment',
+        status: 'sent',
+        deliveryChannel: 'telegram',
+        errorCode: null,
+        occurredAt: '2026-08-20T10:00:00.000Z',
+      },
+    });
+    await executeDirectPublicWriteRetry(unusedDb, {
+      ...common,
+      operation: 'reminder_delivery_log_append',
+      payload: {
+        organizationId,
+        integratorDeliveryLogId: 'delivery-9',
+        integratorOccurrenceId: 'occurrence-9',
+        integratorRuleId: 'rule-9',
+        integratorUserId: '9',
+        channel: 'telegram',
+        status: 'success',
+        errorCode: null,
+        payloadJson: {},
+        createdAt: '2026-08-20T10:00:00.000Z',
+      },
+    });
+    await executeDirectPublicWriteRetry(unusedDb, {
+      ...common,
+      operation: 'content_access_grant_upsert',
+      payload: {
+        organizationId,
+        integratorGrantId: 'grant-9',
+        integratorUserId: '9',
+        platformUserId: 'b0000000-0000-4000-8000-000000000001',
+        contentId: 'content-9',
+        purpose: 'reminder',
+        tokenHash: null,
+        expiresAt: '2026-08-21T10:00:00.000Z',
+        revokedAt: null,
+        metaJson: {},
+        createdAt: '2026-08-20T10:00:00.000Z',
+      },
+    });
+
+    expect(fakes.runOrg).not.toHaveBeenCalled();
+    expect(fakes.occurrence).toHaveBeenCalledOnce();
+    expect(fakes.delivery).toHaveBeenCalledOnce();
+    expect(fakes.contentGrant).toHaveBeenCalledOnce();
   });
 });

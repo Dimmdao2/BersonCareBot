@@ -3117,6 +3117,51 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "platform_user_id"
         ]
+      },
+      {
+        "role": "app_operational_delivery_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "platform_user_id"
+        ]
+      },
+      {
+        "role": "app_operational_delivery_worker",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "content_id",
+          "created_at",
+          "expires_at",
+          "integrator_grant_id",
+          "integrator_user_id",
+          "meta_json",
+          "organization_id",
+          "platform_user_id",
+          "purpose",
+          "revoked_at",
+          "token_hash"
+        ]
+      },
+      {
+        "role": "app_operational_delivery_worker",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "content_id",
+          "expires_at",
+          "integrator_user_id",
+          "meta_json",
+          "organization_id",
+          "platform_user_id",
+          "purpose",
+          "revoked_at",
+          "token_hash"
+        ]
       }
     ]
   },
@@ -7063,6 +7108,24 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       },
       {
         "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "channel",
+          "created_at",
+          "error_code",
+          "integrator_delivery_log_id",
+          "integrator_occurrence_id",
+          "integrator_rule_id",
+          "integrator_user_id",
+          "organization_id",
+          "payload_json",
+          "status"
+        ]
+      },
+      {
+        "role": "app_operational_delivery_worker",
         "operations": [
           "INSERT"
         ],

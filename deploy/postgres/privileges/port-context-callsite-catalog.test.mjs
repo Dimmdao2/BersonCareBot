@@ -758,9 +758,19 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     source: 'apps/webapp/src/infra/idempotency/pgStore.ts',
   },
   'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)': {
-    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
-    purpose: 'integrator.reminder-occurrence-finalized.record', argCount: 10,
-    source: 'apps/webapp/src/infra/repos/pgReminderProjection.ts',
+    argCount: 10, descriptorCount: 3,
+    callsites: [
+      { port: 'integrator', source: 'apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts' },
+      { port: 'webapp', source: 'apps/webapp/src/infra/repos/pgReminderProjection.ts' },
+    ],
+    descriptors: [
+      { port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+        purpose: 'integrator.reminder-occurrence-finalized.record' },
+      { port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+        purpose: 'integrator.reminder-occurrence-finalized.record' },
+      { port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+        purpose: 'integrator.reminder-occurrence-finalized.record' },
+    ],
   },
   'app.read_patient_telegram_display_handle(uuid)': {
     port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
@@ -1055,6 +1065,7 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'delivery-handler',
     'max-webhook:record-outcome',
     'telegram-webhook:record-outcome',
+    'worker:direct-public-write-retry-tick',
     'worker:job-queue-drain',
     'worker:outgoing-delivery-tick',
     'worker:projection-outbox-tick',
@@ -1206,39 +1217,56 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
     ['integrator apps/integrator/src/infra/db/operationalPoolReadiness.ts'],
     'exactly one reviewed generic named-root readiness wrapper may exist',
   );
-  assert.equal(new Set(callsites.map((row) => row.identity)).size, callsites.length,
-    'each production named root must have one exact callsite');
-
   const roots = Object.values(candidate.portContext.capabilities)
     .filter((descriptor) => descriptor.functionIdentity);
   const expectedDescriptorCount = [...EXPECTED_ROOTS.values()]
     .reduce((count, descriptor) => count + (descriptor.descriptorCount ?? 1), 0);
   const byIdentity = Map.groupBy(roots, (descriptor) => descriptor.functionIdentity);
+  const callsitesByIdentity = Map.groupBy(callsites, (callsite) => callsite.identity);
 
   for (const callsite of callsites) {
-    const expected = EXPECTED_ROOTS.get(callsite.identity);
-    assert.ok(expected, `${callsite.path}:${callsite.line}: undeclared named-root callsite`);
-    assert.equal(callsite.path, expected.source,
-      `${callsite.path}:${callsite.line}: named root moved from the reviewed production source`);
-    assert.equal(callsite.port, expected.port,
-      `${callsite.path}:${callsite.line}: named root moved to the wrong port`);
-    assert.equal(callsite.argCount, expected.argCount,
-      `${callsite.path}:${callsite.line}: typed argument count does not match function identity`);
-    const descriptors = byIdentity.get(callsite.identity);
+    assert.ok(EXPECTED_ROOTS.has(callsite.identity),
+      `${callsite.path}:${callsite.line}: undeclared named-root callsite`);
+  }
+  for (const [identity, expected] of EXPECTED_ROOTS) {
+    const expectedCallsites = expected.callsites ?? [
+      { port: expected.port, source: expected.source },
+    ];
+    const actualCallsites = callsitesByIdentity.get(identity) ?? [];
+    assert.deepEqual(
+      actualCallsites.map((callsite) => ({
+        port: callsite.port,
+        source: callsite.path,
+        argCount: callsite.argCount,
+      })).sort((left, right) => `${left.port}:${left.source}`.localeCompare(`${right.port}:${right.source}`)),
+      expectedCallsites.map((callsite) => ({
+        port: callsite.port,
+        source: callsite.source,
+        argCount: expected.argCount,
+      })).sort((left, right) => `${left.port}:${left.source}`.localeCompare(`${right.port}:${right.source}`)),
+      `${identity}: named-root production callsites changed`,
+    );
+    const descriptors = byIdentity.get(identity);
     assert.equal(
       descriptors?.length,
       expected.descriptorCount ?? 1,
-      `${callsite.path}:${callsite.line}: wrong catalog descriptor count`,
+      `${identity}: wrong catalog descriptor count`,
     );
     if (expected.descriptors) {
       assert.deepEqual(
         descriptors.map((descriptor) => ({
+          port: descriptor.port,
           targetRole: descriptor.targetRole,
           contextClass: descriptor.contextClass,
           purpose: descriptor.purpose,
-        })).sort((left, right) => left.targetRole.localeCompare(right.targetRole)),
-        [...expected.descriptors].sort((left, right) => left.targetRole.localeCompare(right.targetRole)),
-        `${callsite.path}:${callsite.line}: wrong catalog descriptor partition`,
+        })).sort((left, right) => `${left.port}:${left.targetRole}`.localeCompare(`${right.port}:${right.targetRole}`)),
+        expected.descriptors.map((descriptor) => ({
+          port: descriptor.port ?? expected.port,
+          targetRole: descriptor.targetRole,
+          contextClass: descriptor.contextClass,
+          purpose: descriptor.purpose,
+        })).sort((left, right) => `${left.port}:${left.targetRole}`.localeCompare(`${right.port}:${right.targetRole}`)),
+        `${identity}: wrong catalog descriptor partition`,
       );
       continue;
     }
@@ -1255,17 +1283,19 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
         targetRole: expectedTargetRole,
         contextClass: expected.contextClass,
         purpose: expected.purpose,
-      }, `${callsite.path}:${callsite.line}: wrong catalog descriptor`);
+      }, `${identity}: wrong catalog descriptor`);
     }
     if (expected.sessionRoles) {
       assert.deepEqual(
         descriptors.map((descriptor) => descriptor.sessionRole).sort(),
         [...expected.sessionRoles].sort(),
-        `${callsite.path}:${callsite.line}: wrong physical-login role partition`,
+        `${identity}: wrong physical-login role partition`,
       );
     }
   }
-  assert.equal(callsites.length, EXPECTED_ROOTS.size, 'named-root callsite census changed');
+  const expectedCallsiteCount = [...EXPECTED_ROOTS.values()]
+    .reduce((count, expected) => count + (expected.callsites?.length ?? 1), 0);
+  assert.equal(callsites.length, expectedCallsiteCount, 'named-root callsite census changed');
   assert.equal(roots.length, expectedDescriptorCount, 'function-bound catalog size changed');
   assert.deepEqual([...byIdentity.keys()].sort(), [...EXPECTED_ROOTS.keys()].sort(),
     'catalog contains a function-bound root without a production callsite');
