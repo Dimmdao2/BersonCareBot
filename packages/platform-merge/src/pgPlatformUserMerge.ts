@@ -1,5 +1,5 @@
 import type { QueryResultRow } from 'pg';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { mergeLogger as logger } from './mergeLogger.js';
 import { runMergeSql, runMergePgText } from './mergeSql.js';
 import { syncUserContactsMirror, clearDuplicateUserContactsBeforeTargetMirror } from './userContactsMirrorWrite.js';
@@ -40,31 +40,159 @@ export type VerifiedDistinctIntegratorUserIds = {
  * clinical history.  Manual support merge is intentionally excluded: support
  * is the only actor allowed to move a real history.
  */
+type MedicalHistoryRecord = {
+  automaticProbe?: (accountIds: readonly string[]) => SQL;
+  transfer: (targetId: string, duplicateId: string) => SQL[];
+};
+
+/**
+ * D26 §5.2 / §5.8: one definition of patient medical history. Automatic merges
+ * probe every applicable row for both accounts; manual support merges transfer
+ * the same rows (plus the clinic link that makes the history reachable).
+ */
+const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) => sql`SELECT 1 FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM patient_bookings WHERE platform_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM be_appointments WHERE platform_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE be_appointments SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM treatment_program_instances
+          WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM support_conversation_messages message
+          INNER JOIN support_conversations conversation ON conversation.id = message.conversation_id
+          WHERE conversation.platform_user_id = ANY(${ids}::uuid[]) AND message.sender_role = 'user'`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE support_conversations SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT 1 FROM program_item_discussion_messages
+          WHERE patient_user_id = ANY(${ids}::uuid[]) AND sender_role = 'patient'`,
+    transfer: (targetId, duplicateId) => [
+      sql`DELETE FROM program_item_discussion_reads duplicate
+          WHERE duplicate.patient_user_id = ${duplicateId}::uuid
+            AND EXISTS (
+              SELECT 1 FROM program_item_discussion_reads target
+              WHERE target.patient_user_id = ${targetId}::uuid
+                AND target.instance_stage_item_id = duplicate.instance_stage_item_id
+            )`,
+      sql`UPDATE program_item_discussion_reads SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+      sql`UPDATE program_item_discussion_messages SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE patient_specialist_links duplicate
+          SET status = 'ended', ended_at = now(), ended_reason = 'transferred_out'
+          WHERE duplicate.patient_user_id = ${duplicateId}::uuid
+            AND duplicate.status = 'active'
+            AND EXISTS (
+              SELECT 1 FROM patient_specialist_links target
+              WHERE target.patient_user_id = ${targetId}::uuid
+                AND target.specialist_id = duplicate.specialist_id
+                AND target.status = 'active'
+            )`,
+      sql`UPDATE patient_specialist_links SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+];
+
 async function assertAutomaticMergeHasNoMedicalHistory(
   client: PlatformMergeDbClient,
+  targetId: string,
   duplicateId: string,
 ): Promise<void> {
+  const accountIds = [targetId, duplicateId];
+  const probes = MEDICAL_HISTORY_RECORDS.flatMap((record) =>
+    record.automaticProbe ? [record.automaticProbe(accountIds)] : [],
+  );
   const history = await runMergeSql<{ has_medical_history: boolean }>(
     client,
-    sql`SELECT EXISTS (
-      SELECT 1 FROM clinical_visit WHERE patient_user_id = ${duplicateId}::uuid
-      UNION ALL SELECT 1 FROM doctor_notes WHERE user_id = ${duplicateId}::uuid
-      UNION ALL SELECT 1 FROM patient_bookings WHERE platform_user_id = ${duplicateId}::uuid
-      UNION ALL SELECT 1 FROM be_appointments WHERE platform_user_id = ${duplicateId}::uuid
-      UNION ALL SELECT 1 FROM treatment_program_instances
-        WHERE patient_user_id = ${duplicateId}::uuid AND assignment_source = 'doctor'
-      UNION ALL SELECT 1 FROM support_conversation_messages message
-        INNER JOIN support_conversations conversation ON conversation.id = message.conversation_id
-        WHERE conversation.platform_user_id = ${duplicateId}::uuid AND message.sender_role = 'user'
-      UNION ALL SELECT 1 FROM program_item_discussion_messages
-        WHERE patient_user_id = ${duplicateId}::uuid AND sender_role = 'patient'
-    ) AS has_medical_history`,
+    sql`SELECT EXISTS (${sql.join(probes, sql` UNION ALL `)}) AS has_medical_history`,
   );
   if (history.rows[0]?.has_medical_history) {
     throw new MergeDependentConflictError(
       'medical_history: automatic merge requires support',
-      [duplicateId],
+      accountIds,
     );
+  }
+}
+
+async function transferMedicalHistoryForMerge(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  for (const record of MEDICAL_HISTORY_RECORDS) {
+    for (const transfer of record.transfer(targetId, duplicateId)) {
+      await runMergeSql(client, transfer);
+    }
   }
 }
 
@@ -270,7 +398,7 @@ export async function mergePlatformUsersInTransaction(
   }
 
   if (reason !== 'manual') {
-    await assertAutomaticMergeHasNoMedicalHistory(client, duplicateId);
+    await assertAutomaticMergeHasNoMedicalHistory(client, targetId, duplicateId);
   }
 
   const manualResolution = reason === 'manual' ? options!.resolution! : undefined;
@@ -378,25 +506,13 @@ export async function mergePlatformUsersInTransaction(
 
   await runMergeSql(
     client,
-    sql`UPDATE support_conversations SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
     sql`UPDATE reminder_rules SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
   );
   await runMergeSql(
     client,
     sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
   );
-  await runMergeSql(
-    client,
-    sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
+  await transferMedicalHistoryForMerge(client, targetId, duplicateId);
   await runMergeSql(
     client,
     sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
@@ -1458,14 +1574,6 @@ async function mergeExtendedUserOwnedData(
     ],
     [
       `UPDATE test_attempts SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`,
-      [targetId, duplicateId],
-    ],
-    [
-      `UPDATE treatment_program_instances SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`,
-      [targetId, duplicateId],
-    ],
-    [
-      `UPDATE be_appointments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
       [targetId, duplicateId],
     ],
     [
