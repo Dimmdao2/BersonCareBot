@@ -2,7 +2,7 @@
 
 /**
  * PatientTabOverview — Wave 4: «Обзор» tab wired to real backend.
- * Two columns 50/50:
+ * Two columns 50/50 from `md:` up, single column below (mobile-width fix 2026-08-20):
  *   LEFT  — KPIs · Сигналы · Актуальные симптомы · Динамика симптомов · Выполнение упражнений
  *   RIGHT — Заметки · Задачи · Программа и комментарии · Сообщения
  *
@@ -1408,7 +1408,7 @@ export function PatientTabOverview({
   const totalMessageUnread = data?.unreadFromUserCount ?? 0;
 
   return (
-    <div className="grid gap-2.5" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+    <div className="grid grid-cols-1 items-start gap-2.5 md:grid-cols-2">
       {/* ===== LEFT COLUMN ===== */}
       <div className="flex flex-col gap-2.5">
         {/* «+ Создать визит» entry point */}
