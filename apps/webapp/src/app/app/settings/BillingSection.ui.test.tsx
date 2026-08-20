@@ -145,6 +145,34 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     expect(screen.getByRole('button', { name: 'Оплатить тариф' })).toBeInTheDocument();
   });
 
+  // L-11 (владелец 18.08): до первого выбора клиника сама выбирает платный тариф, идёт оплачивать
+  // и только затем получает доступ. Поломка: экран отправляет её в админку платформы вместо выбора
+  // ниже, поэтому запертая клиника не находит собственный путь к оплате.
+  it('без выбранного тарифа направляет клинику к выбору ниже и оплате, не в админку', () => {
+    render(
+      <BillingSection
+        tariffName={null}
+        commercialStateLabel="Тариф не назначен — доступа нет. Выберите тариф в админке, чтобы вернуть работу кабинета."
+        mechanics={[]}
+        quotaUsage={[]}
+        billing={emptyBilling}
+        tariffChange={{
+          choices: [{ id: 'first', name: 'Базовый' }],
+          currentTariffId: null,
+          pendingTariffId: null,
+          pendingEffectiveAt: null,
+          awaitingFirstPayment: false,
+          payable: true,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText('Выберите тариф ниже и оплатите его — доступ откроется после оплаты.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Выберите тариф в админке/)).not.toBeInTheDocument();
+  });
+
   it('renders each configured number with its usage and limit, and hides the section when there are none', () => {
     const { rerender } = render(
       <BillingSection

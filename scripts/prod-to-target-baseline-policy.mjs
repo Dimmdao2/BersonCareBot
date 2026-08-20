@@ -159,10 +159,32 @@ export function removeRetiredRuntimeSettings(sql) {
     .replace(/'integrator_linked_phone_source',\s*/gu, '');
 }
 
+/**
+ * Единственная организация, которая приезжает в целевую базу, — каноническая клиника из прод-дампа
+ * (`ORG_ID` в `deploy/host/deploy-test-saas.sh`). На DEV рядом с ней живут фикстуры «DEV Demo Clinic»
+ * и «DEV Isolated Clinic»; снимок настроек снимается с DEV и тащил их строки за собой, а организаций
+ * этих в целевой базе нет — раскатка падала на `app_runtime_settings_organization_id_fkey`.
+ * Правило положительное, а не список запрещённых фикстур: новая фикстура на DEV не потребует правки.
+ */
+const CANONICAL_TARGET_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
+
+export function removeForeignOrganizationSettings(sql) {
+  const prefix = 'INSERT INTO public.app_runtime_settings ';
+  return sql
+    .split('\n')
+    .filter((line) => {
+      if (!line.startsWith(prefix)) return true;
+      const values = splitValues(line, 7, 'app_runtime_settings');
+      const organizationId = decodeSqlLiteral(values[2]);
+      return organizationId === null || organizationId === CANONICAL_TARGET_ORGANIZATION_ID;
+    })
+    .join('\n');
+}
+
 export function sanitizeRuntimeSettingsForCutover(sql) {
   const prefix = 'INSERT INTO public.app_runtime_settings '
     + '(key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES (';
-  return removeRetiredRuntimeSettings(sql)
+  return removeForeignOrganizationSettings(removeRetiredRuntimeSettings(sql))
     .split('\n')
     .map((line) => {
       if (!line.startsWith(prefix)) return line;

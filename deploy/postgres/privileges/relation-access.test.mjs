@@ -179,7 +179,10 @@ test('patient reminder history is readable and its seen cursor mutates only thro
     const projection = declaration.portContext.functions[
       'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'
     ];
-    assert.deepEqual(projection.execute, ['app_tenant_service']);
+    assert.deepEqual(projection.execute, [
+      'app_operational_delivery_worker',
+      'app_tenant_service',
+    ]);
     assert.deepEqual(projection.relationSurfaces, [
       {
         relation: 'public.org_enrollments',
@@ -197,6 +200,57 @@ test('patient reminder history is readable and its seen cursor mutates only thro
         evidence: 'pg16-function-body-lexical-upper-bound',
       },
     ]);
+  }
+});
+
+test('delivery replay capability has only the exact projection relation operations', () => {
+  const deliveryRole = 'app_operational_delivery_worker';
+  exactColumns('public.reminder_delivery_events', deliveryRole, 'INSERT', [
+    'channel', 'created_at', 'error_code', 'integrator_delivery_log_id',
+    'integrator_occurrence_id', 'integrator_rule_id', 'integrator_user_id',
+    'organization_id', 'payload_json', 'status',
+  ]);
+  assert.equal(
+    grantFor('public.reminder_delivery_events', deliveryRole, 'SELECT').columns,
+    'table',
+  );
+  for (const operation of ['UPDATE', 'DELETE']) {
+    assertNoOperation('public.reminder_delivery_events', deliveryRole, operation);
+  }
+  assert.equal(
+    grantFor('public.content_access_grants_webapp', deliveryRole, 'SELECT').columns,
+    'table',
+  );
+  exactColumns('public.content_access_grants_webapp', deliveryRole, 'INSERT', [
+    'content_id', 'created_at', 'expires_at', 'integrator_grant_id', 'integrator_user_id',
+    'meta_json', 'organization_id', 'platform_user_id', 'purpose', 'revoked_at', 'token_hash',
+  ]);
+  exactColumns('public.content_access_grants_webapp', deliveryRole, 'UPDATE', [
+    'content_id', 'expires_at', 'integrator_user_id', 'meta_json', 'organization_id',
+    'platform_user_id', 'purpose', 'revoked_at', 'token_hash',
+  ]);
+  assertNoOperation('public.content_access_grants_webapp', deliveryRole, 'DELETE');
+
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    for (const relation of [
+      'public.reminder_delivery_events',
+      'public.content_access_grants_webapp',
+    ]) {
+      const table = declaration.databases[dbName].tables[relation];
+      const contextGate = table.policies.find((candidate) =>
+        candidate.name.startsWith('rev10_context_gate_'));
+      const workerBusiness = table.policies.find((candidate) =>
+        candidate.name.startsWith('rev10_delivery_replay_worker_'));
+      const staffBusiness = table.policies.find((candidate) =>
+        candidate.name.startsWith('rev10_delivery_replay_staff_'));
+      assert.ok(contextGate?.to.includes(deliveryRole), `${dbName}:${relation}:context gate`);
+      assert.deepEqual(workerBusiness?.to, [deliveryRole], `${dbName}:${relation}:worker policy`);
+      assert.match(workerBusiness?.using ?? '', /claimed_retry\.organization_id =/u);
+      assert.match(workerBusiness?.using ?? '', /claimed_retry\.payload ->> 'organizationId'/u);
+      assert.doesNotMatch(workerBusiness?.using ?? '', /THEN true/u);
+      assert.deepEqual(staffBusiness?.to, ['app_staff'], `${dbName}:${relation}:staff policy`);
+      assert.match(staffBusiness?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/u);
+    }
   }
 });
 

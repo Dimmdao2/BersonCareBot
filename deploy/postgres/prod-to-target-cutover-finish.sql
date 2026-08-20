@@ -1,9 +1,11 @@
 \set ON_ERROR_STOP on
+\set VERBOSITY verbose
 
 -- runtime-settings.sql supplies the target key/audience registry, but values for keys that already
 -- exist in the fresh PROD dump must come from its canonical system_settings rows, not from the DEV
 -- snapshot used to generate the target schema. Only same-key registered projection rows are copied;
 -- unregistered secret settings never enter app_runtime_settings.
+\echo '=== CUTOVER STEP F01/05: rehydrate canonical runtime setting values ==='
 UPDATE public.app_runtime_settings AS runtime
 SET value_json = canonical.value_json,
     updated_at = canonical.updated_at,
@@ -14,20 +16,58 @@ WHERE canonical.key = runtime.key
   AND canonical.organization_id IS NOT DISTINCT FROM runtime.organization_id
   AND runtime.value_json IS DISTINCT FROM canonical.value_json;
 
+SELECT json_build_object(
+  'status', 'pass',
+  'registeredRuntimeSettings', (SELECT count(*) FROM public.app_runtime_settings),
+  'sourceCanonicalSettings', (SELECT count(*) FROM cutover_source_public.system_settings),
+  'unregisteredSecretsCopied', 0
+)::text AS result
+\gset cutover_f01_
+SELECT :'cutover_f01_result'::json AS cutover_step_f01_runtime_setting_values;
+
+\echo '=== CUTOVER STEP F02/05: remove preserved source schemas ==='
 DROP SCHEMA cutover_source_integrator CASCADE;
 DROP SCHEMA cutover_source_drizzle CASCADE;
 DROP SCHEMA cutover_source_public CASCADE;
 
+SELECT json_build_object(
+  'status', 'pass',
+  'sourceSchemasRemaining', (
+    SELECT count(*) FROM pg_namespace
+    WHERE nspname IN ('cutover_source_public', 'cutover_source_integrator', 'cutover_source_drizzle')
+  ),
+  'sourceSchemasRemoved', 3
+)::text AS result
+\gset cutover_f02_
+SELECT :'cutover_f02_result'::json AS cutover_step_f02_remove_source_schemas;
+
 -- Canonical phone is unconditional; do not carry the retired fallback strategy into target state.
+\echo '=== CUTOVER STEP F03/05: retire linked-phone fallback setting ==='
 DELETE FROM public.app_runtime_settings WHERE key = 'integrator_linked_phone_source';
 DELETE FROM public.system_settings
 WHERE key = 'integrator_linked_phone_source'
   AND scope = 'admin'
   AND organization_id IS NULL;
 
+SELECT json_build_object(
+  'status', 'pass',
+  'runtimeFallbackRowsRemaining', (
+    SELECT count(*) FROM public.app_runtime_settings WHERE key = 'integrator_linked_phone_source'
+  ),
+  'canonicalFallbackRowsRemaining', (
+    SELECT count(*) FROM public.system_settings
+    WHERE key = 'integrator_linked_phone_source'
+      AND scope = 'admin'
+      AND organization_id IS NULL
+  )
+)::text AS result
+\gset cutover_f03_
+SELECT :'cutover_f03_result'::json AS cutover_step_f03_retire_phone_fallback;
+
 -- Existing PROD snapshots predate these required global admin-settings rows. The target UI
 -- deliberately fails loud when one is absent, so the A -> B cutover creates only the missing
 -- canonical rows and never overwrites a configured value.
+\echo '=== CUTOVER STEP F04/05: ensure required global admin settings ==='
 INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at)
 VALUES
   ('vk_id_application_id', 'admin', NULL, '{"value":""}'::jsonb, now()),
@@ -56,6 +96,37 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
   updated_at = EXCLUDED.updated_at,
   updated_by = EXCLUDED.updated_by;
 
+SELECT json_build_object(
+  'status', 'pass',
+  'requiredGlobalAdminSettings', 6,
+  'requiredGlobalAdminSettingsPresent', (
+    SELECT count(*)
+    FROM (VALUES
+      ('vk_id_application_id'),
+      ('vk_id_client_secret'),
+      ('vk_id_redirect_uri'),
+      ('operator_alert_fallback_email'),
+      ('operator_health_projection_thresholds'),
+      ('platform_integration_availability')
+    ) AS required_setting(key)
+    WHERE EXISTS (
+      SELECT 1 FROM public.system_settings setting
+      WHERE setting.key = required_setting.key
+        AND setting.scope = 'admin'
+        AND setting.organization_id IS NULL
+    )
+  ),
+  'integrationAvailabilityRuntimeRows', (
+    SELECT count(*) FROM public.app_runtime_settings
+    WHERE key = 'platform_integration_availability'
+      AND scope = 'admin'
+      AND organization_id IS NULL
+  )
+)::text AS result
+\gset cutover_f04_
+SELECT :'cutover_f04_result'::json AS cutover_step_f04_required_admin_settings;
+
+\echo '=== CUTOVER STEP F05/05: verify final target shape ==='
 DO $final_shape_gate$
 DECLARE
   violations bigint;
@@ -285,37 +356,119 @@ BEGIN
 END
 $final_shape_gate$;
 
-COMMIT;
+SELECT json_build_object(
+  'status', 'pass',
+  'violations', 0,
+  'canonicalUsersWithoutIdentity', 0,
+  'mergedAliasesInReviewedReferences', 0,
+  'liveAppointmentsWithoutActiveSpecialist', 0,
+  'membershipClosureViolations', 0,
+  'requiredGlobalAdminSettingsMissing', 0
+)::text AS result
+\gset cutover_f05_
+SELECT :'cutover_f05_result'::json AS cutover_step_f05_final_shape_gate;
+
+SELECT json_build_object('status', 'pass', 'reportedSteps', 5)::text AS result
+\gset cutover_p07_
 
 SELECT json_build_object(
   'status', 'pass',
-  'platformUsers', (SELECT count(*) FROM public.platform_users),
-  'userIdentities', (SELECT count(*) FROM public.user_identity),
-  'appointments', (SELECT count(*) FROM public.be_appointments),
-  'activeCanonicalClientMembershipExpected', (
-    SELECT count(*) FROM cutover_expected_active_canonical_client_membership
+  'mode', :'cutover_mode',
+  'transactionOutcome', CASE
+    WHEN :'cutover_mode' = 'dryrun' THEN 'rolled_back'
+    ELSE 'committed'
+  END,
+  'phases', json_build_object(
+    'P01_prepare_source_and_schema_swap', :'cutover_p01_result'::json,
+    'P02_target_pre_data_schema', :'cutover_p02_result'::json,
+    'P03_target_data', :'cutover_p03_result'::json,
+    'P04_ledgers_and_baseline', :'cutover_p04_result'::json,
+    'P05_runtime_settings', :'cutover_p05_result'::json,
+    'P06_target_post_data_schema', :'cutover_p06_result'::json,
+    'P07_finalize_and_close', :'cutover_p07_result'::json
   ),
-  'patientDomainReferenceExpected', (
-    SELECT count(*) FROM cutover_expected_patient_domain_references
+  'startSteps', json_build_object(
+    'S01_legacy_appointment_history', :'cutover_s01_result'::json,
+    'S02_source_shape', :'cutover_s02_result'::json,
+    'S03_patient_projection_appointments', :'cutover_s03_result'::json,
+    'S04_messenger_identities', :'cutover_s04_result'::json,
+    'S05_prepared_data_gate', :'cutover_s05_result'::json,
+    'S06_schema_swap', :'cutover_s06_result'::json
   ),
-  'activeEnrollments', (SELECT count(*) FROM public.org_enrollments WHERE status = 'active'),
-  'reminderHistoryAttributed', (
-    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NOT NULL
+  'dataSteps', json_build_object(
+    'D01_copy_common_relations', :'cutover_d01_result'::json,
+    'D02_source_relation_disposition', :'cutover_d02_result'::json,
+    'D03_known_missing_media', :'cutover_d03_result'::json,
+    'D04_canonical_user_graph', :'cutover_d04_result'::json,
+    'D05_specialist_reference_baseline', :'cutover_d05_result'::json,
+    'D06_unique_identity_classes', :'cutover_d06_result'::json,
+    'D07_live_identity_references', :'cutover_d07_result'::json,
+    'D08_required_tenant_rows', :'cutover_d08_result'::json,
+    'D09_reminder_history_identity', :'cutover_d09_result'::json,
+    'D10_reminder_occurrences', :'cutover_d10_result'::json,
+    'D11_actionable_web_push', :'cutover_d11_result'::json,
+    'D12_reminder_delivery_logs', :'cutover_d12_result'::json,
+    'D13_calendar_mappings', :'cutover_d13_result'::json,
+    'D14_clinical_visit_links', :'cutover_d14_result'::json,
+    'D15_legacy_organization_scope', :'cutover_d15_result'::json,
+    'D16_message_drafts', :'cutover_d16_result'::json,
+    'D17_identity_profiles', :'cutover_d17_result'::json,
+    'D18_identity_contacts', :'cutover_d18_result'::json,
+    'D19_channel_display_and_block_facts', :'cutover_d19_result'::json,
+    'D20_appointment_reminders', :'cutover_d20_result'::json,
+    'D21_membership_and_visibility', :'cutover_d21_result'::json,
+    'D22_reseed_sequences', :'cutover_d22_result'::json,
+    'D23_identity_reference_gate', :'cutover_d23_result'::json,
+    'D24_copy_completeness_gate', :'cutover_d24_result'::json
   ),
-  'reminderHistoryHonestlyUnmapped', (
-    SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NULL
+  'finishSteps', json_build_object(
+    'F01_runtime_setting_values', :'cutover_f01_result'::json,
+    'F02_remove_source_schemas', :'cutover_f02_result'::json,
+    'F03_retire_phone_fallback', :'cutover_f03_result'::json,
+    'F04_required_admin_settings', :'cutover_f04_result'::json,
+    'F05_final_shape_gate', :'cutover_f05_result'::json
   ),
-  'preservedMessageDrafts', (
-    SELECT count(*)
-    FROM public.support_conversations conversation
-    CROSS JOIN LATERAL jsonb_array_elements(conversation.pending_message_drafts) draft_payload
-    WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
-  ),
-  'attributedDeliveryAttempts', (SELECT count(*) FROM integrator.delivery_attempt_logs),
-  'attributedPlaybackHourlyRows', (SELECT count(*) FROM public.media_playback_stats_hourly),
-  'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
-  'pendingDeliveryQueue', (
-    SELECT count(*) FROM public.outgoing_delivery_queue
-    WHERE status IN ('pending', 'processing', 'failed_retryable')
+  'endState', json_build_object(
+    'platformUsers', (SELECT count(*) FROM public.platform_users),
+    'userIdentities', (SELECT count(*) FROM public.user_identity),
+    'appointments', (SELECT count(*) FROM public.be_appointments),
+    'activeCanonicalClientMembershipExpected', (
+      SELECT count(*) FROM cutover_expected_active_canonical_client_membership
+    ),
+    'patientDomainReferenceExpected', (
+      SELECT count(*) FROM cutover_expected_patient_domain_references
+    ),
+    'activeEnrollments', (SELECT count(*) FROM public.org_enrollments WHERE status = 'active'),
+    'reminderHistoryAttributed', (
+      SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NOT NULL
+    ),
+    'reminderHistoryHonestlyUnmapped', (
+      SELECT count(*) FROM public.reminder_occurrence_history WHERE platform_user_id IS NULL
+    ),
+    'preservedMessageDrafts', (
+      SELECT count(*)
+      FROM public.support_conversations conversation
+      CROSS JOIN LATERAL jsonb_array_elements(conversation.pending_message_drafts) draft_payload
+      WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
+    ),
+    'attributedDeliveryAttempts', (SELECT count(*) FROM integrator.delivery_attempt_logs),
+    'attributedPlaybackHourlyRows', (SELECT count(*) FROM public.media_playback_stats_hourly),
+    'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
+    'pendingDeliveryQueue', (
+      SELECT count(*) FROM public.outgoing_delivery_queue
+      WHERE status IN ('pending', 'processing', 'failed_retryable')
+    )
   )
-) AS prod_to_target_cutover;
+)::text AS result
+\gset cutover_closing_
+
+\if :cutover_is_dryrun
+ROLLBACK;
+\echo '=== CUTOVER TRANSACTION OUTCOME: DRY RUN ROLLED BACK; NOTHING PERSISTED ==='
+\else
+COMMIT;
+\echo '=== CUTOVER TRANSACTION OUTCOME: COMMITTED ==='
+\endif
+
+\echo '=== CUTOVER CLOSING SUMMARY: every named step and end-state result ==='
+SELECT :'cutover_closing_result'::json AS prod_to_target_cutover_closing_summary;

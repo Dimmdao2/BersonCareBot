@@ -42,6 +42,7 @@ DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="feat/doctor-ui-rebuild"
 CONFIRM_FULL_RESET=0
 PREPARE_CUTOVER_SOURCE_ONLY=0
+CUTOVER_MODE=commit
 FIO_MANIFEST=""
 FIO_MANIFEST_FILE_SHA256=""
 FIO_MANIFEST_SHA256=""
@@ -63,6 +64,7 @@ RESTORE=deploy/host/restore-test-db-from-dump.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 OWNER_IDENTITY_CONSOLIDATION=apps/webapp/scripts/consolidate-owner-identity.sql
+LEGACY_APPOINTMENT_CARRY=deploy/postgres/prod-to-target-carry-legacy-appointments.sql
 PRE_CUTOVER_DATA_ASSERTIONS=deploy/postgres/pre-cutover-data-stage-assertions.sql
 CUTOVER_MIGRATION=deploy/postgres/prod-to-target-cutover.sql
 TARGET_LEDGER_ARTIFACT=deploy/postgres/generated/prod-to-target/ledgers-and-baseline.sql
@@ -70,10 +72,8 @@ C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
 P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
 PRIVILEGE_GENERATOR=deploy/postgres/privileges/generate-cli.mjs
-PRE_MIGRATION_LEGACY_ROLE_BRIDGE=deploy/postgres/pre-migration-legacy-role-bridge.sql
 PRE_MIGRATION_TARGET_BRIDGE=deploy/postgres/pre-migration-target-bridge.sql
 P2_B_CONTEXT=deploy/postgres/p2-b-protected-principal-context.sql
-RUNTIME_OVERLAY_APP_OWNER_HANDOFF=deploy/postgres/runtime-overlay-app-owner-handoff.sql
 ORGANIZATION_MEMBER_INVITES_RLS=deploy/postgres/organization-member-invites-rls.sql
 PATIENT_INVITES_RLS=deploy/postgres/patient-invites-rls.sql
 STORE_P0_ENTITLEMENTS_RLS=deploy/postgres/store-p0-entitlements-rls.sql
@@ -105,7 +105,7 @@ C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
 PORT_CONTEXT_CAPABILITY_SEED=deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 UNITS=(api worker scheduler webapp media-worker)
-P2_B_OWNER_ROLE=app_owner
+P2_B_OWNER_ROLE=app_object_owner
 P2_B_STAFF_ROLE=app_staff
 P2_B_PATIENT_ROLE=app_patient
 P2_B_SIGNING_SECRET_VALUE=""
@@ -148,8 +148,6 @@ install_pre_migration_role_prerequisites(){
     sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
   node --experimental-strip-types "$DEPLOY_REPO/$PRIVILEGE_GENERATOR" --shared-role-verify |
     sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
-  sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1 \
-    -f "$DEPLOY_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"
 }
 
 assert_cleanup_elevation(){
@@ -161,11 +159,10 @@ assert_cleanup_elevation(){
     return 0
   fi
   [ "$bypass_state" = "false" ] || { echo "FATAL: retired role $RETIRED_LEGACY_DBROLE has BYPASSRLS (rolbypassrls=$bypass_state)" >&2; return 1; }
-  # app_owner MUST return to zero members — it owns the SECURITY DEFINER seam and backstops FORCE RLS.
-  # Asserted unconditionally (not only when this run granted it), so pre-existing residue is caught too.
+  # The retired app_owner role must not retain a path through the legacy elevation role.
   if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'app_owner');")" = "t" ]; then
     membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$RETIRED_LEGACY_DBROLE', 'app_owner', 'member');")"
-    [ "$membership_exists" = "f" ] || { echo "FATAL: retired role $RETIRED_LEGACY_DBROLE has membership in app_owner (the DEFINER seam must have ZERO members)" >&2; return 1; }
+    [ "$membership_exists" = "f" ] || { echo "FATAL: retired role $RETIRED_LEGACY_DBROLE has membership in retired app_owner" >&2; return 1; }
   fi
 }
 cleanup_elevation(){
@@ -515,7 +512,7 @@ install_p2_b_protected_principal_context(){
   # pgcrypto-schema move + is_staff/current_*() ownership pre-normalization used to run here
   # inline (CREATE ROLE p2_b_owner_role + ALTER FUNCTION ... OWNER TO). That duplicated what
   # deploy/postgres/p2-b-protected-principal-context.sql itself now does (its own pgcrypto move +
-  # DROP/SET ROLE/CREATE needs no pre-existing ownership), and app_owner is created by the
+  # DROP/SET ROLE/CREATE needs no pre-existing ownership), and app_object_owner is created by the
   # declarative shared-role-baseline (install_pre_migration_role_prerequisites), not by this wrapper.
   # Removed 2026-08-20 (restore-ab2); see B0_SALVAGE_DELETION_CLASSIFICATION_2026-08-20.md.
 
@@ -883,7 +880,7 @@ install_integrator_login_public_identity_grants_overlay(){
 
 assert_integrator_server_runtime_config_ready(){
   local ok
-  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (NOT (SELECT rolinherit FROM pg_roles WHERE rolname = current_user) AND 3 = (SELECT count(*) FROM pg_auth_members membership JOIN pg_roles member_role ON member_role.oid = membership.member JOIN pg_roles granted_role ON granted_role.oid = membership.roleid WHERE member_role.rolname = current_user AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker') AND NOT membership.inherit_option AND membership.set_option) AND has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE') AND has_function_privilege(current_user, 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE') AND has_function_privilege(current_user, 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)', 'EXECUTE') AND (SELECT count(*) FROM pg_proc procedure JOIN pg_roles owner ON owner.oid = procedure.proowner CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure AND procedure.prosecdef AND owner.rolname = 'app_owner' AND privilege.grantee IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) AND privilege.privilege_type = 'EXECUTE' AND NOT privilege.is_grantable) = 2 AND NOT EXISTS (SELECT 1 FROM pg_proc procedure CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure AND (privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) OR privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)) AND NOT has_table_privilege(current_user, 'integrator.delivery_attempt_logs', 'INSERT') AND NOT has_sequence_privilege(current_user, 'integrator.delivery_attempt_logs_id_seq', 'USAGE') AND (SELECT count(*) FROM pg_proc procedure CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND privilege.privilege_type = 'EXECUTE' AND NOT privilege.is_grantable) = 1 AND NOT EXISTS (SELECT 1 FROM pg_proc procedure JOIN pg_roles owner ON owner.oid = procedure.proowner CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND (NOT procedure.prosecdef OR owner.rolname <> 'app_owner' OR privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) OR privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)) AND NOT EXISTS (SELECT 1 FROM pg_class relation CROSS JOIN LATERAL aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) privilege WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND privilege.privilege_type = 'SELECT' AND privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))) AND NOT EXISTS (SELECT 1 FROM pg_class relation WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')) AND COALESCE((app.read_global_server_runtime_setting('app_base_url')->>'value') ~ '^https?://', false))::text;\"")"
+  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (NOT (SELECT rolinherit FROM pg_roles WHERE rolname = current_user) AND 3 = (SELECT count(*) FROM pg_auth_members membership JOIN pg_roles member_role ON member_role.oid = membership.member JOIN pg_roles granted_role ON granted_role.oid = membership.roleid WHERE member_role.rolname = current_user AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker') AND NOT membership.inherit_option AND membership.set_option) AND has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE') AND has_function_privilege(current_user, 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE') AND has_function_privilege(current_user, 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)', 'EXECUTE') AND (SELECT count(*) FROM pg_proc procedure JOIN pg_roles owner ON owner.oid = procedure.proowner CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure AND procedure.prosecdef AND owner.rolname LIKE 'app_seam\\_%\\_owner' ESCAPE '\\' AND privilege.grantee IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) AND privilege.privilege_type = 'EXECUTE' AND NOT privilege.is_grantable) = 2 AND NOT EXISTS (SELECT 1 FROM pg_proc procedure CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure AND (privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) OR privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)) AND NOT has_table_privilege(current_user, 'integrator.delivery_attempt_logs', 'INSERT') AND NOT has_sequence_privilege(current_user, 'integrator.delivery_attempt_logs_id_seq', 'USAGE') AND (SELECT count(*) FROM pg_proc procedure CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND privilege.privilege_type = 'EXECUTE' AND NOT privilege.is_grantable) = 1 AND NOT EXISTS (SELECT 1 FROM pg_proc procedure JOIN pg_roles owner ON owner.oid = procedure.proowner CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND (NOT procedure.prosecdef OR owner.rolname NOT LIKE 'app_seam\\_%\\_owner' ESCAPE '\\' OR privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) OR privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)) AND NOT EXISTS (SELECT 1 FROM pg_class relation CROSS JOIN LATERAL aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) privilege WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND privilege.privilege_type = 'SELECT' AND privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))) AND NOT EXISTS (SELECT 1 FROM pg_class relation WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')) AND COALESCE((app.read_global_server_runtime_setting('app_base_url')->>'value') ~ '^https?://', false))::text;\"")"
   [ "$ok" = "true" ] || { echo "FATAL: integrator DB-backed runtime/SMTP/audit accessors are not ready" >&2; exit 1; }
   echo "   integrator DB-backed runtime/SMTP/audit accessors: OK (exact ACL, no direct protected-table write)"
 }
@@ -981,9 +978,9 @@ run_specialist_signup_provisioning_smoke(){
 assert_specialist_owner_provisioning_seam_pinned(){
   # Pins the trusted-seam invariant the stalled-signup fix depends on, read-only and after every
   # mutating overlay/restart above has already run (so a FATAL here never leaves TEST
-  # half-configured -- it can only fail a fully-closed state). app_owner legitimately owns exactly
-  # the three P2-B principal-context tables (deploy/postgres/p2-b-protected-principal-context.sql);
-  # it must never silently pick up ownership of ordinary application tables beyond that.
+  # half-configured -- it can only fail a fully-closed state). app_owner is retired: it must be
+  # NOLOGIN, no row-security bypass and NOINHERIT, have no members or DB-local owned objects. The P2-B tables belong
+  # to app_object_owner; their SECURITY DEFINER accessors belong to dedicated app_seam_*_owner roles.
   # This assertion runs mid-closure right after the service restart + smokes. A benign closure
   # transient (a brief post-restart / elevation-window moment) can momentarily flip a condition
   # even though the SETTLED seam is correct (verified: all conditions hold in steady state). So
@@ -992,15 +989,30 @@ assert_specialist_owner_provisioning_seam_pinned(){
   local seam_ok_sql
   seam_ok_sql="$(cat <<'SEAM_OK_SQL'
 SELECT (
-  EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND NOT rolcanlogin AND rolbypassrls)
+  EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND NOT rolcanlogin AND NOT rolbypassrls AND NOT rolinherit)
   AND 0 = (SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid WHERE r.rolname = 'app_owner')
   AND NOT EXISTS (
-    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE pg_get_userbyid(c.relowner) = 'app_owner' AND c.relkind IN ('r', 'p')
-      AND NOT (n.nspname = 'app' AND c.relname IN ('context_signing_secrets', 'principal_context', 'context_nonce_ledger'))
+    SELECT 1 FROM pg_class c WHERE pg_get_userbyid(c.relowner) = 'app_owner'
   )
-  AND (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.provision_specialist_owner(uuid)'::regprocedure) = 'app_owner'
-  AND (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.current_provisioned_owner_organization()'::regprocedure) = 'app_owner'
+  AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner')
+  AND NOT EXISTS (SELECT 1 FROM pg_namespace n WHERE pg_get_userbyid(n.nspowner) = 'app_owner')
+  AND NOT EXISTS (SELECT 1 FROM pg_type t WHERE pg_get_userbyid(t.typowner) = 'app_owner')
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_shdepend d
+    WHERE d.refclassid = 'pg_catalog.pg_authid'::regclass
+      AND d.refobjid = 'app_owner'::regrole
+      AND d.deptype = 'o'
+      AND d.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+  )
+  AND 3 = (
+    SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'app'
+      AND c.relname IN ('context_signing_secrets', 'principal_context', 'context_nonce_ledger')
+      AND c.relkind IN ('r', 'p')
+      AND pg_get_userbyid(c.relowner) = 'app_object_owner'
+  )
+  AND (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.provision_specialist_owner(uuid)'::regprocedure) LIKE 'app_seam\_%\_owner' ESCAPE '\'
+  AND (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.current_provisioned_owner_organization()'::regprocedure) LIKE 'app_seam\_%\_owner' ESCAPE '\'
   AND (SELECT c.relrowsecurity AND c.relforcerowsecurity FROM pg_class c WHERE c.oid = 'public.be_organizations'::regclass)
   AND NOT EXISTS (
     SELECT 1 FROM pg_policy pol
@@ -1030,28 +1042,25 @@ SEAM_OK_SQL
     sleep 2
   done
   [ "$ok" = "true" ] || {
-    # WARN-not-FATAL: this check runs mid-closure and has been observed to read a transient
-    # non-settled state -- every condition verifies correct in steady state, and the ownership/grant/
-    # FORCE invariant is set DETERMINISTICALLY by the reviewed overlays regardless of this read. Repo
-    # precedent: the E1 isolation gate was made warn-not-fatal (d55d0ac8d) for this same flakiness
-    # class. So we do NOT abort the deploy on it -- but we print a per-condition breakdown so a GENUINE
-    # seam regression is still visible in the deploy log for an operator to act on.
-    echo "WARNING: specialist-owner provisioning seam pin did not read as pinned (non-fatal; overlays set the invariant deterministically). Per-condition (t/true = ok):" >&2
+    # A retired-role or seam ownership mismatch is a real closure failure. The retry above keeps a
+    # brief post-restart read from creating noise; a persistent mismatch must make TEST red.
+    echo "FATAL: retired app_owner / specialist-owner seam contract diverged. Per-condition (t/true = ok):" >&2
     set +e
     sudo -u postgres psql -d "$DB" -X -x -tAc "
 SELECT
- (SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_owner' AND NOT rolcanlogin AND rolbypassrls))::text AS c1_role_nologin_bypassrls,
+ (SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_owner' AND NOT rolcanlogin AND NOT rolbypassrls AND NOT rolinherit))::text AS c1_retired_role_contract,
  (SELECT 0=(SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.roleid WHERE r.rolname='app_owner'))::text AS c2_zero_members,
- (SELECT NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE pg_get_userbyid(c.relowner)='app_owner' AND c.relkind IN ('r','p') AND NOT (n.nspname='app' AND c.relname IN ('context_signing_secrets','principal_context','context_nonce_ledger'))))::text AS c3_owns_only_3_tables,
- ((SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid='app.provision_specialist_owner(uuid)'::regprocedure)='app_owner')::text AS c4_provfn_owner,
- ((SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid='app.current_provisioned_owner_organization()'::regprocedure)='app_owner')::text AS c5_orgfn_owner,
- (SELECT (c.relrowsecurity AND c.relforcerowsecurity) FROM pg_class c WHERE c.oid='public.be_organizations'::regclass)::text AS c6_be_org_force,
- (SELECT NOT EXISTS (SELECT 1 FROM pg_policy pol WHERE pol.polrelid='public.be_organizations'::regclass AND pol.polcmd IN ('a','*') AND (pol.polroles='{0}' OR EXISTS (SELECT 1 FROM unnest(pol.polroles) AS r(oid) JOIN pg_roles ro ON ro.oid=r.oid WHERE ro.rolname IN ('app_staff','app_patient')))))::text AS c7_no_broad_insert_policy;
+ (SELECT NOT EXISTS (SELECT 1 FROM pg_class c WHERE pg_get_userbyid(c.relowner)='app_owner') AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE pg_get_userbyid(p.proowner)='app_owner') AND NOT EXISTS (SELECT 1 FROM pg_namespace n WHERE pg_get_userbyid(n.nspowner)='app_owner') AND NOT EXISTS (SELECT 1 FROM pg_type t WHERE pg_get_userbyid(t.typowner)='app_owner'))::text AS c3_zero_owned_objects,
+ (SELECT 3=(SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relname IN ('context_signing_secrets','principal_context','context_nonce_ledger') AND c.relkind IN ('r','p') AND pg_get_userbyid(c.relowner)='app_object_owner'))::text AS c4_p2b_object_owner,
+ ((SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid='app.provision_specialist_owner(uuid)'::regprocedure) LIKE 'app_seam\_%\_owner' ESCAPE '\')::text AS c5_provfn_seam_owner,
+ ((SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid='app.current_provisioned_owner_organization()'::regprocedure) LIKE 'app_seam\_%\_owner' ESCAPE '\')::text AS c6_orgfn_seam_owner,
+ (SELECT (c.relrowsecurity AND c.relforcerowsecurity) FROM pg_class c WHERE c.oid='public.be_organizations'::regclass)::text AS c7_be_org_force,
+ (SELECT NOT EXISTS (SELECT 1 FROM pg_policy pol WHERE pol.polrelid='public.be_organizations'::regclass AND pol.polcmd IN ('a','*') AND (pol.polroles='{0}' OR EXISTS (SELECT 1 FROM unnest(pol.polroles) AS r(oid) JOIN pg_roles ro ON ro.oid=r.oid WHERE ro.rolname IN ('app_staff','app_patient')))))::text AS c8_no_broad_insert_policy;
 " 2>&1 | sed 's/^/       /' >&2
     set -e
-    return 0
+    return 1
   }
-  echo "   specialist-owner provisioning seam: OK (app_owner pinned, be_organizations FORCE RLS intact)"
+  echo "   specialist-owner provisioning seam: OK (retired app_owner + app_object_owner/app_seam owners pinned, be_organizations FORCE RLS intact)"
 }
 
 assert_login_fix_definer_owners_pinned(){
@@ -1102,801 +1111,48 @@ SELECT string_agg(
 FROM pinned_functions AS target
 LEFT JOIN pg_proc AS procedure ON procedure.oid = to_regprocedure(target.signature)
 WHERE to_regprocedure(target.signature) IS NULL
-   OR pg_get_userbyid(procedure.proowner) <> 'app_owner';
+   OR pg_get_userbyid(procedure.proowner) NOT LIKE 'app_seam\_%\_owner' ESCAPE '\';
 ")"
   if [ -n "$violations" ]; then
-    echo "FATAL: migration 0356/0357 login-fix functions are not pinned to app_owner: $violations" >&2
+    echo "FATAL: migration 0356/0357 login-fix functions are not pinned to an app_seam_*_owner role: $violations" >&2
     echo "       A post-migration overlay reverted ownership (DROP+CREATE or ALTER ... OWNER TO a" >&2
     echo "       dynamic table-owner ident) -- see organization-member-invites-rls.sql and" >&2
     echo "       specialist-signup-public-bootstrap-rls.sql. Under FORCE RLS this silently kills" >&2
     echo "       public email/password login (bootstrap role reads zero platform_users rows)." >&2
     exit 1
   fi
-  echo "   login-fix (0356/0357) definer owners: OK (all pinned to app_owner)"
+  echo "   login-fix (0356/0357) definer owners: OK (all pinned to app_seam_*_owner roles)"
 }
 
-assert_app_owner_secdef_table_grants_complete(){
-  # Whole-class gate (independent audit finding, taskdb follow-up): app_owner is NOLOGIN+BYPASSRLS,
-  # so it never trips a row-security check -- but BYPASSRLS does NOT substitute for the base
-  # SQL-level table GRANT every SECURITY DEFINER function it owns still needs to touch its tables.
-  # A missing GRANT is silent until the exact code path runs live (this is precisely the class the
-  # email_challenges gap shipped as: a live-only hotfix on TEST, absent from every deploy/postgres/
-  # *.sql, that a fresh deploy/prod cutover would have silently regressed). Read-only, runs after
-  # every mutating overlay/restart above, so a FATAL here never leaves TEST half-configured.
-  #
-  # (a) explicit required-grant set, one row per (table, privilege) app_owner's reviewed SECURITY
-  #     DEFINER functions are known to need as of this writing.
-  # Settle-with-retry, like the seam-pin assertion right above this one in the closure sequence: this
-  # runs mid-closure after the restart, so a one-off closure transient must not FATAL it. The seam-pin
-  # retry loop absorbs most of the settle window before control reaches here, but a single "sleep 2"
-  # read on top of that was observed to still occasionally FATAL on a fully-correct, fully-committed
-  # grant state (2026-07-26: FATAL'd mid-deploy on public.operator_incidents UPDATE (alert_sent_at)
-  # while every required table/column grant -- including that exact one -- read back present seconds
-  # later with no further overlay/GRANT applied in between). Retry-with-settle exactly like the
-  # sibling seam-pin check above: only a PERSISTENT gap FATALs, never a one-off closure blip.
-  #
-  # 2026-07-26, re-investigated: this specific FATAL (operator_incidents UPDATE (alert_sent_at))
-  # recurred on 4 consecutive deploys even with the 5x2s window above, so "one-off blip" no longer
-  # fit -- but a full static audit found no structural cause. deploy/postgres/c4-operational-runtime.sql
-  # is the ONLY file that ever touches app_owner's grant on this column; its GRANT (line ~477) is
-  # unconditional in the UP path, and its one REVOKE of the same privilege (line ~189) sits behind the
-  # file's own `\if :c4_operational_runtime_down ... \quit \endif` DOWN-path guard, unreachable on a
-  # normal deploy. reapply_c4_operational_runtime_overlays (which applies this file) is the last thing
-  # in the closure that touches it, runs well before this gate, and nothing in between re-revokes it.
-  # A live check immediately after a RED deploy confirms the grant durably present (has_column_privilege
-  # true, aclexplode shows app_owner/UPDATE on alert_sent_at) -- so this is not a missing grant, not
-  # the D3.4-class bug (no DROP+CREATE/OID-reset exists anywhere for this table or column), and nothing
-  # to widen. It reproduces in the same narrow window as the sibling seam-pin warning right above (both
-  # sit immediately after the U3S specialist-signup-provisioning smoke, which starts and stops its own
-  # disposable PostgreSQL cluster and runs a burst of CPU/IO-heavy script activity) -- consistent with a
-  # genuine settle/visibility gap wider than 5x2s=10s at that specific closure position, not a code bug.
-  # Widened the retry budget rather than the grant: same idiom, longer window.
-  local missing="" operator_incidents_ok="" operator_incident_mutation_columns_ok="" cms_pages_serialization_token_ok="" access_door_acl_ok="" _secdef_grants_attempt
-  for _secdef_grants_attempt in 1 2 3 4 5 6 7 8 9 10; do
-    missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-WITH required(tbl, priv) AS (
-  VALUES
-    ('public.email_challenges', 'SELECT'),
-    ('public.email_challenges', 'UPDATE'),
-    ('public.email_challenges', 'DELETE'),
-    ('public.be_organizations', 'INSERT'),
-    ('public.be_organizations', 'SELECT'),
-    -- 0348 (#1057 B0.3): app.apply_paid_saas_billing_tariff(uuid,uuid) writes tariff_id from inside
-    -- a SECURITY DEFINER call so the app_staff-only guard trigger
-    -- (app.reject_staff_commercial_organization_update) does not fire. app_owner already holds
-    -- table-level UPDATE here (deploy/postgres/patient-invites-rls.sql, U3B) -- pinned as a required
-    -- row now that a real code path depends on it, so a future REVOKE fails this gate instead of
-    -- surfacing live on the next paid webhook capture.
-    ('public.be_organizations', 'UPDATE'),
-    ('public.be_organization_members', 'SELECT'),
-    ('public.be_organization_members', 'INSERT'),
-    ('public.platform_users', 'SELECT'),
-    ('public.platform_users', 'UPDATE'),
-    ('public.specialist_signup_intents', 'SELECT'),
-    ('public.specialist_signup_intents', 'UPDATE'),
-    -- 0270 mandatory signup slug: boolean availability reads claims; provisioning inserts the
-    -- durable current claim directly. The retired signup reservation no longer needs UPDATE.
-    ('public.organization_slug_claims', 'SELECT'),
-    ('public.organization_slug_claims', 'INSERT'),
-    ('public.clinic_public_directory_entries', 'INSERT'),
-    ('public.reference_categories', 'INSERT'),
-    ('public.reference_categories', 'SELECT'),
-    ('public.reference_items', 'INSERT'),
-    ('public.reference_items', 'SELECT'),
-    ('public.reference_catalog_snapshot_receipts', 'INSERT'),
-    ('public.reference_catalog_snapshot_receipts', 'SELECT'),
-    -- 0276 shared lifecycle door: app_owner reads the live tariff policy, exact-org exception and
-    -- commercial state; runtime roles receive only EXECUTE on the exact-org function.
-    ('public.saas_tariffs', 'SELECT'),
-    ('public.saas_org_entitlement_overrides', 'SELECT'),
-    ('public.saas_organization_trials', 'SELECT'),
-    -- 0376 (#1069 T10): app.resolve_organization_mechanic_access(uuid,text) and
-    -- app.resolve_organization_cabinet_access(uuid) read the global post-paid-period policy.
-    ('public.saas_paid_period_policy', 'SELECT'),
-    -- 0295/0302/0306 app_owner capabilities added after the 123-function baseline. Each row below
-    -- comes directly from a live function body; ON CONFLICT writes require both INSERT and UPDATE.
-    ('public.saas_billing_subscriptions', 'SELECT'),
-    -- 0343 (#1057 B0.3): app.resolve_saas_billing_invoice_for_webhook(text,text) is the bootstrap
-    -- webhook's invoice-by-provider-ref lookup, read-only, before the organization is known.
-    ('public.saas_billing_invoices', 'SELECT'),
-    ('public.system_settings', 'SELECT'),
-    -- Track D login/delivery capabilities: the provider-failure function returns the touched row
-    -- and performs INSERT ... ON CONFLICT. UPDATE stays column-scoped and is asserted separately.
-    ('public.operator_incidents', 'SELECT'),
-    ('public.operator_incidents', 'INSERT'),
-    ('public.app_runtime_settings', 'SELECT'),
-    ('public.booking_cities', 'SELECT'),
-    ('public.clinical_test_measure_kinds', 'SELECT'),
-    ('public.clinical_test_measure_kinds', 'INSERT'),
-    ('public.clinical_test_measure_kinds', 'UPDATE'),
-    ('public.email_send_cooldowns', 'SELECT'),
-    ('public.email_send_cooldowns', 'INSERT'),
-    ('public.email_send_cooldowns', 'UPDATE'),
-    -- C5A count-only quota storefront accessor: app_owner reads reservations, while the platform
-    -- role receives only EXECUTE and no course/invite row ACL.
-    ('public.organization_member_invites', 'SELECT'),
-    -- 0270 CMS snapshot quota: both the storefront recount and the trigger execute as app_owner.
-    ('public.content_pages', 'SELECT'),
-    -- 0238 organization brand publication: app.current_patient_has_active_org_enrollment(uuid) and
-    -- app.read_org_brand_core_context(uuid) read these two as app_owner (be_organizations SELECT is
-    -- already required above for the invite/slug definers; org_enrollments SELECT comes canonically
-    -- from deploy/postgres/patient-invites-rls.sql).
-    ('public.org_enrollments', 'SELECT'),
-    -- 0245 public booking phone OTP: app.phone_otp_public_booking_issue_challenge() and
-    -- app.phone_otp_public_booking_consume_challenge() read AND write both phone-OTP tables
-    -- (insert/expire the challenge, count attempts, set/clear the per-phone lockout). There is no
-    -- deploy/postgres overlay for these two tables -- p0-5b-grants.sql only ever touches
-    -- app_staff/app_patient -- so 0245 itself is their canonical app_owner grant site.
-    ('public.phone_challenges', 'SELECT'),
-    ('public.phone_challenges', 'INSERT'),
-    ('public.phone_challenges', 'UPDATE'),
-    ('public.phone_challenges', 'DELETE'),
-    ('public.phone_otp_locks', 'SELECT'),
-    ('public.phone_otp_locks', 'INSERT'),
-    ('public.phone_otp_locks', 'UPDATE'),
-    ('public.phone_otp_locks', 'DELETE'),
-    -- 0254 shared auth limiter action accessors: scope/key pruning requires SELECT+DELETE, counting
-    -- requires SELECT, and recording requires INSERT. Runtime callers retain no direct table grant.
-    ('public.auth_rate_limit_events', 'SELECT'),
-    ('public.auth_rate_limit_events', 'INSERT'),
-    ('public.auth_rate_limit_events', 'DELETE'),
-    -- 0248 decaying OTP lockout (night plan C-2 step 3): app.email_auth_find_email_otp_lock(uuid),
-    -- app.email_auth_register_email_otp_lockout(uuid) and app.email_auth_reset_email_otp_lockout(uuid)
-    -- read/write the new email_otp_locks table. It has no dedicated deploy/postgres overlay (a
-    -- brand-new table, not the pre-existing email_challenges family that
-    -- organization-member-invites-rls.sql re-applies), so 0248 itself is the canonical grant site.
-    ('public.email_otp_locks', 'SELECT'),
-    ('public.email_otp_locks', 'INSERT'),
-    ('public.email_otp_locks', 'UPDATE'),
-    ('public.email_otp_locks', 'DELETE'),
-    -- 0252 patient LFK action accessors: cover and exercise-line reads re-check current org+patient;
-    -- the platform media mapping re-checks platform/global ownership. media_files SELECT is already
-    -- covered by its canonical overlay and does not need a duplicate row here.
-    ('public.lfk_complexes', 'SELECT'),
-    ('public.lfk_complex_exercises', 'SELECT'),
-    ('public.lfk_complex_templates', 'SELECT'),
-    ('public.lfk_complex_template_exercises', 'SELECT'),
-    ('public.lfk_exercises', 'SELECT'),
-    ('public.lfk_exercise_media', 'SELECT'),
-    -- 0253 patient reminder occurrence actions: both repeat the current-patient platform_users bridge
-    -- and update only the snooze/skip columns on the matched reminder occurrence. platform_users
-    -- SELECT is already required above.
-    ('public.reminder_occurrence_history', 'SELECT'),
-    ('public.reminder_occurrence_history', 'INSERT'),
-    ('public.reminder_occurrence_history', 'UPDATE'),
-    -- 0314/0316/0322 reminder callbacks, mute/settings and dedicated clinic-bot resolution.
-    -- The patient capabilities receive EXECUTE only; app_owner owns the reviewed definers.
-    ('public.reminder_rules', 'SELECT'),
-    ('public.reminder_journal', 'SELECT'),
-    ('public.reminder_journal', 'INSERT'),
-    ('public.user_notification_topic_channels', 'SELECT'),
-    ('public.user_notification_topic_channels', 'INSERT'),
-    ('public.user_notification_topic_channels', 'UPDATE'),
-    ('public.user_channel_preferences', 'SELECT'),
-    ('public.user_channel_bindings', 'SELECT'),
-    ('public.user_web_push_subscriptions', 'SELECT'),
-    ('public.clinic_dedicated_bot_bindings', 'SELECT'),
-    ('public.clinic_dedicated_bot_bindings', 'INSERT'),
-    ('public.clinic_dedicated_bot_bindings', 'UPDATE'),
-    ('public.clinic_dedicated_bot_bindings', 'DELETE'),
-    ('integrator.user_reminder_occurrences', 'SELECT'),
-    ('integrator.user_reminder_occurrences', 'UPDATE'),
-    ('integrator.user_reminder_occurrences', 'DELETE'),
-    -- Migration 0340 (reservation 0340, ownership repair): app.upsert_patient_reminder_occurrence_plan
-    -- and app.mark_patient_reminder_occurrence_queued INSERT and UPDATE this table from inside their
-    -- now-correctly-app_owner-owned SECURITY DEFINER body; SELECT/UPDATE/DELETE above already came
-    -- from the c4-operational-runtime.sql overlay, INSERT is new and granted directly by 0340 itself.
-    ('integrator.user_reminder_occurrences', 'INSERT'),
-    -- 0256 staff-security self password action: the body reads user_id for its exact self-principal
-    -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
-    ('public.user_password_credentials', 'SELECT'),
-    ('public.user_password_credentials', 'UPDATE'),
-    -- 0274 atomic password admission: app_owner-owned accessors serialize password proofs and
-    -- single-use ALTCHA challenges. Runtime roles retain no direct access to either state table.
-    ('public.password_login_identifier_protection', 'SELECT'),
-    ('public.password_login_identifier_protection', 'INSERT'),
-    ('public.password_login_identifier_protection', 'UPDATE'),
-    ('public.password_login_identifier_protection', 'DELETE'),
-    ('public.password_altcha_challenges', 'SELECT'),
-    ('public.password_altcha_challenges', 'INSERT'),
-    ('public.password_altcha_challenges', 'UPDATE'),
-    ('public.password_altcha_challenges', 'DELETE'),
-    -- 0258 bootstrap auth table accessors: the NOINHERIT base login gets only EXECUTE on 22 exact
-    -- operations. app_owner needs the following base privileges; no runtime role gets these table grants.
-    ('public.user_pins', 'SELECT'),
-    ('public.user_pins', 'INSERT'),
-    ('public.user_pins', 'UPDATE'),
-    ('public.channel_link_secrets', 'SELECT'),
-    ('public.channel_link_secrets', 'INSERT'),
-    ('public.channel_link_secrets', 'UPDATE'),
-    ('public.channel_link_secrets', 'DELETE'),
-    ('public.user_email_setup_tokens', 'SELECT'),
-    ('public.user_email_setup_tokens', 'INSERT'),
-    ('public.user_email_setup_tokens', 'UPDATE'),
-    ('public.user_email_setup_tokens', 'DELETE'),
-    ('public.user_oauth_bindings', 'SELECT'),
-    ('public.user_oauth_bindings', 'INSERT'),
-    ('public.login_tokens', 'SELECT'),
-    ('public.login_tokens', 'INSERT'),
-    ('public.login_tokens', 'UPDATE'),
-    -- 0276 patient passkeys: app_owner-owned accessors keep opaque account handles, public
-    -- credentials and bounded one-time challenges behind EXECUTE-only runtime functions.
-    ('public.user_passkey_accounts', 'SELECT'),
-    ('public.user_passkey_accounts', 'INSERT'),
-    ('public.user_passkey_credentials', 'SELECT'),
-    ('public.user_passkey_credentials', 'INSERT'),
-    ('public.user_passkey_credentials', 'UPDATE'),
-    ('public.user_passkey_credentials', 'DELETE'),
-    ('public.user_passkey_challenges', 'SELECT'),
-    ('public.user_passkey_challenges', 'INSERT'),
-    ('public.user_passkey_challenges', 'UPDATE'),
-    ('public.user_passkey_challenges', 'DELETE')
-)
-SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
-FROM required
-WHERE NOT has_table_privilege('app_owner', tbl, priv);
-")"
-    operator_incidents_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
-")"
-    operator_incident_mutation_columns_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-SELECT bool_and(has_column_privilege(
-  'app_owner', 'public.operator_incidents', required_column, 'UPDATE'
-))::text
-FROM unnest(ARRAY['last_seen_at', 'occurrence_count', 'error_detail']) AS required_column;
-")"
-    cms_pages_serialization_token_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at', 'UPDATE')::text;
-")"
-    # ::text cast above renders as the word true/false, not psql's native t/f -- this was the root
-    # cause of the 2026-07-26 FATAL storm investigated at length in the comment above this loop: the
-    # grant was always present, but "$operator_incidents_ok" = "t" could never be satisfied.
-    [ -z "$missing" ] \
-      && [ "$operator_incidents_ok" = "true" ] \
-      && [ "$operator_incident_mutation_columns_ok" = "true" ] \
-      && [ "$cms_pages_serialization_token_ok" = "true" ] \
-      && break
-    sleep 3
-  done
-  [ -z "$missing" ] || {
-    echo "FATAL: app_owner is missing required table GRANT(s): $missing" >&2
-    echo "       app_owner is BYPASSRLS -- this is a base table-ACL gap, not an RLS/policy gap." >&2
-    exit 1
-  }
-  [ "$operator_incidents_ok" = "true" ] || {
-    echo "FATAL: app_owner is missing UPDATE (alert_sent_at) on public.operator_incidents" >&2
-    exit 1
-  }
-  [ "$operator_incident_mutation_columns_ok" = "true" ] || {
-    echo "FATAL: app_owner is missing column-scoped UPDATE (last_seen_at, occurrence_count, error_detail) on public.operator_incidents" >&2
-    exit 1
-  }
-  [ "$cms_pages_serialization_token_ok" = "true" ] || {
-    echo "FATAL: app_owner is missing UPDATE (updated_at) on public.be_organizations" >&2
-    exit 1
-  }
-
-  # (b) anti-drift: any NEW SECURITY DEFINER function handed to app_owner must be reviewed for its
-  # own table grants before it ships, exactly like the two gaps this gate exists to catch. Pin the
-  # exact reviewed count rather than silently accepting drift; bump the constant (with a comment
-  # citing which new function and which table grants were reviewed for it) the one time a real new
-  # app_owner SECURITY DEFINER function is intentionally added.
-  # 49 pre-existing + 4 that move to app_owner as part of this fix: app.provision_specialist_owner
-  # and app.current_provisioned_owner_organization() (this file, literal OWNER TO app_owner) plus
-  # app.seed_reference_catalog_snapshot(uuid) and app.seed_reference_catalog_after_organization_insert()
-  # (reassigned dynamically by deploy/postgres/reference-catalog-rls.sql's :"provisioning_owner",
-  # which resolves from provision_specialist_owner's owner and runs later in the same deploy pass).
-  # Constant corrected 52->53 against the LIVE post-deploy count (the earlier rollback-tx simulation
-  # under-counted the pre-existing baseline by one; verified live: 53 legitimate app.* DEFINER fns).
-  # 53 -> 55 (2026-07-25): migration 0238_org_brand_publication adds exactly two reviewed app_owner
-  # SECURITY DEFINER accessors — app.current_patient_has_active_org_enrollment(uuid) (reads
-  # public.org_enrollments + public.be_organizations; app_owner SELECT on both is required above) and
-  # app.read_org_brand_core_context(uuid) (reads public.be_organizations; same grant). They exist
-  # because the independent adversarial audit proved the equivalent inline reads are impossible for
-  # app_patient (permission denied for table be_organizations, SQLSTATE 42501) and silently coupled
-  # staff reads/writes to an unrelated table grant.
-  # 55 -> 56 (2026-07-25): migration 0240_smtp_outbound_public_config_accessor adds exactly one
-  # reviewed app_owner SECURITY DEFINER accessor — app.is_smtp_outbound_configured() (reads
-  # public.system_settings, SELECT already required above/granted by
-  # deploy/postgres/patient-web-push-vapid-public-key-accessor.sql, so no new required-grant row is
-  # needed). It exists because the public login screen's unauthenticated bootstrap role has no table
-  # SELECT on system_settings, so the pre-existing direct-SELECT SMTP-configured check silently
-  # resolved to "not configured" for every unauthenticated caller (permission denied, 42501,
-  # swallowed by configAdapter.ts:fetchFromDb into null) even with SMTP fully configured — the owner
-  # could not log in. The accessor returns ONLY a boolean (never host/user/password/from).
-  # 56 -> 58 (2026-07-26): migration 0245_public_booking_phone_otp_accessors adds exactly two
-  # reviewed app_owner SECURITY DEFINER accessors for the A-3 anonymous booking OTP path —
-  # app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,jsonb) and
-  # app.phone_otp_public_booking_consume_challenge(text,text,integer,integer). They exist because
-  # both booking handlers stamp a `bootstrap` principal, which webappPoolProvider routes to the
-  # NONSTAFF pool (app_patient), and p0-5b-grants.sql lists public.phone_challenges /
-  # public.phone_otp_locks in the app_staff set only — verified live on DEV 2026-07-26:
-  # `select count(*) from phone_challenges` as the nonstaff login → 42501 permission denied. The
-  # remedy is NOT a runtime-role table grant (this gate's sibling assert_* would FATAL on it); it is
-  # the same accessor idiom as 0232's public e-mail OTP consume. Their table reads/writes are the
-  # eight new required-grant rows added above. Neither accessor returns a challenge row: issue
-  # returns a bare boolean, consume returns only the caller's own pinned booking intent and the
-  # delivery channel — never the one-time code.
-  # 58 -> 61 (2026-07-26): migration 0248_otp_decaying_lockout (night plan C-2 step 3) adds exactly
-  # three reviewed app_owner SECURITY DEFINER accessors for the new email_otp_locks table --
-  # app.email_auth_find_email_otp_lock(uuid) (read-only gate check), and the escalate/reset pair
-  # app.email_auth_register_email_otp_lockout(uuid) / app.email_auth_reset_email_otp_lockout(uuid).
-  # They exist because, like every other accessor in the email_auth_* family, app_patient has no
-  # direct table grant on this new table (p0-5b-grants.sql never lists it, same reason
-  # email_challenges/phone_otp_locks route through SECURITY DEFINER or a dedicated migration grant).
-  # Their table reads/writes are the four new email_otp_locks required-grant rows added above. None
-  # of the three returns anything beyond a bare epoch-second timestamp -- never a code, never a row.
-  # 61 -> 62 (2026-07-26): migration 0249_email_challenge_purpose_binding (night plan C-2 step 4)
-  # adds exactly one new reviewed app_owner SECURITY DEFINER accessor --
-  # app.email_auth_set_email_challenge_purpose(uuid, text). It exists because
-  # app.email_auth_insert_email_challenge(uuid,text,text,bigint)'s 4-arg signature is pinned by
-  # exact arg-type list across this file's own GRANT/REVOKE lines for d3_4_bootstrap_base_role;
-  # widening it to carry a 5th "purpose" argument would make those pinned lines resolve to a function
-  # that no longer exists under that signature. Instead this accessor stamps `purpose` on the row
-  # insert already created, in the same request, immediately after. No new required-grant row is
-  # needed: it only UPDATEs email_challenges.purpose, and app_owner already holds UPDATE on
-  # public.email_challenges (organization-member-invites-rls.sql, granted for 0232's consume
-  # function). The four email_auth_find_*_challenge_for_*/_latest_*_for_user accessors also changed
-  # in the same migration (each now also returns `purpose`), but that is a RETURNS TABLE column
-  # change on the SAME name + argument types -- Postgres ownership survives DROP+CREATE only if the
-  # owner is re-applied, which 0249 does explicitly, so the count they contribute is unchanged (one
-  # dropped, one created, net zero) -- only the brand-new accessor above changes this constant.
-  # 62 -> 63 (2026-07-26, A-2 platform-library exposure fix): migration
-  # 0250_c4d_platform_library_read_staff_scope adds exactly one new reviewed app_owner SECURITY
-  # DEFINER accessor -- app.read_platform_media_row(uuid). It exists because the same migration
-  # scopes the previously-unrestricted `c4d_platform_library_read` RLS policy (on lfk_exercises,
-  # lfk_exercise_regions, lfk_exercise_media, lfk_complex_templates, lfk_complex_template_exercises,
-  # media_files) `TO app_staff`, closing an armed-but-unfired exposure where app_patient (the same
-  # role the anonymous bootstrap connection uses) could ambiently read any owner_kind='platform'
-  # row in those six tables. The accessor is the one legitimate non-staff read path this narrowing
-  # would otherwise break (GET /api/media/[id] and its playback/preview/hls siblings serving a
-  # platform exercise's media once resolvePlatformLfkMediaAccess() has already confirmed
-  # entitlement). No new required-grant row: it only reads public.media_files, and app_owner already
-  # holds SELECT there (deploy/postgres/patient-media-playback-telemetry-accessors.sql).
-  # 63 -> 62 (2026-07-27, CORRECTION of a constant that was never achievable): the 61 -> 62 entry
-  # above credited migration 0249 with adding app.email_auth_set_email_challenge_purpose(uuid, text)
-  # as an app_owner-owned definer. It is not one and never was. That migration's
-  # `ALTER FUNCTION ... OWNER TO app_owner` is unconditionally overwritten later in the SAME deploy by
-  # deploy/postgres/organization-member-invites-rls.sql:970, which re-owns 19 email_auth_*/
-  # email_otp_public_* functions to `:organization_member_invites_owner_ident` -- a variable derived at
-  # :23-30 from the CURRENT owner of table public.organization_member_invites, which is the DB owner
-  # (bersoncarebot_test), not app_owner. That is not an accident of this one function: measured live
-  # 2026-07-27, ALL 19 functions on that dynamic line are DB-owner-owned, and the single sibling that
-  # is hardcoded `OWNER TO app_owner` (:965, email_otp_public_consume_latest_challenge) is the only
-  # app_owner one among them. The overlay's idiom is consistent; migration 0249 was the outlier.
-  # Nor could the variable ever resolve to app_owner: assert_specialist_owner_provisioning_seam_pinned
-  # (:1108-1116) pins as an invariant that app_owner owns EXACTLY 3 tables, deliberately excluding
-  # organization_member_invites.
-  # Why 62 is the safe value to assert rather than "fix" the ownership to reach 63: app_owner is
-  # BYPASSRLS, the DB owner is not, and 162 tables are FORCE RLS -- so for a patient-callable definer
-  # accessor, DB-owner ownership is the NARROWER blast radius, not the looser one. Flipping 19 live
-  # auth accessors to a BYPASSRLS owner is a security-model change, and it is already the subject of an
-  # open owner-plan item (A-1 stage 2/3, "the DB-owner role must own zero anon-reachable definers",
-  # docs/_TODO/NIGHT_PLAN_2026-07-26.md). This constant asserts today's real invariant; A-1 changes it
-  # deliberately when that staged work lands. Do NOT bump this back to 63 without doing A-1.
-  # This was invisible until 2026-07-27: the operator_incidents check above compared a `::text`-cast
-  # boolean to "t" and FATALed unconditionally, so the count assertion had never once executed
-  # (17 transcripts checked; fixed in 6ac7c2af4).
-  # 62 -> 70 (2026-07-27, taskdb #1032/#1033): migration 0252_patient_action_accessors adds eight
-  # reviewed app_owner SECURITY DEFINER functions. Phone auth/profile bind adds five exact operations:
-  # app.phone_challenge_store_upsert/read/delete/delete_by_phone/increment_attempts, all touching only
-  # public.phone_challenges (whose SELECT/INSERT/UPDATE/DELETE grants are already required above).
-  # Patient LFK adds app.read_patient_lfk_complex_cover(uuid) (reads public.lfk_complexes,
-  # public.lfk_complex_exercises, public.lfk_exercise_media, public.media_files),
-  # app.read_patient_lfk_complex_exercise_lines(uuid[]) (reads public.lfk_complexes,
-  # public.lfk_complex_exercises, public.lfk_exercises), and
-  # app.read_platform_lfk_media_entitlement_refs(uuid) (reads public.media_files,
-  # public.lfk_exercise_media, public.lfk_exercises, public.lfk_complex_templates and
-  # public.lfk_complex_template_exercises). The six newly required LFK SELECT rows are in the VALUES
-  # set above; public.media_files SELECT was already reviewed for app_owner.
-  # 70 -> 74 (2026-07-27, taskdb #1033 correction): migration 0252 also adds the four phone login-limit
-  # operations omitted from the first pass: app.phone_auth_find_otp_lock(text),
-  # app.phone_auth_find_latest_challenge_created_at(text),
-  # app.phone_auth_register_otp_lockout(text,bigint), and app.phone_auth_reset_otp_lockout(text).
-  # They re-state exact-phone predicates and touch only public.phone_challenges / public.phone_otp_locks;
-  # all eight SELECT/INSERT/UPDATE/DELETE required-grant rows are already pinned above from migration 0245.
-  # 74 -> 76 (2026-07-27, taskdb #1018 H-3): migration
-  # 0253_patient_reminder_occurrence_actions adds app.patient_snooze_reminder_occurrence(uuid,text,integer)
-  # and app.patient_skip_reminder_occurrence(uuid,text,text). Both read public.platform_users and
-  # public.reminder_occurrence_history, and UPDATE only public.reminder_occurrence_history; the two
-  # newly required reminder-occurrence SELECT/UPDATE rows are in the VALUES set above.
-  # 76 -> 80 (2026-07-27, taskdb #1055): migration 0254_auth_rate_limit_action_accessors adds four
-  # reviewed app_owner SECURITY DEFINER functions: exact-scope bounded prune, exact scope/key prune,
-  # exact scope/key count, and one-event record. Their SELECT/INSERT/DELETE grants are pinned above.
-  # 80 -> 81 (2026-07-27, taskdb #1000 C-5 correction): migration
-  # 0256_staff_security_self_password_hash adds exactly one reviewed app_owner SECURITY DEFINER
-  # function, app.set_staff_security_self_password_hash(text). It accepts no user id, derives the
-  # caller only through app.require_staff_security_self_user_id(), and updates the credentials row
-  # only where user_password_credentials.user_id equals that derived self id. Its required SELECT
-  # (predicate) and UPDATE (hash write) grants are pinned above.
-  # 81 -> 83 (2026-07-27, owner plan F-6): migration
-  # 0257_specialist_signup_slug_reservation adds exactly two reviewed app_owner SECURITY DEFINER
-  # functions. app.is_organization_slug_available(text) returns only a boolean after SELECT on
-  # organization_slug_claims. app.reserve_specialist_signup_slug(uuid,text) derives the signed self,
-  # then SELECT/UPDATEs the caller's pending intent and SELECT/INSERT/UPDATEs only its disposable
-  # reservation. Provisioning additionally needs claims SELECT/UPDATE and directory INSERT; all four
-  # new required table-grant rows are pinned above.
-  # 83 -> 105 (2026-07-27, taskdb #1062): migration 0258_bootstrap_auth_table_accessors adds exactly
-  # 22 reviewed app_owner SECURITY DEFINER operations for user_pins (4), channel_link_secrets (5),
-  # user_email_setup_tokens (5), user_oauth_bindings (3), and login_tokens (5). Every read is keyed by
-  # an exact server-resolved UUID or a SHA-256 opaque bearer hash; global login-token expiry uses only
-  # database time. Their 16 required table-grant rows are pinned above, while the bare login keeps no
-  # direct grant on any of the five auth tables.
-  # 105 -> 106 (2026-07-27, owner walkthrough): migration 0261 adds exactly ONE app_owner SECURITY
-  # DEFINER function, app.is_platform_registration_analytics_user_excluded(uuid). Reviewed body: it
-  # returns a BOOLEAN ONLY -- it never returns a row, an identifier or a contact. It reads
-  # public.platform_users (role, phone_normalized, email) and the global test_account_identifiers
-  # setting solely to answer "is this actor a staff/TEST identity that must be excluded from the
-  # registration funnel". This is what lets the platform-operations role read the registration-event
-  # panel WITHOUT any SELECT on platform_users, which the platform role wall forbids by assertion.
-  # No new table grant is required: app_owner already owns both tables.
-  # 106 -> 107 (2026-07-28, #1068 / owner D-5): migration 0267 adds exactly one reviewed app_owner
-  # SECURITY DEFINER function, app.list_platform_organization_members(uuid). It reads only
-  # public.be_organization_members and public.platform_users, both already present in the required
-  # table-grant set above, filters by the exact organization argument, and returns only display_name
-  # plus membership metadata. It never returns phone, email, channel bindings or patient data.
-  # 107 -> 106 (2026-07-28, #1058 / owner plan 8.1-8.4): migration 0269 removes
-  # app.reserve_specialist_signup_slug(uuid,text). Signup intents still carry organization_slug,
-  # while app.provision_specialist_owner(uuid) INSERTs the durable current claim and lets the global
-  # UNIQUE(slug) index decide races. The removed function's claims UPDATE grant is removed above;
-  # provisioning retains only the reviewed SELECT+INSERT claim privileges.
-  # 106 -> 107 (2026-07-28, ночная волна). Арифметика, проверенная прогоном на живой базе TEST внутри
-  # откатываемой транзакции: базовые 106 + 0267 (узкий accessor имени сотрудника для панели аккаунтов)
-  # + 0268 (capability записи следа доставки) - 0269 (снята reserve_specialist_signup_slug вместе с бронью
-  # слага) = 107. Два параллельных потока считали независимо и каждый получил своё число; итог сверен лидом.
-  # 107 -> 109 (2026-07-28, §10.2 первая обеспеченная квота): миграция 0270 добавляет ДВЕ функции,
-  # принадлежащие app_owner — `app.cms_pages_snapshot_usage` (авторитетный пересчёт для витрины) и
-  # `app.enforce_cms_pages_snapshot_quota` (триггер BEFORE INSERT с advisory-локом). Обе явно
-  # `ALTER FUNCTION ... OWNER TO app_owner` (0270:22 и 0270:106), поэтому попадают под этот гейт.
-  # Воркер квот этот счётчик не обновил — поймано лидом до выката; без правки деплой упал бы FATAL
-  # посреди закрытия, как 24.07.
-  # 109 -> 110 (2026-07-28, #1069 correction): C5A adds
-  # app.read_org_enforced_quota_usage(uuid), a count-only seam over clinic-team memberships,
-  # patient enrollments and patient-file bytes. The reviewed app_owner SELECT grants are pinned
-  # above; the platform role receives EXECUTE only and cannot read invite, enrollment or file rows.
-  # 110 -> 115 (2026-07-30, #1065): migration 0274 adds the atomic password-login admission and
-  # ALTCHA accessors and moves the password self-service writers behind app_owner. Their exact
-  # protection-table DML grants are pinned above; app_patient/app_staff retain no direct table ACL.
-  # 115 -> 124 (#1005): migration 0276 adds nine reviewed passkey accessors. Their exact
-  # account/credential/challenge table grants are pinned above; runtime roles retain no direct
-  # table ACL and receive only the intended EXECUTE capabilities.
-  # 124 -> 125 (2026-07-30, #1069 item 3.1c): migration 0279 adds exactly one reviewed app_owner
-  # SECURITY DEFINER function, app.resolve_organization_mechanic_access(uuid,text). It reads
-  # be_organizations plus the three SaaS entitlement tables already pinned above and exposes only
-  # the computed state/warning/mutation decision to app_staff and app_patient.
-  # 125 -> 123 (2026-07-31, #1069 item 2.1a): the merge constant 125 was ARITHMETIC ACROSS TWO
-  # BRANCHES, never a measurement — it counted the additions of each branch onto 115 and missed
-  # both the removals and the newest function, so it never matched any database. Measured and
-  # reconciled against bersoncarebot_test, every term backed by a migration in this branch:
-  #   115 (last green run, 2026-07-30)
-  #   -3  migration 0277 drops app.cms_pages_snapshot_usage, app.enforce_cms_pages_snapshot_quota
-  #       and app.enforce_courses_snapshot_quota — courses and CMS pages became toggle-only
-  #   +9  migration 0276 (#1005) passkey accessors, grants pinned above
-  #   +1  migration 0279 app.resolve_organization_mechanic_access(uuid,text)
-  #   +1  migration 0284 app.resolve_organization_cabinet_access(uuid) — REVIEWED HERE: it reads
-  #       public.be_organizations, public.saas_tariffs and public.saas_organization_trials, all
-  #       three already in the required app_owner SELECT set above, and exposes only the computed
-  #       cabinet state/warning to app_staff and app_patient (EXECUTE only, no table ACL).
-  #   = 123, which is what the database actually holds.
-  # Migration 0285 drops and recreates app.read_current_patient_organization_entitlements() (its
-  # return columns changed), and C5A does the same for app.read_org_enforced_quota_usage(uuid) —
-  # both are net zero here.
-  # TEST measured 135 = baseline 123 + 1 frozen/live implementation + 2 dead 0296 trigger
-  # functions + 3 public config accessors + 6 V9b capabilities. Migration 0310 removes the two dead
-  # functions and adds one current-org wrapper: 135 - 2 + 1 = 134. Migration 0318 adds one
-  # fixed-key SaaS payment-provider capability without granting system_settings table access.
-  # 135 -> 136 (2026-08-02, #987 D38): migration 0319 adds exactly one reviewed app_owner
-  # SECURITY DEFINER capability, app.read_integrator_provider_runtime_setting(text). Its body reads
-  # only public.system_settings through a fixed Telegram/MAX/SMSC key allowlist; app_owner SELECT on
-  # that table is already pinned in the required-grant set above. The integrator runtime login gets
-  # EXECUTE only and retains no direct system_settings table access.
-  # 136 -> 144 (2026-08-03, #987 D7/D21 + #1071): migrations 0314, 0316 and 0322 add eight reviewed
-  # app_owner SECURITY DEFINER functions: four patient reminder completion/mute/channel-settings
-  # capabilities, two dedicated clinic-bot binding/resolution functions, pending-occurrence cancel,
-  # and the unified mute action. Their exact table grants are pinned above. C4 reapplies the one
-  # previously missing capability grant: DELETE on integrator.user_reminder_occurrences.
-  # 144 -> 148 (2026-08-03, #987 Track D login/delivery closure): exactly four new functions were
-  # measured against the last green TEST deployment (00ddf35bd, 144/144) and the current catalog:
-  # app.read_integrator_auth_channel_setting(text),
-  # app.read_integrator_platform_integration_availability(),
-  # app.open_or_touch_operator_incident(text,text,text,text,text), and
-  # app.read_outgoing_delivery_reclaim_config(). The first, second and fourth read only fixed
-  # public.system_settings keys, whose app_owner SELECT is already pinned above. The incident
-  # capability needs operator_incidents SELECT+INSERT plus column-scoped UPDATE on last_seen_at,
-  # occurrence_count and error_detail; those grants are reapplied by c4-operational-runtime.sql and
-  # pinned above. integrator-server-runtime-config.sql and c4-operational-runtime.sql independently
-  # assert the final exact EXECUTE sets: API login only for the auth-channel setting reader, API
-  # login + delivery worker for incident open/touch AND for platform-integration-availability (the
-  # delivery-worker grant on the latter was missing from the canonical set until 2026-08-04, #987 —
-  # apps/integrator/src/app/di.ts calls it on every dispatch attempt under
-  # app_operational_delivery_worker; TEST never reached that call path before the readiness-probe
-  # FOR-UPDATE crash-loop fix landed the same day), and delivery worker only for reclaim config
-  # (besides owner EXECUTE).
-  # Migration 0327 merely replays 0318's existing payment-provider function and is count-neutral.
-  # 148 -> 149 (2026-08-03, #1057 live checkout): migration 0332 adds exactly one reviewed
-  # app_owner SECURITY DEFINER capability,
-  # app.read_current_org_tariff_transition_usage(). It accepts no organization argument, derives
-  # only app.current_org_id(), reads public.be_branches directly and delegates the other counts to
-  # the already-reviewed app.read_org_enforced_quota_usage(uuid). All five underlying SELECT grants
-  # are already pinned in the required set above; app_clinic_billing gets only this wrapper's
-  # EXECUTE and no direct source-table access, asserted by C5A's exact wall.
-  # 149 -> 153 (2026-08-03, #987 D30): migration 0333 adds four reviewed specialist-task reminder
-  # capabilities: one materialization fingerprint, one staff-triggered queue materialization refresh,
-  # one delivery-worker claim-time revalidation, and one delivery-worker durable success outcome.
-  # Their bodies touch only specialist_tasks, outgoing_delivery_queue, platform_users, the existing
-  # channel preference/binding/subscription tables and fixed reminder/VAPID system_settings rows.
-  # Migration 0333 grants app_owner only the exact referenced columns and gives runtime roles EXECUTE
-  # only; no runtime role receives a new direct table grant.
-  # 153 -> 155 (2026-08-03, #987 TEST identity-self PIN repair): migration 0336
-  # adds app.auth_user_pin_read_self() and app.auth_user_pin_upsert_self(text). Both accept no target
-  # user UUID, derive the signed current identity through app.require_staff_security_self_user_id(),
-  # and read/write only that principal's public.user_pins row. The migration and the canonical
-  # overlays revoke app_patient table/column privileges and the old target-UUID functions, then grant
-  # only these two identity-self capabilities; app_owner's required user_pins grants are pinned above.
-  # 155 (unmeasured after this) -> 154 (2026-08-03, TEST closure, reservation 0340): 0337 is ACL-only
-  # (count-neutral) and 0339 adds app.revalidate_appointment_reminder_materialization(uuid) with an
-  # explicit `ALTER FUNCTION ... OWNER TO app_owner`. 0338, landed the same wave, created four more
-  # SECURITY DEFINER capabilities --
-  # app.patient_reminder_materialization_fingerprint(text,text),
-  # app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz),
-  # app.mark_patient_reminder_occurrence_queued(text,integer,text[]) and
-  # app.revalidate_patient_reminder_delivery_materialization(uuid) -- but never executed the matching
-  # `ALTER FUNCTION ... OWNER TO app_owner` for any of them, so all four stayed owned by the
-  # migration-runner role (bersoncarebot_test) instead of app_owner. This gate caught it live: TEST
-  # measured actual=154 against the stale expected=155, and a read-only ownership query confirmed all
-  # four 0338 functions are `prosecdef` but owned by bersoncarebot_test. Their EXECUTE ACLs were
-  # already exact (owner-only for the fingerprint helper, app_staff for the two staff writers,
-  # app_operational_delivery_worker for the revalidation worker) -- only ownership was wrong.
-  # 154 -> 158 (2026-08-03, migration 0340, this reservation): forward-only repair, `ALTER FUNCTION
-  # ... OWNER TO app_owner` for all four 0338 functions plus a re-assertion of their unchanged exact
-  # ACLs. This is a measured value (154 + these exact four), not recomputed arithmetic; the dedicated
-  # ownership/ACL wall right below re-checks the same four functions by name so a future silent
-  # ownership regression on just these four cannot hide behind an otherwise-correct whole-class count.
-  # 158 -> 159 (2026-08-03, migration 0343, #1057 B0.3): one new function,
-  # app.resolve_saas_billing_invoice_for_webhook(text,text), the bootstrap webhook's invoice
-  # lookup by provider ref. Its one table dependency (SELECT on saas_billing_invoices) is the new
-  # row added to the required-grant set immediately above.
-  # 159 -> 160 (2026-08-03, migration 0342, #987 D27 F5/F6, merged in from feat/doctor-ui-rebuild
-  # after this constant was last bumped): one new function,
-  # app.find_platform_user_ids_by_any_confirmed_email(text), used by
-  # email_password_find_login_candidate and email_auth_find_email_owner_conflict to resolve a
-  # login/conflict through any confirmed email, not only the primary. Its two table dependencies,
-  # SELECT on public.platform_users and SELECT on public.user_oauth_bindings, are both already
-  # in the required-grant set above (rows for platform_users and user_oauth_bindings pinned by
-  # earlier auth functions) -- no new GRANT needed, this is a book-keeping-only bump caught live
-  # by this gate (measured actual=160 against the stale expected=159).
-  # 160 -> 161 (2026-08-03, migration 0348, #1057 B0.3): one new function,
-  # app.apply_paid_saas_billing_tariff(uuid,uuid), the capture path's paid-tariff apply accessor.
-  # No new required-grant row for its SELECT on saas_billing_invoices (already pinned by 0343); its
-  # UPDATE on be_organizations is a pre-existing app_owner privilege, now pinned as a required row
-  # immediately above.
-  # 161 -> 162 (2026-08-03, migration 0351, TEST owner findings D1): one new app_owner-owned
-  # function, app.read_webapp_preauth_provider_setting(text) -- fixed-key pre-auth OAuth/Telegram
-  # credential accessor for oauth/start, oauth/callback/{yandex,google,apple} and telegram-login.
-  # It only reads public.system_settings, already required for app_owner in the VALUES list above,
-  # so no new grant row is needed -- only this count.
-  # 162 -> 176 (2026-08-04, wt/overlay-owner, eaafe46d9 + this deploy): night-wave migrations
-  # 0356/0357 (platform_users FORCE-RLS login fix) net +14 app_owner-owned SECURITY DEFINER
-  # functions. Confirmed by ownership history per function, not by accepting the raw delta:
-  #   - 10 get their FIRST-EVER `OWNER TO app_owner` in 0356 (previously default/migrator-owned):
-  #     app.bump_platform_user_session_epoch_self(), app.email_auth_verify_user_email(uuid,text),
-  #     app.email_otp_public_delete_unverified_registration(uuid),
-  #     app.email_otp_public_find_or_create_user(text), app.email_otp_public_find_user_by_email(text),
-  #     app.email_otp_public_register_patient(text,text,text,text),
-  #     app.email_password_delete_unverified_registration(uuid),
-  #     app.email_password_find_login_candidate(text),
-  #     app.email_password_register_pending(text,text,text,text,text,text),
-  #     app.propagate_staff_session_version_to_session_epoch().
-  #   - 3 more move to app_owner from the integrator.user_reminder_occurrences table-owner role
-  #     (0339's deliberate narrowing) in 0356 -- also net-new to app_owner:
-  #     app.patient_done_reminder_occurrence(text), app.patient_skip_reminder_occurrence(uuid,text,text),
-  #     app.patient_snooze_reminder_occurrence(uuid,text,integer).
-  #   - 1 genuinely new function, app.get_preferred_auth_channel_code(uuid), added by 0357 already
-  #     owned by app_owner.
-  #   - 2 of 0356's fifteen were ALREADY app_owner before 0356 touched them --
-  #     app.is_platform_registration_analytics_user_excluded(uuid) (app_owner since migration 0261) and
-  #     app.list_platform_organization_members(uuid) (app_owner since migration 0267) -- so 0356's
-  #     ALTER on them is a no-op and contributes zero here.
-  # 10 + 3 + 1 = 14, exactly the measured delta (176 actual vs the stale 162). All fourteen only touch
-  # tables already in the required-grant set above (platform_users, reminder_occurrence_history,
-  # phone/email challenge tables) via functions reviewed when 0356/0357/0339 were authored -- no new
-  # required-grant row needed, this is a book-keeping-only bump caught live by this gate (measured
-  # actual=176 against the stale expected=162), same class as the 159 -> 160 bump above.
-  # 176 -> 178 (2026-08-04, #987 D27-C durable delivery). TWO genuinely new app_owner functions from
-  # migrations 0369/0370, not one: app.email_auth_set_email_challenge_delivery_code(uuid,text) and
-  # app.email_auth_enqueue_otp_delivery(uuid,uuid). Both only touch tables already in the required-grant
-  # set above (email_challenges UPDATE; outgoing_delivery_queue INSERT, granted by 0370 itself) -- no new
-  # row needed.
-  # 178 -> 180 (2026-08-05, isolation card fix): app.auth_phone_bind_lock_channel_binding(text,text) and
-  # app.auth_phone_bind_upsert_channel_binding(uuid,text,text) from migration 0371. Both only touch
-  # user_channel_bindings, already in the required-grant set via other app_owner accessors.
-  #
-  # CORRECTION of the first attempt at this bump (same day): it read 177 and explained the missing
-  # function as "$DB-owned, exactly as designed", because organization-member-invites-rls.sql re-pinned
-  # the enqueue accessor to the migrator role right after 0370's own `OWNER TO app_owner`. That is not a
-  # design, it is two sources of truth disagreeing about one object -- the same shape
-  # assert_login_fix_definer_owners_pinned was added to catch earlier the same day. The overlay now pins
-  # app_owner, so the function counts here and NOT in the DB-owner anon-reachable gate below.
-  # 180 -> 182 (2026-08-05, #1069 migrations 0375 + 0378): two genuinely new app_owner-owned
-  # SECURITY DEFINER accessors:
-  #   - app.choose_organization_first_tariff(uuid,uuid) (0375 T5) reads/writes be_organizations,
-  #     saas_trial_policy, saas_organization_trials, saas_billing_accounts, saas_billing_subscriptions,
-  #     saas_tariffs and admin_audit_log -- billing-account/subscription app_owner grants are pinned
-  #     in the billing-foundation gate above; the rest are already in the required-grant set.
-  #   - app.prepare_organization_lifecycle_notification_context(uuid) (0378 T2) reads
-  #     saas_organization_trials and UPDATEs be_organizations.cabinet_first_entered_at -- both tables
-  #     already pinned above.
-  # Migrations 0376/0377/0379/0380 only REPLACE existing accessors or add DDL; net zero here.
-  local expected_secdef_count=182
-  local actual_secdef_count
-  actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
-")"
-  [ "$actual_secdef_count" = "$expected_secdef_count" ] || {
-    echo "FATAL: app_owner now owns $actual_secdef_count SECURITY DEFINER functions, expected exactly $expected_secdef_count." >&2
-    echo "       A new app_owner SECURITY DEFINER function was added without review -- check its body for" >&2
-    echo "       every table it reads/writes, add the matching GRANT next to that table's canonical" >&2
-    echo "       reapplied overlay, extend the required-grant set above, and only then bump this constant." >&2
-    exit 1
-  }
-
-  local tariff_boundary_acl_ok
-  tariff_boundary_acl_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-WITH targets(signature, expected_grantee) AS (
-  VALUES
-    ('app.saas_billing_effective_tariff(uuid,uuid)', 'app_owner'),
-    ('app.saas_billing_effective_tariff(uuid,uuid)', 'app_platform_settings'),
-    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_owner'),
-    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_staff'),
-    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_patient'),
-    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_clinic_billing')
-), actual AS (
-  SELECT routine.oid::regprocedure::text AS signature,
-    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee
-  FROM pg_proc AS routine
-  CROSS JOIN LATERAL aclexplode(
-    COALESCE(routine.proacl, acldefault('f', routine.proowner))
-  ) AS privilege
-  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
-  WHERE routine.oid IN (
-    to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)'),
-    to_regprocedure('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)')
-  )
-    AND privilege.privilege_type = 'EXECUTE'
-), expected AS (
-  SELECT signature, expected_grantee AS grantee FROM targets
-)
-SELECT (
-  to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL
-  AND to_regprocedure('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)') IS NOT NULL
-  AND to_regprocedure('app.enforce_courses_snapshot_quota()') IS NULL
-  AND to_regprocedure('app.enforce_cms_pages_snapshot_quota()') IS NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM pg_proc AS routine
-    WHERE routine.oid IN (
-      to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)'),
-      to_regprocedure('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)')
-    )
-      AND (pg_get_userbyid(routine.proowner) <> 'app_owner' OR NOT routine.prosecdef)
-  )
-  AND NOT EXISTS (
-    (SELECT * FROM actual EXCEPT SELECT * FROM expected)
-    UNION ALL
-    (SELECT * FROM expected EXCEPT SELECT * FROM actual)
-  )
-)::text;
-")"
-  [ "$tariff_boundary_acl_ok" = "true" ] || {
-    echo "FATAL: frozen/live tariff implementation or current-org wrapper ACL is not exact." >&2
-    exit 1
-  }
-
-  access_door_acl_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-WITH target_function AS (
-  SELECT procedure.oid, procedure.proowner, procedure.proacl, procedure.prosecdef
+assert_security_definer_seam_owners_complete(){
+  # app_owner is retired and must own no functions. Every application SECURITY DEFINER function is
+  # instead owned by a dedicated app_seam_*_owner role. This whole-class gate keeps the seam closed:
+  # a new definer under the migrator, app_object_owner, or the retired role is a fatal ownership leak.
+  local violations
+  violations="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH app_secdef AS (
+  SELECT procedure.oid::regprocedure::text AS signature,
+         pg_get_userbyid(procedure.proowner) AS owner_name
   FROM pg_proc AS procedure
-  WHERE procedure.oid = 'app.resolve_organization_mechanic_access(uuid,text)'::regprocedure
-), expected_acl(grantee, privilege_type, is_grantable) AS (
-  VALUES
-    ('app_owner'::text, 'EXECUTE'::text, false),
-    ('app_staff'::text, 'EXECUTE'::text, false),
-    ('app_patient'::text, 'EXECUTE'::text, false)
-), actual_acl AS (
-  SELECT
-    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee,
-    privilege.privilege_type,
-    privilege.is_grantable
-  FROM target_function
-  CROSS JOIN LATERAL aclexplode(
-    COALESCE(target_function.proacl, acldefault('f', target_function.proowner))
-  ) AS privilege
-  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+  JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+  WHERE namespace.nspname = 'app' AND procedure.prosecdef
+), seam_owners AS (
+  SELECT DISTINCT owner_name FROM app_secdef
 )
-SELECT (
-  (SELECT count(*) FROM target_function) = 1
-  AND (
-    SELECT bool_and(prosecdef AND pg_get_userbyid(proowner) = 'app_owner')
-    FROM target_function
-  )
-  AND NOT EXISTS (
-    (SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl)
-    UNION ALL
-    (SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl)
-  )
-)::text;
+SELECT COALESCE(string_agg(signature || ' owned by ' || owner_name, '; ' ORDER BY signature), '')
+FROM app_secdef
+WHERE owner_name NOT LIKE 'app_seam\_%\_owner' ESCAPE '\'
+UNION ALL
+SELECT 'expected 46 app_seam_*_owner roles, found ' || count(*)::text
+FROM seam_owners
+HAVING count(*) <> 46;
 ")"
-  [ "$access_door_acl_ok" = "true" ] || {
-    echo "FATAL: organization mechanic lifecycle door exact ACL did not take effect." >&2
-    echo "       Expected app_owner ownership with SECURITY DEFINER and plain EXECUTE only for" >&2
-    echo "       app_owner, app_staff and app_patient." >&2
+  if [ -n "$violations" ]; then
+    echo "FATAL: SECURITY DEFINER seam owner contract diverged: $violations" >&2
+    echo "       app_owner is retired; application definers must belong to the reviewed app_seam_*_owner roles." >&2
     exit 1
-  }
-
-  # Migration 0340 (reservation 0340, TEST closure 2026-08-03): named ownership/ACL wall for the four
-  # 0338 patient-reminder-materialization functions, independent of the whole-class count above. A
-  # future change that keeps the class count numerically balanced (e.g. drops one app_owner function
-  # while silently regressing one of these four back to a non-app_owner owner) would not FATAL the
-  # count gate above but must FATAL here by name.
-  local patient_reminder_materialization_ownership_acl_ok
-  patient_reminder_materialization_ownership_acl_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-WITH targets(signature, expected_grantee) AS (
-  VALUES
-    ('app.patient_reminder_materialization_fingerprint(text,text)', 'app_owner'),
-    ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)', 'app_owner'),
-    ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)', 'app_staff'),
-    ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'app_owner'),
-    ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'app_staff'),
-    ('app.revalidate_patient_reminder_delivery_materialization(uuid)', 'app_owner'),
-    ('app.revalidate_patient_reminder_delivery_materialization(uuid)', 'app_operational_delivery_worker')
-), actual AS (
-  SELECT routine.oid::regprocedure::text AS signature,
-    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee
-  FROM pg_proc AS routine
-  CROSS JOIN LATERAL aclexplode(
-    COALESCE(routine.proacl, acldefault('f', routine.proowner))
-  ) AS privilege
-  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
-  WHERE routine.oid IN (
-    to_regprocedure('app.patient_reminder_materialization_fingerprint(text,text)'),
-    to_regprocedure('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)'),
-    to_regprocedure('app.mark_patient_reminder_occurrence_queued(text,integer,text[])'),
-    to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)')
-  )
-    AND privilege.privilege_type = 'EXECUTE'
-), expected AS (
-  SELECT signature, expected_grantee AS grantee FROM targets
-)
-SELECT (
-  to_regprocedure('app.patient_reminder_materialization_fingerprint(text,text)') IS NOT NULL
-  AND to_regprocedure('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)') IS NOT NULL
-  AND to_regprocedure('app.mark_patient_reminder_occurrence_queued(text,integer,text[])') IS NOT NULL
-  AND to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)') IS NOT NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM pg_proc AS routine
-    WHERE routine.oid IN (
-      to_regprocedure('app.patient_reminder_materialization_fingerprint(text,text)'),
-      to_regprocedure('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)'),
-      to_regprocedure('app.mark_patient_reminder_occurrence_queued(text,integer,text[])'),
-      to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)')
-    )
-      AND (pg_get_userbyid(routine.proowner) <> 'app_owner' OR NOT routine.prosecdef)
-  )
-  AND NOT EXISTS (
-    (SELECT * FROM actual EXCEPT SELECT * FROM expected)
-    UNION ALL
-    (SELECT * FROM expected EXCEPT SELECT * FROM actual)
-  )
-)::text;
-")"
-  [ "$patient_reminder_materialization_ownership_acl_ok" = "true" ] || {
-    echo "FATAL: patient-reminder-materialization (0338/0340) SECURITY DEFINER ownership or exact ACL is wrong." >&2
-    echo "       Expected app_owner ownership + SECURITY DEFINER on all four functions; PUBLIC EXECUTE" >&2
-    echo "       on none of them; app_staff EXECUTE only on the two staff writers; and" >&2
-    echo "       app_operational_delivery_worker EXECUTE only on the worker-facing revalidation." >&2
-    exit 1
-  }
-
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (116 required table grants + 5 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  fi
+  echo "   SECURITY DEFINER seam owners: OK (46 app_seam_*_owner roles; retired app_owner owns none)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
@@ -1937,7 +1193,7 @@ SELECT (
 assert_c5a_platform_organization_members_closure(){
   # #1068 / owner D-5: run after every mutating closure rather than trusting the one-shot migration.
   # The table grant is exactly SELECT; names cross the otherwise-closed platform_users boundary only
-  # through one app_owner SECURITY DEFINER projection with an exact EXECUTE ACL.
+  # through one app_seam_*_owner SECURITY DEFINER projection with an exact EXECUTE ACL.
   local ok
   ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH target_relation AS (
@@ -1967,9 +1223,9 @@ WITH target_relation AS (
   FROM pg_proc AS procedure
   WHERE procedure.oid = 'app.list_platform_organization_members(uuid)'::regprocedure
 ), expected_function_acl(grantee, privilege_type, is_grantable) AS (
-  VALUES
-    ('app_owner'::text, 'EXECUTE'::text, false),
-    ('app_platform_settings'::text, 'EXECUTE'::text, false)
+  SELECT pg_get_userbyid(proowner), 'EXECUTE'::text, false FROM target_function
+  UNION ALL
+  SELECT 'app_platform_settings'::text, 'EXECUTE'::text, false
 ), actual_function_acl AS (
   SELECT
     COALESCE(grantee.rolname, privilege.grantee::text) AS grantee,
@@ -1990,7 +1246,7 @@ SELECT (
   )
   AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
   AND (SELECT count(*) FROM target_function) = 1
-  AND (SELECT bool_and(prosecdef AND pg_get_userbyid(proowner) = 'app_owner') FROM target_function)
+  AND (SELECT bool_and(prosecdef AND pg_get_userbyid(proowner) LIKE 'app_seam\_%\_owner' ESCAPE '\') FROM target_function)
   AND NOT EXISTS (
     (SELECT * FROM actual_function_acl EXCEPT SELECT * FROM expected_function_acl)
     UNION ALL
@@ -2002,7 +1258,7 @@ SELECT (
   [ "$ok" = "true" ] || {
     echo "FATAL: platform organization-members directory exact ACL did not take effect." >&2
     echo "       Expected app_platform_settings to hold only SELECT on be_organization_members," >&2
-    echo "       no column grants or platform_users SELECT, and plain EXECUTE on the narrow app_owner accessor." >&2
+    echo "       no column grants or platform_users SELECT, and plain EXECUTE on the narrow app_seam_*_owner accessor." >&2
     exit 1
   }
   echo "   platform organization-members directory exact ACL: OK (SELECT-only table + narrow name projection)"
@@ -2063,10 +1319,10 @@ SELECT (
   AND NOT EXISTS (SELECT 1 FROM actual_acl)
   AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
   AND NOT EXISTS (SELECT 1 FROM actual_policy)
-  AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
-  AND has_table_privilege('app_owner', 'public.organization_member_invites', 'SELECT')
-  AND has_table_privilege('app_owner', 'public.org_enrollments', 'SELECT')
-  AND has_table_privilege('app_owner', 'public.patient_files', 'SELECT')
+  AND has_table_privilege((SELECT proowner FROM pg_proc WHERE oid = 'app.read_org_enforced_quota_usage(uuid)'::regprocedure), 'public.be_organization_members', 'SELECT')
+  AND has_table_privilege((SELECT proowner FROM pg_proc WHERE oid = 'app.read_org_enforced_quota_usage(uuid)'::regprocedure), 'public.organization_member_invites', 'SELECT')
+  AND has_table_privilege((SELECT proowner FROM pg_proc WHERE oid = 'app.read_org_enforced_quota_usage(uuid)'::regprocedure), 'public.org_enrollments', 'SELECT')
+  AND has_table_privilege((SELECT proowner FROM pg_proc WHERE oid = 'app.read_org_enforced_quota_usage(uuid)'::regprocedure), 'public.patient_files', 'SELECT')
   AND has_function_privilege(
     'app_platform_settings',
     'app.read_org_enforced_quota_usage(uuid)',
@@ -2077,7 +1333,7 @@ SELECT (
   [ "$ok" = "true" ] || {
     echo "FATAL: enforced quota usage exact ACL/policy closure did not take effect." >&2
     echo "       Expected count-only EXECUTE, no platform patient/file/invite row ACL or policy," >&2
-    echo "       and reviewed app_owner base-table grants. Courses/CMS pages are toggle-only" >&2
+    echo "       and reviewed app_seam_*_owner base-table grants. Courses/CMS pages are toggle-only" >&2
     echo "       mechanics (#1069) -- no course-row count or cms_pages_snapshot_usage accessor exists." >&2
     exit 1
   }
@@ -2112,6 +1368,11 @@ WITH expected(relation_name) AS (
     (SELECT oid FROM pg_roles WHERE rolname = 'app_clinic_billing') AS clinic_billing_oid,
     (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid,
     (SELECT oid FROM pg_roles WHERE rolname = 'app_staff') AS staff_oid
+), seam_owners AS (
+  SELECT
+    pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'app.saas_billing_effective_tariff(uuid,uuid)'::regprocedure)) AS tariff_owner,
+    pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'app.resolve_saas_billing_invoice_for_webhook(text,text)'::regprocedure)) AS invoice_resolver_owner,
+    pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'app.choose_organization_first_tariff(uuid,uuid)'::regprocedure)) AS first_tariff_owner
 ), expected_table_acl(relation_name, grantee, privilege_type, is_grantable) AS (
   SELECT relation_name, owner_name, privilege_type, false
   FROM relations
@@ -2126,26 +1387,28 @@ WITH expected(relation_name) AS (
   CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE']::text[]) AS privilege_type
   WHERE relation_name <> 'saas_billing_provider_events'
   UNION
-  -- Migration 0286 grants this supporting read to its app_owner SECURITY DEFINER function.
+  -- Migration 0286 grants this supporting read to its dedicated SECURITY DEFINER seam owner.
   -- Earlier bounded scratch clusters can have the billing tables without that function.
-  SELECT 'saas_billing_subscriptions', 'app_owner', 'SELECT', false
-  WHERE to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL
+  SELECT 'saas_billing_subscriptions', tariff_owner, 'SELECT', false
+  FROM seam_owners
+  WHERE tariff_owner IS NOT NULL
   UNION
-  -- 0343 (#1057 B0.3) grants this supporting read to its own app_owner SECURITY DEFINER
+  -- 0343 (#1057 B0.3) grants this supporting read to its dedicated SECURITY DEFINER
   -- resolver, same idiom as the subscriptions row above. This row was missing from this gate
   -- since 0343 landed -- caught live: applying 0343 to a fully-migrated DEV left an unexpected
-  -- app_owner/SELECT/saas_billing_invoices ACL entry this assertion did not yet expect.
-  SELECT 'saas_billing_invoices', 'app_owner', 'SELECT', false
-  WHERE to_regprocedure('app.resolve_saas_billing_invoice_for_webhook(text,text)') IS NOT NULL
+  -- seam-owner/SELECT/saas_billing_invoices ACL entry this assertion did not yet expect.
+  SELECT 'saas_billing_invoices', invoice_resolver_owner, 'SELECT', false
+  FROM seam_owners
+  WHERE invoice_resolver_owner IS NOT NULL
   UNION
   -- 0375 (#1069 T5): choose_organization_first_tariff SECURITY DEFINER accessor.
-  SELECT 'saas_billing_accounts', 'app_owner', privilege_type, false
-  FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
-  WHERE to_regprocedure('app.choose_organization_first_tariff(uuid,uuid)') IS NOT NULL
+  SELECT 'saas_billing_accounts', first_tariff_owner, privilege_type, false
+  FROM seam_owners CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+  WHERE first_tariff_owner IS NOT NULL
   UNION
-  SELECT 'saas_billing_subscriptions', 'app_owner', privilege_type, false
-  FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
-  WHERE to_regprocedure('app.choose_organization_first_tariff(uuid,uuid)') IS NOT NULL
+  SELECT 'saas_billing_subscriptions', first_tariff_owner, privilege_type, false
+  FROM seam_owners CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+  WHERE first_tariff_owner IS NOT NULL
   UNION
   SELECT relation_name, 'app_platform_settings', privilege_type, false
   FROM relations
@@ -2348,7 +1611,7 @@ SELECT (
   [ "$ok" = "true" ] || {
     echo "FATAL: SaaS billing foundation exact grants/RLS inventory did not take effect." >&2
     echo "       Expected organization-scoped app_clinic_billing SELECT plus account/subscription/invoice INSERT+UPDATE," >&2
-    echo "       the app_owner subscription read," >&2
+    echo "       the dedicated seam-owner subscription read," >&2
     echo "       0344 organization-scoped app_staff SELECT+UPDATE on subscriptions/invoices and" >&2
     echo "       SELECT+INSERT+UPDATE on provider_events only (no app_staff ACL on accounts)," >&2
     echo "       platform SELECT/INSERT/UPDATE, exact policies," >&2
@@ -2890,12 +2153,12 @@ run_strict_post_migration_closure(){
   run_closure_gate "A2 nginx forwarded-host preflight" run_a2_nginx_preflight
   log "U3S specialist signup/provisioning smoke (private cluster, mandatory)"
   run_closure_gate "U3S specialist signup/provisioning smoke" run_specialist_signup_provisioning_smoke
-  log "specialist-owner provisioning seam pin (app_owner + be_organizations FORCE RLS)"
+  log "specialist-owner provisioning seam pin (retired role + be_organizations FORCE RLS)"
   run_closure_gate "specialist-owner provisioning seam pin" assert_specialist_owner_provisioning_seam_pinned
-  log "login-fix (0356/0357) definer owners pinned to app_owner (2026-08-04 overlay-revert regression)"
+  log "login-fix (0356/0357) definer owners pinned to app_seam_*_owner roles (2026-08-04 overlay-revert regression)"
   run_closure_gate "login-fix definer owners pinned" assert_login_fix_definer_owners_pinned
-  log "app_owner SECURITY DEFINER table-grant completeness (whole-class gate)"
-  run_closure_gate "app_owner SECURITY DEFINER table-grant completeness" assert_app_owner_secdef_table_grants_complete
+  log "SECURITY DEFINER seam-owner closure (retired app_owner excluded)"
+  run_closure_gate "SECURITY DEFINER seam-owner closure" assert_security_definer_seam_owners_complete
   log "clinical_test_measure_kinds write-lock closure pin (H-7 / #1040, detects a guarded skip)"
   run_closure_gate "clinical_test_measure_kinds write-lock closure" assert_c5a_clinical_test_measure_kinds_closure
   log "platform organization-members directory exact ACL (#1068 / owner D-5)"
@@ -2922,7 +2185,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$OVERRIDE" "$P0_5B_ROLES" "$P0_5B_GRANTS" "$P2_B_CONTEXT" \
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$PATIENT_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" "$PATIENT_VISIBLE_CATALOG_RLS" \
-    "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF" "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" \
+    "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" \
     "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
@@ -3039,6 +2302,7 @@ Usage:
     --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
     --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
     [--prepare-cutover-source-only] \
+    [--cutover-dry-run] \
     [branch]
 
 This command destroys and recreates bersoncarebot_test from a fresh production dump. It is only for an
@@ -3050,6 +2314,8 @@ run to the exact owner-reviewed inputs. No patient data is printed by this wrapp
 
 --prepare-cutover-source-only runs the complete hash-bound data stage and aggregate assertions, leaves
 TEST writers stopped, and exits before schema migration. It never starts the historical migration runners.
+--cutover-dry-run executes the complete A -> B transaction and all reports, rolls it back, then exits
+before post-migration checks. The preceding TEST reset/data-preparation stages are unchanged.
 EOF
 }
 
@@ -3059,6 +2325,7 @@ parse_full_reset_args(){
     case "$arg" in
       --confirm-full-reset) CONFIRM_FULL_RESET=1 ;;
       --prepare-cutover-source-only) PREPARE_CUTOVER_SOURCE_ONLY=1 ;;
+      --cutover-dry-run) CUTOVER_MODE=dryrun ;;
       --fio-manifest=*) FIO_MANIFEST="${arg#*=}" ;;
       --fio-manifest-file-sha256=*) FIO_MANIFEST_FILE_SHA256="${arg#*=}" ;;
       --fio-manifest-sha256=*) FIO_MANIFEST_SHA256="${arg#*=}" ;;
@@ -3218,12 +2485,10 @@ sudo -u deploy test -f "$SAAS_SMOKE_LOGIN_ENV" && sudo -u deploy test ! -L "$SAA
 [ -r "$SRC_REPO/$CUTOVER_MIGRATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$CUTOVER_MIGRATION"; exit 1; }
 [ -r "$SRC_REPO/$TARGET_LEDGER_ARTIFACT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TARGET_LEDGER_ARTIFACT"; exit 1; }
 [ -r "$SRC_REPO/$PRIVILEGE_GENERATOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRIVILEGE_GENERATOR"; exit 1; }
-[ -r "$SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$P2_B_CONTEXT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P2_B_CONTEXT"; exit 1; }
-[ -r "$SRC_REPO/$RUNTIME_OVERLAY_APP_OWNER_HANDOFF" ] || { echo "FATAL: missing repo file: $SRC_REPO/$RUNTIME_OVERLAY_APP_OWNER_HANDOFF"; exit 1; }
 [ -r "$SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"; exit 1; }
 [ -r "$SRC_REPO/$PATIENT_INVITES_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_INVITES_RLS"; exit 1; }
 [ -r "$SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS"; exit 1; }
@@ -3347,6 +2612,13 @@ fio_rollback_dir_q="$(shell_quote "$POSTGRES_CUTOVER_INPUT_DIR/fio-rollback")"
 run_postgres_repo_as_test_restore_owner \
   "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
 
+log "carry unresolved legacy appointment history (pre-assertion cutover data stage)"
+sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+  -v cutover_database="$DB" \
+  -v canonical_organization_id="$ORG_ID" \
+  -v canonical_specialist_id="$CANONICAL_SPECIALIST" \
+  -f "$DEPLOY_REPO/$LEGACY_APPOINTMENT_CARRY"
+
 log "pre-cutover data-stage assertions"
 sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
   -v expected_database="$DB" \
@@ -3374,7 +2646,13 @@ sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
   -v cutover_database="$DB" \
   -v canonical_organization_id="$ORG_ID" \
   -v canonical_specialist_id="$CANONICAL_SPECIALIST" \
+  -v cutover_mode="$CUTOVER_MODE" \
   -f "$DEPLOY_REPO/$CUTOVER_MIGRATION"
+
+if [ "$CUTOVER_MODE" = "dryrun" ]; then
+  log "CUTOVER DRY RUN COMPLETE — transaction rolled back; post-migration checks intentionally skipped"
+  exit 0
+fi
 
 expected_ledger_rows="$(awk '/^INSERT INTO drizzle\.__drizzle_migrations / { count += 1 } END { print count + 0 }' "$DEPLOY_REPO/$TARGET_LEDGER_ARTIFACT")"
 [ "$expected_ledger_rows" -gt 0 ] || { echo "FATAL: target ledger artifact has no drizzle migration rows: $TARGET_LEDGER_ARTIFACT" >&2; exit 1; }

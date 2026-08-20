@@ -56,6 +56,7 @@ export type ChannelLinkDbPort = {
     tokenUserId: string;
     existingUserId: string;
     secretRowId: string;
+    channelCode: ChannelLinkChannelCode;
   }): Promise<ChannelLinkOwnersMergeResult>;
   claimMessengerChannelBinding(params: {
     tokenUserId: string;

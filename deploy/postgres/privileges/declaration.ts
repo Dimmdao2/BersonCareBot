@@ -348,13 +348,11 @@ export const PORTS: Record<Port, PortSpec> = {
 };
 
 /* ============================================================================================
- * SECTION 1 — РОЛИ КЛАСТЕРА (SCHEME §A.1/§A.2)
- *   Атрибуты — evidence/13 §1.2. BYPASSRLS объявлен ровно у ТРЁХ (postgres, app_owner,
- *   saas_system_health_owner), каждый обоснован. Две роли НОВЫЕ (`isNew`) и приходят из решений
- *   владельца: `app_integrator_resolver` (D5) и `app_operational_maintenance` (D8).
+ * LEGACY CENSUS — pre-revision-10 inventory retained only as input for the object census below.
+ * This is not the executable cluster role graph; REV10_ROLES is the only exported target.
  * ========================================================================================== */
 
-const roles: Record<string, RoleDecl> = {
+const legacyCensusRoles: Record<string, RoleDecl> = {
   // ── терминальные рантайм-роли ──
   app_staff: {
     kind: 'terminal', scope: 'ORG', // evidence/13 §4: своя организация
@@ -449,15 +447,7 @@ const roles: Record<string, RoleDecl> = {
       + 'ROLE — И3/К6). Четырёхстороннее членство НЕ объявлено (C3/C4).',
   },
 
-  // ── роли-владельцы (NOLOGIN, владеют definer-швом; §C) ──
-  app_owner: {
-    kind: 'owner', scope: 'NONE',
-    login: false, superuser: false,
-    bypassrls: true, // 1 из ровно-3; деплой ЖЁСТКО ассертит rolbypassrls (deploy-test-saas.sh:907, deploy-test.sh:174)
-    inherit: true, createrole: false, rolconfig: null,
-    members: [], // ноль членов вне окна миграции (SCHEME §C)
-    why: 'владелец definer-шва. Оставить-и-объявить — SCHEME §I Р5.',
-  },
+  // ── роли-владельцы старой переписи; выведенная app_owner сюда намеренно не входит ──
   saas_system_health_owner: {
     kind: 'owner', scope: 'NONE',
     login: false, superuser: false,
@@ -681,7 +671,7 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
 };
 
 // Retained legacy census input; revision 10 below is the executable exported role/login graph.
-void roles;
+void legacyCensusRoles;
 void envMapping;
 
 /* ============================================================================================
@@ -869,6 +859,11 @@ const TABLE_ROWS: TableRow[] = [
       + 'не даёт app_staff прямого чтения, доступ остаётся только у узкой операционной capability' },
     pol: 'ЕДИНСТВЕННАЯ таблица схемы integrator, где стена реально нужна (evidence/15 §14).',
     defect: ['D14-integrator-no-wall', 'I16-integrator-queues'] },
+  { t: 'integrator.direct_public_write_retries', cls: 'S', org: false, why: 'durable retry прямой записи в public — '
+    + 'временный отказ RLS/сети не должен потерять правило напоминания или журнал доставки',
+    revoke: { app_staff: 'D10: очередь исполняется только integrator request и worker; payload содержит пациентские данные.' },
+    pol: 'не projection transport: повторяет тот же direct-public writer под явным org-принципалом.',
+    defect: ['D10-direct-write-durability'] },
   { t: 'integrator.idempotency_keys', cls: 'S', org: false, why: 'ключи идемпотентности API — повтор вебхука '
     + 'начинает дублировать записи и отправки',
     revoke: { app_staff: 'D14: очередь дедупа вебхуков — не место арендной роли.' },
@@ -2215,6 +2210,7 @@ const INTEGRATOR_DELIVERY_SOURCES = [
   'delivery-handler',
   'max-webhook:record-outcome',
   'telegram-webhook:record-outcome',
+  'worker:direct-public-write-retry-tick',
   'worker:job-queue-drain',
   'worker:outgoing-delivery-tick',
   'worker:projection-outbox-tick',
@@ -2323,6 +2319,16 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
       functionIdentity: 'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
+    integrator_port_reminder_occurrence_finalized_record: { port: 'integrator',
+      runtimeName: 'reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.reminder-occurrence-finalized.record',
+      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
+    integrator_delivery_reminder_occurrence_finalized_record: { port: 'integrator',
+      runtimeName: 'delivery_reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+      purpose: 'integrator.reminder-occurrence-finalized.record',
+      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     integrator_inbound_reply_enqueue: { port: 'integrator', runtimeName: 'inbound_reply_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'delivery.inbound-reply.enqueue',
@@ -6679,6 +6685,17 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         columns: ['status', 'updated_at', 'attempts_done', 'next_try_at', 'last_error'] },
     ],
   },
+  'integrator.direct_public_write_retries': {
+    kind: 'direct', purpose: 'persist and replay failed direct-public writes without returning to HTTP projection transport',
+    codePaths: ['apps/integrator/src/infra/db/repos/directPublicWriteRetry.ts', 'apps/integrator/src/infra/runtime/worker/directPublicWriteRetryWorker.ts'],
+    grants: [
+      { role: 'app_integrator_request', operations: ['INSERT'],
+        columns: ['operation', 'organization_id', 'idempotency_key', 'payload'] },
+      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
+        columns: ['status', 'updated_at', 'attempt_count', 'next_try_at', 'last_error'] },
+    ],
+  },
   'public.saas_billing_periods': {
     kind: 'direct', purpose: 'staff reads the billing-period catalog; platform operations alone maintain it',
     codePaths: ['apps/webapp/src/infra/repos/pgSaasBilling.ts', 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
@@ -7145,6 +7162,48 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   return `(${rolePredicate})`;
 }
 
+function revision10DeliveryReplayPolicies(tableKey: string, index: number): PolicyDecl[] | undefined {
+  const deliveryRole = 'app_operational_delivery_worker';
+  const staffRole = 'app_staff';
+  if (tableKey === 'public.content_access_grants_webapp') {
+    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
+      + ` WHERE claimed_retry.status = 'processing'`
+      + ` AND claimed_retry.operation = 'content_access_grant_upsert'`
+      + ' AND claimed_retry.organization_id = content_access_grants_webapp.organization_id'
+      + ` AND claimed_retry.payload ->> 'organizationId' = content_access_grants_webapp.organization_id::text`
+      + ` AND claimed_retry.payload ->> 'integratorGrantId' = content_access_grants_webapp.integrator_grant_id))`;
+    const staffWall = "(organization_id = (SELECT app.current_org_id()))";
+    return [
+      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [deliveryRole], using: workerWall, withCheck: workerWall,
+        note: 'delivery replay may reach only the organization and grant named by a claimed retry' },
+      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [staffRole], using: staffWall, withCheck: staffWall,
+        note: 'staff reaches content grants only inside its accepted organization context' },
+    ];
+  }
+  if (tableKey === 'public.reminder_delivery_events') {
+    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
+      + ` WHERE claimed_retry.status = 'processing'`
+      + ` AND claimed_retry.operation = 'reminder_delivery_log_append'`
+      + ' AND claimed_retry.organization_id = reminder_delivery_events.organization_id'
+      + ` AND claimed_retry.payload ->> 'organizationId' = reminder_delivery_events.organization_id::text`
+      + ` AND claimed_retry.payload ->> 'integratorDeliveryLogId' = reminder_delivery_events.integrator_delivery_log_id))`;
+    const staffWall = '(organization_id = (SELECT app.current_org_id())'
+      + ' OR (app.current_integrator_user_id() IS NOT NULL'
+      + ' AND integrator_user_id = app.current_integrator_user_id()))';
+    return [
+      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [deliveryRole], using: workerWall, withCheck: workerWall,
+        note: 'delivery replay may append only the organization and event named by a claimed retry' },
+      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [staffRole], using: staffWall, withCheck: staffWall,
+        note: 'staff reaches delivery events only inside its accepted organization context' },
+    ];
+  }
+  return undefined;
+}
+
 function revision10CoursesPolicies(index: number): PolicyDecl[] {
   const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   const patientAssignment = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
@@ -7462,16 +7521,21 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       ? `(current_user = 'app_platform_settings'::name OR (${predicate}))`
       : predicate;
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
-      'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
+      'public.be_patient_booking_profiles', 'public.content_access_grants_webapp', 'public.content_pages',
+      'public.content_sections',
       'public.content_section_slug_history', 'public.reference_categories', 'public.reference_items',
-      'public.reminder_occurrence_history',
+      'public.reminder_delivery_events', 'public.reminder_occurrence_history',
       'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
       'public.support_conversations']).has(key);
-    const directBusiness: PolicyDecl[] = access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
-      name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
-      using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
-      note: `exact direct role business wall for ${key}`,
-    }] : [];
+    const deliveryReplayPolicies = access?.kind === 'direct'
+      ? revision10DeliveryReplayPolicies(key, index)
+      : undefined;
+    const directBusiness: PolicyDecl[] = deliveryReplayPolicies
+      ?? (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
+        name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
+        using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
+        note: `exact direct role business wall for ${key}`,
+      }] : []);
     const runtimeBusinessBaseRaw: PolicyDecl[] = !active ? []
       : key === 'public.system_settings' && access?.kind === 'direct'
         ? revision10SystemSettingsPolicies(index)

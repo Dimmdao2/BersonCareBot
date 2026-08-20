@@ -104,3 +104,4 @@ runs/stryker-diffprobe/
 .pnpm-store-local/
 
 runs/.queue-refusals-*
+runs/ci-last.json

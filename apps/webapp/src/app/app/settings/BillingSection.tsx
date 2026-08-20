@@ -75,6 +75,7 @@ export function BillingSection({
   const chosenUnpaidTariffName = tariffChange.awaitingFirstPayment
     ? tariffChange.choices.find((choice) => choice.id === tariffChange.currentTariffId)?.name ?? null
     : null;
+  const needsFirstTariffChoice = tariffChange.currentTariffId === null && tariffChange.choices.length > 0;
   return (
     <>
       <DoctorSection>
@@ -94,7 +95,9 @@ export function BillingSection({
         <p className="text-sm text-muted-foreground">
           {chosenUnpaidTariffName
             ? 'Тариф выбран, но не оплачен — доступ откроется после оплаты.'
-            : commercialStateLabel}
+            : needsFirstTariffChoice
+              ? 'Выберите тариф ниже и оплатите его — доступ откроется после оплаты.'
+              : commercialStateLabel}
         </p>
         {/* Выбор тарифа и оплата живут в одном элементе, поэтому он рендерится всегда: клинику без
             действующего тарифа нельзя оставить на экране, где не выбрать и не оплатить. */}

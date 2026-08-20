@@ -3,7 +3,9 @@ import type { DbPort, QueuePort } from '../../kernel/contracts/index.js';
 
 const fakes = vi.hoisted(() => ({
   upsertDirect: vi.fn(),
-  enqueueProjection: vi.fn(),
+  enqueueDirectRetry: vi.fn(),
+  appendSupportDeliveryDirect: vi.fn(),
+  insertDeliveryAttemptLog: vi.fn(),
   recordIncident: vi.fn(),
   runOrganization: vi.fn(async <T>(_organizationId: string, fn: () => Promise<T>) => fn()),
   runIntegrator: vi.fn(async <T>(_principal: unknown, fn: () => Promise<T>) => fn()),
@@ -12,8 +14,15 @@ const fakes = vi.hoisted(() => ({
 vi.mock('./directPublic/writeReminderRulesDirect.js', () => ({
   upsertReminderRuleDirect: fakes.upsertDirect,
 }));
-vi.mock('./repos/projectionOutbox.js', () => ({
-  enqueueProjectionEvent: fakes.enqueueProjection,
+vi.mock('./repos/directPublicWriteRetry.js', () => ({
+  enqueueDirectPublicWriteRetry: fakes.enqueueDirectRetry,
+}));
+vi.mock('./directPublic/writeSupportQuestionsDirect.js', () => ({
+  appendSupportDeliveryEventDirect: fakes.appendSupportDeliveryDirect,
+}));
+vi.mock('./repos/messageLogs.js', () => ({
+  appendMessageLog: vi.fn(),
+  insertDeliveryAttemptLog: fakes.insertDeliveryAttemptLog,
 }));
 vi.mock('../operatorIncident/reportOperatorFailure.js', () => ({
   recordOperatorFailureIncident: fakes.recordIncident,
@@ -43,11 +52,13 @@ describe('reminder-rule durable fallback principal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.upsertDirect.mockRejectedValue(new Error('synthetic direct failure'));
-    fakes.enqueueProjection.mockResolvedValue(undefined);
+    fakes.enqueueDirectRetry.mockResolvedValue(undefined);
+    fakes.appendSupportDeliveryDirect.mockRejectedValue(new Error('synthetic direct failure'));
+    fakes.insertDeliveryAttemptLog.mockResolvedValue(undefined);
     fakes.recordIncident.mockResolvedValue({ id: 'incident', occurrenceCount: 1 });
   });
 
-  it('re-enters the exact integrator request context before writing the outbox', async () => {
+  it('persists the full direct write for retry when the initial canonical write fails', async () => {
     const writePort = createDbWritePort({
       db: unusedDb(),
       queuePort: {} as QueuePort,
@@ -76,14 +87,52 @@ describe('reminder-rule durable fallback principal', () => {
       {
         organizationId: ORGANIZATION_ID,
         integratorUserId: '2',
-        source: 'reminder-rule-outbox-fallback',
+        source: 'reminder-rule-direct-write-retry',
       },
       expect.any(Function),
     );
-    expect(fakes.enqueueProjection).toHaveBeenCalledTimes(1);
-    expect(fakes.enqueueProjection.mock.calls[0]?.[1]).toMatchObject({
-      eventType: 'reminder.rule.upserted',
-      payload: { integratorRuleId: 'rule-fallback-test', integratorUserId: '2' },
+    expect(fakes.enqueueDirectRetry).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        operation: 'reminder_rule_upsert',
+        organizationId: ORGANIZATION_ID,
+        payload: expect.objectContaining({
+          integratorRuleId: 'rule-fallback-test',
+          integratorUserId: '2',
+          resolvedPlatformUserId: PLATFORM_USER_ID,
+        }),
+      }),
+    );
+  });
+
+  it('persists a support delivery attempt for direct retry when its canonical append fails', async () => {
+    const writePort = createDbWritePort({
+      db: unusedDb(),
+      queuePort: {} as QueuePort,
     });
+
+    await writePort.writeDb({
+      type: 'delivery.attempt.log',
+      params: {
+        organizationId: ORGANIZATION_ID,
+        intentEventId: 'delivery-fallback-test',
+        channel: 'telegram',
+        status: 'failed',
+        attempt: 1,
+        payload: { source: 'fault-injection' },
+      },
+    });
+
+    expect(fakes.enqueueDirectRetry).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        operation: 'support_delivery_attempt_append',
+        organizationId: ORGANIZATION_ID,
+        payload: expect.objectContaining({
+          integratorIntentEventId: 'delivery-fallback-test',
+          channelCode: 'telegram',
+        }),
+      }),
+    );
   });
 });

@@ -3,13 +3,17 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import {
   getCurrentDbPrincipalOrganizationId,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
-import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+} from '@/infra/db/runWebappSql';
 import { withTransaction } from '@/infra/db/withClient';
 import { sql } from 'drizzle-orm';
 import type {
@@ -33,6 +37,8 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
     comment: row.comment ?? null,
     service: row.service ?? null,
     visitId: row.visitId ?? null,
+    appointmentId: row.appointmentId ?? null,
+    idempotencyKey: row.idempotencyKey ?? null,
     provider: row.provider ?? null,
     providerPaymentId: row.providerPaymentId ?? null,
     createdBy: row.createdBy,
@@ -75,9 +81,26 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       return rows.map(rowToPayment);
     },
 
+    async listAppointmentPayments(appointmentId, patientUserId): Promise<PatientPayment[]> {
+      const organizationId = requiredPrincipalOrganizationId();
+      const rows = await getDrizzle()
+        .select()
+        .from(patientPayment)
+        .where(
+          and(
+            eq(patientPayment.appointmentId, appointmentId),
+            eq(patientPayment.patientUserId, patientUserId),
+            eq(patientPayment.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(patientPayment.createdAt));
+      return rows.map(rowToPayment);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
-      const [row] = await runPatientPaymentMutation(input.organizationId, (tx) =>
-        tx
+      const idempotencyKey = input.idempotencyKey?.trim() || null;
+      const row = await runPatientPaymentMutation(input.organizationId, async (tx) => {
+        const inserted = await tx
           .insert(patientPayment)
           .values({
             organizationId: input.organizationId,
@@ -89,12 +112,36 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
             comment: input.comment ?? null,
             service: input.service ?? null,
             visitId: input.visitId ?? null,
+            appointmentId: input.appointmentId ?? null,
+            idempotencyKey,
             provider: null,
             providerPaymentId: null,
             createdBy: input.createdBy,
           })
-          .returning(),
-      );
+          .onConflictDoNothing({
+            target: [
+              patientPayment.organizationId,
+              patientPayment.appointmentId,
+              patientPayment.idempotencyKey,
+            ],
+            targetWhere: isNotNull(patientPayment.idempotencyKey),
+          })
+          .returning();
+        if (inserted[0]) return inserted[0];
+        if (!idempotencyKey) throw new Error('patient_payment_insert_failed');
+        const existing = await tx
+          .select()
+          .from(patientPayment)
+          .where(
+            and(
+              eq(patientPayment.organizationId, input.organizationId),
+              eq(patientPayment.appointmentId, input.appointmentId ?? null),
+              eq(patientPayment.idempotencyKey, idempotencyKey),
+            ),
+          );
+        if (existing.length !== 1) throw new Error('cash_payment_idempotency_lookup_failed');
+        return existing[0];
+      });
       return rowToPayment(row);
     },
 
@@ -160,6 +207,8 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
             comment: input.description ?? null,
             service: null,
             visitId: null,
+            appointmentId: input.appointmentId ?? null,
+            idempotencyKey: null,
             provider: input.provider,
             providerPaymentId: input.providerPaymentId,
             createdBy: input.createdBy,

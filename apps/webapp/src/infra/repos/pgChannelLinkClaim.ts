@@ -148,6 +148,7 @@ export async function tryMergeChannelLinkOwners(
     tokenUserId: string;
     existingUserId: string;
     secretRowId: string;
+    channelCode: string;
   },
 ): Promise<ChannelLinkOwnersMergeResult> {
   try {
@@ -157,6 +158,7 @@ export async function tryMergeChannelLinkOwners(
         params.tokenUserId,
         params.existingUserId,
         'phone_bind',
+        { mergeContext: { channel: params.channelCode } },
       );
       await runWebappPgText(
         `SELECT app.auth_channel_link_mark_secret_used_if_unused($1::uuid) AS marked`,
