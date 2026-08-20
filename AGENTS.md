@@ -1273,7 +1273,11 @@ regression/repo-rule, owner question или recommendation.
 
 ### Dev-DB opt-in smoke-тесты
 
-Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Текущий legacy-набор сохраняет локальный **read-only** контракт. Новые DEV-DB тесты, расширение набора и mutating smoke заморожены до отдельного аудита ролей/стен, стабилизации схемы БД и явного owner-go.
+Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Этот конкретный legacy-набор сохраняет локальный **read-only** контракт и его не расширять.
+
+⚠️ Ниже стоявший запрет «новые DEV-DB тесты и mutating smoke заморожены до owner-go» — устарел фактически, актуальный
+санкционированный механизм описан в §10b «DB/RLS — актуальный механизм проверки». Не читать эту строку как всё ещё
+действующий общий запрет.
 
 ---
 
@@ -1432,16 +1436,36 @@ unit/route/UI/E2E: defense-in-depth допустим, только если ка
 append-only/journal/chokepoint-инвариант, если он уже доказан действующим fail-closed CI-гейтом с точной ссылкой на
 workflow. Legacy keep-set не даёт исключения из этих правил.
 
-### DB/RLS — после аудита и стабилизации БД
+### DB/RLS — актуальный механизм проверки
 
-Полная PostgreSQL/RLS/ACL/concurrency-матрица строится **после отдельного аудита ролей и стен, стабилизации схемы
-БД и явного owner-go**. До этого:
+⚠️ **Раздел ниже переписан 20.08 — старая формулировка «до owner-go DB/RLS-тесты не создавать» устарела и вводила в
+заблуждение.** Аудит ролей/стен состоялся, гейт пройден: в репозитории уже 14+ файлов `*.devDbProof.test.mjs` /
+`*.devDbProof.test.ts` (`deploy/postgres/privileges/*.devDbProof.test.mjs`,
+`apps/webapp/src/infra/repos/*.devDbProof.test.ts`) и живые `*.rls.integration.test.ts` (например
+`apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts`) — все они пишут и
+читают против живого PostgreSQL и активно используются при каждом аудите привилегий/RLS. Формулировка ниже
+описывает то, что уже действует, а не новое разрешение.
 
-- не создавать новую DB/RLS test-механику и фиктивные `*.postgres.integration.test.ts`;
-- не подключать новые тесты напрямую к общей `bcb_webapp_dev`;
-- не выдавать fake repository/DEV-smoke за доказательство PostgreSQL, транзакций или RLS;
-- существующие legacy `*.devDb.integration.test.ts` не расширять и не считать merge-гейтом;
-- DB-free unit/route-тест может проверять решение до порта, но не заявляет DB/RLS гарантию.
+**Права/RLS/владение таблицами объявляются ТОЛЬКО в `deploy/postgres/privileges/` (`declaration.ts` +
+`relation-access.ts`), генератор (`generate-cli.mjs`) раскладывает их в SQL-артефакты. Миграция никогда не
+выдаёт и не отзывает права — см. «⛔ Миграция не выдаёт и не отзывает права. Никогда» выше.**
+
+Живое поведенческое доказательство DB/RLS пишется файлом `*.devDbProof.test.mjs`/`*.ts` или
+`*.rls.integration.test.ts` по этому контракту:
+
+- **opt-in по явной env-переменной** (`RUN_<NAME>_DB=1` / `RUN_<NAME>_RLS_TEST=1` и т.п., плюс `USE_REAL_DATABASE=1`
+  где применимо) — без флага `describe.skipIf` пропускает файл целиком;
+- **по умолчанию НЕ входит в CI** — гоняется вручную оркестратором/ведущим на боксе;
+- ходит **только** в именованную постоянную БД (`bcb_webapp_dev` на DEV, `bersoncarebot_test`/её `_login`-роль на
+  TEST) через канонический DB-порт приложения или admin socket — **никогда в disposable/одноразовую или CI-only
+  БД**; явно отказывает на не-dev/test-подобном имени базы;
+- каждая проверка обёрнута в транзакцию с обязательным `ROLLBACK` (или явной очисткой всех записанных строк) —
+  постоянных данных не остаётся;
+- fake repository/DB-free unit/route-тест по-прежнему не заявляет DB/RLS-гарантию — она доказывается только этим
+  живым слоем.
+
+Легаси `*.devDb.integration.test.ts` (read-only, за `RUN_<DOMAIN>_DEV_DB=1`) — отдельный узкий набор, его не
+расширять; новый DB/RLS-тест пишется по контракту `devDbProof`/`rls.integration` выше.
 
 ### Слепой список поломок составляет аудитор, а не автор теста
 
