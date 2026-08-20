@@ -552,9 +552,9 @@ export type SaasBillingRepositoryPort = {
    * `pending` invoices can be cancelled — an already-`paid` invoice cannot, and a `void` one is
    * already cancelled, not re-cancellable.
    *
-   * Автоматический счёт за место сюда НЕ ходит вовсе (`seat_invoice_not_cancellable`): решение
-   * владельца 19.08 — его перевыставляют, а не отменяют. Вердикт один на экран и на маршрут —
-   * `invoiceOperations.ts`.
+   * Автоматический счёт за место сюда НЕ ходит вовсе (`seat_invoice_not_cancellable`, Р-17): срок
+   * счёта один — конец периода, дальше долг переносится в счёт следующего периода (Р-18).
+   * Перевыставления нет (Р-19). Вердикт один на экран и на маршрут — `invoiceOperations.ts`.
    */
   cancelSaasBillingInvoice(input: {
     saasBillingInvoiceId: string;
@@ -565,30 +565,6 @@ export type SaasBillingRepositoryPort = {
     | { outcome: 'invoice_not_cancellable'; status: SaasBillingInvoiceStatus }
     | { outcome: 'seat_invoice_not_cancellable' }
     | { outcome: 'cancelled'; invoice: SaasBillingInvoice }
-  >;
-  /**
-   * Перевыставление счёта за место: новый счёт на ТОТ ЖЕ отрезок услуги и ту же сумму, старый
-   * гасится преемником. Обе операции — в ОДНОЙ транзакции под замком организации: сначала
-   * появляется преемник, только потом гаснет старый, иначе долг исчезает в промежутке
-   * (`SEAT_UNPAID_PRACTICE_2026-08-19.md` вопрос 2, «аннулирование БЕЗ преемника значит „долга не
-   * было“»).
-   *
-   * Сумма НЕ пересчитывается «на сейчас»: отрезок услуги тот же, значит и цена та же. Пересчёт от
-   * момента перевыставления был бы скидкой за просрочку — ровно та находка (F-B), из-за которой
-   * место дешевело до 3,2 % цены после девяти перевыставлений.
-   */
-  reissueSeatOverageInvoice(input: {
-    saasBillingInvoiceId: string;
-    actorId: string | null;
-    reason: string;
-    providerId: string;
-    /** Настройка `lifecyclePolicy.invoiceValidityDays`; срок нового счёта считается от «сейчас». */
-    invoiceValidityDays: number;
-  }): Promise<
-    | { outcome: 'invoice_not_found' }
-    | { outcome: 'invoice_not_reissuable'; status: SaasBillingInvoiceStatus }
-    | { outcome: 'invoice_kind_not_reissuable'; invoiceKind: SaasBillingInvoiceKind }
-    | { outcome: 'reissued'; invoice: SaasBillingInvoice; superseded: SaasBillingInvoice }
   >;
   /**
    * K0 — resolves the organization's OWN assigned tariff (the admin's choice, not a client input)

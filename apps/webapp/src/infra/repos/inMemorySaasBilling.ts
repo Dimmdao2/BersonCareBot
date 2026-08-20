@@ -17,7 +17,6 @@ import {
 import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
-  saasBillingInvoiceReissueVerdict,
   captureSaasBillingPaidInvoice,
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
@@ -1021,51 +1020,6 @@ export function createInMemorySaasBillingRepository(
       const row: SaasBillingInvoice = { ...current, status: 'void' };
       invoices.set(row.id, row);
       return { outcome: 'cancelled' as const, invoice: row };
-    },
-
-    async reissueSeatOverageInvoice(input) {
-      const current = invoices.get(input.saasBillingInvoiceId);
-      if (!current) return { outcome: 'invoice_not_found' as const };
-      const verdict = saasBillingInvoiceReissueVerdict(current);
-      if (!verdict.allowed) {
-        return verdict.refusal === 'invoice_kind_not_reissuable'
-          ? {
-              outcome: 'invoice_kind_not_reissuable' as const,
-              invoiceKind: current.invoiceKind,
-            }
-          : { outcome: 'invoice_not_reissuable' as const, status: current.status };
-      }
-      const { successor, retired } = await reissueWithSuccessor({
-        issueSuccessor: async () => {
-          // Отрезок услуги и сумма — дословно из отменяемого счёта: перевыставление не пересчитывает
-          // цену «на сейчас», иначе оно превращается в скидку за просрочку.
-          const { invoice } = insertInvoiceIdempotent({
-            ...current,
-            id: crypto.randomUUID(),
-            status: 'draft',
-            supersededByInvoiceId: null,
-            expiresAt: saasBillingInvoiceExpiresAt(
-              new Date().toISOString(),
-              input.invoiceValidityDays,
-            ),
-            providerId: input.providerId,
-            providerInvoiceRef: null,
-            providerCheckoutUrl: null,
-            providerIdempotencyKey: `saas_seat_overage_reissue:${current.id}`,
-          });
-          return invoice;
-        },
-        retireSuperseded: async (replacement) => {
-          const row: SaasBillingInvoice = {
-            ...current,
-            status: 'void',
-            supersededByInvoiceId: replacement.id,
-          };
-          invoices.set(row.id, row);
-          return row;
-        },
-      });
-      return { outcome: 'reissued' as const, invoice: successor, superseded: retired };
     },
 
     async requireOwnTariffBillingSubscription(organizationId) {
