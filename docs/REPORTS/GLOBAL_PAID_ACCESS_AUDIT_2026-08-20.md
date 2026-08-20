@@ -113,3 +113,32 @@ Fixer устранил ровно четыре finding; финальная пр�
 
 Повторён весь audit targeted suite: route 4/4, fast 47/47, unit 8/8, downgrade lifecycle 1/1,
 UI 1/1. Full CI, lint и typecheck по fix-brief не запускались; PROD/TEST/`feat` не затрагивались.
+
+## Convergence onto current feat — 21.08.2026 (#1069)
+
+Проверено содержимое старых commits, а не выполнен cherry-pick целиком. `a67798fd7` уже
+patch-equivalent для product/test-кода текущему `feat`; его report не дублировался. Fixer
+`b9ce4d4e0` уже перенесён в текущую историю как `b019c4a52`: migration
+`20260820T175432_paid_period_global_access_authority.sql` и
+`CommercialConstructorClient.tsx` совпадают побайтно. Более новый `801cc0ccf` расширяет этот
+oracle третьим случаем `read_only`/`blocked`; его не заменяли старым вариантом. Единственная
+разница `7b27c9fa8` в `protectedActionRegistry.ts` superseded текущими accepted privilege
+изменениями; её не возвращали.
+
+Итоговая реализация остаётся одной: global paid-period outcome проходит раньше tariff ladder в
+обеих SQL-дверях; `tariff` даёт полный доступ, `read_only`/`blocked` управляют cabinet и mechanic,
+а historical `saas_paid_period_policy_update` не сокращает earned rung. Mechanic-less write
+остаётся на общем `requireEntitlementForMutation`; downgrade-controls не возвращены, а constructor
+исполняется.
+
+Проверки на текущем SHA:
+
+- `RUN_GLOBAL_PAID_PERIOD_ACCESS_DB=1 node --test deploy/postgres/privileges/global-paid-period-access.devDbProof.test.mjs` — 3/3 passed на именованной `bcb_webapp_dev`; каждая fixture заканчивается `ROLLBACK`.
+- `bash apps/webapp/scripts/check-drizzle-migration-order.sh` — PASS; `node scripts/check-migration-privileges.mjs` — PASS (15 migration files).
+- Route oracle — 4/4 passed; fast oracle — 47/47; protected-action registry — 8/8; constructor UI — 1/1; stored downgrade lifecycle — 1/1 (66 skipped by targeted filter).
+- `pnpm --dir apps/webapp typecheck` и scoped `eslint` по #1069 paths — PASS.
+
+`bash deploy/host/migrate-dev.sh --preflight` не дошёл до DB: worktree не содержит канонических
+`.env`/`apps/webapp/.env.dev`, и wrapper корректно остановился на `FATAL: DEV API env path guard failed`.
+`--execute` намеренно не запускался; обходить этот guard или запускать из другого clone не стали.
+PROD/TEST не затрагивались; full CI не нужен и не запускался.
