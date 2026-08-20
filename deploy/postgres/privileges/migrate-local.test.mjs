@@ -25,14 +25,11 @@ function createRollbackRuntime() {
   mkdirSync(bin);
   mkdirSync(join(migrations, 'meta'), { recursive: true });
   const journal = JSON.stringify({
-    entries: [{ idx: 0, version: '7', when: 202608170001, tag: '0001_probe' }],
+    entries: [{ idx: 0, version: '7', when: 202608170001, tag: '20260817T000100_probe' }],
   });
   writeFileSync(join(migrations, 'meta/_journal.json'), journal);
-  // The name check reads the frozen snapshot, never the live journal above (see module doc on
-  // `findJournalGrowth`); a fixture that wants `0001_probe` treated as legacy must freeze it too.
-  writeFileSync(join(migrations, 'meta/_journal.frozen.json'), journal);
   writeFileSync(
-    join(migrations, '0001_probe.sql'),
+    join(migrations, '20260817T000100_probe.sql'),
     [
       '-- BCB-MIGRATION-OWNER: app_probe_owner',
       '-- BCB-MIGRATION-SCHEMA-CREATE: app',
@@ -144,7 +141,7 @@ test('rollback-only rejects every legacy execution surface before invoking psql'
 
 test('normal legacy execution still accepts migration, backfill and post files', () => {
   const runtime = createRollbackRuntime();
-  const migrationPath = join(runtime.migrations, '0001_probe.sql');
+  const migrationPath = join(runtime.migrations, '20260817T000100_probe.sql');
   const backfillPath = join(runtime.root, 'backfill.sql');
   const postPath = join(runtime.root, 'post.sql');
   writeFileSync(backfillPath, 'SELECT 1;\n');
@@ -192,15 +189,11 @@ function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = n
   const capture = join(root, 'transaction.sql');
   mkdirSync(bin);
   mkdirSync(join(migrations, 'meta'), { recursive: true });
-  const tags = ['0000_first', '0001_late_arrival', '0002_third'];
+  const tags = ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'];
   const journal = JSON.stringify({
     entries: tags.map((tag, idx) => ({ idx, version: '7', when: 1800000000100 + idx * 100, tag })),
   });
   writeFileSync(join(migrations, 'meta/_journal.json'), journal);
-  // The name check reads the frozen snapshot, never the live journal above; these fixtures use
-  // legacy-shaped tags throughout, so they must be frozen too, or every ledger test below would
-  // fail the name check before ever reaching the behaviour it means to exercise.
-  writeFileSync(join(migrations, 'meta/_journal.frozen.json'), journal);
   for (const tag of tags) {
     writeFileSync(
       join(migrations, `${tag}.sql`),
@@ -245,7 +238,7 @@ if [[ -n "$statement" ]]; then
     [[ "$line" == SELECT*' AS at'* ]] || continue
     at="\${line#SELECT }"
     at="\${at%% *}"
-    if [[ '${absentObject ? 'yes' : 'no'}' == 'yes' && "$line" == *door_0000_first* ]]; then
+    if [[ '${absentObject ? 'yes' : 'no'}' == 'yes' && "$line" == *door_20260820t000100_first* ]]; then
       printf '%s\\tf\\n' "$at"
     else
       printf '%s\\tt\\n' "$at"
@@ -278,21 +271,21 @@ function runLedgerMigrator(runtime, extraArgs = []) {
 }
 
 test('a migration named below every applied one is applied, not skipped forever', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000200_third'] });
 
   const result = runLedgerMigrator(runtime);
 
   assert.equal(result.status, 0, result.stderr);
   const transaction = readFileSync(runtime.capture, 'utf8');
-  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_0001_late_arrival/u);
-  assert.doesNotMatch(transaction, /app\.door_0002_third/u, 'an applied migration must not run again');
+  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_20260820T000000_late_arrival/u);
+  assert.doesNotMatch(transaction, /app\.door_20260820T000200_third/u, 'an applied migration must not run again');
   assert.match(transaction, /INSERT INTO drizzle\.__drizzle_migrations \(hash, created_at, tag\)/u);
-  assert.match(transaction, /'0001_late_arrival'\);/u);
+  assert.match(transaction, /'20260820T000000_late_arrival'\);/u);
   assert.match(result.stdout, /pending=1 total=3/u);
 });
 
 test('a ledger that names every migration reports itself current and touches nothing', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'] });
 
   const result = runLedgerMigrator(runtime);
 
@@ -303,7 +296,7 @@ test('a ledger that names every migration reports itself current and touches not
 
 test('an applied migration whose object is gone stops the run and names it', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
     absentObject: true,
   });
 
@@ -311,32 +304,32 @@ test('an applied migration whose object is gone stops the run and names it', () 
 
   assert.notEqual(result.status, 0, 'a ledger answering for absent objects must not report success');
   assert.match(result.stderr, /objects are not in the catalog/u);
-  assert.match(result.stderr, /absent: function app\.door_0000_first \(from 0000_first\)/u);
-  assert.match(result.stderr, /--reapply 0000_first/u);
+  assert.match(result.stderr, /absent: function app\.door_20260820t000100_first \(from 20260820T000100_first\)/u);
+  assert.match(result.stderr, /--reapply 20260820T000100_first/u);
   assert.doesNotMatch(result.stdout, /already current/u);
   assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the gate');
 });
 
 test('the named reapply drops the stale ledger row and sends the migration through again', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
     absentObject: true,
   });
 
-  const result = runLedgerMigrator(runtime, ['--reapply', '0000_first']);
+  const result = runLedgerMigrator(runtime, ['--reapply', '20260820T000100_first']);
 
   assert.equal(result.status, 0, result.stderr);
   const transaction = readFileSync(runtime.capture, 'utf8');
-  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_0000_first/u);
-  assert.doesNotMatch(transaction, /app\.door_0002_third/u);
-  assert.match(transaction, /DELETE FROM drizzle\.__drizzle_migrations WHERE tag = '0000_first';/u);
+  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_20260820T000100_first/u);
+  assert.doesNotMatch(transaction, /app\.door_20260820T000200_third/u);
+  assert.match(transaction, /DELETE FROM drizzle\.__drizzle_migrations WHERE tag = '20260820T000100_first';/u);
   assert.match(result.stdout, /reapplied=1/u);
 });
 
 test('reapply refuses a tag the database never applied', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000200_third'] });
 
-  const result = runLedgerMigrator(runtime, ['--reapply', '0001_late_arrival']);
+  const result = runLedgerMigrator(runtime, ['--reapply', '20260820T000000_late_arrival']);
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /has not applied at all; it is ordinary pending work/u);
@@ -344,19 +337,19 @@ test('reapply refuses a tag the database never applied', () => {
 });
 
 // The rename-of-an-applied-migration case: a pending file byte-identical to a ledger row this
-// checkout cannot name is not new work, it is `0001_late_arrival.sql` come back under a name the
-// journal never froze. Order-is-the-file-name makes that an identity change, and it must be refused
+// checkout cannot name is not new work, it is `20260820T000000_late_arrival.sql` come back under another
+// name. Order-is-the-file-name makes that an identity change, and it must be refused
 // before a single statement reaches psql — not silently applied a second time under a new tag.
 test('a pending file byte-identical to a foreign ledger row is refused as a rename, not applied', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
-    foreignRow: { tag: '0009_old_name_from_another_branch', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
+    foreignRow: { tag: '0009_old_name_from_another_branch', matchesTag: '20260820T000000_late_arrival', createdAt: 1800000000350 },
   });
 
   const result = runLedgerMigrator(runtime);
 
   assert.notEqual(result.status, 0, 'a renamed applied migration must not report success');
-  assert.match(result.stderr, /0001_late_arrival\.sql is byte-identical to a migration/u);
+  assert.match(result.stderr, /20260820T000000_late_arrival\.sql is byte-identical to a migration/u);
   assert.match(result.stderr, /renaming an applied migration is forbidden/u);
   assert.doesNotMatch(result.stdout, /already current/u);
   assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the rename gate');
@@ -366,15 +359,15 @@ test('a pending file byte-identical to a foreign ledger row is refused as a rena
 // ledger row sharing its hash, is applied normally.
 test('a pending file with no matching foreign ledger row is applied normally, not refused', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
-    foreignRow: { tag: '0009_unrelated', matchesTag: '0002_third', createdAt: 1800000000350 },
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
+    foreignRow: { tag: '0009_unrelated', matchesTag: '20260820T000200_third', createdAt: 1800000000350 },
   });
 
   const result = runLedgerMigrator(runtime);
 
   assert.equal(result.status, 0, result.stderr);
   const transaction = readFileSync(runtime.capture, 'utf8');
-  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_0001_late_arrival/u);
+  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_20260820T000000_late_arrival/u);
   assert.match(result.stdout, /pending=1 total=3/u);
 });
 
@@ -383,23 +376,23 @@ test('a pending file with no matching foreign ledger row is applied normally, no
 // under its own name already.
 test('reapply is not mistaken for a rename even when a foreign row shares its own content hash', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
     absentObject: true,
-    foreignRow: { tag: '0009_unrelated', matchesTag: '0000_first', createdAt: 1800000000350 },
+    foreignRow: { tag: '0009_unrelated', matchesTag: '20260820T000100_first', createdAt: 1800000000350 },
   });
 
-  const result = runLedgerMigrator(runtime, ['--reapply', '0000_first']);
+  const result = runLedgerMigrator(runtime, ['--reapply', '20260820T000100_first']);
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /reapplied=1/u);
 });
 
 // F1 (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md §3(a)): a new file with an old hand-picked
-// number, not in the frozen legacy snapshot, used to sail straight through this wrapper to
+// number used to sail straight through this wrapper to
 // `BEGIN`/`INSERT` — the name rule lived only in `pnpm run lint`. This proves the wrapper itself now
 // refuses it before a single statement reaches psql, no lint involved.
-test('a new file with a hand-picked number the frozen snapshot does not know is refused, not applied', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+test('a new file with a hand-picked number is refused unconditionally, not applied', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'] });
   writeFileSync(
     join(runtime.migrations, '0051_audit_old_numbered_new_file.sql'),
     '-- BCB-MIGRATION-OWNER: app_probe_owner\nCREATE OR REPLACE FUNCTION app.door_0051() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;\n',
@@ -409,15 +402,15 @@ test('a new file with a hand-picked number the frozen snapshot does not know is 
 
   assert.notEqual(result.status, 0, 'a hand-picked new name must not report success');
   assert.match(result.stderr, /0051_audit_old_numbered_new_file\.sql is not named YYYYMMDDTHHMMSS_lower_snake_case/u);
-  assert.match(result.stderr, /frozen legacy .*snapshot/u);
+  assert.match(result.stderr, /there are no exceptions/u);
   assert.doesNotMatch(result.stdout, /already current/u);
   assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the name gate');
 });
 
 // The ordinary case this must not catch: a new file named as a timestamp is applied normally, even
-// though the frozen snapshot has never heard of it — that is the whole point of the timestamp shape.
+// without any allowlist entry — that is the whole point of the timestamp shape.
 test('a new timestamp-named file is applied normally, not refused by the name gate', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'] });
   writeFileSync(
     join(runtime.migrations, '20260820T014233_new_work.sql'),
     '-- BCB-MIGRATION-OWNER: app_probe_owner\nCREATE OR REPLACE FUNCTION app.door_new_work() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;\n',
@@ -436,22 +429,22 @@ test('a new timestamp-named file is applied normally, not refused by the name ga
 // UPDATE only — no statement in the file runs again.
 test('relabel repoints a foreign row at its renamed file without re-running any statement', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
-    foreignRow: { tag: '0009_old_name_from_another_branch', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
+    foreignRow: { tag: '0009_old_name_from_another_branch', matchesTag: '20260820T000000_late_arrival', createdAt: 1800000000350 },
   });
 
   const result = runLedgerMigrator(runtime, [
     '--relabel',
-    '0009_old_name_from_another_branch:0001_late_arrival',
+    '0009_old_name_from_another_branch:20260820T000000_late_arrival',
   ]);
 
   assert.equal(result.status, 0, result.stderr);
   const transaction = readFileSync(runtime.capture, 'utf8');
   assert.match(
     transaction,
-    /UPDATE drizzle\.__drizzle_migrations SET tag = '0001_late_arrival' WHERE tag = '0009_old_name_from_another_branch';/u,
+    /UPDATE drizzle\.__drizzle_migrations SET tag = '20260820T000000_late_arrival' WHERE tag = '0009_old_name_from_another_branch';/u,
   );
-  assert.doesNotMatch(transaction, /app\.door_0001_late_arrival\(\) RETURNS/u, 'relabel must not re-run the file');
+  assert.doesNotMatch(transaction, /app\.door_20260820T000000_late_arrival\(\) RETURNS/u, 'relabel must not re-run the file');
   assert.doesNotMatch(transaction, /INSERT INTO drizzle\.__drizzle_migrations \(hash, created_at, tag\)/u);
   assert.match(result.stdout, /pending=0 total=3/u);
   assert.match(result.stdout, /relabeled=1/u);
@@ -459,7 +452,7 @@ test('relabel repoints a foreign row at its renamed file without re-running any 
 
 test('relabel refuses when the renamed file content has drifted from the foreign row', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
     foreignRow: {
       tag: '0009_old_name_from_another_branch',
       hash: 'f'.repeat(64),
@@ -469,7 +462,7 @@ test('relabel refuses when the renamed file content has drifted from the foreign
 
   const result = runLedgerMigrator(runtime, [
     '--relabel',
-    '0009_old_name_from_another_branch:0001_late_arrival',
+    '0009_old_name_from_another_branch:20260820T000000_late_arrival',
   ]);
 
   assert.notEqual(result.status, 0, 'content drift must not be silently relabeled');
@@ -478,9 +471,9 @@ test('relabel refuses when the renamed file content has drifted from the foreign
 });
 
 test('relabel refuses an old tag that is not a foreign ledger row', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'] });
 
-  const result = runLedgerMigrator(runtime, ['--relabel', '0009_never_applied:0001_late_arrival']);
+  const result = runLedgerMigrator(runtime, ['--relabel', '0009_never_applied:20260820T000000_late_arrival']);
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /is not a foreign ledger row of .* \(nothing to relabel\)/u);
@@ -492,7 +485,7 @@ test('relabel refuses an old tag that is not a foreign ledger row', () => {
 // changes.
 test('drop-foreign deletes a foreign row with no claimant in this folder', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
     foreignRow: { tag: '0050_mislabelled_legacy_row', hash: 'b'.repeat(64), createdAt: 1800000000350 },
   });
 
@@ -507,22 +500,22 @@ test('drop-foreign deletes a foreign row with no claimant in this folder', () =>
 
 test('drop-foreign refuses a row whose hash a file in this folder still claims', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
-    foreignRow: { tag: '0050_mislabelled_legacy_row', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
+    foreignRow: { tag: '0050_mislabelled_legacy_row', matchesTag: '20260820T000000_late_arrival', createdAt: 1800000000350 },
   });
 
   const result = runLedgerMigrator(runtime, ['--drop-foreign', '0050_mislabelled_legacy_row']);
 
   assert.notEqual(result.status, 0, 'a row a file still claims by hash must not be dropped');
   assert.match(result.stderr, /this is a rename, not a dead row/u);
-  assert.match(result.stderr, /--relabel 0050_mislabelled_legacy_row:0001_late_arrival/u);
+  assert.match(result.stderr, /--relabel 0050_mislabelled_legacy_row:20260820T000000_late_arrival/u);
   assert.equal(existsSync(runtime.capture), false);
 });
 
 test('drop-foreign refuses a tag that is not a foreign ledger row', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'] });
 
-  const result = runLedgerMigrator(runtime, ['--drop-foreign', '0002_third']);
+  const result = runLedgerMigrator(runtime, ['--drop-foreign', '20260820T000200_third']);
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /is not a foreign ledger row of .* \(nothing to drop\)/u);
@@ -532,7 +525,7 @@ test('drop-foreign refuses a tag that is not a foreign ledger row', () => {
 test('drop-foreign-hash deletes one tagless foreign row by its observed hash', () => {
   const hash = 'c13927102c549a4d9bfa74f6c600471d1583ee55534217905071fb110acf5124';
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
     foreignRow: { tag: null, hash, createdAt: 1800000070000, id: 598 },
   });
 
@@ -549,11 +542,11 @@ test('drop-foreign-hash deletes one tagless foreign row by its observed hash', (
 
 test('drop-foreign-hash refuses a tagless row whose hash a file in this folder still claims', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
-    foreignRow: { tag: null, matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
+    foreignRow: { tag: null, matchesTag: '20260820T000000_late_arrival', createdAt: 1800000000350 },
   });
   const hash = createHash('sha256')
-    .update(readFileSync(join(runtime.migrations, '0001_late_arrival.sql'), 'utf8'))
+    .update(readFileSync(join(runtime.migrations, '20260820T000000_late_arrival.sql'), 'utf8'))
     .digest('hex');
 
   const result = runLedgerMigrator(runtime, ['--drop-foreign-hash', hash]);
@@ -564,7 +557,7 @@ test('drop-foreign-hash refuses a tagless row whose hash a file in this folder s
 });
 
 test('drop-foreign-hash refuses a hash that names no tagless foreign row', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'] });
 
   const result = runLedgerMigrator(runtime, ['--drop-foreign-hash', 'c13927102c549a4d']);
 
@@ -607,16 +600,16 @@ test('unapply is refused without --drizzle-folder', () => {
 // row), with the ledger DELETE as the only statement in the transaction.
 test('unapply deletes a ledger row that a file in this folder still claims by tag and hash', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
-    foreignRow: { tag: '0001_late_arrival', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
+    foreignRow: { tag: '20260820T000000_late_arrival', matchesTag: '20260820T000000_late_arrival', createdAt: 1800000000350 },
   });
 
-  const result = runLedgerMigrator(runtime, ['--unapply', '0001_late_arrival']);
+  const result = runLedgerMigrator(runtime, ['--unapply', '20260820T000000_late_arrival']);
 
   assert.equal(result.status, 0, result.stderr);
   const transaction = readFileSync(runtime.capture, 'utf8');
-  assert.match(transaction, /DELETE FROM drizzle\.__drizzle_migrations WHERE tag = '0001_late_arrival';/u);
-  assert.doesNotMatch(transaction, /app\.door_0001_late_arrival\(\) RETURNS/u, 'unapply must not re-run the file');
+  assert.match(transaction, /DELETE FROM drizzle\.__drizzle_migrations WHERE tag = '20260820T000000_late_arrival';/u);
+  assert.doesNotMatch(transaction, /app\.door_20260820T000000_late_arrival\(\) RETURNS/u, 'unapply must not re-run the file');
   assert.doesNotMatch(transaction, /INSERT INTO drizzle\.__drizzle_migrations \(hash, created_at, tag\)/u);
   assert.match(result.stdout, /pending=0 total=3/u);
   assert.match(result.stdout, /unapplied=1/u);
@@ -628,11 +621,11 @@ test('unapply deletes a ledger row that a file in this folder still claims by ta
 // this test's transaction reach psql, so it is the proof the gate is real, not decorative.
 test('unapply refuses when the file content has drifted from the ledger row', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0002_third'],
-    foreignRow: { tag: '0001_late_arrival', hash: 'f'.repeat(64), createdAt: 1800000000350 },
+    appliedTags: ['20260820T000100_first', '20260820T000200_third'],
+    foreignRow: { tag: '20260820T000000_late_arrival', hash: 'f'.repeat(64), createdAt: 1800000000350 },
   });
 
-  const result = runLedgerMigrator(runtime, ['--unapply', '0001_late_arrival']);
+  const result = runLedgerMigrator(runtime, ['--unapply', '20260820T000000_late_arrival']);
 
   assert.notEqual(result.status, 0, 'content drift must not be silently unapplied');
   assert.match(result.stderr, /does not match the ledger row's hash/u);
@@ -640,9 +633,9 @@ test('unapply refuses when the file content has drifted from the ledger row', ()
 });
 
 test('unapply refuses a tag the database never applied', () => {
-  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0002_third'] });
+  const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000200_third'] });
 
-  const result = runLedgerMigrator(runtime, ['--unapply', '0001_late_arrival']);
+  const result = runLedgerMigrator(runtime, ['--unapply', '20260820T000000_late_arrival']);
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /has not applied at all \(nothing to unapply\)/u);
@@ -653,7 +646,7 @@ test('unapply refuses a tag the database never applied', () => {
 // not --unapply, and the refusal must name the operation that does handle it.
 test('unapply refuses a foreign ledger row and points to --drop-foreign', () => {
   const runtime = createLedgerRuntime({
-    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
     foreignRow: { tag: '0050_mislabelled_legacy_row', hash: 'b'.repeat(64), createdAt: 1800000000350 },
   });
 

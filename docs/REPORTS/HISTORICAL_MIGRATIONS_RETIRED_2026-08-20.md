@@ -295,3 +295,87 @@ prod-to-target cutover snapshot matches current DEV schema B
 - `GRANT`, `REVOKE`, role/policy DDL не выполнялись.
 - Полный `pnpm run ci` не запускался: поручение задаёт точечные gates, а §9–§10 не дают отдельного непокрытого repo-level риска для full CI.
 - Push не выполнялся.
+
+## Закрытие findings независимого аудита
+
+### F1 — function census переведён на существующий source schema B
+
+`deploy/postgres/privileges/function-census.test.mjs` больше не открывает удалённые `0016_*` и `0017_*`.
+Исполняемые тела берутся из generated `deploy/postgres/generated/prod-to-target/schema-pre.sql`; активные
+timestamp-forward файлы накладываются поверх snapshot, поэтому новое или изменённое definer-тело попадает в gate
+до следующего refresh generated artifact. Записанные `currentPatientArtifactRoots` и `b0ForwardArtifactRoots`
+сохраняют membership исторически выделенных production-facing поверхностей, а тела и return shapes теперь
+проверяются по реально доставляемой schema B.
+
+Дополнительно полный `test:db-privileges` обнаружил две проверки parser metadata, которые открывали удалённый
+`0019_patient_reminder_materialization_runtime_capabilities.sql`. Их смысл изменён без удаления gate:
+
+- owner/backfill-first self-test теперь проходит каждую статью каждого активного timestamp-forward файла;
+- language metadata self-test теперь проходит каждую функцию каждого активного timestamp-forward файла;
+- проверка списка owners теперь читает реальный непустой каталог, а не пустой `_journal.json`.
+
+То есть удалённый источник не подменён fixture-копией: schema B проверяется generated snapshot, а migration parser
+проверяется на всех существующих forward-файлах.
+
+### F2 — legacy-name exception удалён как механизм
+
+`findMigrationNameViolations` теперь принимает только migration list и безусловно требует
+`YYYYMMDDTHHMMSS_slug`. Удалены `findJournalGrowth` и `readFrozenLegacyMigrationNames`; lint-gate,
+`migrate-local.mjs` и `run-webapp-drizzle-migrate.mjs` больше не читают и не упоминают frozen allowlist. Runner
+fixtures переведены на timestamp tags. Behavioral test с записью того же tag в live journal доказывает, что
+journal не создаёт исключение.
+
+`AGENTS.md` и `docs/ARCHITECTURE/DB_DUMPS/README.md` приведены к owner decision 20.08.2026: webapp historical
+chain выведена из активного контура, schema B приезжает generated `schema-pre.sql` + `schema-post.sql`, ledger —
+`ledgers-and-baseline.sql`, каждый forward filename является timestamp без исключений.
+
+### Проверки
+
+Каждая команда выполнялась без pipeline; exit code печатался отдельной строкой.
+
+```text
+$ node --test deploy/postgres/privileges/function-census.test.mjs
+# tests 19
+# pass 19
+# fail 0
+FUNCTION_CENSUS_EXIT_CODE=0
+
+$ node --test deploy/postgres/privileges/migration-order.test.mjs
+# tests 17
+# pass 17
+# fail 0
+MIGRATION_ORDER_TEST_EXIT_CODE=0
+
+$ bash apps/webapp/scripts/check-drizzle-migration-order.sh
+run-webapp-drizzle-migrate transaction-safe migration layout check: OK
+check-drizzle-migration-order: OK
+MIGRATION_ORDER_GATE_EXIT_CODE=0
+
+$ node --input-type=module -e "import { findMigrationNameViolations } from './deploy/postgres/privileges/migration-order.mjs'; const candidate=[{tag:'0099_reintroduced_exception'}]; const frozen=[{tag:'0099_reintroduced_exception'}]; console.log(JSON.stringify(findMigrationNameViolations(candidate, frozen)));"
+["0099_reintroduced_exception"]
+F2_REPRODUCTION_EXIT_CODE=0
+
+$ pnpm --dir apps/webapp run lint
+WEBAPP_LINT_EXIT_CODE=0
+
+$ /home/dev/brain/host-orch/run-tests.sh "pnpm run test:db-privileges"
+# tests 172
+# pass 147
+# fail 0
+# skipped 25
+DB_PRIVILEGES_RERUN_EXIT_CODE=0
+```
+
+Первый полный privilege-suite честно упал 2/172 на двух оставшихся ссылках на удалённый `0019_*`; после перевода
+этих проверок на существующие active forwards повторный прогон выше зелёный. Отдельно изменённые runner fixtures:
+`node --test deploy/postgres/privileges/migrate-local.test.mjs` — 29/29, exit 0; parser metadata — 6/6, exit 0.
+
+## НЕ СДЕЛАНО (закрытие findings)
+
+- `bcb_webapp_dev` не открывалась и не изменялась; DML против `drizzle.__drizzle_migrations` не выполнялся.
+- `bersoncarebot_test` не открывалась и не изменялась; `deploy-test-full-reset.sh` не запускался.
+- PROD не открывался; disposable/A0/A1/greenfield базы не создавались; historical replay не запускался.
+- `GRANT`, `REVOKE`, role/policy DDL не выполнялись.
+- `deploy/postgres/prod-to-target-cutover-*.sql` и `deploy/host/deploy-test-saas.sh` не изменялись.
+- Полный `pnpm run ci` не запускался: заданные targeted gates и полный privilege phase закрыли изменённую
+  поверхность; отдельного непокрытого repo-level риска по §9–§10 не осталось.

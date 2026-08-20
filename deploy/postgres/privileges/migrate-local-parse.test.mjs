@@ -10,31 +10,29 @@ import {
 } from './migrate-local-parse.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const migrationRoot = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations');
+const activeMigrations = fs.readdirSync(migrationRoot)
+  .filter((file) => /^\d{8}T\d{6}_.+\.sql$/u.test(file))
+  .sort()
+  .map((file) => ({
+    tag: file.slice(0, -'.sql'.length),
+    source: fs.readFileSync(path.join(migrationRoot, file), 'utf8'),
+  }));
 
-function requireDerivedDdlMetadata(source, tag) {
+function requireDerivedLanguageMetadata(source, tag) {
   const rawStatements = source.split('--> statement-breakpoint');
   const parsedStatements = parseOwnerStatements(source, tag);
   assert.equal(parsedStatements.length, rawStatements.length);
 
   rawStatements.forEach((statement, index) => {
-    const createdSchemas = [...statement.matchAll(
-      /^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([A-Za-z_][A-Za-z0-9_]*)\./gimu,
-    )].map((match) => match[1]);
     const languages = [...statement.matchAll(
       /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/gimu,
     )].map((match) => match[1].toLowerCase());
-    assert.ok(createdSchemas.length <= 1, `statement ${index + 1} creates multiple function schemas`);
     assert.ok(languages.length <= 1, `statement ${index + 1} uses multiple function languages`);
-    assert.deepEqual(
-      {
-        schemaCreate: parsedStatements[index].schemaCreate,
-        languageUsage: parsedStatements[index].languageUsage,
-      },
-      {
-        schemaCreate: createdSchemas[0] ?? null,
-        languageUsage: languages[0] ?? null,
-      },
-      `statement ${index + 1} DDL metadata must match its executable SQL`,
+    assert.equal(
+      parsedStatements[index].languageUsage,
+      languages[0] ?? null,
+      `statement ${index + 1} language metadata must match its executable SQL`,
     );
   });
 }
@@ -93,18 +91,12 @@ test('a pure backfill emits no untyped empty owner-membership array', () => {
   assert.doesNotMatch(assertion ?? '', /ARRAY\[\]/u);
 });
 
-test('every migration in the active B0-forward journal parses and names a declared owner role', () => {
-  const migrationRoot = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations');
-  const journal = JSON.parse(
-    fs.readFileSync(path.join(migrationRoot, 'meta/_journal.json'), 'utf8'),
-  );
+test('every active timestamp migration parses and names a declared owner role', () => {
+  assert.ok(activeMigrations.length > 0, 'the active migration folder must not be empty');
   // Сам разбор и есть гейт: `parseOwnerStatements` бросает на любой статье без владельца и
   // BACKFILL-метки, поэтому непрошедшая миграция роняет тест прямо здесь, называя тег и номер статьи.
   const parsedByTag = new Map(
-    journal.entries.slice(1).map(({ tag }) => {
-      const source = fs.readFileSync(path.join(migrationRoot, `${tag}.sql`), 'utf8');
-      return [tag, parseOwnerStatements(source, tag)];
-    }),
+    activeMigrations.map(({ tag, source }) => [tag, parseOwnerStatements(source, tag)]),
   );
 
   // Здесь раньше лежала пофайловая опись статей четырёх конкретных миграций. Она замораживала ФОРМУ
@@ -121,73 +113,68 @@ test('every migration in the active B0-forward journal parses and names a declar
   );
 });
 
-test('every statement in reminder materialization migration keeps its owner marker first', () => {
-  const tag = '0019_patient_reminder_materialization_runtime_capabilities';
-  const migrationPath = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations', `${tag}.sql`);
-  const source = fs.readFileSync(migrationPath, 'utf8');
-  const statements = source.split('--> statement-breakpoint');
+test('every active migration statement keeps its owner or backfill marker first', () => {
+  for (const { tag, source } of activeMigrations) {
+    const statements = source.split('--> statement-breakpoint');
 
-  // Разбор обязан увидеть КАЖДУЮ статью файла: проглоченная статья уезжает в базу без владельца.
-  // Числом «6» это утверждение было заморозкой формы одной миграции — правка файла роняла тест,
-  // не поймав ни одной поломки разбора.
-  assert.equal(parseOwnerStatements(source, tag).length, statements.length);
-  requireDerivedDdlMetadata(source, tag);
-
-  statements.forEach((statement, index) => {
-    const displaced = statement.replace(
-      /^(\s*)(-- BCB-MIGRATION-OWNER:[^\n]+\n)/u,
-      '$1-- marker displaced before owner\n$2',
-    );
-    assert.notEqual(displaced, statement, `owner marker mutation did not apply to statement ${index + 1}`);
-    const mutated = statements.with(index, displaced).join('--> statement-breakpoint');
-    assert.throws(
-      () => parseOwnerStatements(mutated, tag),
-      new RegExp(`statement ${index + 1} has neither BCB-MIGRATION-OWNER nor BCB-MIGRATION-BACKFILL`, 'u'),
-    );
-  });
+    // Разбор обязан увидеть КАЖДУЮ статью файла: проглоченная статья уезжает в базу без владельца.
+    assert.equal(parseOwnerStatements(source, tag).length, statements.length, tag);
+    statements.forEach((statement, index) => {
+      const displaced = statement.replace(
+        /^(\s*)(-- BCB-MIGRATION-(?:OWNER:[^\n]+|BACKFILL)\n)/u,
+        '$1-- marker displaced before owner/backfill\n$2',
+      );
+      assert.notEqual(displaced, statement, `${tag}: marker mutation did not apply to statement ${index + 1}`);
+      const mutated = statements.with(index, displaced).join('--> statement-breakpoint');
+      assert.throws(
+        () => parseOwnerStatements(mutated, tag),
+        new RegExp(`statement ${index + 1} has neither BCB-MIGRATION-OWNER nor BCB-MIGRATION-BACKFILL`, 'u'),
+      );
+    });
+  }
 });
 
-test('every reminder function statement declares its exact executable language', () => {
-  const tag = '0019_patient_reminder_materialization_runtime_capabilities';
-  const migrationPath = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations', `${tag}.sql`);
-  const source = fs.readFileSync(migrationPath, 'utf8');
-  const statements = source.split('--> statement-breakpoint');
-  const functionStatementIndexes = statements
-    .map((statement, index) => (/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+/imu.test(statement) ? index : -1))
-    .filter((index) => index >= 0);
+test('every function statement in active migrations declares its exact executable language', () => {
+  let functionStatements = 0;
+  for (const { tag, source } of activeMigrations) {
+    const statements = source.split('--> statement-breakpoint');
+    const functionStatementIndexes = statements
+      .map((statement, index) => (/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+/imu.test(statement) ? index : -1))
+      .filter((index) => index >= 0);
+    functionStatements += functionStatementIndexes.length;
 
-  // Позиции статей в файле не закрепляем: это номер строки в ожидаемом значении (AGENTS.md §10a).
-  // Самотест ниже работает над теми функциями, которые в файле есть сейчас.
-  assert.ok(functionStatementIndexes.length > 0, 'the fixture migration must still create functions');
-  functionStatementIndexes.forEach((index) => {
-    const expectedLanguage = /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/imu.exec(statements[index])?.[1];
-    assert.ok(expectedLanguage, `statement ${index + 1} has no executable language`);
+    functionStatementIndexes.forEach((index) => {
+      const expectedLanguage = /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/imu.exec(statements[index])?.[1];
+      assert.ok(expectedLanguage, `${tag}: statement ${index + 1} has no executable language`);
+      requireDerivedLanguageMetadata(statements[index], tag);
 
-    const withoutLanguage = statements[index].replace(
-      /^\s*-- BCB-MIGRATION-LANGUAGE-USAGE:[^\n]+\n/mu,
-      '',
-    );
-    assert.notEqual(withoutLanguage, statements[index], `language removal did not apply to statement ${index + 1}`);
-    assert.throws(
-      () => requireDerivedDdlMetadata(
-        statements.with(index, withoutLanguage).join('--> statement-breakpoint'),
-        tag,
-      ),
-      /DDL metadata must match its executable SQL/u,
-    );
+      const withoutLanguage = statements[index].replace(
+        /^\s*-- BCB-MIGRATION-LANGUAGE-USAGE:[^\n]+\n/mu,
+        '',
+      );
+      assert.notEqual(withoutLanguage, statements[index], `${tag}: language removal did not apply to statement ${index + 1}`);
+      assert.throws(
+        () => requireDerivedLanguageMetadata(
+          statements.with(index, withoutLanguage).join('--> statement-breakpoint'),
+          tag,
+        ),
+        /language metadata must match its executable SQL/u,
+      );
 
-    const wrongLanguage = expectedLanguage === 'sql' ? 'plpgsql' : 'sql';
-    const withWrongLanguage = statements[index].replace(
-      /(-- BCB-MIGRATION-LANGUAGE-USAGE:)\s*[A-Za-z_][A-Za-z0-9_]*/u,
-      `$1 ${wrongLanguage}`,
-    );
-    assert.notEqual(withWrongLanguage, statements[index], `language rewrite did not apply to statement ${index + 1}`);
-    assert.throws(
-      () => requireDerivedDdlMetadata(
-        statements.with(index, withWrongLanguage).join('--> statement-breakpoint'),
-        tag,
-      ),
-      /DDL metadata must match its executable SQL/u,
-    );
-  });
+      const wrongLanguage = expectedLanguage === 'sql' ? 'plpgsql' : 'sql';
+      const withWrongLanguage = statements[index].replace(
+        /(-- BCB-MIGRATION-LANGUAGE-USAGE:)\s*[A-Za-z_][A-Za-z0-9_]*/u,
+        `$1 ${wrongLanguage}`,
+      );
+      assert.notEqual(withWrongLanguage, statements[index], `${tag}: language rewrite did not apply to statement ${index + 1}`);
+      assert.throws(
+        () => requireDerivedLanguageMetadata(
+          statements.with(index, withWrongLanguage).join('--> statement-breakpoint'),
+          tag,
+        ),
+        /language metadata must match its executable SQL/u,
+      );
+    });
+  }
+  assert.ok(functionStatements > 0, 'active migrations must include function statements for this proof');
 });

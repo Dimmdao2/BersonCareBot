@@ -13,22 +13,9 @@
  *      silent: a migration that lands below it is never pending again and the runner keeps printing
  *      "already current" over a hole in the schema.
  *
- * `meta/_journal.json` is no longer read for order.  Its one remaining job is the frozen historical
- * `when -> tag` map used once per database to label ledger rows written before the tag column
- * existed (`backfillLedgerTagsSql`) — and that file stays live and editable, because a database can
- * be bootstrapped from a checkout at any point in this branch's history.
- *
- * The closed list of names allowed to keep the old `NNNN_slug` shape (`findMigrationNameViolations`)
- * does NOT read that live file.  It reads `meta/_journal.frozen.json`, a second, checked-in snapshot
- * that is never written by code and changes only when a human deliberately grandfathers a name in a
- * reviewed diff.  Two files, not one, because on 19.08 a branch (`wt/drop-patient-count-20260819`)
- * added a 51st entry to the live journal to relabel its own hand-numbered migration as "legacy", and
- * `pnpm run lint` passed — the live journal was both the thing being checked and the list it was
- * checked against, so growing it could never fail its own check.  `findJournalGrowth` catches that
- * directly: the live journal is compared against the frozen snapshot, and any tag the live file
- * carries that the frozen one does not is growth, reported by name.  Every migration created after
- * this module started enforcing it is named `YYYYMMDDTHHMMSS_slug` — a timestamp, not a hand-picked
- * number, so two branches cannot pick the same name and nothing needs reserving before a merge.
+ * `meta/_journal.json` is no longer read for order or for migration-name exceptions.  The historical
+ * chain and its exception list were retired by owner decision on 20.08.2026; every active migration
+ * must therefore be named `YYYYMMDDTHHMMSS_slug`, without grandfathered names.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -71,7 +58,7 @@ export function findForeignLedgerRows(migrations, ledgerRows) {
 }
 
 /**
- * A new migration's name is a timestamp, not a hand-picked number: `YYYYMMDDTHHMMSS_slug`, UTC,
+ * Every migration's name is a timestamp, not a hand-picked number: `YYYYMMDDTHHMMSS_slug`, UTC,
  * second precision.  Two agents cannot land the same instant, so the name alone rules out the
  * collision that hand-picked sequential numbers hit twice on 19.08 (`0050` claimed by two branches
  * the same evening).  It also makes "insert between two migrations" ordinary: pick a timestamp
@@ -80,36 +67,14 @@ export function findForeignLedgerRows(migrations, ledgerRows) {
 export const TIMESTAMP_MIGRATION_NAME = /^\d{8}T\d{6}_[a-z0-9]+(?:_[a-z0-9]+)*$/u;
 
 /**
- * The migrations the frozen legacy snapshot (`meta/_journal.frozen.json`, see `readFrozenLegacyMigrationNames`)
- * already names keep their old `NNNN[suffix]_slug` shape forever — renaming them would break the
- * ledger identity (`tag`).  `legacyEntries` must come from that frozen snapshot, not the live
- * `meta/_journal.json`: the live file is edited for its ledger-bootstrap job (see module doc), so a
- * caller that fed it here would let the legacy set grow with the live file.  Every tag the frozen
- * snapshot does not know must be a timestamp.  Returns the offending tags, not booleans, so a caller
- * can name them in one failure.
+ * The timestamp rule is unconditional.  Historical numbered files and the allowlist that once
+ * grandfathered them are retired; neither a journal entry nor any caller-supplied value can exempt a
+ * tag.  Returns the offending tags so every caller can name all failures in one pass.
  */
-export function findMigrationNameViolations(migrations, legacyEntries) {
-  const legacyTags = new Set((legacyEntries ?? []).map((entry) => entry.tag));
+export function findMigrationNameViolations(migrations) {
   return migrations
-    .filter((migration) => !legacyTags.has(migration.tag))
     .filter((migration) => !TIMESTAMP_MIGRATION_NAME.test(migration.tag))
     .map((migration) => migration.tag);
-}
-
-/**
- * The live `meta/_journal.json` carries a tag the frozen legacy snapshot does not know — the closed
- * list grew.  This is a narrower, louder check than `findMigrationNameViolations` alone: that
- * function only ever sees the frozen snapshot (by construction, once callers stop feeding it the
- * live file), so it cannot itself report *why* a new hand-numbered name would slip through — it
- * would simply keep refusing it forever, silently, as ordinary new-file-shape enforcement.  This
- * function names the actual defect for a human: the historical map itself has an entry it should
- * not have, independent of whether any `.sql` file currently claims that tag.
- */
-export function findJournalGrowth(liveEntries, frozenEntries) {
-  const frozenTags = new Set((frozenEntries ?? []).map((entry) => entry.tag));
-  return (liveEntries ?? [])
-    .filter((entry) => !frozenTags.has(entry.tag))
-    .map((entry) => entry.tag);
 }
 
 /**
@@ -186,18 +151,6 @@ $bcb_ledger$;`;
 /** The frozen historical `when -> tag` map, or an empty one when the folder no longer carries it. */
 export function readLegacyJournalEntries(folder) {
   const path = resolve(folder, 'meta', '_journal.json');
-  if (!existsSync(path)) return [];
-  return JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
-}
-
-/**
- * The closed, checked-in legacy-name allowlist for `findMigrationNameViolations` and
- * `findJournalGrowth`.  Unlike `meta/_journal.json`, this file is never written by any runner or
- * bootstrap step — it changes only when a human deliberately grandfathers a name, in a diff a
- * reviewer sees.  Missing entirely means no name is grandfathered, not "trust the live journal".
- */
-export function readFrozenLegacyMigrationNames(folder) {
-  const path = resolve(folder, 'meta', '_journal.frozen.json');
   if (!existsSync(path)) return [];
   return JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
 }

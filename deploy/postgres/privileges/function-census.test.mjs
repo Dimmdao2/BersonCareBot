@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import test from 'node:test';
 import path from 'node:path';
@@ -15,7 +14,6 @@ import {
 import { collectGaps, generateFunctionCensusSql } from './generate.mjs';
 import {
   compareFunctionSurfaces,
-  currentPatientArtifactFunctions,
   extractPublicRelationOperations,
   latestArtifactFunctions,
   parseExecutableFunctions,
@@ -29,19 +27,37 @@ import {
 } from './function-return-shape.mjs';
 
 const PRIVILEGES_DIR = path.dirname(fileURLToPath(import.meta.url));
-const CURRENT_PATIENT_MIGRATIONS = [
-  path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0016_patient_self_action_capabilities.sql'),
-  path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations/0017_patient_shared_core_capabilities.sql'),
-];
-const B0_FORWARD_MIGRATIONS = fs.readdirSync(path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations'))
-  // Обе схемы имён. Фильтр только по `^\d{4}_` молча уносил переименованные миграции из-под
-  // переписи: четыре двери исчезали из гейта, а он оставался зелёным — гейт без предмета не гейт.
-  .filter((file) => /^\d{4}_.+\.sql$/.test(file) || /^\d{8}T\d{6}_.+\.sql$/.test(file))
-  .sort()
-  .map((file) => path.resolve(PRIVILEGES_DIR, '../../../apps/webapp/db/drizzle-migrations', file));
-const B0_EVIDENCE_COMMIT = '2e8ffe851a404da1894cb20b5b9d27e2dd409394';
-const B0_EVIDENCE_PATH = 'deploy/postgres/generated/prod-to-target/schema-pre.sql';
 const REPOSITORY_ROOT = path.resolve(PRIVILEGES_DIR, '../../..');
+const MIGRATIONS_DIR = path.resolve(REPOSITORY_ROOT, 'apps/webapp/db/drizzle-migrations');
+const SCHEMA_B_SNAPSHOT = path.resolve(
+  REPOSITORY_ROOT,
+  'deploy/postgres/generated/prod-to-target/schema-pre.sql',
+);
+const ACTIVE_FORWARD_MIGRATIONS = fs.readdirSync(MIGRATIONS_DIR)
+  .filter((file) => /^\d{8}T\d{6}_.+\.sql$/.test(file))
+  .sort()
+  .map((file) => path.resolve(MIGRATIONS_DIR, file));
+const NAME_CENSUS = JSON.parse(
+  fs.readFileSync(path.resolve(PRIVILEGES_DIR, 'name-census.json'), 'utf8'),
+);
+const SCHEMA_B_SNAPSHOT_FUNCTIONS = parseExecutableFunctions(fs.readFileSync(SCHEMA_B_SNAPSHOT, 'utf8'));
+
+// The retired migration chain no longer records which historical file introduced a function. The
+// recorded census preserves that membership, while generated schema B supplies the executable body.
+// Active timestamp forwards overlay the snapshot so a new/changed definer is checked before the next
+// snapshot refresh and cannot disappear from the gate.
+const schemaBCensusFunctions = (censusKey, includeNewForward) => {
+  const recordedNames = new Set(NAME_CENSUS[censusKey]);
+  const latest = new Map(
+    SCHEMA_B_SNAPSHOT_FUNCTIONS
+      .filter((fn) => recordedNames.has(fn.name))
+      .map((fn) => [fn.name, fn]),
+  );
+  for (const fn of latestArtifactFunctions(ACTIVE_FORWARD_MIGRATIONS)) {
+    if (recordedNames.has(fn.name) || includeNewForward(fn)) latest.set(fn.name, fn);
+  }
+  return [...latest.values()].sort((a, b) => a.name.localeCompare(b.name));
+};
 
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
 const TEST_ONLY = [
@@ -106,21 +122,23 @@ const assertDefinerOwnersAreDeclaredSeamRoles = () => {
   return owners;
 };
 
-test('the current-patient B0-forward roots are exactly the recorded set with exact executable relation-operation surfaces', () => {
-  const functions = currentPatientArtifactFunctions(CURRENT_PATIENT_MIGRATIONS);
+test('the recorded current-patient schema B roots have exact executable relation-operation surfaces', () => {
+  const functions = schemaBCensusFunctions(
+    'currentPatientArtifactRoots',
+    () => false,
+  );
   assertNameCensus('currentPatientArtifactRoots', functions.map((fn) => fn.name),
-    'current-patient roots reconstructed from migrations 0016+0017');
+    'current-patient roots reconstructed from generated schema B plus active timestamp forwards');
   assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
 });
 
-test('all latest active B0-forward definers have exact executable relation-operation surfaces', () => {
-  const functions = latestArtifactFunctions(B0_FORWARD_MIGRATIONS);
-  // Каждое имя здесь — тело SECURITY DEFINER функции, которое живая база получает ТОЛЬКО из
-  // пронумерованной миграции. Исчезнувшее имя означает, что тело перестало доезжать до базы;
-  // появившееся — новую дверь, которую никто не сверял. Счёт этого не различал: он менялся на
-  // единицу и в том, и в другом случае, и правился подгонкой числа.
+test('all recorded schema B definers and active forward definers have exact executable relation-operation surfaces', () => {
+  const functions = schemaBCensusFunctions('b0ForwardArtifactRoots', (fn) => fn.securityDefiner);
+  // Каждое имя здесь — production-facing тело SECURITY DEFINER из generated schema B либо активного
+  // timestamp-forward. Исчезнувшее имя означает, что snapshot потерял защищаемую дверь; появившееся
+  // в forward-файле — новую дверь, которую сначала нужно сверить и явно принять в census.
   assertNameCensus('b0ForwardArtifactRoots', functions.map((fn) => fn.name),
-    'latest active B0-forward definer bodies in numbered migrations');
+    'recorded schema B and active timestamp-forward definer bodies');
   assert.equal(functions.every((fn) => fn.securityDefiner), true);
   for (const fn of functions) {
     const candidates = Object.entries(declaration.portContext.functions)
@@ -133,11 +151,9 @@ test('all latest active B0-forward definers have exact executable relation-opera
 
 test('every declared function has the exact source-reconstructed base type and set-returning flag, and no body is undeclared', () => {
   const sources = [{
-    source: `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`,
-    text: execFileSync('git', ['show', `${B0_EVIDENCE_COMMIT}:${B0_EVIDENCE_PATH}`], {
-      cwd: REPOSITORY_ROOT, encoding: 'utf8', maxBuffer: 100 * 1024 * 1024,
-    }),
-  }, ...B0_FORWARD_MIGRATIONS.map((file) => ({ source: path.relative(REPOSITORY_ROOT, file), text: fs.readFileSync(file, 'utf8') })), {
+    source: path.relative(REPOSITORY_ROOT, SCHEMA_B_SNAPSHOT),
+    text: fs.readFileSync(SCHEMA_B_SNAPSHOT, 'utf8'),
+  }, ...ACTIVE_FORWARD_MIGRATIONS.map((file) => ({ source: path.relative(REPOSITORY_ROOT, file), text: fs.readFileSync(file, 'utf8') })), {
     source: 'deploy/postgres/port-context/contract.sql',
     text: fs.readFileSync(path.resolve(REPOSITORY_ROOT, 'deploy/postgres/port-context/contract.sql'), 'utf8'),
   }, {
@@ -352,7 +368,7 @@ test('current-patient surface gate catches missing operation, absent relation, a
     ['SELECT', 'DELETE']);
 });
 
-test('legacy census is restored without obsolete context and overlaid by the active B0-forward roots', () => {
+test('legacy census is restored without obsolete context and overlaid by the active schema B roots', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
     functions: 232,

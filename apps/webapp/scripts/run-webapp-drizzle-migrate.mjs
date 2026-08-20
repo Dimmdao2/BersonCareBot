@@ -24,7 +24,6 @@ import {
   findForeignLedgerRows,
   findMigrationNameViolations,
   findRenamedAppliedMigrations,
-  readFrozenLegacyMigrationNames,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
@@ -265,17 +264,15 @@ const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
 const phase = selectMigrationPhase(readMigrationFolder(migrationsFolder), beforeTag);
 
 // The name rule used to live only in `pnpm run lint` (`check-drizzle-migration-order.sh`): a file
-// with an old hand-picked number, not in the frozen legacy snapshot, was never checked by this
+// with an old hand-picked number was never checked by this
 // entrypoint at all before applying it — proven live on 20.08 for the DEV/TEST wrapper
 // (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md §3(a); this path reads the same folder the same
-// way). Checked before opening a connection, against the frozen file, never the live journal (see
-// `findJournalGrowth` in migration-order.mjs's module doc).
-const nameViolations = findMigrationNameViolations(phase.migrations, readFrozenLegacyMigrationNames(migrationsFolder));
+// way). Checked before opening a connection. The retired journal/allowlist cannot exempt a tag.
+const nameViolations = findMigrationNameViolations(phase.migrations);
 if (nameViolations.length > 0) {
   console.error(
     `[migrate] migration_name_violation ${nameViolations
-      .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case, and the frozen legacy `
-        + 'snapshot (meta/_journal.frozen.json) does not know it as a legacy name.')
+      .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case; there are no exceptions.`)
       .join(' ')}`,
   );
   process.exit(1);
