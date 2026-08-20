@@ -1,22 +1,15 @@
 /**
- * Delivery-attempt audit is one exact integrator-port capability. It must not depend on the
- * caller's ambient tenant/worker principal and must never fall back to direct table INSERT.
+ * Delivery attempts are one exact canonical capability. The base write port must route them
+ * through the shared operator-journal writer before it performs an optional support projection.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  runNamedRoot: vi.fn(async () => ({ rows: [] })),
-  runWithInfraPrincipal: vi.fn(
-    (_input: { source: string }, fn: () => unknown): unknown => fn(),
-  ),
+  writeOperatorDeliveryAttempt: vi.fn(async () => undefined),
 }));
 
-vi.mock('../runIntegratorSql.js', () => ({
-  runIntegratorNamedRoot: fakes.runNamedRoot,
-}));
-
-vi.mock('../../principal/organizationPrincipal.js', () => ({
-  runWithInfraPrincipal: fakes.runWithInfraPrincipal,
+vi.mock('./operatorDeliveryAttempts.js', () => ({
+  writeOperatorDeliveryAttempt: fakes.writeOperatorDeliveryAttempt,
 }));
 
 const db = { query: vi.fn(), tx: vi.fn() };
@@ -36,50 +29,46 @@ const attempt = (channel: string, status: 'success' | 'failed' | 'skipped' = 'fa
 
 describe('delivery attempt audit capability', () => {
   beforeEach(() => {
-    fakes.runNamedRoot.mockClear();
-    fakes.runWithInfraPrincipal.mockClear();
+    fakes.writeOperatorDeliveryAttempt.mockClear();
     vi.mocked(db.query).mockClear();
     vi.mocked(db.tx).mockClear();
   });
 
   it.each(['max', 'telegram', 'smsc', 'email', 'web_push'])(
-    'routes %s through the same exact named root',
+    'routes %s through the canonical operator-journal writer',
     async (channel) => {
-      const { appendMessageLog } = await import('./messageLogs.js');
-      await appendMessageLog(db as never, {
+      const { createDbWritePort } = await import('../writePort.js');
+      await createDbWritePort({ db: db as never }).writeDb({
         type: 'delivery.attempt.log',
-        params: attempt(channel),
+        params: { ...attempt(channel), organizationId: null },
       } as never);
 
-      expect(fakes.runWithInfraPrincipal).toHaveBeenCalledWith(
-        { source: 'delivery-handler' },
-        expect.any(Function),
-      );
-      expect(fakes.runNamedRoot).toHaveBeenCalledWith(
+      expect(fakes.writeOperatorDeliveryAttempt).toHaveBeenCalledWith(
         db,
-        'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
-        expect.arrayContaining([channel, 'failed']),
-        expect.anything(),
+        expect.objectContaining({
+          type: 'delivery.attempt.log',
+          params: expect.objectContaining({ channel, status: 'failed' }),
+        }),
       );
     },
   );
 
   it('persists a skipped provider outcome instead of rejecting it before the DB capability', async () => {
-    const { appendMessageLog } = await import('./messageLogs.js');
-    await appendMessageLog(db as never, {
+    const { createDbWritePort } = await import('../writePort.js');
+    await createDbWritePort({ db: db as never }).writeDb({
       type: 'delivery.attempt.log',
-      params: attempt('web_push', 'skipped'),
+      params: { ...attempt('web_push', 'skipped'), organizationId: null },
     } as never);
 
-    expect(fakes.runNamedRoot).toHaveBeenCalledWith(
+    expect(fakes.writeOperatorDeliveryAttempt).toHaveBeenCalledWith(
       db,
-      expect.any(String),
-      expect.arrayContaining(['web_push', 'skipped']),
-      expect.anything(),
+      expect.objectContaining({
+        params: expect.objectContaining({ channel: 'web_push', status: 'skipped' }),
+      }),
     );
   });
 
-  it('starts the named-root transaction before any generic write transaction', async () => {
+  it('uses the canonical writer before any generic write transaction', async () => {
     const { createDbWritePort } = await import('../writePort.js');
     const writePort = createDbWritePort({ db: db as never });
 
@@ -89,11 +78,11 @@ describe('delivery attempt audit capability', () => {
     } as never);
 
     expect(db.tx).not.toHaveBeenCalled();
-    expect(fakes.runNamedRoot).toHaveBeenCalledWith(
+    expect(fakes.writeOperatorDeliveryAttempt).toHaveBeenCalledWith(
       db,
-      'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
-      expect.arrayContaining(['max', 'success']),
-      expect.anything(),
+      expect.objectContaining({
+        params: expect.objectContaining({ channel: 'max', status: 'success' }),
+      }),
     );
   });
 });

@@ -5,7 +5,7 @@ const fakes = vi.hoisted(() => ({
   upsertDirect: vi.fn(),
   enqueueDirectRetry: vi.fn(),
   appendSupportDeliveryDirect: vi.fn(),
-  insertDeliveryAttemptLog: vi.fn(),
+  writeOperatorDeliveryAttempt: vi.fn(),
   recordIncident: vi.fn(),
   syncSupportDeliveryAttempt: vi.fn(),
   runOrganization: vi.fn(async <T>(_organizationId: string, fn: () => Promise<T>) => fn()),
@@ -23,7 +23,9 @@ vi.mock('./directPublic/writeSupportQuestionsDirect.js', () => ({
 }));
 vi.mock('./repos/messageLogs.js', () => ({
   appendMessageLog: vi.fn(),
-  insertDeliveryAttemptLog: fakes.insertDeliveryAttemptLog,
+}));
+vi.mock('./repos/operatorDeliveryAttempts.js', () => ({
+  writeOperatorDeliveryAttempt: fakes.writeOperatorDeliveryAttempt,
 }));
 vi.mock('../operatorIncident/reportOperatorFailure.js', () => ({
   recordOperatorFailureIncident: fakes.recordIncident,
@@ -54,7 +56,7 @@ function resetFallbackFakes(): void {
   fakes.upsertDirect.mockRejectedValue(new Error('synthetic direct failure'));
   fakes.enqueueDirectRetry.mockResolvedValue(undefined);
   fakes.appendSupportDeliveryDirect.mockRejectedValue(new Error('synthetic direct failure'));
-  fakes.insertDeliveryAttemptLog.mockResolvedValue(undefined);
+  fakes.writeOperatorDeliveryAttempt.mockResolvedValue(undefined);
   fakes.recordIncident.mockResolvedValue({ id: 'incident', occurrenceCount: 1 });
 }
 
