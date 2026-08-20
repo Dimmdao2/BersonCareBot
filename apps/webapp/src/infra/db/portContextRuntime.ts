@@ -242,6 +242,25 @@ export function createWebappPortContextRuntimeConfig(
   };
 }
 
+/**
+ * Patient roots that necessarily run BEFORE the session can claim a tenant, and therefore may be
+ * called with an identity-only patient principal.
+ *
+ * Both are about the relationship itself rather than about data inside one clinic: the first asks
+ * which clinics this person belongs to, the second makes them belong to one. Requiring an
+ * organisation on the principal here would be circular — the tenant-claim gate
+ * (`app.install_port_context`) only accepts an organisation the person already has an
+ * `org_enrollments` row for.
+ *
+ * The patient wall is unaffected: it is "own data only" and checks identity, never organisation
+ * (owner correction 2026-07-12), and both roots read their subject from
+ * `app.current_patient_user_id()` rather than from an argument.
+ */
+const PATIENT_ROOTS_BEFORE_A_TENANT_CLAIM = new Set<string>([
+  'app.read_current_patient_active_organizations()',
+  'app.enroll_current_patient_in_public_booking_clinic(uuid,text)',
+]);
+
 function capabilityFor(
   capabilities: Record<string, PortCapabilityDescriptor>,
   name: string,
@@ -326,7 +345,7 @@ export function webappPortContextPrincipal(
         principal.kind !== 'patient' ||
         (!principal.organizationId &&
           descriptor.purpose !== 'relation' &&
-          descriptor.functionIdentity !== 'app.read_current_patient_active_organizations()')
+          !PATIENT_ROOTS_BEFORE_A_TENANT_CLAIM.has(descriptor.functionIdentity ?? ''))
       )
         throw new Error('Patient port context requires an organization-scoped patient principal');
       return {
