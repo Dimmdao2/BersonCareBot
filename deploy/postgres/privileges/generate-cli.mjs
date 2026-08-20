@@ -57,7 +57,8 @@ function parseArgs(argv) {
     'port-context-verify',
     'env-login-shells', 'env-login-variables', 'env-verify',
     'shared-role-baseline', 'shared-role-verify',
-    'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry', 'target-access-only',
+    'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry',
+    'relation-wall-registry-seed-only', 'target-access-only',
   ]);
   const knownValues = new Set([
     'db', 'out', 'out-dir', 'declaration', 'env', 'legacy-role-quarantine', 'port-context-env',
@@ -212,6 +213,18 @@ async function main() {
   if (args.flags.has('relation-wall-registry')) {
     if (dbNames.length !== 1 || !args.values.has('db')) throw new Error('--relation-wall-registry requires --db');
     process.stdout.write(generateRelationWallRegistrySeedSql(declaration, dbNames[0]));
+    return;
+  }
+
+  if (args.flags.has('relation-wall-registry-seed-only')) {
+    if (dbNames.length !== 1 || !args.values.has('db')) {
+      throw new Error('--relation-wall-registry-seed-only requires --db');
+    }
+    process.stdout.write(generateRelationWallRegistrySeedSql(
+      declaration,
+      dbNames[0],
+      { reconcileOwners: false },
+    ));
     return;
   }
 

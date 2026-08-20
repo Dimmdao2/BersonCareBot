@@ -377,6 +377,28 @@ lint-gate и оба migration runner.
 миграция обязана оставить проверяемый объект либо probe `-- BCB-MIGRATION-VERIFY: SELECT …` в ведущем блоке
 комментариев; один отсутствующий след останавливает runner и называет migration.
 
+**Контракт statement-owner обязателен для каждого блока миграции.** Каждый statement, разделённый
+`--> statement-breakpoint`, начинается ровно с одного из двух маркеров: `-- BCB-MIGRATION-OWNER: <role>` для
+DDL/DML от владельца объекта либо `-- BCB-MIGRATION-BACKFILL` для data-only шага от локального администратора.
+`postgres` в owner-маркере запрещён. Обычные таблицы, индексы и прочие объекты приложения создаются от
+`app_object_owner`; seam-owner выбирается только для функции/объекта, принадлежащего этому именованному шву.
+Runner временно даёт мигратору ровно указанную роль, исполняет statement через `SET LOCAL ROLE` и снимает членство
+до конца транзакции; поэтому маркер описывает фактического владельца, а не комментарий для человека.
+
+Если statement создаёт схему, `-- BCB-MIGRATION-SCHEMA-CREATE: <schema>` ставится сразу после owner-маркера. Если
+для DDL нужен procedural language, следующий маркер — `-- BCB-MIGRATION-LANGUAGE-USAGE: <language>`. Эти маркеры
+не самостоятельные statement и не ставятся после SQL: parser читает их только в указанном порядке в начале блока.
+
+Новая таблица в `public` / `app` / `integrator` / `app_ext` сначала объявляется в
+`deploy/postgres/privileges/declaration.ts`, и только затем добавляется migration-файл. Санкционированная
+последовательность на DEV: `bash deploy/host/migrate-dev.sh --preflight`, затем
+`bash deploy/host/migrate-dev.sh --execute`. Entry point механически засевает declaration-derived registry стены
+до первого migration statement, после миграций выполняет полный owner/access reconcile; ручная строка registry
+или запуск bare migrator этот контракт не заменяет.
+
+**Смысл:** owner-header делает владельца каждого statement проверяемым до БД, а предварительный declaration-seed
+разрешает родиться уже объявленной таблице, не открывая стену для необъявленной или созданной не тем владельцем.
+
 **Восстановление — через entrypoint:** `bash deploy/host/migrate-dev.sh --execute --reapply <tag>` (DEV) или
 `bash deploy/host/deploy-test.sh <branch> --reapply <tag>` (TEST), каждый tag явно и только после проверки
 идемпотентности. Ручной `psql`-накат и голый `migrate-local.mjs --reapply` запрещены: штатный entrypoint завершает

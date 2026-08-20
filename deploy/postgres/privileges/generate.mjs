@@ -500,7 +500,7 @@ export function generateCatalogClosureVerifierSql(declaration, dbName) {
 /** Exact birth-wall registry for ordinary ACTIVE tables plus private relations
  * living in schemas guarded by the event trigger.  `app_control` is deliberately
  * excluded: the trigger does not govern its own closed metadata relations. */
-export function generateRelationWallRegistrySeedSql(declaration, dbName) {
+export function generateRelationWallRegistrySeedSql(declaration, dbName, { reconcileOwners = true } = {}) {
   const db = declaration.databases?.[dbName];
   if (!db) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
   const guardedSchemas = new Set(['public', 'app', 'integrator', 'app_ext']);
@@ -535,8 +535,10 @@ export function generateRelationWallRegistrySeedSql(declaration, dbName) {
   }
   const values = exactRows.map((row) =>
     `  (${lit(row.schema)}::name, ${lit(row.name)}::name, ${lit(row.cls)}, ${lit(row.wall)}, ${lit(row.expectedOwner)}::name)`).join(',\n');
-  const ownerReconciliation = exactRows.map((row) =>
-    `ALTER TABLE ${q(row.schema)}.${q(row.name)} OWNER TO ${q(row.expectedOwner)};`).join('\n');
+  const ownerReconciliation = reconcileOwners
+    ? exactRows.map((row) =>
+      `ALTER TABLE ${q(row.schema)}.${q(row.name)} OWNER TO ${q(row.expectedOwner)};`).join('\n')
+    : '';
   return [
     '-- Exact declaration-derived relation birth-wall registry.',
     `-- target database: ${dbName}; guarded rows: ${exactRows.length}`,
@@ -547,9 +549,14 @@ export function generateRelationWallRegistrySeedSql(declaration, dbName) {
     values,
     'ON CONFLICT (schema_name, table_name) DO UPDATE SET',
     '  data_class=EXCLUDED.data_class, wall=EXCLUDED.wall, expected_owner=EXCLUDED.expected_owner;',
-    '-- Reconcile restored --no-owner tables before any later table DDL.  Each ALTER',
-    '-- is itself checked by the already-installed event trigger against the row above.',
-    ownerReconciliation,
+    ...(reconcileOwners ? [
+      '-- Reconcile restored --no-owner tables before any later table DDL.  Each ALTER',
+      '-- is itself checked by the already-installed event trigger against the row above.',
+      ownerReconciliation,
+    ] : [
+      '-- Pre-migration seed only: declared relations may not exist yet, so owner reconciliation',
+      '-- remains the responsibility of the mandatory post-migration access reconcile.',
+    ]),
     '',
   ].join('\n');
 }
