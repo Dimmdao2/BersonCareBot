@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DbPort, QueuePort } from '../../kernel/contracts/index.js';
+import type { DbPort, QueuePort, WebappEventsPort } from '../../kernel/contracts/index.js';
 
 const fakes = vi.hoisted(() => ({
   upsertDirect: vi.fn(),
@@ -7,6 +7,7 @@ const fakes = vi.hoisted(() => ({
   appendSupportDeliveryDirect: vi.fn(),
   insertDeliveryAttemptLog: vi.fn(),
   recordIncident: vi.fn(),
+  syncSupportDeliveryAttempt: vi.fn(),
   runOrganization: vi.fn(async <T>(_organizationId: string, fn: () => Promise<T>) => fn()),
   runIntegrator: vi.fn(async <T>(_principal: unknown, fn: () => Promise<T>) => fn()),
 }));
@@ -48,14 +49,18 @@ function unusedDb(): DbPort {
   };
 }
 
+function resetFallbackFakes(): void {
+  vi.clearAllMocks();
+  fakes.upsertDirect.mockRejectedValue(new Error('synthetic direct failure'));
+  fakes.enqueueDirectRetry.mockResolvedValue(undefined);
+  fakes.appendSupportDeliveryDirect.mockRejectedValue(new Error('synthetic direct failure'));
+  fakes.insertDeliveryAttemptLog.mockResolvedValue(undefined);
+  fakes.recordIncident.mockResolvedValue({ id: 'incident', occurrenceCount: 1 });
+}
+
 describe('reminder-rule durable fallback principal', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    fakes.upsertDirect.mockRejectedValue(new Error('synthetic direct failure'));
-    fakes.enqueueDirectRetry.mockResolvedValue(undefined);
-    fakes.appendSupportDeliveryDirect.mockRejectedValue(new Error('synthetic direct failure'));
-    fakes.insertDeliveryAttemptLog.mockResolvedValue(undefined);
-    fakes.recordIncident.mockResolvedValue({ id: 'incident', occurrenceCount: 1 });
+    resetFallbackFakes();
   });
 
   it('persists the full direct write for retry when the initial canonical write fails', async () => {
@@ -135,4 +140,81 @@ describe('reminder-rule durable fallback principal', () => {
       }),
     );
   });
+});
+
+describe('D20 canonical support handoff failures', () => {
+  beforeEach(() => {
+    resetFallbackFakes();
+  });
+
+  const handoffFailures: ReadonlyArray<{
+    name: string;
+    sync: () => Promise<{
+      ok: boolean;
+      canonicalWrite?: { deliveryAttemptId: string; organizationId: string };
+    }>;
+    legacyWriteAllowed: boolean;
+  }> = [
+    {
+      name: 'webapp transport throws',
+      sync: async () => {
+        throw new Error('webapp unreachable');
+      },
+      legacyWriteAllowed: true,
+    },
+    {
+      name: 'webapp acknowledges without canonicalWrite',
+      sync: async () => ({ ok: true }),
+      legacyWriteAllowed: true,
+    },
+    {
+      name: 'webapp acknowledges another delivery attempt',
+      sync: async () => ({
+        ok: true,
+        canonicalWrite: {
+          deliveryAttemptId: 'another-delivery-attempt',
+          organizationId: ORGANIZATION_ID,
+        },
+      }),
+      legacyWriteAllowed: false,
+    },
+  ];
+
+  function webappEventsPort(): WebappEventsPort {
+    return {
+      emit: vi.fn(),
+      syncSupportDeliveryAttempt: fakes.syncSupportDeliveryAttempt,
+    };
+  }
+
+  it.each(handoffFailures)(
+    'records an operator incident instead of silently accepting $name',
+    async ({ sync, legacyWriteAllowed }) => {
+      fakes.syncSupportDeliveryAttempt.mockImplementation(sync);
+      fakes.appendSupportDeliveryDirect.mockResolvedValue(undefined);
+
+      const writePort = createDbWritePort({
+        db: unusedDb(),
+        queuePort: {} as QueuePort,
+        webappEventsPort: webappEventsPort(),
+      });
+
+      await writePort.writeDb({
+        type: 'delivery.attempt.log',
+        params: {
+          organizationId: ORGANIZATION_ID,
+          intentEventId: 'd20-canonical-handoff',
+          channel: 'telegram',
+          status: 'failed',
+          attempt: 1,
+          payload: { source: 'd20' },
+        },
+      });
+
+      if (!legacyWriteAllowed) {
+        expect.soft(fakes.appendSupportDeliveryDirect).not.toHaveBeenCalled();
+      }
+      expect.soft(fakes.recordIncident).toHaveBeenCalledTimes(1);
+    },
+  );
 });
