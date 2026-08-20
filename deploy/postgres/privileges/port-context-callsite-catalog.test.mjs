@@ -652,10 +652,13 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'config.integrator-runtime.read', argCount: 1,
     source: 'apps/integrator/src/infra/db/publicSystemSettings.ts',
   },
-  'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)': {
+  // D10a: журнал попыток доставки переехал с legacy-двери на канонический корень, а его вызов — из
+  // `messageLogs.ts` в `operatorDeliveryAttempts.ts`. Список полей и их число не изменились (те же 10),
+  // менялась только дверь, поэтому запись правится, а не смягчается.
+  'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
     purpose: 'delivery.attempt-audit', argCount: 10,
-    source: 'apps/integrator/src/infra/db/repos/messageLogs.ts',
+    source: 'apps/integrator/src/infra/db/repos/operatorDeliveryAttempts.ts',
   },
   'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
