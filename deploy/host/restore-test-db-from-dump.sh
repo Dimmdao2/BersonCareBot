@@ -4,11 +4,11 @@
 set -euo pipefail
 
 DB=bersoncarebot_test
-# Ordinary restored objects land on app_object_owner — the shared, cluster-wide, NOLOGIN object-owner
-# role that deploy-test.sh/deploy-dev already provision via `generate-cli.mjs --shared-role-baseline`
-# (deploy/postgres/privileges/generate.mjs). This script does not create or alter that role: doing so
-# here would duplicate the declarative role chokepoint and could silently drift from it.
-RESTORE_ROLE=app_object_owner
+# Restore under the local administrative database owner. The later target privilege checkpoint keeps
+# the database on postgres, transfers ordinary objects to app_object_owner, and assigns exact seam
+# owners. Restoring as app_object_owner would require the standing CREATE ON DATABASE grant that the
+# declaration intentionally denies.
+RESTORE_ROLE=postgres
 DUMP="${1:-}"
 
 fail(){ echo "FATAL: restore-test-db-from-dump: $*" >&2; exit 1; }
@@ -32,13 +32,6 @@ cleanup(){
   if [ "$restore_failed" = 1 ]; then close_target; fi
 }
 trap cleanup EXIT
-
-restore_role_state="$(psql -X -d postgres -Atqc \
-  "SELECT rolsuper::text || '|' || rolcreatedb::text || '|' || rolcreaterole::text || '|' ||
-          rolcanlogin::text || '|' || rolbypassrls::text
-     FROM pg_catalog.pg_roles WHERE rolname='$RESTORE_ROLE';")"
-[ "$restore_role_state" = "false|false|false|false|false" ] ||
-  fail "$RESTORE_ROLE is missing or not the stationary shared object owner; run generate-cli.mjs --shared-role-baseline first"
 
 psql -X -d postgres -v ON_ERROR_STOP=1 -c \
   "SELECT pg_terminate_backend(pid)

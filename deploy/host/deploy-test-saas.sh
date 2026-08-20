@@ -56,7 +56,9 @@ SAAS_SMOKE_LOGIN_ENV=/opt/env/bersoncarebot/saas-smoke-login.env
 SAAS_SMOKE_PASSWORD_CONVERGER=apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
-DBROLE=bersoncarebot_test
+# Removed by the revision-10 declarative checkpoint. The reset may encounter this role on an old
+# cluster, but it must neither create it nor grant it membership/BYPASSRLS.
+RETIRED_LEGACY_DBROLE=bersoncarebot_test
 RESTORE=deploy/host/restore-test-db-from-dump.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
@@ -103,9 +105,6 @@ C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
 PORT_CONTEXT_CAPABILITY_SEED=deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 UNITS=(api worker scheduler webapp media-worker)
-MIGRATOR_ROLE=""
-MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
-MIGRATOR_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 P2_B_OWNER_ROLE=app_owner
 P2_B_STAFF_ROLE=app_staff
 P2_B_PATIENT_ROLE=app_patient
@@ -141,12 +140,6 @@ PROD_SSH=bcb-clone
 PROD_DB=bersoncarebot
 
 log(){ echo; echo "== [deploy-test-saas] $* =="; }
-revoke_bypass(){
-  if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = '$DBROLE');")" != "t" ]; then
-    return 0
-  fi
-  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" NOBYPASSRLS;"
-}
 # The fresh PROD cluster has neither target seam/capability roles nor three retired identities still
 # named by the historical migration chain. Install only NOLOGIN role prerequisites here. Database ACL,
 # login shells, credentials and port-context grants remain downstream of the completed schema migration.
@@ -159,55 +152,27 @@ install_pre_migration_role_prerequisites(){
     -f "$DEPLOY_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"
 }
 
-install_pre_migration_target_prerequisites(){
-  sudo -u postgres psql -X -1 -d "$DB" -v ON_ERROR_STOP=1 \
-    -v pre_migration_database="$DB" \
-    -v pre_migration_owner_role="$DBROLE" \
-    -f "$DEPLOY_REPO/$PRE_MIGRATION_TARGET_BRIDGE"
-}
-
-revoke_migrator_membership(){
-  if [ "${MIGRATOR_OWNER_MEMBERSHIP_ADDED:-0}" = "1" ] && [ -n "${MIGRATOR_ROLE:-}" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
-    if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = '$DBROLE');")" != "t" ]; then
-      MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
-      return 0
-    fi
-    if sudo -u postgres psql -v ON_ERROR_STOP=1 -c "REVOKE \"$DBROLE\" FROM \"$MIGRATOR_ROLE\";"; then
-      MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
-      return 0
-    fi
-    return 1
-  fi
-}
 assert_cleanup_elevation(){
   local bypass_state membership_exists
-  bypass_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';")"
+  bypass_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$RETIRED_LEGACY_DBROLE';")"
   # The port-context cluster zero may already have removed the retired legacy role. Absence is the
   # strongest possible cleanup result: no BYPASSRLS bit or membership can survive on a missing role.
   if [ -z "$bypass_state" ]; then
     return 0
   fi
-  [ "$bypass_state" = "false" ] || { echo "FATAL: role $DBROLE still has BYPASSRLS after cleanup (rolbypassrls=$bypass_state)" >&2; return 1; }
-  if [ "${MIGRATOR_OWNER_MEMBERSHIP_GRANTED_THIS_RUN:-0}" = "1" ] && [ -n "${MIGRATOR_ROLE:-}" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
-    membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');")"
-    [ "$membership_exists" = "f" ] || { echo "FATAL: role $MIGRATOR_ROLE still has membership in $DBROLE after cleanup" >&2; return 1; }
-  fi
+  [ "$bypass_state" = "false" ] || { echo "FATAL: retired role $RETIRED_LEGACY_DBROLE has BYPASSRLS (rolbypassrls=$bypass_state)" >&2; return 1; }
   # app_owner MUST return to zero members — it owns the SECURITY DEFINER seam and backstops FORCE RLS.
   # Asserted unconditionally (not only when this run granted it), so pre-existing residue is caught too.
   if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'app_owner');")" = "t" ]; then
-    membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', 'app_owner', 'member');")"
-    [ "$membership_exists" = "f" ] || { echo "FATAL: role $DBROLE still has membership in app_owner after cleanup (the DEFINER seam must have ZERO members)" >&2; return 1; }
+    membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$RETIRED_LEGACY_DBROLE', 'app_owner', 'member');")"
+    [ "$membership_exists" = "f" ] || { echo "FATAL: retired role $RETIRED_LEGACY_DBROLE has membership in app_owner (the DEFINER seam must have ZERO members)" >&2; return 1; }
   fi
 }
 cleanup_elevation(){
   if [ "$LEGACY_ELEVATION_CLEANUP_REQUIRED" != "1" ]; then
     return 0
   fi
-  local cleanup_status=0
-  revoke_migrator_membership || cleanup_status=1
-  revoke_bypass || cleanup_status=1
-  assert_cleanup_elevation || cleanup_status=1
-  return "$cleanup_status"
+  assert_cleanup_elevation
 }
 cleanup_postgres_cutover_inputs(){
   if [ -z "${POSTGRES_CUTOVER_INPUT_DIR:-}" ]; then
@@ -819,7 +784,7 @@ grant_webapp_bootstrap_base_login_d3_4(){
     "$delivery_worker_role" \
     "$scheduler_role" \
     "$operator_role" \
-    "$DBROLE" \
+    "$RETIRED_LEGACY_DBROLE" \
     app_owner app_staff app_patient app_worker; do
     [ "$role_name" != "$protected_role" ] || {
       echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases protected role '$protected_role'; refusing D3.4 mutation" >&2
@@ -948,39 +913,18 @@ apply_test_strict_rls_finalizer(){
   echo "   strict helper policies + exact 163-target FORCE assertion: OK"
 }
 
-grant_migrator_owner_membership(){
-  local role_name="$1"
-  local membership_exists
-  validate_pg_identifier "webapp.test DATABASE_URL role" "$role_name"
-  [ "$role_name" = "$DBROLE" ] && return 0
-  membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$role_name', '$DBROLE', 'member');")"
-  if [ "$membership_exists" = "t" ]; then
-    echo "FATAL: role $role_name already has membership in $DBROLE before deploy; clean up this pre-existing residue before rerunning deploy-test-saas.sh" >&2
-    exit 1
-  fi
-  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT \"$DBROLE\" TO \"$role_name\";" >/dev/null
-  MIGRATOR_OWNER_MEMBERSHIP_ADDED=1
-  MIGRATOR_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
-}
-
-assert_test_db_owner_ready(){
-  validate_pg_identifier "DB role" "$DBROLE"
+assert_test_db_restore_owner_ready(){
   local db_owner platform_users_owner
   db_owner="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '$DB';")"
-  [ "$db_owner" = "$DBROLE" ] || { echo "FATAL: $DB owner is '$db_owner', expected '$DBROLE'"; exit 1; }
+  [ "$db_owner" = postgres ] || { echo "FATAL: $DB owner is '$db_owner', expected 'postgres'"; exit 1; }
   platform_users_owner="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'platform_users';")"
-  [ "$platform_users_owner" = "$DBROLE" ] || { echo "FATAL: public.platform_users owner is '$platform_users_owner', expected '$DBROLE'"; exit 1; }
+  [ "$platform_users_owner" = postgres ] || { echo "FATAL: public.platform_users owner is '$platform_users_owner', expected 'postgres' before declarative handoff"; exit 1; }
 }
 
-run_test_db_owner_sql_file(){
+run_test_db_restore_owner_sql_file(){
   local sql_file="$1"
   sudo -u deploy test -r "$sql_file" || { echo "FATAL: deploy cannot read SQL file: $sql_file"; exit 1; }
-  validate_pg_identifier "DB role" "$DBROLE"
-  {
-    printf 'SET ROLE "%s";\n' "$DBROLE"
-    sudo -u deploy cat "$sql_file"
-    printf '\nRESET ROLE;\n'
-  } | sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$sql_file"
 }
 
 stage_cutover_inputs_for_postgres(){
@@ -998,9 +942,8 @@ stage_cutover_inputs_for_postgres(){
   echo "   protected FIO manifest: staged for local PostgreSQL migration executor"
 }
 
-run_postgres_repo_with_test_db_owner_role(){
+run_postgres_repo_as_test_restore_owner(){
   local deploy_command="$1"
-  validate_pg_identifier "DB role" "$DBROLE"
   sudo -u postgres env \
     -u API_ENV_FILE -u WEBAPP_ENV_FILE \
     -u INTEGRATOR_DB_URL \
@@ -1008,73 +951,7 @@ run_postgres_repo_with_test_db_owner_role(){
     DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
     DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
     NODE_ENV=test USE_REAL_DATABASE=1 \
-    PGOPTIONS="-c role=$DBROLE" \
     bash -c "cd '$DEPLOY_REPO' && $deploy_command"
-}
-
-run_postgres_repo_with_test_db_owner_bypass(){
-  local deploy_command="$1"
-  local command_status cleanup_status
-  validate_pg_identifier "DB role" "$DBROLE"
-  sudo -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
-    -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
-  set +e
-  sudo -u postgres env \
-    -u API_ENV_FILE -u WEBAPP_ENV_FILE \
-    -u INTEGRATOR_DB_URL \
-    -u DATABASE_URL_STAFF -u DATABASE_URL_PATIENT -u DATABASE_URL_GLOBAL_ADMIN \
-    DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
-    DB_PRINCIPAL_CONTEXT_MODE=legacy-guc \
-    NODE_ENV=test USE_REAL_DATABASE=1 \
-    PGOPTIONS="-c role=$DBROLE" \
-    bash -c "cd '$DEPLOY_REPO' && $deploy_command"
-  command_status=$?
-  cleanup_elevation
-  cleanup_status=$?
-  set -e
-  [ "$cleanup_status" -eq 0 ] || return "$cleanup_status"
-  return "$command_status"
-}
-
-run_deploy_repo_with_test_db_owner_role(){
-  local deploy_command="$1"
-  local command_status cleanup_status
-  if [ -z "${MIGRATOR_ROLE:-}" ]; then
-    MIGRATOR_ROLE="$(discover_webapp_migrator_role)"
-  fi
-  grant_migrator_owner_membership "$MIGRATOR_ROLE"
-  set +e
-  sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF && \
-    export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS='-c role=$DBROLE' && \
-    $deploy_command"
-  command_status=$?
-  cleanup_elevation
-  cleanup_status=$?
-  set -e
-  [ "$cleanup_status" -eq 0 ] || return "$cleanup_status"
-  return "$command_status"
-}
-
-run_deploy_repo_with_test_db_owner_bypass(){
-  local deploy_command="$1"
-  local command_status cleanup_status
-  if [ -z "${MIGRATOR_ROLE:-}" ]; then
-    MIGRATOR_ROLE="$(discover_webapp_migrator_role)"
-  fi
-  grant_migrator_owner_membership "$MIGRATOR_ROLE"
-  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
-  set +e
-  sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF && \
-    export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS='-c role=$DBROLE' && \
-    $deploy_command"
-  command_status=$?
-  cleanup_elevation
-  cleanup_status=$?
-  set -e
-  [ "$cleanup_status" -eq 0 ] || return "$cleanup_status"
-  return "$command_status"
 }
 
 run_a2_nginx_preflight(){
@@ -3242,9 +3119,8 @@ shell_quote(){
 
 run_port_context_test_release(){
   assert_test_writers_stopped
-  # Prove that every legacy elevation is gone while the legacy DB owner still exists. Cluster zero
-  # intentionally drops that role, so after this point cleanup_exit retains only its writer-stop
-  # responsibility and must not try to ALTER the removed role on success or on a late failure.
+  # Prove that no retired owner-role elevation exists. Cluster zero may remove the old role; this
+  # reset path never creates it, grants it membership, or toggles BYPASSRLS.
   cleanup_elevation
   LEGACY_ELEVATION_CLEANUP_REQUIRED=0
   log "install TEST-only telemetry fixture objects required by the target privilege declaration"
@@ -3449,16 +3325,16 @@ dump_owner_mode="$(stat -Lc '%U:%G:%a' -- "$DUMP")"
 }
 log "restore $DB from $(basename "$DUMP") ($(du -h "$DUMP" | cut -f1))"
 sudo -u postgres bash "$DEPLOY_REPO/$RESTORE" "$DUMP"
-assert_test_db_owner_ready
+assert_test_db_restore_owner_ready
 
 # 2. Owner-account consolidation is the first data mutation. Every later identity/FIO migration
 #    therefore sees one canonical staff row and no approved dead stubs.
 log "owner identity consolidation (first data mutation)"
-run_test_db_owner_sql_file "$DEPLOY_REPO/$OWNER_IDENTITY_CONSOLIDATION"
+run_test_db_restore_owner_sql_file "$DEPLOY_REPO/$OWNER_IDENTITY_CONSOLIDATION"
 
 # 3. Normalize the doctor/global-admin split before membership-seeding migrations.
 log "data-fix (doctor/admin split)"
-run_test_db_owner_sql_file "$DEPLOY_REPO/$DATAFIX"
+run_test_db_restore_owner_sql_file "$DEPLOY_REPO/$DATAFIX"
 
 # 4. Apply owner-reviewed FIO while platform_users is still the only identity source. Migrations
 #    0377/0381 create and start reading user_identity, so applying FIO after the chain loses the
@@ -3468,7 +3344,7 @@ fio_manifest_q="$(shell_quote "$POSTGRES_FIO_MANIFEST")"
 fio_manifest_sha_q="$(shell_quote "$FIO_MANIFEST_SHA256")"
 fio_review_source_sha_q="$(shell_quote "$FIO_REVIEW_SOURCE_SHA256")"
 fio_rollback_dir_q="$(shell_quote "$POSTGRES_CUTOVER_INPUT_DIR/fio-rollback")"
-run_postgres_repo_with_test_db_owner_bypass \
+run_postgres_repo_as_test_restore_owner \
   "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
 
 log "pre-cutover data-stage assertions"
