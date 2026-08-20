@@ -62,7 +62,10 @@ if [ "$1" = land ]; then
 
   echo "land: $BRANCH (${BRANCH_TIP:0:9}) содержит голову $FEAT, все коммиты зарегистрированы в очереди — сливаю."
   [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, слияние НЕ выполнено"; exit 0; }
-  git -C "$MAIN" merge --no-ff "$BRANCH_TIP" -m "merge($CLONE_NAME): $BRANCH into $FEAT"
+  # ORCH_LAND=1 — единственный ключ от hook-а reference-transaction, который отказывает на ручном
+  # `git merge` в feat мимо этого порта (tools/git-hooks/reference-transaction). Гейт вердикта выше
+  # уже пройден, поэтому именно здесь слияние законно.
+  ORCH_LAND=1 git -C "$MAIN" merge --no-ff "$BRANCH_TIP" -m "merge($CLONE_NAME): $BRANCH into $FEAT"
   MERGE_SHA=$(git -C "$MAIN" rev-parse HEAD)
   echo "готово: $FEAT теперь на ${MERGE_SHA:0:9}"
   echo "строка для очереди аудита: $BRANCH | ${MERGE_SHA:0:9}"
