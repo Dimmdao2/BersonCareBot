@@ -3123,9 +3123,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "operations": [
           "SELECT"
         ],
-        "columns": [
-          "platform_user_id"
-        ]
+        "columns": "table"
       },
       {
         "role": "app_operational_delivery_worker",
@@ -7123,6 +7121,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "payload_json",
           "status"
         ]
+      },
+      {
+        "role": "app_operational_delivery_worker",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
       },
       {
         "role": "app_operational_delivery_worker",

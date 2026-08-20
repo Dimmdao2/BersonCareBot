@@ -210,12 +210,17 @@ test('delivery replay capability has only the exact projection relation operatio
     'integrator_occurrence_id', 'integrator_rule_id', 'integrator_user_id',
     'organization_id', 'payload_json', 'status',
   ]);
-  for (const operation of ['SELECT', 'UPDATE', 'DELETE']) {
+  assert.equal(
+    grantFor('public.reminder_delivery_events', deliveryRole, 'SELECT').columns,
+    'table',
+  );
+  for (const operation of ['UPDATE', 'DELETE']) {
     assertNoOperation('public.reminder_delivery_events', deliveryRole, operation);
   }
-  exactColumns('public.content_access_grants_webapp', deliveryRole, 'SELECT', [
-    'platform_user_id',
-  ]);
+  assert.equal(
+    grantFor('public.content_access_grants_webapp', deliveryRole, 'SELECT').columns,
+    'table',
+  );
   exactColumns('public.content_access_grants_webapp', deliveryRole, 'INSERT', [
     'content_id', 'created_at', 'expires_at', 'integrator_grant_id', 'integrator_user_id',
     'meta_json', 'organization_id', 'platform_user_id', 'purpose', 'revoked_at', 'token_hash',
