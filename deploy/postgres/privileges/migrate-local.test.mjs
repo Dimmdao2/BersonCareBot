@@ -538,3 +538,76 @@ test('relabel and drop-foreign are refused without --drizzle-folder', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /--relabel and --drop-foreign are supported only with --drizzle-folder/u);
 });
+
+test('unapply is refused without --drizzle-folder', () => {
+  const result = spawnSync(
+    process.execPath,
+    [migratorPath, '--db', 'bcb_webapp_dev', '--migrator', 'bcb_dev_migrator', '--unapply', 'a'],
+    { encoding: 'utf8' },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--unapply is supported only with --drizzle-folder/u);
+});
+
+// --unapply: the reverse of the INSERT the wrapper writes when a migration is applied. The row
+// belongs to a file this folder still carries under the same tag and the same content — the ordinary
+// case of undoing a migration whose DDL was already dealt with some other way (or removing a probe
+// row), with the ledger DELETE as the only statement in the transaction.
+test('unapply deletes a ledger row that a file in this folder still claims by tag and hash', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: { tag: '0001_late_arrival', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime, ['--unapply', '0001_late_arrival']);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(transaction, /DELETE FROM drizzle\.__drizzle_migrations WHERE tag = '0001_late_arrival';/u);
+  assert.doesNotMatch(transaction, /app\.door_0001_late_arrival\(\) RETURNS/u, 'unapply must not re-run the file');
+  assert.doesNotMatch(transaction, /INSERT INTO drizzle\.__drizzle_migrations \(hash, created_at, tag\)/u);
+  assert.match(result.stdout, /pending=0 total=3/u);
+  assert.match(result.stdout, /unapplied=1/u);
+});
+
+// The hash gate: a row recorded under this tag whose content no longer matches the file on disk is
+// content drift, not a plain unapply — dropping it would erase the only record of what actually ran.
+// This is the case the gate exists for; deleting the `file.hash !== row.hash` check below would let
+// this test's transaction reach psql, so it is the proof the gate is real, not decorative.
+test('unapply refuses when the file content has drifted from the ledger row', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: { tag: '0001_late_arrival', hash: 'f'.repeat(64), createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime, ['--unapply', '0001_late_arrival']);
+
+  assert.notEqual(result.status, 0, 'content drift must not be silently unapplied');
+  assert.match(result.stderr, /does not match the ledger row's hash/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('unapply refuses a tag the database never applied', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0002_third'] });
+
+  const result = runLedgerMigrator(runtime, ['--unapply', '0001_late_arrival']);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /has not applied at all \(nothing to unapply\)/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+// The row exists but no file in this folder claims its tag — that shape belongs to --drop-foreign,
+// not --unapply, and the refusal must name the operation that does handle it.
+test('unapply refuses a foreign ledger row and points to --drop-foreign', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    foreignRow: { tag: '0050_mislabelled_legacy_row', hash: 'b'.repeat(64), createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime, ['--unapply', '0050_mislabelled_legacy_row']);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /is a foreign ledger row of .* use --drop-foreign 0050_mislabelled_legacy_row instead/u);
+  assert.equal(existsSync(runtime.capture), false);
+});

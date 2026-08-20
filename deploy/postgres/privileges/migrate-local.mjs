@@ -175,6 +175,19 @@ const relabelPairs = values('relabel').map((pair) => {
 // silently accepted, when any file in the folder shares its hash: that shape is --relabel's, not
 // this one's.
 const dropForeignTags = values('drop-foreign');
+// --unapply removes a ledger row that IS a file in this folder's own tag — the reverse of the
+// INSERT this wrapper writes when a migration is applied. It exists because two agents independently
+// hit the same wall and both reached for a raw `DELETE FROM drizzle.__drizzle_migrations`: one to
+// undo a migration whose DDL had already been rolled back some other way, one to remove a probe row
+// of its own (see docs/REPORTS/AUDIT_MIGRATION_LEDGER_REAUDIT_2026-08-20.md, non-blocking finding 1).
+// It touches the ledger row ONLY — it never re-runs, rolls back or otherwise executes a migration's
+// SQL; that is `--rollback-only`'s job, on a database that has not committed yet. Refused, not
+// silently accepted, when the tag names no ledger row (nothing to unapply), when the row belongs to
+// no file in this folder (that shape is --drop-foreign's, not this one's), or when the file's content
+// has moved on since the row was written (the hash gate below): a mismatch means the ledger row and
+// the file no longer agree on what actually ran, and blindly dropping it would erase the only record
+// of that.
+const unapplyTags = values('unapply');
 const legacyOwners = values('owner');
 const legacyMigration = process.argv.includes('--migration') ? realpathSync(resolve(value('migration'))) : null;
 let steps = values('step').map((step) => {
@@ -190,11 +203,15 @@ let drizzleSummary = null;
 // (which runs after that block, for both the drizzle-folder and legacy-step paths) can splice them in.
 let relabelStatements = [];
 let dropForeignStatements = [];
+let unapplyStatements = [];
 if (reapplyTags.length > 0 && !drizzleFolder) {
   throw new Error('--reapply is supported only with --drizzle-folder');
 }
 if ((relabelPairs.length > 0 || dropForeignTags.length > 0) && !drizzleFolder) {
   throw new Error('--relabel and --drop-foreign are supported only with --drizzle-folder');
+}
+if (unapplyTags.length > 0 && !drizzleFolder) {
+  throw new Error('--unapply is supported only with --drizzle-folder');
 }
 if (drizzleFolder) {
   if (steps.length > 0 || legacyOwners.length > 0 || legacyMigration) {
@@ -260,6 +277,30 @@ if (drizzleFolder) {
       );
     }
     dropForeignStatements.push(`DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(tag)};`);
+  }
+
+  const appliedByTag = new Map(appliedRows.filter((row) => row.tag).map((row) => [row.tag, row]));
+  for (const tag of unapplyTags) {
+    const row = appliedByTag.get(tag);
+    if (!row) {
+      fail(`--unapply names ${tag}, which ${db} has not applied at all (nothing to unapply)`);
+    }
+    const file = migrations.find((migration) => migration.tag === tag);
+    if (!file) {
+      fail(
+        `--unapply names ${tag}, which is a foreign ledger row of ${db} (no file in ${drizzleFolder} claims `
+          + `it) — use --drop-foreign ${tag} instead.`,
+      );
+    }
+    if (file.hash !== row.hash) {
+      fail(
+        `--unapply ${tag} refused: ${tag}.sql hash (${file.hash}) does not match the ledger row's hash `
+          + `(${row.hash}); the file has changed since this tag was applied, so unapplying would erase the `
+          + 'only record of what actually ran instead of proving its absence. Resolve the drift first '
+          + '(restore the file to the content that was applied, or give the new content its own tag).',
+      );
+    }
+    unapplyStatements.push(`DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(tag)};`);
   }
 
   // Migrations this same run is about to relabel onto count as applied for pending purposes — they
@@ -329,8 +370,14 @@ if (drizzleFolder) {
     foreign: foreign.length,
     relabeled: relabelStatements.length,
     droppedForeign: dropForeignStatements.length,
+    unapplied: unapplyStatements.length,
   };
-  if (pending.length === 0 && relabelStatements.length === 0 && dropForeignStatements.length === 0) {
+  if (
+    pending.length === 0
+    && relabelStatements.length === 0
+    && dropForeignStatements.length === 0
+    && unapplyStatements.length === 0
+  ) {
     console.log(
       `Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length} `
         + `verified-objects=${collectExpectedObjects(applied).length} foreign-ledger-rows=${foreign.length}`,
@@ -368,6 +415,7 @@ const statements = [
   'BEGIN;',
   ...relabelStatements,
   ...dropForeignStatements,
+  ...unapplyStatements,
   ...owners.map((owner) => `GRANT ${sqlIdentifier(owner)} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`),
   ...temporarySchemaCreates.map(({ owner, schema }) =>
     `GRANT CREATE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`),
@@ -432,10 +480,10 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 if (drizzleSummary) {
   if (rollbackOnly) {
     console.log(
-      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign}`,
+      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign} unapplied=${drizzleSummary.unapplied}`,
     );
   } else {
-    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign}`);
+    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign} unapplied=${drizzleSummary.unapplied}`);
   }
 } else {
   console.log(`revision-10 migration committed for ${qDb} with temporary ${qMigrator} owner memberships revoked`);

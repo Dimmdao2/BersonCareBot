@@ -9507,6 +9507,7 @@ REVOKE ALL ON DATABASE "bcb_webapp_dev" FROM "app_clinic_billing", "app_integrat
 -- CONNECT bcb_dev_webapp_patient: логин — статья в env-рендере (§A.1/§D.1).
 -- CONNECT bcb_dev_webapp_staff: логин — статья в env-рендере (§A.1/§D.1).
 ALTER DATABASE "bcb_webapp_dev" RESET ALL;
+ALTER DATABASE "bcb_webapp_dev" SET "log_statement" TO 'mod';
 
 -- ─────────── 4. СХЕМЫ (SCHEME §A.3/§D.2) ───────────
 

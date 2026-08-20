@@ -7542,7 +7542,15 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     creators: ['postgres', 'app_object_owner', ...REV10_SEAM_OWNERS],
     orgTableAllowlist: { derivedFrom: 'tables[*].org === true', named: Object.keys(tables).filter((key) => tables[key].org === true).sort(),
       fullCountLive: Object.keys(tables).filter((key) => tables[key].org === true).length, todo: '' },
-    dbSettings: { datdba: 'postgres', perRoleInDatabase: {} },
+    dbSettings: {
+      datdba: 'postgres',
+      perRoleInDatabase: {},
+      // DEV-only: successful UPDATE/DELETE on the migration ledger were previously invisible
+      // (`log_statement=none`), so the mutation that MIGRATION_LEDGER_REAUDIT_2026-08-20.md finding 2
+      // asked to close had no trail to read. 'mod' logs INSERT/UPDATE/DELETE/TRUNCATE, not every
+      // SELECT. TEST and PROD are untouched — this branch fires only for `bcb_webapp_dev`.
+      ...(name === 'bcb_webapp_dev' ? { databaseLevel: { bcb_webapp_dev: ["log_statement='mod'"] } } : {}),
+    },
   } as DatabaseDecl;
 }
 
