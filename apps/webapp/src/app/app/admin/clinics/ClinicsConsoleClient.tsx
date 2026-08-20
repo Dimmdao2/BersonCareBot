@@ -40,6 +40,7 @@ import {
 } from '@/shared/ui/doctor/primitives/dialog';
 import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
 import { OrganizationCommercialPanel } from './OrganizationCommercialPanel';
 
 export type PlatformClinicsData = {
@@ -71,11 +72,16 @@ const LIFECYCLE_LABELS: Record<
   PlatformOrganizationSummary['effectiveAccess']['lifecycle'],
   string
 > = {
-  active: 'Активна',
+  active: 'Полный доступ',
   grace: 'Льготный период',
   read_only: 'Только чтение',
   blocked: 'Заблокирована',
 };
+
+const ORGANIZATION_ENABLED_LABELS = {
+  true: 'Включена',
+  false: 'Отключена',
+} as const;
 
 const TRIAL_STATUS_LABELS: Record<
   NonNullable<PlatformOrganizationSummary['trial']>['status'],
@@ -117,7 +123,11 @@ function tariffName(
 
 function trialSummary(organization: PlatformOrganizationSummary): string {
   if (!organization.trial) return 'Не запускался';
-  return `${TRIAL_STATUS_LABELS[organization.trial.status]} · до ${formatDate(organization.trial.endsAt)}`;
+  const { status, endsAt } = organization.trial;
+  const date = formatDate(endsAt);
+  const statusLabel = TRIAL_STATUS_LABELS[status];
+  if (status === 'active') return `${statusLabel} · до ${date}`;
+  return `${statusLabel} ${date}`;
 }
 
 function lifecycleBadgeVariant(
@@ -136,11 +146,19 @@ function mechanicLabel(mechanic: string): string {
 
 function quotaLabel(quota: TariffQuota): string {
   if (quota.kind === 'unlimited') return 'без лимита';
+  if (quota.unit === 'bytes') {
+    return `лимит ${formatBytesAsMb(quota.limit ?? 0)}`;
+  }
   const unit =
     quota.unit in QUOTA_UNIT_LABELS
       ? QUOTA_UNIT_LABELS[quota.unit as keyof typeof QUOTA_UNIT_LABELS].toLocaleLowerCase('ru-RU')
       : quota.unit;
   return `лимит ${quota.limit} ${unit}`;
+}
+
+function formatQuotaUsageValue(value: number, unit: OrgQuotaProjection['quota']['unit']): string {
+  if (unit === 'bytes') return formatBytesAsMb(value);
+  return String(value);
 }
 
 function OverridesSection({ organization }: { organization: PlatformOrganizationSummary }) {
@@ -218,18 +236,25 @@ function UsageSection({
           const projection = projectionByMechanic.get(mechanic);
           const value = usage?.[mechanic];
           const thresholdLabel = projection ? QUOTA_THRESHOLD_LABEL[projection.threshold] : null;
+          // Единицу измерения несут только механики класса «объём»; у «возможность»/«никогда»
+          // поля quotaUnit нет вовсе, поэтому сужаем до обращения, а не читаем вслепую.
+          const registryEntry = MECHANIC_REGISTRY[mechanic];
+          const isMeasuredInBytes = 'quotaUnit' in registryEntry && registryEntry.quotaUnit === 'bytes';
           return (
             <div key={mechanic} className={doctorSectionItemClass}>
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium">{MECHANIC_REGISTRY[mechanic].label}</span>
                 {projection ? (
                   <span className="text-lg font-semibold tabular-nums">
-                    {projection.usage} из {projection.quota.limit}
+                    {formatQuotaUsageValue(projection.usage, projection.quota.unit)} из{' '}
+                    {formatQuotaUsageValue(projection.quota.limit, projection.quota.unit)}
                   </span>
                 ) : value === undefined ? (
                   <span className="text-xs text-muted-foreground">значение не получено</span>
                 ) : (
-                  <span className="text-lg font-semibold tabular-nums">{value}</span>
+                  <span className="text-lg font-semibold tabular-nums">
+                    {isMeasuredInBytes ? formatBytesAsMb(value) : value}
+                  </span>
                 )}
               </div>
               {thresholdLabel ? (
@@ -506,7 +531,7 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
               <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3 px-3 text-xs font-medium text-muted-foreground md:grid">
                 <span>Название</span>
                 <span>Тариф</span>
-                <span>Состояние</span>
+                <span>Доступ по тарифу</span>
                 <span>Пробный период</span>
               </div>
               {filteredOrganizations.map((organization) => (
@@ -518,7 +543,7 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
                   <div className="min-w-0">
                     <p className="truncate font-medium">{organization.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {organization.isActive ? 'Организация активна' : 'Организация отключена'}
+                      {ORGANIZATION_ENABLED_LABELS[organization.isActive ? 'true' : 'false']}
                     </p>
                   </div>
                   <div>
@@ -586,7 +611,13 @@ function OrganizationAccountPanel({
       <div className={doctorSectionItemClass}>
         <dt className="text-xs text-muted-foreground">Учётная запись</dt>
         <dd className="mt-1 space-y-2">
-          <p className="font-medium">{organization.isActive ? 'Включена' : 'Отключена'}</p>
+          <p className="font-medium">
+            {ORGANIZATION_ENABLED_LABELS[organization.isActive ? 'true' : 'false']}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Платформенный выключатель: публичная визитка и вход в кабинет клиники. Не то же самое,
+            что «Заблокирована» по тарифу.
+          </p>
           <Button
             type="button"
             size="sm"
@@ -596,7 +627,7 @@ function OrganizationAccountPanel({
               setDialogOpen(true);
             }}
           >
-            {organization.isActive ? 'Отключить' : 'Включить'}
+            {organization.isActive ? 'Отключить учётную запись' : 'Включить учётную запись'}
           </Button>
         </dd>
       </div>
@@ -611,7 +642,9 @@ function OrganizationAccountPanel({
             <DialogTitle>
               {organization.isActive ? 'Отключить учётную запись' : 'Включить учётную запись'}
             </DialogTitle>
-            <DialogDescription>{organization.title}</DialogDescription>
+            <DialogDescription>
+              {organization.title}. Изменение записывается в журнал аудита.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="organization-account-reason">Причина (необязательно)</Label>
@@ -620,6 +653,7 @@ function OrganizationAccountPanel({
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               maxLength={500}
+              placeholder="Зачем меняете состояние"
             />
             {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
           </div>
@@ -709,7 +743,7 @@ function ClinicDetail({
             <dd className="mt-1 font-medium">{tariffName(organization, tariffsById)}</dd>
           </div>
           <div className={doctorSectionItemClass}>
-            <dt className="text-xs text-muted-foreground">Состояние</dt>
+            <dt className="text-xs text-muted-foreground">Доступ по тарифу</dt>
             <dd className="mt-1">
               <Badge variant={lifecycleBadgeVariant(organization.effectiveAccess.lifecycle)}>
                 {LIFECYCLE_LABELS[organization.effectiveAccess.lifecycle]}

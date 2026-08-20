@@ -26,6 +26,7 @@ import {
   Shield,
   Building2,
   Wallet,
+  Bell,
 } from 'lucide-react';
 import type { ElementType } from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -123,6 +124,8 @@ function getIconForMenuId(id: string): ElementType | null {
       return Calendar;
     case 'admin-integrations':
       return Plug;
+    case 'admin-notifications':
+      return Bell;
     case 'admin-technical':
       return Wrench;
     case 'system-health':
