@@ -46,6 +46,7 @@ vi.mock('../principal/organizationPrincipal.js', () => ({
 }));
 
 import { createDbWritePort } from './writePort.js';
+import { hashPayload, projectionIdempotencyKey } from './repos/projectionKeys.js';
 
 const ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
 const CONTEXT = {
@@ -93,21 +94,73 @@ describe('direct reminder/content projection durability', () => {
       'reminders.occurrence.markSent',
       { occurrenceId: 'sent-1', channel: 'telegram' },
       'reminder_occurrence_sent_record',
+      'sent-1',
+      {
+        integratorOccurrenceId: 'sent-1',
+        integratorRuleId: CONTEXT.ruleId,
+        integratorUserId: CONTEXT.userId,
+        platformUserId: CONTEXT.platformUserId,
+        organizationId: ORGANIZATION_ID,
+        category: CONTEXT.category,
+        status: CONTEXT.status,
+        deliveryChannel: CONTEXT.deliveryChannel,
+        errorCode: CONTEXT.errorCode,
+        occurredAt: CONTEXT.occurredAt,
+      },
     ],
     [
       'reminders.occurrence.markFailed',
       { occurrenceId: 'failed-1', channel: 'telegram' },
       'reminder_occurrence_failed_record',
+      'failed-1',
+      {
+        integratorOccurrenceId: 'failed-1',
+        integratorRuleId: CONTEXT.ruleId,
+        integratorUserId: CONTEXT.userId,
+        platformUserId: CONTEXT.platformUserId,
+        organizationId: ORGANIZATION_ID,
+        category: CONTEXT.category,
+        status: CONTEXT.status,
+        deliveryChannel: CONTEXT.deliveryChannel,
+        errorCode: CONTEXT.errorCode,
+        occurredAt: CONTEXT.occurredAt,
+      },
     ],
     [
       'reminders.occurrence.expireOrphanedPending',
       { nowIso: '2026-08-20T10:03:00.000Z' },
       'reminder_occurrence_expired_record',
+      'expired-1',
+      {
+        integratorOccurrenceId: 'expired-1',
+        integratorRuleId: CONTEXT.ruleId,
+        integratorUserId: CONTEXT.userId,
+        platformUserId: CONTEXT.platformUserId,
+        organizationId: ORGANIZATION_ID,
+        category: CONTEXT.category,
+        status: CONTEXT.status,
+        deliveryChannel: CONTEXT.deliveryChannel,
+        errorCode: CONTEXT.errorCode,
+        occurredAt: CONTEXT.occurredAt,
+      },
     ],
     [
       'reminders.delivery.log',
       { id: 'log-1', occurrenceId: 'delivery-1', channel: 'telegram', status: 'failed' },
       'reminder_delivery_log_append',
+      'log-1',
+      {
+        organizationId: ORGANIZATION_ID,
+        integratorDeliveryLogId: 'log-1',
+        integratorOccurrenceId: 'delivery-1',
+        integratorRuleId: CONTEXT.ruleId,
+        integratorUserId: CONTEXT.userId,
+        channel: 'telegram',
+        status: 'failed',
+        errorCode: null,
+        payloadJson: {},
+        createdAt: '2026-08-20T10:01:00.000Z',
+      },
     ],
     [
       'content.access.grant.create',
@@ -119,20 +172,38 @@ describe('direct reminder/content projection durability', () => {
         expiresAt: '2026-08-21T10:00:00.000Z',
       },
       'content_access_grant_upsert',
+      'grant-1',
+      {
+        organizationId: ORGANIZATION_ID,
+        integratorGrantId: 'grant-1',
+        integratorUserId: '2',
+        platformUserId: CONTEXT.platformUserId,
+        contentId: 'content-1',
+        purpose: 'preview',
+        tokenHash: null,
+        expiresAt: '2026-08-21T10:00:00.000Z',
+        revokedAt: null,
+        metaJson: {},
+        createdAt: '2026-08-20T10:01:00.000Z',
+      },
     ],
   ] as const)(
     'keeps %s durable when its direct public write fails',
-    async (type, params, operation) => {
+    async (type, params, operation, stableId, payload) => {
       const writePort = createDbWritePort({ db: db(), queuePort: {} as QueuePort });
       await writePort.writeDb({ type, params });
       expect(fakes.enqueue).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({
+        {
           operation,
           organizationId: ORGANIZATION_ID,
-          idempotencyKey: expect.any(String),
-          payload: expect.any(Object),
-        }),
+          idempotencyKey: projectionIdempotencyKey(
+            `direct-public-write.${operation}`,
+            stableId,
+            hashPayload(payload),
+          ),
+          payload,
+        },
       );
     },
   );
