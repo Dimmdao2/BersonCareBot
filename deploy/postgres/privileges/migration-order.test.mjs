@@ -5,10 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import { declaration } from './declaration.ts';
 import {
   collectExpectedObjects,
   findForeignLedgerRows,
   findMigrationNameViolations,
+  findMigrationStaticViolations,
   findRenamedAppliedMigrations,
   readLegacyJournalEntries,
   readMigrationFolder,
@@ -202,6 +204,82 @@ test('every real migration has a timestamp name without a legacy allowlist', () 
   const migrations = readMigrationFolder(REAL_MIGRATIONS_FOLDER);
   assert.ok(migrations.length > 0, 'the real migrations folder must not be empty for this to prove anything');
   assert.deepEqual(findMigrationNameViolations(migrations), []);
+});
+
+test('static gate names missing headers and the forbidden postgres owner by statement', () => {
+  const source = [
+    'SELECT 1;',
+    '--> statement-breakpoint',
+    '-- BCB-MIGRATION-OWNER: postgres',
+    'SELECT 2;',
+  ].join('\n');
+  const violations = findMigrationStaticViolations(
+    [{ tag: '20260820T014233_bad_headers', source, path: '/repo/bad_headers.sql' }],
+    new Set(),
+  );
+
+  assert.deepEqual(violations.map(({ statementIndex, reason }) => ({ statementIndex, reason })), [
+    {
+      statementIndex: 1,
+      reason: 'statement has no valid BCB-MIGRATION-OWNER or BCB-MIGRATION-BACKFILL header',
+    },
+    { statementIndex: 2, reason: 'BCB-MIGRATION-OWNER postgres is forbidden' },
+  ]);
+});
+
+test('static gate rejects every forbidden access statement family by file and statement', () => {
+  const forbidden = [
+    ['GRA', 'NT SELECT ON public.sample TO app_staff'],
+    ['REV', 'OKE SELECT ON public.sample FROM app_staff'],
+    ['CREATE', ' ROLE sample_owner'],
+    ['ALTER', ' ROLE sample_owner NOLOGIN'],
+    ['ALTER DEFAULT', ' PRIVILEGES FOR ROLE sample_owner'],
+    ['CREATE', ' POLICY sample_policy ON public.sample USING (true)'],
+    ['ALTER', ' POLICY sample_policy ON public.sample USING (false)'],
+  ];
+  const source = forbidden.map((parts) => [
+    '-- BCB-MIGRATION-OWNER: app_object_owner',
+    `${parts.join('')};`,
+  ].join('\n')).join('\n--> statement-breakpoint\n');
+  const violations = findMigrationStaticViolations(
+    [{ tag: '20260820T014233_bad_access', source, path: '/repo/bad_access.sql' }],
+    new Set(['public.sample']),
+  );
+
+  assert.equal(violations.length, forbidden.length);
+  assert.deepEqual(violations.map((violation) => violation.statementIndex), [1, 2, 3, 4, 5, 6, 7]);
+  assert.ok(violations.every((violation) => violation.file === '/repo/bad_access.sql'));
+});
+
+test('static gate rejects a guarded CREATE TABLE absent from the declaration', () => {
+  const violations = findMigrationStaticViolations([
+    migration('20260820T014233_undeclared', 'CREATE TABLE integrator.not_declared (id integer);'),
+  ], new Set(['integrator.declared']));
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0].statementIndex, 1);
+  assert.match(violations[0].reason, /integrator\.not_declared.*absent/u);
+});
+
+test('static gate keeps the existing timestamp-name check in the same result', () => {
+  const violations = findMigrationStaticViolations([
+    migration('0050_bad_name', 'SELECT 1;'),
+  ], new Set());
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0].statementIndex, 0);
+  assert.match(violations[0].reason, /file name/u);
+});
+
+test('all 12 real migrations pass the declaration-derived static acceptance gate', () => {
+  const migrations = readMigrationFolder(REAL_MIGRATIONS_FOLDER);
+  const declaredRelations = new Set([
+    ...Object.keys(declaration.databases.bcb_webapp_dev.tables),
+    ...Object.keys(declaration.portContext?.privateRelations ?? {}),
+  ]);
+
+  assert.equal(migrations.length, 12);
+  assert.deepEqual(findMigrationStaticViolations(migrations, declaredRelations), []);
 });
 
 test('a pending file byte-identical to a foreign ledger row is a rename of an applied migration', () => {

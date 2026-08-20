@@ -77,6 +77,116 @@ export function findMigrationNameViolations(migrations) {
     .map((migration) => migration.tag);
 }
 
+const GUARDED_RELATION_SCHEMAS = new Set(['public', 'app', 'integrator', 'app_ext']);
+
+function withoutSqlCommentsAndLiterals(sql) {
+  return sql
+    .replace(/--[^\n]*/gu, ' ')
+    .replace(/\/\*[\s\S]*?\*\//gu, ' ')
+    .replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/gu, ' ')
+    .replace(/'(?:''|[^'])*'/gu, ' ')
+    .replace(/"(?:""|[^"])*"/gu, (identifier) => identifier);
+}
+
+const privilegeWord = (...parts) => parts.join('');
+const forbiddenMigrationPatterns = [
+  {
+    label: privilegeWord('GRA', 'NT'),
+    pattern: new RegExp(`\\b${privilegeWord('GRA', 'NT')}\\b`, 'iu'),
+  },
+  {
+    label: privilegeWord('REV', 'OKE'),
+    pattern: new RegExp(`\\b${privilegeWord('REV', 'OKE')}\\b`, 'iu'),
+  },
+  {
+    label: privilegeWord('CREATE', ' ROLE'),
+    pattern: new RegExp(`\\b${privilegeWord('CREATE', '\\s+ROLE')}\\b`, 'iu'),
+  },
+  {
+    label: privilegeWord('ALTER', ' ROLE'),
+    pattern: new RegExp(`\\b${privilegeWord('ALTER', '\\s+ROLE')}\\b`, 'iu'),
+  },
+  {
+    label: privilegeWord('ALTER DEFAULT', ' PRIVILEGES'),
+    pattern: new RegExp(`\\b${privilegeWord('ALTER', '\\s+DEFAULT\\s+PRIVILEGES')}\\b`, 'iu'),
+  },
+  {
+    label: privilegeWord('CREATE', ' POLICY'),
+    pattern: new RegExp(`\\b${privilegeWord('CREATE', '\\s+POLICY')}\\b`, 'iu'),
+  },
+  {
+    label: privilegeWord('ALTER', ' POLICY'),
+    pattern: new RegExp(`\\b${privilegeWord('ALTER', '\\s+POLICY')}\\b`, 'iu'),
+  },
+];
+
+/**
+ * Database-free acceptance gate for active webapp migrations.  The declaration set is supplied by
+ * the lint caller so this module stays usable by both migration runners without importing TS.
+ */
+export function findMigrationStaticViolations(migrations, declaredRelations) {
+  const violations = [];
+  for (const tag of findMigrationNameViolations(migrations)) {
+    const migration = migrations.find((candidate) => candidate.tag === tag);
+    violations.push({
+      file: migration?.path ?? `${tag}.sql`,
+      statementIndex: 0,
+      reason: 'file name is not YYYYMMDDTHHMMSS_lower_snake_case',
+      action: 'rename the unapplied file to a UTC timestamp name; applied files must not be renamed',
+    });
+  }
+
+  for (const migration of migrations) {
+    const statements = migration.source.split('--> statement-breakpoint');
+    for (let index = 0; index < statements.length; index += 1) {
+      const raw = statements[index];
+      const statementIndex = index + 1;
+      let parsed;
+      try {
+        [parsed] = parseOwnerStatements(raw, migration.tag);
+      } catch (error) {
+        const postgresOwner = error instanceof Error && /cannot use postgres/u.test(error.message);
+        violations.push({
+          file: migration.path ?? `${migration.tag}.sql`,
+          statementIndex,
+          reason: postgresOwner
+            ? 'BCB-MIGRATION-OWNER postgres is forbidden'
+            : 'statement has no valid BCB-MIGRATION-OWNER or BCB-MIGRATION-BACKFILL header',
+          action: postgresOwner
+            ? 'use app_object_owner for ordinary objects or the declared seam owner for seam-owned objects'
+            : 'put the required header at the start of this statement',
+        });
+        continue;
+      }
+
+      const executable = withoutSqlCommentsAndLiterals(parsed.sql);
+      for (const forbidden of forbiddenMigrationPatterns) {
+        if (!forbidden.pattern.test(executable)) continue;
+        violations.push({
+          file: migration.path ?? `${migration.tag}.sql`,
+          statementIndex,
+          reason: `${forbidden.label} is forbidden in an active migration`,
+          action: 'declare access in deploy/postgres/privileges/declaration.ts; reconcile applies it',
+        });
+      }
+
+      for (const effect of classifyStatement(parsed.sql)) {
+        if (effect.effect !== 'create' || effect.kind !== 'table') continue;
+        const schema = effect.schema ?? 'public';
+        const identity = `${schema}.${effect.name}`;
+        if (!GUARDED_RELATION_SCHEMAS.has(schema) || declaredRelations.has(identity)) continue;
+        violations.push({
+          file: migration.path ?? `${migration.tag}.sql`,
+          statementIndex,
+          reason: `guarded table ${identity} is absent from the privilege declaration`,
+          action: 'declare the table in deploy/postgres/privileges/declaration.ts before the migration',
+        });
+      }
+    }
+  }
+  return violations;
+}
+
 /**
  * A pending migration byte-identical to a ledger row this checkout cannot name is not new work — it
  * is an applied migration wearing a new file name.  `AGENTS.md` forbids renaming an applied

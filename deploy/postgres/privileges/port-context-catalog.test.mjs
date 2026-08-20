@@ -10,6 +10,7 @@ import {
   generateEnvLoginVariableSql,
   generatePortContextCapabilitySeedSql,
   generatePrivilegesSql,
+  generateRelationWallRegistrySeedSql,
   generateSharedRoleVerifierSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
@@ -19,6 +20,20 @@ import {
 const PORTS = ['webapp', 'integrator'];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+test('pre-migration relation registry seed does not require declared relations to exist', () => {
+  const seedOnly = generateRelationWallRegistrySeedSql(
+    declaration,
+    'bcb_webapp_dev',
+    { reconcileOwners: false },
+  );
+  const fullReconcile = generateRelationWallRegistrySeedSql(declaration, 'bcb_webapp_dev');
+
+  assert.match(seedOnly, /'direct_public_write_retries'::name/u);
+  assert.match(seedOnly, /'app_object_owner'::name/u);
+  assert.doesNotMatch(seedOnly, /^ALTER TABLE /mu);
+  assert.match(fullReconcile, /^ALTER TABLE "integrator"\."direct_public_write_retries" OWNER TO "app_object_owner";/mu);
+});
 
 test('the generator library refuses a mistaken direct CLI invocation', () => {
   const result = spawnSync(process.execPath, [

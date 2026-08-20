@@ -227,6 +227,8 @@ db_pipeline 'shared-role-baseline' "$DB_CALL_TIMEOUT_S" \
   "node --experimental-strip-types '$GENERATOR' --shared-role-baseline | sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1"
 db_pipeline 'shared-role-verify' "$DB_CALL_TIMEOUT_S" \
   "node --experimental-strip-types '$GENERATOR' --shared-role-verify | sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1"
+db_pipeline 'реестр стены рождения отношений до миграций' "$DB_CALL_TIMEOUT_S" \
+  "node --experimental-strip-types '$GENERATOR' --db '$DB' --relation-wall-registry-seed-only | sudo -n -u postgres psql -X -1 -d '$DB' -v ON_ERROR_STOP=1"
 
 db_run 'миграция схемы владельца' "$MIGRATION_TIMEOUT_S" \
   node "$OWNER_MIGRATOR" --db "$DB" --migrator "$MIGRATOR_ROLE" \
