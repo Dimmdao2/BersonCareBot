@@ -33,6 +33,7 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
     comment: row.comment ?? null,
     service: row.service ?? null,
     visitId: row.visitId ?? null,
+    appointmentId: row.appointmentId ?? null,
     provider: row.provider ?? null,
     providerPaymentId: row.providerPaymentId ?? null,
     createdBy: row.createdBy,
@@ -75,6 +76,22 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       return rows.map(rowToPayment);
     },
 
+    async listAppointmentPayments(appointmentId, patientUserId): Promise<PatientPayment[]> {
+      const organizationId = requiredPrincipalOrganizationId();
+      const rows = await getDrizzle()
+        .select()
+        .from(patientPayment)
+        .where(
+          and(
+            eq(patientPayment.appointmentId, appointmentId),
+            eq(patientPayment.patientUserId, patientUserId),
+            eq(patientPayment.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(patientPayment.createdAt));
+      return rows.map(rowToPayment);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
       const [row] = await runPatientPaymentMutation(input.organizationId, (tx) =>
         tx
@@ -89,6 +106,7 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
             comment: input.comment ?? null,
             service: input.service ?? null,
             visitId: input.visitId ?? null,
+            appointmentId: input.appointmentId ?? null,
             provider: null,
             providerPaymentId: null,
             createdBy: input.createdBy,
@@ -160,6 +178,7 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
             comment: input.description ?? null,
             service: null,
             visitId: null,
+            appointmentId: input.appointmentId ?? null,
             provider: input.provider,
             providerPaymentId: input.providerPaymentId,
             createdBy: input.createdBy,

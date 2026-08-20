@@ -43,6 +43,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       comment: input.comment ?? null,
       service: input.service ?? null,
       visitId: input.visitId ?? null,
+      appointmentId: input.appointmentId ?? null,
       provider: null,
       providerPaymentId: null,
       createdBy: input.createdBy,
@@ -50,6 +51,12 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     };
     payments.push(row);
     return row;
+  },
+
+  async listAppointmentPayments(appointmentId, patientUserId): Promise<PatientPayment[]> {
+    return payments.filter(
+      (payment) => payment.appointmentId === appointmentId && payment.patientUserId === patientUserId,
+    );
   },
 
   async findByProviderPaymentReference(
@@ -101,6 +108,7 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       comment: input.description ?? null,
       service: null,
       visitId: null,
+      appointmentId: input.appointmentId ?? null,
       provider: input.provider,
       providerPaymentId: input.providerPaymentId,
       createdBy: input.createdBy,

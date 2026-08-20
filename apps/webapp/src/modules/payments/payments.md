@@ -25,6 +25,11 @@
 
 См. `apps/webapp/src/app/api/api.md` — секции **booking/** (patient/public payment routes), **payments/** (webhook), **admin/booking-engine/** (`prepayment-policies`, `appointments/[id]/payment`).
 
+Doctor appointment cards use the same `appointments/[id]/payment` contract. `GET` returns the
+canonical prepayment summary plus the appointment-scoped cash-ledger total; `POST { action: 'cash' }`
+settles only the server-authorized remainder, while `POST { action: 'link' }` reuses
+`createAppointmentPaymentIntent` with a deterministic appointment/remainder idempotency key.
+
 ## Модули
 
 | Слой                | Путь                                    |

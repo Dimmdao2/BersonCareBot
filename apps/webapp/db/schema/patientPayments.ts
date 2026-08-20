@@ -11,7 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { platformUsers } from './schema';
 import { clinicalVisit } from './patientClinical';
-import { beOrganizations } from './bookingEngine';
+import { beAppointments, beOrganizations } from './bookingEngine';
 
 /**
  * Ledger записей об оплате к карточке пациента (раздел «Учётка» кабинета врача).
@@ -48,6 +48,8 @@ export const patientPayment = pgTable(
     service: text('service'),
     /** Связь с визитом (необязательна). */
     visitId: uuid('visit_id'),
+    /** Canonical booking appointment this ledger row settles (when applicable). */
+    appointmentId: uuid('appointment_id'),
     /** Идентификатор провайдера (заполняется при acquiring). */
     provider: text('provider'),
     /** Внешний ID платежа у провайдера (заполняется при acquiring). */
@@ -60,6 +62,7 @@ export const patientPayment = pgTable(
   (table) => [
     index('idx_patient_payment_organization_id').on(table.organizationId),
     index('idx_patient_payment_patient_user_id').on(table.patientUserId),
+    index('idx_patient_payment_appointment_id').on(table.appointmentId),
     index('idx_patient_payment_created_at').on(table.createdAt),
     foreignKey({
       columns: [table.organizationId],
@@ -75,6 +78,11 @@ export const patientPayment = pgTable(
       columns: [table.visitId],
       foreignColumns: [clinicalVisit.id],
       name: 'patient_payment_visit_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.appointmentId],
+      foreignColumns: [beAppointments.id],
+      name: 'patient_payment_appointment_id_fkey',
     }).onDelete('set null'),
     foreignKey({
       columns: [table.createdBy],

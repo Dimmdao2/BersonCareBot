@@ -146,6 +146,10 @@ UI-0 acceptance.
 invoice/pay-link/QR или новый provider-readiness contract выносится в отдельный money/high-risk stage; finding не
 превращает её автоматически в scope UI-1c.
 
+#### UI-1d — оплата конкретной записи
+
+- [x] Карточка записи получает server-authorized payment section: она показывает неоплату, частичную/полную оплату с суммами, cash remainder и provider payment link. Cash rows tenant- and appointment-scoped через `patient_payment.appointment_id`; payment link переиспользует `modules/payments.createAppointmentPaymentIntent` с idempotency ключом записи/остатка. Evidence: `apps/webapp/src/app/api/doctor/booking-engine/appointments/[id]/payment/route.ts`, `apps/webapp/src/app/app/doctor/calendar/AppointmentPaymentSection.tsx`, migration `20260820T114223_appointment_bound_patient_payments.sql`; `git diff --check` (20.08.2026). QR визуализирует ту же payment link.
+
 ### UI-3 — коммуникации
 
 Разделить три непересекающихся по риску этапа:

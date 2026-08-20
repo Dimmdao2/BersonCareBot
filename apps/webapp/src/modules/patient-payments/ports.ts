@@ -25,6 +25,7 @@ export type PatientPayment = {
   comment: string | null;
   service: string | null;
   visitId: string | null;
+  appointmentId: string | null;
   /** Заполняется провайдером при acquiring. Null для cash. */
   provider: string | null;
   providerPaymentId: string | null;
@@ -44,6 +45,7 @@ export type AddCashPaymentInput = {
   comment?: string | null;
   service?: string | null;
   visitId?: string | null;
+  appointmentId?: string | null;
   createdBy: string;
 };
 
@@ -61,6 +63,7 @@ export type InsertAcquiringPendingInput = {
   provider: string;
   providerPaymentId: string;
   createdBy: string;
+  appointmentId?: string | null;
 };
 
 // -- Основной порт платежей ---------------------------------------------------
@@ -68,6 +71,8 @@ export type InsertAcquiringPendingInput = {
 export interface PatientPaymentsPort {
   /** Список платежей пациента, новые первыми. */
   listPayments(patientUserId: string): Promise<PatientPayment[]>;
+  /** Paid/pending ledger rows for one exact appointment inside the installed tenant principal. */
+  listAppointmentPayments(appointmentId: string, patientUserId: string): Promise<PatientPayment[]>;
   /** Записать ручной платёж наличными (kind='cash', status='paid'). */
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
   /**

@@ -50,6 +50,10 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
       return { payments, totalPaidMinor };
     },
 
+    async listAppointmentPayments(appointmentId: string, patientUserId: string) {
+      return patientPaymentsPort.listAppointmentPayments(appointmentId, patientUserId);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
       if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
         throw new Error('payment_amount_must_be_positive_integer');
