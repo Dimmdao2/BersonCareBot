@@ -134,3 +134,55 @@ webapp→integrator settings POST/enqueue. `createSystemSettingsService().update
 - Census-таблица не изменена и D39 checkbox не закрыт: по brief это может сделать только owner/lead после
   принятия независимого аудита.
 - Код и тесты не менялись; новый seam не исправлялся, потому что проверенный путь уже duplicate-safe.
+
+## Независимый аудит
+
+Дата: 2026-08-20. Роль: независимый скептический аудит; продуктовый код не менялся. Классификация обоих
+пунктов — **взгляд** по AGENTS.md §24.4: проверялись фактические sender/receiver и итоговый route census,
+не добавлялись тесты на отсутствие строк.
+
+### 1. `operator-alert-relay` — PASS
+
+Тезис отчёта подтверждён чтением кода:
+
+- sender формирует стабильный ключ
+  `${organizationId ?? 'global'}:${messageId}:${channel}:${recipient}` в
+  `apps/webapp/src/modules/operator-alerts/relayOperatorAlert.ts:31-36`;
+- receiver строит тот же organization-scoped key в
+  `apps/integrator/src/integrations/bersoncare/operatorAlertRelayRoute.ts:157`, вызывает durable
+  `idempotencyPort.tryAcquire(key, 86400)` до `dispatchOutgoing` (`:159-165`), а занятый ключ возвращает
+  `200 { status: 'duplicate' }` (`:159-160`);
+- локальный `inFlight` guard стоит до acquire (`:157-161`), поэтому параллельный запрос той же replica не
+  доходит до dispatch; на другой replica его отсекает атомарный Postgres-backed port
+  (`apps/integrator/src/infra/db/repos/idempotencyKeys.ts:27-48`). TTL равен 24 часам (`:14`, `:159`), не
+  короче заявленного окна.
+
+Реального пути «успешный dispatch → повтор с тем же ключом → второй dispatch» не найдено. Освобождение ключа
+есть только в catch неуспешного dispatch (`operatorAlertRelayRoute.ts:167-172`); это не опровергает тезис о
+повторе после успешной доставки.
+
+### 2. «Других delivery seam нет» — PASS
+
+Применён другой маршрут поиска, чем в исходном отчёте:
+
+```text
+$ rg -n --glob '*.{ts,tsx}' 'createHmac\\s*\\([^\\n]*sha256|createHmac\\s*\\(' apps/webapp/src
+```
+
+Каждый HMAC sender, относящийся к integrator, сопоставлен с census либо с новой строкой выше: email
+(`integratorEmailAdapter.ts:13-75`), SMS (`integratorSmsDelivery.ts:26-76`), Telegram/MAX OTP (общий
+`signIntegratorPayload`), relay (`relayOutbound.ts:74-175`), request-contact
+(`requestMessengerContact.ts:19-57`), reminder upsert (`integratorM2mPosts.ts:15-93`), booking lifecycle
+(`bookingM2mApi.ts:16-110`) и operator alert (`relayOperatorAlert.ts:23-60`). Остальные результаты HMAC —
+платёжные, auth/session либо verification helpers, не вызовы integrator.
+
+Полный список bersoncare route сверён с их регистрацией в
+`apps/integrator/src/app/routes.ts:156-218`: `send-sms`, `send-email`, `relay-outbound`,
+`operator-alert-relay`, `request-contact`, `send-otp`, `reminder-rules`, health probe и booking lifecycle.
+Первые семь и booking имеют перечисленных выше webapp callers и уже покрыты census/этим отчётом. Health probe
+не является webapp caller: реальный подписанный POST выполняет
+`deploy/host/operator-health-probe.sh:61-65`; registry webapp лишь показывает его состояние
+(`apps/webapp/src/modules/operator-health/cronJobRegistry.ts:115-123`). Следовательно, это host observability
+path, не дополнительный webapp → integrator delivery seam.
+
+Новой неупомянутой webapp → integrator delivery-двери не найдено; отрицательный тезис подтверждён.
