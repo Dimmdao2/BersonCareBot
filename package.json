@@ -49,6 +49,7 @@
     "check:saas-d1-664-with-check-reverify": "node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-d1-664-with-check-reverify.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-d1-664-with-check-reverify.mjs",
     "rehearse:e1-patient-capabilities": "node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-patient-runtime-capabilities.mjs",
     "smoke:saas-product": "node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs",
+    "preci": "node scripts/ci-preflight.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:db-principal && pnpm test:db-privileges && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-lint": "pnpm typecheck && pnpm test && pnpm test:db-principal && pnpm test:db-privileges && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-typecheck": "pnpm test && pnpm test:db-principal && pnpm test:db-privileges && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
