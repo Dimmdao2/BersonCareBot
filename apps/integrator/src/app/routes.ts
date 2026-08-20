@@ -29,7 +29,7 @@ import {
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { getSmscRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -227,7 +227,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     resolveMessengerStaffAdmin,
     resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
   };
-  if (env.TELEGRAM_MODE === 'long_polling') {
+  const telegramRuntimeConfig = await getTelegramRuntimeConfig();
+  if (telegramRuntimeConfig.mode === 'long_polling') {
     // RU-isolated host: Telegram cannot reach us inbound — pull updates via
     // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
     startTelegramLongPolling(telegramWebhookDeps);

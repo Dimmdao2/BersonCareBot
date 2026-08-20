@@ -140,6 +140,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   max_api_base_url: restricted('admin', 'global', 'url', 'absent'),
   telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
   telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),
   telegram_send_menu_on_button_press: restricted('admin', 'global', 'boolean', 'false'),
   vk_web_login_url: runtime('admin', 'global', 'public', 'url', ''),
   app_display_timezone: runtime('admin', 'global', 'public', 'string', 'Europe/Moscow'),

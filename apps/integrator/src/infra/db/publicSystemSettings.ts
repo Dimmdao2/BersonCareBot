@@ -101,6 +101,7 @@ export type IntegratorRuntimeSettingKey =
   | 'operator_health_alert_config'
   | 'admin_incident_alert_config'
   | 'app_display_timezone'
+  | 'telegram_mode'
   | `notif_template:${'created' | 'cancelled' | 'rescheduled'}:${'patient' | 'doctor'}`;
 
 export type IntegratorGoogleCalendarGlobalSettingKey =
