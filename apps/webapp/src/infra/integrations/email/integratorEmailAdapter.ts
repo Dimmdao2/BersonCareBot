@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 import { env, integratorWebhookSecret } from '@/config/env';
 
@@ -14,17 +14,25 @@ function signPayload(timestamp: string, rawBody: string, secret: string): string
   return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
 }
 
+function emailIdempotencyKey(payload: Record<string, string>): string {
+  const digest = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  return `email:send:${digest}`;
+}
+
 export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const baseUrl = deps.integratorBaseUrl.replace(/\/$/, '');
   const url = `${baseUrl}/api/bersoncare/send-email`;
 
-  async function postSendEmail(payload: Record<string, string>): Promise<SendEmailResult> {
+  async function postSendEmail(
+    payload: Record<string, string>,
+    idempotencyKey: string,
+  ): Promise<SendEmailResult> {
     if (!deps.integratorBaseUrl || !deps.sharedSecret) {
       return { ok: false, error: 'integrator_not_configured' };
     }
 
-    const body = JSON.stringify(payload);
+    const body = JSON.stringify({ ...payload, idempotencyKey });
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = signPayload(timestamp, body, deps.sharedSecret);
 
@@ -55,7 +63,7 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
 
   return {
     async sendEmailCode(to: string, code: string): Promise<SendEmailResult> {
-      return postSendEmail({ to, code });
+      return postSendEmail({ to, code }, emailIdempotencyKey({ to, code }));
     },
 
     async sendTransactionalEmail(
@@ -63,7 +71,7 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       subject: string,
       text: string,
     ): Promise<SendEmailResult> {
-      return postSendEmail({ to, subject, text });
+      return postSendEmail({ to, subject, text }, `email:send:${randomUUID()}`);
     },
   };
 }

@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { OutgoingIntent } from '../../kernel/contracts/index.js';
+import type { IdempotencyPort, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { registerBersoncareSendOtpRoute } from './sendOtpRoute.js';
 
 const SHARED_SECRET = 'send-otp-route-test-secret';
@@ -21,12 +21,22 @@ function protocolHeaders(rawBody: string): Record<string, string> {
 }
 
 async function buildApp(dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}))) {
+  const keys = new Set<string>();
+  const idempotencyPort: IdempotencyPort = {
+    tryAcquire: async (key) => {
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    },
+    release: async (key) => void keys.delete(key),
+  };
   const app = Fastify({ logger: false });
   apps.push(app);
   await registerBersoncareSendOtpRoute(app, {
     dispatchPort: { dispatchOutgoing },
     sharedSecret: SHARED_SECRET,
     isAuthChannelEnabled: async () => true,
+    idempotencyPort,
   });
   return { app, dispatchOutgoing };
 }
@@ -53,6 +63,7 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       channel: 'max',
       recipientId: 'not-a-platform-user-id',
       code: '123456',
+      idempotencyKey: 'otp:max:one',
     });
 
     expect(response.statusCode).toBe(400);
@@ -67,6 +78,7 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       channel: 'max',
       recipientId: '123456789',
       code: '123456',
+      idempotencyKey: 'otp:max:one',
     });
 
     expect(response.statusCode).toBe(200);
@@ -75,5 +87,22 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       recipient: { userId: 123456789 },
       delivery: { channels: ['max'] },
     });
+  });
+
+  it('same signed request is a no-op, while an explicit resend key dispatches again', async () => {
+    const { app, dispatchOutgoing } = await buildApp();
+    const first = {
+      channel: 'telegram',
+      recipientId: 'tg-1',
+      code: '123456',
+      idempotencyKey: 'otp:tg:1',
+    };
+
+    expect((await injectSigned(app, first)).json()).toEqual({ ok: true });
+    expect((await injectSigned(app, first)).json()).toEqual({ ok: true, status: 'duplicate' });
+    expect(
+      (await injectSigned(app, { ...first, code: '654321', idempotencyKey: 'otp:tg:2' })).json(),
+    ).toEqual({ ok: true });
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(2);
   });
 });

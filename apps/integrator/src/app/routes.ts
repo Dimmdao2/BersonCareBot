@@ -158,6 +158,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     sharedSecret: integratorWebhookSecret(),
     isAuthChannelEnabled: authChannelPolicy,
     recordProviderFailure: (reason) => recordOutboundProviderFailure('smsc', reason),
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareSendEmailRoute(app, {
@@ -166,6 +167,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     isAuthChannelEnabled: authChannelPolicy,
     recordProviderFailure: (reason) => recordOutboundProviderFailure('email', reason),
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareRelayOutboundRoute(app, {
@@ -192,12 +194,14 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     isAuthChannelEnabled: authChannelPolicy,
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareReminderRulesRoute(app, {
     writePort: deps.dbWritePort,
     sharedSecret: integratorWebhookSecret(),
     resolveTenantForIntegratorUserId,
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerOperatorHealthProbeRoute(app, {

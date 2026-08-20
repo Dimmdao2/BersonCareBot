@@ -24,6 +24,7 @@ import {
   deliverSmsCodeViaIntegrator,
   logPhoneOtpDeliveryEvent,
   maskPhoneForOpsLog,
+  otpDeliveryIdempotencyKey,
   signIntegratorPayload as signPayload,
 } from '@/infra/integrations/sms/integratorSmsDelivery';
 
@@ -130,6 +131,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
               channel: deliveryChannel,
               recipientId,
               code,
+              idempotencyKey: otpDeliveryIdempotencyKey(deliveryChannel, recipientId, code),
             });
             const signature = signPayload(timestamp, body, sharedSecret);
             const res = await fetch(sendOtpUrl, {
