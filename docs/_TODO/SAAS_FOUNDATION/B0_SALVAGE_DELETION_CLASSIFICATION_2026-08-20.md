@@ -37,6 +37,72 @@ this 667/797 pair, not a distinct count — noted here rather than silently used
 | `deploy/host/restore-test-db-from-dump.sh`, `deploy/host/deploy-test-full-reset.sh`, `deploy/host/deploy-test-full-reset.test.mjs`, `scripts/refresh-prod-to-target-cutover.mjs` | 4 | 340 | **REMOVED IN ERROR → RESTORED this pass** | the B0 decision's own required fresh-dump `A → B0` rehearsal machinery; see restoration notes below |
 | `deploy/host/deploy-test-saas.sh` | 1 | 3,770 | **REMOVED IN ERROR → NOT restored this pass** | the only caller `deploy-test-full-reset.sh` execs; without it the restored wrapper fails loudly by name (guard added) but cannot run. Not restored verbatim: it predates the move of migration ACL/grants to the declaration-reconcile path (`609a19f94`'s own message), so a straight restore would very likely reintroduce forbidden inline GRANT/REVOKE. Needs its own dedicated pass, not a mechanical restore |
 
+**UPDATE 2026-08-20 (second pass, `restore-ab2-20260820`): `deploy-test-saas.sh` restored, minus the confirmed
+grant-model duplicates.** Read from `609a19f94^`, diffed against today's tree function-by-function. Three
+pieces (191 of 3,770 lines) were dropped, each with a named, verified replacement already live in today's
+tree — none left without a replacement, so nothing was silently re-granted:
+1. `grant_migrator_app_owner_membership`/`revoke_migrator_app_owner_membership` (temporary `app_owner`
+   membership so a migration running AS `$DBROLE` could `ALTER FUNCTION ... OWNER TO app_owner`) — dead code,
+   zero call sites even in the original file; a vestige of the historical `pnpm migrate`-as-`$DBROLE` replay
+   this file's own B0 cutover step no longer does (it runs as `postgres` superuser, which needs no membership
+   to reassign ownership). For ordinary deploys the same need is met today by
+   `deploy/postgres/privileges/migrate-local.mjs`'s own self-contained temporary owner-membership grant/revoke
+   inside its single migration transaction (`migrate-local.mjs:301,371`).
+2. The inline pgcrypto-schema-move + `is_staff`/`current_*()` ownership pre-normalization heredoc inside
+   `install_p2_b_protected_principal_context()` — `deploy/postgres/p2-b-protected-principal-context.sql`
+   (unchanged, already in the tree, called immediately after this block) now does the same pgcrypto move itself
+   (lines 92-139) and a `DROP`+`SET ROLE`+`CREATE` pattern that needs no pre-existing ownership; `app_owner`
+   itself is created by the declarative shared-role-baseline, not by this wrapper.
+3. `grant_api_runtime_migration_ledger_read`/`assert_api_runtime_can_read_migration_ledger` (raw
+   `GRANT USAGE ON SCHEMA integrator` + `GRANT SELECT ON TABLE integrator.schema_migrations`) — replaced by the
+   declared `SECURITY DEFINER` seam `app.read_integrator_migration_ledger()`
+   (`deploy/postgres/privileges/declaration.ts:2309-2311,4256-4261`), which the reconcile/generator already
+   installs and grants `EXECUTE` on — no raw relation ACL needed.
+
+The remaining `GRANT`/`REVOKE`/`ALTER ROLE` calls in the restored file (`revoke_bypass`,
+`grant_migrator_owner_membership`/`revoke_migrator_membership`, the two `ALTER ROLE ... BYPASSRLS` call sites)
+were kept: they are ephemeral, self-reverting elevation for one-shot data scripts
+(`fio:owner-reviewed-test:apply`, `cutover:legacy-appointments`) to write across RLS during the reset window,
+asserted clean afterward (`assert_cleanup_elevation`) — the same shape `migrate-local.mjs` itself uses, not a
+duplicate of the permanent runtime-role ACL model.
+
+`p0-data-fix-doctor-admin-split.sql` now has its call back: `deploy-test-saas.sh:3465`
+(`run_test_db_owner_sql_file "$DEPLOY_REPO/$DATAFIX"`), positioned after the dump restore (`:3455`) and owner-
+identity consolidation (`:3461`), before `install_pre_migration_role_prerequisites` (`:3504`) and the schema
+cutover — this was already the original script's own ordering, restored as-is.
+
+**New findings surfaced by this pass, not fixed (named, not silently patched):**
+- Today's `deploy/host/deploy-test.sh` no longer calls `deploy-test-saas.sh` at all (confirmed by a full read of
+  all 229 lines) — it runs its own self-contained `migrate-local.mjs` + `migrate-integrator-local.mjs` +
+  `reconcile-access.mjs` pipeline instead. `deploy-test-saas.sh`'s giant `run_strict_post_migration_closure()`
+  (~1,200 lines: P0.5b, P2-B, D3.4, telemetry overlays, RLS finalizer, C4 operational runtime, port-context
+  roles/catalog, and every `assert_*_closure` gate including `assert_app_owner_secdef_table_grants_complete`)
+  is reachable ONLY via the `--post-migration-closure` CLI flag, which nothing in today's tree passes —
+  confirmed dead relative to both live entrypoints (ordinary `deploy-test.sh` and the full-reset default flow,
+  which ends at `run_port_context_test_release` and never calls the closure). So the mission's premise question
+  ("does `deploy-test.sh` carry the same exact-grant-set assertion `deploy-test-saas.sh` had") resolves to: no —
+  `deploy-test.sh` has no per-function/per-table closure gates of its own; it relies on `reconcile-access.mjs`'s
+  coarser, DB/catalog-wide `--check`/`--port-context-verify`/`--env-verify`/`--catalog-closure-verify` chain,
+  which is a different (and automatic-on-every-deploy) mechanism, not the same assertions relocated.
+- The full-reset flow's own final step, `run_port_context_test_release()`, calls
+  `deploy/host/cutover-postgres-port-context.sh`, which does not exist in today's tree — deleted by `9ebea6963`
+  ("fix: complete patient B0 capability boundary"), an unrelated later commit, not by the `609a19f94` salvage
+  this mission addresses. Today's `deploy-test.sh` requires `DB_PRINCIPAL_CONTEXT_MODE=port-context`
+  unconditionally (no legacy mode left to cut over from) and calls no cutover script at all — only
+  `bootstrap-c4-test-env.mjs --port-context-execute`. This suggests the whole "cut over TO port-context" step is
+  itself now obsolete, but redesigning it is out of this mission's scope ("вернуть ФАЙЛЫ", not rewrite the
+  sequence) — named here as a blocker for anyone who tries to actually run a full reset next.
+- Also missing (confirmed live-checked, not part of the `609a19f94`/`bfe6b48f0` salvage): `deploy/host/smoke-set-postgres-role-password.sh`, `deploy/host/retire-media-db-login.test.mjs`,
+  `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` — all three retired by
+  `fb44002ce` ("fix(db): retire disposable database execution surfaces").
+- `saas-test-mode.sh` was NOT restored (still out of scope, unchanged from the first pass's call). Question for
+  the owner: it was a TEST-only `DB_PRINCIPAL_CONTEXT_MODE` switch/rollback helper (dormant↔locked), explicitly
+  self-described as historical/diagnostic and forbidden from being used to recover a failed strict TEST deploy.
+  `HARD_MIGRATION_PROTOCOL.md` still names it canonical. Nothing in today's runnable code calls it (docs-only
+  references). Since `deploy-test.sh` now hard-requires `port-context` mode unconditionally, this switch-to-
+  `dormant`/`locked` helper looks similarly obsolete to the port-context cutover script above — but that is a
+  guess, not verified, and is the owner's call, not mine, to retire outright or restore.
+
 † `drizzle-migrations/meta` deletion count is inflated by the historical `_journal.json`, whose diff is dominated by JSON reformatting of ~450 historical entries, not 321k lines of distinct content.
 
 **Sum check:** 445+91+61+23+14+8+15+3+1+1+4+1 = 667. ✅ all 667 deleted paths accounted for, none uncategorized.
