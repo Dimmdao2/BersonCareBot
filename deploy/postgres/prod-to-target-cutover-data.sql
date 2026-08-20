@@ -149,6 +149,7 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('integrator.user_subscriptions', 'intentionally_retire', 'retired duplicate mailing domain'),
   ('integrator.users', 'transform', 'public.platform_users and user_identity'),
   ('public.appointment_records', 'transform', 'public.be_appointments before A -> B'),
+  ('public.be_external_entity_mappings', 'intentionally_retire', 'retired external-system bridge removed by migration 0042'),
   ('public.be_appointment_events', 'transform', 'public.be_appointment_history_events before retirement'),
   ('public.be_product_history_events', 'intentionally_retire', 'retired empty product engine'),
   ('public.be_product_pay_links', 'intentionally_retire', 'retired empty product engine'),
@@ -166,6 +167,7 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('public.user_email_setup_tokens', 'intentionally_retire', 'replaced by password setup OTP challenges'),
   ('public.user_pins', 'intentionally_retire', 'retired PIN path'),
   ('public.user_subscriptions_webapp', 'intentionally_retire', 'retired duplicate mailing domain'),
+  ('public.webapp_schema_migrations', 'intentionally_retire', 'historical emergency-runner ledger removed by B0'),
   ('public.webapp_reminder_occurrences', 'transform', 'integrator.user_reminder_occurrences below');
 
 DO $source_only_disposition_gate$
@@ -608,7 +610,7 @@ SELECT DISTINCT ON (appointment.id)
   legacy.created_at,
   legacy.updated_at
 FROM cutover_source_integrator.booking_calendar_map legacy
-LEFT JOIN public.be_external_entity_mappings mapping
+LEFT JOIN cutover_source_public.be_external_entity_mappings mapping
   ON mapping.external_system = 'rubitime'
  AND mapping.entity_type = 'appointment'
  AND mapping.external_id = legacy.rubitime_record_id
@@ -635,7 +637,7 @@ SET canonical_appointment_id = COALESCE(
 FROM cutover_source_public.clinical_visit source_visit
 JOIN cutover_source_public.appointment_records legacy
   ON legacy.id = source_visit.appointment_record_id
-LEFT JOIN public.be_external_entity_mappings mapping
+LEFT JOIN cutover_source_public.be_external_entity_mappings mapping
   ON mapping.external_system = 'rubitime'
  AND mapping.entity_type = 'appointment'
  AND mapping.external_id = legacy.integrator_record_id
@@ -1108,7 +1110,7 @@ BEGIN
     SELECT DISTINCT
       appointment.id AS canonical_id
     FROM cutover_source_integrator.booking_calendar_map legacy
-    LEFT JOIN public.be_external_entity_mappings mapping
+    LEFT JOIN cutover_source_public.be_external_entity_mappings mapping
       ON mapping.external_system = 'rubitime'
      AND mapping.entity_type = 'appointment'
      AND mapping.external_id = legacy.rubitime_record_id
