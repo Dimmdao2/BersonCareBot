@@ -273,6 +273,30 @@ PTY/non-TTY, повторная ротация и отсутствие утеч�
 
 ---
 
+## PROD → schema-B TEST reset: protected inputs
+
+Полный owner-authorized reset запускается на TEST/DEV-хосте через
+`bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset [branch]`. Это отдельный destructive rehearsal,
+не обычный `deploy-test.sh`.
+
+**Канонический каталог:** `/opt/env/bersoncarebot/protected-inputs/` (`deploy:deploy`, `0700`). Файлы в нём —
+regular non-symlink, `deploy:deploy`, `0600`:
+
+1. `fio-owner-reviewed-test.manifest.json` — текущий запечатанный owner-reviewed FIO manifest; `runId` и
+   `createdAt` находятся внутри JSON, версия не кодируется в имени.
+2. `fio-owner-reviewed-test.payload.json` — исходный payload этого манифеста.
+3. `fio-owner-reviewed-test.sha256` — greppable sidecar: raw SHA-256 файла манифеста, canonical SHA-256 payload и
+   SHA-256 owner-review source, по одному именованному значению на строку.
+4. `fio-owner-reviewed-test.previous.manifest.json` и `rubitime-records.csv` — сохранённые предыдущие входы; reset
+   их автоматически не выбирает.
+
+Этот путь и sidecar — defaults `deploy-test-saas.sh`: `--fio-manifest`, `--fio-manifest-file-sha256`,
+`--fio-manifest-sha256` и `--fio-review-source-sha256` не нужны для штатного запуска. Явно переданный аргумент
+переопределяет только соответствующий default. Отсутствующий файл, неверный owner/mode, symlink или несовпадение
+любого хеша останавливают reset до работы с TEST.
+
+---
+
 ## Operator health probes (MVP)
 
 Интегратор: **`POST /internal/operator-health-probe`** (синтетические пробы активных интеграций). Доступ **только** с подписью `x-bersoncare-timestamp` / `x-bersoncare-signature` (тот же секрет, что M2M webapp→integrator: **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** в `api.prod`).
