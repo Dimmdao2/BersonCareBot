@@ -143,13 +143,13 @@ describe.skipIf(!enabled)(
       eventId: string,
     ): Promise<{ status: string; attempt: number; kind: unknown }[]> {
       const raw = harness.withAdminSocket(`
-        SELECT json_agg(row_to_json(attempt) ORDER BY attempt.attempt)::text
+        SELECT json_agg(row_to_json(attempt_row) ORDER BY attempt_row.attempt)::text
         FROM (
           SELECT status, (metadata->>'attempt')::int AS attempt, intent_type AS kind
           FROM public.notification_delivery_attempts
           WHERE event_id = ${sqlLiteral(eventId)}
           ORDER BY (metadata->>'attempt')::int
-        ) AS attempt;
+        ) AS attempt_row;
       `);
       return (JSON.parse(raw) as { status: string; attempt: number; kind: unknown }[] | null) ?? [];
     }

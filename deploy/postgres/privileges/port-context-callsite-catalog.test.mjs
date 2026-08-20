@@ -655,10 +655,10 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'delivery.attempt-audit', argCount: 10,
     source: 'apps/integrator/src/infra/db/repos/operatorDeliveryAttempts.ts',
   },
-  'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)': {
+  'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid,integer)': {
     port: 'integrator',
     targetRole: 'app_operational_delivery_worker', contextClass: 'service',
-    purpose: 'delivery.outgoing.enqueue', argCount: 7,
+    purpose: 'delivery.outgoing.enqueue', argCount: 8,
     source: 'apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts',
     callsites: [
       { port: 'integrator', source: 'apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts' },

@@ -3,6 +3,11 @@ import type { DbPort } from '../../../kernel/contracts/index.js';
 
 const fakes = vi.hoisted(() => ({
   getOrganizationId: vi.fn(() => '22222222-2222-4222-8222-222222222222'),
+  getReclaimConfig: vi.fn(async () => ({
+    processingTimeoutMinutes: 10,
+    doneRetentionDays: 30,
+    maxReclaimCount: 5,
+  })),
   runInfra: vi.fn((_principal: unknown, fn: () => unknown) => fn()),
   runNamedRoot: vi.fn(),
   runSql: vi.fn(),
@@ -21,6 +26,10 @@ vi.mock('../../principal/organizationPrincipal.js', () => ({
 vi.mock('../runIntegratorSql.js', () => ({
   runIntegratorNamedRoot: fakes.runNamedRoot,
   runIntegratorSql: fakes.runSql,
+}));
+
+vi.mock('./outgoingDeliveryReclaimSettings.js', () => ({
+  getOutgoingDeliveryReclaimConfig: fakes.getReclaimConfig,
 }));
 
 import { enqueueAcceptedIncomingReplyIfAbsent } from './outgoingDeliveryQueue.js';
@@ -48,7 +57,7 @@ describe('inbound reply retry enqueue boundary', () => {
     );
     expect(fakes.runNamedRoot.mock.calls[0]?.slice(0, 3)).toEqual([
       db,
-      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)',
+      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid,integer)',
       [
         'event-1',
         'inbound_reply',
@@ -57,8 +66,10 @@ describe('inbound reply retry enqueue boundary', () => {
         4,
         null,
         '22222222-2222-4222-8222-222222222222',
+        30,
       ],
     ]);
+    expect(fakes.getReclaimConfig).toHaveBeenCalledWith(db);
     expect(fakes.runSql).not.toHaveBeenCalled();
   });
 });
