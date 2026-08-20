@@ -181,7 +181,7 @@ DROP FUNCTION IF EXISTS app.list_scheduler_reminder_organization_ids();
 DROP FUNCTION IF EXISTS app.resolve_outgoing_delivery_scope(uuid);
 DROP FUNCTION IF EXISTS app.operator_incident_alert_already_sent(uuid);
 DROP FUNCTION IF EXISTS app.mark_operator_incident_alert_sent(uuid);
-DROP FUNCTION IF EXISTS app.record_operator_delivery_attempt(text, text, text, integer, text);
+DROP FUNCTION IF EXISTS app.record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone);
 DROP FUNCTION IF EXISTS app.read_outgoing_delivery_reclaim_config();
 REVOKE SELECT ON TABLE integrator.user_reminder_occurrences, public.reminder_rules FROM app_owner;
 REVOKE SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents FROM app_owner;
@@ -559,14 +559,14 @@ REVOKE ALL ON FUNCTION app.mark_operator_incident_alert_sent(uuid) FROM
   app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
 GRANT EXECUTE ON FUNCTION app.mark_operator_incident_alert_sent(uuid) TO app_operational_delivery_worker;
 
--- The body belongs to migration 0427. C4 only supplies its legacy-closure owner/ACL projection;
+-- The body belongs to the forward migration ledger. C4 only supplies its legacy-closure owner/ACL projection;
 -- recreating a body here after the migration runner would silently roll product fixes back.
-ALTER FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text) OWNER TO app_owner;
-REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text) FROM
+ALTER FUNCTION app.record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone) FROM
   app_staff, app_patient, app_worker,
   app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
-GRANT EXECUTE ON FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text)
+GRANT EXECUTE ON FUNCTION app.record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone)
   TO app_operational_delivery_worker;
 
 -- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): the reclaim/
@@ -1147,7 +1147,7 @@ SELECT 1 / (
   )
   AND has_function_privilege(
     'app_operational_delivery_worker',
-    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
+    'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
     'EXECUTE'
   )
   AND (
@@ -1273,17 +1273,17 @@ SELECT 1 / (
   )
   AND NOT has_function_privilege(
     'app_operational_diagnostic',
-    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
+    'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
     'EXECUTE'
   )
   AND NOT has_function_privilege(
     'app_operational_scheduler',
-    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
+    'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
     'EXECUTE'
   )
   AND NOT has_function_privilege(
     'app_operational_media_worker',
-    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
+    'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
     'EXECUTE'
   )
 )::int AS c4_operational_cross_contour_verified;
@@ -1372,7 +1372,7 @@ WITH managed(role_name) AS (VALUES
   ('function','app.resolve_outgoing_delivery_scope(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.operator_incident_alert_already_sent(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.mark_operator_incident_alert_sent(uuid)','EXECUTE','app_operational_delivery_worker',false),
-  ('function','app.record_operator_delivery_attempt(text,text,text,integer,text)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.read_outgoing_delivery_reclaim_config()','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.open_or_touch_operator_incident(text,text,text,text,text)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.read_integrator_platform_integration_availability()','EXECUTE','app_operational_delivery_worker',false),

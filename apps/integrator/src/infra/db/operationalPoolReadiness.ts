@@ -42,7 +42,7 @@ async function probeNamedRoot(
 export async function assertDeliveryWorkerPoolReady(): Promise<void> {
   const probeId = '00000000-0000-4000-8000-000000000000';
   await probeReadOnly('worker:outgoing-delivery-tick', 'delivery', [
-    "SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int",
+    "SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)', 'EXECUTE')::int",
     // revalidate_specialist_task_reminder_materialization and apply_specialist_task_reminder_success_outcome
     // both take `SELECT ... FOR UPDATE` inside, which cannot run in this probe's READ ONLY transaction on
     // any environment (PostgreSQL rejects FOR UPDATE under READ ONLY unconditionally). Readiness can only

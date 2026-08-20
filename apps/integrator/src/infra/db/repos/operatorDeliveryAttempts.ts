@@ -1,14 +1,22 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
 type OperatorAttemptParams = {
+  intentType?: unknown;
   intentEventId?: unknown;
+  correlationId?: unknown;
+  organizationId?: unknown;
   channel?: unknown;
   status?: unknown;
   attempt?: unknown;
   reason?: unknown;
+  payload?: unknown;
+  occurredAt?: unknown;
 };
+
+const OPERATOR_DELIVERY_ATTEMPT_ROOT =
+  'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)';
 
 export async function recordOperatorDeliveryAttempt(
   db: DbPort,
@@ -18,14 +26,39 @@ export async function recordOperatorDeliveryAttempt(
     throw new Error('Operational operator-attempt port accepts only delivery.attempt.log');
   }
   const params = mutation.params as OperatorAttemptParams;
+  const intentType = typeof params.intentType === 'string' ? params.intentType : null;
   const eventId = typeof params.intentEventId === 'string' ? params.intentEventId : '';
+  const correlationId = typeof params.correlationId === 'string' ? params.correlationId : null;
+  const organizationId = typeof params.organizationId === 'string' ? params.organizationId : null;
   const channel = typeof params.channel === 'string' ? params.channel : '';
   const status = typeof params.status === 'string' ? params.status : '';
   const attempt =
     typeof params.attempt === 'number' && Number.isInteger(params.attempt) ? params.attempt : 0;
   const reason = typeof params.reason === 'string' ? params.reason : null;
-  await runIntegratorSql(
+  const payloadText = JSON.stringify(
+    typeof params.payload === 'object' && params.payload !== null ? params.payload : {},
+  );
+  const occurredAt =
+    typeof params.occurredAt === 'string' ? params.occurredAt : new Date().toISOString();
+  const functionArgs = [
+    intentType,
+    eventId,
+    correlationId,
+    organizationId,
+    channel,
+    status,
+    attempt,
+    reason,
+    payloadText,
+    occurredAt,
+  ] as const;
+  await runIntegratorNamedRoot(
     db,
-    sql`SELECT app.record_operator_delivery_attempt(${eventId}, ${channel}, ${status}, ${attempt}, ${reason})`,
+    OPERATOR_DELIVERY_ATTEMPT_ROOT,
+    functionArgs,
+    sql`SELECT app.record_operator_delivery_attempt(
+      ${intentType}, ${eventId}, ${correlationId}, ${organizationId}::uuid, ${channel}, ${status},
+      ${attempt}, ${reason}, ${payloadText}, ${occurredAt}::timestamptz
+    )`,
   );
 }
