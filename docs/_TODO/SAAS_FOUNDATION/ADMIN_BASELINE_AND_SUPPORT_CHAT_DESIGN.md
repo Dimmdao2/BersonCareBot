@@ -1,11 +1,17 @@
 # Admin console baseline + historical support-chat research (#808)
 
+> **EXECUTION STATUS RECONCILED 20.08.2026.** Этот файл больше не является источником текущего статуса.
+> Платформенная консоль организаций реализована в `/app/admin/clinics` по
+> [`OWNER_PUNCHLIST_2026-07-28.md` §9](../OWNER_PUNCHLIST_2026-07-28.md) (`#1068`): список, карточка,
+> аккаунты, тариф, расход и состояние. Поддержка заменена отдельными тикетами и ведётся только в
+> [`SUPPORT_TICKETS_1070.md`](../SUPPORT_TICKETS_1070.md) (`#1070`); в коде её ещё нет. Разделы ниже —
+> историческое исследование и исходный дизайн, не чек-лист исполнения.
+
 > **SUPPORT-ПОЛОВИНА SUPERSEDED 31.07.2026.** Разделы §4–§7 ниже сохраняют исследование от 17.07, но не
 > являются инструкцией к реализации. Поздние решения владельца заменили один continuous chat на отдельные
 > тикеты с репликами/вложениями/статусами/экспортом, platform in-app-only — на обычные настраиваемые
 > уведомления, а interim `/app/doctor/**` — на существующий `/app/admin/**` shell. Текущий исполнительный
-> канон: [`../SUPPORT_TICKETS_1070.md`](../SUPPORT_TICKETS_1070.md). Сохраняющийся канон этого файла —
-> только reality audit и admin-console baseline #808 в §0–§3.
+> канон: [`../SUPPORT_TICKETS_1070.md`](../SUPPORT_TICKETS_1070.md).
 
 **Status:** admin-baseline design + superseded support research, DOCS-ONLY. No application code, schema,
 config or migration changed by this pass. Written against repo state on `feat/doctor-ui-rebuild`, 2026-07-17.
@@ -250,9 +256,9 @@ auth, integrations, technical — §1.1), `PLAT-07`-destined pages (system-healt
 §1.1), all reachable today via the "Настройки"/"Система" doctorNavLinks clusters, all correctly gated to
 `global_admin` tier.
 
-**What is missing for "coherent"** (the actual gap, this card's scope):
+**What was missing for "coherent" in the 17.07 snapshot** (current status is recorded at the top of this file):
 
-1. **`PLAT-02` Organizations as clients** — today there is no page that lists organizations at all outside the
+1. **`PLAT-02` Organizations as clients — DELIVERED by `#1068`.** The historical gap was that there was no page that lists organizations outside the
    picker `#751` Phase 3 is building for tariff assignment. Recommendation: build **one** shared
    `GET /api/admin/organizations` (extend `#751`'s picker-shaped endpoint with the small additional fields a
    "clients" list view needs — `isActive`, `createdAt`, member/staff count if trivially available from
@@ -262,14 +268,17 @@ auth, integrations, technical — §1.1), `PLAT-07`-destined pages (system-healt
    the _identity_ row already opened for the tariff picker is the correct place to add these fields — not a
    second, independently-guarded endpoint. This satisfies "видеть список клиник … наверное, админ только"
    (`OWNER_RULINGS_2026-07-15.md:141`) directly, without touching `#800` analytics.
-2. **A visible connective thread between the clusters** — today "Настройки" and "Система" are two independent
+2. **A visible connective thread between the clusters — DELIVERED.** The current `platformNavLinks.ts` is a
+   flat global-admin menu and includes `/app/admin/clinics`. Historically "Настройки" and "Система" were two independent
    accordions with no shared landing. This document does **not** propose restructuring `doctorNavLinks.ts`
    (that restructuring is exactly the S23/S24 "move" work owned by U9/#751-adjacent follow-up, not this card);
    it only adds the two new items (`organizations`, `support`) as siblings inside the existing "Система" cluster
    (or a renamed cluster, engineering choice, not a new IA decision) so a global admin's _current_ single
    accordion menu already reads as "Organizations · Support · Health · Archive · Audit log" — coherent without
    a shell rewrite.
-3. **The support chat itself** (§4).
+3. **Support tickets — OPEN / BLOCKED.** The former support-chat design is superseded by `#1070`; no
+   `/app/admin/support` route, ticket schema or admin queue exists in code. DB/RLS implementation waits for the
+   security gate and explicit owner GO recorded in `SUPPORT_TICKETS_1070.md` §7.
 
 **Explicitly excluded from "хотя бы базово"** (do not build here): full `PLAT-04` analytics/aggregates (`#800`,
 owner-excluded this wave), `PLAT-06` catalog governance (needs an ownership-split gate first, per

@@ -1,5 +1,18 @@
 # LOG — Global Admin UI
 
+## 2026-08-20
+
+- Состояние плана синхронизировано с production-кодом: страница аналитики уже подключена к агрегатору,
+  закрыты реализованные CONNECT-блоки и предусмотренные заглушки.
+- Единственный незакрытый пункт самой страницы — `GA-A-02b`: врачебные заходы не имеют ingest и показываются
+  как «—». `GA-L-01/02` (лимиты 10/20 минут) также не реализованы, но принадлежат инфраструктурному контуру.
+- Связанные планы сведены в README/ROADMAP: консоль клиник `#1068` реализована; поддержка `#1070` не начата и
+  заблокирована DB/RLS security gate.
+- Проверка: `pnpm --dir apps/webapp test -- src/modules/platform-analytics/platform-analytics.unit.test.ts
+  src/app/api/admin/platform-analytics/platform-analytics.route.test.ts
+  src/infra/repos/pgPlatformAnalyticsRoot.unit.test.ts` фактически запустила весь Vitest-проект webapp:
+  `403` файла passed, `4` skipped; `1854` теста passed, `12` skipped.
+
 ## 2026-08-19
 
 - Заведена папка инициативы. Карточка taskdb не создавалась.
