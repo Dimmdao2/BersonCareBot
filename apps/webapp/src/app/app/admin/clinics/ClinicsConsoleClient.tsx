@@ -29,7 +29,17 @@ import {
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
 import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
+import { apiJson } from '@/shared/lib/apiJson';
 import { OrganizationCommercialPanel } from './OrganizationCommercialPanel';
 
 export type PlatformClinicsData = {
@@ -537,6 +547,108 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
   );
 }
 
+function OrganizationAccountPanel({
+  organization,
+  onOrganizationsRefresh,
+}: {
+  organization: PlatformOrganizationSummary;
+  onOrganizationsRefresh: () => Promise<boolean>;
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const targetActive = !organization.isActive;
+
+  const submit = async () => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await apiJson<{ ok: boolean }>(`/api/admin/organizations/${organization.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: targetActive, reason }),
+      });
+      setDialogOpen(false);
+      setReason('');
+      const refreshed = await onOrganizationsRefresh();
+      if (!refreshed) setActionError('Сохранено, но список не обновился — обновите страницу.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Не удалось сохранить');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className={doctorSectionItemClass}>
+        <dt className="text-xs text-muted-foreground">Учётная запись</dt>
+        <dd className="mt-1 space-y-2">
+          <p className="font-medium">{organization.isActive ? 'Включена' : 'Отключена'}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant={organization.isActive ? 'destructive' : 'default'}
+            onClick={() => {
+              setActionError(null);
+              setDialogOpen(true);
+            }}
+          >
+            {organization.isActive ? 'Отключить' : 'Включить'}
+          </Button>
+        </dd>
+      </div>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!busy) setDialogOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {organization.isActive ? 'Отключить учётную запись' : 'Включить учётную запись'}
+            </DialogTitle>
+            <DialogDescription>{organization.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="organization-account-reason">Причина (необязательно)</Label>
+            <Input
+              id="organization-account-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={500}
+            />
+            {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => setDialogOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={organization.isActive ? 'destructive' : 'default'}
+              disabled={busy}
+              onClick={() => void submit()}
+            >
+              {busy ? 'Сохраняем…' : organization.isActive ? 'Отключить' : 'Включить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function ClinicDetail({
   data,
   members,
@@ -604,10 +716,10 @@ function ClinicDetail({
               </Badge>
             </dd>
           </div>
-          <div className={doctorSectionItemClass}>
-            <dt className="text-xs text-muted-foreground">Организация</dt>
-            <dd className="mt-1 font-medium">{organization.isActive ? 'Активна' : 'Отключена'}</dd>
-          </div>
+          <OrganizationAccountPanel
+            organization={organization}
+            onOrganizationsRefresh={onOrganizationsRefresh}
+          />
         </dl>
       </DoctorSection>
 

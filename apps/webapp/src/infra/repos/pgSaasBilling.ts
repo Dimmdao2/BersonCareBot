@@ -24,7 +24,6 @@ import {
 import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
-  saasBillingInvoiceReissueVerdict,
   captureSaasBillingPaidInvoice,
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
@@ -1763,118 +1762,6 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
         return { outcome: 'cancelled' as const, invoice: toSaasBillingInvoice(updated) };
       });
-    },
-
-    /**
-     * Перевыставление счёта за место. Новый счёт на ТОТ ЖЕ отрезок услуги и ту же сумму появляется
-     * ПЕРВЫМ; старый гасится ссылкой на него (`reissueWithSuccessor` — там же объяснено, почему
-     * обратный порядок невыразим). Обе записи — одна транзакция под тем же замком организации,
-     * через который идёт продажа места: падение на любом шаге откатывает обе, и долг не исчезает
-     * ни на мгновение.
-     */
-    async reissueSeatOverageInvoice(input) {
-      const db = getDrizzle();
-      // Личность счёта читается ДО замков — иначе порядок взятия замков разошёлся бы с продажей
-      // места (сначала организация, потом строка счёта) и дал бы взаимную блокировку.
-      const [identity] = await db
-        .select({
-          id: saasBillingInvoices.id,
-          organizationId: saasBillingInvoices.organizationId,
-        })
-        .from(saasBillingInvoices)
-        .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
-        .limit(1);
-      if (!identity) return { outcome: 'invoice_not_found' as const };
-
-      return db.transaction((tx) =>
-        transactionQuotaPort.withinLock(
-          tx,
-          { organizationId: identity.organizationId, mechanic: 'clinic_team' },
-          async () => {
-            const [invoiceRow] = await tx
-              .select()
-              .from(saasBillingInvoices)
-              .where(eq(saasBillingInvoices.id, identity.id))
-              .limit(1)
-              .for('update');
-            if (!invoiceRow) return { outcome: 'invoice_not_found' as const };
-            const superseded = toSaasBillingInvoice(invoiceRow);
-            const verdict = saasBillingInvoiceReissueVerdict(superseded);
-            if (!verdict.allowed) {
-              return verdict.refusal === 'invoice_kind_not_reissuable'
-                ? {
-                    outcome: 'invoice_kind_not_reissuable' as const,
-                    invoiceKind: superseded.invoiceKind,
-                  }
-                : { outcome: 'invoice_not_reissuable' as const, status: superseded.status };
-            }
-
-            const { successor, retired } = await reissueWithSuccessor({
-              issueSuccessor: async () => {
-                // Сумма и отрезок услуги переносятся ДОСЛОВНО. Пересчёт «на сейчас» сделал бы
-                // перевыставление скидкой за просрочку: место, проданное на весь период, после
-                // нескольких перевыставлений стоило бы проценты от цены.
-                const { invoice } = await insertSaasBillingInvoiceIdempotent(tx, {
-                  organizationId: superseded.organizationId,
-                  saasBillingAccountId: superseded.saasBillingAccountId,
-                  saasBillingSubscriptionId: superseded.saasBillingSubscriptionId,
-                  tariffId: superseded.tariffId,
-                  tariffName: superseded.tariffName,
-                  invoiceKind: superseded.invoiceKind,
-                  additionalSeatQuantity: superseded.additionalSeatQuantity,
-                  description: superseded.description,
-                  amountMinor: superseded.amountMinor,
-                  carriedDebtMinor: superseded.carriedDebtMinor,
-                  currency: superseded.currency,
-                  tariffBillingPeriod: superseded.tariffBillingPeriod,
-                  tariffSnapshot: superseded.tariffSnapshot,
-                  servicePeriodStartsAt: superseded.servicePeriodStartsAt,
-                  servicePeriodEndsAt: superseded.servicePeriodEndsAt,
-                  expiresAt: saasBillingInvoiceExpiresAt(
-                    new Date().toISOString(),
-                    input.invoiceValidityDays,
-                  ),
-                  status: 'draft',
-                  providerId: input.providerId,
-                  // Ключ выведен из ОТМЕНЯЕМОГО счёта, не из времени: повторный запрос на
-                  // перевыставление того же счёта попадает в тот же ключ и не плодит третий счёт.
-                  providerIdempotencyKey: `saas_seat_overage_reissue:${superseded.id}`,
-                });
-                return invoice;
-              },
-              retireSuperseded: async (replacement) => {
-                const [updated] = await tx
-                  .update(saasBillingInvoices)
-                  .set({
-                    status: 'void',
-                    supersededByInvoiceId: replacement.id,
-                    updatedAt: new Date().toISOString(),
-                  })
-                  .where(eq(saasBillingInvoices.id, superseded.id))
-                  .returning();
-                if (!updated) throw new Error('saas_billing_invoice_reissue_failed');
-                return toSaasBillingInvoice(updated);
-              },
-            });
-
-            await tx.insert(adminAuditLog).values({
-              organizationId: superseded.organizationId,
-              actorId: input.actorId,
-              action: 'saas_billing_invoice_reissued',
-              targetId: superseded.id,
-              details: {
-                reason: input.reason,
-                amountMinor: superseded.amountMinor,
-                currency: superseded.currency,
-                supersededByInvoiceId: successor.id,
-              },
-              status: 'ok',
-            });
-
-            return { outcome: 'reissued' as const, invoice: successor, superseded: retired };
-          },
-        ),
-      );
     },
 
     async requireOwnTariffBillingSubscription(organizationId) {

@@ -1,22 +1,22 @@
 /**
  * Счёт за место, оставшийся неоплаченным: что с ним можно сделать и куда девается долг.
  *
- * Решения владельца 19.08, дословно:
- *   «отмена неоплаченного счёта администратором — это с чего бы его отменять? … Может
- *   перевыставить его».
- *   «Если до конца периода счет не оплачен — делать его просроченным и включать долг в стоимость
- *   следующего периода: он либо автооплатится, либо весь доступ закрыт по правилам тарифов».
+ * Решения владельца:
+ *   19.08, дословно: «отмена неоплаченного счёта администратором — это с чего бы его отменять? …».
+ *   19.08, дословно: «Если до конца периода счет не оплачен — делать его просроченным и включать
+ *   долг в стоимость следующего периода: он либо автооплатится, либо весь доступ закрыт по правилам
+ *   тарифов».
+ *   20.08 (Р-19), дословно: «У него срок до конца период, потом он протух и долг включился в
+ *   стоимость следующего периода … срок у счёта ОДИН — конец периода». Перевыставления нет.
  *
  * Поломки, которые ловит этот файл:
  * 1. «Счёт за место отменили — оказанная услуга не будет оплачена никогда, а журнал говорит
  *    „счёта не было“».
- * 2. «Перевыставление пересчитало сумму на момент перевыставления — место подешевело за то, что
- *    клиника тянула с оплатой».
- * 3. «Период кончился, счёт за место не оплачен — долг просто исчез: следующий счёт выставлен по
+ * 2. «Период кончился, счёт за место не оплачен — долг просто исчез: следующий счёт выставлен по
  *    цене тарифа».
- * 4. «Долг переехал в следующий счёт — и заодно отобрали место за уже прошедший период».
+ * 3. «Долг переехал в следующий счёт — и заодно отобрали место за уже прошедший период».
  *
- * Все четыре дорогие и молчаливые: наружу это выглядит как нормально работающий биллинг.
+ * Все три дорогие и молчаливые: наружу это выглядит как нормально работающий биллинг.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { createSaasBillingService } from './service';
@@ -163,81 +163,6 @@ describe('счёт за место не отменяют', () => {
     });
 
     expect(result.outcome).toBe('cancelled');
-  });
-});
-
-describe('перевыставление счёта за место', () => {
-  it('создаёт преемника на тот же отрезок услуги и ту же сумму, старый гасит ссылкой на него', async () => {
-    const world = scenario();
-    await withPaidPeriod(world);
-    const seatInvoice = await world.buySeat('seat-1');
-
-    world.setNow('2026-07-20T00:00:00.000Z');
-    const result = await world.service.reissueSeatOverageInvoice({
-      saasBillingInvoiceId: seatInvoice.id,
-      actorId: 'platform-admin',
-      reason: 'счёт протух у провайдера',
-    });
-
-    expect(result.outcome).toBe('reissued');
-    if (result.outcome !== 'reissued') throw new Error('reissued expected');
-
-    // Сумма и отрезок услуги — те же: перевыставление не даёт скидки за просрочку.
-    expect(result.invoice.amountMinor).toBe(seatInvoice.amountMinor);
-    expect(result.invoice.servicePeriodStartsAt).toBe(seatInvoice.servicePeriodStartsAt);
-    expect(result.invoice.servicePeriodEndsAt).toBe(seatInvoice.servicePeriodEndsAt);
-    expect(result.invoice.id).not.toBe(seatInvoice.id);
-    expect(result.invoice.status).toBe('pending');
-
-    // Старый погашен и указывает на преемника — это «сумма на том счёте», а не «долга не было».
-    const stored = (await world.invoices()).find((row) => row.id === seatInvoice.id);
-    expect(stored?.status).toBe('void');
-    expect(stored?.supersededByInvoiceId).toBe(result.invoice.id);
-  });
-
-  it('повторное перевыставление того же счёта не плодит третий счёт', async () => {
-    const world = scenario();
-    await withPaidPeriod(world);
-    const seatInvoice = await world.buySeat('seat-1');
-
-    await world.service.reissueSeatOverageInvoice({
-      saasBillingInvoiceId: seatInvoice.id,
-      actorId: 'platform-admin',
-      reason: 'первый раз',
-    });
-    const second = await world.service.reissueSeatOverageInvoice({
-      saasBillingInvoiceId: seatInvoice.id,
-      actorId: 'platform-admin',
-      reason: 'второй раз',
-    });
-
-    expect(second.outcome).toBe('invoice_not_reissuable');
-    expect((await world.invoices()).filter((row) => row.invoiceKind === 'seat_overage')).toHaveLength(
-      2,
-    );
-  });
-
-  it('оставляет старый счёт живым, когда создание преемника упало', async () => {
-    const world = scenario();
-    await withPaidPeriod(world);
-    const seatInvoice = await world.buySeat('seat-1');
-
-    // Инъекция ровно в шаг «создать новый»: всё, что было до него, обязано остаться как было.
-    vi.spyOn(world.repository, 'reissueSeatOverageInvoice').mockImplementationOnce(async () => {
-      throw new Error('insert_failed');
-    });
-
-    await expect(
-      world.service.reissueSeatOverageInvoice({
-        saasBillingInvoiceId: seatInvoice.id,
-        actorId: 'platform-admin',
-        reason: 'падение',
-      }),
-    ).rejects.toThrow('insert_failed');
-
-    const stored = (await world.invoices()).find((row) => row.id === seatInvoice.id);
-    expect(stored?.status).toBe('pending');
-    expect(stored?.supersededByInvoiceId).toBeNull();
   });
 });
 
@@ -394,33 +319,5 @@ describe('оплата по счёту, чей долг уже переехал'
     const late = rows.find((row) => row.id === unpaidSeat.id);
     expect(late?.status).toBe('void');
     expect(late?.supersededByInvoiceId).toBe(nextPeriod.id);
-  });
-
-  it('перевыставленный счёт: оплата по старой ссылке снимает долг с ЕГО преемника', async () => {
-    const world = scenario();
-    await withPaidPeriod(world);
-    const seat = await world.buySeat('seat-1');
-
-    world.setNow('2026-07-20T00:00:00.000Z');
-    const reissued = await world.service.reissueSeatOverageInvoice({
-      saasBillingInvoiceId: seat.id,
-      actorId: 'platform-admin',
-      reason: 'счёт протух у провайдера',
-    });
-    if (reissued.outcome !== 'reissued') throw new Error('reissued expected');
-
-    // Преемник тоже не оплачен к концу периода — его долг едет в счёт следующего периода.
-    world.setNow(PERIOD_ENDS_AT);
-    const nextPeriod = await world.service.createOwnTariffRenewalInvoice(ORGANIZATION_ID);
-    expect(nextPeriod.carriedDebtMinor).toBe(seat.amountMinor);
-
-    // Оплата приходит по САМОЙ старой ссылке — цепочка преемников проходится до живого счёта.
-    await world.pay(seat.id, 'event-oldest-link');
-
-    const rows = await world.invoices();
-    expect(rows.find((row) => row.id === seat.id)?.status).toBe('paid');
-    expect(rows.find((row) => row.id === nextPeriod.id)?.carriedDebtMinor).toBe(0);
-    expect(rows.find((row) => row.id === nextPeriod.id)?.amountMinor).toBe(TARIFF.priceMinor);
-    expect((await world.subscription()).paidAdditionalSeats).toBe(1);
   });
 });

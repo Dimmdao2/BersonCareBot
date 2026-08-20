@@ -5,15 +5,11 @@
  *    уходит в `void`, оказанная услуга остаётся неоплаченной навсегда, а журнал платежей говорит
  *    „счёта не было“». Дорого (деньги + ложь в отчётности) и молча (внешне выглядит как обычная
  *    отмена).
- * 2. «Перевыставление гасит старый счёт и падает на создании нового — долга больше нет ни на одном
- *    счёте». Дорого (клиника не заплатит вообще) и молча (в кабинете просто одним счётом меньше).
+ * 2. `reissueWithSuccessor` — общий помощник упорядочивания преемника, которым продление периода
+ *    гасит старый счёт: гашение падает раньше создания нового — долг исчезает в промежутке.
  */
 import { describe, expect, it, vi } from 'vitest';
-import {
-  reissueWithSuccessor,
-  saasBillingInvoiceCancelVerdict,
-  saasBillingInvoiceReissueVerdict,
-} from './invoiceOperations';
+import { reissueWithSuccessor, saasBillingInvoiceCancelVerdict } from './invoiceOperations';
 
 describe('отмена счёта: вид счёта решает раньше статуса', () => {
   it('отказывает отменить неоплаченный счёт за место — его перевыставляют', () => {
@@ -48,29 +44,6 @@ describe('отмена счёта: вид счёта решает раньше �
         saasBillingInvoiceCancelVerdict({ invoiceKind: 'tariff_period', status }),
       ).toEqual({ allowed: false, refusal: 'invoice_not_cancellable' });
     }
-  });
-});
-
-describe('перевыставление: только неоплаченный счёт за место', () => {
-  it('разрешает неоплаченный счёт за место', () => {
-    expect(
-      saasBillingInvoiceReissueVerdict({ invoiceKind: 'seat_overage', status: 'draft' }),
-    ).toEqual({ allowed: true });
-    expect(
-      saasBillingInvoiceReissueVerdict({ invoiceKind: 'seat_overage', status: 'pending' }),
-    ).toEqual({ allowed: true });
-  });
-
-  it('не перевыставляет уже оплаченный счёт: долга, который надо перенести, нет', () => {
-    expect(
-      saasBillingInvoiceReissueVerdict({ invoiceKind: 'seat_overage', status: 'paid' }),
-    ).toEqual({ allowed: false, refusal: 'invoice_not_reissuable' });
-  });
-
-  it('не перевыставляет счёт за период тарифа', () => {
-    expect(
-      saasBillingInvoiceReissueVerdict({ invoiceKind: 'tariff_period', status: 'draft' }),
-    ).toEqual({ allowed: false, refusal: 'invoice_kind_not_reissuable' });
   });
 });
 

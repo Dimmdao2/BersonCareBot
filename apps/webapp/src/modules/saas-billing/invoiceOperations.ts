@@ -2,11 +2,14 @@
  * Что оператор вправе сделать с уже выставленным счётом — ОДНО место на весь продукт.
  *
  * Решение владельца 19.08, дословно: «отмена неоплаченного счёта администратором — это с чего бы
- * его отменять? как делается у других — разве они дают админу просто отменить счет? Может
- * перевыставить его». Основание практикой — `docs/_TODO/SAAS_FOUNDATION/SEAT_UNPAID_PRACTICE_2026-08-19.md`
- * вопрос 2: аннулирование говорит миру «счёта не было», и для УЖЕ ОКАЗАННОЙ услуги это ложь;
- * инструмент исправления выставленного счёта — перевыставление, то есть новый счёт ПЛЮС гашение
- * старого, где гашение — техническая часть операции, у которой есть преемник.
+ * его отменять? как делается у других — разве они дают админу просто отменить счет?». Основание
+ * практикой — `docs/_TODO/SAAS_FOUNDATION/SEAT_UNPAID_PRACTICE_2026-08-19.md` вопрос 2: аннулирование
+ * говорит миру «счёта не было», и для УЖЕ ОКАЗАННОЙ услуги это ложь.
+ *
+ * Перевыставления счёта за место больше нет (Р-19, 20.08, дословно: «короче перевыставление —
+ * бред, убирать»): у счёта ОДИН срок — конец периода, дальше долг переносится в счёт следующего
+ * периода (Р-18). Отмена автоматического счёта за место остаётся запрещённой (`seat_invoice_not_cancellable`)
+ * без замены на другое действие оператора.
  *
  * Почему правило живёт здесь, а не в маршруте и не в кнопке: до этого файла условие показа кнопки
  * («статус draft или pending») было единственной проверкой во всей цепочке, а маршрут отмены,
@@ -30,12 +33,6 @@ export type SaasBillingInvoiceCancelRefusal =
   /** Автоматический счёт за место: услуга продана, отмена сказала бы «не продавали». */
   | 'seat_invoice_not_cancellable';
 
-export type SaasBillingInvoiceReissueRefusal =
-  /** Перевыставляется только неоплаченный счёт: у оплаченного нет долга, который надо переносить. */
-  | 'invoice_not_reissuable'
-  /** Ручной счёт правится отменой и новым выставлением; перевыставление заведено под счёт за место. */
-  | 'invoice_kind_not_reissuable';
-
 export type SaasBillingInvoiceVerdict<TRefusal> =
   | { allowed: true }
   | { allowed: false; refusal: TRefusal };
@@ -49,8 +46,8 @@ function isAwaitingPayment(status: SaasBillingInvoiceStatus): boolean {
  * Можно ли ОТМЕНИТЬ этот счёт.
  *
  * Вид проверяется ПЕРВЫМ и отдельным отказом: «счёт за место отменить нельзя» — это не про статус,
- * и оператор должен услышать именно это, а не «счёт не в том состоянии». Для счёта за место есть
- * своё действие — {@link saasBillingInvoiceReissueVerdict}.
+ * и оператор должен услышать именно это, а не «счёт не в том состоянии». Для счёта за место другого
+ * действия нет (Р-19): срок один — конец периода, дальше Р-18.
  */
 export function saasBillingInvoiceCancelVerdict(
   invoice: SaasBillingInvoiceOperationSubject,
@@ -60,19 +57,6 @@ export function saasBillingInvoiceCancelVerdict(
   }
   if (!isAwaitingPayment(invoice.status)) {
     return { allowed: false, refusal: 'invoice_not_cancellable' };
-  }
-  return { allowed: true };
-}
-
-/** Можно ли ПЕРЕВЫСТАВИТЬ этот счёт: новый на тот же отрезок услуги, старый гасится преемником. */
-export function saasBillingInvoiceReissueVerdict(
-  invoice: SaasBillingInvoiceOperationSubject,
-): SaasBillingInvoiceVerdict<SaasBillingInvoiceReissueRefusal> {
-  if (invoice.invoiceKind !== 'seat_overage') {
-    return { allowed: false, refusal: 'invoice_kind_not_reissuable' };
-  }
-  if (!isAwaitingPayment(invoice.status)) {
-    return { allowed: false, refusal: 'invoice_not_reissuable' };
   }
   return { allowed: true };
 }
