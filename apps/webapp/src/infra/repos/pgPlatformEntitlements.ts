@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   resolveCommercialAccess,
   type CommercialAccessPaidPeriodInput,
@@ -838,6 +838,45 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async startTrial(organizationId, audit) {
       assertPlatformOperationsPrincipal();
       return startTrialForOrganization(organizationId, audit);
+    },
+
+    async setOrganizationActive(organizationId, isActive, audit) {
+      assertPlatformOperationsPrincipal();
+      const db = getDrizzle();
+      const [before] = await db
+        .select({ id: beOrganizations.id, isActive: beOrganizations.isActive })
+        .from(beOrganizations)
+        .where(eq(beOrganizations.id, organizationId))
+        .limit(1);
+      if (!before) throw new Error('organization_not_found');
+
+      const result = await runWebappNamedRoot<{
+        organization_id: string;
+        is_active: boolean;
+        changed: boolean;
+      }>(
+        db,
+        'app.set_platform_organization_is_active(uuid,boolean)',
+        [organizationId, isActive],
+        sql`SELECT * FROM app.set_platform_organization_is_active(${organizationId}::uuid, ${isActive})`,
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('organization_active_update_failed');
+
+      if (row.changed) {
+        await db.transaction(async (tx) => {
+          await appendAudit(tx, {
+            audit,
+            action: 'organization_set_is_active',
+            targetId: organizationId,
+            organizationId,
+            before: { isActive: before.isActive },
+            after: { isActive: row.is_active },
+          });
+        });
+      }
+
+      return { isActive: row.is_active, changed: row.changed };
     },
   };
 }

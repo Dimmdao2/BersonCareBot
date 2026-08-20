@@ -37,6 +37,7 @@ export function OrganizationCommercialPanel({
   onUpdated: () => Promise<boolean>;
 }) {
   const [trialPolicy, setTrialPolicy] = useState<TrialPolicy | null>(null);
+  const [trialPolicyError, setTrialPolicyError] = useState(false);
   const [assignedTariffId, setAssignedTariffId] = useState(
     organization.manualTariffId ?? 'none',
   );
@@ -70,10 +71,18 @@ export function OrganizationCommercialPanel({
     void fetch('/api/admin/commercial', { cache: 'no-store' })
       .then(async (response) => {
         const payload = (await response.json()) as { trialPolicy?: TrialPolicy | null };
-        if (!response.ok) return;
-        if (active) setTrialPolicy(payload.trialPolicy ?? null);
+        if (!response.ok) {
+          if (active) setTrialPolicyError(true);
+          return;
+        }
+        if (active) {
+          setTrialPolicyError(false);
+          setTrialPolicy(payload.trialPolicy ?? null);
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setTrialPolicyError(true);
+      });
     return () => {
       active = false;
     };
@@ -215,6 +224,9 @@ export function OrganizationCommercialPanel({
           Исключения и политики
         </Link>
       </div>
+      {trialPolicyError ? (
+        <p className="text-sm text-destructive">Не удалось загрузить политику триала.</p>
+      ) : null}
       {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
     </DoctorSection>
   );

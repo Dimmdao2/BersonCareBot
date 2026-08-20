@@ -841,6 +841,11 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     startTrial: (organizationId: string, audit: PlatformMutationAudit) => {
       return port.startTrial(organizationId, audit);
     },
+    setOrganizationActive: (
+      organizationId: string,
+      isActive: boolean,
+      audit: PlatformMutationAudit,
+    ) => port.setOrganizationActive(organizationId, isActive, audit),
   };
 }
 
