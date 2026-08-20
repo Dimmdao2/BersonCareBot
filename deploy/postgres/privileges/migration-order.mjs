@@ -1,7 +1,7 @@
 /**
  * The order of webapp migrations, and the proof that an applied one is really in the database.
  *
- * Three rules live here, and only here, so every runner (`migrate-local.mjs` for DEV/TEST/PROD,
+ * Two rules live here, and only here, so every runner (`migrate-local.mjs` for DEV/TEST/PROD,
  * `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` for the local/template path) reads the same
  * copy:
  *
@@ -12,17 +12,23 @@
  *      "every file above the highest applied timestamp".  A watermark makes a skip permanent and
  *      silent: a migration that lands below it is never pending again and the runner keeps printing
  *      "already current" over a hole in the schema.
- *   3. EVERY MIGRATION OWES A PROOF.  Before anything is applied, every applied migration has to
- *      answer for itself: with an object it still owns in the catalog, or — when it creates no
- *      object the classifier can name — with an explicit `-- BCB-MIGRATION-VERIFY: SELECT …` probe
- *      in its header.  Rule 2 alone made "applied" a claim anybody could type into the ledger for
- *      the migrations that promise nothing; rule 3 is what makes the claim answerable for all of
- *      them, not only for the ones that happen to create a function.
  *
- * `meta/_journal.json` is no longer read for order.  It survives as the frozen historical
+ * `meta/_journal.json` is no longer read for order.  Its one remaining job is the frozen historical
  * `when -> tag` map used once per database to label ledger rows written before the tag column
- * existed, and "frozen" is enforced, not asked for: `meta/_journal.frozen` pins its digest, because
- * one appended line hands another branch's ledger row the name of a migration nobody ran.
+ * existed (`backfillLedgerTagsSql`) — and that file stays live and editable, because a database can
+ * be bootstrapped from a checkout at any point in this branch's history.
+ *
+ * The closed list of names allowed to keep the old `NNNN_slug` shape (`findMigrationNameViolations`)
+ * does NOT read that live file.  It reads `meta/_journal.frozen.json`, a second, checked-in snapshot
+ * that is never written by code and changes only when a human deliberately grandfathers a name in a
+ * reviewed diff.  Two files, not one, because on 19.08 a branch (`wt/drop-patient-count-20260819`)
+ * added a 51st entry to the live journal to relabel its own hand-numbered migration as "legacy", and
+ * `pnpm run lint` passed — the live journal was both the thing being checked and the list it was
+ * checked against, so growing it could never fail its own check.  `findJournalGrowth` catches that
+ * directly: the live journal is compared against the frozen snapshot, and any tag the live file
+ * carries that the frozen one does not is growth, reported by name.  Every migration created after
+ * this module started enforcing it is named `YYYYMMDDTHHMMSS_slug` — a timestamp, not a hand-picked
+ * number, so two branches cannot pick the same name and nothing needs reserving before a merge.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -62,6 +68,67 @@ export function selectPendingMigrations(migrations, ledgerRows) {
 export function findForeignLedgerRows(migrations, ledgerRows) {
   const known = new Set(migrations.map((migration) => migration.tag));
   return ledgerRows.filter((row) => !row.tag || !known.has(row.tag));
+}
+
+/**
+ * A new migration's name is a timestamp, not a hand-picked number: `YYYYMMDDTHHMMSS_slug`, UTC,
+ * second precision.  Two agents cannot land the same instant, so the name alone rules out the
+ * collision that hand-picked sequential numbers hit twice on 19.08 (`0050` claimed by two branches
+ * the same evening).  It also makes "insert between two migrations" ordinary: pick a timestamp
+ * between them, no letter suffix, no renumbering neighbours.
+ */
+export const TIMESTAMP_MIGRATION_NAME = /^\d{8}T\d{6}_[a-z0-9]+(?:_[a-z0-9]+)*$/u;
+
+/**
+ * The migrations the frozen legacy snapshot (`meta/_journal.frozen.json`, see `readFrozenLegacyMigrationNames`)
+ * already names keep their old `NNNN[suffix]_slug` shape forever — renaming them would break the
+ * ledger identity (`tag`).  `legacyEntries` must come from that frozen snapshot, not the live
+ * `meta/_journal.json`: the live file is edited for its ledger-bootstrap job (see module doc), so a
+ * caller that fed it here would let the legacy set grow with the live file.  Every tag the frozen
+ * snapshot does not know must be a timestamp.  Returns the offending tags, not booleans, so a caller
+ * can name them in one failure.
+ */
+export function findMigrationNameViolations(migrations, legacyEntries) {
+  const legacyTags = new Set((legacyEntries ?? []).map((entry) => entry.tag));
+  return migrations
+    .filter((migration) => !legacyTags.has(migration.tag))
+    .filter((migration) => !TIMESTAMP_MIGRATION_NAME.test(migration.tag))
+    .map((migration) => migration.tag);
+}
+
+/**
+ * The live `meta/_journal.json` carries a tag the frozen legacy snapshot does not know — the closed
+ * list grew.  This is a narrower, louder check than `findMigrationNameViolations` alone: that
+ * function only ever sees the frozen snapshot (by construction, once callers stop feeding it the
+ * live file), so it cannot itself report *why* a new hand-numbered name would slip through — it
+ * would simply keep refusing it forever, silently, as ordinary new-file-shape enforcement.  This
+ * function names the actual defect for a human: the historical map itself has an entry it should
+ * not have, independent of whether any `.sql` file currently claims that tag.
+ */
+export function findJournalGrowth(liveEntries, frozenEntries) {
+  const frozenTags = new Set((frozenEntries ?? []).map((entry) => entry.tag));
+  return (liveEntries ?? [])
+    .filter((entry) => !frozenTags.has(entry.tag))
+    .map((entry) => entry.tag);
+}
+
+/**
+ * A pending migration byte-identical to a ledger row this checkout cannot name is not new work — it
+ * is an applied migration wearing a new file name.  `AGENTS.md` forbids renaming an applied
+ * migration (the name is its ledger identity); this is what makes that refusal real instead of
+ * aspirational for every migration created after the historical journal froze, where there is no
+ * journal entry left to catch the old name going missing.
+ *
+ * Content, not name, is what proves the rename: the hash is computed the same way on both sides
+ * (`readMigrationFolder`, `INSERT ... hash`), so a plain `git mv` — the only legitimate way to
+ * reorder an unapplied migration — cannot trigger this, because an unapplied migration owns no
+ * foreign ledger row to collide with.
+ */
+export function findRenamedAppliedMigrations(pendingMigrations, foreignLedgerRows) {
+  const foreignByHash = new Map(foreignLedgerRows.filter((row) => row.hash).map((row) => [row.hash, row]));
+  return pendingMigrations
+    .filter((migration) => foreignByHash.has(migration.hash))
+    .map((migration) => ({ migration, row: foreignByHash.get(migration.hash) }));
 }
 
 /** Statements as the folder writes them: one chunk per Drizzle breakpoint, comments kept. */
@@ -116,49 +183,23 @@ END
 $bcb_ledger$;`;
 }
 
-/**
- * The digest `meta/_journal.frozen` pins.  Only `when` and `tag` go into it: those two fields are the
- * whole of the map's remaining job, and the rest of the file (idx, version, breakpoints) is Drizzle
- * bookkeeping nobody reads any more.
- */
-export function journalDigest(entries) {
-  const canonical = (entries ?? [])
-    .map((entry) => `${entry?.when}\t${entry?.tag}`)
-    .join('\n');
-  return createHash('sha256').update(canonical).digest('hex');
-}
-
-/**
- * The frozen historical `when -> tag` map, or an empty one when the folder no longer carries it.
- *
- * The map hands a name to a ledger row that has none, so appending one line to it is enough to make
- * a row somebody else's migration wrote answer to the name of a migration that never ran — the
- * whole forgery costs one line and leaves no other trace.  So the map is pinned: `meta/_journal.frozen`
- * carries its digest, both runners refuse a mismatch, and a merge that genuinely has to extend the
- * map must move the pin in the same commit, where a reviewer sees it.
- */
+/** The frozen historical `when -> tag` map, or an empty one when the folder no longer carries it. */
 export function readLegacyJournalEntries(folder) {
   const path = resolve(folder, 'meta', '_journal.json');
   if (!existsSync(path)) return [];
-  const entries = JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
-  const pinPath = resolve(folder, 'meta', '_journal.frozen');
-  const digest = journalDigest(entries);
-  if (!existsSync(pinPath)) {
-    throw new Error(
-      `the historical migration map ${path} has no freeze pin next to it; write its digest ${digest} `
-        + 'to meta/_journal.frozen in the same commit, or delete the map — an unpinned map can be '
-        + "extended by one line to give another branch's ledger row the name of a migration nobody ran",
-    );
-  }
-  const pinned = readFileSync(pinPath, 'utf8').trim();
-  if (pinned !== digest) {
-    throw new Error(
-      `the historical migration map ${path} is not the frozen one: it digests to ${digest}, `
-        + `meta/_journal.frozen pins ${pinned || '(empty)'}. The map does not order anything and is not `
-        + 'hand-edited; if a merge really has to extend it, move the pin in the same commit.',
-    );
-  }
-  return entries;
+  return JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
+}
+
+/**
+ * The closed, checked-in legacy-name allowlist for `findMigrationNameViolations` and
+ * `findJournalGrowth`.  Unlike `meta/_journal.json`, this file is never written by any runner or
+ * bootstrap step — it changes only when a human deliberately grandfathers a name, in a diff a
+ * reviewer sees.  Missing entirely means no name is grandfathered, not "trust the live journal".
+ */
+export function readFrozenLegacyMigrationNames(folder) {
+  const path = resolve(folder, 'meta', '_journal.frozen.json');
+  if (!existsSync(path)) return [];
+  return JSON.parse(readFileSync(path, 'utf8')).entries ?? [];
 }
 
 const QUALIFIED = String.raw`(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*)(?:\.(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*))?`;
@@ -282,135 +323,33 @@ export function collectExpectedObjects(migrations) {
   return [...expected.values()];
 }
 
-/** The catalog question for one object: does it exist, by name and kind? */
-function objectPresenceQuery(object) {
-  const schema = object.schema ? `n.nspname = ${literal(object.schema)}` : 'true';
-  const relation = object.relation
-    ? `c.relname = ${literal(object.relation.name)}${object.relation.schema ? ` AND rn.nspname = ${literal(object.relation.schema)}` : ''}`
-    : 'true';
-  return {
-    function: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE p.proname = ${literal(object.name)} AND ${schema})`,
-    table: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('r','p','f') AND ${schema})`,
-    view: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('v','m') AND ${schema})`,
-    index: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('i','I'))`,
-    type: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = ${literal(object.name)} AND ${schema})`,
-    column: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE a.attname = ${literal(object.name)} AND NOT a.attisdropped AND a.attnum > 0 AND ${relation})`,
-    constraint: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_class c ON c.oid = k.conrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE k.conname = ${literal(object.name)} AND ${relation})`,
-    trigger: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g JOIN pg_catalog.pg_class c ON c.oid = g.tgrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE g.tgname = ${literal(object.name)} AND NOT g.tgisinternal AND ${relation})`,
-  }[object.kind];
-}
-
 /** One catalog probe per object; a false row is a hole the ledger claims is filled. */
 export function renderObjectPresenceSql(objects) {
-  return renderProofSql(objects.map((object) => ({ kind: 'object', tag: object.tag, object })));
+  const probes = objects.map((object, index) => {
+    const schema = object.schema ? `n.nspname = ${literal(object.schema)}` : 'true';
+    const relation = object.relation
+      ? `c.relname = ${literal(object.relation.name)}${object.relation.schema ? ` AND rn.nspname = ${literal(object.relation.schema)}` : ''}`
+      : 'true';
+    const query = {
+      function: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE p.proname = ${literal(object.name)} AND ${schema})`,
+      table: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('r','p','f') AND ${schema})`,
+      view: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('v','m') AND ${schema})`,
+      index: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('i','I'))`,
+      type: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = ${literal(object.name)} AND ${schema})`,
+      column: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE a.attname = ${literal(object.name)} AND NOT a.attisdropped AND a.attnum > 0 AND ${relation})`,
+      constraint: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_class c ON c.oid = k.conrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE k.conname = ${literal(object.name)} AND ${relation})`,
+      trigger: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g JOIN pg_catalog.pg_class c ON c.oid = g.tgrelid JOIN pg_catalog.pg_namespace rn ON rn.oid = c.relnamespace WHERE g.tgname = ${literal(object.name)} AND NOT g.tgisinternal AND ${relation})`,
+    }[object.kind];
+    return `SELECT ${index} AS at, (${query}) AS present`;
+  });
+  return probes.length === 0 ? null : probes.join('\nUNION ALL\n');
 }
 
-const VERIFY_HEADER = /^--\s*BCB-MIGRATION-VERIFY:\s*(.+?)\s*$/u;
-
-/**
- * The `-- BCB-MIGRATION-VERIFY:` probes a migration carries, read from its LEADING comment block —
- * the run of blank and `--` lines the file opens with.
- *
- * Only the leading block, because everything after it can be the body of a `CREATE FUNCTION`, and a
- * migration must not be able to declare its own proof from inside a string literal it wrote.
- *
- * A probe is one `SELECT` returning one boolean, run read-only before any DDL, by the same identity
- * that writes the ledger.  Semicolons and comment starters are refused: the probe is embedded as a
- * scalar subquery, and either of those would let it end the surrounding statement.
- */
-export function readVerifyProbes(source) {
-  const probes = [];
-  for (const line of String(source ?? '').split(/\r?\n/u)) {
-    const trimmed = line.trim();
-    if (trimmed === '') continue;
-    if (!trimmed.startsWith('--')) break;
-    const match = VERIFY_HEADER.exec(trimmed);
-    if (!match) continue;
-    const probe = match[1].trim();
-    if (!/^SELECT\s/iu.test(probe)) {
-      throw new Error(`BCB-MIGRATION-VERIFY must be a single SELECT, got: ${probe}`);
-    }
-    if (/;|--|\/\*/u.test(probe)) {
-      throw new Error(`BCB-MIGRATION-VERIFY must not carry a statement terminator or a comment: ${probe}`);
-    }
-    probes.push(probe);
-  }
-  return probes;
-}
-
-/**
- * Everything the applied migrations owe the database, in one list: the objects they still hold, and
- * the explicit probes of the ones that hold no object a classifier can name.
- */
-export function collectMigrationProofs(migrations) {
-  const proofs = collectExpectedObjects(migrations).map((object) => ({
-    kind: 'object',
-    tag: object.tag,
-    object,
-  }));
-  for (const migration of migrations) {
-    for (const probe of readVerifyProbes(migration.source)) {
-      proofs.push({ kind: 'verify', tag: migration.tag, probe });
-    }
-  }
-  return proofs;
-}
-
-/**
- * Migrations that owe nothing and therefore prove nothing: no surviving object of their own, no
- * VERIFY probe.  A hand-written ledger row for one of these is indistinguishable from a real one,
- * which is exactly the hole the lint gate refuses to let a new migration open.
- */
-export function findUnprovedMigrations(migrations) {
-  const proved = new Set(collectMigrationProofs(migrations).map((proof) => proof.tag));
-  return migrations.filter((migration) => !proved.has(migration.tag)).map((migration) => migration.tag);
-}
-
-/** One row per proof, each carrying its own index, so an answer can never be read by position. */
-export function renderProofSql(proofs) {
-  if (proofs.length === 0) return null;
-  return proofs
-    .map((proof, index) => {
-      const query = proof.kind === 'verify' ? proof.probe : objectPresenceQuery(proof.object);
-      return `SELECT ${index} AS at, (${query}) AS present`;
-    })
-    .join('\nUNION ALL\n');
-}
-
-/**
- * The proofs the database did not answer for.
- *
- * Answers are matched by the `at` each row carries, never by arrival order: the probe is a
- * `UNION ALL`, which promises no order at all, and reading it by position turns a missing row into a
- * silent "present".  A short or duplicated answer set is a refusal, not a default.
- */
-export function interpretProofAnswers(proofs, answers) {
-  const byIndex = new Map();
-  for (const answer of answers) {
-    const at = Number(answer.at);
-    if (!Number.isInteger(at) || at < 0 || at >= proofs.length) {
-      throw new Error(`migration proof probe answered for an unknown index ${answer.at}`);
-    }
-    if (byIndex.has(at)) throw new Error(`migration proof probe answered twice for index ${at}`);
-    byIndex.set(at, answer.present === true);
-  }
-  if (byIndex.size !== proofs.length) {
-    throw new Error(`migration proof probe answered for ${byIndex.size} of ${proofs.length} proofs`);
-  }
-  return proofs.filter((_, index) => byIndex.get(index) === false);
+function literal(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
 }
 
 export function describeObject(object) {
   const where = object.relation ? ` on ${object.relation.schema ? `${object.relation.schema}.` : ''}${object.relation.name}` : '';
   return `${object.kind} ${object.schema ? `${object.schema}.` : ''}${object.name}${where} (from ${object.tag})`;
-}
-
-export function describeProof(proof) {
-  return proof.kind === 'verify'
-    ? `verified state of ${proof.tag}: ${proof.probe}`
-    : describeObject(proof.object);
-}
-
-function literal(value) {
-  return `'${String(value).replaceAll("'", "''")}'`;
 }

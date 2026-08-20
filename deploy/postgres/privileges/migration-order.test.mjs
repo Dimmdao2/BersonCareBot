@@ -1,35 +1,39 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
 
 import {
   collectExpectedObjects,
-  collectMigrationProofs,
   findForeignLedgerRows,
-  findUnprovedMigrations,
-  interpretProofAnswers,
-  journalDigest,
+  findJournalGrowth,
+  findMigrationNameViolations,
+  findRenamedAppliedMigrations,
+  readFrozenLegacyMigrationNames,
   readLegacyJournalEntries,
   readMigrationFolder,
-  readVerifyProbes,
   renderLedgerBootstrapSql,
   renderObjectPresenceSql,
-  renderProofSql,
   selectPendingMigrations,
   splitStatements,
 } from './migration-order.mjs';
 
-function folderWith(files, journalEntries = null, pin = undefined) {
+const REAL_MIGRATIONS_FOLDER = fileURLToPath(
+  new URL('../../../apps/webapp/db/drizzle-migrations', import.meta.url),
+);
+
+function folderWith(files, journalEntries = null, frozenEntries = null) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migration-order-'));
   for (const [name, body] of Object.entries(files)) writeFileSync(join(root, name), body);
   if (journalEntries) {
     mkdirSync(join(root, 'meta'), { recursive: true });
     writeFileSync(join(root, 'meta/_journal.json'), JSON.stringify({ entries: journalEntries }));
-    if (pin !== null) {
-      writeFileSync(join(root, 'meta/_journal.frozen'), `${pin ?? journalDigest(journalEntries)}\n`);
-    }
+  }
+  if (frozenEntries) {
+    mkdirSync(join(root, 'meta'), { recursive: true });
+    writeFileSync(join(root, 'meta/_journal.frozen.json'), JSON.stringify({ entries: frozenEntries }));
   }
   return root;
 }
@@ -173,139 +177,86 @@ test('every expected object gets one positional catalog probe', () => {
   assert.equal(renderObjectPresenceSql([]), null);
 });
 
-// ── Rule 3: every migration owes the database a proof it ran ───────────────────────────────────
+// A new migration's name is a timestamp; only tags the frozen journal already knows keep the old
+// sequential shape, and that set can never grow, so this tightens on its own as work adds files.
+test('a timestamp name passes, a fresh sequential number does not, a legacy one does', () => {
+  const legacy = [{ tag: '0001_first' }];
+  const migrations = [
+    migration('0001_first'), // legacy, in the journal
+    migration('20260820T014233_new_work'), // new, timestamp-shaped
+    migration('0050_hand_picked'), // new, but still the old shape -> collision-prone
+  ];
 
-test('a VERIFY probe is read from the leading comment block and nowhere else', () => {
-  const source = [
-    '-- BCB-MIGRATION-OWNER: app_probe_owner',
-    '-- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM app.doors)',
-    '',
-    'CREATE FUNCTION app.door() RETURNS text LANGUAGE sql AS $$',
-    "  SELECT '-- BCB-MIGRATION-VERIFY: SELECT false'",
-    '$$;',
-  ].join('\n');
-
-  assert.deepEqual(readVerifyProbes(source), ['SELECT EXISTS (SELECT 1 FROM app.doors)']);
+  assert.deepEqual(findMigrationNameViolations(migrations, legacy), ['0050_hand_picked']);
 });
 
-test('a VERIFY probe that is not one plain SELECT is refused', () => {
-  for (const bad of [
-    'DELETE FROM app.doors',
-    'SELECT 1; DROP TABLE app.doors',
-    'SELECT 1) -- and the rest of the statement',
-  ]) {
-    assert.throws(
-      () => readVerifyProbes(`-- BCB-MIGRATION-VERIFY: ${bad}\n`),
-      /BCB-MIGRATION-VERIFY/u,
-      `accepted: ${bad}`,
-    );
+test('a frozen snapshot missing entirely grandfathers nothing, unlike a missing live journal', () => {
+  const folder = folderWith({ '0001_first.sql': 'SELECT 1;' });
+  assert.deepEqual(readFrozenLegacyMigrationNames(folder), []);
+});
+
+test('the frozen snapshot is read, not the live journal, for the legacy-name allowlist', () => {
+  const folder = folderWith(
+    { '0001_first.sql': 'SELECT 1;' },
+    [{ idx: 0, when: 1, tag: '0001_first' }], // live journal grew this entry
+    [], // frozen snapshot never heard of it
+  );
+  assert.deepEqual(
+    findMigrationNameViolations(readMigrationFolder(folder), readFrozenLegacyMigrationNames(folder)),
+    ['0001_first'],
+  );
+});
+
+// F2 (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md §5): on 19/20.08 a branch added a 51st entry to
+// the live journal to relabel its own hand-numbered migration as legacy, and `pnpm run lint` — which
+// checked the live journal against itself — passed. `findJournalGrowth` names the grown tag directly,
+// independent of whether any .sql file currently claims it.
+test('a tag the live journal knows and the frozen snapshot does not is journal growth', () => {
+  const frozen = [{ idx: 0, when: 1, tag: '0001_first' }];
+  const grown = [...frozen, { idx: 1, when: 2, tag: '0054_snuck_in_as_legacy' }];
+
+  assert.deepEqual(findJournalGrowth(grown, frozen), ['0054_snuck_in_as_legacy']);
+});
+
+test('a live journal identical to the frozen snapshot is not growth', () => {
+  const entries = [{ idx: 0, when: 1, tag: '0001_first' }, { idx: 1, when: 2, tag: '0002_second' }];
+  assert.deepEqual(findJournalGrowth(entries, entries), []);
+});
+
+test('a bare number, a missing slug or an out-of-range clock field is not a timestamp name', () => {
+  for (const tag of ['20260820_missing_time', '2026082T014233_short_date', '20260820T014233', '20260820T0142_short_time']) {
+    assert.deepEqual(findMigrationNameViolations([migration(tag)], []), [tag], tag);
   }
 });
 
-test('a migration that leaves no nameable object and no VERIFY proves nothing', () => {
-  const backfill = { tag: '0001_backfill', source: '-- BCB-MIGRATION-BACKFILL\nUPDATE app.doors SET code = 1;\n' };
-  assert.deepEqual(findUnprovedMigrations([backfill]), ['0001_backfill']);
-
-  const proved = {
-    tag: '0001_backfill',
-    source: [
-      '-- BCB-MIGRATION-BACKFILL',
-      '-- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM app.doors WHERE code = 1)',
-      'UPDATE app.doors SET code = 1;',
-      '',
-    ].join('\n'),
-  };
-  assert.deepEqual(findUnprovedMigrations([proved]), []);
-  assert.deepEqual(collectMigrationProofs([proved]).map((proof) => proof.kind), ['verify']);
+// This is the fact the naming change rests on: legacy '0001'.. sorts before every timestamp name,
+// because '0' < '2' — checked here against the sort the runners actually use, on the real folder,
+// not assumed from reading the regex.
+test('every real legacy migration name sorts before a 2026 timestamp name, by the sort runners use', () => {
+  const legacy = readMigrationFolder(REAL_MIGRATIONS_FOLDER).map((entry) => entry.tag);
+  assert.ok(legacy.length > 0, 'the real migrations folder must not be empty for this to prove anything');
+  const sorted = [...legacy, '20260820T014233_after_everything_legacy'].sort();
+  assert.deepEqual(sorted.slice(-1), ['20260820T014233_after_everything_legacy']);
+  assert.deepEqual(sorted.slice(0, legacy.length), [...legacy].sort());
 });
 
-test('a migration whose only object a later one replaces still owes its own proof', () => {
-  // This is the real eight: the object is credited to whichever migration touched it last, so the
-  // earlier one is left promising nothing at all.
-  const first = migration('0001_first', 'CREATE OR REPLACE FUNCTION app.door() RETURNS void LANGUAGE sql AS $$ SELECT $$;');
-  const second = migration('0002_second', 'CREATE OR REPLACE FUNCTION app.door() RETURNS void LANGUAGE sql AS $$ SELECT $$;');
-
-  assert.deepEqual(findUnprovedMigrations([first, second]), ['0001_first']);
-});
-
-test('every proof gets its own indexed probe row, objects and VERIFY alike', () => {
-  const proofs = collectMigrationProofs([
-    migration('0001_create', 'CREATE OR REPLACE FUNCTION app.door() RETURNS void LANGUAGE sql AS $$ SELECT $$;'),
-    {
-      tag: '0002_backfill',
-      source: '-- BCB-MIGRATION-BACKFILL\n-- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM app.doors)\nUPDATE app.doors SET code = 1;\n',
-    },
-  ]);
-
-  const sql = renderProofSql(proofs);
-  assert.match(sql, /SELECT 0 AS at, \(SELECT EXISTS \(SELECT 1 FROM pg_catalog\.pg_proc/u);
-  assert.match(sql, /SELECT 1 AS at, \(SELECT EXISTS \(SELECT 1 FROM app\.doors\)\) AS present/u);
-  assert.equal(renderProofSql([]), null);
-});
-
-test('probe answers are matched by the index they carry, never by arrival order', () => {
-  const proofs = [
-    { kind: 'verify', tag: '0001_a', probe: 'SELECT true' },
-    { kind: 'verify', tag: '0002_b', probe: 'SELECT true' },
-    { kind: 'verify', tag: '0003_c', probe: 'SELECT true' },
-  ];
-
-  const unmet = interpretProofAnswers(proofs, [
-    { at: 2, present: true },
-    { at: 0, present: false },
-    { at: 1, present: true },
-  ]);
-
-  assert.deepEqual(unmet.map((proof) => proof.tag), ['0001_a']);
-});
-
-test('a short, doubled or unknown probe answer is a refusal, not a default', () => {
-  const proofs = [
-    { kind: 'verify', tag: '0001_a', probe: 'SELECT true' },
-    { kind: 'verify', tag: '0002_b', probe: 'SELECT true' },
-  ];
-
-  assert.throws(() => interpretProofAnswers(proofs, [{ at: 0, present: true }]), /answered for 1 of 2 proofs/u);
-  assert.throws(
-    () => interpretProofAnswers(proofs, [{ at: 0, present: true }, { at: 0, present: true }]),
-    /answered twice for index 0/u,
-  );
-  assert.throws(
-    () => interpretProofAnswers(proofs, [{ at: 0, present: true }, { at: 7, present: true }]),
-    /unknown index 7/u,
-  );
-});
-
-// ── The historical map is frozen, and the pin is what freezes it ───────────────────────────────
-
-test('the historical map is read only when it digests to its pin', () => {
-  const entries = [{ idx: 0, when: 1800000000100, tag: '0001_first' }];
-  const folder = folderWith({ '0001_first.sql': 'SELECT 1;' }, entries);
-
-  assert.deepEqual(readLegacyJournalEntries(folder), entries);
-});
-
-test('one appended historical entry is refused, so it cannot rename a foreign ledger row', () => {
-  const entries = [{ idx: 0, when: 1800000000100, tag: '0001_first' }];
-  const folder = folderWith({ '0001_first.sql': 'SELECT 1;' }, entries);
-  writeFileSync(
-    join(folder, 'meta/_journal.json'),
-    JSON.stringify({ entries: [...entries, { idx: 1, when: 1800000000200, tag: '0002_never_executed' }] }),
+test('a pending file byte-identical to a foreign ledger row is a rename of an applied migration', () => {
+  const pending = [{ tag: '20260820T014233_renamed', hash: 'same-content-hash' }];
+  const foreign = findForeignLedgerRows(
+    [],
+    [{ tag: '0009_old_name', hash: 'same-content-hash', createdAt: 1800000009000 }],
   );
 
-  assert.throws(() => readLegacyJournalEntries(folder), /is not the frozen one/u);
+  const renamed = findRenamedAppliedMigrations(pending, foreign);
+
+  assert.equal(renamed.length, 1);
+  assert.equal(renamed[0].migration.tag, '20260820T014233_renamed');
+  assert.equal(renamed[0].row.tag, '0009_old_name');
 });
 
-test('a historical map with no pin is refused rather than trusted', () => {
-  const folder = folderWith(
-    { '0001_first.sql': 'SELECT 1;' },
-    [{ idx: 0, when: 1800000000100, tag: '0001_first' }],
-    null,
-  );
+test('a pending file with genuinely new content is not flagged as a rename', () => {
+  const pending = [{ tag: '20260820T014233_new_work', hash: 'brand-new-hash' }];
+  const foreign = findForeignLedgerRows([], [{ tag: '0009_old_name', hash: 'unrelated-hash' }]);
 
-  assert.throws(() => readLegacyJournalEntries(folder), /has no freeze pin next to it/u);
-});
-
-test('a folder that no longer carries a historical map needs no pin', () => {
-  assert.deepEqual(readLegacyJournalEntries(folderWith({ '0001_first.sql': 'SELECT 1;' })), []);
+  assert.deepEqual(findRenamedAppliedMigrations(pending, foreign), []);
 });
