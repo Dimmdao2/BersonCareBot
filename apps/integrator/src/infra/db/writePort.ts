@@ -16,7 +16,8 @@ import {
   getCurrentDbPrincipalOrganizationId,
 } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
-import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
+import { appendMessageLog } from './repos/messageLogs.js';
+import { writeOperatorDeliveryAttempt } from './repos/operatorDeliveryAttempts.js';
 import {
   applyMessengerPhonePublicBind,
   MessengerPhoneLinkError,
@@ -876,12 +877,12 @@ export function createDbWritePort(
               ? (dalParams.payload as Record<string, unknown>)
               : {};
           const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
-          // The audit write is an exact named-root capability. Its attested transaction must begin
-          // before a physical client is checked out; wrapping it in a generic relation transaction
-          // makes the port reject the call before PostgreSQL can verify the named function.
-          await insertDeliveryAttemptLog(db, dalParams);
+          // The canonical operator-journal root is an exact named-root capability. Its attested
+          // transaction must begin before a physical client is checked out; the shared writer installs
+          // the existing delivery-worker principal when this path has another ambient principal.
+          await writeOperatorDeliveryAttempt(db, mutation);
           // D4: replaces the `support.delivery.attempt.logged` HTTP projection fanout. Own transaction
-          // after the integrator-local audit-log write above; see writeSupportQuestionsDirect.ts header
+          // after the canonical operator-journal write above; see writeSupportQuestionsDirect.ts header
           // ("DURABILITY"). A missing `organizationId` is a genuine fail-closed (no write, no fallback,
           // no incident) — the retired webapp consumer ALSO rejected this case non-retryably
           // (`support.delivery.attempt.logged: organizationId required`, `retryable: false`), so skipping
