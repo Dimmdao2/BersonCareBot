@@ -231,7 +231,10 @@ export function runS4EntitlementCoverageCheck(): Finding[] {
 }
 
 export function runSelfTest(): Finding[] {
-  const sample = PROTECTED_ACTION_MAPPINGS[0]!;
+  const sample = PROTECTED_ACTION_MAPPINGS.find((mapping) => mapping.mechanic !== null);
+  if (!sample || sample.mechanic === null) {
+    throw new Error('S4 self-test requires a mechanic-bearing protected action mapping');
+  }
   const duplicate = { ...sample };
   const unknownExport = { ...sample, id: 'self.unknown', exportName: 'MISSING' };
   const sourceFor = () =>
@@ -272,6 +275,10 @@ export function runSelfTest(): Finding[] {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes('--self-test')) {
     const findings = runSelfTest();
+    const sample = PROTECTED_ACTION_MAPPINGS.find((mapping) => mapping.mechanic !== null);
+    if (!sample || sample.mechanic === null) {
+      throw new Error('S4 self-test requires a mechanic-bearing protected action mapping');
+    }
     const requiredMessages = [
       'duplicate mapping id',
       'unknown exported action MISSING',
@@ -279,7 +286,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       'unregistered mechanic surface',
       'unregistered exported action in mechanic-bearing file',
       'direct entitlement resolver or tariff/override read outside approved boundary',
-      `declared DECLARED_NO_SURFACE but has 1 registered write mapping(s): ${PROTECTED_ACTION_MAPPINGS[0]!.id}`,
+      `declared DECLARED_NO_SURFACE but has 1 registered write mapping(s): ${sample.id}`,
     ];
     if (
       !requiredMessages.every((message) => findings.some((finding) => finding.message === message))
