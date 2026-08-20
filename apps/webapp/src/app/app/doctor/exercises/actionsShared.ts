@@ -17,7 +17,7 @@ import {
   parseExerciseLoadFormValue,
 } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
 import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
-import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import { API_MEDIA_URL_RE } from '@/shared/lib/mediaUrlPolicy';
 import {
   hostedVideoLinkRejectionRu,
   parseHostedVideoLink,
@@ -105,22 +105,10 @@ function normalizeExerciseMedia(
     return { ok: true, mediaUrl: link.canonicalUrl, mediaType };
   }
 
-  if (!(API_MEDIA_URL_RE.test(mediaUrl) || isLegacyAbsoluteUrl(mediaUrl))) {
+  if (!API_MEDIA_URL_RE.test(mediaUrl)) {
     return {
       ok: false,
-      error:
-        'Медиа должно быть из библиотеки файлов (/api/media/…) или допустимый legacy URL (https://…).',
-    };
-  }
-  /*
-   * Обход вокруг новой двери: `isLegacyAbsoluteUrl` пропускает ЛЮБОЙ https-адрес, поэтому ссылку
-   * на хостинг можно было сохранить под видом файла — и тогда пациенту вместо ролика показывался
-   * отказ «видео без привязки к медиатеке». Такой URL здесь называется своим именем.
-   */
-  if (parseHostedVideoLink(mediaUrl)) {
-    return {
-      ok: false,
-      error: 'Это ссылка на видеохостинг — вставьте её в поле «Ссылка на видео», а не как файл.',
+      error: 'Выберите файл из библиотеки медиа.',
     };
   }
   return { ok: true, mediaUrl, mediaType };

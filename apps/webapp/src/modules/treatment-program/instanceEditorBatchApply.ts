@@ -1,3 +1,4 @@
+import type { VideoAttachmentDurationGate } from '@/modules/media/videoDurationLimit';
 import type {
   TreatmentProgramInstancePort,
   TreatmentProgramItemRefValidationPort,
@@ -316,6 +317,13 @@ async function validateInstanceEditorBatchDraft(
         assertTreatmentProgramStageItemFitsSystemGroup(group, 'exercise');
       }
       if (create.loadSettings) mergeLoadSettings(null, create.loadSettings);
+      if (create.mediaId) {
+        const duration = await deps.media.getVideoAttachmentDurationRejection(
+          create.mediaId,
+          'exercise',
+        );
+        if (!duration.ok) throw new Error(duration.error);
+      }
     } else if (create.kind === 'test_set_expand') {
       const stageId = resolveBatchId(create.stageId, previewIdMap, 'Этап');
       assertPersistedStageInDetail(detail, stageId, previewIdMap);
@@ -420,6 +428,7 @@ export type ApplyInstanceEditorBatchDeps = {
   templates: TreatmentProgramService;
   snapshots: TreatmentProgramItemSnapshotPort;
   itemRefs: TreatmentProgramItemRefValidationPort;
+  media: VideoAttachmentDurationGate;
   testAttempts?: TreatmentProgramTestAttemptsPort;
 };
 

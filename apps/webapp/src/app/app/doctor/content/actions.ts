@@ -13,7 +13,7 @@ import {
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
-import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
+import { parseMediaFileIdsFromText } from '@/shared/lib/mediaPreviewUrls';
 import {
   HOSTED_VIDEO_ALLOWED_HOSTS_RU,
   parseHostedVideoLink,
@@ -123,14 +123,18 @@ export async function saveContentPage(
       videoUrlToStore = hosted.canonicalUrl;
     }
   }
-  if (videoType === 'api') {
-    const mediaId = parseMediaFileIdFromAppUrl(videoUrlToStore ?? '');
-    if (mediaId) {
-      const duration = await withDoctorWorkspacePrincipal(workspace, () =>
-        deps.media.getVideoAttachmentDurationRejection(mediaId, 'cms'),
-      );
-      if (!duration.ok) return { ok: false, error: duration.error };
-    }
+  const attachedMediaIds = parseMediaFileIdsFromText(
+    [videoUrlToStore ?? '', bodyMdStored, bodyHtmlStored].join('\n'),
+  );
+  if (attachedMediaIds.length > 0) {
+    const durationError = await withDoctorWorkspacePrincipal(workspace, async () => {
+      for (const mediaId of attachedMediaIds) {
+        const duration = await deps.media.getVideoAttachmentDurationRejection(mediaId, 'cms');
+        if (!duration.ok) return duration.error;
+      }
+      return null;
+    });
+    if (durationError) return { ok: false, error: durationError };
   }
 
   const pageIdRaw = (formData.get('page_id') as string)?.trim() ?? '';

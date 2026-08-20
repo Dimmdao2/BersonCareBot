@@ -49,10 +49,23 @@
   независимой поломки. Production diff после возврата проверен командой
   `git diff --exit-code -- apps/webapp/src/modules/media/videoDurationLimit.ts apps/webapp/src/app/app/doctor/exercises/actionsShared.ts apps/webapp/src/app/app/doctor/content/actions.ts apps/webapp/src/modules/media/service.ts` — exit 0.
 
+### Follow-up fix GA-L-01 / GA-L-02
+
+- Закрыты все три acceptance-finding: CMS Markdown/legacy HTML, personal exercise editor-batch и
+  arbitrary absolute file URL. Editor-batch получает тот же media-service duration gate до
+  транзакционной записи; CMS проверяет library UUID во всех реально сохраняемых
+  полях.
+- Точный acceptance-run:
+  `pnpm --dir apps/webapp exec vitest --run --project=unit src/modules/media/videoDurationLimit.unit.test.ts src/app/app/doctor/exercises/hostedVideoExerciseSave.unit.test.ts src/app/app/doctor/content/sections/actions.entitlement.unit.test.ts src/modules/treatment-program/instanceEditorBatchVideoDuration.unit.test.ts src/modules/treatment-program/instance-service.mechanicWriteClearance.test.ts`
+  — **4 files passed, 19 tests passed**. Файл mechanic-clearance имеет legacy-суффикс и проверен
+  отдельно командой
+  `pnpm --dir apps/webapp exec vitest --run src/modules/treatment-program/instance-service.mechanicWriteClearance.test.ts`
+  — **1 file passed, 3 tests passed**.
+
 - Состояние плана синхронизировано с production-кодом: страница аналитики уже подключена к агрегатору,
   закрыты реализованные CONNECT-блоки и предусмотренные заглушки.
 - Единственный незакрытый пункт самой страницы — `GA-A-02b`: врачебные заходы не имеют ingest и показываются
-  как «—». `GA-L-01/02` (лимиты 10/20 минут) также не реализованы, но принадлежат инфраструктурному контуру.
+  как «—». Связанные инфраструктурные `GA-L-01/02` (лимиты 10/20 минут) закрыты follow-up fix выше.
 - Связанные планы сведены в README/ROADMAP: консоль клиник `#1068` реализована; поддержка `#1070` не начата и
   заблокирована DB/RLS security gate.
 - Проверка: `pnpm --dir apps/webapp test -- src/modules/platform-analytics/platform-analytics.unit.test.ts

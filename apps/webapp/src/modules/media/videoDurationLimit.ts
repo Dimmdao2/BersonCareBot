@@ -11,6 +11,13 @@ export type VideoAttachmentDurationResult =
   | { ok: true }
   | { ok: false; code: 'video_duration_pending' | 'video_duration_limit_exceeded'; error: string };
 
+export type VideoAttachmentDurationGate = {
+  getVideoAttachmentDurationRejection(
+    mediaId: string,
+    purpose: VideoAttachmentPurpose,
+  ): Promise<VideoAttachmentDurationResult>;
+};
+
 /**
  * The single attachment gate for file-library videos. The duration comes from the
  * media worker probe; an unprobed video is deliberately not attachable yet.
