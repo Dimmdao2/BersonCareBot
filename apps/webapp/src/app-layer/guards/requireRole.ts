@@ -19,6 +19,7 @@ import {
 import { canAccessDoctor, canAccessPatient } from '@/modules/roles/service';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
+import { logger } from '@/app-layer/logging/logger';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperationsPrincipal';
 import type { AppSession } from '@/shared/types/session';
@@ -420,8 +421,12 @@ type CabinetGateOptions = { allowCabinetRecovery?: boolean };
 async function cabinetEntryIsBlocked(organizationId: string): Promise<boolean> {
   try {
     return isCabinetEntryBlocked(await resolveCabinetAccessRequestLocal(organizationId));
-  } catch {
+  } catch (err) {
     // The cabinet door is a security/commercial boundary. An unavailable resolver cannot open it.
+    logger.error(
+      { err, organizationId, classification: 'cabinet_access_resolver_failed' },
+      'cabinet_access_resolver_failed',
+    );
     return true;
   }
 }
