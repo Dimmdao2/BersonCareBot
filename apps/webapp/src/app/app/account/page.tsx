@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAccountEmailSection } from '@/app/app/settings/DoctorAccountEmailSection';
-import { DoctorNotificationChannelsSection } from '@/app/app/settings/DoctorNotificationChannelsSection';
 import { DoctorScreensToggleSection } from '@/app/app/settings/DoctorScreensToggleSection';
 import { SettingsForm } from '@/app/app/settings/SettingsForm';
-import { buildDoctorNotificationTopicModels } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
-import { parseSpecialistTaskReminderChannels } from '@/modules/specialist-tasks/reminderChannels';
+import { loadStaffNotificationsSection } from '@/app/app/account/staffNotificationsSection';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { StaffPwaInstallSection } from '@/shared/ui/doctor/pwa/StaffPwaInstallSection';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
@@ -136,54 +135,6 @@ async function loadSecurityContent(
   );
 }
 
-async function loadNotificationsContent(
-  deps: ReturnType<typeof buildAppDeps>,
-  session: Awaited<ReturnType<typeof loadStaffAccountPageContext>>['session'],
-  workspaceContext: DoctorWorkspaceContext | null,
-): Promise<ReactNode> {
-  const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
-  const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
-  const hasMax = Boolean(session.user.bindings.maxId?.trim());
-  const [hasWebPushSubscription, channelPrefs, topicPrefs, doctorSettings] = await Promise.all([
-    deps.webPushSubscriptions.hasAnyForUserId(session.user.userId),
-    deps.channelPreferencesPort.getPreferences(session.user.userId),
-    deps.topicChannelPrefs.listByUserId(session.user.userId),
-    workspaceContext?.canAccessClinicalWorkspace
-      ? deps.systemSettings.listSettingsByScope('doctor', {
-          organizationId: workspaceContext.organizationId,
-        })
-      : Promise.resolve([]),
-  ]);
-  const globalWebPushEnabled =
-    channelPrefs.find((preference) => preference.channelCode === 'web_push')
-      ?.isEnabledForNotifications !== false;
-  const taskReminderChannels = parseSpecialistTaskReminderChannels(
-    doctorSettings.find((setting) => setting.key === 'doctor_specialist_task_reminder_channels')
-      ?.valueJson ?? null,
-  );
-  const notificationTopics = buildDoctorNotificationTopicModels(
-    topicPrefs,
-    {
-      hasTelegram,
-      hasMax,
-      emailVerified: Boolean(accountEmail.emailVerifiedAt),
-      hasWebPushSubscription,
-      globalWebPushEnabled,
-    },
-    taskReminderChannels,
-  );
-  return (
-    <DoctorNotificationChannelsSection
-      initialTopics={notificationTopics}
-      hasWebPushSubscription={hasWebPushSubscription}
-      globalWebPushEnabled={globalWebPushEnabled}
-      hasTelegram={hasTelegram}
-      hasMax={hasMax}
-      emailVerified={Boolean(accountEmail.emailVerifiedAt)}
-    />
-  );
-}
-
 export default async function AccountPage({
   searchParams,
 }: {
@@ -194,6 +145,9 @@ export default async function AccountPage({
   const { session, workspaceContext } = await loadStaffAccountPageContext();
   const restrictedSecuritySession = isRestrictedStaffSecuritySession(session);
   const isPlatformConsole = session.user.role === 'admin';
+  if (isPlatformConsole && requestedTab === 'notifications') {
+    redirect('/app/admin/notifications');
+  }
   const recoveryOnly =
     session.staffSecurity?.assurance === 'recovery' ||
     session.staffSecurity?.assurance === 'recovery_confirmation';
@@ -203,7 +157,7 @@ export default async function AccountPage({
 
   const showProfile = showAllSections || tab === 'profile';
   const showSecurity = showAllSections || tab === 'security';
-  const showNotifications = showAllSections || tab === 'notifications';
+  const showNotifications = !isPlatformConsole && tab === 'notifications';
   const showInstall = showAllSections || tab === 'install';
 
   const [profileContent, securityContent, notificationsContent] = await Promise.all([
@@ -211,7 +165,9 @@ export default async function AccountPage({
     showSecurity
       ? loadSecurityContent(deps, session, workspaceContext, recoveryOnly, isPlatformConsole)
       : null,
-    showNotifications ? loadNotificationsContent(deps, session, workspaceContext) : null,
+    showNotifications
+      ? loadStaffNotificationsSection(deps, session, workspaceContext)
+      : null,
   ]);
 
   const content = (
