@@ -270,7 +270,24 @@ cleanup_exit(){
 }
 
 snapshot_test_smtp_outbound(){
-  local configured has_organization_column smtp_where snapshot_mode
+  local configured has_organization_column smtp_where snapshot_mode system_settings_exists
+  system_settings_exists="$(sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -tAc \
+    "SELECT to_regclass('public.system_settings') IS NOT NULL;")"
+  case "$system_settings_exists" in
+    t) ;;
+    f)
+      # A previous reset can legitimately have restored schema A and then failed before the
+      # A→B cutover. There is no TEST SMTP setting to preserve in that state; the reset overlay
+      # creates the safe null value after schema migration, so retry from the same named TEST DB
+      # must remain possible.
+      echo "   TEST SMTP: schema A retry has no prior TEST setting; reset overlay will retain the safe null value"
+      return 0
+      ;;
+    *)
+      echo "FATAL: could not determine whether TEST system_settings exists before full reset" >&2
+      return 1
+      ;;
+  esac
   has_organization_column="$(sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -tAc \
     "SELECT EXISTS (
        SELECT 1
@@ -312,8 +329,8 @@ snapshot_test_smtp_outbound(){
 
 restore_test_smtp_outbound(){
   [ -n "${TEST_SMTP_SNAPSHOT:-}" ] || {
-    echo "FATAL: TEST SMTP snapshot is missing" >&2
-    return 1
+    echo "   TEST SMTP: no prior TEST setting to restore; reset overlay value retained"
+    return 0
   }
   sudo -u postgres cat -- "$TEST_SMTP_SNAPSHOT" | node "$SMTP_SNAPSHOT_VALIDATOR" --stdin
   sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 \
