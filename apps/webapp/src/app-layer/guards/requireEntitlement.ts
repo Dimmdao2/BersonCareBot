@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { resolveMechanicAccess } from '@/modules/org-entitlements/service';
+import { resolveCabinetAccess, resolveMechanicAccess } from '@/modules/org-entitlements/service';
 import {
   accessNotificationConditionFor,
   dueAccessNotifications,
@@ -79,10 +79,22 @@ export function entitlementMutationRefusalResponse(
 
 async function checkEntitlement(
   ctx: EntitlementContext,
-  mechanic: OrgMechanic,
+  mechanic: OrgMechanic | undefined,
   access: EntitlementAccess,
   markMutationClearance = true,
 ): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason }> {
+  // T13: paid-period read-only is a property of the whole cabinet, including mutations that do
+  // not belong to a tariff mechanic (such as creating a patient card). Keep this in the existing
+  // mutation chokepoint rather than adding a second route-local guard.
+  if (access === 'mutation' && mechanic === undefined) {
+    const cabinet = await resolveCabinetAccess(buildAppDeps().orgEntitlements, ctx.organizationId);
+    if (cabinet.state === 'disabled') return { ok: false, reason: 'commercial_blocked' };
+    if (cabinet.state === 'unconfigured') {
+      return { ok: false, reason: 'access_lifecycle_unconfigured' };
+    }
+    if (cabinet.state === 'read_only') return { ok: false, reason: 'commercial_read_only' };
+  }
+  if (mechanic === undefined) return { ok: true };
   const resolution = await resolveMechanicAccess(
     buildAppDeps().orgEntitlements,
     ctx.organizationId,
@@ -224,7 +236,7 @@ export async function requireEntitlementForRead(
 /** Mutation-only API adapter. Its signature makes lifecycle enforcement non-optional. */
 export async function requireEntitlementForMutation(
   ctx: EntitlementContext,
-  mechanic: OrgMechanic,
+  mechanic?: OrgMechanic,
 ): Promise<EntitlementSuccess | { ok: false; response: NextResponse }> {
   ensureMechanicWriteClearanceContext();
   const decision = await checkEntitlement(ctx, mechanic, 'mutation');
@@ -235,7 +247,7 @@ export async function requireEntitlementForMutation(
         {
           ok: false,
           error: decision.reason,
-          mechanic,
+          ...(mechanic ? { mechanic } : {}),
           // Same explanation the read adapter and the Server Action refusals already carry: a
           // mutation blocked by a tariff mechanic is the one refusal a person actually clicks
           // into, so it must not reach the screen as the bare `entitlement_required` code.
@@ -262,13 +274,13 @@ export async function requireEntitlementForReadAction(
 /** Mutation-only Server Action adapter. Read adapters cannot silently skip lifecycle enforcement. */
 export async function requireEntitlementForMutationAction(
   ctx: EntitlementContext,
-  mechanic: OrgMechanic,
+  mechanic?: OrgMechanic,
 ): Promise<
-  EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }
+  EntitlementSuccess | { ok: false; mechanic?: OrgMechanic; reason: EntitlementDenialReason }
 > {
   ensureMechanicWriteClearanceContext();
   const decision = await checkEntitlement(ctx, mechanic, 'mutation');
-  return decision.ok ? decision : { ok: false, mechanic, reason: decision.reason };
+  return decision.ok ? decision : { ok: false, ...(mechanic ? { mechanic } : {}), reason: decision.reason };
 }
 
 /**

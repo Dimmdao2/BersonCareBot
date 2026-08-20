@@ -163,6 +163,12 @@ if [ "$ROLE" = worker ] && [ -z "${ORCH_NO_TESTS:-}" ]; then
   ORACLE_BLOCK=$(awk '/Источник оракула|Строка плана, дающая оракул/{f=1} f{print; if ($0 ~ /^[[:space:]]*$/) exit}' "$BRIEF" | tr '\n' ' ')
   printf '%s' "$ORACLE_BLOCK" | grep -qE '«.+»' || die "в абзаце «Источник оракула» нет дословной цитаты authority в кавычках «…».
   Если задача без тестов — используй ORCH_NO_TESTS."
+  # 3c. Кавычки — ещё не источник. 20.08 ведущий написал в брифе «дословно из package.json:
+  #     „eslint src --max-warnings=0“», гейт пропустил (кавычки на месте), под выдуманную цитату
+  #     завелась работа и владельцу был объявлен несуществующий блокер полного CI: `grep -c max-warnings
+  #     package.json` = 0, CI гоняет `eslint .` и на предупреждениях не падает. Теперь цитата обязана
+  #     реально встречаться в файле, названном в том же абзаце.
+  node "$MAIN/tools/check-oracle-quote.mjs" "$BRIEF" --repo "$MAIN" || exit 1
 fi
 if [ -n "${ORCH_NO_TESTS:-}" ]; then
   echo "  без-тестов-режим: $ORCH_NO_TESTS"

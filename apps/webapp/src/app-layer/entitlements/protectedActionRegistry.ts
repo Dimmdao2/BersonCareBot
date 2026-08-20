@@ -2,8 +2,8 @@ import type { OrgMechanic } from '@/modules/org-entitlements/types';
 
 export type ProtectedActionMapping = Readonly<{
   id: string;
-  /** A single handler may protect more than one tariff mechanic. */
-  mechanic: OrgMechanic | readonly OrgMechanic[];
+  /** A single handler may protect more than one tariff mechanic; `null` is cabinet-wide only. */
+  mechanic: OrgMechanic | readonly OrgMechanic[] | null;
   file: string;
   exportName: string;
   method: string;
@@ -38,6 +38,16 @@ export type ProtectedActionFamily = Readonly<{
  * checker proves the named export and the selected guard in that source.
  */
 export const PROTECTED_ACTION_MAPPINGS = [
+  {
+    id: 'doctor-clients.create',
+    mechanic: null,
+    file: 'src/app/api/doctor/clients/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requireDoctorWorkspaceApiContext',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'createDoctorClient',
+  },
   {
     id: 'courses.list',
     mechanic: 'courses',
@@ -1270,12 +1280,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     file: 'src/app/app/patient/diary/lfk/actions.ts',
     exportName: 'deleteLfkJournalSession',
     reason: 'critical mechanic (patient_diaries) — never tariff-gated',
-  },
-  {
-    file: 'src/app/api/integrator/events/route.ts',
-    exportName: 'POST',
-    reason:
-      'critical mechanic (patient_diaries) — never tariff-gated; diary write handlers live in handleIntegratorEvent',
   },
   {
     file: 'src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts',

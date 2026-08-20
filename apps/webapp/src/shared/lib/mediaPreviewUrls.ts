@@ -32,3 +32,15 @@ export function parseMediaFileIdFromAppUrl(mediaAppUrl: string): string | null {
   const m = mediaAppUrl.trim().match(API_MEDIA_ID_RE);
   return m ? m[1]!.toLowerCase() : null;
 }
+
+const EMBEDDED_API_MEDIA_ID_RE =
+  /\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?![0-9a-f-])/gi;
+
+/** Unique library media UUIDs referenced anywhere in Markdown or legacy HTML. */
+export function parseMediaFileIdsFromText(value: string): string[] {
+  const ids = new Set<string>();
+  for (const match of value.matchAll(EMBEDDED_API_MEDIA_ID_RE)) {
+    ids.add(match[1]!.toLowerCase());
+  }
+  return [...ids];
+}

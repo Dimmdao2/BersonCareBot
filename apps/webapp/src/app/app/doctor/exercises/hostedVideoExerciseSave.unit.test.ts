@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { VideoAttachmentDurationResult } from '@/modules/media/videoDurationLimit';
+
 /**
  * Решение владельца 19.08: «в упражнение нужно вставить ссылку на YouTube / RuTube / VK Видео /
  * Vimeo». Здесь проверяется поведение сохранения, а не форма кода: что именно ложится в
@@ -11,11 +13,18 @@ type CreatedExerciseInput = { media?: { mediaUrl: string; mediaType: string }[] 
 // Параметр объявлен намеренно: без него `mock.calls[0]` — пустой кортеж, и утверждение о том,
 // что именно легло в media, пришлось бы протаскивать через приведение типа.
 const createExercise = vi.fn(async (_input: CreatedExerciseInput) => ({ id: 'new-exercise' }));
+const getVideoAttachmentDurationRejection = vi.fn(
+  async (): Promise<VideoAttachmentDurationResult> => ({ ok: true }),
+);
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: async () => ({
     session: { user: { userId: 'doctor-1' } },
   }),
+}));
+
+vi.mock('@/infra/logging/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn() },
 }));
 
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
@@ -29,11 +38,17 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     references: { listActiveItemsByCategoryCode: async () => [] },
-    lfkExercises: { createExercise, getExercise: async () => null, updateExercise: vi.fn() },
+    lfkExercises: {
+      createExercise,
+      getExercise: async () => null,
+      listExercises: async () => [],
+      updateExercise: vi.fn(),
+    },
+    media: { getVideoAttachmentDurationRejection },
   }),
 }));
 
-const { saveDoctorExerciseCore } = await import('./actionsShared');
+const { bulkCreateExercisesFromMediaCore, saveDoctorExerciseCore } = await import('./actionsShared');
 
 function form(fields: Record<string, string>): FormData {
   const fd = new FormData();
@@ -43,6 +58,8 @@ function form(fields: Record<string, string>): FormData {
 
 beforeEach(() => {
   createExercise.mockClear();
+  getVideoAttachmentDurationRejection.mockReset();
+  getVideoAttachmentDurationRejection.mockResolvedValue({ ok: true });
 });
 
 describe('врач прикладывает к упражнению ссылку вместо файла', () => {
@@ -96,6 +113,23 @@ describe('врач прикладывает к упражнению ссылку
     expect(createExercise).not.toHaveBeenCalled();
   });
 
+  it('не принимает непробированный absolute URL под видом файла', async () => {
+    const res = await saveDoctorExerciseCore(
+      form({
+        title: 'Мостик',
+        mediaUrl: 'https://cdn.example.com/overlong-video.mp4',
+        mediaType: 'video',
+      }),
+    );
+
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringContaining('библиотек'),
+    });
+    expect(createExercise).not.toHaveBeenCalled();
+    expect(getVideoAttachmentDurationRejection).not.toHaveBeenCalled();
+  });
+
   it('файл из библиотеки сохраняется как раньше', async () => {
     const url = '/api/media/00000000-0000-4000-8000-0000000000c1';
     const res = await saveDoctorExerciseCore(
@@ -105,5 +139,47 @@ describe('врач прикладывает к упражнению ссылку
     expect(res.ok).toBe(true);
     const [input] = createExercise.mock.calls[0];
     expect(input.media).toEqual([{ mediaUrl: url, mediaType: 'video', sortOrder: 0 }]);
+  });
+
+  it('не прикрепляет к упражнению файл длиннее десяти минут', async () => {
+    getVideoAttachmentDurationRejection.mockResolvedValue({
+      ok: false,
+      code: 'video_duration_limit_exceeded',
+      error: 'Файл для упражнения не может быть длиннее 10 минут.',
+    });
+
+    const res = await saveDoctorExerciseCore(
+      form({
+        title: 'Мостик',
+        mediaUrl: '/api/media/00000000-0000-4000-8000-0000000000c1',
+        mediaType: 'video',
+      }),
+    );
+
+    expect(res).toEqual({ ok: false, error: expect.stringContaining('10 минут') });
+    expect(createExercise).not.toHaveBeenCalled();
+    expect(getVideoAttachmentDurationRejection).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-0000000000c1',
+      'exercise',
+    );
+  });
+
+  it('не обходит лимит через пакетное создание упражнений из библиотеки', async () => {
+    getVideoAttachmentDurationRejection.mockResolvedValue({
+      ok: false,
+      code: 'video_duration_limit_exceeded',
+      error: 'Файл для упражнения не может быть длиннее 10 минут.',
+    });
+
+    await expect(
+      bulkCreateExercisesFromMediaCore([
+        {
+          title: 'Мостик',
+          mediaUrl: '/api/media/00000000-0000-4000-8000-0000000000c1',
+          mediaType: 'video',
+        },
+      ]),
+    ).resolves.toEqual({ ok: true, created: 0, skippedLinked: 0, failed: 1, createdIds: [] });
+    expect(createExercise).not.toHaveBeenCalled();
   });
 });

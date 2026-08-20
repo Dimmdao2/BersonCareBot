@@ -271,18 +271,18 @@ export type MechanicAccessWarning = {
 export type MechanicAccessResolution = {
   mechanic: OrgMechanic;
   state: MechanicAccessState;
-  policySource: 'critical' | 'mechanic' | 'system' | 'unconfigured';
+  policySource: 'critical' | 'mechanic' | 'system' | 'global_paid_period' | 'unconfigured';
   warning: MechanicAccessWarning | null;
 };
 
 /**
  * §5a/2.1a: entry to the organization workspace is its own ladder subject. It deliberately has
- * no mechanic key: the cabinet policy is the tariff's system policy and closes the product as a
- * whole only at its terminal `disabled` state.
+ * no mechanic key: it closes the product as a whole at `disabled`. A paid-period outcome is
+ * resolved from the global singleton before any tariff system policy.
  */
 export type CabinetAccessResolution = {
   state: MechanicAccessState;
-  policySource: 'system' | 'unconfigured';
+  policySource: 'system' | 'global_paid_period' | 'unconfigured';
   warning: MechanicAccessWarning | null;
 };
 

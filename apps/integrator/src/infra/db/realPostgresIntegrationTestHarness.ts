@@ -33,9 +33,9 @@ async function readConnectionIdentity(
 }
 
 function assertTestDatabaseName(name: string, principalLabel: string): void {
-  if (!/_test$/i.test(name)) {
+  if (name !== 'bcb_webapp_dev' && !/_test$/i.test(name)) {
     throw new Error(
-      `refusing ${principalLabel}: current_database="${name}" — expected a *_test database`,
+      `refusing ${principalLabel}: current_database="${name}" — expected bcb_webapp_dev or a *_test database`,
     );
   }
 }

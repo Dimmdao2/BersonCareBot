@@ -11,9 +11,7 @@ import {
   type AccessLifecyclePolicy,
   type AccessNotificationCondition,
   type AccessTerminalState,
-  type DowngradePolicyMap,
   type MailingTemplate,
-  type MechanicDowngradePolicy,
   type OrgMechanic,
   type RegistrationTariffPolicy,
   type PaidPeriodPolicy,
@@ -110,7 +108,6 @@ type TariffDraft = {
   mechanics: Record<OrgMechanic, boolean>;
   quotas: TariffQuotaMap;
   systemAccessPolicy: AccessPolicyDraft | null;
-  downgradePolicies: DowngradePolicyMap;
   /** §T3 — this tariff's marketing letters, edited on the «Рассылки» tab. */
   mailingTemplates: MailingTemplate[];
 };
@@ -153,30 +150,6 @@ const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
 const OVERRIDABLE_MECHANICS = MECHANICS.filter(
   (mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'никогда',
 );
-// §5a stage 4b.3 — "места" has no downgrade state (seat overage is billed, not blocked; owner
-// 30.07, #4a.1), so it gets no downgrade-policy knob at all.
-const DOWNGRADE_MECHANICS = OVERRIDABLE_MECHANICS.filter(
-  (mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'места',
-);
-const DOWNGRADE_POLICY_OPTIONS: Record<
-  'запас' | 'объём' | 'возможность',
-  Array<{ value: MechanicDowngradePolicy; label: string }>
-> = {
-  запас: [
-    { value: 'block', label: 'Не давать переход' },
-    { value: 'freeze_growth', label: 'Дать переход, заморозить рост' },
-  ],
-  объём: [
-    { value: 'block', label: 'Не давать переход' },
-    { value: 'freeze_growth', label: 'Дать переход, заморозить рост' },
-  ],
-  возможность: [
-    { value: 'block', label: 'Не давать переход' },
-    { value: 'disable_immediately', label: 'Выключить сразу' },
-    { value: 'read_only', label: 'Оставить только чтение' },
-  ],
-};
-
 const emptyMechanics = (): Record<OrgMechanic, boolean> =>
   Object.fromEntries(CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, false])) as Record<
     OrgMechanic,
@@ -199,7 +172,6 @@ function emptyTariffDraft(): TariffDraft {
     mechanics: emptyMechanics(),
     quotas: {},
     systemAccessPolicy: null,
-    downgradePolicies: {},
     mailingTemplates: [],
   };
 }
@@ -223,7 +195,6 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     systemAccessPolicy: tariff.systemAccessPolicy
       ? accessPolicyToDraft(tariff.systemAccessPolicy)
       : null,
-    downgradePolicies: tariff.downgradePolicies,
     mailingTemplates: tariff.mailingTemplates,
   };
 }
@@ -585,42 +556,6 @@ function AccessNotificationsEditor({
   );
 }
 
-function DowngradePolicyEditor({
-  mechanic,
-  value,
-  onChange,
-}: {
-  mechanic: OrgMechanic;
-  value: MechanicDowngradePolicy | null;
-  onChange: (value: MechanicDowngradePolicy) => void;
-}) {
-  const options = DOWNGRADE_POLICY_OPTIONS[MECHANIC_REGISTRY[mechanic].class as 'запас' | 'объём' | 'возможность'];
-  const title = MECHANIC_REGISTRY[mechanic].label;
-  return (
-    <div className="space-y-1 rounded-xl border border-border/70 p-3">
-      <Label>{title}</Label>
-      <Select value={value ?? 'unset'} onValueChange={(next) => onChange(next as MechanicDowngradePolicy)}>
-        <SelectTrigger
-          aria-label={`${title}: При переходе на меньший тариф`}
-          displayLabel={options.find((option) => option.value === value)?.label ?? 'Не задано'}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="unset" disabled>
-            Не задано
-          </SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
 export function CommercialConstructorClient() {
   const searchParams = useSearchParams();
   const organizationIdFromUrl = searchParams.get('organizationId')?.trim() ?? '';
@@ -824,7 +759,6 @@ export function CommercialConstructorClient() {
       quotas: tariff.quotas,
       systemAccessPolicy,
       mechanicAccessPolicies: {},
-      downgradePolicies: tariff.downgradePolicies,
       mailingTemplates: tariff.mailingTemplates,
       includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
       additionalSeatPriceMinor: Number.isFinite(additionalSeatPrice) ? additionalSeatPrice : null,
@@ -1070,21 +1004,6 @@ export function CommercialConstructorClient() {
                 setTariff((current) => ({ ...current, systemAccessPolicy }))
               }
             />
-            <div className="grid gap-2 md:grid-cols-2">
-              {DOWNGRADE_MECHANICS.map((mechanic) => (
-                <DowngradePolicyEditor
-                  key={mechanic}
-                  mechanic={mechanic}
-                  value={tariff.downgradePolicies[mechanic] ?? null}
-                  onChange={(policy) =>
-                    setTariff((current) => ({
-                      ...current,
-                      downgradePolicies: { ...current.downgradePolicies, [mechanic]: policy },
-                    }))
-                  }
-                />
-              ))}
-            </div>
             <Label className="flex items-center gap-2">
               <Checkbox
                 checked={tariff.isActive}

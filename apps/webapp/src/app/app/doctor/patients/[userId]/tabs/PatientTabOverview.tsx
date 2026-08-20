@@ -18,7 +18,10 @@ import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientS
 import type { ActiveComplaint, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
-import { serializeSupportMessage, type SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
+import {
+  serializeSupportMessage,
+  type SerializedSupportMessage,
+} from '@/modules/messaging/serializeSupportMessage';
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
 import type { DoctorPatientExerciseCalendarSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientMessagesSnapshot';
@@ -36,8 +39,7 @@ import {
   deriveOverviewProgramWidgetFromDetail,
   pickOpenTreatmentProgramInstance,
 } from '../../treatmentProgramInstanceOpen';
-import { parseCatalogMediaRows } from '@/app/app/patient/treatment/stageItemSnapshot';
-import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
+import { expectedStageControlDateIso } from '@/modules/treatment-program/stage-semantics';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -139,6 +141,8 @@ interface TreatmentInstanceStage {
   title: string;
   status: string;
   sortOrder: number;
+  startedAt?: string | null;
+  expectedDurationDays?: number | null;
   groups: Array<{ id: string; title: string; systemKind?: string | null }>;
   items: Array<{
     id: string;
@@ -417,11 +421,14 @@ function KpiCard({
   );
 }
 
+export const overviewSymptomSeverityBadgeClass =
+  'font-bold text-primary bg-primary/10 tabular-nums';
+
 function ScoreBadge({ score, size = 'base' }: { score: number; size?: 'base' | 'sm' }) {
   const cls =
     size === 'base'
-      ? 'text-xs font-bold text-primary bg-primary/10 rounded-[9px] px-2 py-0.5 tabular-nums'
-      : 'text-[10.5px] font-bold text-primary bg-primary/10 rounded-lg px-1.5 py-0 tabular-nums';
+      ? cn(overviewSymptomSeverityBadgeClass, 'text-xs rounded-[9px] px-2 py-0.5')
+      : cn(overviewSymptomSeverityBadgeClass, 'text-[10.5px] rounded-lg px-1.5 py-0');
   return <span className={cls}>{score}/10</span>;
 }
 
@@ -568,13 +575,13 @@ type Props = {
   initialMessagesSnapshot?: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null;
   membershipsVisible?: boolean;
   /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
-  initialSupportEffectivePolicy?:
-    | BootstrapEnvelope<
-        import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy | null
-      >
-    | null;
+  initialSupportEffectivePolicy?: BootstrapEnvelope<
+    import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy | null
+  > | null;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
+  /** UI-5b places these widgets in the composed right detail pane. */
+  compositionMode?: 'right-pane';
 };
 
 function monthPartsFromIsoDate(isoDate: string): { year: number; month: number } {
@@ -630,13 +637,17 @@ function isOverviewBootstrapComplete(
   membershipsVisible: boolean,
   initialPackages: BootstrapEnvelope<PackageItem[]> | null | undefined,
   initialProgramInstances: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null | undefined,
-  initialProgramInstanceDetail: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null | undefined,
+  initialProgramInstanceDetail:
+    BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null | undefined,
   initialMessagesSnapshot: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null | undefined,
 ): boolean {
   if (initialMessagesSnapshot == null || isBootstrapEnvelopeFailed(initialMessagesSnapshot)) {
     return false;
   }
-  if (membershipsVisible && (initialPackages == null || isBootstrapEnvelopeFailed(initialPackages))) {
+  if (
+    membershipsVisible &&
+    (initialPackages == null || isBootstrapEnvelopeFailed(initialPackages))
+  ) {
     return false;
   }
   if (initialProgramInstances == null || isBootstrapEnvelopeFailed(initialProgramInstances)) {
@@ -647,7 +658,8 @@ function isOverviewBootstrapComplete(
   );
   if (
     open != null &&
-    (initialProgramInstanceDetail == null || isBootstrapEnvelopeFailed(initialProgramInstanceDetail))
+    (initialProgramInstanceDetail == null ||
+      isBootstrapEnvelopeFailed(initialProgramInstanceDetail))
   ) {
     return false;
   }
@@ -782,6 +794,7 @@ export function PatientTabOverview({
   initialSupportEffectivePolicy,
   specialistTasksAvailable,
   specialistTasksReadable,
+  compositionMode,
 }: Props) {
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
   const [calView, setCalView] = useState<'month' | 'week'>('month');
@@ -950,49 +963,46 @@ export function PatientTabOverview({
     let active = true;
 
     // patient-packages: skip when SSR data provided
-    const fetchPackages =
-      !membershipsVisible
-        ? Promise.resolve(null)
-        : initialPackages?.ok
-          ? Promise.resolve({
-              ok: true,
-              packages: initialPackages.value,
-            } as PackagesApiResponse)
-          : initialPackages != null && isBootstrapEnvelopeFailed(initialPackages)
-            ? Promise.resolve(null)
-            : fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
-                credentials: 'include',
-              })
-                .then((r) => (r.ok ? (r.json() as Promise<PackagesApiResponse>) : null))
-                .catch(() => null);
-
-    const fetchProgram =
-      initialProgramInstances?.ok
+    const fetchPackages = !membershipsVisible
+      ? Promise.resolve(null)
+      : initialPackages?.ok
         ? Promise.resolve({
             ok: true,
-            items: initialProgramInstances.value,
-          } as ProgramInstancesApiResponse)
-        : initialProgramInstances != null && isBootstrapEnvelopeFailed(initialProgramInstances)
+            packages: initialPackages.value,
+          } as PackagesApiResponse)
+        : initialPackages != null && isBootstrapEnvelopeFailed(initialPackages)
           ? Promise.resolve(null)
-          : fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
+          : fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
               credentials: 'include',
             })
-              .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
+              .then((r) => (r.ok ? (r.json() as Promise<PackagesApiResponse>) : null))
               .catch(() => null);
 
-    const fetchMessages =
-      initialMessagesSnapshot?.ok
-        ? Promise.resolve({
-            source: 'seed' as const,
-            ok: true,
-            conversationId: initialMessagesSnapshot.value.conversationId ?? undefined,
-            messages: initialMessagesSnapshot.value.messages.map(serializeSupportMessage),
-            unreadFromUserCount: initialMessagesSnapshot.value.unreadFromUserCount,
+    const fetchProgram = initialProgramInstances?.ok
+      ? Promise.resolve({
+          ok: true,
+          items: initialProgramInstances.value,
+        } as ProgramInstancesApiResponse)
+      : initialProgramInstances != null && isBootstrapEnvelopeFailed(initialProgramInstances)
+        ? Promise.resolve(null)
+        : fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
+            credentials: 'include',
           })
-        : initialMessagesSnapshot != null && isBootstrapEnvelopeFailed(initialMessagesSnapshot)
-          ? Promise.resolve({ source: 'failed' as const })
-          : // Null seed: one initial read comes from useMessagePolling(immediate=true).
-            Promise.resolve({ source: 'deferred' as const });
+            .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
+            .catch(() => null);
+
+    const fetchMessages = initialMessagesSnapshot?.ok
+      ? Promise.resolve({
+          source: 'seed' as const,
+          ok: true,
+          conversationId: initialMessagesSnapshot.value.conversationId ?? undefined,
+          messages: initialMessagesSnapshot.value.messages.map(serializeSupportMessage),
+          unreadFromUserCount: initialMessagesSnapshot.value.unreadFromUserCount,
+        })
+      : initialMessagesSnapshot != null && isBootstrapEnvelopeFailed(initialMessagesSnapshot)
+        ? Promise.resolve({ source: 'failed' as const })
+        : // Null seed: one initial read comes from useMessagePolling(immediate=true).
+          Promise.resolve({ source: 'deferred' as const });
 
     // Conditionally fetch SSR-covered data only when SSR props were not provided
     const fetchClinical =
@@ -1058,7 +1068,11 @@ export function PatientTabOverview({
         let complaints: ActiveComplaint[];
         let clinicalStatus: WidgetStatus;
         let symptomSeries: SymptomSeries[];
-        if (usingSsrForClinical && unwrapBootstrapEnvelope(initialClinicalState) != null && unwrapBootstrapEnvelope(initialVisits) != null) {
+        if (
+          usingSsrForClinical &&
+          unwrapBootstrapEnvelope(initialClinicalState) != null &&
+          unwrapBootstrapEnvelope(initialVisits) != null
+        ) {
           const visits = unwrapBootstrapEnvelope(initialVisits)!;
           complaints = unwrapBootstrapEnvelope(initialClinicalState)!.complaints;
           clinicalStatus = complaints.length === 0 ? 'empty' : 'ok';
@@ -1401,6 +1415,12 @@ export function PatientTabOverview({
       )
     : 0;
   const displayStage = data?.programStages[displayStageIndex] ?? null;
+  const programControlDate = displayStage
+    ? expectedStageControlDateIso({
+        startedAt: displayStage.startedAt ?? null,
+        expectedDurationDays: displayStage.expectedDurationDays ?? null,
+      })
+    : null;
   const maxStageOffset = data ? data.programStages.length - 1 - data.programCurrentStageIndex : 0;
   const minStageOffset = data ? -data.programCurrentStageIndex : 0;
 
@@ -1408,11 +1428,17 @@ export function PatientTabOverview({
   const totalMessageUnread = data?.unreadFromUserCount ?? 0;
 
   return (
-    <div className="grid grid-cols-1 items-start gap-2.5 md:grid-cols-2">
+    <div
+      className={cn(
+        compositionMode === 'right-pane'
+          ? 'flex flex-col gap-2.5'
+          : 'grid grid-cols-1 items-start gap-2.5 md:grid-cols-2',
+      )}
+    >
       {/* ===== LEFT COLUMN ===== */}
-      <div className="flex flex-col gap-2.5">
+      <div className={cn(compositionMode === 'right-pane' ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* «+ Создать визит» entry point */}
-        <div className="flex justify-end">
+        <div className={cn('flex justify-end', compositionMode === 'right-pane' && 'hidden')}>
           <Button
             variant="ghost"
             onClick={() => onTabSwitch?.('karta')}
@@ -1423,7 +1449,7 @@ export function PatientTabOverview({
         </div>
 
         {/* KPI row */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className={cn('grid grid-cols-2 gap-2', compositionMode === 'right-pane' && 'hidden')}>
           {/* Контроль KPI */}
           <KpiCard
             label="Контроль"
@@ -1471,9 +1497,8 @@ export function PatientTabOverview({
           ) : null}
         </div>
 
-
         {/* Актуальные симптомы */}
-        <div className={doctorSectionCardClass}>
+        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'hidden')}>
           <div className="flex items-center justify-between mb-1">
             <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
             <Button
@@ -1536,7 +1561,7 @@ export function PatientTabOverview({
         </div>
 
         {/* Динамика симптомов */}
-        <div className={doctorSectionCardClass}>
+        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-3')}>
           <div className="flex items-center justify-between flex-wrap gap-1.5 mb-1">
             <span className={doctorSectionTitleClass}>Динамика симптомов</span>
             {!isLoading && data?.symptomSeries && data.symptomSeries.length > 0 && (
@@ -1572,7 +1597,7 @@ export function PatientTabOverview({
         </div>
 
         {/* Выполнение упражнений */}
-        <div className={doctorSectionCardClass}>
+        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-5')}>
           <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
             <div>
               <span className={doctorSectionTitleClass}>Выполнение упражнений</span>
@@ -1706,9 +1731,9 @@ export function PatientTabOverview({
       </div>
 
       {/* ===== RIGHT COLUMN ===== */}
-      <div className="flex flex-col gap-2.5">
+      <div className={cn(compositionMode === 'right-pane' ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* Заметки */}
-        <div className={doctorSectionCardClass}>
+        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-1')}>
           <div className="flex items-center gap-2 mb-1">
             <span className={doctorSectionTitleClass}>Заметки</span>
             <Button
@@ -1764,9 +1789,6 @@ export function PatientTabOverview({
           {!isLoading && data?.notesStatus === 'error' && (
             <p className="text-xs text-destructive py-1">Не удалось загрузить заметки.</p>
           )}
-          {!isLoading && data?.notesStatus === 'ok' && data.notes.length === 0 && !addingNote && (
-            <p className="text-xs text-muted-foreground py-2">Заметок нет.</p>
-          )}
           {!isLoading && data?.notesStatus === 'ok' && data.notes.length > 0 && (
             <div className="flex flex-col gap-1">
               {/* Notes don't have a pinned field — sort by updatedAt newest first */}
@@ -1789,7 +1811,9 @@ export function PatientTabOverview({
 
         {/* Задачи */}
         {specialistTasksReadable ? (
-          <div className={doctorSectionCardClass}>
+          <div
+            className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-2')}
+          >
             <div className="flex items-center gap-2 mb-1">
               <span className={doctorSectionTitleClass}>Задачи</span>
               {specialistTasksAvailable ? (
@@ -1852,9 +1876,6 @@ export function PatientTabOverview({
             {!isLoading && data?.tasksStatus === 'error' && (
               <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
             )}
-            {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length === 0 && !addingTask && (
-              <p className="text-xs text-muted-foreground py-2">Задач нет.</p>
-            )}
             {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length > 0 && (
               <div className="flex flex-col gap-1">
                 {data.tasks.map((task) => {
@@ -1888,9 +1909,9 @@ export function PatientTabOverview({
         ) : null}
 
         {/* Программа и комментарии */}
-        <div className={doctorSectionCardClass}>
+        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-4')}>
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className={doctorSectionTitleClass}>Программа и комментарии</span>
+            <span className={doctorSectionTitleClass}>Назначенная программа</span>
             {(data?.programActivity?.unreadCount ?? 0) > 0 && (
               <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0 text-[10px] font-semibold text-destructive">
                 {data!.programActivity!.unreadCount} непрочит.
@@ -1928,15 +1949,32 @@ export function PatientTabOverview({
           {!isLoading && data?.programStatus === 'ok' && (
             <>
               {data.programTitle && (
-                <p className="text-[12px] font-semibold text-foreground mb-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onTabSwitch?.('program')}
+                  className="mb-1.5 h-auto p-0 text-[12px] font-semibold text-foreground hover:bg-transparent hover:text-primary"
+                >
                   {data.programTitle}
-                </p>
+                </Button>
               )}
+              {programControlDate ? (
+                <p className="mb-1.5 text-xs text-muted-foreground">
+                  Дата контроля: {fmtDateShort(programControlDate)}
+                </p>
+              ) : null}
 
               {/* Stage pager */}
               {data.programStages.length > 0 && displayStage && (
                 <>
-                  <div className="flex items-center gap-2 border border-border rounded-lg px-2 py-1.5 bg-muted/10 mb-2">
+                  <div
+                    className={cn(
+                      'mb-2 flex items-center gap-2 rounded-lg border px-2 py-1.5',
+                      displayStage.status === 'in_progress'
+                        ? 'border-primary/50 bg-primary/10'
+                        : 'border-border bg-muted/10',
+                    )}
+                  >
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1973,48 +2011,6 @@ export function PatientTabOverview({
                       ▶
                     </Button>
                   </div>
-
-                  {/* Exercise items in stage — exclude system-kind groups */}
-                  {(() => {
-                    const systemGroupIds = new Set(
-                      (displayStage.groups ?? [])
-                        .filter((g) => g.systemKind != null)
-                        .map((g) => g.id),
-                    );
-                    const visibleItems = displayStage.items.filter(
-                      (it) => it.itemType === 'exercise' && !systemGroupIds.has(it.groupId ?? ''),
-                    );
-                    return visibleItems.map((item) => {
-                      // Parse media using the shared catalog helper (same as exercises-page etalon).
-                      // This correctly handles previewSmUrl/previewMdUrl for video thumbnails,
-                      // which a plain snapshot.media[0].mediaUrl approach misses.
-                      const allMedia = parseCatalogMediaRows(item.snapshot?.media ?? null);
-                      // Prefer video (has rich preview) then first available media.
-                      const primaryMedia =
-                        allMedia.find((m) => m.mediaType === 'video') ?? allMedia[0] ?? null;
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-2 border border-border rounded-[7px] px-2 py-1 bg-card text-[11.5px] text-foreground mb-1"
-                        >
-                          <DoctorCatalogMediaStaticThumb
-                            media={primaryMedia}
-                            frameClassName="w-[22px] h-[22px] rounded-md flex-none"
-                            sizes="22px"
-                            iconClassName="size-3"
-                          />
-                          <span className="flex-1 min-w-0 truncate">
-                            {item.snapshot?.title ?? 'Упражнение'}
-                          </span>
-                          {item.effectiveComment && (
-                            <span className="text-[10.5px] text-muted-foreground flex-none truncate max-w-[100px]">
-                              {item.effectiveComment}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
                 </>
               )}
             </>
@@ -2022,7 +2018,7 @@ export function PatientTabOverview({
         </div>
 
         {/* Сопровождение — moved here from Учётка (S2.5) */}
-        <div className={doctorSectionCardClass}>
+        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'hidden')}>
           <span className={doctorSectionTitleClass}>Сопровождение</span>
           <DoctorClientSupportPanel
             patientUserId={userId}
@@ -2031,7 +2027,7 @@ export function PatientTabOverview({
         </div>
 
         {/* Сообщения */}
-        <div className={doctorSectionCardClass}>
+        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'hidden')}>
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={doctorSectionTitleClass}>Сообщения</span>
             {totalMessageUnread > 0 && (
@@ -2041,7 +2037,7 @@ export function PatientTabOverview({
             )}
             <Button
               variant="ghost"
-              onClick={() => onTabSwitch?.('comms')}
+              onClick={() => onTabSwitch?.('karta')}
               className="ml-auto h-auto p-0 text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
             >
               вся переписка →

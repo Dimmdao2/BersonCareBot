@@ -1,6 +1,7 @@
 import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { isSupportChatMessage } from '@/shared/lib/supportMessageKinds';
 import type { SupportConversationMessageRow } from '@/modules/messaging/ports';
+import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 
 type Deps = ReturnType<typeof buildAppDeps>;
 
@@ -18,11 +19,28 @@ export async function loadDoctorPatientMessagesSnapshot(
   deps: Deps,
   patientUserId: string,
   organizationId: string,
+  visibilityActor: PatientVisibilityActor,
 ): Promise<DoctorPatientMessagesSnapshot> {
+  // Restricted patient communication is never projected from organization membership alone.
+  // The current messaging list is the actor-aware conversation seam; without a specialist
+  // identity there is no participant/recipient identity, so the snapshot fails closed.
+  if (!visibilityActor.specialistId) {
+    return { conversationId: null, messages: [], unreadFromUserCount: 0 };
+  }
+
   const port = deps.supportCommunication;
-  const conversations = await port.listConversationsByUser(patientUserId);
+  const [conversations, permittedConversations] = await Promise.all([
+    port.listConversationsByUser(patientUserId),
+    deps.messaging.doctorSupport.listOpenConversations({
+      organizationId,
+      visibilityActor,
+      limit: 100,
+    }),
+  ]);
+  const permittedIds = new Set(permittedConversations.map((row) => row.conversationId));
   const orgScoped = conversations.filter(
-    (c) => !c.organizationId || c.organizationId === organizationId,
+    (conversation) =>
+      conversation.organizationId === organizationId && permittedIds.has(conversation.id),
   );
   const webappConversation =
     orgScoped.find((c) => c.source === 'webapp' && c.status === 'open') ??

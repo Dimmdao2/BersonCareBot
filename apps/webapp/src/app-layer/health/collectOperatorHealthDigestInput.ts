@@ -6,16 +6,6 @@ import {
   countRecentOutboundProviderFailureIncidents,
   isOperatorProbeFailureIncident,
 } from '@/modules/operator-health/criticalHealthSignals';
-import { loadOperatorHealthProjectionThresholds } from '@/modules/operator-health/operatorHealthProjectionThresholds';
-import {
-  evaluateProjectionDigestDebounceFlags,
-  parseProjectionDigestDebounceState,
-} from '@/modules/operator-health/projectionDigestDebounce';
-import {
-  OPERATOR_HEALTH_JOB_FAMILY,
-  OPERATOR_HEALTH_PROJECTION_DIGEST_DEBOUNCE_JOB_KEY,
-} from '@/modules/operator-health/reconcileJobKeys';
-import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import { readOperatorHeartbeatVerdicts } from '@/app-layer/health/deliveryHeartbeatObserver';
 
 export async function collectOperatorHealthDigestInput(params: {
@@ -33,8 +23,6 @@ export async function collectOperatorHealthDigestInput(params: {
     incidentsResolved,
     jobFailures,
     health,
-    thresholds,
-    debounceRow,
     openIncidents,
   ] = await Promise.all([
     digestRead.countAuditErrorsInWindow(params.windowStartIso, params.windowEndIso),
@@ -42,11 +30,6 @@ export async function collectOperatorHealthDigestInput(params: {
     digestRead.listIncidentsResolvedInWindow(params.windowStartIso, params.windowEndIso),
     digestRead.listJobFailuresInWindow(params.windowStartIso, params.windowEndIso),
     collectAdminSystemHealthData(),
-    loadOperatorHealthProjectionThresholds(getConfigValue),
-    deps.operatorHealthRead.getOperatorJobStatus(
-      OPERATOR_HEALTH_JOB_FAMILY,
-      OPERATOR_HEALTH_PROJECTION_DIGEST_DEBOUNCE_JOB_KEY,
-    ),
     deps.operatorHealthRead.listOpenIncidents(100),
   ]);
 
@@ -56,40 +39,9 @@ export async function collectOperatorHealthDigestInput(params: {
     readOperatorHeartbeatVerdicts(nowMs).catch(() => []),
   ]);
 
-  const projectionSnapshot = health.projection.snapshot;
-  const projection = {
-    probeStatus: health.projection.status,
-    deadCount: typeof projectionSnapshot?.deadCount === 'number' ? projectionSnapshot.deadCount : 0,
-    retriesOverThreshold:
-      typeof projectionSnapshot?.retriesOverThreshold === 'number'
-        ? projectionSnapshot.retriesOverThreshold
-        : 0,
-    oldestPendingAt:
-      typeof projectionSnapshot?.oldestPendingAt === 'string'
-        ? projectionSnapshot.oldestPendingAt
-        : null,
-  };
-
-  const debounceFlags = evaluateProjectionDigestDebounceFlags(
-    {
-      probeStatus: projection.probeStatus,
-      deadCount: projection.deadCount,
-      retriesOverThreshold: projection.retriesOverThreshold,
-      oldestPendingAt: projection.oldestPendingAt,
-    },
-    thresholds,
-    parseProjectionDigestDebounceState(debounceRow?.metaJson),
-    nowMs,
-  );
-
   const snapshotLines = buildDigestHealthSnapshotLines({
     webappDb: health.webappDb,
     integratorApi: health.integratorApi.status,
-    projection,
-    projectionDigestDebounce: {
-      includeRetriesLine: debounceFlags.includeRetriesInDigest,
-      includeStalePendingLine: debounceFlags.includeStalePendingInDigest,
-    },
     outgoingDelivery: {
       dueBacklog: health.outgoingDelivery.dueBacklog,
       deadTotal: health.outgoingDelivery.deadTotal,

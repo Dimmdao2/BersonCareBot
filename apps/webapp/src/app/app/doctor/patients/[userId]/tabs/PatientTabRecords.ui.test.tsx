@@ -1,5 +1,6 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { PatientTabRecords } from './PatientTabRecords';
 
 const patientId = '22222222-2222-4222-8222-222222222222';
@@ -65,5 +66,101 @@ describe('patient records tab — a refused load is not a visit history', () => 
 
     expect(await screen.findByText(/Записей пока нет/)).toBeInTheDocument();
     expect(screen.queryByText(/Не удалось загрузить записи/)).not.toBeInTheDocument();
+  });
+
+  it('opens notes for an appointment that already has a visit record', async () => {
+    const openVisit = vi.fn();
+    const preparedAppointment = {
+      id: 'appointment-with-visit',
+      internalId: 'appointment-with-visit',
+      dateTime: '2026-08-19T10:00:00.000Z',
+      status: 'completed',
+      serviceName: 'Консультация',
+      location: 'Клиника',
+      durationMin: 60,
+      hasVisitRecord: true,
+    } satisfies PatientAppointmentItem & { hasVisitRecord: boolean };
+
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        initialAppointments={[preparedAppointment]}
+        onCreateVisitFromAppointment={openVisit}
+      />,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Открыть заметки' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Оформить визит' })).not.toBeInTheDocument();
+    expect(openVisit).not.toHaveBeenCalled();
+  });
+
+  it('uses the UI-5b KPI master selector and opens prepared notes without creating a duplicate visit', async () => {
+    const createVisit = vi.fn();
+    const openNotes = vi.fn();
+    const preparedAppointment = {
+      id: 'appointment-with-visit',
+      internalId: 'appointment-with-visit',
+      dateTime: '2026-08-19T10:00:00.000Z',
+      status: 'completed',
+      serviceName: 'Консультация',
+      location: 'Клиника',
+      durationMin: 60,
+      hasVisitRecord: true,
+    } satisfies PatientAppointmentItem;
+
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        compositionMode="master"
+        initialAppointments={[preparedAppointment]}
+        initialPackages={[]}
+        onCreateVisitFromAppointment={createVisit}
+        onOpenVisitNotes={openNotes}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Визиты/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Будущие записи/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Абонементы/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
+    expect(openNotes).toHaveBeenCalledWith('appointment-with-visit');
+    expect(createVisit).not.toHaveBeenCalled();
+  });
+
+  it('keeps membership history in the master pane and exposes consume/recalculate only for active memberships', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(respondWith({ sessions: [] }));
+    const openConfiguration = vi.fn();
+
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        compositionMode="master"
+        initialAppointments={[]}
+        initialPackages={[
+          {
+            id: 'active-package',
+            title: 'Активный',
+            status: 'active',
+            validUntil: null,
+            balance: { items: [{ quantityInitial: 5, remaining: 3 }] },
+          },
+          {
+            id: 'closed-package',
+            title: 'Закрытый',
+            status: 'completed',
+            validUntil: null,
+            balance: { items: [{ quantityInitial: 4, remaining: 0 }] },
+          },
+        ]}
+        onOpenMembershipConfiguration={openConfiguration}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Абонементы/ }));
+    expect(await screen.findByText(/История закрытых абонементов/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Пересчитать' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Списать' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
+    expect(openConfiguration).toHaveBeenCalledTimes(1);
   });
 });

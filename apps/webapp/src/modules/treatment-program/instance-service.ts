@@ -1,3 +1,4 @@
+import type { VideoAttachmentDurationGate } from '@/modules/media/videoDurationLimit';
 import type {
   TreatmentProgramEventsPort,
   TreatmentProgramInstancePort,
@@ -55,6 +56,7 @@ export function createTreatmentProgramInstanceService(deps: {
   templates: TreatmentProgramService;
   snapshots: TreatmentProgramItemSnapshotPort;
   itemRefs: TreatmentProgramItemRefValidationPort;
+  media: VideoAttachmentDurationGate;
   events?: TreatmentProgramEventsPort;
   /** §8–9: проверка попыток тестов перед удалением/заменой элемента. */
   testAttempts?: TreatmentProgramTestAttemptsPort;
@@ -72,7 +74,7 @@ export function createTreatmentProgramInstanceService(deps: {
    */
   assertWriteClearance?: (mechanic: 'promo') => void;
 }) {
-  const { instances, templates, snapshots, itemRefs, testAttempts } = deps;
+  const { instances, templates, snapshots, itemRefs, media, testAttempts } = deps;
   const events = deps.events;
 
   async function appendEvent(input: Parameters<typeof buildAppendEventInput>[0]): Promise<void> {
@@ -1630,6 +1632,7 @@ export function createTreatmentProgramInstanceService(deps: {
         templates,
         snapshots,
         itemRefs,
+        media,
         testAttempts,
       };
       const { detail, diff } = await applyInstanceEditorBatch(batchDeps, {

@@ -1,5 +1,9 @@
 import type { MediaStoragePort } from './ports';
 import type { MediaRecord } from './types';
+import {
+  validateVideoAttachmentDuration,
+  type VideoAttachmentPurpose,
+} from './videoDurationLimit';
 
 export type {
   MediaRecord,
@@ -32,6 +36,12 @@ export function createMediaService(port: MediaStoragePort) {
     },
     async getById(id: string): Promise<MediaRecord | null> {
       return port.getById(id);
+    },
+    async getVideoAttachmentDurationRejection(
+      mediaId: string,
+      purpose: VideoAttachmentPurpose,
+    ) {
+      return validateVideoAttachmentDuration(purpose, await port.getById(mediaId));
     },
     async list(params: Parameters<MediaStoragePort['list']>[0]) {
       return port.list(params);

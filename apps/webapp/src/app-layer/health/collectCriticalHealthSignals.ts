@@ -2,7 +2,6 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 import { loadAdminTranscodeHealthMetricsSafe } from '@/app-layer/media/adminTranscodeHealthMetrics';
 import { env } from '@/config/env';
-import { proxyIntegratorProjectionHealth } from '@/app-layer/health/proxyIntegratorProjectionHealth';
 import { classifyVideoTranscodeSystemHealthStatus } from '@/modules/operator-health/adminHealthThresholds';
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
@@ -11,12 +10,10 @@ import {
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
 import type {
-  CriticalHealthProjectionInput,
   CriticalHealthSignalsInput,
   DbStatus,
   IntegratorApiStatus,
   OperatorHealthBannerInput,
-  ProjectionProbeStatus,
   VideoTranscodeHealthStatus,
 } from '@/modules/operator-health/criticalHealthSignals';
 import {
@@ -47,21 +44,8 @@ import {
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
-type ProjectionSnapshot = {
-  deadCount?: number;
-  retriesOverThreshold?: number;
-};
-
 function asObject(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function toProjectionProbeStatus(snapshot: ProjectionSnapshot): ProjectionProbeStatus {
-  const deadCount = typeof snapshot.deadCount === 'number' ? snapshot.deadCount : 0;
-  const retriesOverThreshold =
-    typeof snapshot.retriesOverThreshold === 'number' ? snapshot.retriesOverThreshold : 0;
-  if (deadCount > 0 || retriesOverThreshold > 0) return 'degraded';
-  return 'ok';
 }
 
 async function probeWebappDb(): Promise<DbStatus> {
@@ -88,32 +72,6 @@ async function probeIntegratorApi(): Promise<IntegratorApiStatus> {
     return 'error';
   } catch {
     return 'unreachable';
-  }
-}
-
-async function probeProjection(): Promise<CriticalHealthProjectionInput> {
-  try {
-    const response = await proxyIntegratorProjectionHealth();
-    const payload = asObject(await response.json().catch(() => null));
-    if (!response.ok || payload == null) {
-      const code = typeof payload?.error === 'string' ? payload.error : 'projection_probe_failed';
-      return {
-        probeStatus: code.includes('unreachable') ? 'unreachable' : 'error',
-        deadCount: 0,
-        retriesOverThreshold: 0,
-      };
-    }
-    const snapshot = payload as ProjectionSnapshot;
-    const deadCount = typeof snapshot.deadCount === 'number' ? snapshot.deadCount : 0;
-    const retriesOverThreshold =
-      typeof snapshot.retriesOverThreshold === 'number' ? snapshot.retriesOverThreshold : 0;
-    return {
-      probeStatus: toProjectionProbeStatus(snapshot),
-      deadCount,
-      retriesOverThreshold,
-    };
-  } catch {
-    return { probeStatus: 'error', deadCount: 0, retriesOverThreshold: 0 };
   }
 }
 
@@ -197,7 +155,6 @@ async function collectScheduledCriticalHealthSignalsBase(
   const [
     webappDb,
     integratorApi,
-    projection,
     snapshot,
     // Очередь читается ОБЪЯВЛЕННЫМ корнем (`app.read_operator_delivery_queue_health`, миграции
     // 0039/0044), а не блоком сводного снимка. Две причины. Первая: только у корня есть окно
@@ -210,7 +167,6 @@ async function collectScheduledCriticalHealthSignalsBase(
   ] = await Promise.all([
     probeWebappDb(),
     probeIntegratorApi(),
-    probeProjection(),
     loadCuratedSystemHealthSnapshot(),
     read.getOutgoingDeliveryQueueHealth(),
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
@@ -232,7 +188,6 @@ async function collectScheduledCriticalHealthSignalsBase(
   return {
     webappDb,
     integratorApi,
-    projection,
     outgoingDelivery: {
       deadTotal: outgoingDelivery.deadTotal,
       deadRecent: outgoingDelivery.deadRecent,
@@ -276,7 +231,6 @@ async function collectCriticalHealthSignalsBase(
   const [
     webappDb,
     integratorApi,
-    projection,
     outgoingDelivery,
     integratorPushOutbox,
     backupJobs,
@@ -287,7 +241,6 @@ async function collectCriticalHealthSignalsBase(
   ] = await Promise.all([
     probeWebappDb(),
     probeIntegratorApi(),
-    probeProjection(),
     read.getOutgoingDeliveryQueueHealth(),
     read.getIntegratorPushOutboxHealth(),
     loadBackupJobsMap(read),
@@ -309,7 +262,6 @@ async function collectCriticalHealthSignalsBase(
   return {
     webappDb,
     integratorApi,
-    projection,
     outgoingDelivery: {
       deadTotal: outgoingDelivery.deadTotal,
       deadRecent: outgoingDelivery.deadRecent,

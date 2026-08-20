@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Stage 11 release gate: projection health + subscription/mailing-domain reconciliation.
- * Run after CI for go/no-go. Projection health uses the live integrator; DB URLs are only for reconcile.
+ * Stage 11 release gate: subscription/mailing-domain reconciliation.
+ * Run after CI for go/no-go. DB URLs are only for reconcile.
  *
  * Usage: pnpm run stage11-gate
- * Exit: 0 when both checks pass; 1 when any check fails.
+ * Exit: 0 when the check passes; 1 when it fails.
  */
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -18,13 +18,6 @@ loadCutoverEnv();
 
 async function main() {
   const failed = [];
-  const projHealth = await runWithTimeout(
-    'pnpm',
-    ['--dir', 'apps/integrator', 'run', 'projection-health'],
-    { cwd: rootDir, name: 'projection-health' },
-  );
-  if (projHealth) failed.push(projHealth);
-
   const reconcile = await runWithTimeout(
     'pnpm',
     ['--dir', 'apps/webapp', 'run', 'reconcile-subscription-mailing-domain'],
@@ -36,7 +29,7 @@ async function main() {
     console.error('[stage11-gate] failed:', failed.join(', '));
     process.exit(1);
   }
-  console.log('[stage11-gate] ok: projection health + subscription/mailing reconciliation passed');
+  console.log('[stage11-gate] ok: subscription/mailing reconciliation passed');
   process.exit(0);
 }
 

@@ -17,7 +17,7 @@ import {
   parseExerciseLoadFormValue,
 } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
 import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
-import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import { API_MEDIA_URL_RE } from '@/shared/lib/mediaUrlPolicy';
 import {
   hostedVideoLinkRejectionRu,
   parseHostedVideoLink,
@@ -105,25 +105,25 @@ function normalizeExerciseMedia(
     return { ok: true, mediaUrl: link.canonicalUrl, mediaType };
   }
 
-  if (!(API_MEDIA_URL_RE.test(mediaUrl) || isLegacyAbsoluteUrl(mediaUrl))) {
+  if (!API_MEDIA_URL_RE.test(mediaUrl)) {
     return {
       ok: false,
-      error:
-        'Медиа должно быть из библиотеки файлов (/api/media/…) или допустимый legacy URL (https://…).',
-    };
-  }
-  /*
-   * Обход вокруг новой двери: `isLegacyAbsoluteUrl` пропускает ЛЮБОЙ https-адрес, поэтому ссылку
-   * на хостинг можно было сохранить под видом файла — и тогда пациенту вместо ролика показывался
-   * отказ «видео без привязки к медиатеке». Такой URL здесь называется своим именем.
-   */
-  if (parseHostedVideoLink(mediaUrl)) {
-    return {
-      ok: false,
-      error: 'Это ссылка на видеохостинг — вставьте её в поле «Ссылка на видео», а не как файл.',
+      error: 'Выберите файл из библиотеки медиа.',
     };
   }
   return { ok: true, mediaUrl, mediaType };
+}
+
+async function exerciseVideoDurationRejection(
+  deps: ReturnType<typeof buildAppDeps>,
+  mediaUrl: string | null,
+  mediaType: ExerciseMediaType | null,
+): Promise<string | null> {
+  if (mediaType !== 'video' || !mediaUrl) return null;
+  const mediaId = parseMediaFileIdFromAppUrl(mediaUrl);
+  if (!mediaId) return null;
+  const result = await deps.media.getVideoAttachmentDurationRejection(mediaId, 'exercise');
+  return result.ok ? null : result.error;
 }
 
 export const bulkCreateExerciseMediaItemSchema = z.object({
@@ -212,8 +212,16 @@ export async function bulkCreateExercisesFromMediaCore(
       continue;
     }
     const normalizedBulk = normalizeExerciseMedia(row.mediaUrl, row.mediaType);
-    const mediaErr = normalizedBulk.ok ? null : normalizedBulk.error;
-    if (mediaErr) {
+    if (!normalizedBulk.ok) {
+      failed += 1;
+      continue;
+    }
+    const durationError = await exerciseVideoDurationRejection(
+      deps,
+      normalizedBulk.mediaUrl,
+      normalizedBulk.mediaType,
+    );
+    if (durationError) {
       failed += 1;
       continue;
     }
@@ -328,6 +336,10 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   }
   const mediaUrl = normalized.mediaUrl;
   const mediaType = normalized.mediaType;
+  const durationError = await exerciseVideoDurationRejection(deps, mediaUrl, mediaType);
+  if (durationError) {
+    return { ok: false, error: durationError };
+  }
 
   if (id) {
     const current = await deps.lfkExercises.getExercise(id);

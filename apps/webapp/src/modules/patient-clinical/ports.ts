@@ -92,6 +92,8 @@ export type VisitFile = {
 
 export type Visit = {
   id: string;
+  /** Canonical appointment whose prepared clinical note this visit represents. */
+  canonicalAppointmentId?: string | null;
   /** Человекочитаемая дата, напр. «22 января 2026». */
   date: string;
   /** Человекочитаемое время визита, напр. «14:30». */

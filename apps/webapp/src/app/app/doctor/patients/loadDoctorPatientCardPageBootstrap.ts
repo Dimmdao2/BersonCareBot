@@ -17,37 +17,22 @@ import {
 import { loadDoctorPatientMessagesSnapshot } from './loadDoctorPatientMessagesSnapshot';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import { pickOpenTreatmentProgramInstance } from './treatmentProgramInstanceOpen';
-import {
-  envelopeFromSettled,
-  type BootstrapEnvelope,
-} from './doctorPatientCardBootstrapShared';
+import { envelopeFromSettled, type BootstrapEnvelope } from './doctorPatientCardBootstrapShared';
 
-export type PatientCardTabId =
-  | 'overview'
-  | 'karta'
-  | 'program'
-  | 'records'
-  | 'files'
-  | 'account'
-  | 'comms'
-  | 'finances';
+export type PatientCardTabId = 'karta' | 'program' | 'files' | 'account';
 
-const PATIENT_CARD_TABS: PatientCardTabId[] = [
-  'overview',
-  'karta',
-  'program',
-  'records',
-  'files',
-  'account',
-  'comms',
-  'finances',
-];
+const PATIENT_CARD_TABS: PatientCardTabId[] = ['karta', 'program', 'files', 'account'];
+
+const LEGACY_PATIENT_CARD_TABS = new Set(['overview', 'records', 'comms', 'finances']);
 
 export function resolvePatientCardTab(tab: string | undefined): PatientCardTabId {
   if (tab && PATIENT_CARD_TABS.includes(tab as PatientCardTabId)) {
     return tab as PatientCardTabId;
   }
-  return 'overview';
+  // The previous top-level tabs are now sections of «Карточка». Keep existing
+  // direct URLs working without retaining the legacy navigation vocabulary.
+  if (tab && LEGACY_PATIENT_CARD_TABS.has(tab)) return 'karta';
+  return 'karta';
 }
 
 type Deps = ReturnType<typeof buildAppDeps>;
@@ -65,7 +50,9 @@ export type DoctorPatientCardTabBootstrap = {
   initialClinicalState: BootstrapEnvelope<
     Awaited<ReturnType<Deps['patientClinical']['getClinicalState']>>
   > | null;
-  initialVisits: BootstrapEnvelope<Awaited<ReturnType<Deps['patientClinical']['listVisits']>>> | null;
+  initialVisits: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['patientClinical']['listVisits']>>
+  > | null;
   initialNotes: BootstrapEnvelope<Awaited<ReturnType<Deps['doctorNotes']['listForUser']>>> | null;
   initialTasks: BootstrapEnvelope<
     Awaited<ReturnType<Deps['specialistTasks']['listPatientTasks']>>
@@ -79,13 +66,9 @@ export type DoctorPatientCardTabBootstrap = {
   initialProgramInstances: BootstrapEnvelope<
     Awaited<ReturnType<Deps['treatmentProgramInstance']['listForPatientClinicalView']>>
   > | null;
-  initialFiles:
-    | BootstrapEnvelope<
-        Array<
-          Awaited<ReturnType<Deps['patientFiles']['listFiles']>>[number] & { previewUrl: null }
-        >
-      >
-    | null;
+  initialFiles: BootstrapEnvelope<
+    Array<Awaited<ReturnType<Deps['patientFiles']['listFiles']>>[number] & { previewUrl: null }>
+  > | null;
   initialAnamnesis: BootstrapEnvelope<
     Awaited<ReturnType<Deps['patientClinical']['getAnamnesis']>>
   > | null;
@@ -346,7 +329,7 @@ export async function loadDoctorPatientCardTabBootstrap(
     return detail && detail.organizationId === workspace.organizationId ? detail : null;
   };
 
-  if (activeTab === 'overview') {
+  if (activeTab === 'karta') {
     const [
       clinicalStateResult,
       visitsResult,
@@ -361,6 +344,8 @@ export async function loadDoctorPatientCardTabBootstrap(
       packagesResult,
       exerciseCalendarResult,
       messagesSnapshotResult,
+      anamnesisResult,
+      comorbiditiesResult,
     ] = await Promise.allSettled([
       loadClinicalState(),
       loadVisits(),
@@ -382,9 +367,9 @@ export async function loadDoctorPatientCardTabBootstrap(
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
       ),
-      deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId).catch(
-        (): PatientProgramInteractionPolicy | null => null,
-      ),
+      deps.doctorClients
+        .getPatientProgramInteractionPolicy(patientUserId)
+        .catch((): PatientProgramInteractionPolicy | null => null),
       membershipAccess.specialistNavigation && deps.memberships
         ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
         : Promise.resolve(null),
@@ -399,7 +384,13 @@ export async function loadDoctorPatientCardTabBootstrap(
         );
       })(),
       withDoctorWorkspacePrincipal(workspace, () =>
-        loadDoctorPatientMessagesSnapshot(deps, patientUserId, workspace.organizationId),
+        loadDoctorPatientMessagesSnapshot(deps, patientUserId, workspace.organizationId, workspace),
+      ),
+      withDoctorWorkspacePrincipal(workspace, () =>
+        deps.patientClinical.getAnamnesis(patientUserId),
+      ),
+      withDoctorWorkspacePrincipal(workspace, () =>
+        deps.patientComorbidities.listActive(patientUserId),
       ),
     ]);
 
@@ -427,26 +418,6 @@ export async function loadDoctorPatientCardTabBootstrap(
           : { ok: false, error: 'load_failed' },
       initialExerciseCalendarSnapshot: envelopeFromSettled(exerciseCalendarResult),
       initialMessagesSnapshot: envelopeFromSettled(messagesSnapshotResult),
-    };
-  }
-
-  if (activeTab === 'karta') {
-    const [clinicalStateResult, visitsResult, anamnesisResult, comorbiditiesResult] =
-      await Promise.allSettled([
-        loadClinicalState(),
-        loadVisits(),
-        withDoctorWorkspacePrincipal(workspace, () =>
-          deps.patientClinical.getAnamnesis(patientUserId),
-        ),
-        withDoctorWorkspacePrincipal(workspace, () =>
-          deps.patientComorbidities.listActive(patientUserId),
-        ),
-      ]);
-
-    return {
-      ...NULL_TAB_BOOTSTRAP,
-      initialClinicalState: envelopeFromSettled(clinicalStateResult),
-      initialVisits: envelopeFromSettled(visitsResult),
       initialAnamnesis: envelopeFromSettled(anamnesisResult),
       initialComorbidities: envelopeFromSettled(comorbiditiesResult),
     };
@@ -457,51 +428,6 @@ export async function loadDoctorPatientCardTabBootstrap(
     return {
       ...NULL_TAB_BOOTSTRAP,
       initialProgramInstances: envelopeFromSettled(programInstancesResult[0]!),
-    };
-  }
-
-  if (activeTab === 'records') {
-    const [appointmentsResult, packagesResult, paymentsSummaryResult] = await Promise.allSettled([
-      deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
-      membershipAccess.specialistNavigation && deps.memberships
-        ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
-        : Promise.resolve(null),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientPayments.listPaymentsWithSummary(patientUserId),
-      ),
-    ]);
-
-    const paymentsSummary =
-      paymentsSummaryResult.status === 'fulfilled' ? paymentsSummaryResult.value : null;
-    const patientPaymentRows = paymentsSummary?.payments ?? [];
-
-    return {
-      ...NULL_TAB_BOOTSTRAP,
-      initialAppointments: envelopeFromSettled(appointmentsResult),
-      initialPackages:
-        packagesResult.status === 'fulfilled'
-          ? { ok: true, value: shapePackages(packagesResult.value) ?? [] }
-          : { ok: false, error: 'load_failed' },
-      initialPaymentsSummary:
-        paymentsSummaryResult.status === 'fulfilled' && paymentsSummary
-          ? {
-              ok: true,
-              value: {
-                payments: patientPaymentRows.map((p) => ({
-                  id: p.id,
-                  amountMinor: p.amountMinor,
-                  currency: p.currency,
-                  kind: p.kind as 'cash' | 'acquiring',
-                  status: p.status,
-                  comment: p.comment ?? null,
-                  service: p.service ?? null,
-                  visitId: p.visitId ?? null,
-                  createdAt: p.createdAt,
-                })),
-                totalPaidMinor: paymentsSummary.totalPaidMinor,
-              },
-            }
-          : { ok: false, error: 'load_failed' },
     };
   }
 

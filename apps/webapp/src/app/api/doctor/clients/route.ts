@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { createDoctorClient } from '@/app-layer/doctor/createDoctorClient';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
@@ -38,10 +39,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  // Т12 (owner 19.08, дословно): «лимит клиентов - убрать». Creating a client card is gated by the
-  // doctor-workspace role and nothing else — no tariff mechanic stands in front of it.
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  // T12 removed the patient-count mechanic, not the cabinet-wide T13 paid-period mutation gate.
+  const commercial = await requireEntitlementForMutation(gate.ctx);
+  if (!commercial.ok) return commercial.response;
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

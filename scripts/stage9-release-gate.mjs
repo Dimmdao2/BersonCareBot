@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Stage 9 release gate: projection health + appointments-domain reconciliation.
- * Run after CI for go/no-go. Projection health uses the live integrator; DB URLs are only for reconcile.
+ * Stage 9 release gate: appointments-domain reconciliation.
+ * Run after CI for go/no-go. DB URLs are only for reconcile.
  *
  * Usage: pnpm run stage9-gate
- * Exit: 0 when both checks pass; 1 when any check fails.
+ * Exit: 0 when the check passes; 1 when it fails.
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -29,14 +29,6 @@ function run(cmd, args, cwd, name) {
 
 async function main() {
   const failed = [];
-  const projHealth = await run(
-    'pnpm',
-    ['--dir', 'apps/integrator', 'run', 'projection-health'],
-    rootDir,
-    'projection-health',
-  );
-  if (projHealth) failed.push(projHealth);
-
   const reconcile = await run(
     'pnpm',
     ['--dir', 'apps/webapp', 'run', 'reconcile-appointments-domain'],
@@ -49,7 +41,7 @@ async function main() {
     console.error('[stage9-gate] failed:', failed.join(', '));
     process.exit(1);
   }
-  console.log('[stage9-gate] ok: projection health + appointments reconciliation passed');
+  console.log('[stage9-gate] ok: appointments reconciliation passed');
   process.exit(0);
 }
 

@@ -1,6 +1,5 @@
 export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/channel-link/complete',
-  '/api/integrator/events',
   '/api/integrator/messenger-phone/bind',
   '/api/integrator/operator-health/digest-wake',
   '/api/integrator/patient-reminders/materialize-wake',

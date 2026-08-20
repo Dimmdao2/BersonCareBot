@@ -305,6 +305,7 @@ export const inMemoryPatientClinicalPort: PatientClinicalPort = {
 
       return {
         id: v.id,
+        canonicalAppointmentId: v.canonicalAppointmentId,
         date: fmtVisitDate(v.visitedAt),
         time: fmtVisitTime(v.visitedAt),
         type: v.visitType,
