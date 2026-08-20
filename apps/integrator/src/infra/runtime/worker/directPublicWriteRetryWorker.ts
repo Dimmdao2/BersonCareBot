@@ -44,34 +44,37 @@ export async function runDirectPublicWriteRetryWorkerTick(
   batchSize = 10,
   execute: DirectPublicWriteRetryExecutor = executeDirectPublicWriteRetry,
 ): Promise<number> {
-  return runWithInfraPrincipal({ source: 'worker:direct-public-write-retry-tick' }, async () => {
-    await reclaimStaleDirectPublicWriteRetries(db);
-    const retries = await claimDueDirectPublicWriteRetries(db, batchSize);
-    for (const retry of retries) {
-      try {
-        await execute(db, retry);
-        await completeDirectPublicWriteRetry(db, retry.id);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (retry.attemptCount >= retry.maxAttempts) {
-          await failDirectPublicWriteRetry(db, retry.id, message);
-          logger.warn(
-            { retryId: retry.id, operation: retry.operation, attempt: retry.attemptCount },
-            'direct public write retry moved to DLQ',
+  return runWithInfraPrincipal(
+    { source: 'worker:direct-public-write-retry-tick', portCapability: 'delivery' },
+    async () => {
+      await reclaimStaleDirectPublicWriteRetries(db);
+      const retries = await claimDueDirectPublicWriteRetries(db, batchSize);
+      for (const retry of retries) {
+        try {
+          await execute(db, retry);
+          await completeDirectPublicWriteRetry(db, retry.id);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (retry.attemptCount >= retry.maxAttempts) {
+            await failDirectPublicWriteRetry(db, retry.id, message);
+            logger.warn(
+              { retryId: retry.id, operation: retry.operation, attempt: retry.attemptCount },
+              'direct public write retry moved to DLQ',
+            );
+            continue;
+          }
+          const delay = Math.min(
+            MAX_BACKOFF_SECONDS,
+            RETRY_BASE_SECONDS * Math.pow(2, retry.attemptCount - 1),
           );
-          continue;
+          await rescheduleDirectPublicWriteRetry(db, {
+            id: retry.id,
+            lastError: message,
+            retryDelaySeconds: delay,
+          });
         }
-        const delay = Math.min(
-          MAX_BACKOFF_SECONDS,
-          RETRY_BASE_SECONDS * Math.pow(2, retry.attemptCount - 1),
-        );
-        await rescheduleDirectPublicWriteRetry(db, {
-          id: retry.id,
-          lastError: message,
-          retryDelaySeconds: delay,
-        });
       }
-    }
-    return retries.length;
-  });
+      return retries.length;
+    },
+  );
 }

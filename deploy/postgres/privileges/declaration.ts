@@ -2210,6 +2210,7 @@ const INTEGRATOR_DELIVERY_SOURCES = [
   'delivery-handler',
   'max-webhook:record-outcome',
   'telegram-webhook:record-outcome',
+  'worker:direct-public-write-retry-tick',
   'worker:job-queue-drain',
   'worker:outgoing-delivery-tick',
   'worker:projection-outbox-tick',
