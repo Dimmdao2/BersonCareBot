@@ -5,9 +5,15 @@ const REVIEWED_TARGET_TARIFFS = new Map([
     price: 0, currency: 'RUB', seats: 1000, period: 'year',
     mechanicsSha256: 'f4adbfecd531c443240e9d763fb3e3ebcb39850aee1a7576a4c7de39e9764652',
   }],
+  // «СТАРТ». Состав механик пересохранён на DEV 17.08 после расширения реестра (у него появились
+  // clinic_sms / clinic_smtp / clinic_max_bot / clinic_telegram_bot, которых нет у соседних тарифов).
+  // Хеш обновлён 20.08 по решению владельца «пусть сейчас и тарифы и остальное едет как и ехало»:
+  // это осознанное «как есть» ради репетиции на TEST, а НЕ проверка каталога владельцем. Разбор,
+  // что из этого лишнее, стоит перед выкаткой прода — docs/OWNER_DECISIONS.md, раздел «Что A→B
+  // имеет право нести в целевую базу». Цена, валюта, число мест и период не менялись.
   ['e07db366-f471-40a5-bc9b-499908636acd', {
     price: 80000, currency: 'RUB', seats: 1, period: 'month',
-    mechanicsSha256: '5a16494eb9edfa28328952787e511aaf33b8126e6e3ece91743b2ac909bbb567',
+    mechanicsSha256: '6e5deadf0bb16d48578ddf3fd6b68db789a63c05607d2ccf48faad767a4df7d5',
   }],
   ['59fbb0c9-371d-4fcc-8602-78e174c81062', {
     price: 280000, currency: 'RUB', seats: 3, period: 'month',
