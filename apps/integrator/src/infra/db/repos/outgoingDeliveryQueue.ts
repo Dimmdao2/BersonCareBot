@@ -75,10 +75,11 @@ export async function enqueueOutgoingDeliveryIfAbsent(
   const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts ?? 6));
   const payloadJson = attachCurrentCorrelationToOutgoingPayload(input.payloadJson);
   const payloadJsonText = JSON.stringify(payloadJson);
-  const result = await runWithDbInfraPrincipal({ source: 'delivery-handler' }, () =>
-    runIntegratorNamedRoot<{ inserted: boolean }>(
+  return runWithDbInfraPrincipal({ source: 'delivery-handler' }, async () => {
+    const retention = await getOutgoingDeliveryReclaimConfig(db);
+    const result = await runIntegratorNamedRoot<{ inserted: boolean }>(
       db,
-      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)',
+      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid,integer)',
       [
         input.eventId,
         input.kind,
@@ -87,19 +88,16 @@ export async function enqueueOutgoingDeliveryIfAbsent(
         maxAttempts,
         input.nextRetryAt ?? null,
         getCurrentOrganizationPrincipalId() ?? null,
+        retention.doneRetentionDays,
       ],
       sql`SELECT app.enqueue_integrator_outgoing_delivery(
         ${input.eventId}, ${input.kind}, ${input.channel}, ${payloadJsonText}, ${maxAttempts},
-        ${input.nextRetryAt ?? null}::timestamptz, ${getCurrentOrganizationPrincipalId() ?? null}::uuid
+        ${input.nextRetryAt ?? null}::timestamptz, ${getCurrentOrganizationPrincipalId() ?? null}::uuid,
+        ${retention.doneRetentionDays}
       ) AS inserted`,
-    ),
-  );
-  // Retention belongs to the producer boundary deliberately: the enqueue root is called under
-  // the delivery-handler infra principal, while the delivery worker has only SELECT/UPDATE.
-  // Invoking retention from its tick would therefore fail in locked runtime.
-  const retention = await getOutgoingDeliveryReclaimConfig(db);
-  await deleteExpiredSentOutgoingDeliveries(db, retention.doneRetentionDays);
-  return result.rows[0]?.inserted === true;
+    );
+    return result.rows[0]?.inserted === true;
+  });
 }
 
 /**
@@ -118,18 +116,28 @@ export async function enqueueAcceptedIncomingReplyIfAbsent(
   const payloadJsonText = JSON.stringify(payloadJson);
   const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts ?? 6));
   const organizationId = getCurrentOrganizationPrincipalId();
-  const result = await runWithDbInfraPrincipal({ source: 'delivery-handler' }, () =>
-    runIntegratorNamedRoot<{ inserted: boolean }>(
+  return runWithDbInfraPrincipal({ source: 'delivery-handler' }, async () => {
+    const retention = await getOutgoingDeliveryReclaimConfig(db);
+    const result = await runIntegratorNamedRoot<{ inserted: boolean }>(
       db,
-      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)',
-      [eventId, 'inbound_reply', channel, payloadJsonText, maxAttempts, null, organizationId ?? null],
+      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid,integer)',
+      [
+        eventId,
+        'inbound_reply',
+        channel,
+        payloadJsonText,
+        maxAttempts,
+        null,
+        organizationId ?? null,
+        retention.doneRetentionDays,
+      ],
       sql`SELECT app.enqueue_integrator_outgoing_delivery(
         ${eventId}, 'inbound_reply', ${channel}, ${payloadJsonText}, ${maxAttempts},
-        NULL::timestamptz, ${organizationId ?? null}::uuid
+        NULL::timestamptz, ${organizationId ?? null}::uuid, ${retention.doneRetentionDays}
       ) AS inserted`,
-    ),
-  );
-  return result.rows[0]?.inserted === true;
+    );
+    return result.rows[0]?.inserted === true;
+  });
 }
 
 export type ReclaimStaleOutgoingDeliveryProcessingResult = {
@@ -195,37 +203,6 @@ export async function resetStaleOutgoingDeliveryProcessing(
     else reclaimed += 1;
   }
   return { reclaimed, deadLettered };
-}
-
-/**
- * D10b: "sent" rows accumulate forever without this (found growing unbounded since March 5 on
- * dev). Only the queue's working row is removed — `public.notification_delivery_attempts` keeps
- * the durable delivery history and is never touched here.
- */
-export async function deleteExpiredSentOutgoingDeliveries(
-  db: DbPort,
-  retentionDays: number,
-): Promise<number> {
-  const d = Math.max(1, Math.trunc(retentionDays));
-  const res = await runIntegratorSql<{ id: string }>(
-    db,
-    sql`DELETE FROM public.outgoing_delivery_queue
-     WHERE status = 'sent'
-       AND sent_at IS NOT NULL
-       AND NOT (
-         kind = 'specialist_task_reminder'
-         AND payload_json ? 'successOutcome'
-         AND payload_json #>> '{successOutcome,appliedAt}' IS NULL
-       )
-       AND NOT (
-         kind = 'specialist_task_reminder'
-         AND payload_json #>> '{bookkeeping,botMarkerRequired}' = 'true'
-         AND payload_json #>> '{bookkeeping,botMarkerAppliedAt}' IS NULL
-       )
-       AND sent_at < now() - ((${String(d)}::text || ' days')::interval)
-     RETURNING id`,
-  );
-  return res.rows.length;
 }
 
 export async function claimDueOutgoingDeliveries(
