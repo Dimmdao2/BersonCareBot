@@ -13,6 +13,7 @@ import {
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import {
   HOSTED_VIDEO_ALLOWED_HOSTS_RU,
   parseHostedVideoLink,
@@ -120,6 +121,15 @@ export async function saveContentPage(
       }
       videoType = hosted.provider;
       videoUrlToStore = hosted.canonicalUrl;
+    }
+  }
+  if (videoType === 'api') {
+    const mediaId = parseMediaFileIdFromAppUrl(videoUrlToStore ?? '');
+    if (mediaId) {
+      const duration = await withDoctorWorkspacePrincipal(workspace, () =>
+        deps.media.getVideoAttachmentDurationRejection(mediaId, 'cms'),
+      );
+      if (!duration.ok) return { ok: false, error: duration.error };
     }
   }
 

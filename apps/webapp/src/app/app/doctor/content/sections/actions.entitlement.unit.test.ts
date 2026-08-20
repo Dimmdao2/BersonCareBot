@@ -121,6 +121,37 @@ describe('saveContentSection entitlement boundary', () => {
     expect(upsert).toHaveBeenCalledOnce();
   });
 
+  it('does not attach an overlong library video to CMS', async () => {
+    const data = pageFormData();
+    data.set('video_url', '/api/media/00000000-0000-4000-8000-0000000000c2');
+    const upsert = vi.fn();
+    const getVideoAttachmentDurationRejection = vi.fn().mockResolvedValue({
+      ok: false,
+      code: 'video_duration_limit_exceeded',
+      error: 'Файл CMS не может быть длиннее 20 минут.',
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: {
+        resolveMechanicAccess: async () => ({
+          mechanic: 'cms_pages', state: 'full_access', policySource: 'system', warning: null,
+        }),
+      },
+      contentSections: { getBySlug: async () => ({ systemParentCode: null }) },
+      contentPages: { listAll: async () => [], upsert },
+      media: { getVideoAttachmentDurationRejection },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    await expect(saveContentPage(null, data)).resolves.toEqual({
+      ok: false,
+      error: expect.stringContaining('20 минут'),
+    });
+    expect(upsert).not.toHaveBeenCalled();
+    expect(getVideoAttachmentDurationRejection).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-0000000000c2',
+      'cms',
+    );
+  });
+
   it('publishes a warmup through the warmups mechanic when ordinary CMS is disabled', async () => {
     const resolveMechanicAccess = vi.fn(async (_organizationId: string, mechanic: string) => ({
       mechanic,

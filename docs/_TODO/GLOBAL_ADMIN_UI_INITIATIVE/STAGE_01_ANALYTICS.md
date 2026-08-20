@@ -61,8 +61,10 @@ Owner-текст без смягчения: [`OWNER_DECISIONS.md`](OWNER_DECISIO
 `media_files.video_duration_seconds` заполняет media-worker после обработки. Гейт длительности —
 отказ на загрузке/после пробы, не только текст в доке.
 
-- [ ] **GA-L-01** Файл упражнения длиннее 10 минут не принимается (проверка на загрузке / после duration).
-- [ ] **GA-L-02** Файл CMS длиннее 20 минут не принимается тем же правилом, другим порогом.
+- [x] **GA-L-01** Файл упражнения длиннее 10 минут не принимается (проверка на загрузке / после duration).
+      Доказательство: `pnpm --dir apps/webapp exec vitest --run --project=unit src/modules/media/videoDurationLimit.unit.test.ts src/app/app/doctor/exercises/hostedVideoExerciseSave.unit.test.ts src/app/app/doctor/content/sections/actions.entitlement.unit.test.ts` — 13 passed; server action и bulk-path не записывают длинный файл.
+- [x] **GA-L-02** Файл CMS длиннее 20 минут не принимается тем же правилом, другим порогом.
+      Доказательство: та же команда — 13 passed; server action CMS не сохраняет длинный файл.
 
 Оценка GA-L: **1–1.5 дня** (probe/duration уже есть у worker; нужно закрыть дверь загрузки и понятный отказ).
 

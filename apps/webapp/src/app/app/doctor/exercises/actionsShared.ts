@@ -126,6 +126,18 @@ function normalizeExerciseMedia(
   return { ok: true, mediaUrl, mediaType };
 }
 
+async function exerciseVideoDurationRejection(
+  deps: ReturnType<typeof buildAppDeps>,
+  mediaUrl: string | null,
+  mediaType: ExerciseMediaType | null,
+): Promise<string | null> {
+  if (mediaType !== 'video' || !mediaUrl) return null;
+  const mediaId = parseMediaFileIdFromAppUrl(mediaUrl);
+  if (!mediaId) return null;
+  const result = await deps.media.getVideoAttachmentDurationRejection(mediaId, 'exercise');
+  return result.ok ? null : result.error;
+}
+
 export const bulkCreateExerciseMediaItemSchema = z.object({
   title: z.string().min(1).max(500),
   mediaUrl: z.string().min(1).max(500),
@@ -214,6 +226,15 @@ export async function bulkCreateExercisesFromMediaCore(
     const normalizedBulk = normalizeExerciseMedia(row.mediaUrl, row.mediaType);
     const mediaErr = normalizedBulk.ok ? null : normalizedBulk.error;
     if (mediaErr) {
+      failed += 1;
+      continue;
+    }
+    const durationError = await exerciseVideoDurationRejection(
+      deps,
+      normalizedBulk.mediaUrl,
+      normalizedBulk.mediaType,
+    );
+    if (durationError) {
       failed += 1;
       continue;
     }
@@ -328,6 +349,10 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   }
   const mediaUrl = normalized.mediaUrl;
   const mediaType = normalized.mediaType;
+  const durationError = await exerciseVideoDurationRejection(deps, mediaUrl, mediaType);
+  if (durationError) {
+    return { ok: false, error: durationError };
+  }
 
   if (id) {
     const current = await deps.lfkExercises.getExercise(id);
