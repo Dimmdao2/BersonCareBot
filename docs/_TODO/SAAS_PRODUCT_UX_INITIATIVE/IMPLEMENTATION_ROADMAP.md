@@ -264,22 +264,22 @@ Settings use only `createSystemSettingsService().updateSetting` and its matching
 `isMechanicEnabled` behind `requireEntitlement`; they are currently default-on/dormant and therefore do **not**
 prove a feature entitlement wall.
 
-| §6 gap                 | Current fact / ownership                                                                          | Missing contract → stage/task gate                                                                                                                                                                            | Safe default                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Signup/auth            | Global identity; staff org comes from membership; specialist binding is separate.                 | Binding, first-run, 2FA/recovery → **U3S**. The 2026-07-19 FIO ruling separates new-patient registration from passwordless existing-account login. | Do not ask FIO before every OTP login.                  |
-| Future staff invite    | Current member/invite mechanics are reuse; assistant has no launch workspace.                     | Clinic grants/seats → future **U3A/C4A** after S4-0/S4-1.                                                                                                                                                     | Unentitled team route/API absent or denied.                                             |
-| Manual patient/linking | Global patient; org-scoped relationship/enrollment; exact-org booking resolver exists.            | Card + scheduled/walk-in + verified link → **U3B**, consuming **U5A**.                                                                                                                                        | Delivery/auth creates neither enrollment nor merge.                                     |
-| SMS                    | Notification infrastructure is transport, not identity authority.                                 | Attempt/consent/suppression lifecycle → **U3B SMS-01…03**; custom sender → future **U8C**.                                                                                                                    | Email-bound route; no SMS elevation or real send.                                       |
-| Public booking         | Exact-org/canonical-phone path exists; response currently exposes `userId`.                       | Atomic booking+enrollment and narrow continuation → **U3B**, publication → **U6B**.                                                                                                                           | Booking may complete without portal access; never use internal ID as authority.         |
-| Staff capabilities     | Membership/role guards exist; management and clinical binding are distinct.                       | Real-principal object/capability parity → **U1**; C4 stays Foundation S4-owned.                                                                                                                               | Missing binding/capability denies; entitlement never expands access.                    |
-| Patient context        | Enrollment resolver exists; Today has recorded `organization_principal_required` defect.          | Last-active/chooser/switch/deep link → **U5A**.                                                                                                                                                               | Neutral chooser/recovery, never arbitrary/global org fallback.                          |
-| Card/history           | Workbench/visit/program surfaces are reuse only.                                                  | One card, visit relation and all parity paths → **U5B**.                                                                                                                                                      | Missing class → own/assigned subset only.                                               |
-| Future clinic visits   | Current appointment relation only; transfer premise rejected.                                     | Future ordinary clinic contract → absent **U5C**.                                                                                                                                                             | No transfer queue/hierarchy/cross-org movement.                                         |
-| Management             | Members/settings/booking and `/app/settings` are mixed.                                           | MGMT/ACC shell → **U2**; team/billing bodies → **C4/C5**.                                                                                                                                                     | No second settings tree; absent body stays fail-closed.                                 |
-| Public/profile         | Existing landing is patient-first; route name is not publication proof.                           | Landing **U6A**, published profile/trusted join **U6B**.                                                                                                                                                      | Directory absent; unknown context fails closed.                                         |
-| Branding/domain/sender | DB-backed org-aware settings exists; TEST integrator mirror lacks locked-mode principal stamping. | Brand resolver → **U7**; origin/PWA/sender → future **U8A/B/C**.                                                                                                                                              | No env secret path; configured custom channel holds/expires, never platform-falls-back. |
-| Platform admin         | Current shell mixes platform/org/clinical ownership.                                              | Aggregate diagnostics/config boundary → **U9**.                                                                                                                                                               | No patient browse/merge/repair/impersonation.                                           |
-| Routes                 | `152` current pages are classified; `57` IDs are logical screen ownership.                        | Guard-equivalent migration/link census → later owners, converged **U10**.                                                                                                                                     | Preserve guarded compatibility; no duplicate route tree.                                |
+| §6 gap                 | Current fact / ownership                                                                          | Missing contract → stage/task gate                                                                                                                 | Safe default                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Signup/auth            | Global identity; staff org comes from membership; specialist binding is separate.                 | Binding, first-run, 2FA/recovery → **U3S**. The 2026-07-19 FIO ruling separates new-patient registration from passwordless existing-account login. | Do not ask FIO before every OTP login.                                                  |
+| Future staff invite    | Current member/invite mechanics are reuse; assistant has no launch workspace.                     | Clinic grants/seats → future **U3A/C4A** after S4-0/S4-1.                                                                                          | Unentitled team route/API absent or denied.                                             |
+| Manual patient/linking | Global patient; org-scoped relationship/enrollment; exact-org booking resolver exists.            | Card + scheduled/walk-in + verified link → **U3B**, consuming **U5A**.                                                                             | Delivery/auth creates neither enrollment nor merge.                                     |
+| SMS                    | Notification infrastructure is transport, not identity authority.                                 | Attempt/consent/suppression lifecycle → **U3B SMS-01…03**; custom sender → future **U8C**.                                                         | Email-bound route; no SMS elevation or real send.                                       |
+| Public booking         | Exact-org/canonical-phone path exists; response currently exposes `userId`.                       | Atomic booking+enrollment and narrow continuation → **U3B**, publication → **U6B**.                                                                | Booking may complete without portal access; never use internal ID as authority.         |
+| Staff capabilities     | Membership/role guards exist; management and clinical binding are distinct.                       | Real-principal object/capability parity → **U1**; C4 stays Foundation S4-owned.                                                                    | Missing binding/capability denies; entitlement never expands access.                    |
+| Patient context        | Enrollment resolver exists; Today has recorded `organization_principal_required` defect.          | Last-active/chooser/switch/deep link → **U5A**.                                                                                                    | Neutral chooser/recovery, never arbitrary/global org fallback.                          |
+| Card/history           | Workbench/visit/program surfaces are reuse only.                                                  | One card, visit relation and all parity paths → **U5B**.                                                                                           | Missing class → own/assigned subset only.                                               |
+| Future clinic visits   | Current appointment relation only; transfer premise rejected.                                     | Future ordinary clinic contract → absent **U5C**.                                                                                                  | No transfer queue/hierarchy/cross-org movement.                                         |
+| Management             | Members/settings/booking and `/app/settings` are mixed.                                           | MGMT/ACC shell → **U2**; team/billing bodies → **C4/C5**.                                                                                          | No second settings tree; absent body stays fail-closed.                                 |
+| Public/profile         | Existing landing is patient-first; route name is not publication proof.                           | Landing **U6A**, published profile/trusted join **U6B**.                                                                                           | Directory absent; unknown context fails closed.                                         |
+| Branding/domain/sender | DB-backed org-aware settings exists; TEST integrator mirror lacks locked-mode principal stamping. | Brand resolver → **U7**; origin/PWA/sender → future **U8A/B/C**.                                                                                   | No env secret path; configured custom channel holds/expires, never platform-falls-back. |
+| Platform admin         | Current shell mixes platform/org/clinical ownership.                                              | Aggregate diagnostics/config boundary → **U9**.                                                                                                    | No patient browse/merge/repair/impersonation.                                           |
+| Routes                 | `152` current pages are classified; `57` IDs are logical screen ownership.                        | Guard-equivalent migration/link census → later owners, converged **U10**.                                                                          | Preserve guarded compatibility; no duplicate route tree.                                |
 
 **Present/missing migration and API boundary.** P0.11 already provides org-aware settings storage/read/write and the
 webapp service chokepoint; the mirror principal defect is a Foundation follow-up, not a UX workaround. Existing
@@ -299,7 +299,7 @@ All dated UX08 outcomes remain classified. Resolved-future/absent nodes (`U3A`, 
 | ------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------- |
 | J1 specialist self-signup                   | U3S (`ACQ-01…05`)                     | U4 shared auth/session/privacy review; U6A truthful acquisition entry |
 | J2 clinic staff invite                      | Future U3A (`STF-01…08`)              | Deferred; not part of launch U4 acceptance                            |
-| J3 patient email invite                     | U3B (`PIN-01…09`)                     | Requires U5A runtime gate; U4 convergence                              |
+| J3 patient email invite                     | U3B (`PIN-01…09`)                     | Requires U5A runtime gate; U4 convergence                             |
 | J4 patient SMS fallback                     | U3B (`SMS-01…03`)                     | Same invite/enrollment as J3; U4 verifies no auth elevation           |
 | J5 public booking continuation              | U3B (`PBK-01…08`)                     | U4 identity/enrollment convergence; U6B public projection             |
 | J6 returning multi-org patient              | U5A (`MOR-01…05`)                     | U3B consumes resolver; U4 verifies invite/install continuation        |
@@ -466,7 +466,8 @@ card; запрещено строить временный resolver, второ�
   непересекающиеся file scopes и идут параллельно (≤3). Уже интегрированные и прошедшие независимый audit baseline
   slices UI-4a/UI-6a не перезапускаются; выдаётся только новый owner delta/residual после current code/live census.
   Каждый presentation scope: worker + один audit; live DEV evidence на единственном `:5200` сериализуется. UI-3
-  делится на cosmetics, broadcast IA и composer/backend; UI-4 presentation не смешивается с backend metrics.
+  делится на cosmetics, broadcast IA и shared-composer foundation; scheduled send ведётся отдельно как UI-7a в
+  минимальном owner-scope 2026-08-17. UI-4 presentation не смешивается с backend metrics.
 - **UI-1c appointment detail owner delta (2026-07-21, `#951`):** отдельный sibling C1 `#851`, а не
   перезапуск всего C1. Existing calendar/Today detail получает один close-control, semantic status badge рядом с
   выделенными актуальными датой/временем, labelled branch/service/specialist с solo-aware specialist row, без
@@ -494,11 +495,13 @@ card; запрещено строить временный resolver, второ�
   прямоугольная форма с минимальным скруглением, тогда как более округлённые section tabs остаются отдельным
   требованием.
 - **Order after presentation:** UI-5 разделён на layout/routing predecessor UI-5a `#958` и полный UI-5b/U5B.
-  Последнее решение владельца 2026-07-22 заменяет `desktop list+content`: обычный экран «Клиенты» сохраняет
-  `list + filters + functional preview`, а выбранная полная карточка заменяет весь рабочий content container,
-  сохраняя sidebar, direct URL/reload/back-forward и восстановление list state при возврате. UI-5a переиспользует
+  Последнее решение владельца 2026-07-23 заменяет preview-варианты: обычный экран «Клиенты» = `list + filters`,
+  right-pane preview удалён, а клик по строке открывает полную карточку на весь рабочий content container, сохраняя
+  sidebar, direct URL/reload/back-forward и восстановление list state при возврате. UI-5a переиспользует
   exact existing protected view/guards/data и не меняет composition/visibility/schema. Полный UI-5b стартует после
-  U5A + record-class policy и исполняет без сокращения exact composition из Doctor UI plan. Затем идут остальные
+  current census по уже закрытым U5A principal и record-class contracts и исполняет без сокращения exact composition
+  из Doctor UI plan. Отложенные A↔B/revoked seals проверяются вместе с UI-5b, а не блокируют его temporary harness.
+  Затем идут остальные
   dependency-ready UI stages. UI-8 строится только на уже принятом S4 engine `#888` внутри C4D/C5 и не создаёт
   parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` после C4D exact-org
   isolation интегрирован в `feat/doctor-ui-rebuild`: personal exercise остаётся instance-scoped по умолчанию,
@@ -516,9 +519,12 @@ card; запрещено строить временный resolver, второ�
   full UI-5b `#971` with contract `#928`; Patient Today mood `#924`; Today/shared presentation `#966/#967/#977`;
   Online location `#197`, expanded online booking `#215`, published Online proof `#926`; UI-P `#925`; manual
   patient/walk-in `#801`; mechanics/reminders `#191`; individual exercises `#564` + design `#565`; voice
-  post-production `#922`; S4 engine `#888`. Новые duplicate cards не создавать; subscopes фиксировать в note/meta
-  существующей карты при фактическом запуске.
-- **Dependency gates:** UI-5b `#971` ждёт U5A `#796`; UI-7 `#964` ждёт owner placement ruling; U6B public Online
+  post-production `#922`; S4 engine `#888`; hosted-video Doctor UI checklist — `UI-EX-HOST`, analytics handoff —
+  Global Admin analytics stage. Новые duplicate cards не создавать; subscopes фиксировать в note/meta существующей
+  карты при фактическом запуске.
+- **Dependency gates (reconciled 2026-08-20):** UI-5b `#971` больше не ждёт `#796`; U5A principal defect закрыт,
+  record-class contract `#928` готов, а deferred lifecycle seals входят в реальный client-screen stage. UI-7 `#964`
+  исполняется только в minimal scope 2026-08-17 и ждёт owner placement ruling для pending block. U6B public Online
   proof ведётся в `#926`; expanded online booking `#215` и Voice/STT `#922` не входят в текущий launch scope.
 - **Gate:** TEST deploy не подразумевается и требует отдельного прямого разрешения владельца; при разрешении — только
   code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
@@ -677,23 +683,23 @@ Checklist C5C ведётся в
 Roadmap выбирает dependency-ready workstream, но **не является worker checklist**. Перед запуском оркестратор
 открывает связанный execution plan и берёт статус из карточки.
 
-| Workstream | Execution plan | Позиция в порядке / внешний gate |
-| --- | --- | --- |
-| Rubitime retirement (завершён 2026-07-27) | [`retirement archive`](../../archive/2026-07-rubitime-retirement/README.md) | Историческое evidence; CSV/R1–R7 не возобновлять и не использовать как worker checklist. |
-| Doctor UI | [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | UI cluster; UI-5b после U5A, public Online proof в U6B. |
-| Editor migration | [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md) | Собственный TEST/live gate; не закрывает соседние UI stages. |
-| Structured FIO | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | Production closeout перед parser retirement. |
-| Stability/security | [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | Phase 0 → Phase 1 → Phase 2 → exact launch residual → C7. |
-| Global admin/support | [`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md) | U9; schema/code после contract и owner gates самого плана. |
-| Unsupported client | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | После hardening Phase 0; launch slice до C7. |
-| Delivery alerting | [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | После A3 и notification foundation; TEST fault injection — отдельный owner gate. |
-| Infrastructure security / Security CI | [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) | Единый параллельный plan; production mutations только по owner gate. |
-| Privacy scope/register | [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md), [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md) | Owner/legal inputs precede dependent privacy stages. |
-| Host/secrets/backup/encryption/cutover | [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md) | Stable dependency/legal gates, then owner production window. |
-| Notifications | [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | Native push after MOB gates; staff deep-link remains inside N3/N4. |
-| Log hygiene | [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | L2 after G-03 and NTF census. |
-| Consent/rights | [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md), [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md) | PR-02 after D4/S5-7/legal text; PR-03 after PR-02, payment slice after billing freeze. |
-| Clinical/release | [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md), [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md) | Clinical audit remains product/privacy scope; infrastructure governance is in the infrastructure plan. |
+| Workstream                                | Execution plan                                                                                                                                                                                                                 | Позиция в порядке / внешний gate                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Rubitime retirement (завершён 2026-07-27) | [`retirement archive`](../../archive/2026-07-rubitime-retirement/README.md)                                                                                                                                                    | Историческое evidence; CSV/R1–R7 не возобновлять и не использовать как worker checklist.               |
+| Doctor UI                                 | [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md)                                                                                                                                                | UI cluster; UI-5b после U5A, public Online proof в U6B.                                                |
+| Editor migration                          | [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md)                                                                                                                                                        | Собственный TEST/live gate; не закрывает соседние UI stages.                                           |
+| Structured FIO                            | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md)                                                                                                                            | Production closeout перед parser retirement.                                                           |
+| Stability/security                        | [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md)                                                                                                                        | Phase 0 → Phase 1 → Phase 2 → exact launch residual → C7.                                              |
+| Global admin/support                      | [`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md)                                                                                                                    | U9; schema/code после contract и owner gates самого плана.                                             |
+| Unsupported client                        | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md)                                                                                                                                                | После hardening Phase 0; launch slice до C7.                                                           |
+| Delivery alerting                         | [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md)                                                                                                                                                  | После A3 и notification foundation; TEST fault injection — отдельный owner gate.                       |
+| Infrastructure security / Security CI     | [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md)                                                                                                                                                        | Единый параллельный plan; production mutations только по owner gate.                                   |
+| Privacy scope/register                    | [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md), [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md)                       | Owner/legal inputs precede dependent privacy stages.                                                   |
+| Host/secrets/backup/encryption/cutover    | [`INFRASTRUCTURE_SECURITY_PLAN.md`](../INFRASTRUCTURE_SECURITY_PLAN.md)                                                                                                                                                        | Stable dependency/legal gates, then owner production window.                                           |
+| Notifications                             | [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md)                                                                                       | Native push after MOB gates; staff deep-link remains inside N3/N4.                                     |
+| Log hygiene                               | [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md)                                                                                                     | L2 after G-03 and NTF census.                                                                          |
+| Consent/rights                            | [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md), [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md)   | PR-02 after D4/S5-7/legal text; PR-03 after PR-02, payment slice after billing freeze.                 |
+| Clinical/release                          | [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md), [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md) | Clinical audit remains product/privacy scope; infrastructure governance is in the infrastructure plan. |
 
 Порядок включения:
 
@@ -1013,10 +1019,10 @@ exchange/delivery vocabulary and reach guarded U2/U5A destinations without paral
 **Outcome:** specialist works from one coherent organization patient workbench while every visible section/event is
 authorized consistently and authorship remains truthful.
 
-**Owner clarification 2026-07-22 — layout predecessor `UI-5a/#958`.** The normal «Клиенты» screen keeps its
-`list + filters + functional preview`. Opening the already protected standalone doctor patient-card replaces the
-entire doctor content container rather than occupying the right split pane; the doctor sidebar remains. Returning
-restores search/sort/filters/preview/scroll, and standalone URL/reload/back-forward compatibility remains. This may
+**Owner clarification 2026-07-23 — layout predecessor `UI-5a/#958`.** The normal «Клиенты» screen is
+`list + filters`; right-pane preview is removed, and a client-row click opens the already protected standalone doctor
+patient-card across the entire doctor content container; the doctor sidebar remains. Returning restores
+search/sort/filters/scroll, and standalone URL/reload/back-forward compatibility remains. This may
 proceed before U5A runtime closure only if it reuses the exact existing server-guarded view and data/API paths and
 proves guard equivalence. It may not add or merge sections, broaden queries/counts/search/export, reclassify records,
 change authorship/ownership, introduce schema or create a duplicate card tree. All data-policy, exact owner
@@ -1046,8 +1052,9 @@ Doctor UI execution artifact.
   desktop/mobile card screenshots with allowed and withheld controls.
 - **Rollback/degradation:** missing visibility classification fails closed to own/assigned/allowed subset; card can
   show section denial without exposing counts or metadata.
-- **Execution checklist:** `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` §UI-5b; implementation waits for U5A runtime gate
-  `#796`. Exact-view layout predecessor `UI-5a/#958` is the only explicit exception.
+- **Execution checklist:** `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` §UI-5b. Current readiness: `#796` principal defect
+  and `#928` record-class contract are closed; UI-5b `#971` starts with current census and carries the deferred
+  A↔B/revoked live seals in the real client-screen stage. `UI-5a/#958` remains layout-only historical predecessor.
 - **Merge dependency:** U1/U5A plus reviewed record-class policy; UX08-01 itself is resolved and is not a blocker.
 
 ### U5C — deferred future multi-specialist visit coordination

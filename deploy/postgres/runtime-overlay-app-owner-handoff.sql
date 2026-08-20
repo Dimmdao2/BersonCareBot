@@ -1,4 +1,5 @@
 -- Exact owner handoff for protected runtime overlays after a --no-owner restore.
+-- RETIRED FROM DEPLOY PATH: the dedicated app_seam_* owners now own these functions, so app_owner handoff would resurrect the retired contract.
 --
 -- pg_restore attributes existing functions to the target database owner. Three reviewed
 -- overlays subsequently CREATE OR REPLACE their SECURITY DEFINER functions under SET ROLE
