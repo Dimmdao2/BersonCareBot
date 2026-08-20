@@ -74,6 +74,43 @@ describe('operator delivery attempt writer', () => {
     );
   });
 
+  it('preserves nullable organization, reason, scalar-payload sanitization, and timezone', async () => {
+    const boundaryMutation = {
+      type: 'delivery.attempt.log' as const,
+      params: {
+        intentType: 'operator.alert',
+        intentEventId: 'operator-alert:incident:abc:email:def',
+        correlationId: 'incident:abc',
+        channel: 'email',
+        status: 'skipped',
+        attempt: 3,
+        reason: 'rate_limited',
+        payload: 'must-not-enter-the-journal',
+        occurredAt: '2026-08-20T15:34:56.789+03:00',
+      },
+    };
+
+    await recordOperatorDeliveryAttempt(db as never, boundaryMutation);
+
+    expect(fakes.runNamedRoot).toHaveBeenCalledWith(
+      db,
+      'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
+      [
+        'operator.alert',
+        'operator-alert:incident:abc:email:def',
+        'incident:abc',
+        null,
+        'email',
+        'skipped',
+        3,
+        'rate_limited',
+        JSON.stringify({}),
+        '2026-08-20T15:34:56.789+03:00',
+      ],
+      expect.anything(),
+    );
+  });
+
   it('installs the existing delivery-worker principal for an attempt outside that principal', async () => {
     fakes.principal = {
       kind: 'organization',
