@@ -236,6 +236,10 @@ function UsageSection({
           const projection = projectionByMechanic.get(mechanic);
           const value = usage?.[mechanic];
           const thresholdLabel = projection ? QUOTA_THRESHOLD_LABEL[projection.threshold] : null;
+          // Единицу измерения несут только механики класса «объём»; у «возможность»/«никогда»
+          // поля quotaUnit нет вовсе, поэтому сужаем до обращения, а не читаем вслепую.
+          const registryEntry = MECHANIC_REGISTRY[mechanic];
+          const isMeasuredInBytes = 'quotaUnit' in registryEntry && registryEntry.quotaUnit === 'bytes';
           return (
             <div key={mechanic} className={doctorSectionItemClass}>
               <div className="flex items-center justify-between gap-3">
@@ -249,9 +253,7 @@ function UsageSection({
                   <span className="text-xs text-muted-foreground">значение не получено</span>
                 ) : (
                   <span className="text-lg font-semibold tabular-nums">
-                    {MECHANIC_REGISTRY[mechanic].quotaUnit === 'bytes'
-                      ? formatBytesAsMb(value)
-                      : value}
+                    {isMeasuredInBytes ? formatBytesAsMb(value) : value}
                   </span>
                 )}
               </div>
