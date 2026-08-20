@@ -2,6 +2,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Doctor appointment payments — 20.08
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Appointment-scoped payment controls | product `cfbfa8d5e` + independent audit `a87f77adf` (`wt/doctor-appointment-payments-20260820`) | **FAIL → worker handoff, NOT FOR LAND.** Owner payment outcome не готов: отсутствует entitlement gate для cash/link, cash idempotency неатомарна, общий booking payment ошибочно целиком засчитывается каждой записи, zero-price и stale link/QR неверны, orchestration живёт в route, plan отмечен преждевременно. Blind kill-set: **8 убитых / 0 непойманных**; acceptance оставлен красным для fixer. Evidence: `docs/_TODO/runs/doctor-appointment-payments-audit-20260820.md`. |
+
 ## DEV doctor runtime — 16.08
 
 | слой | коммит | вердикт |
