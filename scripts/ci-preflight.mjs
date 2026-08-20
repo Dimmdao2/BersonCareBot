@@ -22,28 +22,43 @@
  * Обойти можно `BCB_CI_ALLOW_CONCURRENT_WRITERS=1` — осознанно и с причиной, а не по привычке.
  */
 import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 const ESCAPE = 'BCB_CI_ALLOW_CONCURRENT_WRITERS';
 
-function livePortAgents() {
-  let out = '';
-  try {
-    out = execFileSync('pgrep', ['-af', 'agent-run.mjs'], { encoding: 'utf8' });
-  } catch {
-    return []; // pgrep возвращает 1, когда совпадений нет
-  }
-  return out
+/**
+ * Разбор вывода `pgrep -af agent-run.mjs` в список живых агентов порта. Вынесено отдельно и
+ * экспортировано, потому что отсев чужих строк — поведение, которое обязано держаться завтра:
+ * см. ci-preflight.test.mjs.
+ */
+export function parsePortAgents(pgrepOutput) {
+  return pgrepOutput
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
       const [pid, ...rest] = line.split(/\s+/);
       const args = rest.join(' ');
+      return { pid, args };
+    })
+    // pgrep -af ловит ЛЮБУЮ строку с этой подстрокой, включая оболочку, которая сама вызывает
+    // preflight или печатает pgrep: 20.08 гейт засчитал в писатели собственную bash-обёртку и
+    // отказал на пустом дереве. Настоящий агент — это node, запускающий сам файл.
+    .filter(({ args }) => /(^|\s|\/)node\s+\S*agent-run\.mjs(\s|$)/.test(args))
+    .map(({ pid, args }) => {
       // read-only аудитор не мешает: он ничего не пишет в дерево
       const readOnly = /--sandbox[= ]read-only/.test(args);
       const runId = args.match(/--run-id[= ]([\w.-]+)/)?.[1] ?? '';
       return { pid, runId, readOnly, args };
     });
+}
+
+function livePortAgents() {
+  try {
+    return parsePortAgents(execFileSync('pgrep', ['-af', 'agent-run.mjs'], { encoding: 'utf8' }));
+  } catch {
+    return []; // pgrep возвращает 1, когда совпадений нет
+  }
 }
 
 /**
@@ -75,46 +90,51 @@ function unlandedBranches() {
   return pending;
 }
 
-const agents = livePortAgents();
-const writers = agents.filter((a) => !a.readOnly);
-const pending = unlandedBranches();
+function main() {
+  const agents = livePortAgents();
+  const writers = agents.filter((a) => !a.readOnly);
+  const pending = unlandedBranches();
 
-if (writers.length === 0 && pending.length === 0) {
-  process.exit(0);
+  if (writers.length === 0 && pending.length === 0) {
+    process.exit(0);
+  }
+
+  const allowed = process.env[ESCAPE] === '1';
+  const lines = [
+    'ci-preflight: полный CI не запускается.',
+    '',
+    ...(writers.length
+      ? [
+          `Условие «никто не пишет» НЕ выполнено — ${writers.length} агент(ов) пишут в дерево:`,
+          ...writers.map((w) => `  pid ${w.pid}${w.runId ? ` (${w.runId})` : ''}`),
+          '',
+        ]
+      : ['Условие «никто не пишет» выполнено: живых писателей нет.', '']),
+    ...(pending.length
+      ? [
+          `Условие «сведение закончено» НЕ выполнено — ${pending.length} ветк(и) не влиты:`,
+          ...pending.map((p) => `  ${p.branch} — ${p.count} коммит(ов) сверх ветки сведения`),
+          '',
+        ]
+      : ['Условие «сведение закончено» выполнено: невлитых веток wt/* нет.', '']),
+    'Полный CI гоняется ОДИН раз, когда сведение ЗАКОНЧЕНО: все ветки влиты, писателей нет.',
+    'Правки по ходу проверяют аудитор и целевые тесты по масштабу правки — это их работа.',
+    'Норматив: AGENTS.md §9 «Full CI gate», docs/ORCHESTRATION_BINDINGS.md «Полный CI гоняется В ЭТОМ дереве».',
+    '',
+    `Если прогон нужен именно сейчас и причина названа вслух — ${ESCAPE}=1 pnpm run ci`,
+  ];
+
+  if (allowed) {
+    console.warn(
+      `ci-preflight: ПРОПУЩЕНО по ${ESCAPE}=1 — живых писателей ${writers.length}, ` +
+        `невлитых веток ${pending.length}.`,
+    );
+    process.exit(0);
+  }
+
+  console.error(lines.join('\n'));
+  process.exit(1);
 }
 
-const allowed = process.env[ESCAPE] === '1';
-const lines = [
-  'ci-preflight: полный CI не запускается.',
-  '',
-  ...(writers.length
-    ? [
-        `Условие «никто не пишет» НЕ выполнено — ${writers.length} агент(ов) пишут в дерево:`,
-        ...writers.map((w) => `  pid ${w.pid}${w.runId ? ` (${w.runId})` : ''}`),
-        '',
-      ]
-    : ['Условие «никто не пишет» выполнено: живых писателей нет.', '']),
-  ...(pending.length
-    ? [
-        `Условие «сведение закончено» НЕ выполнено — ${pending.length} ветк(и) не влиты:`,
-        ...pending.map((p) => `  ${p.branch} — ${p.count} коммит(ов) сверх ветки сведения`),
-        '',
-      ]
-    : ['Условие «сведение закончено» выполнено: невлитых веток wt/* нет.', '']),
-  'Полный CI гоняется ОДИН раз, когда сведение ЗАКОНЧЕНО: все ветки влиты, писателей нет.',
-  'Правки по ходу проверяют аудитор и целевые тесты по масштабу правки — это их работа.',
-  'Норматив: AGENTS.md §9 «Full CI gate», docs/ORCHESTRATION_BINDINGS.md «Полный CI гоняется В ЭТОМ дереве».',
-  '',
-  `Если прогон нужен именно сейчас и причина названа вслух — ${ESCAPE}=1 pnpm run ci`,
-];
-
-if (allowed) {
-  console.warn(
-    `ci-preflight: ПРОПУЩЕНО по ${ESCAPE}=1 — живых писателей ${writers.length}, ` +
-      `невлитых веток ${pending.length}.`,
-  );
-  process.exit(0);
-}
-
-console.error(lines.join('\n'));
-process.exit(1);
+// Импорт из теста не должен выполнять гейт и не должен звать process.exit.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
