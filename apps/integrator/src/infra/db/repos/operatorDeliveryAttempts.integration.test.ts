@@ -23,15 +23,18 @@ import { runIntegratorSql } from '../runIntegratorSql.js';
 const enabled =
   process.env.RUN_OPERATOR_DELIVERY_ATTEMPT_TEST === '1' &&
   process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.INTEGRATOR_DB_URL ?? process.env.DATABASE_URL ?? '').trim()) &&
-  Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
+  process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' &&
+  Boolean((process.env.INTEGRATOR_DB_URL ?? '').trim());
 
 const TEST_FIXTURE_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
 
 describe.skipIf(!enabled)(
   'createOperatorAwareDeliveryAttemptWritePort (opt-in, real Postgres)',
   () => {
-    const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
+    const harness = createRealPostgresIntegrationTestHarness(
+      'worker:outgoing-delivery-tick',
+      'port-context',
+    );
     const writtenQueueEventIds: string[] = [];
     const writtenLogEventIds: string[] = [];
 

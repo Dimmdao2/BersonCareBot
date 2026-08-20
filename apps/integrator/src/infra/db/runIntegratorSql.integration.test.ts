@@ -8,8 +8,8 @@ import { runIntegratorSql } from './runIntegratorSql.js';
 const enabled =
   process.env.RUN_INTEGRATOR_SQL_PERMISSION_TEST === '1' &&
   process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.DATABASE_URL ?? '').trim()) &&
-  Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
+  process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' &&
+  Boolean((process.env.INTEGRATOR_DB_URL ?? '').trim());
 
 function findSqlStateInErrorChain(error: unknown, expected: string): string | undefined {
   const seen = new Set<object>();
@@ -24,7 +24,10 @@ function findSqlStateInErrorChain(error: unknown, expected: string): string | un
 }
 
 describe.skipIf(!enabled)('runIntegratorSql transaction errors (opt-in, allowed TEST DbPort)', () => {
-  const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
+  const harness = createRealPostgresIntegrationTestHarness(
+    'worker:outgoing-delivery-tick',
+    'port-context',
+  );
 
   it('propagates PostgreSQL 42501 from the active Drizzle transaction without DbPort fallback', async () => {
     await harness.assertTestDatabases();

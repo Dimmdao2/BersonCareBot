@@ -6,8 +6,9 @@
  * - repeated worker crashes recycle one row forever instead of dead-lettering it;
  * - an expired "sent" queue row remains stored, or cleanup removes its durable attempt journal.
  *
- * Fixture writes and cleanup use app_staff. Reclaim/claim observations use the exact locked
- * worker source and therefore app_operational_delivery_worker (SELECT/UPDATE only).
+ * Fixture writes and cleanup use the port-context tenant-service capability. Reclaim/claim
+ * observations use the exact worker capability and therefore app_operational_delivery_worker
+ * (SELECT/UPDATE only).
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -23,13 +24,16 @@ import {
 const enabled =
   process.env.RUN_OUTGOING_DELIVERY_RECLAIM_TEST === '1' &&
   process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.DATABASE_URL ?? '').trim()) &&
-  Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
+  process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' &&
+  Boolean((process.env.INTEGRATOR_DB_URL ?? '').trim());
 
 describe.skipIf(!enabled)(
   'outgoing_delivery_queue reclaim / retention / dead-letter (opt-in, real Postgres)',
   () => {
-    const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
+    const harness = createRealPostgresIntegrationTestHarness(
+      'worker:outgoing-delivery-tick',
+      'port-context',
+    );
     const writtenQueueEventIds: string[] = [];
 
     type AttemptJournalSnapshot = {

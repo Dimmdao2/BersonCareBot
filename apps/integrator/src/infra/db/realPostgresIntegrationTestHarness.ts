@@ -11,6 +11,8 @@ export type IntegratorWorkerTestSource =
   | 'worker:job-queue-drain'
   | 'worker:outgoing-delivery-tick';
 
+export type RealPostgresPrincipalContextMode = 'locked' | 'port-context';
+
 // Организация, под которой работают фикстуры. Обязана СУЩЕСТВОВАТЬ в `be_organizations`: таблица под
 // FORCE RLS, завести временную нельзя (deploy прямо ассертит отсутствие вставляющей политики у app_staff),
 // а под несуществующей организацией построчная защита честно отдаёт ноль строк — снимок журнала выродится
@@ -42,11 +44,15 @@ function assertTestDatabaseName(name: string, principalLabel: string): void {
 
 /**
  * REAL-Postgres integration-test boundary:
- * - fixture setup/cleanup uses the existing app_staff role (the same role that owns INSERT/DELETE);
- * - the behavior under test uses the exact locked worker source, therefore the operational pool and
- *   its narrow app_operational_delivery_worker role.
+ * - fixture setup/cleanup uses the mode's real organization-principal role: app_staff in locked mode,
+ *   app_tenant_service in port-context mode;
+ * - the behavior under test uses the exact worker source and its narrow
+ *   app_operational_delivery_worker role in both modes.
  */
-export function createRealPostgresIntegrationTestHarness(runtimeSource: IntegratorWorkerTestSource) {
+export function createRealPostgresIntegrationTestHarness(
+  runtimeSource: IntegratorWorkerTestSource,
+  principalContextMode: RealPostgresPrincipalContextMode,
+) {
   function withFixtures<T>(fn: (db: DbPort) => Promise<T>): Promise<T> {
     return runWithOrganizationPrincipal(TEST_FIXTURE_ORGANIZATION_ID, () => fn(createDbPort()));
   }
@@ -56,15 +62,22 @@ export function createRealPostgresIntegrationTestHarness(runtimeSource: Integrat
   }
 
   async function assertTestDatabases(): Promise<void> {
+    if (process.env.DB_PRINCIPAL_CONTEXT_MODE !== principalContextMode) {
+      throw new Error(
+        `integration harness expected DB_PRINCIPAL_CONTEXT_MODE=${principalContextMode}, got "${process.env.DB_PRINCIPAL_CONTEXT_MODE ?? ''}"`,
+      );
+    }
     const [fixtureIdentity, runtimeIdentity] = await Promise.all([
       withFixtures(readConnectionIdentity),
       withRuntime(readConnectionIdentity),
     ]);
     assertTestDatabaseName(fixtureIdentity.databaseName, 'fixture connection');
     assertTestDatabaseName(runtimeIdentity.databaseName, `${runtimeSource} connection`);
-    if (fixtureIdentity.currentRole !== 'app_staff') {
+    const expectedFixtureRole =
+      principalContextMode === 'port-context' ? 'app_tenant_service' : 'app_staff';
+    if (fixtureIdentity.currentRole !== expectedFixtureRole) {
       throw new Error(
-        `fixture connection must run as app_staff, got "${fixtureIdentity.currentRole}"`,
+        `fixture connection must run as ${expectedFixtureRole} in ${principalContextMode} mode, got "${fixtureIdentity.currentRole}"`,
       );
     }
     if (runtimeIdentity.currentRole !== 'app_operational_delivery_worker') {
