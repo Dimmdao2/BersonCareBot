@@ -1,14 +1,7 @@
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OPAQUE_ID_SEGMENT = /^[0-9a-f]{24,}$/i;
 const PAGINATION_QUERY_KEYS = new Set([
-  'cursor',
-  'date',
-  'from',
-  'limit',
-  'offset',
-  'page',
-  'to',
-  'week',
+  'cursor', 'date', 'from', 'limit', 'offset', 'page', 'to', 'week',
 ]);
 
 function redactSegment(segment) {
@@ -50,14 +43,9 @@ export function routePatternMatches(pattern, input, baseUrl = 'http://127.0.0.1:
   const expectedSegments = expected.pathname.split('/');
   const actualSegments = actual.pathname.split('/');
   if (expectedSegments.length !== actualSegments.length) return false;
-  if (
-    !expectedSegments.every(
-      (segment, index) => segment.startsWith(':') || segment === actualSegments[index],
-    )
-  ) {
+  if (!expectedSegments.every((segment, index) => segment.startsWith(':') || segment === actualSegments[index])) {
     return false;
   }
-
   const expectedQuery = [...expected.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b));
   const actualQuery = [...actual.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b));
   if (expectedQuery.length !== actualQuery.length) return false;
@@ -78,6 +66,122 @@ export function routeContractMatches(actual, expected, allowedFinalTemplates = [
     exactUrlMatches(actual, expected) ||
     allowedFinalTemplates.some((template) => finalUrl === template)
   );
+}
+
+/** A scenario has to name the disposition of every rendered route shape. */
+export function classifyRoute(scenario, input) {
+  const template = routeTemplateKey(input);
+  const matches = (scenario.routeClassifications ?? []).filter((entry) =>
+    typeof entry.template === 'string'
+      ? routeTemplateKey(entry.template) === template
+      : entry.template.test(template),
+  );
+  if (matches.length !== 1) {
+    return {
+      template,
+      pass: false,
+      reason: matches.length === 0 ? 'route_unclassified' : 'route_classification_ambiguous',
+    };
+  }
+  const [match] = matches;
+  const selectors = match.semanticContract?.selectors ?? scenario.routeEvidence?.[template];
+  if (!Array.isArray(selectors) || selectors.length === 0) {
+    return { template, pass: false, reason: 'route_semantic_contract_missing' };
+  }
+  if (selectors.some((selector) => !isRouteScopedSemanticSelector(selector))) {
+    return { template, pass: false, reason: 'route_semantic_contract_generic' };
+  }
+  return { template, pass: true, ...match };
+}
+
+/** Explicit, route-scoped contracts prevent an app shell from becoming proof. */
+export function routeSelectors(scenario, input) {
+  const classified = classifyRoute(scenario, input);
+  return (
+    classified.semanticContract?.selectors ??
+    scenario.routeEvidence?.[classified.template] ??
+    []
+  );
+}
+
+/** Shell/form selectors are not evidence that this particular route rendered its content. */
+export function isRouteScopedSemanticSelector(selector) {
+  if (typeof selector === 'object' && selector?.kind === 'patient_messages') return true;
+  if (typeof selector === 'object' && selector?.kind === 'text') {
+    const text = selector.text?.trim();
+    return typeof text === 'string'
+      && text.length > 0
+      && !/^(?:сохранить|отмена|закрыть|назад|далее|удалить|добавить|создать)$/iu.test(text);
+  }
+  if (typeof selector === 'object' && selector?.kind === 'compound')
+    return Array.isArray(selector.all)
+      && selector.all.length >= 2
+      && selector.all.every(isRouteScopedSemanticSelector);
+  if (typeof selector !== 'string') return false;
+  const normalized = selector.trim();
+  if (!normalized || /^(?:main|form|button|input|textarea|\[role=)/.test(normalized)) return false;
+  if (/^\[data-testid=/.test(normalized)) return false;
+  // Exact IDs are accepted only through the static product-contract gate and
+  // the live uniqueness check; generic document/shell IDs remain forbidden.
+  if (/^#(?:app-root|app-shell-content|app-shell-doctor|app-shell-patient|main)$/.test(normalized)) return false;
+  return /^#[A-Za-z][\w-]*$/.test(normalized)
+    || /^\[data-[A-Za-z][\w-]*\]$/.test(normalized)
+    || /(?:\[aria-label=|article\[id\^=)/.test(normalized);
+}
+
+export function discoverBounded({ knownTemplates, hrefs, scenario, limit, baseUrl = 'http://127.0.0.1:5200' }) {
+  const discovered = [];
+  const violations = [];
+  const traversalOrigin = new URL(baseUrl).origin;
+  for (const href of hrefs) {
+    const value = new URL(href, baseUrl);
+    if (value.origin !== traversalOrigin) continue;
+    if (!scenario.allowedPathnames.some((prefix) => value.pathname.startsWith(prefix))) continue;
+    const template = routeTemplateKey(href);
+    if (knownTemplates.has(template)) continue;
+    if (discovered.length >= limit) {
+      violations.push(`discovery_cap_exceeded:${limit}`);
+      break;
+    }
+    knownTemplates.add(template);
+    discovered.push({ href, template, classification: classifyRoute(scenario, href) });
+  }
+  return { discovered, violations };
+}
+
+export function aggregateRoleArtifacts({ currentResults, artifacts, requiredRoles, expected }) {
+  const violations = [];
+  const all = [...currentResults, ...artifacts.flatMap((artifact) => artifact.results ?? [])];
+  const byRole = new Map();
+  for (const result of all) {
+    const provenance = result.audit_provenance;
+    if (!provenance) {
+      violations.push(`${result.role}:artifact_provenance_missing`);
+      continue;
+    }
+    for (const [key, value] of Object.entries(expected)) {
+      if (key === 'organization_id') continue;
+      if (value !== null && provenance[key] !== value) violations.push(`${result.role}:artifact_${key}_mismatch`);
+    }
+    if (byRole.has(result.role)) violations.push(`${result.role}:duplicate_role_artifact`);
+    byRole.set(result.role, result);
+  }
+  for (const role of requiredRoles) if (!byRole.has(role)) violations.push(`${role}:missing_role_artifact`);
+  const globalAdmin = byRole.get('global_admin')?.audit_provenance;
+  if (globalAdmin && globalAdmin.organization_id !== null) {
+    violations.push('global_admin:artifact_organization_id_mismatch');
+  }
+  const tenantRoles = ['doctor', 'patient'].filter((role) => byRole.has(role));
+  const tenantOrganizationIds = tenantRoles.map((role) => byRole.get(role).audit_provenance.organization_id);
+  const expectedOrganizationId = expected.organization_id;
+  const resolvedOrganizationId = expectedOrganizationId ?? tenantOrganizationIds.find((value) => value !== null) ?? null;
+  for (const role of tenantRoles) {
+    const organizationId = byRole.get(role).audit_provenance.organization_id;
+    if (!organizationId || organizationId !== resolvedOrganizationId) {
+      violations.push(`${role}:artifact_organization_id_mismatch`);
+    }
+  }
+  return { results: [...byRole.values()], violations, organization_id: resolvedOrganizationId };
 }
 
 /**
@@ -112,30 +216,11 @@ export function evaluatePageObservation({
   return { pass: reasons.length === 0, reasons };
 }
 
-export function shouldIgnoreRequestFailure({
-  errorText,
-  harnessNavigationActive,
-  url = '',
-  resourceType = '',
-}) {
-  if (errorText !== 'net::ERR_ABORTED') return false;
-  if (harnessNavigationActive) return true;
-  try {
-    const requestUrl = new URL(url, 'http://127.0.0.1:5200');
-    return resourceType === 'fetch' && requestUrl.searchParams.has('_rsc');
-  } catch {
-    return false;
-  }
+export function shouldIgnoreRequestFailure({ errorText, harnessNavigationActive }) {
+  return errorText === 'net::ERR_ABORTED' && harnessNavigationActive;
 }
 
-/**
- * Doctor list rows render the person's name together with the decorative status glyphs that
- * qualify it («★» = на сопровождении) inside the SAME element, so the rendered name cell reads
- * `Берсон Дмитрий★`. An exact-string text locator against the bare name therefore matches
- * nothing even while the row is on screen, and a substring locator would instead also accept a
- * different person whose name merely starts with the expected one. This pattern keeps the
- * identity exact and tolerates only trailing decoration.
- */
+/** Keep the rendered person identity exact while tolerating only status decoration. */
 const DECORATIVE_ROW_GLYPHS = '★☆•';
 
 export function listRowNamePattern(name) {
@@ -159,10 +244,78 @@ export function summarizeBinaryGate(results, requiredRoles = []) {
     for (const action of result.action_checks ?? []) {
       if (!action.pass) violations.push(`${result.role}:action:${action.id}`);
     }
+    for (const violation of result.discovery_violations ?? []) {
+      violations.push(`${result.role}:${violation}`);
+    }
+    for (const control of result.rendered_controls ?? []) {
+    if (!control.classification || control.classification === 'ambiguous')
+        violations.push(`${result.role}:control_unclassified:${control.kind}:${control.identity ?? control.id}`);
+      if (control.duplicate)
+        violations.push(`${result.role}:control_duplicate:${control.kind}:${control.identity}`);
+    }
     if ((result.failures ?? []).length > 0) violations.push(`${result.role}:network`);
     if ((result.console_errors ?? []).length > 0) violations.push(`${result.role}:console`);
     if ((result.console_warnings ?? []).length > 0)
       violations.push(`${result.role}:console_warning`);
+    if ((result.unattributed_page_events ?? []).length > 0)
+      violations.push(`${result.role}:unattributed_page_event`);
   }
   return { pass: violations.length === 0, violations };
+}
+
+/** A control disposition is valid only for its exact route template and stable DOM identity. */
+export function classifyRenderedControl(control, adapters) {
+  const matches = adapters.filter(
+    (adapter) =>
+      adapter.role === control.role &&
+      routeTemplateKey(adapter.route) === routeTemplateKey(control.route) &&
+      adapter.controlKind === control.kind &&
+      adapter.controlId === control.identity &&
+      (adapter.href === undefined || adapter.href === control.href) &&
+      (adapter.disposition !== 'external_manual_only' || (
+        typeof adapter.reason === 'string'
+        && adapter.reason.trim().length > 0
+        && (control.kind !== 'link' || adapter.href !== undefined)
+      )) &&
+      adapter.disposition,
+  );
+  if (matches.length !== 1) return matches.length ? 'ambiguous' : null;
+  return matches[0].disposition;
+}
+
+/**
+ * Request ownership is fixed when the request starts.  Console/page errors are
+ * kept only with a provable route origin; an event without one is a gate
+ * violation instead of being silently charged to the current/next page.
+ */
+export function createPageEvidenceLedger() {
+  const buckets = new Map();
+  const requestOwners = new WeakMap();
+  let active = null;
+  const unattributed = [];
+  return {
+    begin(route) {
+      active = route;
+      if (!buckets.has(route)) buckets.set(route, { failures: [], consoleErrors: [] });
+    },
+    end() {
+      active = null;
+    },
+    ownRequest(request) {
+      requestOwners.set(request, active);
+    },
+    recordRequest(request, item) {
+      const owner = requestOwners.get(request);
+      if (!owner || !buckets.has(owner)) unattributed.push(item);
+      else buckets.get(owner).failures.push(item);
+    },
+    recordConsole(item, originRoute) {
+      if (!originRoute || !buckets.has(originRoute)) unattributed.push(item);
+      else buckets.get(originRoute).consoleErrors.push(item);
+    },
+    snapshot(route) {
+      return buckets.get(route) ?? { failures: [], consoleErrors: [] };
+    },
+    unattributed,
+  };
 }
