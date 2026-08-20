@@ -12,6 +12,8 @@ import type {
 
 export type PatientPaymentsServiceDeps = {
   patientPaymentsPort: PatientPaymentsPort;
+  /** Physical mechanic door installed by the composition root for every payment write. */
+  assertWriteClearance?: (mechanic: 'payments') => void;
 };
 
 /**
@@ -30,7 +32,10 @@ export type AcquiringWebhookEvent = {
   providerPaymentId: string;
 };
 
-export function createPatientPaymentsService({ patientPaymentsPort }: PatientPaymentsServiceDeps) {
+export function createPatientPaymentsService({
+  patientPaymentsPort,
+  assertWriteClearance,
+}: PatientPaymentsServiceDeps) {
   return {
     async listPayments(patientUserId: string): Promise<PatientPayment[]> {
       return patientPaymentsPort.listPayments(patientUserId);
@@ -50,7 +55,12 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
       return { payments, totalPaidMinor };
     },
 
+    async listAppointmentPayments(appointmentId: string, patientUserId: string) {
+      return patientPaymentsPort.listAppointmentPayments(appointmentId, patientUserId);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
+      assertWriteClearance?.('payments');
       if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
         throw new Error('payment_amount_must_be_positive_integer');
       }

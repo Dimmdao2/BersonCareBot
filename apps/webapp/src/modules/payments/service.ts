@@ -725,6 +725,13 @@ export function createPaymentsService(deps: {
       const payment =
         (await resolveAppointmentPayment(appointmentId, organizationId, appointment))?.payment ??
         null;
+      const appointmentPayment =
+        payment === null
+          ? null
+          : {
+              ...payment,
+              amountMinor: await resolveAppointmentAmountMinor(organizationId, payment),
+            };
       const intent =
         (payment ? await deps.port.findIntentById(payment.paymentIntentId) : null) ??
         (await deps.port.findLatestIntentByAppointment(appointmentId));
@@ -735,7 +742,7 @@ export function createPaymentsService(deps: {
         appointmentStatus: appointment.status,
         prepaymentQuote: quote,
         intent,
-        payment,
+        payment: appointmentPayment,
         history,
       };
     },

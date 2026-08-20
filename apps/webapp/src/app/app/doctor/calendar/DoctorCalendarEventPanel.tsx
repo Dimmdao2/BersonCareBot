@@ -55,6 +55,7 @@ import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { canUseOwnSpecialistAppointmentActions } from '@/modules/doctor-schedule/scope';
+import { AppointmentPaymentSection } from './AppointmentPaymentSection';
 
 // R21: причины отмены, отправляемые как reason в API.
 const CANCEL_REASONS = [
@@ -671,6 +672,9 @@ function DoctorCalendarEventPanelInner({
           ) : null}
         </dl>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
+        {selected.platformUserId ? (
+          <AppointmentPaymentSection apiBase={apiBase} appointmentId={selected.id} />
+        ) : null}
         {selected.platformUserId ? (
           <div className="flex justify-center py-1">
             <Link
