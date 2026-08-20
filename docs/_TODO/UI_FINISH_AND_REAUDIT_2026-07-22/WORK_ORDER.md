@@ -529,21 +529,37 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       **Перепроверено ведущим своей рукой, не по отчёту:** `tsc --noEmit` EXIT=0; `vitest run` по интегратору
       EXIT=0 — 97 файлов, 489 passed; `eslint apps/integrator/src --max-warnings=0` EXIT=0. Цель этапа
       подтверждена независимо: `rg` по `apps/integrator/src` даёт **ноль писателей** в `projection_outbox`.
-      🟡 **Остаток D10 — четыре пункта, ни один не сделан:**
-      1. **Stage 2, сторона вебаппа:** маршрут `/api/integrator/events`, исключение CSRF
-         (`src/middleware/csrfOrigin.ts:3`), `modules/integrator/events.ts`,
-         `modules/integrator/ingestErrorClassification.ts`, запись в `protectedActionRegistry.ts:1275`.
-      2. **Хвосты вне `apps/integrator/src/**`** (воркер честно назвал их сам, менять молча не стал):
-         `apps/integrator/package.json`, `apps/integrator/scripts/projection-health.mjs`, deploy-скрипты
-         proxy/check и deploy-доки всё ещё держат снятую projection-health команду и эндпоинт.
-      3. **Мёртвая тестовая оснастка, воркер её не заметил, нашёл ведущий:**
-         `apps/integrator/src/infra/db/stubIntegratorDrizzleForTests.ts` теперь **ноль вызовов во всём
-         репозитории** — его пользователями были удалённые projection-тесты. Строка
-         `D20_INTEGRATOR_MAP.md:372` («ОСТАЁТСЯ … используется 3 интеграционными тестами») протухла и помечена.
-      4. **DROP `integrator.projection_outbox` миграцией** — вместе с Drizzle-декларацией таблицы
-         (`infra/db/schema/integratorQueues.ts`) и мёртвой заглушкой из п. 3. Строго последним, после 1–3.
-         Воркеры миграции не применяют.
-      ⛔ Ветка stage 1 — КОД, лежит неприземлённой: ждёт явного разрешения владельца (третья такая ветка).
+      ✅ **STAGE 2 (вебапп + хвосты) СДЕЛАН 20.08** — ветка `wt/d10-transport-stage2-20260820`, отведена от
+      вершины stage 1: `710d1d3b2` (воркер) + `6a8b91c04` (правка ведущего), отчёт
+      `D10_TRANSPORT_REMOVAL_STAGE2_2026-08-20.md`, вердикт в очереди аудита. Диff к stage 1 — 76 файлов,
+      **−2869/+410**. Снесены: потребитель вебаппа (`modules/integrator/events.ts` 874 строки,
+      `ingestErrorClassification.ts`, исключение CSRF, запись в реестре защищённых действий), весь
+      projection-слой operator-health (пороги, digest-debounce и его тик, ветка health-failure-archive), снятая
+      CLI-команда projection-health и её вызовы из пяти релиз-гейтов, deploy-доки, и мёртвая заглушка
+      `stubIntegratorDrizzleForTests.ts`. Drizzle-декларацию таблицы и миграции воркер не трогал — запрещено
+      брифом.
+      **Перепроверено ведущим своей рукой:** webapp `tsc --noEmit` EXIT=0; webapp vitest по ВСЕЙ затронутой
+      области EXIT=0, 73 файла / 296 passed; `pnpm --dir apps/webapp run lint` (со структурными гейтами) EXIT=0;
+      integrator `tsc --noEmit` EXIT=0; integrator vitest EXIT=0 / 495 passed.
+      🔴 **Ведущий поймал поломку, которую воркер не увидел из-за узкой выборки.** В
+      `platformOperatorCapabilities.unit.test.ts` воркер подменил данные мока, а `expect` оставил старым —
+      файл краснел. Отчёт при этом гласил «webapp vitest exit 0, 31 tests»: сломанный файл в его выборку НЕ
+      ПОПАЛ. Починено ведущим одной строкой. **Вывод в практику: у воркера-сноса выборка тестов обязана
+      покрывать всю область, где он правил файлы, а не только удалённые каталоги.**
+      ⚠️ **Выход за file-scope, принят по существу:** тронуты `scripts/stage{4,6,7,9,11}-release-gate.mjs`,
+      которых в скоупе не было. Оставить их было нельзя — они звали удаляемую команду `projection-health` и
+      легли бы все. Записано, чтобы расширение скоупа не выглядело нормой.
+      🟡 **Остаток D10 — два пункта:**
+      1. ⚠️ **НЕ ДОКАЗАНО кодом, нужен живой прогон:** в `deploy/host/assert-c4-operational-runtime-ready.sh`
+         вырезаны пробы по `integrator.projection_outbox`, и проба роли `app_operational_diagnostic` теперь не
+         утверждает ВООБЩЕ НИЧЕГО — остались только `SET ROLE`/`RESET ROLE`. На живых базах у этой роли гранта
+         на `projection_outbox` нет ни на DEV, ни на TEST, поэтому по коду строку не оценить. Перед
+         приземлением deploy-части нужен прогон readiness на TEST. Отдельный вопрос, который стоит задать
+         тогда же: если у `app_operational_diagnostic` не осталось ни одного утверждения, не мертва ли сама
+         роль — но это НЕ повод заводить скоуп сейчас.
+      2. **DROP `integrator.projection_outbox` миграцией** — вместе с Drizzle-декларацией таблицы
+         (`infra/db/schema/integratorQueues.ts`). Строго последним. Воркеры миграции не применяют.
+      ⛔ Ветки stage 1 и stage 2 — КОД, лежат неприземлёнными: ждут явного разрешения владельца.
 - [x] **D11 — блок дневника и ЛФК удалён из бота.** Настоящий дневник живёт в вебаппе. Решение — **Р-D11**
       (§2.3). Прогон — `docs/_TODO/runs/integrator-diary-removal/`.
 - [x] **D12b — перепись ДОСТИЖИМЫХ сценариев исполнителя.** ✅ **ЗАКРЫТО 31.07** (`43eff0ac8`),
