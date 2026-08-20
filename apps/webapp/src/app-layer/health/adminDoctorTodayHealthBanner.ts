@@ -34,11 +34,6 @@ function hasOutboundDeliveryStop(input: OperatorHealthBannerInput): boolean {
 }
 
 function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBannerInput {
-  const snap = s.projection.snapshot;
-  const deadCount = typeof snap?.deadCount === 'number' ? snap.deadCount : 0;
-  const retriesOverThreshold =
-    typeof snap?.retriesOverThreshold === 'number' ? snap.retriesOverThreshold : 0;
-
   const backupJobs: Record<string, { lastStatus: string }> = {};
   for (const [jobKey, job] of Object.entries(s.backupJobs)) {
     backupJobs[jobKey] = { lastStatus: job.lastStatus };
@@ -47,11 +42,6 @@ function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBa
   return {
     webappDb: s.webappDb,
     integratorApi: s.integratorApi.status,
-    projection: {
-      probeStatus: s.projection.status,
-      deadCount,
-      retriesOverThreshold,
-    },
     outgoingDelivery: {
       deadTotal: s.outgoingDelivery.deadTotal,
       dueBacklog: s.outgoingDelivery.dueBacklog,

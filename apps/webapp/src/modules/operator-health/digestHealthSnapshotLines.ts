@@ -1,7 +1,6 @@
 import {
   classifyCriticalHealthSignals,
   type CriticalHealthSignalsInput,
-  type ProjectionProbeStatus,
 } from './criticalHealthSignals';
 import { extractDigestDegradedLines } from './extractDigestDegradedLines';
 import type { CronJobsHealthPayload } from '@/app-layer/health/collectCronJobsHealth';
@@ -11,16 +10,6 @@ import type { VideoTranscodeHealthStatus } from './criticalHealthSignals';
 export type DigestHealthSnapshotInput = {
   webappDb: 'up' | 'down';
   integratorApi: 'ok' | 'unreachable' | 'error';
-  projection: {
-    probeStatus: ProjectionProbeStatus;
-    deadCount: number;
-    retriesOverThreshold: number;
-    oldestPendingAt?: string | null;
-  };
-  projectionDigestDebounce?: {
-    includeRetriesLine: boolean;
-    includeStalePendingLine: boolean;
-  };
   outgoingDelivery: {
     dueBacklog: number;
     deadTotal: number;
@@ -44,7 +33,6 @@ export function buildDigestHealthSnapshotLines(input: DigestHealthSnapshotInput)
   const criticalInput: CriticalHealthSignalsInput = {
     webappDb: input.webappDb,
     integratorApi: input.integratorApi,
-    projection: input.projection,
     outgoingDelivery: input.outgoingDelivery,
     outboundDeliveryProvider: input.outboundDeliveryProvider,
     integratorPushOutbox: input.integratorPushOutbox,
@@ -56,8 +44,6 @@ export function buildDigestHealthSnapshotLines(input: DigestHealthSnapshotInput)
   const criticalLines = classifyCriticalHealthSignals(criticalInput).flatMap((c) => c.lines);
   const skipOpenIncidentsLine = input.probeIncidentsOpenCount > 0;
   const degradedLines = extractDigestDegradedLines({
-    projection: input.projection,
-    projectionDigestDebounce: input.projectionDigestDebounce,
     outgoingDelivery: input.outgoingDelivery,
     integratorPushOutbox: input.integratorPushOutbox,
     videoTranscodeStatus: input.videoTranscodeStatus,

@@ -17,9 +17,6 @@ const mocks = vi.hoisted(() => ({
   heartbeat: vi.fn(async () => undefined),
 }));
 
-vi.mock('@/app-layer/health/tickProjectionDigestDebounce', () => ({
-  tickProjectionDigestDebounce: vi.fn(async () => undefined),
-}));
 vi.mock('@/app-layer/health/collectOperatorHealthDigestInput', () => ({
   collectOperatorHealthDigestInput: vi.fn(async () => ({})),
 }));

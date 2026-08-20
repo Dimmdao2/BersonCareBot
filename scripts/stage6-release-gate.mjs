@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /**
- * Stage 6 release gate: projection health + communication-domain reconciliation.
+ * Stage 6 release gate: communication-domain reconciliation.
  * Run after CI for unambiguous go/no-go. Requires:
- *   - live integrator at INTEGRATOR_API_URL (or loopback PORT/3200) for projection-health
  *   - DATABASE_URL (webapp) and INTEGRATOR_DATABASE_URL for reconcile-communication-domain
  *
  * Usage: pnpm run stage6-gate
- * Exit: 0 when both checks pass; 1 when any check fails.
+ * Exit: 0 when the check passes; 1 when it fails.
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -31,14 +30,6 @@ function run(cmd, args, cwd, name) {
 
 async function main() {
   const failed = [];
-  const projHealth = await run(
-    'pnpm',
-    ['--dir', 'apps/integrator', 'run', 'projection-health'],
-    rootDir,
-    'projection-health',
-  );
-  if (projHealth) failed.push(projHealth);
-
   const reconcile = await run(
     'pnpm',
     ['--dir', 'apps/webapp', 'run', 'reconcile-communication-domain'],
@@ -51,7 +42,7 @@ async function main() {
     console.error('[stage6-gate] failed:', failed.join(', '));
     process.exit(1);
   }
-  console.log('[stage6-gate] ok: projection health + reconciliation passed');
+  console.log('[stage6-gate] ok: reconciliation passed');
   process.exit(0);
 }
 

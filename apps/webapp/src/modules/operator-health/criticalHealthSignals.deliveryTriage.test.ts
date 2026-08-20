@@ -20,7 +20,6 @@ import type { OperatorIncidentOpenRow } from './ports';
 const healthy: CriticalHealthSignalsInput = {
   webappDb: 'up',
   integratorApi: 'ok',
-  projection: { probeStatus: 'ok', deadCount: 0, retriesOverThreshold: 0 },
   outgoingDelivery: { deadTotal: 0, deadRecent: 0, dueBacklog: 0 },
   integratorPushOutbox: {
     dueBacklog: 0,

@@ -58,18 +58,18 @@ describe('platform operator DB capabilities', () => {
     ]);
   });
 
-  it('lists a sanitized archive projection through an exact named root', async () => {
+  it('lists a sanitized archive row through an exact named root', async () => {
     fakes.runWebappNamedRoot.mockResolvedValue({
       rows: [
         {
           id: '00000000-0000-4000-8000-000000000102',
           archived_at: '2026-08-13T10:00:00.000Z',
           archived_by_user_id: ACTOR_ID,
-          health_probe: 'projection_outbox',
-          source_kind: 'projection_outbox_row',
+          health_probe: 'outgoing_delivery',
+          source_kind: 'outgoing_delivery_queue_row',
           source_id: '11',
           severity_at_archive: 'dead',
-          summary_json: { event_type: 'patient.updated' },
+          summary_json: { queue_kind: 'message.send' },
         },
       ],
     });
@@ -84,7 +84,7 @@ describe('platform operator DB capabilities', () => {
       expect.objectContaining({
         doctorUserId: null,
         rawErrorTruncated: null,
-        summaryJson: { event_type: 'patient.updated' },
+        summaryJson: { queue_kind: 'message.send' },
       }),
     );
     expect(fakes.runWebappNamedRoot.mock.calls[0]?.[1]).toBe(
