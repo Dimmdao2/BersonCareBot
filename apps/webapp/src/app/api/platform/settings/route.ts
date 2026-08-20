@@ -40,11 +40,32 @@ const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   // global-admin login never read (elevation comes from PLATFORM_OWNER_IDENTITY), so it looked like a
   // security lever and was not one.
   'platform_integration_availability',
+  'telegram_bot_token',
+  'telegram_webhook_secret',
   'booking_location_default_palette',
 ] as const satisfies readonly SystemSettingKey[];
 
 const platformKeySchema = z.enum(PLATFORM_GLOBAL_SETTINGS_API_KEYS);
 const patchSchema = z.object({ key: platformKeySchema, value: z.unknown() });
+const PLATFORM_SECRET_SETTING_KEYS = new Set<SystemSettingKey>([
+  'telegram_bot_token',
+  'telegram_webhook_secret',
+]);
+
+function isPlatformSecretSettingKey(key: SystemSettingKey): boolean {
+  return PLATFORM_SECRET_SETTING_KEYS.has(key);
+}
+
+function hasStoredSecret(valueJson: unknown): boolean {
+  if (valueJson === null || typeof valueJson !== 'object' || !('value' in valueJson)) return false;
+  const value = (valueJson as Record<string, unknown>).value;
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function projectPlatformSettingForClient(setting: SystemSetting): SystemSetting {
+  if (!isPlatformSecretSettingKey(setting.key)) return setting;
+  return { ...setting, valueJson: { value: { configured: hasStoredSecret(setting.valueJson) } } };
+}
 
 function isPlatformGlobalSetting(setting: SystemSetting): boolean {
   return (
@@ -71,6 +92,10 @@ function normalizePlatformValue(
     const availability = normalizePlatformIntegrationAvailability(normalized.value);
     return availability ? { value: availability } : null;
   }
+  if (isPlatformSecretSettingKey(key)) {
+    if (typeof normalized.value !== 'string' || normalized.value.trim().length === 0) return null;
+    return { value: normalized.value.trim() };
+  }
   return typeof normalized.value === 'boolean' ? { value: normalized.value } : null;
 }
 
@@ -81,7 +106,7 @@ export async function GET() {
   const [settings, channelPolicy, oauthProviderPolicy] = await Promise.all([
     buildAppDeps()
       .systemSettings.listSettingsByScope('admin', { organizationId: null })
-      .then((rows) => rows.filter(isPlatformGlobalSetting)),
+      .then((rows) => rows.filter(isPlatformGlobalSetting).map(projectPlatformSettingForClient)),
     getAuthChannelPolicyDetail(),
     getOAuthProviderPolicyDetail(),
   ]);
@@ -110,5 +135,5 @@ export async function PATCH(request: Request) {
     gate.session.user.userId,
     { organizationId: null },
   );
-  return NextResponse.json({ ok: true, setting });
+  return NextResponse.json({ ok: true, setting: projectPlatformSettingForClient(setting) });
 }

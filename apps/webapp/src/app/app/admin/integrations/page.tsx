@@ -2,6 +2,7 @@ import { requireAdminDoctorPage } from '@/app/app/settings/requireAdminDoctorPag
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { PlatformIntegrationAvailabilitySection } from './PlatformIntegrationAvailabilitySection';
+import { PlatformTelegramCredentialsSection } from './PlatformTelegramCredentialsSection';
 
 export default async function DoctorAdminIntegrationsPage() {
   await requireAdminDoctorPage();
@@ -10,6 +11,7 @@ export default async function DoctorAdminIntegrationsPage() {
     <DoctorAppShell title="Интеграции">
       <DoctorPageHeader title="Интеграции" />
       <PlatformIntegrationAvailabilitySection />
+      <PlatformTelegramCredentialsSection />
     </DoctorAppShell>
   );
 }
