@@ -49,6 +49,10 @@ CREATE TEMP TABLE cutover_legacy_appointment_candidates ON COMMIT DROP AS
 WITH unresolved AS (
   SELECT
     legacy.*,
+    coalesce(
+      direct.attribution_json ->> 'legacyIntegratorRecordId',
+      legacy.integrator_record_id
+    ) AS legacy_integrator_record_id,
     (
       substr(md5('legacy-appointment-record:' || legacy.id::text), 1, 8) || '-' ||
       substr(md5('legacy-appointment-record:' || legacy.id::text), 9, 4) || '-' ||
@@ -76,7 +80,13 @@ WITH unresolved AS (
   WHERE legacy.deleted_at IS NULL
     AND legacy.record_at IS NOT NULL
     AND appointment_mapping.canonical_id IS NULL
-    AND direct.id IS NULL
+    AND (
+      direct.id IS NULL
+      OR (
+        direct.attribution_json ->> 'sourceTable' = 'appointment_records'
+        AND direct.attribution_json ->> 'legacyAppointmentRecordId' = legacy.id::text
+      )
+    )
 ), classified AS (
   SELECT
     unresolved.*,
@@ -199,7 +209,7 @@ WITH inserted AS (
       'importedBy', 'prod_to_target_cutover',
       'sourceTable', 'appointment_records',
       'legacyAppointmentRecordId', candidate.id,
-      'legacyIntegratorRecordId', candidate.integrator_record_id
+      'legacyIntegratorRecordId', candidate.legacy_integrator_record_id
     ),
     candidate.created_at,
     candidate.updated_at
@@ -221,6 +231,16 @@ WHERE legacy.id = candidate.id
       AND appointment.attribution_json ->> 'legacyAppointmentRecordId' = candidate.id::text
   );
 
+-- The same provider appointment can also be present in patient_bookings. Point that projection at
+-- the carried canonical row by its exact source id before prod-to-target-cutover-start.sql considers
+-- creating a patient-booking-only appointment. This is another native FK, not a provider mapping.
+UPDATE public.patient_bookings booking
+SET canonical_appointment_id = candidate.canonical_id,
+    updated_at = greatest(booking.updated_at, statement_timestamp())
+FROM cutover_legacy_appointment_candidates candidate
+WHERE booking.rubitime_id::text = candidate.legacy_integrator_record_id
+  AND booking.canonical_appointment_id IS DISTINCT FROM candidate.canonical_id;
+
 SELECT json_build_object(
   'status', 'pass',
   'deduplicationKey', 'md5(legacy-appointment-record:<appointment_records.id>)',
@@ -235,6 +255,13 @@ SELECT json_build_object(
     SELECT count(*)
     FROM public.be_appointments appointment
     JOIN cutover_legacy_appointment_candidates candidate ON candidate.canonical_id = appointment.id
+  ),
+  'patientBookingDirectLinks', (
+    SELECT count(*)
+    FROM public.patient_bookings booking
+    JOIN cutover_legacy_appointment_candidates candidate
+      ON candidate.legacy_integrator_record_id = booking.rubitime_id::text
+    WHERE booking.canonical_appointment_id = candidate.canonical_id
   )
 ) AS legacy_appointment_carry;
 
