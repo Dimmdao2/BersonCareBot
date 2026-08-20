@@ -132,6 +132,7 @@ async function main(): Promise<void> {
         setupProviderSurface: false,
         getRuntimeConfig: async () => ({
           enabled: true,
+          mode: 'webhook',
           botToken: 'provider-free-live-probe',
           webhookSecret: telegramProbeSecret,
           sendMenuOnButtonPress: false,

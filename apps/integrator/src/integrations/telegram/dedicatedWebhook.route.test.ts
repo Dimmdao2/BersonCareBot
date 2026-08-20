@@ -4,6 +4,10 @@ import type { EventGateway } from '../../kernel/contracts/index.js';
 import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 import { registerTelegramWebhookRoutes } from './webhook.js';
 
+vi.mock('../../infra/operatorIncident/recordIntegrationWebhookOutcome.js', () => ({
+  recordIntegrationWebhookOutcome: vi.fn(),
+}));
+
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const FINGERPRINT = 'a'.repeat(64);
 const apps: Array<Awaited<ReturnType<typeof Fastify>>> = [];
@@ -56,5 +60,47 @@ describe('dedicated Telegram inbound ownership', () => {
     expect(rejected.statusCode).toBe(200);
     expect(handleIncomingEvent).toHaveBeenCalledOnce();
     expect(seenOrganizations).toEqual([ORGANIZATION_ID]);
+  });
+});
+
+describe('platform Telegram webhook authentication', () => {
+  it('rejects missing and mismatched secret headers with the established response', async () => {
+    const handleIncomingEvent = vi.fn(async () => ({ status: 'accepted' as const }));
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerTelegramWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
+      getRuntimeConfig: async () => ({
+        enabled: true,
+        mode: 'webhook',
+        botToken: 'bot-token',
+        webhookSecret: 'expected-secret',
+        sendMenuOnButtonPress: false,
+      }),
+    });
+
+    const payload = {
+      update_id: 1,
+      message: {
+        message_id: 1,
+        text: 'help',
+        from: { id: 42 },
+        chat: { id: 42 },
+      },
+    };
+    const missing = await app.inject({ method: 'POST', url: '/webhook/telegram', payload });
+    const mismatched = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      headers: { 'x-telegram-bot-api-secret-token': 'wrong-secret' },
+      payload,
+    });
+
+    expect(missing.statusCode).toBe(200);
+    expect(missing.json()).toEqual({ ok: false, error: 'Forbidden' });
+    expect(mismatched.statusCode).toBe(200);
+    expect(mismatched.json()).toEqual({ ok: false, error: 'Forbidden' });
+    expect(handleIncomingEvent).not.toHaveBeenCalled();
   });
 });
