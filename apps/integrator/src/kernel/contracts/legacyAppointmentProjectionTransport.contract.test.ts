@@ -19,7 +19,17 @@ type LegacyEventOccurrence = {
 };
 
 async function listRuntimeTypeScriptFiles(root: string): Promise<string[]> {
-  const entries = await readdir(root, { withFileTypes: true });
+  // Снесённая поверхность — это САМАЯ сильная форма прохождения теста: события там нет, потому что там
+  // больше нет кода. Так ушёл ingress `/api/integrator/events` вместе с транспортом проекции (D10). Сторож
+  // при этом остаётся взведённым: если каталог когда-нибудь вернётся, он снова попадёт под скан, а не
+  // будет молча вычеркнут из списка поверхностей.
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
   const nested = await Promise.all(
     entries.map(async (entry): Promise<string[]> => {
       const entryPath = path.join(root, entry.name);
