@@ -22,51 +22,6 @@ export async function resolvePlatformUserIdForChannel(
   return typeof id === 'string' && id.trim().length > 0 ? id.trim() : null;
 }
 
-export async function mirrorPatientUserMessageToWebapp(
-  deps: ExecutorDeps,
-  input: {
-    platformUserId: string;
-    integratorMessageId: string;
-    text: string;
-    source: string;
-    createdAt: string;
-    externalChatId?: string | null;
-    externalMessageId?: string | null;
-  },
-): Promise<{
-  mirrored: boolean;
-  canonicalWrite?: { conversationId: string; organizationId: string };
-}> {
-  const sync = deps.webappEventsPort?.syncSupportUserMessage;
-  if (!sync) return { mirrored: false };
-  const body = JSON.stringify({
-    platformUserId: input.platformUserId,
-    integratorMessageId: input.integratorMessageId,
-    text: input.text,
-    source:
-      input.source === 'max' ? 'max' : input.source === 'telegram' ? 'telegram' : input.source,
-    createdAt: input.createdAt,
-    ...(input.externalChatId !== undefined ? { externalChatId: input.externalChatId } : {}),
-    ...(input.externalMessageId !== undefined ? { externalMessageId: input.externalMessageId } : {}),
-  });
-  const result = await sync({
-    body,
-    idempotencyKey: `support-sync:${input.integratorMessageId}`,
-  });
-  if (!result.ok) {
-    console.warn(
-      '[support] mirror user message to webapp failed',
-      result.status,
-      result.error ?? 'unknown',
-    );
-    return { mirrored: false };
-  }
-  return {
-    mirrored: true,
-    ...(result.canonicalWrite ? { canonicalWrite: result.canonicalWrite } : {}),
-  };
-}
-
 export async function setWebappSupportStatus(
   deps: ExecutorDeps,
   input: {
