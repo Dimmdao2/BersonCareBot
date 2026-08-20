@@ -9,9 +9,15 @@
  * Второй, более важный отказ: прогон измеряет ОДНО состояние репозитория. Если голова сдвинулась,
  * пока шли шаги, измеренного состояния больше нет — ни зелёный результат, ни красный ничего не
  * доказывают. Такой прогон завершается ненулевым кодом, как бы ни закончились сами шаги.
+ *
+ * Третье: ловить сдвиг постфактум — это терять час прогона. Поэтому на время шагов ветка сведения
+ * ЗАМОРАЖИВАЕТСЯ: здесь ставится маркер `.git/bcb-feat-freeze`, а hook `tools/git-hooks/reference-transaction`
+ * по его наличию отказывает в ЛЮБОМ обновлении feat — включая land с ORCH_LAND=1 и обычный commit.
+ * Маркер снимается в finally, в том числе при падении и по SIGINT/SIGTERM: замороженная навсегда
+ * ветка была бы хуже испорченного прогона. Владелец 20.08: «можно на время прогона закрыть его совсем».
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,8 +29,32 @@ function head() {
   return shown.stdout.trim();
 }
 
+const freezeMarker = resolve(repoRoot, '.git/bcb-feat-freeze');
+
+function freeze(sha) {
+  writeFileSync(freezeMarker, `полный CI измеряет ${sha} (pid ${process.pid})\n`);
+}
+
+function thaw() {
+  rmSync(freezeMarker, { force: true });
+}
+
 const startedAt = head();
-const steps = spawnSync('pnpm', ['run', 'ci:steps'], { cwd: repoRoot, stdio: 'inherit' });
+freeze(startedAt);
+// Обрыв прогона не должен оставлять ветку запертой: снимаем маркер и на сигналах тоже.
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => {
+    thaw();
+    process.exit(1);
+  });
+}
+
+let steps;
+try {
+  steps = spawnSync('pnpm', ['run', 'ci:steps'], { cwd: repoRoot, stdio: 'inherit' });
+} finally {
+  thaw();
+}
 const finishedAt = head();
 const moved = startedAt !== finishedAt;
 const stepsExit = steps.status === null ? 1 : steps.status;

@@ -6,14 +6,46 @@
 # `git merge wt/…` его просто обходит, причём fast-forward не оставляет даже мерж-коммита, по
 # которому обход было бы видно. 20.08 так в feat приехали три коммита без единой строки в очереди.
 #
+#
+# ЗАМОРОЗКА НА ВРЕМЯ ПОЛНОГО CI (владелец, 20.08: «можно на время прогона закрыть его совсем»).
+# Пока существует файл-маркер <repo>/.git/bcb-feat-freeze, ЛЮБОЕ обновление защищённой ветки
+# отказывает — включая land с ORCH_LAND=1 и обычный `git commit` ведущего. Причина: полный CI
+# измеряет ОДНО состояние дерева; сдвиг головы в середине убивает прогон независимо от того, кто
+# и насколько безобидно её двинул. 20.08 так умер прогон 55ebbddea: голова уехала на чужой
+# docs-коммит, `movedDuringRun: true`, результат выброшен. Маркер ставит и снимает сам
+# scripts/ci-record.mjs, поэтому заморозка не зависит от того, вспомнил ли о ней человек.
+# Снять вручную: rm <repo>/.git/bcb-feat-freeze
+#
 # Как: git выставляет GIT_REFLOG_ACTION="merge …"/"pull …" на время слияния, и hook его наследует.
 # Обычный `git commit` ведущего (action "commit") не трогается — он и не должен.
 set -euo pipefail
 [ "${1:-}" = prepared ] || exit 0
-[ "${ORCH_LAND:-}" != 1 ] || exit 0
 
 PROTECTED=refs/heads/feat/doctor-ui-rebuild
 action=${GIT_REFLOG_ACTION:-}
+
+# Каталог репозитория берём от САМОГО хука, а не из GIT_DIR: хук общий для всех worktree-клонов
+# (у них общий core.hooksPath), и маркер обязан быть один на всех.
+REPO=$(cd "$(dirname "$0")/../.." && pwd)
+FREEZE="$REPO/.git/bcb-feat-freeze"
+
+# Заморозка сильнее ORCH_LAND: во время прогона не двигает голову НИКТО, включая порт.
+if [ -e "$FREEZE" ]; then
+  while read -r _old _new ref; do
+    [ "$ref" = "$PROTECTED" ] || continue
+    cat >&2 <<MSG
+ОТКАЗ: ${PROTECTED#refs/heads/} заморожена на время полного CI ($action).
+  Причина: $(cat "$FREEZE" 2>/dev/null | head -1)
+  Полный CI измеряет ОДНО состояние дерева; сдвиг головы в середине обнуляет прогон
+  (ci-record: movedDuringRun). Дождитесь конца прогона.
+  Заморозку снимает сам scripts/ci-record.mjs; аварийно — rm $FREEZE
+MSG
+    exit 1
+  done
+  exit 0
+fi
+
+[ "${ORCH_LAND:-}" != 1 ] || exit 0
 case "$action" in merge*|pull*) ;; *) exit 0 ;; esac
 
 while read -r _old _new ref; do

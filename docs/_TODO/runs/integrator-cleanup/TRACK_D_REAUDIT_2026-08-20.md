@@ -88,7 +88,31 @@ Rule 5.1.4 (direct `public.*` writes under an explicit org principal, underlying
 
 ## NOT DONE
 
-- No code changed. No migration, no privilege-declaration edit, no product fix.
-- D26's underlying code (`messengerPhonePublicBind.ts`) was NOT touched — still owner-deferred per 04.08, only the
-  plan's quoted rule text was corrected to match the owner's 20.08 refinement.
+- No code changed by this pass itself. No migration, no privilege-declaration edit, no product fix by the lead.
 - This pass did not re-verify D21–D24 (closed) or the full D15b/1-6 sub-chain beyond what's cited above.
+
+## 4. Independent adversarial audit of this document (20.08, same day)
+
+A separate independent pass re-checked every claim above against primary sources, not the lead's report. Items
+1–5 above: **CONFIRMED**, no discrepancy found. Two real errors found, both now corrected in this document and in
+`WORK_ORDER.md`:
+
+- **D25 gap understated.** The claim "D25 is down to one owed live check" ignored that sub-item D15b/6 was
+  reopened by the owner on 14.08 ("previous checkmark was false") and is still genuinely open: production code
+  still rebuilds contact data from legacy columns instead of `user_contacts` being the source of truth, full
+  cutover is owner-deferred. Corrected: D25's remaining gap is D15b/6 (real, open), not just a live-check formality.
+- **D26 claim was flatly wrong, not just stale.** This document originally said "D26's underlying code was NOT
+  touched — still owner-deferred." In fact a **parallel workstream** (`wt/d26-support-merge-20260820`, a different
+  lead session, commits `cb336e4fc`→`bdc1f11c8` audit→`39a8d0d41`→`e6f605883`→`19501de2f`, all today between 12:57
+  and 15:21 — hours before this document was first written at ~19:13) had already started D26: a blind audit found
+  two defects, the owner adjudicated one as a non-issue with a scheme clarification, the automatic-merge gate was
+  landed and tuned to the owner's final §5.2b rule (block only on both-sides medical-data conflict), and merge
+  logging was added. This lead was not aware of that parallel session's work when writing the original claim — a
+  coordination gap, not a documentation-lag issue. The one finding still genuinely open is audit finding 2:
+  the support-tool reverse transfer doesn't move `clinical_visit` and related clinical/anamnesis/discussion tables
+  yet. `WORK_ORDER.md`'s D26 bullet corrected to reflect actual in-progress status; checkbox stays `[ ]` until
+  finding 2 closes.
+
+**Lesson applied:** before describing any Track D item as "untouched", check `git log` on the actual implementing
+files and `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md` for same-day entries, not only the plan checklist's own checkbox
+state — the checkbox can legitimately lag real in-flight work from a parallel session.
